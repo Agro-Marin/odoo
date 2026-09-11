@@ -163,6 +163,7 @@ so category names are unique per company, archived rows included.
 | `automation_id` | Many2one(`automation.rule`) | Yes | No | |
 | `step_ids` | One2many(`approval.category.step`) | — | No | Declaring steps switches the category to step mode. Without steps, the flat `approver_ids` and `approval_minimum` apply exactly as before |
 | `notify_sequentially` | Boolean | Yes | No | Step mode only. Every step may be decided at any time, but an approver is only asked — given an activity — once every earlier step is met. It orders the asking, not the deciding |
+| `activity_target` | Selection | Yes | No | string="Ask Approvers On", default `request`. `document` asks each approver on the request's source document, when it has one that holds activities; the activity still decides the request when done (it carries `approver_id`) |
 
 ### Key Methods
 
@@ -471,6 +472,7 @@ resolved by `_get_escalation_rules()`:
 | `action_refuse()` | Opens decision wizard (or direct refuse with skip_wizard context) |
 | `_get_effective_approver()` | Returns delegate if delegation window active, else user_id |
 | `_create_activity()` | Schedule mail activity for approver to-do, assigned to the **effective approver** (delegate when active); idempotent per effective-user+request |
+| `_get_activity_target()` / `_get_activity_type()` | Where the row's approver is asked -- the request, or its source document when the category's `activity_target` is `document` and the document holds activities -- and with which type: the first of the row's steps that names one, else the approval activity. `_create_activity`, escalation reminders and the delegation wizard all use both |
 | `_check_access_create/write/unlink()` | Access control layer. Write is field-scoped for non-managers: delegation fields by the original `user_id` only; decision-note fields (`refusal_reason_id`, `note`) by the effective approver; `state`/`sequence`/`required`/`request_id` are workflow-managed (manager/sudo only) |
 | `_check_business_rules_create/unlink()` | Business rules layer: DRAFT only since 19.0.1.0.13 (relaxed only by `env.su` + `approver_ids_computation` sync context) — rows on decided requests are state-transition vehicles and are re-cycled via reset-to-draft |
 | `_check_delegation_dates` (constraint) | Delegation requires both dates, end >= start |
@@ -847,6 +849,7 @@ does not is left as it was.
 | `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
 | `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
+| `activity_type_id` | Many2one(`mail.activity.type`) | Yes | No | The activity this step's asked approvers get; empty uses `approval.mail_activity_data_approval` |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
 | `_get_member_user_ids(document)` / `_get_pool_user_ids(document)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Every caller passes the request's source document, or the gated record on the approval button |
 | `_unlink_except_step_holding_decisions()` | A step some approver row decided under cannot be deleted; archive it |

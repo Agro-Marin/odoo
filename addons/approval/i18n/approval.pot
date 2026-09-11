@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 02:55+0000\n"
-"PO-Revision-Date: 2026-09-11 02:55+0000\n"
+"POT-Creation-Date: 2026-09-11 03:03+0000\n"
+"PO-Revision-Date: 2026-09-11 03:03+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -757,6 +757,7 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model,name:approval.model_mail_activity_type
+#: model:ir.model.fields,field_description:approval.field_approval_category_step__activity_type_id
 msgid "Activity Type"
 msgstr ""
 
@@ -1062,6 +1063,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__request_id
 #: model:ir.model.fields,field_description:approval.field_mail_activity__approval_request_id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_request_id
+#: model:ir.model.fields.selection,name:approval.selection__approval_category__activity_target__request
 msgid "Approval Request"
 msgstr ""
 
@@ -1484,6 +1486,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_template_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_template_search
 msgid "Archived"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_category__activity_target
+msgid "Ask Approvers On"
 msgstr ""
 
 #. module: approval
@@ -5314,6 +5321,11 @@ msgid "Snapshot of category configuration at confirmation time"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields.selection,name:approval.selection__approval_category__activity_target__document
+msgid "Source Document"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_rule__subject_domain
 msgid "Source Domain"
 msgstr ""
@@ -5604,6 +5616,13 @@ msgid ""
 "The '%(field)s' field is not available on category '%(category)s', so the requester would have nothing to change.\n"
 "\n"
 "Ask for a change on: %(allowed)s — or refuse the request instead."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category_step__activity_type_id
+msgid ""
+"The activity this step's approvers are asked with. Empty uses the approval "
+"activity."
 msgstr ""
 
 #. module: approval
@@ -6349,6 +6368,14 @@ msgid ""
 "reliably name whoever sits last in the chain. Cleared when the row returns "
 "to 'new' (reset-to-draft) and re-stamped on every re-entry, so a withdraw-"
 "and-reopen cycle times the new decision window, not the original one."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_category__activity_target
+msgid ""
+"Where an approver's activity is created. Source Document asks on the record "
+"being approved, when the request has one that can hold activities; the "
+"activity still decides the request when done."
 msgstr ""
 
 #. module: approval

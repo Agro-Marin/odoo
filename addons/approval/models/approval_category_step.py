@@ -79,6 +79,12 @@ class ApprovalCategoryStep(models.Model):
         "requests whose source document matches; empty means every request.",
     )
 
+    activity_type_id = fields.Many2one(
+        comodel_name="mail.activity.type",
+        string="Activity Type",
+        help="The activity this step's approvers are asked with. Empty uses the "
+        "approval activity.",
+    )
     subject_user_path = fields.Char(
         string="Approvers From",
         help="Field path on the source document naming users who approve this step, "

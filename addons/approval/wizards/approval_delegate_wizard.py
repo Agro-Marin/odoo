@@ -232,20 +232,13 @@ class ApprovalDelegateWizard(models.TransientModel):
             request = approver.request_id
             previous_effective = previous_effective_by_id.get(approver.id)
             if previous_effective and previous_effective != self.delegate_id:
-                request.activity_ids.filtered(
-                    lambda a, u=previous_effective, t=approval_type: (
-                        a.user_id == u and a.activity_type_id == t
-                    ),
+                request._get_approval_activities(
+                    user=previous_effective
                 ).action_feedback()
-            existing = request.activity_ids.filtered(
-                lambda a, u=self.delegate_id, t=approval_type: (
-                    a.user_id == u and a.activity_type_id == t
-                ),
-            )
-            if existing:
+            if request._get_approval_activities(user=self.delegate_id):
                 continue
-            request.activity_schedule(
-                "approval.mail_activity_data_approval",
+            approver._get_activity_target().activity_schedule(
+                activity_type_id=(approver._get_activity_type() or approval_type).id,
                 user_id=self.delegate_id.id,
                 approver_id=approver.id,
                 summary=self.env._("Delegated Approval: %s", request.name),

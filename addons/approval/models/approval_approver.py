@@ -360,14 +360,12 @@ class ApprovalApprover(models.Model):
         self = self._get_notifiable()
         if not self:
             return
-        activity_type = self.env.ref("approval.mail_activity_data_approval")
-        model_id = self.env["ir.model"]._get("approval.request").id
+        default_type = self.env.ref("approval.mail_activity_data_approval")
         date_deadline = fields.Date.context_today(self)
 
         taken = {
-            (activity.res_id, activity.user_id.id)
-            for activity in self.request_id.activity_ids
-            if activity.activity_type_id == activity_type
+            (activity.approver_id.request_id.id, activity.user_id.id)
+            for activity in self.request_id._get_approval_activities()
         }
         create_vals_list = []
         for approver in self:
@@ -375,6 +373,8 @@ class ApprovalApprover(models.Model):
             if key in taken:
                 continue
             taken.add(key)
+            target = approver._get_activity_target()
+            activity_type = approver._get_activity_type() or default_type
             create_vals_list.append(
                 {
                     "activity_type_id": activity_type.id,
@@ -382,14 +382,33 @@ class ApprovalApprover(models.Model):
                     "automated": True,
                     "note": activity_type.default_note,
                     "date_deadline": date_deadline,
-                    "res_model_id": model_id,
-                    "res_id": key[0],
+                    "res_model_id": self.env["ir.model"]._get_id(target._name),
+                    "res_id": target.id,
                     "user_id": key[1],
                     "approver_id": approver.id,
                 },
             )
         if create_vals_list:
             self.env["mail.activity"].create(create_vals_list)
+
+    def _get_activity_target(self):
+        """The record this row's approver is asked on: the request, or its document."""
+        self.check_singleton()
+        request = self.request_id
+        if request.category_id.activity_target == "document":
+            document = request.get_source_document()
+            if document and document.exists() and "activity_ids" in document._fields:
+                return document
+        return request
+
+    def _get_activity_type(self):
+        """The activity type of the first of this row's steps that names one."""
+        self.check_singleton()
+        return (
+            self.step_ids.sorted(lambda step: (step.sequence, step.id))
+            .filtered("activity_type_id")[:1]
+            .activity_type_id
+        )
 
     def _get_notifiable(self):
         """The rows whose approver should be asked now.

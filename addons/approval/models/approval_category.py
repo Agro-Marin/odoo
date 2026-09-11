@@ -283,6 +283,17 @@ class ApprovalCategory(models.Model):
         "but its approvers are only asked -- given an activity -- once every earlier "
         "step is met. It orders the asking, not the deciding.",
     )
+    activity_target = fields.Selection(
+        selection=[
+            ("request", "Approval Request"),
+            ("document", "Source Document"),
+        ],
+        string="Ask Approvers On",
+        default="request",
+        help="Where an approver's activity is created. Source Document asks on the "
+        "record being approved, when the request has one that can hold activities; "
+        "the activity still decides the request when done.",
+    )
     rule_count = fields.Integer(
         compute="_compute_rule_count",
         help="Number of active conditional rules",

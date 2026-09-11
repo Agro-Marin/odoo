@@ -89,6 +89,7 @@ dashboards.
 | `common.py` | `ApprovalCommon` base class (shared users/category/request fixtures) + product helpers |
 | `test_activity_done.py` | An approval activity marked done: by its approver it approves, by anyone else or the system it only dismisses, and an approval that cannot be recorded leaves it open |
 | `test_activity_link.py` | An approval activity stores its approver row: engine activities store it, an activity on the document approves when done and goes with its request, and a delegator's old activity decides nothing |
+| `test_activity_target.py` | Where approvers are asked: a document-target category asks on the document, the default on the request, a request without a document on itself; a document activity approves when done and goes with a cancel; a step chooses the activity type; asking again and reminders do not duplicate |
 | `test_approvals.py` | Core approval lifecycle, state transitions (`TestRequest`) |
 | `test_approver_computation.py` | _sync_approvers, category changes, band matching |
 | `test_sequential_approval.py` | Sequential workflow, ordering, locking |
@@ -223,7 +224,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 21 script directories (1.0.1 .. 1.8)
-+-- tests/                            # 42 test modules + common.py
++-- tests/                            # 43 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -236,7 +237,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 42 (+ `common.py`) |
+| Python test files | 43 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |

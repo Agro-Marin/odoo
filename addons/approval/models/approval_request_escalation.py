@@ -337,7 +337,6 @@ class ApprovalRequestEscalation(models.Model):
 
     @api.model
     def _reconcile_delegation_activities(self) -> None:
-        activity_type = self.env.ref("approval.mail_activity_data_approval")
         pending_approvers = self.env["approval.approver"].search(
             [
                 ("state", "=", "pending"),
@@ -350,16 +349,11 @@ class ApprovalRequestEscalation(models.Model):
         for approver in pending_approvers:
             request = approver.request_id
             effective = approver._get_effective_approver()
-            correct = request.activity_ids.filtered(
-                lambda a, u=effective, t=activity_type: (
-                    a.user_id == u and a.activity_type_id == t
-                ),
-            )
-            stale = request.activity_ids.filtered(
-                lambda a, u=effective, t=activity_type, ap=approver: (
-                    a.activity_type_id == t
-                    and a.user_id != u
-                    and a.user_id in (ap.user_id | ap.delegate_id)
+            asked = request._get_approval_activities()
+            correct = asked.filtered(lambda a, u=effective: a.user_id == u)
+            stale = asked.filtered(
+                lambda a, u=effective, ap=approver: (
+                    a.user_id != u and a.user_id in (ap.user_id | ap.delegate_id)
                 ),
             )
             if not stale:
@@ -646,11 +640,7 @@ class ApprovalRequestEscalation(models.Model):
             if not effective_user.active:
                 continue
 
-            existing_activity = self.activity_ids.filtered(
-                lambda a, user=effective_user, atype=activity_type: (
-                    a.user_id == user and a.activity_type_id == atype
-                ),
-            )
+            existing_activity = self._get_approval_activities(user=effective_user)
 
             reminder_note = self.env._(
                 "<p><strong>Priority:</strong> %(priority)s</p>"
@@ -672,8 +662,10 @@ class ApprovalRequestEscalation(models.Model):
                     },
                 )
             else:
-                self.activity_schedule(
-                    "approval.mail_activity_data_approval",
+                approver._get_activity_target().activity_schedule(
+                    activity_type_id=(
+                        approver._get_activity_type() or activity_type
+                    ).id,
                     user_id=effective_user.id,
                     approver_id=approver.id,
                     summary=self.env._("Approval Reminder: %(name)s", name=self.name),

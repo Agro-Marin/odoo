@@ -1,6 +1,7 @@
 from . import (
     test_activity_done,
     test_activity_link,
+    test_activity_target,
     test_analytics_accuracy,
     test_approvals,
     test_approver_computation,
