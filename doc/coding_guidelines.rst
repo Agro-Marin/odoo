@@ -958,6 +958,10 @@ is not; widening the shared name test would have moved twenty of ``stock``'s
 hard-zero names through a file this rule does not own. *Frozen reading* (§1.4)
 at the commit that landed it: **158** in ``addons/``, **78** in ``enterprise``,
 **8** in ``agromarin``, **0** in ``design-themes``, and **0** left in ``base``.
+Drained by ``42db56e84ac3`` -- 213 names under one substitution and thirteen
+read by hand -- so ``addons/`` reads **0** again and the ``naming`` floor is a
+contract; the batch also found that ``hr_salary_rule``'s Python columns are
+stored code no vocabulary migration had rewritten (§2.4.14).
 
 * **Two honest exceptions share one test.** A hostname (``website``'s
   ``_get_http_domain -> str``) and a record of a model whose own noun is
@@ -1257,15 +1261,15 @@ Section  Population                                                  Count
 §2.4.3   Non-test methods declared on a model class                 27,049
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
-§2.4.4   Model methods with an abolished verb behind a noun            171
+§2.4.4   Model methods with an abolished verb behind a noun            169
 §2.4.4   Canonical verb behind a first token carrying no rule          675
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
-§2.4.4   ``fields`` family: definitions spelled head-first             222
-§2.4.4   ``fields`` family: distinct names spelled head-first          100
+§2.4.4   ``fields`` family: definitions spelled head-first             221
+§2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   151
-§2.4.4   Other heads: definitions spelled tail-first                   192
+§2.4.4   Other heads: definitions spelled head-first                   148
+§2.4.4   Other heads: definitions spelled tail-first                   195
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
 §2.4.7   ``_get_*`` definitions                                      6,423
@@ -2113,7 +2117,7 @@ running the other way.
 
 **``_get_`` is not a default.** It is 23.7 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 692
+deriving and computing. The split that matters is against ``_prepare_``: 693
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
 are spelled ``get_*``, against 900 already spelled ``_prepare_*``.
@@ -3983,6 +3987,21 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
   its author had run ``ls -d */`` beforehand and seen every root. **Prefer the
   check that does not depend on reading the output at all**: assert the roots
   exist, then search.
+
+**A salary rule is stored Python, and no vocabulary migration had rewritten
+it** ``[review]``. ``hr_salary_rule.amount_python_compute`` and
+``condition_python`` hold code loaded from data files -- often ``noupdate`` --
+and agromarin's payslip rules call ``version._get_work_hours_domain(...)`` from
+there. Every method-vocabulary migration since base 1.29 rewrote
+``ir_act_server.code``, ``ir_actions_server_history.code`` and
+``ir_model_fields.compute`` and nothing else, so a rename reaching a name a
+rule calls would have raised at the next payslip computation on any database
+whose rules had been loaded ``noupdate``. base 1.47 adds the two columns to its
+``_STORED_PYTHON`` and the next migration copies that tuple, not 1.29's. The
+general rule: **grep the data files of the four repositories for the old name
+before writing the migration, and let every ``<field name="code">``-shaped hit
+name a column** -- that is how this one was found, by the substitution
+reaching two XML files nobody expected.
 
 **A ``default_<field>`` on ``res.config.settings`` is a binding of a FIELD name,
 and nothing in the workspace greps it** ``[review]``. ``set_values`` strips its
