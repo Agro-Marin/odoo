@@ -18,7 +18,7 @@ from odoo.tools import (
 
 _logger = logging.getLogger(__name__)
 
-EXPENSE_APPROVAL_STATE = [
+EXPENSE_REVIEW_STATE = [
     ("submitted", "Submitted"),
     ("approved", "Approved"),
     ("refused", "Refused"),
@@ -146,8 +146,11 @@ class HrExpense(models.Model):
         default="draft",
         tracking=True,
     )
-    approval_state = fields.Selection(
-        selection=EXPENSE_APPROVAL_STATE, copy=False, readonly=True
+    review_state = fields.Selection(
+        selection=EXPENSE_REVIEW_STATE,
+        string="Review Status",
+        copy=False,
+        readonly=True,
     )
     approval_date = fields.Datetime(string="Approval Date", readonly=True)
     duplicate_expense_ids = fields.Many2many(
@@ -329,7 +332,7 @@ class HrExpense(models.Model):
 
     former_sheet_id = fields.Integer(string="Former Report")
 
-    @api.constrains("state", "approval_state", "total_amount", "total_amount_currency")
+    @api.constrains("state", "review_state", "total_amount", "total_amount_currency")
     def _check_non_zero(self):
         for expense in self:
             total_amount_is_zero = expense.company_currency_id.is_zero(
@@ -338,7 +341,7 @@ class HrExpense(models.Model):
             total_amount_currency_is_zero = expense.currency_id.is_zero(
                 expense.total_amount_currency
             )
-            if (expense.state != "draft" or expense.approval_state) and (
+            if (expense.state != "draft" or expense.review_state) and (
                 total_amount_is_zero or total_amount_currency_is_zero
             ):
                 raise ValidationError(_("Only draft expenses can have a total of 0."))
@@ -518,7 +521,7 @@ class HrExpense(models.Model):
         "amount_residual",
         "account_move_id.state",
         "account_move_id.payment_state",
-        "approval_state",
+        "review_state",
     )
     def _compute_state(self):
         for expense in self:
@@ -541,7 +544,7 @@ class HrExpense(models.Model):
                 else:
                     expense.state = "paid"
                 continue
-            expense.state = expense.approval_state or "draft"
+            expense.state = expense.review_state or "draft"
 
     @api.depends("employee_id", "employee_id.department_id")
     def _compute_from_employee_id(self):
@@ -960,9 +963,9 @@ class HrExpense(models.Model):
 
         res = super().write(vals)
 
-        if vals.get("state") == "approved" or vals.get("approval_state") == "approved":
+        if vals.get("state") == "approved" or vals.get("review_state") == "approved":
             self._check_can_approve()
-        elif vals.get("state") == "refused" or vals.get("approval_state") == "refused":
+        elif vals.get("state") == "refused" or vals.get("review_state") == "refused":
             self._check_can_refuse()
 
         if "currency_id" in vals:
@@ -1325,7 +1328,7 @@ class HrExpense(models.Model):
         expenses_autovalidated = self.filtered(
             lambda expense: expense._can_be_autovalidated()
         )
-        (self - expenses_autovalidated).approval_state = "submitted"
+        (self - expenses_autovalidated).review_state = "submitted"
         if expenses_autovalidated:
             expenses_autovalidated._do_approve(check=False)
         self.sudo().update_activities_and_mails()
@@ -1704,7 +1707,7 @@ class HrExpense(models.Model):
         for expense in expenses_to_approve:
             expense.write(
                 {
-                    "approval_state": "approved",
+                    "review_state": "approved",
                     "manager_id": self.env.user.id,
                     "approval_date": fields.Datetime().now(),
                 }
@@ -1713,7 +1716,7 @@ class HrExpense(models.Model):
 
     def _do_reset_approval(self):
         self.sudo().write(
-            {"approval_state": False, "approval_date": False, "account_move_id": False}
+            {"review_state": False, "approval_date": False, "account_move_id": False}
         )
         self.update_activities_and_mails()
 
@@ -1729,7 +1732,7 @@ class HrExpense(models.Model):
         if draft_moves_sudo:
             draft_moves_sudo.unlink()
 
-        self.approval_state = "refused"
+        self.review_state = "refused"
         subtype_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment")
         for expense in self:
             expense.message_post_with_source(
@@ -1763,7 +1766,7 @@ class HrExpense(models.Model):
                 "company_id": self.company_id.id,
                 "analytic_distribution": self.analytic_distribution,
                 "employee_id": self.employee_id.id,
-                "approval_state": self.approval_state,
+                "review_state": self.review_state,
                 "approval_date": self.approval_date,
                 "manager_id": self.manager_id.id,
                 "expense_id": self.id,

@@ -47,7 +47,7 @@
             <field name="total_amount_currency" eval="289.0" />
             <field name="date" eval="time.strftime('%Y')+'-04-03'" />
             <field name="payment_mode">company_account</field>
-            <field name="approval_state">submitted</field>
+            <field name="review_state">submitted</field>
         </record>
         <record id="laptop_expense" model="hr.expense">
             <field name="name">Laptop</field>
@@ -65,7 +65,7 @@
             <field name="product_id" ref="expense_product_mileage" />
             <field name="product_uom_id" ref="uom.product_uom_km" />
             <field name="quantity" eval="108.84" />
-            <field name="approval_state">submitted</field>
+            <field name="review_state">submitted</field>
         </record>
         <record id="breakfast_admin_expense" model="hr.expense">
             <field name="name">BreakFast</field>
@@ -83,7 +83,7 @@
             <field name="total_amount_currency" eval="700.0" />
             <field name="product_uom_id" ref="uom.product_uom_unit" />
             <field name="date" eval="time.strftime('%Y-%m')+'-12'" />
-            <field name="approval_state">submitted</field>
+            <field name="review_state">submitted</field>
             <field name="payment_mode">company_account</field>
         </record>
         <record id="hotel_bill_expense" model="hr.expense">
@@ -96,7 +96,7 @@
             <field name="total_amount_currency" eval="2000.0" />
             <field name="product_uom_id" ref="uom.product_uom_unit" />
             <field name="date" eval="time.strftime('%Y-%m')+'-17'" />
-            <field name="approval_state">submitted</field>
+            <field name="review_state">submitted</field>
         </record>
         <record id="lunch_customer_bill_expense" model="hr.expense">
             <field name="name">Lunch with Customer</field>
@@ -138,7 +138,7 @@
             <field name="product_id" ref="product_product_no_cost" />
             <field name="date" eval="time.strftime('%Y')+'-01-15'" />
             <field name="total_amount_currency" eval="152.8" />
-            <field name="approval_state">approved</field>
+            <field name="review_state">approved</field>
         </record>
         <record id="pizzas_bill_expense" model="hr.expense">
             <field name="name">Pizzas</field>
@@ -169,7 +169,7 @@
             <field name="product_id" ref="product_product_no_cost" />
             <field name="date" eval="time.strftime('%Y-%m')+'-05'" />
             <field name="total_amount_currency" eval="25" />
-            <field name="approval_state">approved</field>
+            <field name="review_state">approved</field>
         </record>
         <record id="chair_bill_expense" model="hr.expense">
             <field name="name">Chairs</field>
@@ -190,7 +190,7 @@
             <field name="product_id" ref="product_product_no_cost" />
             <field name="date" eval="time.strftime('%Y')+'-06-02'" />
             <field name="total_amount_currency" eval="28.99" />
-            <field name="approval_state">refused</field>
+            <field name="review_state">refused</field>
         </record>
         <record id="afterwork_bill_expense" model="hr.expense">
             <field name="name">Car tyres</field>

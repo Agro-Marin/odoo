@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.32
+:Version: 6.33
 :Date: 2026-09-11
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -7881,6 +7881,23 @@ A floor of zero is what makes the remaining gap survivable: with nothing banked,
 the next literal site fails the gate on the day it lands, and only the named-dict
 form can still arrive quietly.
 
+``hr.expense`` moves its own review off the name ``mixin.approval`` gives the
+approval request's state:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Model
+     - Vanilla Odoo
+     - This fork
+   * - ``hr.expense``
+     - ``approval_state``
+     - ``review_state`` ("Review Status": submitted / approved / refused). Once
+       the expense adopts the approval engine, ``approval_state`` is the approval
+       request's state. The 2.3 migration rewrites saved views, filters, actions
+       and export lines on ``hr.expense``, so none of them silently reads the
+       other field.
+
 Appendix B — References
 ========================
 
@@ -7970,6 +7987,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.33
+     - 2026-09-11
+     - Appendix A gains ``hr.expense.approval_state`` to ``review_state``: the
+       expense keeps its own review while ``mixin.approval`` names the approval
+       request's state ``approval_state``, and the migration rewrites stored
+       references so a saved filter cannot silently switch fields.
    * - 6.32
      - 2026-09-11
      - §1.1, §1.3: the directory names are plural -- ``wizards/`` and

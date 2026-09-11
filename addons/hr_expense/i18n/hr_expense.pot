@@ -6,34 +6,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-01-25 18:35+0000\n"
-"PO-Revision-Date: 2026-01-25 18:35+0000\n"
+"POT-Creation-Date: 2026-09-11 05:47+0000\n"
+"PO-Revision-Date: 2026-09-11 05:47+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
 "Plural-Forms: \n"
-
-#. module: hr_expense
-#: model_terms:ir.ui.view,arch_db:hr_expense.report_expense
-msgid "$100.00"
-msgstr ""
-
-#. module: hr_expense
-#: model_terms:ir.ui.view,arch_db:hr_expense.report_expense
-msgid "$120.00"
-msgstr ""
-
-#. module: hr_expense
-#: model_terms:ir.ui.view,arch_db:hr_expense.report_expense
-msgid "$500.00"
-msgstr ""
-
-#. module: hr_expense
-#: model_terms:ir.ui.view,arch_db:hr_expense.report_expense
-msgid "$600.00"
-msgstr ""
 
 #. module: hr_expense
 #. odoo-python
@@ -75,13 +55,6 @@ msgid ""
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.actions.report,print_report_name:hr_expense.action_report_hr_expense
-msgid ""
-"'Expense - %s - %s' % (object.employee_id.name, (object.name).replace('/', "
-"''))"
-msgstr ""
-
-#. module: hr_expense
 #: model_terms:ir.ui.view,arch_db:hr_expense.hr_expense_view_form
 msgid "(incl"
 msgstr ""
@@ -90,11 +63,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/hr_expense/models/hr_expense.py:0
 msgid "1 %(exp_cur)s = %(rate)s %(comp_cur)s"
-msgstr ""
-
-#. module: hr_expense
-#: model_terms:ir.ui.view,arch_db:hr_expense.report_expense
-msgid "2023-08-11"
 msgstr ""
 
 #. module: hr_expense
@@ -292,12 +260,6 @@ msgid "Approval Date"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__approval_state
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense_split__approval_state
-msgid "Approval State"
-msgstr ""
-
-#. module: hr_expense
 #. odoo-javascript
 #: code:addons/hr_expense/static/src/js/tours/hr_expense.js:0
 #: code:addons/hr_expense/static/src/views/list.xml:0
@@ -307,9 +269,9 @@ msgid "Approve"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__approval_state__approved
+#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__review_state__approved
 #: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__state__approved
-#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense_split__approval_state__approved
+#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense_split__review_state__approved
 #: model:mail.message.subtype,name:hr_expense.mt_expense_approved
 msgid "Approved"
 msgstr ""
@@ -403,7 +365,7 @@ msgstr ""
 
 #. module: hr_expense
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__message_main_attachment_checksum
-msgid "Checksum/SHA1"
+msgid "Checksum"
 msgstr ""
 
 #. module: hr_expense
@@ -549,7 +511,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:hr_expense.field_account_tax__display_name
 #: model:ir.model.fields,field_description:hr_expense.field_hr_department__display_name
 #: model:ir.model.fields,field_description:hr_expense.field_hr_employee__display_name
-#: model:ir.model.fields,field_description:hr_expense.field_hr_employee_public__display_name
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__display_name
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense_approve_duplicate__display_name
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense_post_wizard__display_name
@@ -702,11 +663,6 @@ msgstr ""
 #. module: hr_expense
 #: model_terms:ir.ui.view,arch_db:hr_expense.res_config_settings_view_form
 msgid "Expense Digitalization (OCR)"
-msgstr ""
-
-#. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_employee_public__expense_manager_id
-msgid "Expense Manager"
 msgstr ""
 
 #. module: hr_expense
@@ -866,7 +822,6 @@ msgstr ""
 
 #. module: hr_expense
 #: model:ir.model.fields,field_description:hr_expense.field_hr_employee__filter_for_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_employee_public__filter_for_expense
 msgid "Filter For Expense"
 msgstr ""
 
@@ -883,11 +838,6 @@ msgstr ""
 #. module: hr_expense
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__message_partner_ids
 msgid "Followers (Partners)"
-msgstr ""
-
-#. module: hr_expense
-#: model:ir.model.fields,help:hr_expense.field_hr_expense__activity_type_icon
-msgid "Font awesome icon e.g. fa-tasks"
 msgstr ""
 
 #. module: hr_expense
@@ -957,7 +907,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:hr_expense.field_account_tax__id
 #: model:ir.model.fields,field_description:hr_expense.field_hr_department__id
 #: model:ir.model.fields,field_description:hr_expense.field_hr_employee__id
-#: model:ir.model.fields,field_description:hr_expense.field_hr_employee_public__id
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__id
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense_approve_duplicate__id
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense_post_wizard__id
@@ -1258,11 +1207,6 @@ msgid "New expenses waiting for your approval"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__activity_calendar_event_id
-msgid "Next Activity Calendar Event"
-msgstr ""
-
-#. module: hr_expense
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__activity_date_deadline
 msgid "Next Activity Deadline"
 msgstr ""
@@ -1455,7 +1399,7 @@ msgid "Pay"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__payment_method_line_id
+#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__payment_channel_id
 msgid "Payment Method"
 msgstr ""
 
@@ -1476,8 +1420,8 @@ msgid "Payment methods"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_res_company__company_expense_allowed_payment_method_line_ids
-#: model:ir.model.fields,field_description:hr_expense.field_res_config_settings__company_expense_allowed_payment_method_line_ids
+#: model:ir.model.fields,field_description:hr_expense.field_res_company__company_expense_allowed_payment_channel_ids
+#: model:ir.model.fields,field_description:hr_expense.field_res_config_settings__company_expense_allowed_payment_channel_ids
 msgid "Payment methods available for expenses paid by company"
 msgstr ""
 
@@ -1496,6 +1440,16 @@ msgstr ""
 #: code:addons/hr_expense/models/hr_expense.py:0
 msgid ""
 "Please specify if the expenses were paid by the company, or the employee."
+msgstr ""
+
+#. module: hr_expense
+#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: hr_expense
+#: model:ir.model.fields,help:hr_expense.field_hr_expense__website_message_ids
+msgid "Portal communication history for this record."
 msgstr ""
 
 #. module: hr_expense
@@ -1574,19 +1528,14 @@ msgid "Product Variants"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model,name:hr_expense.model_hr_employee_public
-msgid "Public Employee"
-msgstr ""
-
-#. module: hr_expense
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__quantity
 #: model_terms:ir.ui.view,arch_db:hr_expense.report_expense
 msgid "Quantity"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__rating_ids
-msgid "Ratings"
+#: model:ir.model.fields,field_description:hr_expense.field_res_config_settings__module_extract_hr_expense
+msgid "Read an expense's receipt"
 msgstr ""
 
 #. module: hr_expense
@@ -1633,9 +1582,9 @@ msgid "Refuse Expense"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__approval_state__refused
+#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__review_state__refused
 #: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__state__refused
-#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense_split__approval_state__refused
+#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense_split__review_state__refused
 #: model:mail.message.subtype,name:hr_expense.mt_expense_refused
 msgid "Refused"
 msgstr ""
@@ -1681,6 +1630,12 @@ msgid "Restaurants, business lunches, etc."
 msgstr ""
 
 #. module: hr_expense
+#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__review_state
+#: model:ir.model.fields,field_description:hr_expense.field_hr_expense_split__review_state
+msgid "Review Status"
+msgstr ""
+
+#. module: hr_expense
 #: model:ir.model.fields,field_description:hr_expense.field_hr_expense__message_has_sms_error
 msgid "SMS Delivery error"
 msgstr ""
@@ -1721,8 +1676,8 @@ msgid ""
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__selectable_payment_method_line_ids
-msgid "Selectable Payment Method Line"
+#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__selectable_payment_channel_ids
+msgid "Selectable Payment Channel"
 msgstr ""
 
 #. module: hr_expense
@@ -1733,11 +1688,6 @@ msgid ""
 "category's internal reference or the category name, the corresponding "
 "category will automatically be set. Type the expense amount in the mail "
 "subject to set it on the expense too."
-msgstr ""
-
-#. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_res_config_settings__module_hr_expense_extract
-msgid "Send bills to OCR to generate expenses"
 msgstr ""
 
 #. module: hr_expense
@@ -1825,9 +1775,9 @@ msgid "Submit to Manager"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__approval_state__submitted
+#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__review_state__submitted
 #: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense__state__submitted
-#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense_split__approval_state__submitted
+#: model:ir.model.fields.selection,name:hr_expense.selection__hr_expense_split__review_state__submitted
 msgid "Submitted"
 msgstr ""
 
@@ -1939,7 +1889,7 @@ msgid "The journal used when the expense is paid by employee."
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,help:hr_expense.field_hr_expense__payment_method_line_id
+#: model:ir.model.fields,help:hr_expense.field_hr_expense__payment_channel_id
 msgid "The payment method used when the expense is paid by the company."
 msgstr ""
 
@@ -2138,16 +2088,6 @@ msgid "Waiting Reimbursement"
 msgstr ""
 
 #. module: hr_expense
-#: model:ir.model.fields,field_description:hr_expense.field_hr_expense__website_message_ids
-msgid "Website Messages"
-msgstr ""
-
-#. module: hr_expense
-#: model:ir.model.fields,help:hr_expense.field_hr_expense__website_message_ids
-msgid "Website communication history"
-msgstr ""
-
-#. module: hr_expense
 #: model_terms:ir.ui.view,arch_db:hr_expense.product_product_expense_form_view
 msgid ""
 "When the cost of an expense product is different than 0, then the user"
@@ -2325,6 +2265,12 @@ msgstr ""
 #. module: hr_expense
 #: model_terms:ir.ui.view,arch_db:hr_expense.hr_expense_view_form
 msgid "expense"
+msgstr ""
+
+#. module: hr_expense
+#: model:ir.actions.report,print_report_name:hr_expense.action_report_hr_expense
+msgid ""
+"f'Expense - {object.employee_id.name} - {object.name}'.replace('/', '')"
 msgstr ""
 
 #. module: hr_expense

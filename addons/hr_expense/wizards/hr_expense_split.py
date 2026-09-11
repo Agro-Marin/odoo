@@ -3,7 +3,7 @@ from copy import deepcopy
 from odoo import Command, api, fields, models
 from odoo.tools import float_compare
 
-from odoo.addons.hr_expense.models.hr_expense import EXPENSE_APPROVAL_STATE
+from odoo.addons.hr_expense.models.hr_expense import EXPENSE_REVIEW_STATE
 
 
 class HrExpenseSplit(models.TransientModel):
@@ -27,7 +27,7 @@ class HrExpenseSplit(models.TransientModel):
             )
             result["employee_id"] = expense.employee_id
             result["currency_id"] = expense.currency_id
-            result["approval_state"] = expense.approval_state
+            result["review_state"] = expense.review_state
             result["approval_date"] = expense.approval_date
             result["manager_id"] = expense.manager_id
         return result
@@ -71,8 +71,11 @@ class HrExpenseSplit(models.TransientModel):
         compute="_compute_from_product_id",
         store=True,
     )
-    approval_state = fields.Selection(
-        selection=EXPENSE_APPROVAL_STATE, copy=False, readonly=True
+    review_state = fields.Selection(
+        selection=EXPENSE_REVIEW_STATE,
+        string="Review Status",
+        copy=False,
+        readonly=True,
     )
     approval_date = fields.Datetime(string="Approval Date", readonly=True)
     manager_id = fields.Many2one(
@@ -145,7 +148,7 @@ class HrExpenseSplit(models.TransientModel):
             "analytic_distribution": self.analytic_distribution,
             "employee_id": self.employee_id.id,
             "product_uom_id": self.product_id.uom_id.id,
-            "approval_state": self.approval_state,
+            "review_state": self.review_state,
             "approval_date": self.approval_date,
             "manager_id": self.manager_id.id,
         }
