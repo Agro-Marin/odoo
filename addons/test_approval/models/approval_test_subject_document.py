@@ -4,7 +4,7 @@ from odoo import fields, models
 class ApprovalTestSubjectDocument(models.Model):
     _name = "approval.test.subject.document"
     _description = "Test Record Holding One Approval Request per Subject"
-    _inherit = ["mixin.mail.thread", "mixin.approval.subjects"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.approval.subjects"]
 
     name = fields.Char(required=True)
     company_id = fields.Many2one(
@@ -39,6 +39,9 @@ class ApprovalTestSubjectDocument(models.Model):
 
     def _filter_approval_step_user_ids(self, step, user_ids):
         return user_ids - set(self.blocked_user_ids.ids)
+
+    def _get_approval_activity_values(self, approver):
+        return {"summary": f"Asked about {approver.request_id.subject_key}"}
 
     def _get_approval_activity_type(self, approver, step_type):
         return self.asking_activity_type_id or step_type

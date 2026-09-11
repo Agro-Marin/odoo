@@ -541,6 +541,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 |--------|---------|
 | `_filter_approval_step_user_ids(step, user_ids)` | **Override**: of the users a step would let decide this document, the ones its own policy lets decide it; the default keeps them all. Staging, the snapshot, the quorum check at confirmation, the later-step check and the approval button all read the narrowed pool, so a user the document would veto holds no row |
 | `_get_approval_activity_type(approver, step_type)` | **Override**: the activity type `approver` is asked with on this document; the step's by default. `approval.approver._get_activity_type()` asks it for every activity the engine creates and every escalation reminder; activities are found, retired and reassigned by `approver_id`, never by type. hr_holidays answers from its state |
+| `_get_approval_activity_values(approver)` | **Override**: values of the record's own for the activity asking `approver`, merged in by `approval.approver._get_source_activity_values()` when the category asks on the record; nothing reaches an activity kept on the request. website_slides puts the requesting partner there, so its Grant / Refuse buttons keep rendering |
 
 ---
 

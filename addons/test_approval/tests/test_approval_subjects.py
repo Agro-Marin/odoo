@@ -132,3 +132,25 @@ class TestApprovalSubjects(ApprovalCommon):
         self.assertNotIn(self.approver_2, users)
         row = request.approver_ids.filtered(lambda row: row.user_id == self.approver_1)
         self.assertEqual(row._get_activity_type(), call)
+
+    def test_the_record_adds_its_values_to_the_activity_asked_on_it(self):
+        category = self._category(suffix="asked on the record")
+        category.activity_target = "document"
+        record = self._record(category)
+
+        request = record._raise_approval_request("access:5")
+
+        activity = record.activity_ids.filtered(
+            lambda activity: activity.approver_id.request_id == request
+        )
+        self.assertEqual(activity.user_id, self.approver_1)
+        self.assertEqual(activity.summary, "Asked about access:5")
+
+    def test_an_activity_on_the_request_carries_no_record_values(self):
+        record = self._record()
+
+        request = record._raise_approval_request("access:5")
+
+        activity = request._get_approval_activities()
+        self.assertTrue(activity)
+        self.assertNotEqual(activity.summary, "Asked about access:5")

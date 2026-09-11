@@ -11,6 +11,11 @@ class MixinApprovalSource(models.AbstractModel):
         all read the narrowed pool."""
         return user_ids
 
+    def _get_approval_activity_values(self, approver) -> dict:
+        """Values of this record's own to put on the activity asking `approver`, when
+        the engine asks on the record rather than on the request."""
+        return {}
+
     def _get_approval_activity_type(self, approver, step_type):
         """The activity type `approver` is asked with on this document; the step's by
         default. A document whose asking depends on its own progress chooses here."""

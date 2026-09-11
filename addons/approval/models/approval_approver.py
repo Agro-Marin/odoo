@@ -386,10 +386,19 @@ class ApprovalApprover(models.Model):
                     "res_id": target.id,
                     "user_id": key[1],
                     "approver_id": approver.id,
+                    **approver._get_source_activity_values(target),
                 },
             )
         if create_vals_list:
             self.env["mail.activity"].create(create_vals_list)
+
+    def _get_source_activity_values(self, target) -> dict:
+        """What the source record adds to an activity asked on it; nothing when the
+        activity lives on the request, which is no approval source."""
+        self.check_singleton()
+        if not isinstance(target, self.env.registry["mixin.approval.source"]):
+            return {}
+        return target.sudo()._get_approval_activity_values(self)
 
     def _get_activity_target(self):
         """The record this row's approver is asked on: the request, or its document."""
