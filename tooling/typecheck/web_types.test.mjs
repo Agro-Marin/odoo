@@ -57,9 +57,9 @@ test("web utility contracts preserve arguments, absence, and promise identity", 
     config.options.strictBindCallApply = true;
     const fixture = resolve(root, "tooling/typecheck/web_contracts.ts");
     const source = `
-import { cartesian, ensureArray, groupBy, intersection, symmetricalDifference, zip, zipWith } from "@web/core/utils/collections/arrays";
+import { cartesian, ensureArray, groupBy, intersection, rotate, slidingWindow, sortBy, symmetricalDifference, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
-import { omit, pick } from "@web/core/utils/collections/objects";
+import { omit, pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { Deferred, InFlight } from "@web/core/utils/concurrency";
 import { LruCache } from "@web/core/utils/lru_cache";
 import { nameService, ERROR_INACCESSIBLE_OR_MISSING } from "@web/core/name_service";
@@ -86,6 +86,41 @@ const dynamic = zip([1], ["a"], Math.random() > 0.5);
 // @ts-expect-error A runtime padding flag also requires handling missing values.
 dynamic[0][1].toUpperCase();
 zipWith([1], ["a"], (n, s) => n.toFixed() + s.toUpperCase());
+
+const readonlyItems: readonly number[] = [1, 2, 3];
+const windows: number[][] = slidingWindow(readonlyItems, 2);
+windows[0].push(4);
+const tupleWindows: (1 | "two")[][] = slidingWindow([1, "two"] as const, 1);
+// @ts-expect-error Window elements preserve their input type.
+windows[0].push("wrong");
+// @ts-expect-error Window widths must be numeric.
+slidingWindow(readonlyItems, "2");
+const rotated: number = rotate(0, readonlyItems);
+rotate(0, [1, "two"] as const, -1);
+// @ts-expect-error Rotation increments must be numeric.
+rotate(0, readonlyItems, "1");
+
+const boolSorted: boolean[] = sortBy([true, false], (value) => value);
+const bigintSorted: bigint[] = sortBy([2n, 1n], (value) => value);
+const datesSorted: Date[] = sortBy([new Date(1), new Date(0)], (value) => value);
+sortBy(readonlyItems, (value) => value > 1, "desc");
+// @ts-expect-error Sorting preserves element types independently of key types.
+boolSorted[0].toUpperCase();
+// @ts-expect-error Extractors receive the iterable's element type.
+sortBy(readonlyItems, (value: string) => value);
+// @ts-expect-error A criterion itself must be a property name, callback, or nullish.
+sortBy(readonlyItems, true);
+// @ts-expect-error Sort directions remain restricted.
+sortBy(readonlyItems, undefined, "sideways");
+
+const unequalPrimitive: boolean = shallowEqual(1, "1");
+shallowEqual({ value: 1 }, { value: "1" });
+shallowEqual([1], ["1"]);
+shallowEqual(null, { value: 1 });
+shallowEqual(undefined, false);
+shallowEqual({ value: 1 }, { value: "1" }, (a, b) => String(a) === String(b));
+// @ts-expect-error Custom equality comparators must return a boolean.
+shallowEqual({ value: 1 }, { value: 1 }, () => "yes");
 
 const symbolKey = Symbol("property");
 const mixedKeys = { 0: "zero", named: true, [symbolKey]: 42 };

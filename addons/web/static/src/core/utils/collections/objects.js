@@ -13,9 +13,8 @@ export function sameValue(a, b) {
 }
 
 /**
- * @template T
- * @param {T} obj1
- * @param {T} obj2
+ * @param {unknown} obj1
+ * @param {unknown} obj2
  * @param {(a: any, b: any) => boolean} [comparisonFn]
  * @returns {boolean}
  */

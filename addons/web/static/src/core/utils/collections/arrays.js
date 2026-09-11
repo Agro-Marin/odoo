@@ -117,8 +117,7 @@ export function groupBy(iterable, criterion) {
 }
 
 /**
- * @template T
- * @template {string | number | symbol} K
+ * @template T, K
  * @param {Iterable<T>} iterable
  * @param {Criterion<T, K>} [criterion]
  * @param {"asc" | "desc"} [order="asc"]
@@ -259,7 +258,7 @@ export function zipWith(iter1, iter2, mapFn) {
 }
 /**
  * @template T
- * @param {T[]} arr
+ * @param {ReadonlyArray<T>} arr
  * @param {number} width
  * @returns {T[][]}
  */
@@ -273,7 +272,7 @@ export function slidingWindow(arr, width) {
 
 /**
  * @param {number} i
- * @param {any[]} arr
+ * @param {ReadonlyArray<unknown>} arr
  * @param {number} [inc]
  * @returns {number}
  */
