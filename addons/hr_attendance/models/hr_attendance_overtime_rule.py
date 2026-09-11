@@ -6,13 +6,13 @@ from dateutil.rrule import DAILY, rrule
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.libs.intervals import Intervals, _boundaries, invert_intervals
+from odoo.libs.intervals import Intervals, _iter_boundaries, invert_intervals
 from odoo.libs.numbers import float_compare
 from odoo.tools.date_utils import float_to_time, get_intervals_hours
 
 
 def _record_overlap_intervals(intervals):
-    boundaries = sorted(_boundaries(intervals, "start", "stop"))
+    boundaries = sorted(_iter_boundaries(intervals, "start", "stop"))
     counts = {}
     interval_vals = []
     ids = set()
