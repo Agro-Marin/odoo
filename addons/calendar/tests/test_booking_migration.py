@@ -10,6 +10,97 @@ from odoo.tests import TransactionCase, tagged
 
 
 @tagged("post_install", "-at_install")
+class TestBookingAdapterMigration(TransactionCase):
+    def test_transferred_timeline_activates_available_adapters(self):
+        migrate = runpy.run_path(
+            str(Path(__file__).parents[1] / "migrations/2.2/pre-booking-adapters.py")
+        )["migrate"]
+        module_model = self.env["ir.module.module"]
+        modules = {}
+        for name in (
+            "web_gantt",
+            "calendar_gantt",
+            "appointment_hr",
+            "calendar_gantt_hr",
+        ):
+            modules[name] = module_model.search(
+                [("name", "=", name)]
+            ) or module_model.create({"name": name})
+        data_model = self.env["ir.model.data"]
+        data_model.search(
+            [("module", "=", "calendar_gantt"), ("model", "=", "ir.ui.view")]
+        ).unlink()
+        scenarios = (
+            # transferred, web Gantt, HR, adapter state, expected Gantt, expected HR
+            (True, "installed", "installed", "uninstalled", "to install", "to install"),
+            (
+                True,
+                "to upgrade",
+                "to upgrade",
+                "uninstalled",
+                "to install",
+                "to install",
+            ),
+            (
+                True,
+                "installed",
+                "uninstalled",
+                "uninstalled",
+                "to install",
+                "uninstalled",
+            ),
+            (
+                False,
+                "installed",
+                "installed",
+                "uninstalled",
+                "uninstalled",
+                "uninstalled",
+            ),
+            (
+                True,
+                "uninstalled",
+                "installed",
+                "uninstalled",
+                "uninstalled",
+                "uninstalled",
+            ),
+            (True, "installed", "installed", "installed", "installed", "to install"),
+            (True, "installed", "installed", "to remove", "to remove", "uninstalled"),
+        )
+        for transferred, gantt, hr, adapter, expected, expected_hr in scenarios:
+            with (
+                self.subTest(
+                    transferred=transferred, gantt=gantt, hr=hr, adapter=adapter
+                ),
+                self.cr.savepoint(),
+            ):
+                modules["web_gantt"].state = gantt
+                modules["appointment_hr"].state = hr
+                modules["calendar_gantt"].state = adapter
+                modules["calendar_gantt_hr"].state = "uninstalled"
+                data = data_model.browse()
+                if transferred:
+                    data = data_model.create(
+                        {
+                            "module": "calendar_gantt",
+                            "name": "migration_timeline",
+                            "model": "ir.ui.view",
+                            "res_id": self.env.ref(
+                                "calendar.calendar_event_view_form"
+                            ).id,
+                        }
+                    )
+                self.env.flush_all()
+                migrate(self.cr, "19.0.2.1")
+                migrate(self.cr, "19.0.2.1")
+                module_model.invalidate_model(["state"])
+                self.assertEqual(modules["calendar_gantt"].state, expected)
+                self.assertEqual(modules["calendar_gantt_hr"].state, expected_hr)
+                data.unlink()
+
+
+@tagged("post_install", "-at_install")
 class TestBookingMenuMigration(TransactionCase):
     def test_duplicate_menu_is_retired_but_customizations_are_preserved(self):
         migrate = runpy.run_path(
