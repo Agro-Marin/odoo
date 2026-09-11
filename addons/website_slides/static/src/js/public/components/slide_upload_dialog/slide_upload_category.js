@@ -15,7 +15,7 @@ export class SlideUploadCategory extends Component {
     static props = {
         alertMsg: { type: String, optional: true },
         channelId: Number,
-        categoryId: { type: String, optional: true },
+        categoryId: { type: Number, optional: true },
         slideCategory: String,
         canPublish: Boolean,
         canUpload: Boolean,
@@ -74,7 +74,7 @@ export class SlideUploadCategory extends Component {
             },
         });
         this.canSubmitForm = false;
-        this.defaultCategoryId = parseInt(this.props.categoryId, 10);
+        this.defaultCategoryId = this.props.categoryId;
         this.file = {};
         this.isValidUrl = true;
 

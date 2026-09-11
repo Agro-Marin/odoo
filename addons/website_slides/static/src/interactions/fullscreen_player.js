@@ -761,11 +761,8 @@ export class FullscreenPlayer extends CoursePage {
         const slide = this._slideValue;
         this.services.dialog.add(SlideShareDialog, {
             category: slide.category,
-            documentMaxPage: slide.category === "document" && getDocumentMaxPage(),
-            // `slide` came from parseSlideDataset, so this is already a real
-            // boolean. Comparing it to the string "True" -- as share.js
-            // correctly does on the *raw* dataset -- was false every time, so
-            // the email-sharing input never rendered in fullscreen.
+            documentMaxPage:
+                slide.category === "document" ? getDocumentMaxPage() : undefined,
             emailSharing: slide.emailSharing,
             embedCode: slide.embedCode || "",
             id: slide.id,

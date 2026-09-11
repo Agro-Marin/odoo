@@ -94,15 +94,15 @@ test("parseSlideDataset normalises emailSharing, so `=== 'True'` cannot work", (
 
 // Both copies of this helper dereferenced the iframe and #page_count without
 // guarding either, so it threw whenever the viewer had not loaded yet.
-test("getDocumentMaxPage returns false rather than throwing when the viewer is absent", () => {
+test("getDocumentMaxPage returns undefined rather than throwing when the viewer is absent", () => {
     const doc = document.implementation.createHTMLDocument("empty");
-    expect(getDocumentMaxPage(doc)).toBe(false);
+    expect(getDocumentMaxPage(doc)).toBe(undefined);
 });
 
-test("getDocumentMaxPage returns false when the iframe carries no page count", () => {
+test("getDocumentMaxPage returns undefined when the iframe carries no page count", () => {
     const doc = document.implementation.createHTMLDocument("no-count");
     const iframe = doc.createElement("iframe");
     iframe.className = "o_wslides_iframe_viewer";
     doc.body.appendChild(iframe);
-    expect(getDocumentMaxPage(doc)).toBe(false);
+    expect(getDocumentMaxPage(doc)).toBe(undefined);
 });

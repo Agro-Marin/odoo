@@ -29,8 +29,6 @@ export class EditInteractionPlugin extends Plugin {
         },
         on_cloned_handlers: ({ originalEl }) => {
             this.restartInteractions(originalEl);
-            // The clonedEl is implicitly started because it is a newly
-            // inserted content.
         },
     };
 
@@ -43,17 +41,28 @@ export class EditInteractionPlugin extends Plugin {
             this._onTransferEditService,
             { once: true },
         );
-        const event = new CustomEvent("edit_interaction_plugin_loaded");
-        event.shared = this.__editor.shared;
-        window.parent.document.dispatchEvent(event);
+        this._offerToEditService = () => {
+            if (this.websiteEditService) {
+                return;
+            }
+            const event = new CustomEvent("edit_interaction_plugin_loaded");
+            event.shared = this.__editor.shared;
+            window.parent.document.dispatchEvent(event);
+        };
+        window.parent.document.addEventListener(
+            "website_edit_service_ready",
+            this._offerToEditService,
+        );
+        this._offerToEditService();
     }
     destroy() {
-        // If the plugin is destroyed before the event fires, this {once}
-        // listener (and the bound handler retaining the plugin) would stay on
-        // the long-lived parent document. Removing a spent listener is a no-op.
         window.parent.document.removeEventListener(
             "transfer_website_edit_service",
             this._onTransferEditService,
+        );
+        window.parent.document.removeEventListener(
+            "website_edit_service_ready",
+            this._offerToEditService,
         );
         this.websiteEditService?.uninstallPatches?.();
         this.stopInteractions();
@@ -62,6 +71,10 @@ export class EditInteractionPlugin extends Plugin {
     updateEditInteraction({ detail: { websiteEditService } }) {
         this.websiteEditService = websiteEditService;
         this.websiteEditService.installPatches();
+        if (this._refreshOwed) {
+            this._refreshOwed = false;
+            this.websiteEditService.refresh(this.editable);
+        }
     }
 
     restartInteractions(element) {
@@ -72,6 +85,11 @@ export class EditInteractionPlugin extends Plugin {
     }
 
     refreshInteractions(element) {
+        if (!this.websiteEditService) {
+            // a normalize before the transfer; the transfer runs it
+            this._refreshOwed = true;
+            return;
+        }
         this.websiteEditService.refresh(element);
     }
 

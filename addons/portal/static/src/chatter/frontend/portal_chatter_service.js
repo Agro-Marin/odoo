@@ -2,7 +2,8 @@
 import { loadCssFromBundle } from "@mail/utils/common/misc";
 import { App } from "@odoo/owl";
 import { PortalChatter } from "@portal/chatter/frontend/portal_chatter";
-import { rpc } from "@web/core/network";
+import { reportUncaught } from "@web/core/errors/error_utils";
+import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
@@ -86,6 +87,12 @@ export const portalChatterService = {
         const portalChatter = new PortalChatterService(env, services);
         portalChatter.initialize(env).catch((error) => {
             odoo.portalChatterReady.resolve(false);
+            if (error instanceof ConnectionLostError) {
+                // the connection handlers own a lost or cut transport; a
+                // request interrupted by navigating away is the usual one
+                reportUncaught(error);
+                return;
+            }
             console.error("Portal chatter failed to initialize", error);
         });
         return portalChatter;

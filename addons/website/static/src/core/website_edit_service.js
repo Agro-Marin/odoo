@@ -162,19 +162,6 @@ export const websiteEditService = {
                 return;
             }
 
-            // Colibri's own DOM effects — setup, start, teardown, dynamic
-            // attributes, `t-out`, deferred callbacks and listener bodies —
-            // are the framework restoring a page, not the user editing it, so
-            // they must not land in the undo history. One scope replaces the
-            // five near-identical overrides this patch used to carry.
-            //
-            // `historyCallbacks.ignoreDOMMutations` is read per call, not
-            // captured: it is assigned by `handlePluginLoaded` immediately
-            // AFTER the synchronous `transfer_website_edit_service` dispatch
-            // that brought us here, so it is still unset at this line. It is
-            // set before anything can run an interaction, and deliberately not
-            // guarded — an unscoped effect would silently corrupt the history,
-            // which is far worse than throwing.
             publicInteractions.domEffectScope = (fn) =>
                 historyCallbacks.ignoreDOMMutations(fn);
             patches.push(() => {
@@ -193,9 +180,6 @@ export const websiteEditService = {
                     },
                     addListener(target, event, fn, options, sel) {
                         if (event.startsWith("slide.bs.carousel")) {
-                            // Never allow cancelling this event in edit mode.
-                            // Declared with `function` so that Colibri still
-                            // calls it with the interaction as `this`.
                             const inner = fn;
                             fn = /** @type {any} */ (
                                 function (/** @type {any[]} */ ...args) {
@@ -215,11 +199,6 @@ export const websiteEditService = {
                         this.configurationSnapshot = this.getConfigurationSnapshot();
                     },
                     getConfigurationSnapshot() {
-                        // Naive generalise implementation of a snapshot that
-                        // would impact the behavior of an interaction.
-                        // To be overloaded by edit-mode interactions that need
-                        // something more specific.
-                        // TODO Sort keys to improve comparison.
                         const dataset = omit(this.el.dataset, "visibility");
                         const style = {};
                         for (const property of this.el.style) {
@@ -230,19 +209,9 @@ export const websiteEditService = {
                                 style[property] = this.el.style[property];
                             }
                         }
-                        // `style` is a plain object built by assignment, so
-                        // `style.length` was always `undefined` and this guard
-                        // silently reduced to the dataset half: an element
-                        // configured purely through inline animation styles
-                        // would fall through to the always-restart sentinel.
                         if (Object.keys(dataset).length || Object.keys(style).length) {
                             return JSON.stringify({ dataset, style });
                         }
-                        // Nothing to track: NaN is never equal to itself, so
-                        // `shouldStop` always sees a change. Subclasses that
-                        // extend a snapshot MUST forward this value untouched
-                        // (see `isTrackedSnapshot`) — coercing it to an object
-                        // turns "always restart" into "never restart".
                         return NaN;
                     },
                     shouldStop() {
@@ -298,8 +267,6 @@ export const websiteEditService = {
                 removePatch();
             }
             patches.length = 0;
-            // Withdraw the guard: with the editor gone, public code must go back
-            // to calling its adapt function directly.
             delete window[EDIT_HOOKS_KEY];
         };
         const applyAction = (actionId, spec) => {
@@ -344,7 +311,6 @@ export const websiteEditService = {
             stop(ev.detail.iframeDocument);
         };
 
-        // Transfer the iframe website_edit service to the EditInteractionPlugin
         const handlePluginLoaded = (ev) => {
             ev.currentTarget.dispatchEvent(
                 new CustomEvent("transfer_website_edit_service", {
@@ -366,9 +332,10 @@ export const websiteEditService = {
             "edit_interaction_plugin_loaded",
             handlePluginLoaded,
         );
+        window.parent.document.dispatchEvent(
+            new CustomEvent("website_edit_service_ready"),
+        );
 
-        // Clean up parent document listeners when iframe unloads to prevent
-        // stale handlers from serving an outdated service to new plugins.
         window.addEventListener("beforeunload", () => {
             window.parent.document.removeEventListener("edit_page", handleEditPage);
             window.parent.document.removeEventListener(
@@ -383,14 +350,6 @@ export const websiteEditService = {
 registry.category("services").add("website_edit", websiteEditService);
 
 /**
- * Whether a `getConfigurationSnapshot()` result carries real tracked
- * configuration, as opposed to the "nothing to track" sentinel.
- *
- * The sentinel is deliberately never equal to itself, which makes
- * `shouldStop()` always report a change. A subclass extending a snapshot must
- * check this before parsing: `JSON.parse(snapshot || "{}")` folds the sentinel
- * into a stable object and silently turns always-restart into never-restart.
- *
  * @param {string | number} snapshot
  * @returns {boolean}
  */

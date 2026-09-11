@@ -53,7 +53,7 @@ export class SlideUploadDialog extends Component {
     static props = {
         canPublish: Boolean,
         canUpload: Boolean,
-        categoryId: { type: String, optional: true },
+        categoryId: { type: Number, optional: true },
         channelId: Number,
         close: Function,
         modulesToInstall: { type: Array, optional: true },
@@ -62,7 +62,7 @@ export class SlideUploadDialog extends Component {
     static template = "website_slides.SlideUploadDialog";
 
     setup() {
-        this.defaultCategoryID = parseInt(this.props.categoryId, 10);
+        this.defaultCategoryID = this.props.categoryId;
         this.modulesToInstallStatus = null;
         this.dialog = useService("dialog");
         this.orm = useService("orm");

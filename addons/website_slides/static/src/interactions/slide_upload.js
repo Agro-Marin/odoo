@@ -11,11 +11,6 @@ export class SlideUpload extends Interaction {
         },
     };
 
-    /**
-     * Automatically opens the upload dialog if requested from query string.
-     * If openModal is defined ( === '' ), opens the category selection dialog.
-     * If openModal is a category name, opens the category's upload dialog.
-     */
     start() {
         if ("openModal" in this.el.dataset) {
             this.openDialog();
@@ -26,7 +21,7 @@ export class SlideUpload extends Interaction {
     openDialog() {
         const data = this.el.dataset;
         this.services.dialog.add(SlideUploadDialog, {
-            categoryId: parseInt(data.categoryId),
+            categoryId: data.categoryId ? parseInt(data.categoryId) : undefined,
             channelId: parseInt(data.channelId),
             canPublish: data.canPublish === "True",
             canUpload: data.canUpload === "True",
