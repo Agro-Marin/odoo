@@ -28,7 +28,8 @@ class TestReportEngines(TestAccountReportsCommon):
             {
                 "vat": "US12345671",
                 "phone_ids": [
-                    Command.create({"number": "123456789", "type": "landline"})
+                    Command.clear(),
+                    Command.create({"number": "123456789", "type": "landline"}),
                 ],
                 "email": "test@gmail.com",
             }
@@ -47,6 +48,11 @@ class TestReportEngines(TestAccountReportsCommon):
                 "name": "L'Île de la Mouche",
                 "code": "YY",
             }
+        )
+
+    def test_the_return_checks_read_the_company_phone_set_for_them(self):
+        self.assertEqual(
+            self.company_data["company"]._phone_get_number().number, "123456789"
         )
 
     # -------------------------------------------------------------------------
