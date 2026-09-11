@@ -4,6 +4,7 @@
 export { DynamicGroupList } from "./relational_model/dynamic_group_list.js";
 export { DynamicList } from "./relational_model/dynamic_list.js";
 export { DynamicRecordList } from "./relational_model/dynamic_record_list.js";
+export { FetchRecordError } from "./relational_model/errors.js";
 export {
     getBasicEvalContext,
     getFieldContext,
