@@ -172,7 +172,6 @@ class LoyaltyProgram(models.Model):
         compute="_compute_portal_point_name",
         store=True,
         readonly=False,
-        default="Points",
     )
     is_nominative = fields.Boolean(
         help="Whether this program's points accumulate on a card held by a customer,"
@@ -1046,8 +1045,22 @@ class LoyaltyProgram(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         # The caller's dicts are left alone -- `create` is not entitled to edit them.
-        vals_list = [self._with_program_type_values(vals) for vals in vals_list]
+        vals_list = [
+            self._with_point_name(self._with_program_type_values(vals))
+            for vals in vals_list
+        ]
         return super().create(vals_list)
+
+    @api.model
+    def _with_point_name(self, vals):
+        if "portal_point_name" in vals:
+            return vals
+        program_type = vals.get("program_type") or self.default_get(
+            ["program_type"]
+        ).get("program_type")
+        if program_type in self._PAYMENT_PROGRAM_TYPES:
+            return vals
+        return {**vals, "portal_point_name": "Points"}
 
     @api.model
     def _with_program_type_values(self, vals):

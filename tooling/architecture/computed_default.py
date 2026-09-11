@@ -25,8 +25,8 @@ CHECKOUT_ROOTS = ("addons", "odoo/addons")
 SKIPPED_DIRS = frozenset({"tests", "migrations", "upgrades", "static"})
 
 REVIEWED: dict[str, str] = {
-    "account.payment.state": "the compute starts from the stored state and only moves it forward; every payment starts in draft",
     "account.analytic.line.user_id": "probed: a timesheet created for another user's employee stores that employee's user",
+    "account.payment.state": "the compute starts from the stored state and only moves it forward; every payment starts in draft",
     "appointment.question.is_reusable": "the compute only ever sets True, the default",
     "appointment.slot.end_hour": "create derives end_hour from start_hour and the appointment duration before defaults apply (AppointmentSlot.create)",
     "appointment.type.staff_user_ids": "probed: a resource-based type is created with no staff with or without the default; user-based types keep the creator as staff",
@@ -36,17 +36,19 @@ REVIEWED: dict[str, str] = {
     "hr.expense.currency_id": "for a draft expense the default and the compute both give the company currency",
     "hr.leave.accrual.level.carryover_options": "the compute only ever sets unlimited, the default",
     "hr.leave.accrual.level.first_month_day": "the compute clamps the current day to its month; the default is a day it keeps",
+    "hr.leave.accrual.level.frequency": "the compute only rewrites worked_hours",
+    "hr.leave.accrual.level.maximum_leave": "the compute only ever writes 0, the default",
+    "hr.leave.accrual.level.milestone_date": "the compute only ever sets creation, the default",
     "hr.leave.accrual.level.second_month_day": "the compute clamps the current day to its month; the default is a day it keeps",
     "hr.leave.accrual.level.yearly_day": "the compute clamps the current day to its month; the default is a day it keeps",
-    "hr.leave.accrual.level.frequency": "the compute only rewrites worked_hours",
-    "hr.leave.accrual.level.milestone_date": "the compute only ever sets creation, the default",
     "hr.leave.accrual.plan.carryover_day": "the compute clamps the current day to its month",
-    "hr.leave.accrual.level.maximum_leave": "the compute only ever writes 0, the default",
     "hr.leave.allocation.holiday_status_id": "the compute keeps a leave type already set",
     "hr.leave.allocation.number_of_days": "the compute reads number_of_days_display and number_of_hours_display, both computed from number_of_days, so a create can only name the field itself",
+    "hr.version.l10n_in_basic_percentage": "seeds a cyclic pair: the basic salary amount is computed from the percentage and the percentage back from the amount, so the rule-parameter default is the starting point",
     "hr.work.entry.regeneration.wizard.date_to": "the default is the date_end the opening action passes in context, falsy without one",
     "loyalty.program.applies_on": "deliberate: _with_program_type_values documents that filling it on create broke the pos_loyalty tour",
     "mailing.mailing.mailing_model_id": "marketing_card's create derives it from the card campaign before defaults apply",
+    "planning.slot.allocated_percentage": "seeds a cyclic pair: allocated_hours derives from the percentage, and the compute deliberately only runs once hours were edited, so 100% is the starting point",
     "product.template.expense_policy": "every compute override only ever writes no, the default",
     "product.template.is_storable": "the compute only ever clears it on a product that is not goods; False, the default, is what it leaves on a create that names neither",
     "product.template.purchase_ok": "the compute only ever sets True, the default",
@@ -71,15 +73,7 @@ REVIEWED: dict[str, str] = {
     "stock.scrap.scrap_qty": "the compute resets to 1 before reading the moves, and a scrap is created before its moves",
 }
 
-PENDING: frozenset[str] = frozenset(
-    {
-        "hr.version.l10n_au_medicare_reduction",
-        "hr.version.l10n_be_dimona_next_action",
-        "hr.version.l10n_in_basic_percentage",
-        "loyalty.program.portal_point_name",
-        "planning.slot.allocated_percentage",
-    }
-)
+PENDING: frozenset[str] = frozenset()
 
 
 class NoSource(RuntimeError):

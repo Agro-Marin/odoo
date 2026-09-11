@@ -83,9 +83,10 @@ class TestLoyaltyCardExpiration(TransactionCase):
         card = self.env["loyalty.card"].create({"program_id": wallet.id, "points": 10})
         before = card.points_display
 
-        other = self.env["res.currency"].search(
-            [("id", "!=", wallet.currency_id.id)], limit=1
-        )
+        other = self.env.ref("base.EUR")
+        if other == wallet.currency_id:
+            other = self.env.ref("base.USD")
+        other.active = True
         wallet.write({"currency_id": other.id})
 
         self.assertNotEqual(card.points_display, before)
