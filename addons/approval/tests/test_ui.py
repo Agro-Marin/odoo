@@ -17,6 +17,8 @@ class TestUi(HttpCaseWithUserDemo):
                     (5, 0, 0),
                     (0, 0, {"user_id": self.env.ref("base.user_admin").id}),
                 ],
+                "approval_minimum": 1,
+                "approve_sequentially": False,
             }
         )
         self.start_tour("/odoo", "approvals_tour", login="admin")

@@ -25,14 +25,14 @@ class TestApprovalDashboard(TransactionCase):
         cls.approver1 = cls.ResUsers.create(
             {
                 "name": "Approver 1",
-                "login": "approver1",
+                "login": "dashboard_approver_1",
                 "email": "approver1@test.com",
             }
         )
         cls.approver2 = cls.ResUsers.create(
             {
                 "name": "Approver 2",
-                "login": "approver2",
+                "login": "dashboard_approver_2",
                 "email": "approver2@test.com",
             }
         )

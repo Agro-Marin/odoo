@@ -5,7 +5,7 @@ from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, new_trip_category
 
 
 @tagged("post_install", "-at_install")
@@ -27,7 +27,7 @@ class TestConditionalRules(common.TransactionCase):
                 "email": "extra_approver@test.com",
             }
         )
-        cls.category = cls.env.ref("approval.approval_category_data_business_trip")
+        cls.category = new_trip_category(cls.env)
         cls.category.write(
             {
                 "approver_ids": [(5, 0, 0)],

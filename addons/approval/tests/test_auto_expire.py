@@ -4,7 +4,7 @@ from unittest.mock import patch
 from odoo import fields
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, new_trip_category
 from odoo.addons.approval.models import approval_request_escalation as cron_module
 
 
@@ -21,7 +21,7 @@ class TestAutoExpire(common.TransactionCase):
             }
         )
         cls.owner = cls.env.ref("base.user_admin")
-        cls.category = cls.env.ref("approval.approval_category_data_business_trip")
+        cls.category = new_trip_category(cls.env)
         cls.category.write(
             {
                 "approver_ids": [(5, 0, 0)],

@@ -2,7 +2,7 @@ from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, common, tagged
 
-from .common import ApprovalCommon
+from .common import ApprovalCommon, new_trip_category
 
 
 @tagged("post_install", "-at_install")
@@ -219,9 +219,7 @@ class TestRequest(common.TransactionCase):
         approval = self.env["approval.request"].create(
             {
                 "name": "test request",
-                "category_id": self.env.ref(
-                    "approval.approval_category_data_business_trip"
-                ).id,
+                "category_id": new_trip_category(self.env).id,
                 "date_start": fields.Datetime.now(),
                 "date_end": fields.Datetime.now(),
                 "location": "testland",

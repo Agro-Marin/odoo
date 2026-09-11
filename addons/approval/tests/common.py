@@ -23,6 +23,27 @@ def isolate_group_approval_manager(env, keep=None):
         others.write({"group_ids": [(3, group.id)]})
 
 
+# Shaped like the Business Trip data record, but owned by the test: demo data and
+# users reconfigure that record's approvers, quorum and sequencing.
+def new_trip_category(env, **values):
+    return env["approval.category"].create(
+        {
+            "name": "Test Business Trip",
+            "has_date": "no",
+            "has_date_range": "required",
+            "has_quantity": "no",
+            "has_amount": "no",
+            "has_reference": "no",
+            "has_partner": "no",
+            "has_location": "required",
+            "has_document": "optional",
+            "approval_minimum": 1,
+            "privacy_visibility": "employees",
+            **values,
+        }
+    )
+
+
 class ApprovalCommon(common.TransactionCase):
     _seq_code_counter = 0
 
