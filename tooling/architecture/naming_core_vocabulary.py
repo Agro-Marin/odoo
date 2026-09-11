@@ -1603,6 +1603,18 @@ def classify_definition(
     # this line. The body rules ask about behaviour, and a body has behaviour
     # whether or not a noun follows the verb; only the spelling rules need the
     # remainder, and `classify_name` has already declined it.
+    if (hit := _classify_return_claims(node, stem, verb)) is not None:
+        return hit
+    if (
+        hit := _classify_predicate_claims(node, stem, verb, exception_names)
+    ) is not None:
+        return hit
+    return weak_name_hit
+
+
+def _classify_return_claims(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, stem: str, verb: str
+) -> tuple[str, str] | None:
     if verb in ACCUMULATE_VERBS and owns_its_return(node):
         why = (
             f"{verb} -> _get_ -- it returns the value it made, which is the "
@@ -1628,6 +1640,15 @@ def classify_definition(
             "row: `_is_` / `_has_` / `_can_`, with the question in the tail"
         )
         return ("bool-under-get", why)
+    return None
+
+
+def _classify_predicate_claims(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    stem: str,
+    verb: str,
+    exception_names: frozenset[str],
+) -> tuple[str, str] | None:
     if (
         builds_an_error(node, exception_names)
         and not _CONVERTER_IDIOM.fullmatch(node.name)
@@ -1699,7 +1720,7 @@ def classify_definition(
             "Validation row is the one that raises on failure; take `_check_*`"
         )
         return ("predicate-raises", why)
-    return weak_name_hit
+    return None
 
 
 def classify_name(name: str) -> tuple[str, str] | None:

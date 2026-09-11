@@ -405,42 +405,38 @@ def _prepare_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def main() -> int:
-    ap = _prepare_parser()
-    args = ap.parse_args()
-    _setup_logging(args.verbose)
-
-    if args.status:
-        states = H.read_all_states()
-        warm = [st for st in states if H.server_is_warm(st)]
-        if not warm:
-            print(_color("COLD  no warm server", C_YEL))
-        for st in warm:
-            print(
-                _color(
-                    f"WARM  pid={st['pid']} port={st['port']} db={st['db']}", C_GREEN
-                )
+def _print_status() -> int:
+    states = H.read_all_states()
+    warm = [st for st in states if H.server_is_warm(st)]
+    if not warm:
+        print(_color("COLD  no warm server", C_YEL))
+    for st in warm:
+        print(_color(f"WARM  pid={st['pid']} port={st['port']} db={st['db']}", C_GREEN))
+    for pid, db in sorted(H.find_untracked_servers().items()):
+        print(
+            _color(
+                f"ORPHAN pid={pid} db={db} — untracked; `hoot --stop --all` reaps it",
+                C_YEL,
             )
-        for pid, db in sorted(H.find_untracked_servers().items()):
-            print(
-                _color(
-                    f"ORPHAN pid={pid} db={db} — untracked; `hoot --stop --all` "
-                    f"reaps it",
-                    C_YEL,
-                )
-            )
-        return 0
-    if args.stop or args.clean:
-        db = args.db
-        if db is None and not args.all:
-            db = H.db_for_modules(H.modules_for_suites(list(args.suites)))
-        print(H.stop_server(db=db, clean=args.clean))
-        if args.all:
-            reaped = H.stop_untracked_servers(clean=args.clean)
-            if reaped:
-                print(reaped)
-        return 0
+        )
+    return 0
 
+
+def _stop_servers(args: argparse.Namespace) -> int:
+    db = args.db
+    if db is None and not args.all:
+        db = H.db_for_modules(H.modules_for_suites(list(args.suites)))
+    print(H.stop_server(db=db, clean=args.clean))
+    if args.all:
+        reaped = H.stop_untracked_servers(clean=args.clean)
+        if reaped:
+            print(reaped)
+    return 0
+
+
+def _select_suites(
+    args: argparse.Namespace,
+) -> tuple[list[str], dict[tuple[str, str], list[str]], int | None]:
     own_page_groups: dict[tuple[str, str], list[str]] = {}
     if getattr(args, "page", None) and not args.self_tests:
         # The suites named on the command line label the run; the page decides
@@ -452,7 +448,7 @@ def main() -> int:
                 "database from.",
                 file=sys.stderr,
             )
-            return 2
+            return [], {}, 2
     elif args.self_tests:
         # A label, not a selector: the page runs all of Hoot's own suites and
         # takes no id filter. `web` is what the server must have installed.
@@ -476,7 +472,7 @@ def main() -> int:
                     file=sys.stderr,
                 )
             if not args.affected:
-                return 2
+                return [], {}, 2
             suites = [s for s in suites if s not in unknown]
         suites, own_page_groups = H.partition_own_page(suites)
         for (page, _module), group in own_page_groups.items():
@@ -487,6 +483,22 @@ def main() -> int:
                     C_DIM,
                 )
             )
+    return suites, own_page_groups, None
+
+
+def main() -> int:
+    ap = _prepare_parser()
+    args = ap.parse_args()
+    _setup_logging(args.verbose)
+
+    if args.status:
+        return _print_status()
+    if args.stop or args.clean:
+        return _stop_servers(args)
+
+    suites, own_page_groups, rc = _select_suites(args)
+    if rc is not None:
+        return rc
     if not suites and not own_page_groups:
         if args.restart:
             db = args.db or H.db_for_modules(H.modules_for_suites([]))
