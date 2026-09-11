@@ -195,8 +195,6 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "_filledPropertyFields",
     "_groupBy",
     "_orderBy",
-    "_pendingNotification",
-    "_pendingTrigger",
     "_reloadMutex",
     "_sectionLoadIds",
     "_sections",

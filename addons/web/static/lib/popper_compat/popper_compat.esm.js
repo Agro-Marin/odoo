@@ -299,7 +299,8 @@ var popperMaxHeightState = /* @__PURE__ */ new WeakMap();
 // addons/web/static/src/libs/popper_compat.js
 var AUTO_PLACEMENTS = /* @__PURE__ */ new Set(["auto", "auto-start", "auto-end"]);
 function ensureDirection() {
-  if (!("direction" in localization)) {
+  if (!("direction" in /** @type {Partial<typeof localization>} */
+  localization)) {
     localization.direction = document.documentElement.getAttribute("dir") === "rtl" || getComputedStyle(document.documentElement).direction === "rtl" ? "rtl" : "ltr";
   }
 }

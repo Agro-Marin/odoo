@@ -153,11 +153,14 @@ through its facade), `js_service_shape.py` (a service hands back an instance,
 not a literal), `js_class_length.py` (the mass a per-function budget cannot see:
 a class of short methods is invisible to `js_function_length.py`, and the unit is
 excess lines above 400 rather than offender count, so splitting one huge class
-into two large ones registers as the improvement it is) and
+into two large ones registers as the improvement it is),
 `js_unreached_assertions.py` (an assertion that may never EXECUTE, one level down
 from the vacuous assertion `js_vacuous_assertions.py` catches: an `expect()`
 inside a handler the test never invokes stays green through the whole life of the
-defect it names). Each gate ships an empty-tree refusal test, so a gate
+defect it names) and `js_dead_icon_class.py` (a test naming an icon class that
+neither FontAwesome 7 nor any non-test source declares — a one-count assertion on
+a renamed icon reads as a defect in the feature, and a negated one cannot fail).
+Each gate ships an empty-tree refusal test, so a gate
 that scanned nothing fails instead of reporting a pass.
 
 ## The contracts this module declares

@@ -133,7 +133,7 @@ Dropdown.isBottomSheet  odoo  :triage
 Dropdown.popoverCloseOnClickAway  enterprise  :triage
 Dropdown.setup  odoo  :triage
 DynamicRecordList.addNewRecord  odoo  :triage
-ErrorDialog.setup  odoo  :keep
+ErrorDialog.setup  odoo agromarin  :keep
 ExportDataDialog.fetchFields  odoo  :triage
 Field.classNames  enterprise  :triage
 Field.fieldComponentProps  enterprise  :keep
@@ -305,6 +305,7 @@ ListRenderer.toggleRecordSelection  odoo enterprise  :keep
 ListRenderer.toggleSelection  odoo  :triage
 ListRenderer.useMagicColumnWidths  odoo  :keep
 ListX2ManyField.formattedValue  odoo  :triage
+Macro.onError  enterprise  :triage
 MainComponentsContainer.setup  odoo  :triage
 Many2ManyBinaryField.onFileRemove  odoo  :triage
 Many2ManyBinaryField.setup  odoo  :triage
@@ -382,7 +383,7 @@ PivotModel._loadData  odoo  :promote
 PivotModel._normalize  odoo  :promote
 PivotModel._sanitizeLabel  odoo  :promote
 PivotModel.load  odoo enterprise  :keep
-PivotModel.setup  odoo enterprise  :keep
+PivotModel.setup  enterprise  :keep
 PivotRenderer.onGroupBySelected  odoo  :triage
 PivotRenderer.onOpenView  enterprise  :triage
 PivotRenderer.setup  enterprise  :keep
@@ -457,7 +458,7 @@ SelectMenu.sliceDisplayedOptions  enterprise  :triage
 SelectionBox.onUnselectAll  odoo  :triage
 SelectionField.choices  enterprise  :triage
 SelectionField.onChange  odoo enterprise  :keep
-SelectionField.options  odoo enterprise  :keep
+SelectionLikeField.options  odoo enterprise  :keep
 SelectionLikeField.setup  odoo enterprise  :keep
 SelectionLikeField.string  odoo  :triage
 SelectionLikeField.value  odoo enterprise  :keep
@@ -478,6 +479,7 @@ UserMenu.setup  odoo  :triage
 View.loadView  enterprise  :keep
 View.onWillUpdateProps  enterprise  :triage
 View.setup  odoo enterprise  :keep
+ViewArchParser.parse  odoo enterprise agromarin  :keep
 ViewArchParser.parseWidgetNode  enterprise  :triage
 ViewArchParser.processButton  enterprise  :keep
 ViewButton.getClassName  enterprise  :triage

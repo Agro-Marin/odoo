@@ -109,7 +109,7 @@ export class AceField extends FieldComponent {
         }
         this.setFieldDirty(this.isDirty);
         this.editedValue = editedValue;
-        if (this.props.record.invalidFields.has(this.props.name)) {
+        if (this.props.record.isFieldInvalid(this.props.name)) {
             // an edit reopens the save; the next commit decides again
             this.props.record.resetFieldValidity(this.props.name);
         }

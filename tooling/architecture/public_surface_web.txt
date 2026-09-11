@@ -15,6 +15,7 @@
 @web/components/dropzone  odoo
 @web/components/emoji_picker  odoo enterprise
 @web/components/errors  odoo enterprise
+@web/components/errors/error_dialogs  agromarin
 @web/components/expression_editor_dialog  enterprise
 @web/components/file_input  odoo enterprise
 @web/components/file_upload  odoo
@@ -59,12 +60,13 @@
 @web/core/name_service  enterprise
 @web/core/navigation/navigation  odoo
 @web/core/network  odoo enterprise agromarin
+@web/core/network/rpc  agromarin
 @web/core/odoo_info  odoo
 @web/core/parsers  odoo enterprise
 @web/core/position/position_hook  odoo
 @web/core/py_js/py  odoo enterprise agromarin
 @web/core/registry  odoo enterprise agromarin
-@web/core/templates  odoo enterprise agromarin
+@web/core/templates  odoo enterprise
 @web/core/transition  odoo enterprise
 @web/core/translation  odoo enterprise agromarin design-themes
 @web/core/tree  odoo enterprise agromarin
@@ -89,6 +91,7 @@
 @web/core/utils/format/strings  odoo enterprise agromarin
 @web/core/utils/functions  odoo enterprise
 @web/core/utils/hooks  odoo enterprise agromarin design-themes
+@web/core/utils/lru_cache  agromarin
 @web/core/utils/macro  odoo enterprise
 @web/core/utils/order_by  odoo enterprise agromarin
 @web/core/utils/patch  odoo enterprise agromarin design-themes
@@ -216,7 +219,6 @@
 @web/views/view  odoo enterprise
 @web/views/view_arch_parser  odoo enterprise agromarin
 @web/views/view_button  odoo enterprise
-@web/views/view_buttons  enterprise
 @web/views/view_compiler  odoo enterprise agromarin
 @web/views/view_components  odoo enterprise agromarin
 @web/views/view_dialogs  odoo enterprise agromarin
