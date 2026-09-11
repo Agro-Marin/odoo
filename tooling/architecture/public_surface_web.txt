@@ -14,8 +14,7 @@
 @web/components/dropdown  odoo enterprise
 @web/components/dropzone  odoo
 @web/components/emoji_picker  odoo enterprise
-@web/components/errors  odoo enterprise
-@web/components/errors/error_dialogs  agromarin
+@web/components/errors  odoo enterprise agromarin
 @web/components/expression_editor_dialog  enterprise
 @web/components/file_input  odoo enterprise
 @web/components/file_upload  odoo
@@ -60,7 +59,6 @@
 @web/core/name_service  enterprise
 @web/core/navigation/navigation  odoo
 @web/core/network  odoo enterprise agromarin
-@web/core/network/rpc  agromarin
 @web/core/odoo_info  odoo
 @web/core/parsers  odoo enterprise
 @web/core/position/position_hook  odoo
@@ -152,6 +150,7 @@
 @web/fields/selection/priority/priority_field  odoo enterprise
 @web/fields/selection/radio/radio_field  odoo enterprise agromarin
 @web/fields/selection/selection/selection_field  odoo enterprise
+@web/fields/selection/selection_like_field  agromarin
 @web/fields/selection/state_selection/state_selection_field  odoo
 @web/fields/specialized/domain/domain_field  enterprise agromarin
 @web/fields/specialized/google_slide_viewer/google_slide_viewer  enterprise

@@ -225,7 +225,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **236 specifiers**
+the surface can only shrink. It stands at **237 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -250,7 +250,7 @@ mean:
 | `three.js` behind a library facade in `agromarin` | **234** | agromarin's `95586d8fa` moved its three.js facade under `static/src/lib` and loads it through `@web/core/lib/lazy_lib` rather than a second loader, which is one new specifier; the same sync dropped `agromarin` from `@web/core/currency`'s scopes, a change of who reaches a specifier and not of how many there are |
 | `ReportController` published for the view chassis | **235** | `642771ff15e` gave the control-panel chassis a component of its own, and `web_cohort` is the first view type outside `web` to extend `ReportController` rather than retype it. `ViewLayout` and `useViewChassis` are reached through the existing `@web/views/view_components` face and add nothing: the component sits in the directory that face covers, which is where a shared view component belongs and what keeps one conversion from costing two specifiers |
 | `ViewArchParser` published for the extension parsers | **236** | zero of the nine view types outside `web` extended the base parser, and `web_map` said why in a comment: `@web/views/view_arch_parser` was on no row, so the first import would fail this pin. The row is the one specifier the base class costs, and gantt, map, cohort, hierarchy and threed extend it now; `@web/views/action_helper` left the `odoo` scope in the same commit, since hierarchy was its last importer there outside `web` |
-| **today** | **236 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
+| **today** | **237 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned

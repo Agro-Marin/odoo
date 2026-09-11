@@ -146,6 +146,7 @@
             "@event_social/*": ["../enterprise/event_social/static/src/*"],
             "@extract/*": ["addons/extract/static/src/*"],
             "@fleet/*": ["addons/fleet/static/src/*"],
+            "@fleet_vehicle_verification/*": ["../agromarin/fleet_vehicle_verification/static/src/*"],
             "@frontdesk/*": ["../enterprise/frontdesk/static/src/*"],
             "@gamification/*": ["addons/gamification/static/src/*"],
             "@geoengine/*": ["../agromarin/geoengine/static/src/*"],
