@@ -977,14 +977,10 @@ class IrUiView(models.Model):
         self.env.registry.clear_cache("templates")
         candidates = self._view_modes_without_default()
         res = super().unlink()
-        self._remove_orphaned_view_modes(candidates)
+        self.env["ir.actions.act_window"]._remove_view_modes_without_views(candidates)
         return res
 
     def _view_modes_without_default(self) -> set[tuple[str, str]]:
-        """The (model, type) pairs among ``self`` that a window action cannot
-        show once no view of that type is left: a type the model generates no
-        default arch for -- every type a module registers, none of base's.
-        """
         return {
             (view.model, view.type)
             for view in self
@@ -992,28 +988,6 @@ class IrUiView(models.Model):
             and view.type
             and not hasattr(self.env[view.model], f"_get_default_{view.type}_view")
         }
-
-    def _remove_orphaned_view_modes(self, candidates: set[tuple[str, str]]) -> None:
-        """Take a view type out of every window action of a model that has no
-        view of that type any more. Left in, ``_get_view`` raises
-        ``No default view of type '<type>' could be found!`` the next time the
-        action opens.
-        """
-        for model, view_type in candidates:
-            if self.search_count([("model", "=", model), ("type", "=", view_type)]):
-                continue
-            actions = self.env["ir.actions.act_window"].search(
-                [("res_model", "=", model), ("view_mode", "like", view_type)]
-            )
-            for action in actions:
-                modes = action.view_mode.split(",")
-                if view_type not in modes:
-                    continue
-                action.view_ids.filtered_domain(
-                    [("view_mode", "=", view_type)]
-                ).unlink()
-                remaining = [mode for mode in modes if mode != view_type]
-                action.view_mode = ",".join(remaining) or "list"
 
     def _update_field_translations(
         self,
@@ -1117,7 +1091,7 @@ class IrUiView(models.Model):
                 v.id, %(field_names)s
             FROM ir_ui_view_inherits as v
             ORDER BY v.priority, v.id
-        """,
+            """,
             aliased_names=aliased_names,
             field_names=SQL(", ").join(SQL.identifier("v", f) for f in field_names),
             ids=tuple(self.ids),
@@ -3088,9 +3062,6 @@ class IrUiView(models.Model):
     def render_public_asset(
         self, template: int | str, values: dict[str, Any] | None = None
     ) -> Markup:
-        # The check reads the view's own groups and inheritance chain, which
-        # ir.ui.view's ACL hides from a plain user; it decides on the user's
-        # groups, which sudo leaves alone.
         self._get_template_view(template).sudo()._check_view_access()
         return self.env["ir.qweb"].sudo()._render(template, values)
 
@@ -3113,7 +3084,7 @@ class IrUiView(models.Model):
                       AND v.model = %s
                       AND v.active = true
                  GROUP BY coalesce(v.inherit_id, v.id)
-                 """,
+                    """,
                     model,
                 )
             )
@@ -3143,11 +3114,11 @@ class IrUiView(models.Model):
             for (id_,) in self.env.execute_query(
                 SQL(
                     """
-            SELECT v.id
-            FROM ir_ui_view v
-            JOIN ir_model_data md ON (md.model = 'ir.ui.view' AND md.res_id = v.id)
-            WHERE md.module = %s AND md.name = ANY(%s) AND md.noupdate
-        """,
+                    SELECT v.id
+                    FROM ir_ui_view v
+                    JOIN ir_model_data md ON (md.model = 'ir.ui.view' AND md.res_id = v.id)
+                    WHERE md.module = %s AND md.name = ANY(%s) AND md.noupdate
+                    """,
                     module,
                     list(names),
                 )

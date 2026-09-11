@@ -219,3 +219,30 @@ class IrActionsAct_Window(models.Model):
             )
         result["help"] = self._get_empty_list_help(result.get("help", ""))
         return result
+
+    @api.model
+    def _remove_view_modes_without_views(
+        self, candidates: set[tuple[str, str]]
+    ) -> None:
+        """Take a view type out of every window action of a model that has no
+        view of that type any more. Left in, ``_get_view`` raises
+        ``No default view of type '<type>' could be found!`` the next time the
+        action opens.
+        """
+        for model, view_type in candidates:
+            if self.env["ir.ui.view"].search_count(
+                [("model", "=", model), ("type", "=", view_type)]
+            ):
+                continue
+            actions = self.search(
+                [("res_model", "=", model), ("view_mode", "like", view_type)]
+            )
+            for action in actions:
+                modes = action.view_mode.split(",")
+                if view_type not in modes:
+                    continue
+                action.view_ids.filtered_domain(
+                    [("view_mode", "=", view_type)]
+                ).unlink()
+                remaining = [mode for mode in modes if mode != view_type]
+                action.view_mode = ",".join(remaining) or "list"

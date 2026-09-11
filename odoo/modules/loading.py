@@ -718,6 +718,90 @@ def _warn_invalid_module_names(cr: BaseCursor, module_names: Iterable[str]) -> N
             )
 
 
+def _run_deferred_at_install_tests(
+    registry: Registry,
+    cr: BaseCursor,
+    env: Environment,
+    report: OdooTestResult | None,
+) -> None:
+    names = registry.deferred_at_install_modules
+    if not names:
+        return
+    from odoo.tests import loader
+
+    registry.check_null_constraints(cr)
+    for name in names:
+        suite = loader.prepare_suite([name], "at_install")
+        _logger.info(
+            "Module %s: running %d deferred at_install test(s)",
+            name,
+            suite.countTestCases(),
+        )
+        tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
+        results = loader.run_suite(suite, global_report=report)
+        assert report is not None, "Missing report during tests"
+        report.update(results)
+        _logger.info(
+            "Module %s: %d deferred at_install test(s) in %.2fs, %s queries",
+            name,
+            results.testsRun,
+            time.time() - tests_t0,
+            odoo.db.sql_counter - tests_q0,
+        )
+        if not results.wasSuccessful():
+            _logger.error(
+                "Module %s: %d failures, %d errors of %d tests",
+                name,
+                results.failures_count,
+                results.errors_count,
+                results.testsRun,
+            )
+        env.invalidate_all()
+    names.clear()
+
+
+def _drop_not_null_on_removed_columns(
+    env: Environment, cr: BaseCursor, models: list[str]
+) -> None:
+    tables = {env[model]._table for model in models if not env[model]._abstract}
+    if not tables:
+        return
+    cr.execute(
+        """
+        SELECT c.relname AS table_name,
+               a.attname AS column_name,
+               CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable
+          FROM pg_attribute a
+          JOIN pg_class c ON a.attrelid = c.oid
+         WHERE c.relname = ANY(%s)
+           AND c.relnamespace = current_schema::regnamespace
+           AND a.attnum > 0
+           AND NOT a.attisdropped
+        """,
+        [list(tables)],
+    )
+    columns_by_table: dict[str, dict[str, str]] = {}
+    for table_name, column_name, is_nullable in cr.fetchall():
+        columns_by_table.setdefault(table_name, {})[column_name] = is_nullable
+
+    for model in models:
+        Model = env[model]
+        if Model._abstract:
+            continue
+        cols = {name for name, field in Model._fields.items() if field.is_column}
+        for col_name, is_nullable in columns_by_table.get(Model._table, {}).items():
+            if col_name in cols:
+                continue
+            _logger.debug(
+                "column %s is in the table %s but not in the corresponding object %s",
+                col_name,
+                Model._table,
+                model,
+            )
+            if is_nullable == "NO":
+                schema.drop_not_null(cr, Model._table, col_name)
+
+
 class _UninstallRequiresReload(Exception):
     pass
 
@@ -966,40 +1050,7 @@ class _ModuleLoader:
         self.registry._setup_models__(self.cr)
 
     def run_deferred_at_install_tests(self) -> None:
-        names = self.registry.deferred_at_install_modules
-        if not names:
-            return
-        from odoo.tests import loader
-
-        self.registry.check_null_constraints(self.cr)
-        for name in names:
-            suite = loader.prepare_suite([name], "at_install")
-            _logger.info(
-                "Module %s: running %d deferred at_install test(s)",
-                name,
-                suite.countTestCases(),
-            )
-            tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
-            results = loader.run_suite(suite, global_report=self.report)
-            assert self.report is not None, "Missing report during tests"
-            self.report.update(results)
-            _logger.info(
-                "Module %s: %d deferred at_install test(s) in %.2fs, %s queries",
-                name,
-                results.testsRun,
-                time.time() - tests_t0,
-                odoo.db.sql_counter - tests_q0,
-            )
-            if not results.wasSuccessful():
-                _logger.error(
-                    "Module %s: %d failures, %d errors of %d tests",
-                    name,
-                    results.failures_count,
-                    results.errors_count,
-                    results.testsRun,
-                )
-            self.env.invalidate_all()
-        names.clear()
+        _run_deferred_at_install_tests(self.registry, self.cr, self.env, self.report)
 
     def log_modules_that_never_loaded(self) -> None:
         Module = self.env["ir.module.module"]
@@ -1053,45 +1104,7 @@ class _ModuleLoader:
         self.registry.finalize_constraints(self.cr)
 
     def _check_removed_columns(self, models: list[str]) -> None:
-        env = self.env
-        cr = self.cr
-        tables = {env[model]._table for model in models if not env[model]._abstract}
-        if not tables:
-            return
-        cr.execute(
-            """
-            SELECT c.relname AS table_name,
-                   a.attname AS column_name,
-                   CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable
-              FROM pg_attribute a
-              JOIN pg_class c ON a.attrelid = c.oid
-             WHERE c.relname = ANY(%s)
-               AND c.relnamespace = current_schema::regnamespace
-               AND a.attnum > 0
-               AND NOT a.attisdropped
-            """,
-            [list(tables)],
-        )
-        columns_by_table: dict[str, dict[str, str]] = {}
-        for table_name, column_name, is_nullable in cr.fetchall():
-            columns_by_table.setdefault(table_name, {})[column_name] = is_nullable
-
-        for model in models:
-            Model = env[model]
-            if Model._abstract:
-                continue
-            cols = {name for name, field in Model._fields.items() if field.is_column}
-            for col_name, is_nullable in columns_by_table.get(Model._table, {}).items():
-                if col_name in cols:
-                    continue
-                _logger.debug(
-                    "column %s is in the table %s but not in the corresponding object %s",
-                    col_name,
-                    Model._table,
-                    model,
-                )
-                if is_nullable == "NO":
-                    schema.drop_not_null(cr, Model._table, col_name)
+        _drop_not_null_on_removed_columns(self.env, self.cr, models)
 
     def run_post_update_model_checks(self) -> None:
         if not self.registry.updated_modules:
