@@ -129,6 +129,16 @@ class L10n_FrFecExportWizard(models.TransientModel):
         else:
             return company.vat
 
+    def _get_unaffected_earnings_account(self, company):
+        return self.env["account.account"].search(
+            [
+                *self.env["account.account"]._check_company_domain(company),
+                ("account_type", "=", "equity_unaffected"),
+            ],
+            order="code desc",
+            limit=1,
+        )
+
     def generate_fec(self):
         # We choose to implement the flat file instead of the XML file for 2 reasons :
         # 1) the XSD file impose to have the label on the account.move, but Odoo has the label on the account.move.line,
@@ -161,14 +171,7 @@ class L10n_FrFecExportWizard(models.TransientModel):
 
         rows_to_write = [header]
         # INITIAL BALANCE
-        unaffected_earnings_account = self.env["account.account"].search(
-            [
-                *self.env["account.account"]._check_company_domain(company),
-                ("account_type", "=", "equity_unaffected"),
-            ],
-            order="code desc",
-            limit=1,
-        )
+        unaffected_earnings_account = self._get_unaffected_earnings_account(company)
         unaffected_earnings_line = True  # used to make sure that we add the unaffected earning initial balance only once
         if unaffected_earnings_account:
             # compute the benefit/loss of last year to add in the initial balance of the current year earnings account
@@ -264,15 +267,9 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 or unaffected_earnings_results[12] != "0,00"
             )
         ):
-            # search an unaffected earnings account
-            unaffected_earnings_account = self.env["account.account"].search(
-                [("account_type", "=", "equity_unaffected")],
-                order="code desc",
-                limit=1,
-            )
-            if unaffected_earnings_account:
-                unaffected_earnings_results[4] = unaffected_earnings_account.code
-                unaffected_earnings_results[5] = unaffected_earnings_account.name
+            if account := self._get_unaffected_earnings_account(company):
+                unaffected_earnings_results[4] = account.code
+                unaffected_earnings_results[5] = account.name
             rows_to_write.append(unaffected_earnings_results)
 
         # INITIAL BALANCE - receivable/payable
