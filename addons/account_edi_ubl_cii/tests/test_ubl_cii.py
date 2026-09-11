@@ -846,7 +846,8 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
             )
 
     def test_export_xml_with_multiple_invoices(self):
-        partner = self._create_partner_be(invoice_edi_format="ubl_bis3")
+        partner = self.partner_be
+        partner.invoice_edi_format = "ubl_bis3"
         self.company_data["company"].partner_id.write(
             {
                 "peppol_eas": "0230",
