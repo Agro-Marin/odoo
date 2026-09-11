@@ -2,7 +2,7 @@ import gc
 import unittest
 from typing import Any
 
-from odoo.libs.collections.frozen_dict import frozendict
+from odoo.libs.collections import frozendict
 from odoo.orm.runtime.transaction import _EnvironmentSet
 
 
