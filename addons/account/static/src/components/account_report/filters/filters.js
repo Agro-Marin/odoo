@@ -13,6 +13,14 @@ import { formatDate, parseDate } from "@web/core/l10n/dates";
 import { user } from "@web/core/user";
 
 import { DateTime } from "luxon";
+function findNearestDropdownItem(navigator) {
+    for (let i = navigator.activeItemIndex; i >= 0; i--) {
+        if (navigator.items[i].target.classList.contains("o-dropdown-item")) {
+            return navigator.items[i];
+        }
+    }
+}
+
 export class AccountReportFilters extends Component {
     static template = "account.AccountReportFilters";
     static props = {};
@@ -42,9 +50,6 @@ export class AccountReportFilters extends Component {
         selectedItem.el.querySelector(":scope input")?.focus();
     }
 
-    //------------------------------------------------------------------------------------------------------------------
-    // Getters
-    //------------------------------------------------------------------------------------------------------------------
     get filterExtraOptionsData() {
         return {
             all_entries: {
@@ -247,103 +252,14 @@ export class AccountReportFilters extends Component {
         };
     }
 
-    /**
-     * Custom navigation options allowing the date options to be fully navigated with the keyboard.
-     */
     get dateNavigationOptions() {
-        const findNearestDropdownItem = (navigator) => {
-            for (let i = navigator.activeItemIndex; i >= 0; i--) {
-                if (navigator.items[i].target.classList.contains("o-dropdown-item")) {
-                    return navigator.items[i];
-                }
-            }
-        };
-
         return {
             hotkeys: {
-                arrowleft: (navigator) => {
-                    if (!navigator.activeItem) {
-                        return;
-                    }
-                    const periodType =
-                        findNearestDropdownItem(navigator)?.target.dataset.periodType;
-                    if (
-                        Object.prototype.hasOwnProperty.call(
-                            this.dateFilter,
-                            periodType,
-                        )
-                    ) {
-                        this.selectPreviousPeriod(periodType);
-                    }
-                },
-                arrowright: (navigator) => {
-                    if (!navigator.activeItem) {
-                        return;
-                    }
-                    const periodType =
-                        findNearestDropdownItem(navigator)?.target.dataset.periodType;
-                    if (
-                        Object.prototype.hasOwnProperty.call(
-                            this.dateFilter,
-                            periodType,
-                        )
-                    ) {
-                        this.selectNextPeriod(periodType);
-                    }
-                },
+                arrowleft: (navigator) => this._stepPeriodUnderNavigator(navigator, -1),
+                arrowright: (navigator) => this._stepPeriodUnderNavigator(navigator, 1),
                 enter: {
-                    callback: (navigator) => {
-                        if (!navigator.activeItem) {
-                            return;
-                        }
-
-                        // While editing a date field, hovering another dropdown item makes the hovered one
-                        // active instead of the edited one. If the focused element is an input, reselect
-                        // its encompassing dropdown item.
-                        const focusedElement = document.activeElement;
-                        if (focusedElement.nodeName === "INPUT") {
-                            for (const navigatorItem of navigator.items) {
-                                if (navigatorItem.target.contains(focusedElement)) {
-                                    navigatorItem.setActive();
-                                    break;
-                                }
-                            }
-                        }
-
-                        const dropdownItem = findNearestDropdownItem(navigator);
-                        const isSelected =
-                            dropdownItem?.target.classList.contains("selected");
-                        const periodType = dropdownItem?.target.dataset.periodType;
-                        const mode = dropdownItem?.target.dataset.mode;
-                        const inputField =
-                            navigator.activeItem.target.nodeName === "INPUT"
-                                ? navigator.activeItem.target
-                                : dropdownItem?.target.querySelector("input.o_input");
-                        if (mode === "view" && periodType) {
-                            dropdownItem?.setActive();
-                            if (!isSelected) {
-                                // Select the period type on first enter.
-                                this.dateFilter.editing = false;
-                                this.filterClicked({
-                                    optionKey: "date.filter",
-                                    optionValue: periodType,
-                                    reload: true,
-                                });
-                            } else {
-                                // Make the input editable on second enter.
-                                this.editDateFilter(periodType, inputField);
-                            }
-                        } else if (mode === "edit" && periodType) {
-                            // Save the edited period and return focus to the dropdown item.
-                            this.saveDateFilter(periodType, inputField);
-                            dropdownItem?.setActive();
-                        } else if (periodType) {
-                            // Select the period type and potentially blur an input date field to trigger a save.
-                            inputField?.blur();
-                            this.selectDateFilter(periodType, true);
-                            dropdownItem?.setActive();
-                        }
-                    },
+                    callback: (navigator) =>
+                        this._selectPeriodUnderNavigator(navigator),
                     bypassEditableProtection: true,
                 },
             },
@@ -351,14 +267,80 @@ export class AccountReportFilters extends Component {
         };
     }
 
+    _stepPeriodUnderNavigator(navigator, direction) {
+        if (!navigator.activeItem) {
+            return;
+        }
+        const periodType =
+            findNearestDropdownItem(navigator)?.target.dataset.periodType;
+        if (!Object.prototype.hasOwnProperty.call(this.dateFilter, periodType)) {
+            return;
+        }
+        if (direction < 0) {
+            this.selectPreviousPeriod(periodType);
+        } else {
+            this.selectNextPeriod(periodType);
+        }
+    }
+
+    _selectPeriodUnderNavigator(navigator) {
+        if (!navigator.activeItem) {
+            return;
+        }
+
+        // While editing a date field, hovering another dropdown item makes the hovered one
+        // active instead of the edited one. If the focused element is an input, reselect
+        // its encompassing dropdown item.
+        const focusedElement = document.activeElement;
+        if (focusedElement.nodeName === "INPUT") {
+            for (const navigatorItem of navigator.items) {
+                if (navigatorItem.target.contains(focusedElement)) {
+                    navigatorItem.setActive();
+                    break;
+                }
+            }
+        }
+
+        const dropdownItem = findNearestDropdownItem(navigator);
+        const isSelected = dropdownItem?.target.classList.contains("selected");
+        const periodType = dropdownItem?.target.dataset.periodType;
+        const mode = dropdownItem?.target.dataset.mode;
+        const inputField =
+            navigator.activeItem.target.nodeName === "INPUT"
+                ? navigator.activeItem.target
+                : dropdownItem?.target.querySelector("input.o_input");
+        if (mode === "view" && periodType) {
+            dropdownItem?.setActive();
+            if (!isSelected) {
+                // Select the period type on first enter.
+                this.dateFilter.editing = false;
+                this.filterClicked({
+                    optionKey: "date.filter",
+                    optionValue: periodType,
+                    reload: true,
+                });
+            } else {
+                // Make the input editable on second enter.
+                this.editDateFilter(periodType, inputField);
+            }
+        } else if (mode === "edit" && periodType) {
+            // Save the edited period and return focus to the dropdown item.
+            this.saveDateFilter(periodType, inputField);
+            dropdownItem?.setActive();
+        } else if (periodType) {
+            // Select the period type and potentially blur an input date field to trigger a save.
+            inputField?.blur();
+            this.selectDateFilter(periodType, true);
+            dropdownItem?.setActive();
+        }
+    }
+
     get periodLabel() {
         return this.controller.cachedFilterOptions.comparison.number_period > 1
             ? _t("Periods")
             : _t("Period");
     }
-    //------------------------------------------------------------------------------------------------------------------
-    // Helpers
-    //------------------------------------------------------------------------------------------------------------------
+
     get hasAnalyticGroupbyFilter() {
         return (
             Boolean(this.controller.cachedUserGroups.analytic_accounting) &&
@@ -402,10 +384,6 @@ export class AccountReportFilters extends Component {
         });
     }
 
-    //------------------------------------------------------------------------------------------------------------------
-    // Dates
-    //------------------------------------------------------------------------------------------------------------------
-    // Getters
     dateFrom(optionKey) {
         return DateTime.fromISO(
             this.controller.cachedFilterOptions[optionKey].date_from,

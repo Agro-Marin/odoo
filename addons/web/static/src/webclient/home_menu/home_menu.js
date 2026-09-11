@@ -42,62 +42,55 @@ const DIRECT_JUMP_HOTKEYS = 9;
 /** @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp */
 
 /** @extends {Component<any, import("@web/env").OdooEnv>} */
+const APPS_CONFIG_SHAPE = { order: Array, pinned: Array, hidden: Array };
+
+const APP_PROP = {
+    type: Object,
+    shape: {
+        actionID: Number,
+        href: String,
+        appID: Number,
+        id: Number,
+        label: String,
+        parents: String,
+        module: { type: String, optional: true },
+        category: { type: String, optional: true },
+        categorySequence: { type: Number, optional: true },
+        models: { type: Array, element: String, optional: true },
+        keywords: { type: Array, element: String, optional: true },
+        searchTerms: { type: Array, element: String, optional: true },
+        webIcon: {
+            type: [
+                Boolean,
+                String,
+                {
+                    type: Object,
+                    optional: 1,
+                    shape: {
+                        iconClass: String,
+                        color: String,
+                        backgroundColor: String,
+                    },
+                },
+            ],
+            optional: true,
+        },
+        webIconData: { type: String, optional: 1 },
+        xmlid: { type: String, optional: true },
+    },
+};
+
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
     static appTemplate = "web.HomeMenu.App";
     static components = { ExpirationPanel, SysAdminPanel };
     static props = {
-        apps: {
-            type: Array,
-            element: {
-                type: Object,
-                shape: {
-                    actionID: Number,
-                    href: String,
-                    appID: Number,
-                    id: Number,
-                    label: String,
-                    parents: String,
-                    module: { type: String, optional: true },
-                    category: { type: String, optional: true },
-                    categorySequence: { type: Number, optional: true },
-                    models: { type: Array, element: String, optional: true },
-                    keywords: { type: Array, element: String, optional: true },
-                    searchTerms: { type: Array, element: String, optional: true },
-                    webIcon: {
-                        type: [
-                            Boolean,
-                            String,
-                            {
-                                type: Object,
-                                optional: 1,
-                                shape: {
-                                    iconClass: String,
-                                    color: String,
-                                    backgroundColor: String,
-                                },
-                            },
-                        ],
-                        optional: true,
-                    },
-                    webIconData: { type: String, optional: 1 },
-                    xmlid: { type: String, optional: true },
-                },
-            },
-        },
+        apps: { type: Array, element: APP_PROP },
         reorderApps: { type: Function },
         personal: { type: Boolean, optional: true },
-        config: {
-            type: Object,
-            optional: true,
-            shape: { order: Array, pinned: Array, hidden: Array },
-        },
+        config: { type: Object, optional: true, shape: APPS_CONFIG_SHAPE },
         resetApps: { type: Function, optional: true },
-        defaultConfig: {
-            type: Object,
-            optional: true,
-            shape: { order: Array, pinned: Array, hidden: Array },
-        },
+        defaultConfig: { type: Object, optional: true, shape: APPS_CONFIG_SHAPE },
     };
 
     /**

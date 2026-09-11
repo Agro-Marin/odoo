@@ -33,6 +33,83 @@ import {
 } from "./calendar_date_range.js";
 import { normalizeCalendarRecord } from "./calendar_record.js";
 
+function collectDynamicRawFilters(
+    data,
+    field,
+    /** @type {string} */ fieldName,
+    addFilterFields,
+) {
+    const rawFiltersById = new Map();
+    for (const record of Object.values(data.records)) {
+        let rawValues = isX2Many(field)
+            ? record.rawRecord[fieldName]
+            : [record.rawRecord[fieldName]];
+        if (!rawValues.length) {
+            rawValues = [false];
+        }
+        for (const rawValue of rawValues) {
+            const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+            if (!rawFiltersById.has(value)) {
+                rawFiltersById.set(value, {
+                    id: value,
+                    [fieldName]: rawValue,
+                    ...addFilterFields(record),
+                });
+            }
+        }
+    }
+    return [...rawFiltersById.values()];
+}
+
+/** @returns {Promise<Record<string, any>[]>} */
+async function fetchDynamicFilterColors(
+    orm,
+    meta,
+    rawFilters,
+    /** @type {string} */ fieldName,
+    filterInfo,
+) {
+    const { fields, fieldMapping } = meta;
+    const field = fields[fieldName];
+    const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
+    if (!relatedIds.length || !field.relation) {
+        return [];
+    }
+    const fieldIsX2Many = isX2Many(field);
+    const fieldsToFetch = [];
+    const { colorFieldName } = filterInfo;
+    const shouldFetchColor =
+        colorFieldName &&
+        (!fieldMapping.color ||
+            `${fieldName}.${colorFieldName}` !== fields[fieldMapping.color].related);
+    if (shouldFetchColor) {
+        fieldsToFetch.push(colorFieldName);
+    }
+    if (fieldIsX2Many) {
+        fieldsToFetch.push("display_name");
+    }
+    if (!fieldsToFetch.length) {
+        return [];
+    }
+    const records = await orm.searchRead(
+        field.relation,
+        [["id", "in", relatedIds]],
+        fieldsToFetch,
+        { context: { active_test: false } },
+    );
+    if (fieldIsX2Many) {
+        const nameById = Object.fromEntries(records.map((r) => [r.id, r.display_name]));
+        for (const rawFilter of rawFilters) {
+            const id = rawFilter.id;
+            if (!id || !nameById[id]) {
+                continue;
+            }
+            rawFilter[fieldName] = [id, nameById[id]];
+        }
+    }
+    return shouldFetchColor ? records : [];
+}
+
 export class CalendarModel extends Model {
     static DEBOUNCED_LOAD_DELAY = 600;
     static services = ["notification"];
@@ -793,8 +870,15 @@ export class CalendarModel extends Model {
         previousSection,
     ) {
         const previousFilters = previousSection ? previousSection.filters : [];
-        const rawFilters = this.collectDynamicRawFilters(data, fieldName, filterInfo);
-        const rawColors = await this.fetchDynamicFilterColors(
+        const rawFilters = collectDynamicRawFilters(
+            data,
+            this.meta.fields[fieldName],
+            fieldName,
+            (record) => this.addFilterFields(record, filterInfo),
+        );
+        const rawColors = await fetchDynamicFilterColors(
+            this.orm,
+            this.meta,
             rawFilters,
             fieldName,
             filterInfo,
@@ -835,82 +919,6 @@ export class CalendarModel extends Model {
     }
 
     /** @protected */
-    collectDynamicRawFilters(data, /** @type {string} */ fieldName, filterInfo) {
-        const field = this.meta.fields[fieldName];
-        const rawFiltersById = new Map();
-        for (const record of Object.values(data.records)) {
-            let rawValues = isX2Many(field)
-                ? record.rawRecord[fieldName]
-                : [record.rawRecord[fieldName]];
-            if (!rawValues.length) {
-                rawValues = [false];
-            }
-            for (const rawValue of rawValues) {
-                const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-                if (!rawFiltersById.has(value)) {
-                    rawFiltersById.set(value, {
-                        id: value,
-                        [fieldName]: rawValue,
-                        ...this.addFilterFields(record, filterInfo),
-                    });
-                }
-            }
-        }
-        return [...rawFiltersById.values()];
-    }
-
-    /**
-     * @protected
-     * @returns {Promise<Record<string, any>[]>}
-     */
-    async fetchDynamicFilterColors(
-        rawFilters,
-        /** @type {string} */ fieldName,
-        filterInfo,
-    ) {
-        const { fields, fieldMapping } = this.meta;
-        const field = fields[fieldName];
-        const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
-        if (!relatedIds.length || !field.relation) {
-            return [];
-        }
-        const fieldIsX2Many = isX2Many(field);
-        const fieldsToFetch = [];
-        const { colorFieldName } = filterInfo;
-        const shouldFetchColor =
-            colorFieldName &&
-            (!fieldMapping.color ||
-                `${fieldName}.${colorFieldName}` !==
-                    fields[fieldMapping.color].related);
-        if (shouldFetchColor) {
-            fieldsToFetch.push(colorFieldName);
-        }
-        if (fieldIsX2Many) {
-            fieldsToFetch.push("display_name");
-        }
-        if (!fieldsToFetch.length) {
-            return [];
-        }
-        const records = await this.orm.searchRead(
-            field.relation,
-            [["id", "in", relatedIds]],
-            fieldsToFetch,
-            { context: { active_test: false } },
-        );
-        if (fieldIsX2Many) {
-            const nameById = Object.fromEntries(
-                records.map((r) => [r.id, r.display_name]),
-            );
-            for (const rawFilter of rawFilters) {
-                const id = rawFilter.id;
-                if (!id || !nameById[id]) {
-                    continue;
-                }
-                rawFilter[fieldName] = [id, nameById[id]];
-            }
-        }
-        return shouldFetchColor ? records : [];
-    }
     /** @protected */
     makeFilterDynamic(
         filterInfo,

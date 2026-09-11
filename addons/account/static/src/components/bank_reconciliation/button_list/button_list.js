@@ -17,6 +17,18 @@ import { BankRecSelectCreateDialog } from "../search_dialog/search_dialog.js";
 
 const mediaBreakpointLarge = MEDIAS_BREAKPOINTS[SIZES.LG];
 
+const KEY_BUTTONS = {
+    1: [".set-partner-btn", "setPartnerOnReconcileLine"],
+    2: [".reconcile-btn", "reconcileOnReconcileLine"],
+    3: [".set-account-btn", "setAccountOnReconcileLine"],
+    4: [".set-payable-btn", "setAccountPayableOnReconcileLine"],
+    5: [".set-receivable-btn", "setAccountReceivableOnReconcileLine"],
+    6: [".reconciliation-model-btn-0"],
+    7: [".reconciliation-model-btn-1"],
+    8: [".reconciliation-model-btn-2"],
+    Enter: [".btn-primary"],
+};
+
 export class BankRecButtonList extends Component {
     static template = "account.BankRecButtonList";
     static components = {
@@ -341,132 +353,19 @@ export class BankRecButtonList extends Component {
      * @returns {Object|undefined}
      */
     getKeyAction(key) {
-        const keyActions = {
-            1: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-partner-btn",
-                    ) && this.isLineSelected,
-                action: async () => this.setPartnerOnReconcileLine(),
-                buttonElement:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-partner-btn",
-                    ),
-            },
-            2: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".reconcile-btn",
-                    ) && this.isLineSelected,
-                action: async () => this.reconcileOnReconcileLine(),
-                buttonElement:
-                    this.props.statementLineRootRef.el.querySelector(".reconcile-btn"),
-            },
-            3: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-account-btn",
-                    ) && this.isLineSelected,
-                action: () => this.setAccountOnReconcileLine(),
-                buttonElement:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-account-btn",
-                    ),
-            },
-            4: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-payable-btn",
-                    ) && this.isLineSelected,
-                action: () => this.setAccountPayableOnReconcileLine(),
-                buttonElement:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-payable-btn",
-                    ),
-            },
-            5: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-receivable-btn",
-                    ) && this.isLineSelected,
-                action: () => this.setAccountReceivableOnReconcileLine(),
-                buttonElement:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".set-receivable-btn",
-                    ),
-            },
-            6: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".reconciliation-model-btn-0",
-                    ) && this.isLineSelected,
-                action: () => {
-                    const buttonElement =
-                        this.props.statementLineRootRef.el.querySelector(
-                            ".reconciliation-model-btn-0",
-                        );
-                    if (buttonElement) {
-                        buttonElement.click();
-                    }
-                },
-                buttonElement: this.props.statementLineRootRef.el.querySelector(
-                    ".reconciliation-model-btn-0",
-                ),
-            },
-            7: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".reconciliation-model-btn-1",
-                    ) && this.isLineSelected,
-                action: () => {
-                    const buttonElement =
-                        this.props.statementLineRootRef.el.querySelector(
-                            ".reconciliation-model-btn-1",
-                        );
-                    if (buttonElement) {
-                        buttonElement.click();
-                    }
-                },
-                buttonElement: this.props.statementLineRootRef.el.querySelector(
-                    ".reconciliation-model-btn-1",
-                ),
-            },
-            8: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(
-                        ".reconciliation-model-btn-2",
-                    ) && this.isLineSelected,
-                action: () => {
-                    const buttonElement =
-                        this.props.statementLineRootRef.el.querySelector(
-                            ".reconciliation-model-btn-2",
-                        );
-                    if (buttonElement) {
-                        buttonElement.click();
-                    }
-                },
-                buttonElement: this.props.statementLineRootRef.el.querySelector(
-                    ".reconciliation-model-btn-2",
-                ),
-            },
-            Enter: {
-                condition:
-                    this.props.statementLineRootRef.el.querySelector(".btn-primary") &&
-                    this.isLineSelected,
-                action: () => {
-                    const primaryButtons =
-                        this.props.statementLineRootRef.el.querySelectorAll(
-                            ".btn-primary",
-                        );
-                    if (primaryButtons.length > 0) {
-                        primaryButtons[0].click();
-                    }
-                },
-                buttonElement:
-                    this.props.statementLineRootRef.el.querySelector(".btn-primary"),
-            },
+        const [selector, method] = KEY_BUTTONS[key];
+        const buttonElement =
+            this.props.statementLineRootRef.el.querySelector(selector);
+        return {
+            condition: buttonElement && this.isLineSelected,
+            action: method
+                ? async () => this[method]()
+                : () =>
+                      this.props.statementLineRootRef.el
+                          .querySelector(selector)
+                          ?.click(),
+            buttonElement,
         };
-        return keyActions[key];
     }
 
     registerHotkeys() {

@@ -427,6 +427,24 @@ export class RPCCache {
     }
 
     /**
+     * @param {any} error
+     * @param {boolean} silent
+     */
+    _reportBackgroundRefreshFailure(error, silent) {
+        if (error instanceof ConnectionAbortedError) {
+            return;
+        }
+        if (error instanceof ConnectionLostError) {
+            rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, { error });
+            if (!silent) {
+                reportUncaught(error);
+            }
+        } else {
+            console.warn("RPC cache: background refresh failed", error);
+        }
+    }
+
+    /**
      * @param {string} table
      * @param {string} key
      * @param {function} fallback
@@ -483,17 +501,7 @@ export class RPCCache {
                     }
                 }
                 if (hasCacheValue) {
-                    if (error instanceof ConnectionAbortedError) {
-                        return;
-                    }
-                    if (error instanceof ConnectionLostError) {
-                        rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, { error });
-                        if (!silent) {
-                            reportUncaught(error);
-                        }
-                    } else {
-                        console.warn("RPC cache: background refresh failed", error);
-                    }
+                    this._reportBackgroundRefreshFailure(error, silent);
                     return;
                 }
                 reject(error);

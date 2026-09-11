@@ -42,108 +42,111 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
 
         if (context.active_model === "account.return") {
             this.currentReturnId = context.active_id;
-
-            onWillStart(async () => {
-                const { fields, relatedModels, views } =
-                    await this.viewService.loadViews({
-                        resModel: "account.return",
-                        context: context,
-                        views: [[context.account_return_view_id, "kanban"]],
-                    });
-                const { ArchParser } = viewRegistry.get("kanban");
-                const xmlDoc = parseXML(views["kanban"].arch);
-                this.returnArchInfo = new ArchParser().parse(
-                    xmlDoc,
-                    relatedModels,
-                    "account.return",
-                );
-
-                const extractedFields = extractFieldsFromArchInfo(
-                    this.returnArchInfo,
-                    fields,
-                );
-
-                const accountReturnId = this.currentReturnId;
-                if (!accountReturnId) {
-                    return;
-                }
-                this.specification = getFieldsSpec(
-                    extractedFields.activeFields,
-                    extractedFields.fields,
-                    context,
-                );
-
-                const returnData = await this.orm.webRead(
-                    "account.return",
-                    [accountReturnId],
-                    { specification: this.specification },
-                );
-
-                const modelParams = this.getModelParams(
-                    extractedFields.activeFields,
-                    extractedFields.fields,
-                );
-                const model = new RelationalModel(this.env, modelParams, {
-                    orm: this.orm,
-                });
-
-                this.returnRecord = new model.constructor.Record(
-                    model,
-                    {
-                        context: { ...context, in_checks_view: true },
-                        activeFields: extractedFields.activeFields,
-                        resModel: "account.return",
-                        fields: extractedFields.fields,
-                        resId: accountReturnId,
-                        resIds: [accountReturnId],
-                        isMonoRecord: true,
-                        mode: "readonly",
-                    },
-                    returnData[0],
-                    { manuallyAdded: !returnData.id },
-                );
-
-                this.props.list.model.load = async (params) => {
-                    // Reload return card
-                    const result = await this.originalListLoad(params);
-                    if (this.destroyed) {
-                        return result;
-                    }
-                    const returnData = await this.orm.webRead(
-                        "account.return",
-                        [accountReturnId],
-                        { specification: this.specification },
-                    );
-                    if (this.destroyed) {
-                        return result;
-                    }
-                    this.returnRecord.setData(returnData[0]);
-
-                    // Reload chatter messages
-                    this.env.bus.trigger("MAIL:RELOAD-THREAD", {
-                        model: "account.return",
-                        id: accountReturnId,
-                    });
-
-                    return result;
-                };
-
-                // Update records checks
-                const records = this.props.list.records;
-                if (records.length > 0) {
-                    const checkResults = this.orm.call(
-                        "account.return",
-                        "refresh_checks",
-                        [this.currentReturnId],
-                    );
-                    checkResults.then(async () => {
-                        if (!this.destroyed) {
-                            await this.props.list.model.load();
-                        }
-                    });
-                }
-            });
+            onWillStart(() => this._loadReturnRecord(context));
         }
+    }
+
+    async _loadReturnRecord(context) {
+        const extractedFields = await this._loadReturnArchInfo(context);
+        const accountReturnId = this.currentReturnId;
+        if (!accountReturnId) {
+            return;
+        }
+        this.specification = getFieldsSpec(
+            extractedFields.activeFields,
+            extractedFields.fields,
+            context,
+        );
+        const returnData = await this._readReturn(accountReturnId);
+        this.returnRecord = this._createReturnRecord(
+            context,
+            extractedFields,
+            accountReturnId,
+            returnData,
+        );
+        this.props.list.model.load = (params) =>
+            this._reloadListAndReturn(params, accountReturnId);
+        this._refreshChecks();
+    }
+
+    async _loadReturnArchInfo(context) {
+        const { fields, relatedModels, views } = await this.viewService.loadViews({
+            resModel: "account.return",
+            context: context,
+            views: [[context.account_return_view_id, "kanban"]],
+        });
+        const { ArchParser } = viewRegistry.get("kanban");
+        const xmlDoc = parseXML(views["kanban"].arch);
+        this.returnArchInfo = new ArchParser().parse(
+            xmlDoc,
+            relatedModels,
+            "account.return",
+        );
+        return extractFieldsFromArchInfo(this.returnArchInfo, fields);
+    }
+
+    _readReturn(accountReturnId) {
+        return this.orm.webRead("account.return", [accountReturnId], {
+            specification: this.specification,
+        });
+    }
+
+    _createReturnRecord(context, extractedFields, accountReturnId, returnData) {
+        const modelParams = this.getModelParams(
+            extractedFields.activeFields,
+            extractedFields.fields,
+        );
+        const model = new RelationalModel(this.env, modelParams, { orm: this.orm });
+        return new model.constructor.Record(
+            model,
+            {
+                context: { ...context, in_checks_view: true },
+                activeFields: extractedFields.activeFields,
+                resModel: "account.return",
+                fields: extractedFields.fields,
+                resId: accountReturnId,
+                resIds: [accountReturnId],
+                isMonoRecord: true,
+                mode: "readonly",
+            },
+            returnData[0],
+            { manuallyAdded: !returnData.id },
+        );
+    }
+
+    async _reloadListAndReturn(params, accountReturnId) {
+        // Reload return card
+        const result = await this.originalListLoad(params);
+        if (this.destroyed) {
+            return result;
+        }
+        const returnData = await this._readReturn(accountReturnId);
+        if (this.destroyed) {
+            return result;
+        }
+        this.returnRecord.setData(returnData[0]);
+
+        // Reload chatter messages
+        this.env.bus.trigger("MAIL:RELOAD-THREAD", {
+            model: "account.return",
+            id: accountReturnId,
+        });
+
+        return result;
+    }
+
+    _refreshChecks() {
+        if (this.props.list.records.length === 0) {
+            return;
+        }
+        const checkResults = this.orm.call("account.return", "refresh_checks", [
+            this.currentReturnId,
+        ]);
+        checkResults.then(async () => {
+            if (!this.destroyed) {
+                await this.props.list.model.load();
+            }
+        });
     }
 
     getModelParams(activeFields, fields) {
