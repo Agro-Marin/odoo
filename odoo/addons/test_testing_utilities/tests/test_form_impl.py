@@ -837,7 +837,7 @@ class TestEdition(TransactionCase):
         self.assertEqual(r.m2m, (b | c))
 
 
-class TestDaterange(TransactionCase):
+class TestDaterangeStandaloneEnd(TransactionCase):
     def _form(self, arch):
         view = self.env["ir.ui.view"].create(
             {
