@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from werkzeug.exceptions import Forbidden
 
-from odoo import release
+from odoo import Command, release
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
@@ -652,7 +652,7 @@ class AdyenTest(AdyenCommon, PaymentHttpCommon):
             {
                 "name": "Dummy Partner",
                 "email": "norbert.buyer@example.com",
-                "phone": "0032 12 34 56 78",
+                "phone_ids": [Command.create({"number": "0032 12 34 56 78"})],
             }
         )
         test_address = adyen_utils.format_partner_address(test_partner)

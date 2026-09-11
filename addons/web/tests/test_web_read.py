@@ -123,7 +123,7 @@ class TestWebReadRelational(common.TransactionCase):
         self.assertNotIn(secret.id, Partner.with_user(user).search([]).ids)
 
         [res] = child.with_user(user).web_read(
-            {"parent_id": {"fields": {"display_name": {}, "phone": {}}}}
+            {"parent_id": {"fields": {"display_name": {}, "email": {}}}}
         )
         self.assertEqual(
             res["parent_id"],
