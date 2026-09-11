@@ -2409,13 +2409,21 @@ class HrEmployee(models.Model):
         )
 
     def _get_unusual_days(self, date_from, date_to=None):
-        self.check_singleton()
+        """Use the employee's schedule, or the current company for an empty recordset."""
+        if self:
+            self.check_singleton()
         date_from_date = datetime.strptime(date_from, "%Y-%m-%d %H:%M:%S").date()
         date_to_date = (
             datetime.strptime(date_to, "%Y-%m-%d %H:%M:%S").date()
             if date_to
             else date_from_date
         )
+        if not self:
+            return self.env.company.resource_calendar_id._get_unusual_days(
+                datetime.combine(date_from_date, time.min, tzinfo=UTC),
+                datetime.combine(date_to_date, time.max, tzinfo=UTC),
+                self.env.company,
+            )
         employee_versions = (
             self.env["hr.version"]
             .sudo()

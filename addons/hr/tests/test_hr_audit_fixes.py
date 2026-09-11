@@ -113,6 +113,34 @@ class TestHrAuditFixes(TestHrCommon):
         result = emp._get_unusual_days("2020-06-01 00:00:00")
         self.assertIsInstance(result, dict)
 
+    def test_get_unusual_days_without_employee_uses_company_calendar(self):
+        calendar = self.env["resource.calendar"].create(
+            {
+                "name": "Monday only",
+                "tz": "UTC",
+                "attendance_ids": [
+                    fields.Command.create(
+                        {
+                            "name": "Monday",
+                            "dayofweek": "0",
+                            "hour_from": 8,
+                            "hour_to": 16,
+                        }
+                    ),
+                ],
+            }
+        )
+        self.env.company.resource_calendar_id = calendar
+        employees = self.env["hr.employee"]
+        self.assertEqual(
+            employees._get_unusual_days("2020-06-01 00:00:00", "2020-06-02 23:59:59"),
+            {"2020-06-01": False, "2020-06-02": True},
+        )
+        self.assertEqual(
+            employees._get_unusual_days("2020-06-01 00:00:00"),
+            {"2020-06-01": False},
+        )
+
     def test_job_title_cleared_when_job_removed(self):
         job = self.env["hr.job"].create({"name": "Developer"})
         emp = self._new_employee("Titled Guy", job_id=job.id)
