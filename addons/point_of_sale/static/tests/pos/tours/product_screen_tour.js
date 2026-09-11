@@ -1071,8 +1071,8 @@ registry
                     expectUnloadPage: true,
                 },
                 {
-                    trigger: "body",
-                    expectUnloadPage: true,
+                    content: "Land on the Point of Sale app in the backend",
+                    trigger: ".o_main_navbar .o_menu_brand:contains('Point of Sale')",
                 },
                 BackendUtils.openProductForm("A Test Product"),
                 {
