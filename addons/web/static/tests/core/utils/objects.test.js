@@ -305,6 +305,19 @@ test("isObject", () => {
     expect(isObject(new (class AAA {})())).toBe(true);
 });
 
+test("omit and pick share numeric and canonical string property keys", () => {
+    const symbol = Symbol("keep");
+    const source = { 0: "zero", 1: "one", "01": "padded", [symbol]: "symbol" };
+    expect(omit(source, 0, 1)).toEqual({ "01": "padded", [symbol]: "symbol" });
+    expect(omit(source, "0", "1")).toEqual(omit(source, 0, 1));
+    expect(omit(source, "01")).toEqual({ 0: "zero", 1: "one", [symbol]: "symbol" });
+    expect(omit(source, 0, symbol)).toEqual({ 1: "one", "01": "padded" });
+    expect(pick(source, "0", symbol)).toEqual({ 0: "zero", [symbol]: "symbol" });
+    expect(pick(source, 0, 1)).toEqual(pick(source, "0", "1"));
+    expect(pick(source, "01")).toEqual({ "01": "padded" });
+    expect(source).toEqual({ 0: "zero", 1: "one", "01": "padded", [symbol]: "symbol" });
+});
+
 test("omit", () => {
     expect(omit({})).toEqual({});
     expect(omit({}, "a")).toEqual({});
@@ -471,7 +484,7 @@ describe("key-set policy", () => {
         const S = Symbol("s");
         const T = Symbol("t");
         const source = { [S]: 1, [T]: 2, a: 3, b: 4 };
-        const result = omit(source, "a", /** @type {any} */ (T));
+        const result = omit(source, "a", T);
         expect(Reflect.ownKeys(result)).toEqual(["b", S]);
         expect(result[S]).toBe(1);
     });
@@ -489,9 +502,7 @@ describe("key-set policy", () => {
     test("omit does not carry a non-enumerable own key either", () => {
         const source = { a: 1 };
         Object.defineProperty(source, "hidden", { value: 9 });
-        expect(Reflect.ownKeys(omit(source, /** @type {any} */ ("nothing")))).toEqual([
-            "a",
-        ]);
+        expect(Reflect.ownKeys(omit(source, "nothing"))).toEqual(["a"]);
     });
 
     test("looking up walks the prototype chain but not into Object.prototype", () => {

@@ -232,16 +232,28 @@ export function isObject(value) {
 }
 
 /**
- * @template {Record<string, any>} T
+ * Numeric keys and their canonical string spellings address the same property.
+ * Noncanonical strings such as "01" remain distinct from numeric keys.
  * @template {PropertyKey} K
+ * @typedef {K extends number ? K | `${K}`
+ *  : K extends `${infer N extends number}` ? `${N}` extends K ? K | N : K
+ *  : K} PropertyKeyAliases
+ */
+
+/**
+ * @template {Record<string, any>} T
+ * @template {PropertyKey[]} Keys
  * @param {T} object
- * @param {...(K)} properties
- * @returns {Omit<T, K>}
+ * @param {Keys} properties
+ * @returns {Omit<T, PropertyKeyAliases<Keys[number]>>}
  */
 export function omit(object, ...properties) {
     /** @type {any} */
     const result = {};
-    const excluded = new Set(/** @type {PropertyKey[]} */ (properties));
+    /** @type {Set<PropertyKey>} */
+    const excluded = new Set(
+        properties.map((key) => (typeof key === "number" ? String(key) : key)),
+    );
     const source = /** @type {Record<PropertyKey, any>} */ (object);
     for (const key of Object.keys(source)) {
         if (!excluded.has(key)) {
@@ -279,10 +291,10 @@ function hasPropertyBelowObject(object, property) {
 
 /**
  * @template T
- * @template {PropertyKey} K
+ * @template {PropertyKey[]} Keys
  * @param {T} object
- * @param {...(K)} properties
- * @returns {Pick<T, Extract<K, keyof T>> & Partial<Record<Exclude<K, keyof T>, unknown>>}
+ * @param {Keys} properties
+ * @returns {Pick<T, Extract<PropertyKeyAliases<Keys[number]>, keyof T>> & Partial<Record<Exclude<Keys[number], PropertyKeyAliases<keyof T>>, unknown>>}
  */
 export function pick(object, ...properties) {
     /** @type {any} */

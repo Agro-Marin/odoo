@@ -59,6 +59,7 @@ test("web utility contracts preserve arguments, absence, and promise identity", 
     const source = `
 import { cartesian, ensureArray, groupBy, intersection, symmetricalDifference, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
+import { omit, pick } from "@web/core/utils/collections/objects";
 import { Deferred, InFlight } from "@web/core/utils/concurrency";
 import { LruCache } from "@web/core/utils/lru_cache";
 import { nameService, ERROR_INACCESSIBLE_OR_MISSING } from "@web/core/name_service";
@@ -85,6 +86,44 @@ const dynamic = zip([1], ["a"], Math.random() > 0.5);
 // @ts-expect-error A runtime padding flag also requires handling missing values.
 dynamic[0][1].toUpperCase();
 zipWith([1], ["a"], (n, s) => n.toFixed() + s.toUpperCase());
+
+const symbolKey = Symbol("property");
+const mixedKeys = { 0: "zero", named: true, [symbolKey]: 42 };
+const pickedMixed = pick(mixedKeys, 0, "named", symbolKey);
+pickedMixed[0].toUpperCase();
+pickedMixed.named.valueOf();
+pickedMixed[symbolKey].toFixed();
+const omittedMixed = omit(mixedKeys, "0", symbolKey);
+omittedMixed.named.valueOf();
+// @ts-expect-error Mixed-key selections remove the symbol key too.
+omittedMixed[symbolKey];
+// @ts-expect-error Mixed-key selections remove the numeric alias too.
+omittedMixed[0];
+const numericKeys = { 0: "zero", 1: 1, "01": true };
+const omittedByString = omit(numericKeys, "0");
+omittedByString[1].toFixed();
+omittedByString["01"].valueOf();
+// @ts-expect-error Canonical string selectors remove numeric literal keys too.
+omittedByString[0];
+const omittedByNumber = omit({ "0": "zero", keep: true }, 0);
+omittedByNumber.keep.valueOf();
+// @ts-expect-error Numeric selectors remove canonical string keys too.
+omittedByNumber["0"];
+omit(numericKeys, "01")[1].toFixed();
+pick(numericKeys, "0")[0].toUpperCase();
+pick({ "0": "zero" }, 0)["0"].toUpperCase();
+// @ts-expect-error Selected aliases retain the original property value type.
+pick(numericKeys, "0")[0].toFixed();
+const missingKey = pick(numericKeys, "missing");
+// @ts-expect-error Missing properties remain optional unknown values.
+missingKey.missing.toFixed();
+declare const optionalKey: { readonly 0?: string; readonly keep: number };
+const pickedOptional = pick(optionalKey, "0");
+pickedOptional[0]?.toUpperCase();
+// @ts-expect-error Aliases preserve optionality.
+pickedOptional[0].toUpperCase();
+// @ts-expect-error Aliases preserve readonly properties.
+pickedOptional[0] = "changed";
 
 const cache = new Cache((id: number, prefix: string) => prefix + id);
 cache.read(1, "item").toUpperCase();
@@ -259,6 +298,7 @@ names.cache.get("missing")?.resolve();
     const checked = [file];
     for (const path of [
         "core/utils/collections/arrays.js",
+        "core/utils/collections/objects.js",
         "core/utils/lru_cache.js",
         "core/utils/concurrency.js",
         "core/name_service.js",
