@@ -1258,7 +1258,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   321
 §2.4.2   … of those, spelled ``_check_<field>``                        144
 §2.4.2   Multi-field constraints named for one trigger                  61
-§2.4.3   Non-test methods declared on a model class                 27,049
+§2.4.3   Non-test methods declared on a model class                 27,053
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            169
@@ -1270,9 +1270,9 @@ Section  Population                                                  Count
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   148
 §2.4.4   Other heads: definitions spelled tail-first                   195
-§2.4.5   ``X_to_Y`` converter definitions                              103
-§2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,423
+§2.4.5   ``X_to_Y`` converter definitions                              104
+§2.4.5   … distinct names                                               57
+§2.4.7   ``_get_*`` definitions                                      6,422
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   122
 §2.4.7   ``_calculate_*`` model methods                                  0
@@ -2300,7 +2300,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **335** functions in
+**A ``bool`` return does not make a predicate** ``[review]``. **336** functions in
 this repository are annotated ``-> bool`` and are not predicates, against **295**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
