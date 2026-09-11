@@ -184,6 +184,7 @@ class ResPartnerBank(models.Model):
         *,
         allow_company_account_creation=False,
         extra_create_vals=None,
+        revive_archived_match=True,
     ):
         bank_account = (
             self.env["res.partner.bank"]
@@ -196,7 +197,11 @@ class ResPartnerBank(models.Model):
                 ]
             )
         )
-        if bank_account and not bank_account.filtered("active"):
+        if (
+            revive_archived_match
+            and bank_account
+            and not bank_account.filtered("active")
+        ):
             bank_account.filtered(lambda b: b.partner_id == partner).sudo(
                 False
             ).action_unarchive()

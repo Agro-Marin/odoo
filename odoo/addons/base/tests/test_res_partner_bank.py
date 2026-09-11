@@ -146,6 +146,23 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         self.assertEqual(found, bank)
         self.assertTrue(bank.active)
 
+    def test_get_or_create_leaves_an_archived_match_archived_when_asked(self):
+        partner = self.env["res.partner"].create({"name": "Pepper Test"})
+        bank = self.env["res.partner.bank"].create(
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
+        )
+        bank.unlink()
+
+        found = self.env["res.partner.bank"]._get_or_create_bank_account(
+            "BE0012518823 03",
+            partner,
+            self.env.company,
+            revive_archived_match=False,
+        )
+
+        self.assertFalse(found)
+        self.assertFalse(bank.active)
+
     def test_get_or_create_leaves_a_child_partners_archived_account_alone(self):
         company = self.env["res.partner"].create(
             {"name": "Holder Co", "is_company": True}
