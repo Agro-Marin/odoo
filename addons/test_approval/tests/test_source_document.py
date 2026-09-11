@@ -106,6 +106,27 @@ class TestSourceDocumentIsNotified(ApprovalCommon):
             any("prior approval is no longer valid" in body for body in bodies)
         )
 
+    def test_revoking_an_approved_request_notifies_source_document_once(self):
+        category = self._make_category(
+            name=f"Revoke Notify Cat {self.id()}", approvers=[self.approver_1]
+        )
+        doc = self.env["approval.test.document"].create(
+            {
+                "name": "Doc approved then revoked",
+                "partner_id": self.partner.id,
+                "test_category_id": category.id,
+            },
+        )
+        doc.action_create_approval_request()
+        doc.approval_request_id.with_user(self.approver_1).action_approve()
+        self.assertEqual(doc.hook_call_count, 1)
+
+        doc.approval_request_id._revoke("refused", "Refused after validation")
+
+        self.assertEqual(doc.last_approval_state, "refused")
+        self.assertEqual(doc.state, "rejected")
+        self.assertEqual(doc.hook_call_count, 2)
+
     def test_reset_blocked_when_source_document_released_link(self):
         category = self._make_category(
             name=f"Reset Release Cat {self.id()}",

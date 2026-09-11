@@ -118,6 +118,20 @@ class ApprovalRequest(models.Model):
         index=True,
         help="Date and time when final approval was granted",
     )
+    revoked_state = fields.Selection(
+        selection=[("refused", "Refused"), ("cancelled", "Cancelled")],
+        readonly=True,
+        copy=False,
+        help="Set when an approved request was overturned from outside its decisions, "
+        "e.g. a validated leave refused by an officer. The state reads it before the "
+        "approver rows, whose decisions stay as they were given.",
+    )
+    revoked_by_user_id = fields.Many2one(
+        comodel_name="res.users",
+        readonly=True,
+        copy=False,
+    )
+    date_revoked = fields.Datetime(readonly=True, copy=False)
     date_refused = fields.Datetime(
         compute="_compute_date_refused",
         store=True,
@@ -769,9 +783,14 @@ class ApprovalRequest(models.Model):
         "approver_ids.step_ids.minimum",
         "approver_ids.step_ids.exclusive",
         "approver_ids.step_ids.active",
+        "revoked_state",
     )
     def _compute_state(self) -> None:
         for request in self:
+            if request.revoked_state:
+                request.state = request.revoked_state
+                continue
+
             state_lst = request.mapped("approver_ids.state")
 
             if not state_lst:
@@ -869,9 +888,14 @@ class ApprovalRequest(models.Model):
             elif not request[field_name]:
                 request[field_name] = now
 
-    @api.depends("state")
+    @api.depends("state", "revoked_state")
     def _compute_date_approval_granted(self) -> None:
-        self._compute_terminal_date_stamp("date_approval_granted", "approved")
+        revoked = self.filtered("revoked_state")
+        for request in revoked:
+            request.date_approval_granted = request.date_approval_granted
+        (self - revoked)._compute_terminal_date_stamp(
+            "date_approval_granted", "approved"
+        )
 
     @api.depends("state")
     def _compute_date_refused(self) -> None:

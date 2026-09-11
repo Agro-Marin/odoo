@@ -248,9 +248,12 @@ so category names are unique per company, archived rows included.
 | `date_deadline` | Datetime | Yes | No | |
 | `date_planned` | Datetime | Yes | No | |
 | `date_confirmed` | Datetime | Yes | No | index (cleared by reset-to-draft) |
-| `date_approval_granted` | Datetime | Yes | No | compute, store, index, copy=False, cleared whenever the request is not in the state it records |
+| `date_approval_granted` | Datetime | Yes | No | compute, store, index, copy=False; cleared whenever the request leaves `approved`, except on a revoked request (`revoked_state`), which keeps the date its approval was granted |
 | `date_refused` | Datetime | Yes | No | compute, store, index, copy=False, cleared whenever the request is not in the state it records |
 | `date_cancelled` | Datetime | Yes | No | compute, store, index, copy=False, cleared whenever the request is not in the state it records |
+| `revoked_state` | Selection | Yes | No | refused / cancelled, readonly, copy=False. Set by `_revoke()` when an approved request is overturned from outside its decisions; `_compute_state` reads it before the approver rows, whose decisions stay as given. Cleared by `_force_draft()` |
+| `revoked_by_user_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False. Who revoked the approval |
+| `date_revoked` | Datetime | Yes | No | readonly, copy=False. When the approval was revoked |
 | `refusal_reason_id` | Many2one(`approval.refusal.reason`) | Yes | No | readonly, copy=False, tracking. Canonical reason of the terminal refusal (wizard, cascade or auto-rule) |
 | `refusal_note` | Text | Yes | No | readonly, copy=False, tracking |
 | `pending_change_field` | Selection(date/reason) | Yes | No | readonly, copy=False. Field the requester must update before approval can resume |
@@ -367,6 +370,7 @@ requester re-submits (`action_resubmit`).
 | `_sync_approvers()` | routing.py | **Core engine**: reconcile approver rows from all sources (write step) |
 | `_compute_desired_approvers()` | routing.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
 | `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
+| `_revoke(new_state, body, ...)` | lifecycle.py | Overturns an **approved** request into `refused` or `cancelled` from outside its decisions (a validated leave refused by an officer): writes `revoked_state`, stamps the refusal metadata, cancels activities, notifies the source document once, runs `_refuse_approval_request()` for a refusal. Every approver row keeps its decision. A non-approved request raises `UserError`; `approved` as the target raises `ValueError` |
 | `_notify_if_terminal_transition()` | lifecycle.py | Fire source-doc hook once on entering a terminal state |
 | `_lock_for_approval_action()` | lifecycle.py | SELECT FOR UPDATE to prevent race conditions |
 | `_update_next_approvers_state()` | lifecycle.py | Sequential propagation; anchors on min (sequence,id) of the acting rows; never re-promotes terminal rows |

@@ -659,6 +659,9 @@ class ApprovalRequestLifecycle(models.Model):
         )
         request.sudo().write(
             {
+                "revoked_state": False,
+                "revoked_by_user_id": False,
+                "date_revoked": False,
                 "refusal_reason_id": False,
                 "refusal_note": False,
                 "date_confirmed": False,
@@ -1157,6 +1160,48 @@ class ApprovalRequestLifecycle(models.Model):
             request._close_pending_change()
             request._notify_if_terminal_transition(old_state)
             request._log_cycle("terminal", was=old_state, forced=new_state)
+            post_kwargs = {"message_type": "notification"}
+            if subtype_xmlid:
+                post_kwargs["subtype_xmlid"] = subtype_xmlid
+            request.message_post(body=body, **post_kwargs)
+            if request.state == "refused":
+                request._refuse_approval_request()
+
+    def _revoke(
+        self,
+        new_state: str,
+        body: str,
+        refusal_reason: models.BaseModel | None = None,
+        refusal_note: str | None = None,
+        subtype_xmlid: str | None = None,
+    ) -> None:
+        if new_state not in self._TERMINAL_STATES - {"approved"}:
+            raise ValueError(
+                f"_revoke() overturns an approval into refused or cancelled, got "
+                f"{new_state!r}",
+            )
+        self._lock_and_reload()
+        for request in self:
+            if request.state != "approved":
+                raise UserError(
+                    self.env._(
+                        "Only an approved request can be revoked: %(name)s is "
+                        "%(state)s.",
+                        name=request.display_name,
+                        state=request.state,
+                    ),
+                )
+            request.sudo().write(
+                {
+                    "revoked_state": new_state,
+                    "revoked_by_user_id": self.env.user.id,
+                    "date_revoked": fields.Datetime.now(),
+                },
+            )
+            request._stamp_refusal_metadata(refusal_reason, refusal_note)
+            request._cancel_activities()
+            request._notify_if_terminal_transition("approved")
+            request._log_cycle("revoke", forced=new_state)
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
                 post_kwargs["subtype_xmlid"] = subtype_xmlid

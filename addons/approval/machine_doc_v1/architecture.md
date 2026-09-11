@@ -483,6 +483,19 @@ reset-to-draft too (2026-08-11 audit). Auto-refuse rules terminate through their
 
 ---
 
+
+### Revoking an approval (`_revoke`)
+
+`_force_terminal` skips a request that is already terminal, and `approved` is terminal, so it cannot
+overturn an approval. `_revoke(new_state, body, refusal_reason=None, refusal_note=None, subtype_xmlid=None)`
+does, for an approved request only: it records `revoked_state` (`refused` or `cancelled`),
+`revoked_by_user_id` and `date_revoked`, which `_compute_state` reads before the approver rows. The rows keep
+their decisions and `decided_by_user_id`, and the request keeps `date_approval_granted`. The source document
+is notified once through `_notify_if_terminal_transition("approved")`; a refusal runs
+`_refuse_approval_request()`. `_force_draft()` clears the three fields, and a revoked request can no longer be
+withdrawn from, since it is neither pending nor approved. This is how an adopter whose own policy lets
+someone overturn a finished approval -- time off refusing a validated leave -- keeps the engine's record true.
+
 ## Notification Flow
 
 ### Email / Activity Notifications

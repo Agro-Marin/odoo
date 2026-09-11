@@ -124,6 +124,7 @@ dashboards.
 | `test_attachment_lock.py` | Attachments of a decided request are frozen: create, write, unlink, forged `res_field` |
 | `test_category.py` | Category configuration: approver-list domain helper, sequence-code derivation |
 | `test_category_steps.py` | Steps: two one-of-two steps need one approval from each, per-step quorum, one row per user counting toward every step, exclusivity in both directions, group and expired members, step conditions, refusal, asking steps in order while deciding freely, notify lists, configuration that could never be met, and a category without steps untouched |
+| `test_request_revocation.py` | Revoking an approved request from outside its decisions (`_revoke`): refused or cancelled, the rows keep their decisions and the request its approval date, only an approved request is revoked, the reason is recorded, a reset gives a clean draft, withdraw is refused afterwards |
 | `test_step_decisions.py` | Decisions given for steps: a named step counts toward that step only, an unnamed decision takes every step of the row, a step decided once per user, a step outside the row refused, exclusivity in both directions, withdrawing one step keeps the other and re-asks, withdrawing the only step withdraws the decision, a step never decided cannot be withdrawn, a refusal naming a step, a reset clearing decided steps, the note naming where the decision counts, an approver whose step is met no longer asked |
 | `test_step_source_approvers.py` | Steps whose approvers come from a field path on the source document (`subject_user_path`): each document names its own approver, only that user decides, members and the named user share the pool, confirm refuses a document naming nobody, the path must exist and end in `res.users` |
 | `test_ui.py` | Tour-based UI tests; `approval_button_tour`: a gated partner button draws its approvals, is approved from the popover, and the request is approved on the server |
@@ -221,7 +222,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 20 script directories (1.0.1 .. 1.8)
-+-- tests/                            # 40 test modules + common.py
++-- tests/                            # 41 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -234,7 +235,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
-| Python test files | 40 (+ `common.py`) |
+| Python test files | 41 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 16 |

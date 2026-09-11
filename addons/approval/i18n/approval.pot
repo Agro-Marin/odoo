@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 02:15+0000\n"
-"PO-Revision-Date: 2026-09-11 02:15+0000\n"
+"POT-Creation-Date: 2026-09-11 02:35+0000\n"
+"PO-Revision-Date: 2026-09-11 02:35+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -1825,6 +1825,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_metrics__cancelled_count
 #: model:ir.model.fields.selection,name:approval.selection__approval_approver__state__cancelled
+#: model:ir.model.fields.selection,name:approval.selection__approval_request__revoked_state__cancelled
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__state__cancelled
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__user_approver_state__cancelled
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
@@ -2349,6 +2350,11 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__date_refused
 msgid "Date Refused"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__date_revoked
+msgid "Date Revoked"
 msgstr ""
 
 #. module: approval
@@ -4000,6 +4006,12 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "Only an approved request can be revoked: %(name)s is %(state)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Only decided requests can be reset to draft. Request '%(name)s' is in state "
 "'%(state)s'."
@@ -4591,6 +4603,7 @@ msgstr ""
 #: code:addons/approval/models/approval_category.py:0
 #: model:ir.model.fields,field_description:approval.field_approver_performance__refused_count
 #: model:ir.model.fields.selection,name:approval.selection__approval_approver__state__refused
+#: model:ir.model.fields.selection,name:approval.selection__approval_request__revoked_state__refused
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__state__refused
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__user_approver_state__refused
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
@@ -4934,6 +4947,16 @@ msgid "Review pending →"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__revoked_by_user_id
+msgid "Revoked By User"
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_request__revoked_state
+msgid "Revoked State"
+msgstr ""
+
+#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_rule_form
 msgid "Rule"
 msgstr ""
@@ -5186,6 +5209,14 @@ msgstr ""
 msgid ""
 "Set automatically when the source document that owned this approval was "
 "cancelled."
+msgstr ""
+
+#. module: approval
+#: model:ir.model.fields,help:approval.field_approval_request__revoked_state
+msgid ""
+"Set when an approved request was overturned from outside its decisions, e.g."
+" a validated leave refused by an officer. The state reads it before the "
+"approver rows, whose decisions stay as they were given."
 msgstr ""
 
 #. module: approval
