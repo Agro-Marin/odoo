@@ -458,7 +458,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
         };
         if (end) {
             res.end = fromFcDate(end);
-            if (["day", "week", "month"].includes(this.model.scale) && allDay) {
+            if (allDay) {
                 res.end = res.end.minus({ days: 1 });
             }
         }

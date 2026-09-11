@@ -526,6 +526,13 @@ export class GraphModel extends Model {
         for (const gb of metaData.groupBy) {
             let ngb = gb;
             if (typeof gb === "string") {
+                const baseName = gb.split(":")[0];
+                if (!baseName.includes(".") && !fields[baseName]) {
+                    console.warn(
+                        `Group by "${gb}" has no field definition (removed or renamed field?); ignoring it.`,
+                    );
+                    continue;
+                }
                 ngb = getGroupBy(gb, fields);
             }
             groupBy.push(ngb);

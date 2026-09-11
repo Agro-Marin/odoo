@@ -3476,3 +3476,16 @@ test("switching back to a graph whose arch names its group-bys restores its stat
     expect(getModeButton("line")).toHaveClass("active");
     expect(".o_graph_canvas_container canvas").toHaveCount(1);
 });
+
+test("a saved group-by naming a removed field is dropped, not fatal", async () => {
+    const warnings = [];
+    patchWithCleanup(console, { warn: (message) => warnings.push(message) });
+    await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch: `<graph/>`,
+        context: { graph_groupbys: ["vanished_field"] },
+    });
+    expect(".o_graph_canvas_container canvas").toHaveCount(1);
+    expect(warnings.filter((w) => w.includes("vanished_field"))).toHaveLength(1);
+});

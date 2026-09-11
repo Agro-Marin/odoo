@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markup } from "@odoo/owl";
 import { PATH_KEYS } from "@web/core/browser/router";
 import { user } from "@web/core/user";
 import { omit, pick, shallowEqual } from "@web/core/utils/collections/objects";
 
 import { parseActiveIds } from "./action_constants.js";
+import { withMarkupHelp } from "./action_help.js";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
@@ -216,8 +216,6 @@ function resolveActionParams(state, lastAction) {
 export function getActionParams(state) {
     const lastAction = actionStorage.getCurrentAction();
     delete lastAction.context?.allowed_company_ids;
-    if (lastAction.help) {
-        lastAction.help = markup(lastAction.help);
-    }
+    withMarkupHelp(lastAction);
     return resolveActionParams(state, lastAction);
 }

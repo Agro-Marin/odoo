@@ -616,7 +616,7 @@ export class PropertiesField extends FieldComponent {
         const propertyName = this.movePopoverToProperty;
         this.movePopoverToProperty = null;
 
-        const target = document.querySelector(
+        const target = this.propertiesRef.el?.querySelector(
             `*[property-name="${propertyName}"] .o_field_property_open_popover`,
         );
         if (!target) {

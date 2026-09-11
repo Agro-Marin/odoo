@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
 import { user } from "@web/core/user";
 
 import { nextActionDepth } from "../action_constants.js";
+import { withMarkupHelp } from "../action_help.js";
 
 /** @import { ActionManager } from "../action_service.js" */
 
@@ -24,9 +24,7 @@ export async function executeServerAction(action, options, am) {
     });
     let nextAction = await am.navigation.guard(runProm);
     nextAction = nextAction || { type: "ir.actions.act_window_close" };
-    if (nextAction.help) {
-        nextAction.help = markup(nextAction.help);
-    }
+    withMarkupHelp(nextAction);
     if (typeof nextAction === "object") {
         nextAction.path ||= action.path;
     }

@@ -202,3 +202,22 @@ test(`pointerdown on the popover's own event keeps its default (drag & drop)`, a
     widget.querySelector(".fc-event").dispatchEvent(ev);
     expect(ev.defaultPrevented).toBe(false);
 });
+
+test(`a selection field's tooltip reads its label, a monetary its currency`, async () => {
+    const formatted = (fieldName, fields, data) =>
+        CalendarCommonPopover.prototype.getFormattedValue.call(
+            { props: { model: { popoverFieldNodes: { [fieldName]: {} }, fields } } },
+            fieldName,
+            { data },
+        );
+    expect(
+        formatted(
+            "state",
+            { state: { type: "selection", selection: [["done", "Done"]] } },
+            { state: "done" },
+        ),
+    ).toBe("Done");
+    expect(formatted("name", { name: { type: "char" } }, { name: "Meeting" })).toBe(
+        "Meeting",
+    );
+});

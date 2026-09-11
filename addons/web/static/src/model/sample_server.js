@@ -447,7 +447,7 @@ export class SampleServer {
                 const { alias, fieldName, type } = gb;
                 group[alias] =
                     type === "many2many"
-                        ? this._formatValue(parsedId[fieldName], gb)
+                        ? this._formatValue(parsedId[alias], gb)
                         : this._formatValue(bucket[0][fieldName], gb);
             }
             Object.assign(group, this._aggregateFields(measures, bucket));
@@ -724,7 +724,6 @@ export class SampleServer {
         this._updateRecordsWithGroups(params);
 
         const { fieldName: groupBy, alias, field } = gb;
-        const modelFields = this.data[params.model].fields;
         const records = this.data[params.model].records;
         for (const g of groups) {
             const recordsInGroup = records.filter((/** @type {any} */ r) => {
@@ -738,24 +737,13 @@ export class SampleServer {
                 }
                 return r[groupBy] === g[alias];
             });
-            for (const aggregateSpec of params.aggregates || []) {
-                if (aggregateSpec === "__count") {
-                    g.__count = recordsInGroup.length;
-                    continue;
-                }
-                const [aggFieldName, func] = aggregateSpec.split(":");
-                if (func === "array_agg") {
-                    g[aggregateSpec] = recordsInGroup.map((r) => r[aggFieldName]);
-                } else if (
-                    ["integer", "float", "monetary"].includes(
-                        modelFields[aggFieldName]?.type,
-                    )
-                ) {
-                    g[aggregateSpec] = sanitizeNumber(
-                        recordsInGroup.reduce((acc, r) => acc + r[aggFieldName], 0),
-                    );
-                }
-            }
+            Object.assign(
+                g,
+                this._aggregateFields(
+                    this._parseMeasures(params.aggregates || []),
+                    recordsInGroup,
+                ),
+            );
         }
     }
 }

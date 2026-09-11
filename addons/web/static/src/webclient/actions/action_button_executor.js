@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -10,6 +9,7 @@ import { omit, pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
 import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js";
+import { withMarkupHelp } from "./action_help.js";
 
 /** @typedef {Object} DoActionButtonParams */
 
@@ -84,10 +84,7 @@ async function resolveButtonAction(am, params, context) {
             answer && typeof answer === "object"
                 ? answer
                 : { type: "ir.actions.act_window_close" };
-        if (action.help) {
-            action.help = markup(action.help);
-        }
-        return action;
+        return withMarkupHelp(action);
     }
     if (params.type === "action") {
         context.active_id = params.resId ?? null;
