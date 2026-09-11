@@ -49,6 +49,13 @@ class ApprovalTestSyncedDocument(models.Model):
         default="",
         help="Each outcome the request applied to this document, in order",
     )
+    blocked_user_ids = fields.Many2many(
+        comodel_name="res.users",
+        relation="approval_test_synced_document_blocked_user_rel",
+        column1="document_id",
+        column2="user_id",
+        help="Users the document's own policy would refuse, kept off its steps",
+    )
 
     def _get_domain_approval_category(self) -> list[Any]:
         if self.test_category_id:
@@ -60,6 +67,9 @@ class ApprovalTestSyncedDocument(models.Model):
 
     def _get_approval_sync_kinds(self) -> dict[Any, str]:
         return dict(SYNC_KINDS)
+
+    def _filter_approval_step_user_ids(self, step, user_ids: set[int]) -> set[int]:
+        return user_ids - set(self.blocked_user_ids.ids)
 
     def _check_approval_sync_policy(self, kind: str) -> None:
         if self.policy_refusal:

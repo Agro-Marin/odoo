@@ -217,7 +217,8 @@ class ApprovalCategoryStep(models.Model):
 
     def _get_pool_user_ids(self, document=None, company=None) -> set[int]:
         """Who may approve this step today: valid members, the users the document
-        names, and the group's users -- of those, the ones who work in `company`."""
+        names, and the group's users -- of those, the ones who work in `company` and
+        whom the document's own policy lets decide it."""
         self.check_singleton()
         users = self._get_member_user_ids(document, company)
         if self.group_id:
@@ -226,7 +227,28 @@ class ApprovalCategoryStep(models.Model):
                     set(self.group_id.all_user_ids.ids), company
                 )
             )
+        return self._filter_document_user_ids(users, document)
+
+    def _get_candidate_user_ids(self, document=None) -> set[int]:
+        """Every user the step names for `document`, before the request's company or
+        the document's policy narrows them: routing owns the rows of all of them."""
+        self.check_singleton()
+        users = self._get_member_user_ids(document)
+        if self.group_id:
+            users.update(self.group_id.all_user_ids.ids)
         return users
+
+    def _filter_document_user_ids(self, user_ids: set[int], document) -> set[int]:
+        """A document adopting mixin.approval keeps a user off its step when its own
+        policy would refuse that user's decision."""
+        self.check_singleton()
+        if (
+            not user_ids
+            or not isinstance(document, self.env.registry["mixin.approval"])
+            or len(document) != 1
+        ):
+            return user_ids
+        return document.sudo()._filter_approval_step_user_ids(self, set(user_ids))
 
     def _filter_company_user_ids(self, user_ids: set[int], company) -> set[int]:
         """An approver row belongs to its request's company, so only a user allowed

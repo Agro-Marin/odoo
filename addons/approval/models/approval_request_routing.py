@@ -148,7 +148,7 @@ class ApprovalRequestRouting(models.Model):
         managed = set(self.category_id.approver_ids.user_id.ids)
         document = self.get_source_document()
         for step in self._get_applicable_steps():
-            managed.update(step._get_pool_user_ids(document))
+            managed.update(step._get_candidate_user_ids(document))
         if replacement:
             managed.update(replacement.approver_ids.ids)
         for rule in matched_rules or ():
