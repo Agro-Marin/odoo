@@ -170,6 +170,7 @@ class MixinApprovalStateSync(models.AbstractModel):
         self.check_singleton()
         refused = kind == "refused"
         target = "refused" if refused else "cancelled"
+        note = self.env.context.get("approval_refusal_note") if refused else None
         if request.state == "approved":
             request._revoke(
                 target,
@@ -184,6 +185,7 @@ class MixinApprovalStateSync(models.AbstractModel):
                     user=user.name,
                     record=self.display_name,
                 ),
+                refusal_note=note,
             )
             return
         if request.state not in ("new", "pending"):
@@ -195,6 +197,8 @@ class MixinApprovalStateSync(models.AbstractModel):
         )
         if rows:
             request.action_refuse(approver=rows)
+            if note:
+                request._stamp_refusal_metadata(None, note)
             return
         request._force_terminal(
             target,
@@ -207,6 +211,7 @@ class MixinApprovalStateSync(models.AbstractModel):
                 user=user.name,
                 record=self.display_name,
             ),
+            refusal_note=note,
         )
 
     def _apply_approval_outcome(self, kind: str, decided: bool = True) -> None:

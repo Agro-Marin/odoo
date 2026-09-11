@@ -233,6 +233,54 @@ class TestApprovalStateSync(ApprovalCommon):
 
         self.assertEqual(document.state, "cancelled")
 
+    # -- a refusal note travels with the document's refusal ------------------
+
+    def test_a_refusal_note_reaches_a_decided_refusal(self):
+        document = self._document(state="submitted")
+
+        self._as(document, self.approver_1).with_context(
+            approval_refusal_note="Not in budget"
+        ).write({"state": "refused"})
+
+        request = document.approval_request_id
+        self.assertEqual(request.refusal_note, "Not in budget")
+        self.assertEqual(request.approver_ids.decided_by_user_id, self.approver_1)
+
+    def test_a_refusal_note_reaches_a_revoked_approval(self):
+        document = self._document(state="submitted")
+        self._as(document, self.approver_1).write({"state": "approved"})
+
+        self._as(document, self.manager_user).with_context(
+            approval_refusal_note="Duplicate claim"
+        ).write({"state": "refused"})
+
+        request = document.approval_request_id
+        self.assertEqual(request.revoked_state, "refused")
+        self.assertEqual(request.refusal_note, "Duplicate claim")
+
+    def test_a_refusal_note_reaches_a_forced_refusal(self):
+        document = self._document(state="submitted")
+
+        self._as(document, self.manager_user).with_context(
+            approval_refusal_note="Out of policy"
+        ).write({"state": "refused"})
+
+        request = document.approval_request_id
+        self.assertEqual(request.state, "refused")
+        self.assertFalse(request.approver_ids.filtered("decision_date"))
+        self.assertEqual(request.refusal_note, "Out of policy")
+
+    def test_a_cancellation_carries_no_refusal_note(self):
+        document = self._document(state="submitted")
+
+        self._as(document, self.owner_user).with_context(
+            approval_refusal_note="Changed my mind"
+        ).write({"state": "cancelled"})
+
+        request = document.approval_request_id
+        self.assertEqual(request.state, "cancelled")
+        self.assertFalse(request.refusal_note)
+
     # -- the request is not moved from elsewhere ------------------------------
 
     def test_the_request_is_not_moved_from_the_approvals_app(self):
