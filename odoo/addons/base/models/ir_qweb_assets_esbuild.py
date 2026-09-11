@@ -443,8 +443,8 @@ class IrQweb(models.AbstractModel):
             if asset.module_path not in parent_specs and asset.url not in external_urls
         ]
         own_specs = {name for asset in own_modules for name in module_specifiers(asset)}
-        discovered, _ext = asset_bundle._bridges._discover_bridge_specifiers(
-            own_specs, set(external_libs()), modules=own_modules
+        discovered, _ext = asset_bundle._bridges._discover_reachable_specifiers(
+            own_specs, set(external_libs()), provided=parent_specs, modules=own_modules
         )
         reached = set(discovered) | {
             resolved

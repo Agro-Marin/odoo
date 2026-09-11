@@ -1,4 +1,5 @@
 import logging
+import posixpath
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
@@ -258,6 +259,47 @@ class BridgeShimManager:
                     record(specifier, None)
         return discovered, ext_seen
 
+    def _discover_reachable_specifiers(
+        self,
+        native_specifiers: set[str],
+        ext_lib_names: set[str],
+        provided: frozenset[str] | set[str],
+        modules: Sequence[NativeModuleLike] | None = None,
+    ) -> tuple[dict[str, set[str]], set[str]]:
+        # esbuild follows an alias into the source file of any specifier we do
+        # not stub, so a helper the page does not provide is inlined with its
+        # whole import tree -- and a page module reached only through that
+        # tree, unstubbed, is evaluated a second time (registries report it as
+        # a duplicate). The reach therefore has to be transitive: every
+        # discovered specifier the page does not provide is lexed in turn.
+        discovered, ext_seen = self._discover_bridge_specifiers(
+            native_specifiers, ext_lib_names, modules
+        )
+        resolver = _BridgeExportResolver(external_libs(), self.bundle_name)
+        ignored = native_specifiers | {"@odoo/owl"} | ext_lib_names
+        queue = [spec for spec in discovered if spec not in provided]
+        visited: set[str] = set()
+        while queue:
+            spec = queue.pop()
+            if spec in visited:
+                continue
+            visited.add(spec)
+            src = resolver.read_source(spec)
+            if src is None:
+                continue
+            for specifier, kind in _lexed_imports(src, base_spec=spec):
+                if specifier in ext_lib_names:
+                    ext_seen.add(specifier)
+                    continue
+                if specifier in ignored:
+                    continue
+                kinds = discovered.setdefault(specifier, set())
+                if kind:
+                    kinds.add(kind)
+                if specifier not in provided and specifier not in visited:
+                    queue.append(specifier)
+        return discovered, ext_seen
+
     def prepare_shim_sources(
         self, specifiers: set[str], *, strict: bool = False, wait: bool = False
     ) -> dict[str, str]:
@@ -313,3 +355,33 @@ class BridgeShimManager:
             ext_libs=",".join(sorted(ext_seen)) or "-",
         )
         return bridge_map
+
+
+def _lexed_imports(src: str, *, base_spec: str) -> list[tuple[str, str | None]]:
+    lexed = lex_module(src)
+    if lexed is None:
+        return []
+    out = []
+    for imp in lexed["imports"]:
+        specifier = imp["n"]
+        if not specifier:
+            continue
+        if specifier.startswith("."):
+            specifier = _relative_to_specifier(base_spec, specifier)
+            if specifier is None:
+                continue
+        elif not specifier.startswith("@"):
+            continue
+        kind = {"default": "__default__", "star": "__star__"}.get(imp["kind"])
+        out.append((specifier, kind))
+    return out
+
+
+def _relative_to_specifier(base_spec: str, relative: str) -> str | None:
+    if not base_spec.startswith("@"):
+        return None
+    base_dir = posixpath.dirname(base_spec)
+    joined = posixpath.normpath(posixpath.join(base_dir, relative))
+    if not joined.startswith("@"):
+        return None
+    return joined.removesuffix(".js").removesuffix("/index")

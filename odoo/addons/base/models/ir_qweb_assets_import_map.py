@@ -151,9 +151,10 @@ class IrQweb(models.AbstractModel):
                 assets_params=assets_params,
             )
         own_specs = set(sec_ab.get_native_module_data(with_bridges=False)["import_map"])
-        discovered, _ext = sec_ab._bridges._discover_bridge_specifiers(
+        discovered, _ext = sec_ab._bridges._discover_reachable_specifiers(
             own_specs,
             set(self._external_libs()),
+            provided=shared,
         )
         reachable = set(discovered)
         if inlined := reachable - shared:
