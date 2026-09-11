@@ -114,7 +114,7 @@ class TestStringToHash(TestPoSCommon):
                     }
                 )
             )
-            pos_make_payment.with_context(context_payment).check()
+            pos_make_payment.with_context(context_payment).action_make_payment()
         return order
 
     def test_string_to_hash(self):

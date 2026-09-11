@@ -120,7 +120,7 @@ class TestUi(TestPointOfSaleHttpCommon):
                 }
             )
         )
-        order_payment.with_context(**payment_context).check()
+        order_payment.with_context(**payment_context).action_make_payment()
 
         self.assertEqual(self.partner_test_1.total_due, 10)
         current_session.action_pos_session_closing_control()
@@ -190,7 +190,7 @@ class TestUi(TestPointOfSaleHttpCommon):
             )
         )
         context_payment = {"active_id": self.pos_order_pos0.id}
-        self.pos_make_payment_0.with_context(context_payment).check()
+        self.pos_make_payment_0.with_context(context_payment).action_make_payment()
 
         self.pos_order_pos0.action_pos_order_invoice()
         attachment_proforma = self.pos_order_pos0.account_move.attachment_ids.filtered(
