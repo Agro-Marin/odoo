@@ -329,3 +329,22 @@ class TestExpenseApprovalEngine(TestExpenseCommon):
         expense.with_user(self.expense_user_manager).unlink()
 
         self.assertEqual(request.state, "cancelled")
+
+    # -- expenses in flight when hr_expense adopted the engine ---------------
+
+    def test_an_expense_submitted_before_the_engine_gets_its_request(self):
+        expense = self._expense(user=SUPERUSER_ID)
+        expense.with_user(SUPERUSER_ID).with_company(self.env.company).action_submit()
+        self.assertFalse(expense.approval_request_id)
+        legacy_type = self.env.ref("hr_expense.mail_act_expense_approval")
+        self.assertEqual(expense.activity_ids.activity_type_id, legacy_type)
+        self.assertFalse(expense.activity_ids.approver_id)
+
+        expense._backfill_approval_requests()
+
+        request = expense.sudo().approval_request_id
+        self.assertEqual(request.state, "pending")
+        self.assertEqual(request.request_owner_id, self.expense_user_employee)
+        self.assertEqual(len(expense.activity_ids), 1)
+        self.assertEqual(expense.activity_ids.approver_id.request_id, request)
+        self.assertEqual(expense.review_state, "submitted")

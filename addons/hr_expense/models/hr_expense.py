@@ -1173,6 +1173,9 @@ class HrExpense(models.Model):
     def _get_approval_category_xmlid(self):
         return "hr_expense.approval_category_expense"
 
+    def _get_legacy_approval_activity_xmlids(self):
+        return ("hr_expense.mail_act_expense_approval",)
+
     def _prepare_approval_request_values(self, category):
         vals = super()._prepare_approval_request_values(category)
         vals["request_owner_id"] = (self.employee_id.user_id or self.env.user).id
