@@ -57,7 +57,7 @@ test("web utility contracts preserve arguments, absence, and promise identity", 
     config.options.strictBindCallApply = true;
     const fixture = resolve(root, "tooling/typecheck/web_contracts.ts");
     const source = `
-import { ensureArray, zip, zipWith } from "@web/core/utils/collections/arrays";
+import { cartesian, ensureArray, intersection, symmetricalDifference, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
 import { Deferred, InFlight } from "@web/core/utils/concurrency";
 import { LruCache } from "@web/core/utils/lru_cache";
@@ -168,6 +168,31 @@ new Deferred<void>().resolve();
 new Deferred<number | undefined>().resolve();
 new Deferred().resolve();
 
+const noProduct: undefined[] = cartesian();
+const flatProduct: number[] = cartesian([1, 2]);
+const pairProduct: [number, string][] = cartesian([1, 2], ["a", "b"]);
+const readonlyProduct: [1 | 2, "a", boolean][] = cartesian([1, 2] as const, ["a"] as const, [true, false]);
+pairProduct[0][0].toFixed();
+pairProduct[0][1].toUpperCase();
+// @ts-expect-error Tuple positions do not widen to the union of all element types.
+pairProduct[0][0].toUpperCase();
+const inferredProduct = cartesian([1], ["a"]);
+// @ts-expect-error The inferred second tuple position remains a string.
+inferredProduct[0][1].toFixed();
+const dynamicInputs: number[][] = Math.random() ? [[1], [2]] : [];
+const dynamicProduct = cartesian(...dynamicInputs);
+// @ts-expect-error Dynamic arity can produce a sentinel, flat items, or tuples.
+const certainTuples: number[][] = dynamicProduct;
+const overlaps = intersection([1, "a"], new Set(["a", "b"]));
+overlaps[0].toUpperCase();
+// @ts-expect-error The intersection contains only types shared by both inputs.
+overlaps[0].toFixed();
+const disjoint: never[] = intersection([1], ["a"]);
+const different = symmetricalDifference([1], ["a"]);
+const combined: (number | string)[] = different;
+// @ts-expect-error The difference may contain elements from either input.
+const numericDifference: number[] = different;
+
 const lru = new LruCache<number>(2, {
     onEvict(key, value) { key.toUpperCase(); value.toFixed(); },
 });
@@ -211,6 +236,7 @@ names.cache.get("missing")?.resolve();
     assert.ok(file);
     const checked = [file];
     for (const path of [
+        "core/utils/collections/arrays.js",
         "core/utils/lru_cache.js",
         "core/utils/concurrency.js",
         "core/name_service.js",

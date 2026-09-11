@@ -9,14 +9,16 @@
 
 /**
  * @template T
- * @param {...T[]} args
+ * @param {ReadonlyArray<T>[]} args
  * @returns {(T[] | undefined)[]}
  */
 function _cartesian(...args) {
     if (!args.length) {
         return [undefined];
     }
-    const firstArray = /** @type {T[]} */ (args.shift()).map((elem) => [elem]);
+    const firstArray = /** @type {ReadonlyArray<T>} */ (args.shift()).map((elem) => [
+        elem,
+    ]);
     if (!args.length) {
         return firstArray;
     }
@@ -43,7 +45,8 @@ function _getExtractorFrom(criterion) {
     }
     switch (typeof criterion) {
         case "string":
-            return (element) => element[criterion];
+            return (element) =>
+                /** @type {Record<string, unknown>} */ (element)[criterion];
         case "function":
             return criterion;
         default:
@@ -75,14 +78,15 @@ export function ensureArray(value) {
 }
 
 /**
- * @template T
+ * @template T, U
  * @param {Iterable<T>} iter1
- * @param {Iterable<T>} iter2
- * @returns {T[]}
+ * @param {Iterable<U>} iter2
+ * @returns {(T & U)[]}
  */
 export function intersection(iter1, iter2) {
+    /** @type {Set<unknown>} */
     const s2 = new Set(iter2);
-    return [...new Set(iter1)].filter((x) => s2.has(x));
+    return /** @type {(T & U)[]} */ ([...new Set(iter1)].filter((x) => s2.has(x)));
 }
 
 /**
@@ -137,10 +141,10 @@ export function sortBy(iterable, criterion, order = "asc") {
 }
 
 /**
- * @template T
+ * @template T, U
  * @param {Iterable<T>} iter1
- * @param {Iterable<T>} iter2
- * @returns {T[]}
+ * @param {Iterable<U>} iter2
+ * @returns {(T | U)[]}
  */
 export function symmetricalDifference(iter1, iter2) {
     const set1 = new Set(iter1);
@@ -149,9 +153,25 @@ export function symmetricalDifference(iter1, iter2) {
 }
 
 /**
- * @template T
- * @param {...T[]} args
- * @returns {(T | T[] | undefined)[]}
+ * Known input counts preserve the zero-input sentinel, flat single input, or
+ * tuple positions. A dynamic input list can take any of those runtime branches.
+ * @template {readonly (readonly unknown[])[]} A
+ * @typedef {number extends A["length"]
+ *  ? (A[number][number] | A[number][number][] | undefined)[]
+ *  : A extends readonly [] ? undefined[]
+ *  : A extends readonly [readonly (infer T)[]] ? T[]
+ *  : { -readonly [K in keyof A]: A[K][number] }[]} CartesianResult
+ */
+
+/**
+ * @template {readonly (readonly unknown[])[]} A
+ * @overload
+ * @param {...A} args
+ * @returns {CartesianResult<A>}
+ */
+/**
+ * @param {ReadonlyArray<unknown>[]} args
+ * @returns {unknown[]}
  */
 export function cartesian(...args) {
     if (!args.length) {
