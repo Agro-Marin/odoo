@@ -1201,7 +1201,7 @@ class AccountEdiCommon(models.AbstractModel):
         4. price_include matching the amount
         """
         base_domain = [
-            *self.env["account.journal"]._check_company_domain(company_id),
+            *self.env["account.tax"]._check_company_domain(company_id),
             ("amount_type", "=", "fixed"),
             ("amount", "=", fixed_tax_vals["amount"]),
         ]
