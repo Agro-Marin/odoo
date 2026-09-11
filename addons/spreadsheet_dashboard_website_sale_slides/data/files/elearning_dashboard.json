@@ -52,7 +52,7 @@
             "background": "#FFFFFF",
             "legendPosition": "none",
             "metaData": {
-              "groupBy": ["date:month"],
+              "groupBy": ["date_order:month"],
               "measure": "price_subtotal",
               "order": null,
               "resModel": "sale.report",
@@ -68,7 +68,7 @@
               "domain": [
                 ["product_id.channel_ids", "!=", false]
               ],
-              "groupBy": ["date:month"],
+              "groupBy": ["date_order:month"],
               "orderBy": []
             },
             "type": "odoo_line",
