@@ -251,7 +251,7 @@ class TestPoSSaleReport(TestPoSCommon, TestPointOfSaleHttpCommon):
             .search([("product_id", "=", self.product0.id)], order="id")
         )
 
-        self.assertEqual(sum(report.mapped("qty_to_deliver")), 8)
+        self.assertEqual(sum(report.mapped("qty_to_transfer")), 8)
         self.assertEqual(sum(report.mapped("qty_transferred")), 0)
 
         order.picking_ids.move_ids.quantity = 8.0
@@ -266,5 +266,5 @@ class TestPoSSaleReport(TestPoSCommon, TestPointOfSaleHttpCommon):
             .search([("product_id", "=", self.product0.id)], order="id")
         )
 
-        self.assertEqual(sum(report.mapped("qty_to_deliver")), 0)
+        self.assertEqual(sum(report.mapped("qty_to_transfer")), 0)
         self.assertEqual(sum(report.mapped("qty_transferred")), 8)
