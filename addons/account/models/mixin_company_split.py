@@ -306,10 +306,6 @@ class MixinCompanySplit(models.AbstractModel):
             [
                 ("ttype", "=", "many2one_reference"),
                 ("store", "=", True),
-                "!",
-                "&",
-                ("model", "=", "studio.approval.request"),
-                ("name", "=", "res_id"),
             ]
         )
         for field_to_update in many2one_reference_fields:
