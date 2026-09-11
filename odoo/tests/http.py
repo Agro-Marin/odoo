@@ -263,6 +263,9 @@ class HttpCase(TransactionCase):
         self._wait_remaining_requests(strict=exc_type is None)
 
     def logout(self, keep_db: bool = True) -> None:
+        # The browser may have followed a rotation since authenticate().
+        sid = self.opener.cookies.get("session_id", self.session.sid)
+        self.session = odoo.http.root.session_store.get(sid)
         self.session.logout(keep_db=keep_db)
         odoo.http.root.session_store.save(self.session)
 

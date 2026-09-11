@@ -119,8 +119,6 @@ class GeoIP:
     def _country_record(self):
         root = self.app
 
-        if "_city_record" in vars(self):
-            return self._city_record
         country_db = root.geoip_country_db
         if country_db is None:
             return self._city_record

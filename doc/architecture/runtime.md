@@ -167,11 +167,12 @@ Three details the sketch flattens, all claims about **order**:
   errors with an unknown commit outcome are not retryable. These boundaries
   are exercised by `tests/service/test_transaction_recovery.py` and
   `tests/contract/test_transaction_recovery.py`.
-- **Commit and session-save both happen *inside* the sketch, not after it.**
-  `env.cr.commit()` is the last thing `retrying()` does once its callable
-  returns, and the session is written earlier still — by
-  `Dispatcher.post_dispatch` → `Request._save_session()`, so *before* that
-  commit. `_serve_db` itself only closes the cursor, in its `finally`.
+- **Session publication follows a successful commit.**
+  `Dispatcher.post_dispatch` → `Request._save_session()` stages persistence.
+  The request's postcommit hook writes the session and publishes its cookie;
+  rollback restores the attempt's original session. The successful return from
+  `retrying()` also invokes the idempotent publication hook for cursor adapters
+  that suppress callbacks. `_serve_db` closes the cursor in its `finally`.
 - **RO → RW promotion.** A route declared `readonly` first runs on a read-only
   cursor. If its handler writes, `psycopg.errors.ReadOnlySqlTransaction` is
   caught, a read/write cursor is acquired and **the handler runs a second time**
@@ -183,8 +184,8 @@ above is a grep, and a commit moving the commit above the dispatcher call would
 satisfy all of them. The runtime proof is
 `addons/test_http/tests/test_lifecycle_order.py`, which patches
 `Request._save_session` and *both* cursor classes and reads the sequence off the
-serving thread. Observed: `[save_session, commit]` normally, and
-`[save_session, save_session, commit]` on the promoted path. (Both cursor
+serving thread, counting persistence rather than staging. Observed:
+`[commit, save_session]` normally and on the promoted path. (Both cursor
 classes, because under `HttpCase` the request's `env.cr` is a `TestCursor`,
 which subclasses `BaseCursor` rather than `Cursor`; instrumenting `Cursor.commit`
 alone observes nothing and reads as "`retrying()` never commits".)

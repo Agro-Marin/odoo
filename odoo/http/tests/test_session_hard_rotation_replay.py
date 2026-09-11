@@ -90,7 +90,7 @@ def test_hard_rotation_preserves_old_file_when_the_new_save_fails(store, monkeyp
     def boom(self, session):
         raise OSError("disk full")
 
-    monkeypatch.setattr(type(store), "save", boom)
+    monkeypatch.setattr(type(store), "_save_unlocked", boom)
     with pytest.raises(OSError):
         store.rotate(sess, env=None, soft=False)
     monkeypatch.undo()

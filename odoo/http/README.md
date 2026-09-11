@@ -39,6 +39,7 @@ Application.__call__
             env['ir.http']._match
             if not match:
                 transaction.retrying(Request._serve_ir_http_fallback)
+                    env['ir.http']._authenticate_explicit('public')
                     env['ir.http']._serve_fallback
                     env['ir.http']._post_dispatch
             else:
@@ -82,11 +83,13 @@ decides read-only versus read/write: `check_signaling`, `match` and
 `serve_fallback` share one read-only cursor; `_serve_ir_http` reuses that same
 (reset) read-only cursor, or a new read/write one.
 
-**`Request._serve_aborted`** — the short path for a request werkzeug rejected
-before dispatch; it does not appear in the graph above. An exception carrying
+**`Request._serve_aborted`** — handles explicit response control flow;
+it does not appear in the graph above. An exception carrying
 its own response (`abort(prepare_no_content_response())`, the CORS preflight) is delivered
 verbatim; a status-less one goes through the dispatcher, so the error body
 matches the route's media type rather than always being werkzeug's HTML page.
+Inside a database transaction, `_serve_transaction_target` converts these
+exceptions into returned responses so the transaction commits normally.
 
 **`service.transaction.retrying`** — manages the cursor, the environment, and the
 exceptions raised while executing the wrapped callable. Recovers from
@@ -96,15 +99,16 @@ wraps both `retrying()` calls, is what asks `ir.http._handle_error` for one. The
 read-only → read/write promotion is `_serve_db`'s, not `retrying`'s: it catches
 `psycopg.errors.ReadOnlySqlTransaction`, replays the retry participant and calls
 `retrying()` a second time on a fresh read/write cursor. `retrying` also
-performs the commit: `env.cr.commit()` is the last thing it does once the
-callable returns.
+performs the commit and signals registry changes once the callable returns.
 
 **`ir.http._match`** — matches the controller endpoint corresponding to the
 request path. Note the significant override for portal and website in the
 `http_routing` module.
 
 **`ir.http._serve_fallback`** — finds alternative ways to serve a request whose
-path matches no controller: an attachment URL, a blog page, and so on.
+path matches no controller: an attachment URL, a blog page, and so on. The
+caller authenticates explicitly as `public`, including validation of an
+authenticated cookie, before accessing these resources.
 
 **`ir.http._authenticate`** — ensures the user on the current environment
 satisfies `@route(auth=...)`. Using the ORM outside abstract models is unsafe
@@ -118,9 +122,42 @@ into `request.params` according to `@route(type=...)`, calls the endpoint, and
 serializes the return value into a `Response`.
 
 **`ir.http._post_dispatch` / `Dispatcher.post_dispatch`** — post-processes the
-response: injects headers such as Content-Security-Policy, and writes the
-session (`Request._save_session()`), which is therefore saved *before* the commit
-`retrying` performs.
+response: injects headers such as Content-Security-Policy and stages the
+session through `Request._save_session()`. A database-bound request reserves a
+rotation's new SID and token in memory, then persists the session and publishes
+its cookie after a successful commit. Rollback restores the attempt's original
+session. Error rendering starts after rollback, so an error handler can still
+log out an expired session without preserving failed controller mutations.
+
+`_bind_session_transaction` registers cursor callbacks and captures the session
+snapshot. `_flush_session` is idempotent: the postcommit callback invokes it,
+and the successful return from `retrying` also invokes it for cursor adapters
+such as `TestCursor` that suppress transaction callbacks. A handler's own
+rollback clears the binding; a later save binds the new transaction again.
+Database-free requests and saves explicitly bound to another database keep
+their immediate persistence path.
+Read-only promotion is allowed only before commit, while the original cursor
+is open. A postcommit SQL error propagates without replaying the handler.
+
+The filesystem store serializes read/merge/write and revocation with stable
+lock stripes shared by processes. A loaded session whose file has disappeared
+cannot recreate that file. Saves merge changes against the loaded snapshot,
+preserving independent top-level and nested dictionary edits; conflicting
+edits to the same scalar or list still use the last writer. Rotation writes the
+successor before changing the predecessor, and restores the original in-memory
+identity if persistence fails. Filesystem persistence and PostgreSQL commit
+remain separate: a filesystem failure after commit cannot undo database work.
+
+Hard rotation revokes the whole session identifier family, including predecessor
+cookies retained during soft rotation's grace period. A missing soft-rotation
+successor is expired, never reconstructed. Soft rotation merges concurrent edits
+before creating its successor; hard authentication transitions start a new family.
+Login or logout upgrades an already staged soft rotation to a fresh hard family.
+Late predecessor saves follow the live successor chain under the family lock;
+adoption rejects a changed database or user rather than mixing authentication
+state. A concurrent identity update merged before soft rotation gets a token
+for the final user and successor SID. The in-memory integration store uses the
+same merge and rotation logic, replacing only the storage operations.
 
 **`ir.http._handle_error`** — absent from the graph; called for unmanaged
 exceptions (serialization or read-only) raised inside
@@ -157,7 +194,7 @@ the `http-features-below-serving` contract, which holds `[foundation]` below
 | `wrappers.py` | serving | `HTTPRequest`, `_Response`, `Headers`, `ResponseCacheControl`, `prepare_no_content_response` — the werkzeug wrappers, cookie defaults, and the `HTTPException.get_response` override that keeps a status-less exception from answering 200. **`HTTPRequest.environ` is a filtered copy**: every `werkzeug.*`, `wsgi.*` and `socket*` key is dropped except `wsgi.url_scheme` and `werkzeug.proxy_fix.orig`, so `environ["wsgi.input"]` raises `KeyError` — `raw_environ` is the unfiltered one |
 | `core.py` | serving | `_request_stack` (a werkzeug `LocalStack`), the `request` proxy bound to it, and `borrow_request` |
 | `helpers.py` | serving | `prepare_content_disposition_header`, `rewind_uploaded_files`, `get_dbs_served` — the package's one database-listing entry point, cached and read by both the selector and `Request._select_session_and_dbname` — and the `dbfilter` machinery |
-| `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler, installed on `service.transaction` at import |
+| `_retry.py` | serving | `RequestRetryParticipant`: restores the session and rewinds uploads when `retrying()` replays a handler; passed explicitly by the request |
 | `openapi.py` | features | `prepare_openapi_document`: an OpenAPI `3.1.0` document generated from the routing map |
 | `_params.py` | features | `ParamSpec` and the annotation-driven coercion behind `@route(typed=True)` |
 | `geoip.py` | features | `GeoIP` lookup exposed on the request (`_GeoIPNull` when unavailable) |
@@ -172,5 +209,5 @@ the `http-features-below-serving` contract, which holds `[foundation]` below
   enforced dependency contracts, including `http-features-below-serving`.
 - `doc/architecture/ARCHITECTURE.md` — the front door: context, forces,
   mechanisms, and the index of the views.
-- `odoo/service/transaction.py` — `retrying()`, which owns the commit and the
-  read-only → read/write promotion.
+- `odoo/service/transaction.py` — `retrying()`, which owns commit and transaction
+  retries. `_serve.py` owns read-only → read/write promotion.

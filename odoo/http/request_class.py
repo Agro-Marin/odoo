@@ -27,10 +27,11 @@ from .constants import (
     prepare_default_session,
 )
 from .dispatcher import _dispatchers
+from .exceptions import SessionExpiredException
 from .geoip import GeoIP
 from .helpers import get_session_max_inactivity
 from .session import Session
-from .wrappers import FutureResponse, HTTPRequest, Response, get_cookie_name
+from .wrappers import FutureResponse, HTTPRequest, Response, get_cookie_identity
 
 _logger = logging.getLogger(__name__)
 
@@ -65,6 +66,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self._post_init_done: bool = False
         self.database_detached: bool = False
         self._cookies_memo: tuple[bool, Any] | None = None
+        self._session_transaction_cursor: Any = None
+        self._session_response: Response | None = None
+        self._session_save_pending = False
+        self._session_uses_transactions = False
+        self._session_flush_active = False
 
     def detach_database(self) -> None:
         self.database_detached = True
@@ -247,11 +253,61 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
     def _reset_for_replay(self, cr: Any = None) -> None:
         self.future_response = FutureResponse()
+        self.params = {}
+        self._cookies_memo = None
+        self.__dict__.pop("_response_version", None)
         if cr is None and self.env is not None:
             cr = self.env.cr
         if cr is not None:
             self.env = odoo.api.Environment(
                 cr, self.session.uid, self.session.context or {}
+            )
+            self._bind_session_transaction(cr)
+
+    def _bind_session_transaction(self, cr: Any) -> None:
+        if getattr(self, "_session_transaction_cursor", None) is cr:
+            return
+        self._session_transaction_cursor = cr
+        self._session_uses_transactions = True
+        self._session_save_pending = False
+        self._session_response = None
+        original = self.session.snapshot()
+        cr.postcommit.add(self._flush_session)
+
+        def restore_session() -> None:
+            can_save = self.session.can_save
+            self.session = original.snapshot()
+            self.session.can_save &= can_save
+            self._session_save_pending = False
+            self._session_transaction_cursor = None
+            self._session_response = None
+
+        cr.postrollback.add(restore_session)
+
+    def _flush_session(self) -> None:
+        self._session_transaction_cursor = None
+        if not self._session_save_pending:
+            return
+        self._session_save_pending = False
+        self._session_flush_active = True
+        try:
+            self._save_session()
+        finally:
+            self._session_flush_active = False
+        if self._session_response is not None:
+            self._update_response_from_future(self._session_response)
+
+    def _stage_session_save(self, env: odoo.api.Environment) -> None:
+        session = self.session
+        self._session_save_pending = True
+        periodic_rotation = (
+            session.uid
+            and time.time() >= session["create_time"] + SESSION_ROTATION_INTERVAL
+            and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
+        )
+        if session.should_rotate or periodic_rotation:
+            self.app.session_store.stage_rotation(
+                session, env, soft=not session.should_rotate
             )
 
     def _update_response_from_future(self, response: Response) -> Response:
@@ -260,11 +316,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         staged_cookies = staged.getlist("Set-Cookie")
         if staged_cookies:
-            staged_names = {get_cookie_name(cookie) for cookie in staged_cookies}
+            staged_names = {get_cookie_identity(cookie) for cookie in staged_cookies}
             kept = [
                 cookie
                 for cookie in headers.getlist("Set-Cookie")
-                if get_cookie_name(cookie) not in staged_names
+                if get_cookie_identity(cookie) not in staged_names
             ]
             headers.setlist("Set-Cookie", kept + staged_cookies)
 
@@ -290,6 +346,18 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             env = self.env
 
         if not sess.can_save:
+            return
+
+        if (
+            env is not None
+            and self.env is not None
+            and env.cr is self.env.cr
+            and getattr(self, "_session_uses_transactions", False)
+            and not self._session_flush_active
+            and not env.cr.closed
+        ):
+            self._bind_session_transaction(env.cr)
+            self._stage_session_save(env)
             return
 
         content_changed = sess.has_content_changed()
@@ -321,6 +389,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 written = True
             else:
                 written = False
+        except SessionExpiredException:
+            sess.can_save = False
+            _logger.info("Discarding a late save of a revoked session")
+            return
         except OSError:
             _logger.warning(
                 "Could not persist session %r; keeping the current cookie",

@@ -51,13 +51,23 @@ def _get_param_spec_fields(
     return None, None, allow_none
 
 
-def get_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
-    specs: dict[str, ParamSpec] = {}
+def get_param_specs(
+    endpoint: typing.Callable, inherited: dict[str, ParamSpec] | None = None
+) -> dict[str, ParamSpec]:
+    specs: dict[str, ParamSpec] = dict(inherited or {})
     params = list(
         inspect.signature(
             endpoint, annotation_format=annotationlib.Format.FORWARDREF
         ).parameters.values()
     )
+    if not any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+        accepted = {
+            p.name
+            for p in params[1:]
+            if p.kind
+            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        }
+        specs = {name: spec for name, spec in specs.items() if name in accepted}
     for param in params[1:]:
         if param.kind not in (
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
@@ -65,7 +75,12 @@ def get_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
         ):
             continue
         if param.annotation is inspect.Parameter.empty:
+            if param.name in specs:
+                specs[param.name] = specs[param.name]._replace(
+                    required=param.default is inspect.Parameter.empty
+                )
             continue
+        specs.pop(param.name, None)
         annotation = param.annotation
         if isinstance(annotation, str):
             try:

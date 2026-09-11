@@ -185,7 +185,7 @@ class Stream:
             "etag": self.etag,
             "last_modified": self.last_modified,
             "max_age": STATIC_CACHE_LONG if immutable else self.max_age,
-            "environ": request.httprequest.environ if environ is None else environ,
+            "environ": request.httprequest.raw_environ if environ is None else environ,
             "response_class": _Response,
             **send_file_kwargs,
         }

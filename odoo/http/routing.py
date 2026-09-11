@@ -14,8 +14,8 @@ import werkzeug.routing
 from odoo.tools import unique
 from odoo.tools.misc import submap
 
-from ._params import get_param_specs
-from .constants import ROUTING_KEYS
+from ._params import ParamSpec, get_param_specs
+from .constants import DEFAULT_ALLOWED_METHODS, ROUTING_KEYS, SAFE_HTTP_METHODS
 from .controller import Controller, _get_classes_newest_by_identity
 
 if TYPE_CHECKING:
@@ -87,8 +87,14 @@ class FasterRule(werkzeug.routing.Rule):
 def prepare_rule_kwargs(endpoint: HasRouting) -> dict[str, Any]:
     routing = dict(submap(endpoint.routing, ROUTING_KEYS))
     methods = routing.get("methods")
-    if methods is not None and "OPTIONS" not in methods:
+    if methods is None:
+        methods = (
+            SAFE_HTTP_METHODS if routing.get("websocket") else DEFAULT_ALLOWED_METHODS
+        )
+    if "OPTIONS" not in methods:
         routing["methods"] = [*methods, "OPTIONS"]
+    else:
+        routing["methods"] = methods
     return routing
 
 
@@ -184,6 +190,15 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
+        methods = routing.get("methods")
+        if methods is not None:
+            if isinstance(methods, str):
+                raise ValueError(
+                    "@route(methods=...) requires a collection of method names"
+                )
+            routing["methods"] = tuple(
+                dict.fromkeys(method.upper() for method in methods)
+            )
         _check_cors_credentials(fname, routing)
         unknown = routing.keys() - _KNOWN_ROUTING_PARAMETERS - {"routes"}
         if unknown:
@@ -378,10 +393,8 @@ def _generate_routing_rules(
                 continue
 
             frozen_routing = MappingProxyType(merged_routing)
-            param_specs = (
-                get_param_specs(_get_original_endpoint(method))
-                if merged_routing.get("typed")
-                else None
+            method, param_specs = _get_routed_method(
+                ctrl, method_name, bool(merged_routing.get("typed"))
             )
 
             for url in merged_routing["routes"]:
@@ -392,6 +405,20 @@ def _generate_routing_rules(
                 _apply_param_specs(endpoint, param_specs)
 
                 yield (url, endpoint)
+
+
+def _get_routed_method(ctrl: Controller, name: str, typed: bool) -> tuple[Any, Any]:
+    specs: dict[str, ParamSpec] | None = {} if typed else None
+    method = None
+    for cls in reversed(type(ctrl).mro()):
+        candidate = cls.__dict__.get(name)
+        if candidate is None or not hasattr(candidate, "original_routing"):
+            continue
+        method = candidate.__get__(ctrl, type(ctrl))
+        if typed:
+            specs = get_param_specs(_get_original_endpoint(candidate), specs)
+    assert method is not None, "a merged route has a decorated implementation"
+    return method, specs
 
 
 def _prepare_route_fragment(

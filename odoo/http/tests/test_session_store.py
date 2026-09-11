@@ -191,13 +191,17 @@ def test_soft_rotation_does_not_adopt_a_sid_with_no_file(store):
     _interrupted_peer_rotation(store, session)
 
     concurrent = store.get(old_sid)
-    store.rotate(concurrent, env=None, soft=True)
+    from odoo.http.exceptions import SessionExpiredException
 
+    with pytest.raises(SessionExpiredException):
+        store.rotate(concurrent, env=None, soft=True)
+
+    assert concurrent.sid == old_sid
     landed = store.get(concurrent.sid)
     assert not landed.is_new, (
         "rotate() moved the session onto a sid with no file behind it"
     )
-    assert landed["uid"] == 2, "the authenticated session must survive"
+    assert landed["uid"] == 2, "failed rotation must not rewrite the original file"
 
 
 def test_soft_rotation_adopts_once_the_peer_file_lands(store):
@@ -208,7 +212,7 @@ def test_soft_rotation_adopts_once_the_peer_file_lands(store):
     old_sid = session.sid
 
     next_sid = _interrupted_peer_rotation(store, session)
-    peer_final = Session({"uid": 2, "session_token": "new-token"}, next_sid)
+    peer_final = Session({"uid": 2, "session_token": "new-token"}, next_sid, new=True)
     store.save(peer_final)
 
     concurrent = store.get(old_sid)

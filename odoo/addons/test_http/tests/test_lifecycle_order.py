@@ -30,7 +30,8 @@ class TestHttpLifecycleOrder(TestHttpBase):
             return real_test_commit(cr, *args, **kwargs)
 
         def save_session(request, *args, **kwargs):
-            events.append((threading.get_ident(), "save_session"))
+            if request._session_flush_active or request.env is None:
+                events.append((threading.get_ident(), "save_session"))
             return real_save(request, *args, **kwargs)
 
         return (
@@ -51,7 +52,7 @@ class TestHttpLifecycleOrder(TestHttpBase):
         (serving,) = threads
         return [event for tid, event in self.events if tid == serving]
 
-    def test_session_is_saved_before_the_commit(self):
+    def test_session_is_saved_after_the_commit(self):
         self.authenticate("admin", "admin")
         milky_way = self.env.ref("test_http.milky_way")
         self.events.clear()
@@ -74,13 +75,13 @@ class TestHttpLifecycleOrder(TestHttpBase):
             sequence,
             "the serving thread never committed; retrying() no longer commits",
         )
-        self.assertLess(
+        self.assertGreater(
             sequence.index("save_session"),
             sequence.index("commit"),
-            f"the session must be saved before the commit, got {sequence}",
+            f"the session must be saved after the commit, got {sequence}",
         )
 
-    def test_commit_is_the_last_thing_on_the_serving_thread(self):
+    def test_session_publication_finishes_the_request(self):
         self.authenticate("admin", "admin")
         milky_way = self.env.ref("test_http.milky_way")
         self.events.clear()
@@ -99,12 +100,12 @@ class TestHttpLifecycleOrder(TestHttpBase):
         sequence = self._serving_thread_events()
         self.assertEqual(
             sequence[-1],
-            "commit",
-            f"something ran after retrying()'s commit, got {sequence}",
+            "save_session",
+            f"session publication must follow retrying()'s commit, got {sequence}",
         )
 
     @mute_logger("odoo.http._serve")
-    def test_promotion_reruns_the_handler_and_still_saves_before_committing(self):
+    def test_promotion_saves_the_successful_session_after_committing(self):
         self.authenticate("admin", "admin")
         milky_way = self.env.ref("test_http.milky_way")
         self.events.clear()
@@ -121,12 +122,12 @@ class TestHttpLifecycleOrder(TestHttpBase):
         res.raise_for_status()
 
         sequence = self._serving_thread_events()
-        self.assertLess(
+        self.assertGreater(
             sequence.index("save_session"),
             sequence.index("commit"),
-            f"the promoted attempt committed before saving, got {sequence}",
+            f"the promoted attempt saved before committing, got {sequence}",
         )
-        self.assertEqual(sequence[-1], "commit", f"got {sequence}")
+        self.assertEqual(sequence[-1], "save_session", f"got {sequence}")
 
         milky_way.invalidate_recordset()
         self.assertEqual(milky_way.name, "Promoted Way")

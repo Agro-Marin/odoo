@@ -56,11 +56,11 @@ def test_allow_header_always_advertises_options():
 
 
 def test_allow_header_does_not_repeat_a_declared_options():
-    assert prepare_allow_header(("GET", "OPTIONS")) == "GET, OPTIONS"
+    assert prepare_allow_header(("GET", "OPTIONS")) == "GET, OPTIONS, HEAD"
 
 
 def test_allow_header_is_parseable_back_into_valid_methods():
-    assert prepare_allow_header(("GET",)).split(", ") == ["GET", "OPTIONS"]
+    assert prepare_allow_header(("GET",)).split(", ") == ["GET", "HEAD", "OPTIONS"]
 
 
 def test_allow_header_treats_empty_as_a_declaration_not_an_absence():

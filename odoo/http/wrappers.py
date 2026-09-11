@@ -22,9 +22,28 @@ def get_cookie_name(set_cookie_value: str) -> str:
     return set_cookie_value.partition("=")[0].strip()
 
 
-def _remove_staged_cookie(carrier: Any, key: str) -> None:
+def get_cookie_identity(value: str) -> tuple[str, str, str, bool]:
+    # A Set-Cookie field contains one cookie followed by attributes. Unknown
+    # attributes are ignored by browsers, not parsed as additional cookies.
+    cookie, *attributes = value.split(";")
+    scope = {}
+    for attribute in attributes:
+        key, _, content = attribute.partition("=")
+        scope[key.strip().lower()] = content.strip()
+    return (
+        get_cookie_name(cookie),
+        scope.get("domain", "").lower().lstrip("."),
+        scope.get("path", ""),
+        "partitioned" in scope,
+    )
+
+
+def _remove_duplicate_cookies(carrier: Any) -> None:
     staged = carrier.headers.getlist("Set-Cookie")
-    kept = [cookie for cookie in staged if get_cookie_name(cookie) != key]
+    newest = staged[-1]
+    identity = get_cookie_identity(newest)
+    kept = [cookie for cookie in staged[:-1] if get_cookie_identity(cookie) != identity]
+    kept.append(newest)
     if len(kept) != len(staged):
         carrier.headers.setlist("Set-Cookie", kept)
 
@@ -76,7 +95,6 @@ def _set_cookie_on(
         secure,
         samesite,
     )
-    _remove_staged_cookie(carrier, key)
     werkzeug.wrappers.Response.set_cookie(
         carrier,
         key,
@@ -90,6 +108,9 @@ def _set_cookie_on(
         samesite=samesite,
         partitioned=partitioned,
     )
+    # Compare the encoded domain/path that the browser receives, not the
+    # caller's Unicode spelling. Serialize successfully before replacing a cookie.
+    _remove_duplicate_cookies(carrier)
 
 
 def _prepare_request_property_accessors(attr: str) -> tuple[Any, Any]:
@@ -145,6 +166,13 @@ class HTTPRequest(_HTTPRequestProxied):
     def _adopt_body_state(self, other: HTTPRequest) -> None:
         src = other.__wrapped
         dst = self.__wrapped
+        for key in (
+            "max_content_length",
+            "max_form_memory_size",
+            "max_form_parts",
+            "trusted_hosts",
+        ):
+            setattr(dst, key, getattr(src, key))
         for key in ("stream", "data", "form", "files"):
             if key in src.__dict__:
                 dst.__dict__[key] = src.__dict__[key]

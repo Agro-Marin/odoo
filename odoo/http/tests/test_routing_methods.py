@@ -25,8 +25,16 @@ def test_explicitly_declared_options_is_preserved():
     assert list(kwargs["methods"]).count("OPTIONS") == 1
 
 
-def test_no_allow_list_is_left_alone():
-    assert "methods" not in prepare_rule_kwargs(_Endpoint(cors="*"))
+def test_no_allow_list_uses_the_advertised_default_methods():
+    assert prepare_rule_kwargs(_Endpoint(cors="*"))["methods"] == [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+    ]
 
 
 def test_declared_methods_are_not_mutated_in_place():
@@ -35,3 +43,12 @@ def test_declared_methods_are_not_mutated_in_place():
     prepare_rule_kwargs(endpoint)
     prepare_rule_kwargs(endpoint)
     assert declared == ["POST"]
+
+
+def test_websocket_defaults_only_allow_upgrade_compatible_methods():
+    from odoo.http.routing import prepare_routing_map
+
+    endpoint: Any = _Endpoint(websocket=True)
+    routing_map = prepare_routing_map([("/socket", endpoint)])
+    rule = next(routing_map.iter_rules())
+    assert rule.methods == {"GET", "HEAD", "OPTIONS"}

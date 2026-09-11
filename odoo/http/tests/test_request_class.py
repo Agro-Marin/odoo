@@ -199,8 +199,8 @@ def test_the_fallback_defers_the_body_instead_of_decoding_it():
         def _apply_max_upload_size(self):
             pass
 
-        def _auth_method_public(self):
-            pass
+        def _authenticate_explicit(self, auth):
+            assert auth == "public"
 
         def _serve_fallback(self):
             return None

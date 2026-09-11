@@ -46,10 +46,12 @@ class TestHttpSession(TestHttpBase):
         self.db_url_open("/test_http/greeting").raise_for_status()
         self.assertEqual(session.debug, "")
         self.db_url_open("/test_http/greeting?debug=1").raise_for_status()
+        session = root.session_store.get(session.sid)
         self.assertEqual(session.debug, "1")
         self.db_url_open("/test_http/greeting").raise_for_status()
         self.assertEqual(session.debug, "1")
         self.db_url_open("/test_http/greeting?debug=").raise_for_status()
+        session = root.session_store.get(session.sid)
         self.assertEqual(session.debug, "")
 
     def test_session01_default_session(self):
@@ -88,21 +90,19 @@ class TestHttpSession(TestHttpBase):
         )
 
     @mute_logger("odoo.http")
-    def test_session02b_failing_request_still_saves_the_session(self):
+    def test_session02b_failing_request_discards_session_mutations(self):
         self.assertFalse(odoo.http.root.session_store.store)
         res = self.db_url_open("/test_http/session_then_error")
         self.assertEqual(res.status_code, 422)
-        self.assertTrue(
+        self.assertFalse(
             odoo.http.root.session_store.store,
-            "the session written before the failure must have been persisted",
+            "session mutations from the rolled-back handler must be discarded",
         )
-        self.assertIn(
+        self.assertNotIn(
             "session_id",
             res.cookies,
-            "the error response must carry the session cookie",
+            "a discarded session must not be published in the error response",
         )
-        stored = next(iter(odoo.http.root.session_store.store.values()))
-        self.assertEqual(stored.get("gate_address"), "P3X-984")
 
     def test_session02c_untouched_anonymous_session_sets_no_cookie(self):
         res = self.db_url_open("/test_http/greeting")
@@ -163,7 +163,7 @@ class TestHttpSession(TestHttpBase):
                 "WARNING:odoo.http.request_class:Logged into database 'idontexist', but dbfilter rejects it; logging session out.",
             ],
         )
-        self.assertFalse(session["db"])
+        self.assertTrue(root.session_store.get(session.sid).is_new)
         self.assertEqual(res.status_code, 303)
         self.assertURLEqual(res.headers.get("Location"), "/web/database/selector")
 
@@ -395,7 +395,9 @@ class TestHttpSession(TestHttpBase):
             r"^WARNING:odoo.http.routing:<function odoo\.addons\.\w+\.controllers\.\w+\.logout> "
             r"called ignoring args \{'(session_id', 'debug|debug', 'session_id)'\}$",
         )
-        self.assertEqual(admin_session.debug, "1")
+        logged_out = root.session_store.get(self.opener.cookies["session_id"])
+        self.assertEqual(logged_out.debug, "1")
+        self.assertTrue(root.session_store.get(admin_session.sid).is_new)
 
     def test_session11_items_accessibility(self):
         session = self.authenticate("admin", "admin")

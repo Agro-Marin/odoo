@@ -19,7 +19,11 @@ static tree accepts.
 def prepare_allow_header(methods: Iterable[str] | None = None) -> str:
     if methods is None:
         methods = DEFAULT_ALLOWED_METHODS
-    return ", ".join(dict.fromkeys([*methods, "OPTIONS"]))
+    normalized = dict.fromkeys(method.upper() for method in methods)
+    if "GET" in normalized:
+        normalized.setdefault("HEAD", None)
+    normalized.setdefault("OPTIONS", None)
+    return ", ".join(normalized)
 
 
 CORS_DEFAULT_ALLOWED_METHODS = ("GET", "POST")

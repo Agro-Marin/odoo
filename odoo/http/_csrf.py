@@ -39,7 +39,7 @@ class _RequestCsrfMixin(RequestState):
         return f"{hm}o{max_ts}"
 
     def is_valid_csrf(self, csrf: str | None) -> bool:
-        if not csrf:
+        if not isinstance(csrf, str) or not csrf:
             return False
 
         secret = _get_csrf_secret(self.env)

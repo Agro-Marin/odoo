@@ -15,6 +15,7 @@ class _Cursor:
         self.readonly = readonly
         self.closed = False
         self.rollbacks = 0
+        self.commit_count = 0
 
     def close(self):
         self.closed = True
@@ -80,12 +81,15 @@ def _make(readonly_route=True, replica=True):
         _update_dispatcher=lambda r: None,
         _serve_ir_http=lambda r, a: "served",
         _update_served_exception=lambda exc: None,
+        _bind_session_transaction=lambda cr: None,
+        _flush_session=lambda: None,
         _reset_for_replay=lambda cr=None: calls["reset_for_replay"].append(cr),
     )
     for helper in (
         "_select_serve_target_and_mode",
         "_serve_readwrite",
         "_serve_readonly",
+        "_serve_transaction_target",
         "_open_read_write_cursor",
     ):
         setattr(this, helper, getattr(_serve._RequestServeMixin, helper).__get__(this))
@@ -196,3 +200,23 @@ def test_a_read_write_route_with_a_replica_swaps_to_a_read_write_cursor():
     assert this.first_cursor.closed
     assert len(this.calls["opened"]) == 1
     assert env.rebound_to is this.calls["opened"][0]
+
+
+@pytest.mark.parametrize("finished", ["committed", "closed"])
+def test_readonly_error_after_transaction_finished_is_never_replayed(finished):
+    this, env = _make(readonly_route=True, replica=True)
+
+    def retrying(func, env, participant=None):
+        if finished == "committed":
+            env.cr.commit_count += 1
+        else:
+            env.cr.close()
+        raise psycopg.errors.ReadOnlySqlTransaction("postcommit write")
+
+    with mock.patch.object(_serve, "RequestRetryParticipant") as participant:
+        with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
+            _run(this, env, retrying)
+        participant.return_value.on_rollback.assert_not_called()
+    assert this.calls["opened"] == []
+    assert this.calls["reset_for_replay"] == []
+    assert this.first_cursor.rollbacks == 0

@@ -78,7 +78,7 @@ class TestHttpLifecycle(unittest.TestCase):
 
     def test_commit_is_inside_retrying(self) -> None:
 
-        self.assertIn("is the last thing `retrying()` does", DOC_FLAT)
+        self.assertIn("Session publication follows a successful commit", DOC_FLAT)
         transaction = (ROOT / "odoo" / "service" / "transaction.py").read_text(
             encoding="utf-8"
         )
@@ -109,9 +109,9 @@ class TestHttpLifecycle(unittest.TestCase):
 
     BEHAVIOURAL_COVER = {
         "addons/test_http/tests/test_lifecycle_order.py": (
-            "test_session_is_saved_before_the_commit",
-            "test_commit_is_the_last_thing_on_the_serving_thread",
-            "test_promotion_reruns_the_handler_and_still_saves_before_committing",
+            "test_session_is_saved_after_the_commit",
+            "test_session_publication_finishes_the_request",
+            "test_promotion_saves_the_successful_session_after_committing",
         ),
         "addons/test_http/tests/test_models.py": (
             "test_promotion_replay_does_not_inherit_the_aborted_env",

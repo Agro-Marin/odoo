@@ -144,7 +144,6 @@ class ResDeviceLog(models.Model):
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
 
         if self.env.cr.readonly:
-            self.env.cr.rollback()
             cursor = self.env.registry.cursor(readonly=False)
         else:
             cursor = nullcontext(self.env.cr)

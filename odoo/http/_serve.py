@@ -186,9 +186,19 @@ class _RequestServeMixin(RequestState):
         env = self.env
         if env is None:
             raise RuntimeError("a database-bound request has an environment")
+        self._bind_session_transaction(env.cr)
+        commits_before = env.cr.commit_count
         try:
-            return retrying(serve_func, env=env, participant=participant)
+            response = retrying(
+                functools.partial(self._serve_transaction_target, serve_func),
+                env=env, participant=participant,
+            )
+            if not env.cr.closed:
+                self._flush_session()
+            return response
         except Exception as exc:
+            if not env.cr.closed and env.cr.commit_count == commits_before:
+                env.cr.rollback()
             self._update_served_exception(exc)
             raise
 
@@ -199,9 +209,22 @@ class _RequestServeMixin(RequestState):
         env = self.env
         if env is None:
             raise RuntimeError("a database-bound request has an environment")
+        self._bind_session_transaction(env.cr)
+        commits_before = env.cr.commit_count
         try:
-            return retrying(serve_func, env=env, participant=participant)
+            response = retrying(
+                functools.partial(self._serve_transaction_target, serve_func),
+                env=env, participant=participant,
+            )
+            if not env.cr.closed:
+                self._flush_session()
+            return response
         except psycopg.errors.ReadOnlySqlTransaction as exc:
+            if env.cr.closed or env.cr.commit_count != commits_before:
+                # Postcommit failures cannot be retried: the first execution
+                # has already published its database and session effects.
+                self._update_served_exception(exc)
+                raise
             _logger.warning(
                 "%s, retrying with a read/write cursor — readonly route "
                 "%s %s attempted a write, so its handler runs a second "
@@ -217,8 +240,20 @@ class _RequestServeMixin(RequestState):
             rewind_uploaded_files(self.httprequest, cause=exc)
             return _PROMOTE
         except Exception as exc:
+            if not env.cr.closed and env.cr.commit_count == commits_before:
+                env.cr.rollback()
             self._update_served_exception(exc)
             raise
+
+    def _serve_transaction_target(self, serve_func: Any) -> Response:
+        try:
+            return serve_func()
+        except HTTPException as exc:
+            if exc.code is not None:
+                raise
+            # An explicit response is successful control flow (e.g. ensure_db
+            # redirect). Let retrying commit its session changes normally.
+            return self._serve_aborted(exc)
 
     def _open_read_write_cursor(self, cr: Any) -> Any:
         env = self.env
@@ -311,7 +346,7 @@ class _RequestServeMixin(RequestState):
         get_ir_http(registry)._apply_max_upload_size()
         self._check_body_size()
         self._params_source = self.get_http_params
-        get_ir_http(registry)._auth_method_public()
+        get_ir_http(registry)._authenticate_explicit("public")
         response = get_ir_http(registry)._serve_fallback()
         if response:
             get_ir_http(registry)._post_dispatch(response)

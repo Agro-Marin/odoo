@@ -206,6 +206,7 @@ class Dispatcher(ABC):
         root = self.request.app
 
         self.request._save_session()
+        self.request._session_response = response
         self.request._update_response_from_future(response)
         root.update_security_headers(response)
 
