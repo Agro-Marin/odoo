@@ -20,6 +20,14 @@ Both are resolved through the class chain across every scanned repository,
 so a parser extending `KanbanArchParser`, or a model extending
 `RelationalModel`, passes on its ancestor. A view type this gate cannot
 resolve is REPORTED, never skipped.
+
+The Studio editor. web_studio depended on the view modules whose editors it
+shipped, so a type was editable in Studio only by a pull request against
+web_studio, and five never got one. Since the inversion a view type
+contributes its own `studio_editors` entry, from a `<module>_studio` bridge
+or from web_studio's own editors/ for the types web ships. A base type with
+no entry anywhere is pinned in STUDIO_EDITOR_PINNED with a reason, and that
+pin is shrink-only: a type that gains an editor leaves it in the same commit.
 """
 
 from __future__ import annotations
@@ -38,6 +46,16 @@ SAMPLE_HOOK = "useModelWithSampleData"
 # Controllers that call the sample hook on behalf of their subclasses.
 SAMPLE_CONTROLLER_BASES = ("ReportController", "MultiRecordController")
 MAX_CHAIN = 12
+STUDIO_EDITORS = re.compile(
+    r"""registry\s*\.\s*category\(\s*["']studio_editors["']\s*\)\s*\.\s*add\(\s*["'](?P<key>[^"']+)["']"""
+)
+# Base view types with no Studio editor, each with why. Shrink-only.
+STUDIO_EDITOR_PINNED: dict[str, str] = {
+    "grid": "not yet contributed: web_grid ships no web_grid_studio",
+    "hierarchy": "not yet contributed: web_hierarchy ships no editor",
+    "geoengine": "not yet contributed: an agromarin type, and web_studio is enterprise",
+    "threed": "not yet contributed: an agromarin type, and web_studio is enterprise",
+}
 # Bases the tree does not declare: the chain ends there, resolved.
 EXTERNAL_BASES = frozenset({"Component"})
 # web's Model defines hasData() as the unconditional true this gate is about;
@@ -109,11 +127,44 @@ def _method_defined(src: str, method: str) -> bool:
     )
 
 
+def studio_editor_types(scan_roots=None) -> set[str]:
+    """Every key any file registers in `studio_editors`."""
+    scan_roots = SCAN_ROOTS if scan_roots is None else scan_roots
+    keys: set[str] = set()
+    for root in scan_roots:
+        if not root.is_dir():
+            continue
+        for js in root.rglob("*.js"):
+            text = str(js)
+            if "node_modules" in text or "/static/tests/" in text:
+                continue
+            try:
+                src = js.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "studio_editors" not in src:
+                continue
+            keys.update(m.group("key") for m in STUDIO_EDITORS.finditer(src))
+    return keys
+
+
 def audit(scan_roots=None):
     types = base_view_types(scan_roots)
     parser_bad: list[str] = []
     sample_bad: list[str] = []
     unresolved: list[str] = []
+    studio_bad: list[str] = []
+    editors = studio_editor_types(scan_roots)
+    for view_type in sorted(types):
+        if view_type in editors:
+            if view_type in STUDIO_EDITOR_PINNED:
+                studio_bad.append(
+                    f"{view_type}: has a Studio editor now; drop it from STUDIO_EDITOR_PINNED"
+                )
+        elif view_type not in STUDIO_EDITOR_PINNED:
+            studio_bad.append(
+                f"{view_type}: no studio_editors entry anywhere, and not pinned with a reason"
+            )
     for view_type, (path, literal) in sorted(types.items()):
         module = _module_of(path)
         if module is None:
@@ -164,7 +215,7 @@ def audit(scan_roots=None):
                 f"{view_type}: {controller.group(1)} asks for sample data and "
                 f"{model.group(1)} never overrides hasData(), so it never activates"
             )
-    return types, parser_bad, sample_bad, unresolved
+    return types, parser_bad, sample_bad, unresolved, studio_bad
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -172,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="exit 1 on any finding")
     args = parser.parse_args(argv)
 
-    types, parser_bad, sample_bad, unresolved = audit()
+    types, parser_bad, sample_bad, unresolved, studio_bad = audit()
     if not types:
         print(
             "error: no view types found; refusing to report a clean tree",
@@ -186,13 +237,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  sample data asked, hasData() missing: {len(sample_bad)}")
     for line in sample_bad:
         print(f"      {line}")
+    print(f"  no Studio editor and not pinned: {len(studio_bad)}")
+    for line in studio_bad:
+        print(f"      {line}")
     if unresolved:
         print(f"  unresolved: {len(unresolved)}")
         for line in unresolved:
             print(f"      {line}")
     if not args.check:
         return 0
-    failures = parser_bad + sample_bad + unresolved
+    failures = parser_bad + sample_bad + studio_bad + unresolved
     for f in failures:
         print(f"[FAIL] {f}", file=sys.stderr)
     return 1 if failures else 0
