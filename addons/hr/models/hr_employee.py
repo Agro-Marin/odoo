@@ -955,6 +955,7 @@ class HrEmployee(models.Model):
                         description=vals.get("departure_description"),
                     )
                 )
+        vals, address_vals = self._split_private_address_vals(vals)
         new_vals, version_vals = self._split_employee_and_version_vals(vals)
         former_parties = {employee: employee.partner_id for employee in self}
         res = super().write(new_vals)
@@ -974,6 +975,8 @@ class HrEmployee(models.Model):
                     Markup("<b>Modified on the Version '%s'</b>")
                     % employee.version_id.display_name
                 )
+        if address_vals:
+            self._write_private_address(address_vals)
         return res
 
     @api.model
@@ -1003,6 +1006,36 @@ class HrEmployee(models.Model):
             )
             target[fname] = value
         return employee_vals, address_vals
+
+    def _write_private_address(self, address_vals):
+        self._write_check_field_access(address_vals)
+        # The address is a child partner, which the HR groups may not write. The field
+        # groups checked above, as the caller, are the policy; the partner write is not.
+        super(HrEmployee, self.sudo()).write(address_vals)
+
+    def _create_parent_records(self, data_list):
+        # The party is created or updated with the employee. hr.employee's create access
+        # and the field groups create() checked on every value decide it, so an HR officer
+        # needs no Contact Creation right of their own, as upstream's work contact did not.
+        Party = self.env["res.partner"].sudo()
+        party_vals_list = [
+            data["inherited"].pop("res.partner", {}) for data in data_list
+        ]
+        to_create = []
+        for data, party_vals in zip(data_list, party_vals_list, strict=True):
+            if partner_id := data["stored"].get("partner_id"):
+                if party_vals:
+                    Party.browse(partner_id).write(party_vals)
+            else:
+                to_create.append((data, party_vals))
+        if to_create:
+            parties = Party.create([party_vals for _data, party_vals in to_create])
+            for party, (data, _party_vals) in zip(parties, to_create, strict=True):
+                data["stored"]["partner_id"] = party.id
+        super()._create_parent_records(data_list)
+        for data, party_vals in zip(data_list, party_vals_list, strict=True):
+            if party_vals:
+                data["inherited"]["res.partner"] = party_vals
 
     @api.model
     def _split_employee_and_version_vals(self, vals):

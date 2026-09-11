@@ -2,7 +2,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from odoo import Command, fields
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import Form
 
 from odoo.addons.hr.tests.common import TestHrCommon
@@ -134,6 +134,74 @@ class TestPrivateAddressOnCreate(TestHrCommon):
         self.assertTrue(employee.private_address_id)
         self.assertEqual(employee.private_address_id.parent_id, user.partner_id)
         self.assertEqual(Partner.search_count([]), before + 1)
+
+
+class TestPrivateAddressWrittenByHr(TestHrCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.officer = mail_new_test_user(
+            cls.env,
+            login="round5_officer",
+            groups="base.group_user,hr.group_hr_user",
+            name="Officer Without Contact Rights",
+        )
+        cls.home_employee = cls.env["hr.employee"].create({"name": "Home Owner"})
+
+    def test_an_officer_without_contact_rights_edits_the_private_address(self):
+        state = self.env.ref("base.state_us_1")
+        self.home_employee.with_user(self.officer).write(
+            {"private_street": "1 Officer Road", "private_state_id": state.id}
+        )
+        home = self.home_employee.private_address_id
+        self.assertEqual(home.street, "1 Officer Road")
+        self.assertEqual(home.state_id, state)
+
+    def test_the_officer_authors_the_tracked_address_change(self):
+        # The employee was created in setUpClass, and a record stays untracked until the
+        # precommit hooks that follow its creation have run.
+        self.env.flush_all()
+        self.env.cr.precommit.run()
+        self.home_employee.with_user(self.officer).write(
+            {"private_street": "2 Tracked Road"}
+        )
+        self.env.flush_all()
+        self.env.cr.precommit.run()
+        self.home_employee.invalidate_recordset(["message_ids"])
+        tracking = self.home_employee.message_ids.tracking_value_ids.filtered(
+            lambda value: value.field_id.name == "private_street"
+        )
+        self.assertEqual(tracking.new_value_char, "2 Tracked Road")
+        self.assertEqual(tracking.mail_message_id.author_id, self.officer.partner_id)
+
+    def test_an_officer_without_contact_rights_creates_an_employee_with_an_address(
+        self,
+    ):
+        employee = (
+            self.env["hr.employee"]
+            .with_user(self.officer)
+            .create({"name": "Created By Officer", "private_city": "Ghent"})
+        )
+        self.assertEqual(employee.sudo().private_address_id.city, "Ghent")
+
+    def test_an_officer_without_contact_rights_links_an_employee_to_a_user(self):
+        user = mail_new_test_user(
+            self.env, login="round5_linked", groups="base.group_user", name="Linked"
+        )
+        employee = (
+            self.env["hr.employee"]
+            .with_user(self.officer)
+            .create({"name": "Linked Employee", "user_id": user.id})
+        )
+        self.assertEqual(employee.sudo().partner_id, user.partner_id)
+
+    def test_a_plain_user_still_cannot_write_another_employees_address(self):
+        user = mail_new_test_user(
+            self.env, login="round5_plain", groups="base.group_user", name="Plain"
+        )
+        with self.assertRaises(AccessError):
+            self.home_employee.with_user(user).write({"private_street": "Intruder"})
+        self.assertFalse(self.home_employee.private_street)
 
 
 class TestPublicProfileCreateDate(TestHrCommon):
