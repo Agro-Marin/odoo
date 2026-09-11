@@ -412,7 +412,7 @@ class ApprovalApprover(models.Model):
         )
         document = self.request_id.get_source_document()
         if (
-            isinstance(document, self.env.registry["mixin.approval"])
+            isinstance(document, self.env.registry["mixin.approval.source"])
             and len(document) == 1
         ):
             return document.sudo()._get_approval_activity_type(self, step_type)

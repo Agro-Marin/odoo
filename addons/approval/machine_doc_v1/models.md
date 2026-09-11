@@ -60,13 +60,19 @@ approval.binding                        [inherits mixin.approval.domain]
     +-- observation_ids ---> approval.binding.observation (o2m)
                                 +-- user_id -----> res.users
 
-mixin.approval (Abstract)
+mixin.approval.source (Abstract)
+    (no fields; the pool and activity hooks every approval source answers)
+
+mixin.approval (Abstract)              [inherits mixin.approval.source]
     +-- approval_request_id -> approval.request
     +-- approval_state (related)
     +-- pending_approver_ids (related)
 
 mixin.approval.state.sync (Abstract)   [inherits mixin.approval]
     +-- the document's own state field (declared per adopter) drives approval_request_id
+
+mixin.approval.subjects (Abstract)     [inherits mixin.approval.source]
+    +-- approval_request_ids -> approval.request (o2m on res_id, one live per subject_key)
 
 approval.refusal.reason
     +-- category_ids ------> approval.category (m2m)
@@ -303,6 +309,7 @@ so category names are unique per company, archived rows included.
 | `automation_runtime_id` | Many2one(`automation.runtime`) | Yes | No | index=btree_not_null |
 | `binding_id` | Many2one(`approval.binding`) | Yes | No | readonly, copy=False, ondelete=set null. Set when an `approval.binding` in Request mode raised the request; approving it runs that binding's method once, as `request_owner_id` |
 | `binding_snapshot` | Json | Yes | No | readonly, copy=False. The values the binding's condition read from the source document when the request was raised. The approval covers the record only while they still match |
+| `subject_key` | Char | Yes | No | readonly, copy=False, indexed. What the request asks about when its record holds one request per subject (`mixin.approval.subjects`): `access:<partner>` on a course, `stage:<stage>` on an engineering change. Only a request carrying one reaches such a record |
 | `date_binding_replayed` | Datetime | Yes | No | readonly, copy=False. When the gated operation ran after approval. Set once, so a withdrawal and a second approval do not run it again |
 | `binding_replay_error` | Text | Yes | No | readonly, copy=False. Why the gated operation did not run. The approval itself stands |
 
@@ -518,6 +525,25 @@ so the comparison is never raw.
 
 ---
 
+## mixin.approval.source (Abstract)
+
+| Key | Value |
+|-----|-------|
+| Model | `mixin.approval.source` |
+| File | `models/mixin_approval_source.py` |
+| Type | AbstractModel, inherited by `mixin.approval` and `mixin.approval.subjects` |
+
+What the engine asks of any record a request is raised for, whichever adopter shape it takes. The step pool and the approver's activity check `isinstance(record, mixin.approval.source)`, so a subject record narrows its steps and chooses its activity exactly as a document does.
+
+### Hooks
+
+| Method | Purpose |
+|--------|---------|
+| `_filter_approval_step_user_ids(step, user_ids)` | **Override**: of the users a step would let decide this document, the ones its own policy lets decide it; the default keeps them all. Staging, the snapshot, the quorum check at confirmation, the later-step check and the approval button all read the narrowed pool, so a user the document would veto holds no row |
+| `_get_approval_activity_type(approver, step_type)` | **Override**: the activity type `approver` is asked with on this document; the step's by default. `approval.approver._get_activity_type()` asks it for every activity the engine creates and every escalation reminder; activities are found, retired and reassigned by `approver_id`, never by type. hr_holidays answers from its state |
+
+---
+
 ## mixin.approval (Abstract)
 
 | Key | Value |
@@ -552,8 +578,6 @@ so the comparison is never raw.
 | `_get_approval_required_fields()` | **Override**: required fields before approval |
 | `_get_approval_request_name()` | **Override**: customize request name |
 | `_prepare_approval_request_values()` | **Override**: customize request creation values. Honours `approval_binding_for` = (model, id, binding) in context, only when it names this record, so a binding-raised request knows its operation and a nested document cannot inherit the link |
-| `_get_approval_activity_type(approver, step_type)` | **Override**: the activity type `approver` is asked with on this document; the step's by default. `approval.approver._get_activity_type()` asks it for every activity the engine creates and every escalation reminder; activities are found, retired and reassigned by `approver_id`, never by type. hr_holidays answers from its state |
-| `_filter_approval_step_user_ids(step, user_ids)` | **Override**: of the users a step would let decide this document, the ones its own policy lets decide it; the default keeps them all. Staging, the snapshot, the quorum check at confirmation, the later-step check and the approval button all read the narrowed pool, so a user the document would veto holds no row |
 | `_on_approval_state_changed()` | **Dispatcher — do NOT override.** Routes to `_on_approval_approved` / `_on_approval_refused` / `_on_approval_cancelled` / `_on_approval_revoked` / `_on_approval_reset`. Base posts a chatter note per state; for the `pending` revocation it also schedules a To-Do for the responsible user on activity-enabled models. See conventions.md |
 | `_find_approval_category()` | The lookup that never raises: candidates by domain + company, first `_is_applicable_for`, then the fallback. What `_compute_approval_required` reads |
 | `_get_approval_category()` | Find matching category (uses domain + company). Owns the whole selection algorithm; supply `_get_domain_approval_category()`, `approval.category._is_applicable_for()`, `_get_approval_category_fallback()` and the two `_raise_*` hooks instead of overriding it |
@@ -712,6 +736,42 @@ refusals), `refusal_reason_auto_rule` (auto-refuse rules),
 | `_get_field_value(request)` | Extract numeric value using match/case; `amount` goes through `_convert_request_amount()` so the comparison happens in the rule's currency |
 | `_compare(value, threshold)` | Apply operator |
 | `_get_approver_tuples()` | Return (user_id, required, sequence) list |
+
+---
+
+## mixin.approval.subjects (Abstract)
+
+| Key | Value |
+|-----|-------|
+| Model | `mixin.approval.subjects` |
+| File | `models/mixin_approval_subjects.py` |
+| Inherits | `mixin.approval.source` |
+
+For a record that holds one request per subject rather than one in all: a course takes access requests from many partners, an engineering change raises one for each stage it passes. The request carries its subject in `subject_key`; only one request per subject is waiting at a time.
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `approval_request_ids` | One2many(`approval.request`) | No | No | inverse `res_id`, domain `res_model` = the record's model and `subject_key` set; readonly |
+
+### Adopter hooks
+
+| Hook | Contract |
+|------|----------|
+| `_get_approval_subject_category(subject_key)` | The category a request for that subject belongs to. Required |
+| `_prepare_approval_subject_request_values(subject_key, category)` | The request's values: name, category, owner (the current user), `res_model`/`res_id`, `subject_key`, the record's company |
+| `_on_approval_subject_state_changed(request, new_state)` | A subject's request reached a terminal state, or was reset or revoked; the request says which subject |
+| `_on_approval_subject_progress(request)` | A decision met a step of a subject's request, which is still pending |
+
+### Behaviour
+
+| Method | What it does |
+|--------|--------------|
+| `_raise_approval_request(subject_key)` | Raises and submits the request as the current user (the request is created under `sudo`, keeping the uid). Refused while a request for that subject is new or pending |
+| `_get_approval_request(subject_key)` / `_get_live_approval_request(subject_key)` | The latest request for the subject, and that request only while it is new or pending |
+
+`approval.request._get_notifiable_source_document()` tells such a record only about a request that carries a `subject_key`; a request pointed at the record without one reaches nothing, as a `mixin.approval` document is told only about the request it references. Covered by `test_approval/tests/test_approval_subjects.py` against `approval.test.subject.document`.
 
 ---
 
@@ -902,7 +962,7 @@ does not is left as it was.
 | `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
 | `activity_type_id` | Many2one(`mail.activity.type`) | Yes | No | The activity this step's asked approvers get; empty uses `approval.mail_activity_data_approval` |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
-| `_get_member_user_ids(document, company)` / `_get_pool_user_ids(document, company)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Given a company, both keep only users allowed in it (`_filter_company_user_ids`), since an approver row belongs to its request's company. Every caller passes the request's source document and company, or on the approval button the gated record and the company its request is (or would be) raised in. Past the company, the pool asks a document adopting `mixin.approval` to narrow it through `_filter_approval_step_user_ids` (`_filter_document_user_ids`), so no one holds a row the document's own policy would refuse. `_get_managed_approver_user_ids` alone reads `_get_candidate_user_ids(document)`, every user the step names before either narrowing, so a row whose user lost the company or the document's favour is still recognised as routing's own |
+| `_get_member_user_ids(document, company)` / `_get_pool_user_ids(document, company)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Given a company, both keep only users allowed in it (`_filter_company_user_ids`), since an approver row belongs to its request's company. Every caller passes the request's source document and company, or on the approval button the gated record and the company its request is (or would be) raised in. Past the company, the pool asks a record adopting `mixin.approval.source` to narrow it through `_filter_approval_step_user_ids` (`_filter_document_user_ids`), so no one holds a row the document's own policy would refuse. `_get_managed_approver_user_ids` alone reads `_get_candidate_user_ids(document)`, every user the step names before either narrowing, so a row whose user lost the company or the document's favour is still recognised as routing's own |
 | `_unlink_except_step_holding_decisions()` | A step some approver row decided under cannot be deleted; archive it |
 | `_check_pool()` | Fires on `user_ids` too, so an approvers list given without a group is checked after its inverse has created the members |
 
@@ -919,7 +979,7 @@ does not is left as it was.
 |--------|---------|
 | `_get_pool_user_ids(document, company)` | Who may approve today: members whose `date_end` has not passed, the active users `subject_user_path` resolves to on the document (read under `sudo`), plus the group's users -- of those, the ones whose `company_ids` include `company` when one is given, and whom the document keeps |
 | `_get_candidate_user_ids(document)` | Members, path users and group users with neither the company nor the document narrowing them: the set routing owns rows for |
-| `_filter_document_user_ids(user_ids, document)` | Hands the pool to `document._filter_approval_step_user_ids(step, user_ids)` (under `sudo`) when the document adopts `mixin.approval`; any other record, such as one gated by a binding button, keeps its pool |
+| `_filter_document_user_ids(user_ids, document)` | Hands the pool to `document._filter_approval_step_user_ids(step, user_ids)` (under `sudo`) when the record adopts `mixin.approval.source` (`mixin.approval` or `mixin.approval.subjects`); any other record, such as one gated by a binding button, keeps its pool |
 | `_get_source_user_ids(document)` | The users the path names on this document; empty for another model, no document, or no path. Confirm refuses a step whose document names nobody through `_check_steps_can_be_met` |
 | `_is_applicable_to_request(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
 

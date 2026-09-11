@@ -1,5 +1,6 @@
 from . import mixin_approval_threshold  # isort: skip
 from . import mixin_approval_domain  # isort: skip
+from . import mixin_approval_source  # isort: skip
 
 from . import (
     approval_approver,
@@ -13,6 +14,7 @@ from . import (
     approval_document_requirement,
     mixin_approval,
     mixin_approval_state_sync,
+    mixin_approval_subjects,
     approval_refusal_reason,
     approval_request,
     approval_request_access,

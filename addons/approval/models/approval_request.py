@@ -395,6 +395,14 @@ class ApprovalRequest(models.Model):
         "approval.binding in Request mode raised it. Approving the request "
         "runs that operation once, as the requester.",
     )
+    subject_key = fields.Char(
+        readonly=True,
+        copy=False,
+        index="btree_not_null",
+        help="What this request asks about, when its source record holds one "
+        "request per subject (mixin.approval.subjects): a partner asking to join "
+        "a course, a stage an engineering change passes.",
+    )
     binding_snapshot = fields.Json(
         readonly=True,
         copy=False,

@@ -239,12 +239,12 @@ class ApprovalCategoryStep(models.Model):
         return users
 
     def _filter_document_user_ids(self, user_ids: set[int], document) -> set[int]:
-        """A document adopting mixin.approval keeps a user off its step when its own
-        policy would refuse that user's decision."""
+        """A record an approval request is raised for (mixin.approval.source) keeps a
+        user off its step when its own policy would refuse that user's decision."""
         self.check_singleton()
         if (
             not user_ids
-            or not isinstance(document, self.env.registry["mixin.approval"])
+            or not isinstance(document, self.env.registry["mixin.approval.source"])
             or len(document) != 1
         ):
             return user_ids

@@ -1307,10 +1307,12 @@ class ApprovalRequestLifecycle(models.Model):
         request.binding_id._replay(request)
 
     def _get_notifiable_source_document(self):
-        """The adopting document to tell about this request, or None.
+        """The adopting record to tell about this request, or None.
 
-        Only a mixin.approval document that references this request back is told, so
-        a stale res_id cannot drive a foreign record's workflow.
+        A mixin.approval document is told only when it references this request back,
+        so a stale res_id cannot drive a foreign record's workflow. A
+        mixin.approval.subjects record is told about a request raised for one of its
+        subjects, which carries its subject_key.
         """
         self.check_singleton()
         if not self.res_model or not self.res_id:
@@ -1318,12 +1320,17 @@ class ApprovalRequestLifecycle(models.Model):
         try:
             source_doc = self.env[self.res_model].browse(self.res_id)
             mixin_cls = self.env.registry["mixin.approval"]
+            subjects_cls = self.env.registry["mixin.approval.subjects"]
         except KeyError:
             _logger.debug(
                 "Source model %s not in registry; skipping approval state notification",
                 self.res_model,
             )
             return None
+        if isinstance(source_doc, subjects_cls):
+            if not self.subject_key or not source_doc.exists():
+                return None
+            return source_doc.sudo().with_context(approval_acting_user_id=self.env.uid)
         if not isinstance(source_doc, mixin_cls):
             return None
         if source_doc.approval_request_id != self:
@@ -1337,13 +1344,19 @@ class ApprovalRequestLifecycle(models.Model):
             return None
         return source_doc.sudo().with_context(approval_acting_user_id=self.env.uid)
 
+    def _is_subject_source(self, source_doc) -> bool:
+        return isinstance(source_doc, self.env.registry["mixin.approval.subjects"])
+
     def _notify_source_document_state_change(self, new_state: str) -> None:
         self.check_singleton()
         source_doc = self._get_notifiable_source_document()
         if source_doc is None:
             return
         try:
-            source_doc._on_approval_state_changed(new_state)
+            if self._is_subject_source(source_doc):
+                source_doc._on_approval_subject_state_changed(self, new_state)
+            else:
+                source_doc._on_approval_state_changed(new_state)
         except MissingError:
             _logger.debug(
                 "Could not notify source document %s#%s of approval state change",
@@ -1357,7 +1370,10 @@ class ApprovalRequestLifecycle(models.Model):
         if source_doc is None:
             return
         try:
-            source_doc._on_approval_progress()
+            if self._is_subject_source(source_doc):
+                source_doc._on_approval_subject_progress(self)
+            else:
+                source_doc._on_approval_progress()
         except MissingError:
             _logger.debug(
                 "Could not notify source document %s#%s of approval progress",

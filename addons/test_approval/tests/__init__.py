@@ -1,5 +1,6 @@
 from . import (
     test_approval_mixin,
+    test_approval_subjects,
     test_binding_adopter,
     test_binding_checkpoint,
     test_decision_attribution,
