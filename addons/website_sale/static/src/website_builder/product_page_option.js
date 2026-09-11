@@ -19,21 +19,16 @@ export class ProductPageOption extends BaseOptionComponent {
             const hasImages = !productDetailEl.classList.contains(
                 "o_wsale_product_page_opt_image_width_none",
             );
-            const isFullImage = productDetailEl.classList.contains(
-                "o_wsale_product_page_opt_image_width_100_pc",
-            );
             const multipleImages =
                 hasImages &&
                 productDetailMainEl.querySelector(".o_wsale_product_images")?.dataset
                     .imageAmount > 1;
-            const isGrid = !!productDetailMainEl.querySelector("#o-grid-product");
             const hasCarousel = !!productPageCarouselEl;
             const hasGrid = !!productPageGridEl;
             return {
                 hasImages,
-                isFullImage,
                 multipleImages,
-                isGrid,
+                isGrid: hasGrid,
                 hasCarousel,
                 hasGrid,
             };
