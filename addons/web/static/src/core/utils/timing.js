@@ -88,11 +88,12 @@ function debounceEdges(options) {
 }
 
 /**
+ * Pending calls resolve to undefined when cancelled or when trailing execution is disabled.
  * @template {(...args: any[]) => any} T
  * @param {T} func
  * @param {number | "animationFrame" | (() => number)} [delay]
  * @param {boolean | {leading?: boolean, trailing?: boolean}} [options]
- * @returns {((this: ThisParameterType<T>, ...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>) & { cancel: (execNow?: boolean) => void }}
+ * @returns {((this: ThisParameterType<T>, ...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) & { cancel: (execNow?: boolean) => void }}
  */
 export function debounce(func, delay, options) {
     /** @type {any} */
@@ -191,9 +192,10 @@ export function setRecurringAnimationFrame(callback) {
 }
 
 /**
- * @template {Function} T
+ * Calls resolve to the callback result, or undefined when superseded or cancelled.
+ * @template {(...args: any[]) => any} T
  * @param {T} func
- * @returns {T & { cancel: () => void }}
+ * @returns {((this: ThisParameterType<T>, ...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) & { cancel: () => void }}
  */
 export function throttleForAnimation(func) {
     /** @type {any} */
@@ -263,7 +265,7 @@ export function throttleForAnimation(func) {
  * @param {T} callback
  * @param {number | "animationFrame" | (() => number)} delay
  * @param {{execBeforeUnmount?: boolean, immediate?: boolean, trailing?: boolean}} [options]
- * @returns {((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>) & { cancel: (execNow?: boolean) => void }}
+ * @returns {((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) & { cancel: (execNow?: boolean) => void }}
  */
 export function useDebounced(
     callback,
@@ -282,13 +284,16 @@ export function useDebounced(
 }
 
 /**
- * @template {Function} T
+ * The component supplies the callback receiver; callers only supply its arguments.
+ * @template {(...args: any[]) => any} T
  * @param {T} func
- * @returns {T & { cancel: () => void }}
+ * @returns {((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>> | undefined>) & { cancel: () => void }}
  */
 export function useThrottleForAnimation(func) {
     const component = useComponent();
-    const throttledForAnimation = throttleForAnimation(func.bind(component));
+    /** @type {(...args: Parameters<T>) => ReturnType<T>} */
+    const bound = func.bind(component);
+    const throttledForAnimation = throttleForAnimation(bound);
     onWillUnmount(() => throttledForAnimation.cancel());
     return throttledForAnimation;
 }
