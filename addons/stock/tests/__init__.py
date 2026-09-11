@@ -82,3 +82,4 @@ from . import test_completion_sequence
 from . import test_group_readonly
 from . import test_consignment_interface
 from . import test_create_computes
+from . import test_move_line_done_access

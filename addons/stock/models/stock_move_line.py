@@ -756,6 +756,8 @@ class StockMoveLine(models.Model):
         )
 
     def _update_done_lots(self):
+        if not self:
+            return self
         ml_ids_tracked_without_lot = OrderedSet()
         ml_ids_to_create_lot = OrderedSet()
         groups = self.grouped(lambda ml: (ml.product_id, ml.company_id))
