@@ -558,8 +558,8 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
             }
         )
         mod2.action_post()
-        # Reconcile the outstanding payment line from mod1 with the invoice
-        inv.js_add_outstanding_line(mod1.line_ids.filtered(lambda l: l.debit == 0).id)
+        # Posting the reversals reconciles each with its own origin, mod1 included.
+        self.assertTrue(mod1.line_ids.filtered(lambda l: l.debit == 0).reconciled)
         operation = mod2._l10n_hu_edi_get_operation_type()
         self.assertEqual(operation, "STORNO")
 
