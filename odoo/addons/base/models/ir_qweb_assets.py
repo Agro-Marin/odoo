@@ -14,6 +14,7 @@ from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
+from odoo.tools.assets import esm_index
 from odoo.tools.assets.esbuild import EsbuildResult
 from odoo.tools.assets.esm_graph import (
     addon_specifier_to_url,
@@ -1441,29 +1442,11 @@ class IrQweb(models.AbstractModel):
     def _save_esm_index(
         self, bundle: str, source_key: str, url: str, metafile: bool, sourcemap: bool
     ) -> None:
-        index_url = self._esm_index_url(bundle, source_key)
-        IrAttachment = self.env["ir.attachment"].sudo()
-        if IrAttachment.search(
-            IrAttachment._get_domain_generated_assets(index_url), limit=1
-        ):
-            return
-        self._save_esm_attachment_rows(
-            [
-                {
-                    "name": f"{bundle}.by-source.json",
-                    "mimetype": "application/json",
-                    "res_model": "ir.ui.view",
-                    "res_id": False,
-                    "type": "binary",
-                    "public": True,
-                    "raw": json.dumps(
-                        {"url": url, "metafile": metafile, "sourcemap": sourcemap}
-                    ).encode("utf-8"),
-                    "url": index_url,
-                }
-            ],
-            bundle=bundle,
-        )
+        if self._read_generated_asset(esm_index.index_url(bundle, source_key)) is None:
+            self._save_esm_attachment_rows(
+                [esm_index.index_row(bundle, source_key, url, metafile, sourcemap)],
+                bundle=bundle,
+            )
 
     def _save_esm_attachment_by_output(
         self,

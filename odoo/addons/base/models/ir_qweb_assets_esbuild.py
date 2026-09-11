@@ -1,11 +1,10 @@
-import hashlib
-import json
 import logging
 import re
 from typing import Any
 
 from odoo import models
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.tools.assets import esm_index
 from odoo.tools.assets.esbuild import (
     EsbuildCompiler,
     EsbuildGroupResult,
@@ -252,9 +251,12 @@ class IrQweb(models.AbstractModel):
         exported_specs: frozenset[str] | None,
     ) -> str:
         config = self._get_esbuild_config()
-        digest = hashlib.sha256()
-        for part in (
+        return esm_index.source_key(
             bundle,
+            asset_bundle.native_modules,
+            dynamic_child_specs,
+            secondary_stubs,
+            exported_specs,
             str(
                 config.get_param("web.esbuild.target")
                 or EsbuildCompiler._ESBUILD_TARGET
@@ -263,74 +265,26 @@ class IrQweb(models.AbstractModel):
                 config.get_param("web.esbuild.source_maps")
                 or EsbuildCompiler._ESBUILD_SOURCE_MAPS
             ),
-            ",".join(sorted(dynamic_child_specs or ())),
-            ",".join(sorted(exported_specs or ())),
-        ):
-            digest.update(part.encode())
-            digest.update(b"\0")
-        for spec in sorted(secondary_stubs):
-            digest.update(spec.encode())
-            digest.update(secondary_stubs[spec].encode())
-            digest.update(b"\0")
-        for asset in asset_bundle.native_modules:
-            digest.update((asset.module_path or asset.url or "").encode())
-            digest.update(b"\0")
-            digest.update(
-                asset.raw_content.encode()
-                if isinstance(asset.raw_content, str)
-                else asset.raw_content
-            )
-            digest.update(b"\0")
-        return digest.hexdigest()[:16]
+        )
+
+    def _read_generated_asset(self, url: str) -> bytes | None:
+        IrAttachment = self.env["ir.attachment"].sudo()
+        row = IrAttachment.search(
+            IrAttachment._get_domain_generated_assets(url), limit=1
+        )
+        return row.raw if row else None
 
     def _load_esbuild_result_by_source(
         self, bundle: str, source_key: str
     ) -> EsbuildResult | None:
-        IrAttachment = self.env["ir.attachment"].sudo()
-        index = IrAttachment.search(
-            IrAttachment._get_domain_generated_assets(
-                self._esm_index_url(bundle, source_key)
-            ),
-            limit=1,
-        )
-        if not index:
+        found = esm_index.resolve_index(self._read_generated_asset, bundle, source_key)
+        if found is None:
             return None
-        try:
-            pointer = json.loads(index.raw.decode("utf-8"))
-            url = pointer["url"]
-        except ValueError, KeyError, AttributeError:
-            return None
-        code = IrAttachment.search(
-            IrAttachment._get_domain_generated_assets(url), limit=1
-        )
-        if not code:
-            return None
-        sidecar = {}
-        for name, sidecar_url in (
-            ("metafile", url.removesuffix(".esm.js") + ".meta.json"),
-            ("sourcemap", url + ".map"),
-        ):
-            if pointer.get(name):
-                row = IrAttachment.search(
-                    IrAttachment._get_domain_generated_assets(sidecar_url), limit=1
-                )
-                if not row:
-                    return None
-                sidecar[name] = row.raw.decode("utf-8")
+        url, code, metafile, sourcemap = found
         log_event(
             _fallback_log, logging.DEBUG, "reuse_by_source", bundle=bundle, url=url
         )
-        return EsbuildResult(
-            code.raw.decode("utf-8"),
-            sidecar.get("metafile"),
-            sidecar.get("sourcemap"),
-            source_key,
-            prebuilt=True,
-        )
-
-    @staticmethod
-    def _esm_index_url(bundle: str, source_key: str) -> str:
-        return f"/web/assets/esm/by-source/{source_key}/{bundle}.json"
+        return EsbuildResult(code, metafile, sourcemap, source_key, prebuilt=True)
 
     _SPECIFIER_LITERAL_RE = re.compile(r"""["'](@[\w./+-]+)["']""")
 
