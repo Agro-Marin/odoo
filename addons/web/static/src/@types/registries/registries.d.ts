@@ -34,6 +34,7 @@ declare module "registries" {
     export type EffectsRegistryItemShape = (
         env: OdooEnv,
         params: object,
+        options?: { rootId?: string; sequence?: number; onClose?: () => void },
     ) =>
         | { Component?: ComponentConstructor; props?: object; remove?: () => void }
         | undefined;
