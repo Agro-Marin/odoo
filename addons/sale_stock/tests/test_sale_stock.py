@@ -3374,6 +3374,72 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         )
 
+    def test_a_replenishment_receipt_on_the_sale_reference_is_not_one_of_its_transfers(
+        self,
+    ):
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create({"product_id": self.product_a.id, "product_qty": 1})
+                ],
+            }
+        )
+        sale_order.action_confirm()
+        delivery = sale_order.picking_ids
+        warehouse = delivery.picking_type_id.warehouse_id
+        supplier_location = self.env.ref("stock.stock_location_suppliers")
+        stock_location = delivery.location_id
+        self.assertTrue(delivery.reference_ids.sale_ids)
+
+        def picking_on_the_sale_reference(picking_type, source, destination, **move):
+            return self.env["stock.picking"].create(
+                {
+                    "picking_type_id": picking_type.id,
+                    "location_id": source.id,
+                    "location_dest_id": destination.id,
+                    "move_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.product_a.id,
+                                "product_uom_qty": 1,
+                                "location_id": source.id,
+                                "location_dest_id": destination.id,
+                                "reference_ids": [
+                                    Command.set(delivery.reference_ids.ids)
+                                ],
+                                **move,
+                            }
+                        )
+                    ],
+                }
+            )
+
+        receipt = picking_on_the_sale_reference(
+            warehouse.in_type_id, supplier_location, stock_location
+        )
+        put_away = picking_on_the_sale_reference(
+            warehouse.int_type_id,
+            stock_location,
+            stock_location,
+            move_orig_ids=[Command.link(receipt.move_ids.id)],
+        )
+        transit_receipt = picking_on_the_sale_reference(
+            warehouse.in_type_id,
+            self.env.ref("stock.stock_location_inter_company"),
+            stock_location,
+        )
+        untracked_delivery = picking_on_the_sale_reference(
+            warehouse.out_type_id, stock_location, delivery.location_dest_id
+        )
+
+        self.assertEqual(receipt.reference_ids.sale_ids, sale_order)
+        self.assertFalse(receipt.sale_id)
+        self.assertFalse(put_away.sale_id)
+        self.assertFalse(transit_receipt.sale_id)
+        self.assertEqual(untracked_delivery.sale_id, sale_order)
+        self.assertEqual(sale_order.picking_ids, delivery | untracked_delivery)
+
     def test_update_picking_sale_order(self):
         self.new_product.is_storable = False
         sale_order = self.env["sale.order"].create(

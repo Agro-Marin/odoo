@@ -25,11 +25,19 @@ class StockPicking(models.Model):
     @api.depends(
         "reference_ids.sale_ids",
         "move_ids.sale_line_id.order_id",
+        "move_ids.location_id.usage",
+        "move_ids.location_dest_id.usage",
+        "move_ids.move_orig_ids",
     )
     def _compute_sale_id(self):
         for picking in self:
             sale_order = picking.move_ids.sale_line_id.order_id[:1]
-            if not sale_order and not picking._is_on_manufacturing_route():
+            if (
+                not sale_order
+                and picking.reference_ids.sale_ids
+                and not picking._is_on_manufacturing_route()
+                and not picking._is_replenishment_receipt_step()
+            ):
                 sale_order = picking.reference_ids.sale_ids[:1]
             picking.sale_id = sale_order
 
@@ -46,6 +54,24 @@ class StockPicking(models.Model):
 
     def _is_on_manufacturing_route(self):
         self.check_singleton()
+        return False
+
+    def _is_replenishment_receipt_step(self):
+        # What an MTO sale triggers upstream -- a vendor purchase, an inter-company or
+        # inter-warehouse resupply -- shares the sale's reference. Its receipt, and any
+        # internal step fed by it, belongs to that replenishment, not to the sale.
+        self.check_singleton()
+        moves = self.move_ids
+        visited = self.env["stock.move"]
+        while moves:
+            if any(
+                move.location_id.usage in ("supplier", "transit")
+                and move.location_dest_id.usage != "customer"
+                for move in moves
+            ):
+                return True
+            visited |= moves
+            moves = moves.move_orig_ids - visited
         return False
 
     def _inverse_sale_id(self):
