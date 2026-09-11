@@ -1722,7 +1722,7 @@ class AccountTestMockOnlineSyncCommon(HttpCase):
 
         with patch.object(
             target=cls.registry["account.journal"],
-            attribute="fetch_online_sync_favorite_institutions",
+            attribute="get_online_sync_favorite_institutions",
             new=get_institutions,
             create=True,
         ):
