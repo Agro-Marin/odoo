@@ -126,7 +126,7 @@ Pillow==12.3.0
 polib==1.2.0
 protobuf>=6.31.0,<8
 psutil==7.2.2
-psycopg[binary]>=3.3.4
+psycopg[binary]>=3.3.5
 psycopg-pool>=3.3.1
 pyopenssl==26.4.0
 pypdf==6.16.2
