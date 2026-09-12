@@ -1,6 +1,6 @@
 import unittest
 
-from odoo import fields, models
+from odoo import Command, fields, models
 from odoo.exceptions import AccessError
 from odoo.orm.model_test_env import model_test_env
 from odoo.orm.runtime import Environment
@@ -25,6 +25,13 @@ class SGuardHost(models.Model):
 
     name = fields.Char()
     line_ids = fields.One2many("s.guard.line", "host_id")
+    shadow_line_ids = fields.One2many(
+        "s.guard.line", compute="_compute_shadow_line_ids"
+    )
+
+    def _compute_shadow_line_ids(self):
+        for host in self:
+            host.shadow_line_ids = host.line_ids
 
 
 class OpenLine(models.Model):
@@ -78,6 +85,41 @@ class TestSudoCommandsWithoutDefaultEnv(unittest.TestCase):
             field = env["s.open.host"]._fields["line_ids"]
             comodel = env["s.open.line"]
             self.assertIs(field._check_sudo_commands(comodel), comodel)
+
+    def test_a_cache_only_write_on_an_unstored_field_is_not_demoted(self):
+        with model_test_env(*self.MODELS) as env:
+            host = env["s.guard.host"].create({"name": "h"})
+            line = env["s.guard.line"].create({"name": "l", "host_id": host.id})
+            env.transaction.default_env = None
+            field = env["s.guard.host"]._fields["shadow_line_ids"]
+            field.write_batch([(host, [Command.set([line.id])])])
+            self.assertEqual(host.shadow_line_ids, line)
+            field.write_batch([(host, [Command.clear()])])
+            self.assertFalse(host.shadow_line_ids)
+
+    def test_a_computed_unstored_field_needs_no_default_env(self):
+        with model_test_env(*self.MODELS) as env:
+            host = env["s.guard.host"].create({"name": "h"})
+            line = env["s.guard.line"].create({"name": "l", "host_id": host.id})
+            env.transaction.default_env = None
+            self.assertEqual(host.shadow_line_ids, line)
+
+    def test_a_create_command_on_an_unstored_field_still_refuses(self):
+        with model_test_env(*self.MODELS) as env:
+            host = env["s.guard.host"].create({"name": "h"})
+            env.transaction.default_env = None
+            field = env["s.guard.host"]._fields["shadow_line_ids"]
+            with self.assertRaises(AccessError):
+                field.write_batch([(host, [Command.create({"name": "new"})])])
+
+    def test_a_set_on_a_stored_field_still_refuses(self):
+        with model_test_env(*self.MODELS) as env:
+            host = env["s.guard.host"].create({"name": "h"})
+            line = env["s.guard.line"].create({"name": "l"})
+            env.transaction.default_env = None
+            field = env["s.guard.host"]._fields["line_ids"]
+            with self.assertRaises(AccessError):
+                field.write_batch([(host, [Command.set([line.id])])])
 
     def test_a_real_default_env_still_downgrades(self):
         with model_test_env(*self.MODELS) as env:

@@ -30,6 +30,8 @@ from ._commands import CommandDelta
 
 _debug = DebugLog(__name__)
 
+_COMODEL_WRITING_COMMANDS = frozenset({Command.CREATE, Command.UPDATE, Command.DELETE})
+
 
 def _strip_granularity_suffix(field_expr: str) -> str:
     prefix, _sep, last = field_expr.rpartition(".")
@@ -633,6 +635,12 @@ class _RelationalMulti(_Relational):
     ) -> tuple[BaseModel, BaseModel]:
         model = records_commands_list[0][0].browse()
         comodel = model.env[self.comodel_name].with_context(**self.context)
+        if not self.store and not any(
+            command[0] in _COMODEL_WRITING_COMMANDS
+            for _recs, commands in records_commands_list
+            for command in commands
+        ):
+            return model, comodel
         return model, self._check_sudo_commands(comodel)
 
     def _check_sudo_commands(self, comodel: BaseModel) -> BaseModel:
