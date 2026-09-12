@@ -1,7 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, markRaw, onMounted, onWillUnmount, reactive, xml } from "@odoo/owl";
+import {
+    Component,
+    markRaw,
+    onMounted,
+    onWillDestroy,
+    onWillUnmount,
+    reactive,
+    xml,
+} from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -107,6 +116,11 @@ export function computeHomeMenuProps(menus) {
     };
 }
 
+const log = makeLogger("web.home_menu");
+
+/** @type {HomeMenuAction | null} */
+let current = null;
+
 export class HomeMenuAction extends Component {
     static components = { HomeMenu };
     static target = "current";
@@ -123,8 +137,23 @@ export class HomeMenuAction extends Component {
         this.menus = useService("menu");
         this.homeMenu = useService("home_menu");
         this.homeMenuProps = computeHomeMenuProps(this.menus);
-        onMounted(() => this.onMounted());
-        onWillUnmount(() => this.onWillUnmount());
+        current = this;
+        this.homeMenu.hasHomeMenu = true;
+        this.homeMenu.hasBackgroundAction = this.env.config.breadcrumbs.length > 0;
+        log.lifecycle("setup", () => ({ crumbs: this.env.config.breadcrumbs.length }));
+        onMounted(() => {
+            log.lifecycle("mounted", () => ({ isCurrent: current === this }));
+            this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
+        });
+        onWillUnmount(() => {
+            log.lifecycle("willUnmount", () => ({ isCurrent: current === this }));
+            this._release();
+            this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
+        });
+        onWillDestroy(() => {
+            log.lifecycle("willDestroy", () => ({ isCurrent: current === this }));
+            this._release();
+        });
         const refresh = () => {
             this.homeMenuProps = computeHomeMenuProps(this.menus);
             this.render();
@@ -132,16 +161,14 @@ export class HomeMenuAction extends Component {
         useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, refresh);
         useHomeMenuLayoutSync(refresh);
     }
-    onMounted() {
-        const { breadcrumbs } = this.env.config;
-        this.homeMenu.hasHomeMenu = true;
-        this.homeMenu.hasBackgroundAction = breadcrumbs.length > 0;
-        this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
-    }
-    onWillUnmount() {
+    _release() {
+        if (current !== this) {
+            return;
+        }
+        log.logic("release");
+        current = null;
         this.homeMenu.hasHomeMenu = false;
         this.homeMenu.hasBackgroundAction = false;
-        this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
     }
 }
 

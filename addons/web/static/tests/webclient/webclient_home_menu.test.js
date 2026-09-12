@@ -26,6 +26,7 @@ import { config as transitionConfig } from "@web/core/transition";
 import { user } from "@web/core/user";
 import { redirect } from "@web/core/utils/urls";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
+import { HomeMenuAction } from "@web/webclient/home_menu/home_menu_service";
 import { shareUrlMenuItem } from "@web/webclient/share_url/share_url";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 import { WebClient } from "@web/webclient/webclient";
@@ -318,7 +319,6 @@ describe("basic flow with home menu", () => {
         expect.verifySteps(["get_formview_action", "get_views", "web_read"]);
         await goToHomeMenu();
         expect.verifySteps([]);
-        await animationFrame();
         expect(".o_menu_toggle").toHaveClass("o_menu_toggle_back");
         expect(".o_home_menu").toHaveCount(1);
         expect(".o_form_view").not.toHaveCount();
@@ -673,7 +673,6 @@ test("underlying action's menu items are invisible when HomeMenu is displayed", 
     expect(".o_menu_sections").toBeVisible();
     expect(".o_menu_brand").toBeVisible();
     await contains(".o_menu_toggle").click();
-    await animationFrame();
     expect("nav .o_menu_sections").toHaveCount(1);
     expect("nav .o_menu_brand").toHaveCount(1);
     expect(".o_menu_sections").not.toBeVisible();
@@ -961,6 +960,44 @@ test("app navigation keeps Home alive until all layout edits finish saving", asy
     expect(".o_home_menu").toHaveCount(0);
     expect(home.layout.config.pinned).toEqual(["app.first", "app.second", "app.third"]);
     expect(home.layout.unsaved).toBe(false);
+});
+
+test("the launcher state is set before the launcher mounts, and a superseded launcher does not reset it", async () => {
+    await mountWebClient();
+    const action = getService("action");
+    const homeMenu = getService("home_menu");
+    await action.doAction(1);
+    expect(homeMenu.hasHomeMenu).toBe(false);
+    const instances = { setup: 0, mounted: 0, flagAtSetup: [] };
+    const firstSetup = new Deferred();
+    patchWithCleanup(HomeMenuAction.prototype, {
+        setup() {
+            super.setup(...arguments);
+            instances.setup++;
+            instances.flagAtSetup.push(getService("home_menu").hasHomeMenu);
+            onMounted(() => instances.mounted++);
+            firstSetup.resolve();
+        },
+    });
+    const first = action.doAction("menu");
+    await firstSetup;
+    expect(instances.setup).toBe(1, {
+        message: "the first launcher is set up, not yet mounted",
+    });
+    expect(instances.mounted).toBe(0);
+    const second = action.doAction("menu");
+    await Promise.all([first, second]);
+    await animationFrame();
+    expect(instances.setup).toBe(2);
+    expect(instances.mounted).toBe(1, { message: "only the second launcher mounted" });
+    expect(instances.flagAtSetup).toEqual([true, true]);
+    expect(".o_home_menu").toHaveCount(1);
+    expect(homeMenu.hasHomeMenu).toBe(true, {
+        message: "the superseded launcher's teardown left the mounted one's flag alone",
+    });
+    await action.doAction(1);
+    await animationFrame();
+    expect(homeMenu.hasHomeMenu).toBe(false);
 });
 
 test("a layout save the server refuses does not keep the user on Home", async () => {
