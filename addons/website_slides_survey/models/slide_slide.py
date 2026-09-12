@@ -103,14 +103,17 @@ class SlideSlide(models.Model):
         return result
 
     def _update_challenge_category(self, old_surveys=None, unlink=False):
+        # Bookkeeping on gamification challenges the slide's certification owns:
+        # an eLearning officer copying or editing a course need not be able to read
+        # surveys or badges for their challenges to be filed under the right menu.
         if old_surveys:
-            old_certification_challenges = old_surveys.mapped(
-                "certification_badge_id"
-            ).challenge_ids
+            old_certification_challenges = (
+                old_surveys.sudo().mapped("certification_badge_id").challenge_ids
+            )
             old_certification_challenges.write({"challenge_category": "certification"})
         if not unlink:
             certification_challenges = (
-                self.survey_id.certification_badge_id.challenge_ids
+                self.sudo().survey_id.certification_badge_id.challenge_ids
             )
             certification_challenges.write({"challenge_category": "slides"})
 

@@ -99,6 +99,9 @@ class CopyMixin(_ModelStubs):
         return vals_list
 
     def copy_translations(self, new: Self, excluded: Collection[str] = ()) -> None:
+        # Materialised once: callers pass generators, which a membership test per
+        # field would consume, and the trace below takes its length.
+        excluded = frozenset(excluded)
         old = self
         if "__copy_translations_seen" not in old.env.context:
             old = old.with_context(__copy_translations_seen=defaultdict(set))
