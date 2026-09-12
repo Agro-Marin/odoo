@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="view_move_form_l10n_pl_edi" model="ir.ui.view">

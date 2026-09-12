@@ -277,6 +277,15 @@ for record in self:
         """)
         self.assertIn('<!DOCTYPE odoo SYSTEM "odoo.dtd">', out)
 
+    def test_the_declaration_is_added_and_is_not_part_of_the_identity(self):
+        path = Path(self.tmpdir) / "bare.xml"
+        path.write_bytes(b'<odoo>\n    <record id="r" model="m"/>\n</odoo>\n')
+        self.assertIs(_pretty_xml.format_xml_file(path), True)
+        self.assertTrue(
+            path.read_text().startswith('<?xml version="1.0" encoding="utf-8"?>\n')
+        )
+        self.assertIs(_pretty_xml.format_xml_file(path, dry_run=True), False)
+
     def test_reports_no_change_for_its_own_output(self):
         path = Path(self.tmpdir) / "case.xml"
         path.write_bytes(
@@ -329,7 +338,6 @@ for record in self:
         for label, prefix in (
             ("the doctype", "<!DOCTYPE"),
             ("the pre-root comment", "<!--"),
-            ("the xml declaration", "<?xml "),
         ):
             with self.subTest(loses=label):
                 lines = [

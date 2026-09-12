@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.43
+:Version: 6.44
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -5838,7 +5838,8 @@ last: the formatter preserves order, the sorter does not preserve formatting.
 
 The conventions they enforce:
 
-* 4-space indentation; root element ``<odoo>``, not ``<data>``.
+* The ``<?xml version="1.0" encoding="utf-8"?>`` declaration on line 1; 4-space
+  indentation; root element ``<odoo>``, not ``<data>``.
 * Double-quoted attribute values; empty elements self-close.
 * Attribute order: ``id`` then ``model`` on records; ``name`` first on fields;
   ``menuitem``, ``template``, ``delete`` and ``function`` each have their own
@@ -8122,6 +8123,10 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.44
+     - 2026-09-12
+     - §3.1: the XML declaration is part of the canonical format the
+       formatter writes; it is not part of a document's identity.
    * - 6.43
      - 2026-09-12
      - §3.7: menus are moved by ``_relocate_menus.py``; the menus file loads

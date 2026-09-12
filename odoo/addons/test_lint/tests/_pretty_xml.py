@@ -413,7 +413,6 @@ def format_xml_file(
         return None
 
     root = tree.getroot()
-    had_decl = source.lstrip().startswith(b"<?xml")
 
     pre_root: list[str] = []
     node = root.getprevious()
@@ -422,9 +421,7 @@ def format_xml_file(
             pre_root.insert(0, etree.tostring(node, encoding="unicode"))
         node = node.getprevious()
 
-    out: list[str] = []
-    if had_decl:
-        out.append('<?xml version="1.0" encoding="utf-8"?>')
+    out: list[str] = ['<?xml version="1.0" encoding="utf-8"?>']
     if tree.docinfo.doctype:
         out.append(tree.docinfo.doctype)
     out.extend(pre_root)

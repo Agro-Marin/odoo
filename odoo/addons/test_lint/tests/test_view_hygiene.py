@@ -127,7 +127,13 @@ class ActWindowViewOrderLinter(LintCase):
     def _manifests_in_scope():
         from odoo.modules import Manifest
 
-        return list(Manifest.get_all_addon_manifests())
+        from .lint_case import is_core_path
+
+        return [
+            manifest
+            for manifest in Manifest.get_all_addon_manifests()
+            if is_core_path(str(manifest.path))
+        ]
 
     @staticmethod
     def _data_files(manifest):
