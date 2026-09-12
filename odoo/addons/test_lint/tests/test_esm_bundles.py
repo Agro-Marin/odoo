@@ -22,9 +22,6 @@ LOAD_BUNDLE_RE = re.compile(
 )
 JS_DISABLED_OPTION_RE = re.compile(r"""\bjs\s*:\s*false\b""")
 
-RUNTIME_DECLARATION_EXEMPT = {
-    "web.assets_frontend",
-}
 LAZY_BUNDLE_RE = re.compile(
     r"""\bbundle=["']{1,2}([\w]+\.[\w.]+)["']{1,2}""",
 )
@@ -212,7 +209,7 @@ class TestEsmBundles(lint_case.LintCase):
         _declared, own_files, includes, addon_dirs = self._declaration_index()
         offenders = []
         candidates = set(fetched) - registry.runtime_bundle_names
-        for bundle in sorted(candidates - RUNTIME_DECLARATION_EXEMPT):
+        for bundle in sorted(candidates):
             if bundle not in registry.bundles:
                 continue
             if self._module_files(bundle, own_files, includes, addon_dirs, set()):
@@ -226,8 +223,3 @@ class TestEsmBundles(lint_case.LintCase):
                 f"under 'esm.bundles', but not under 'esm.runtime_bundles', so "
                 f"/web/bundle serves them through the legacy branch:\n{details}"
             )
-        self.assertEqual(
-            sorted(RUNTIME_DECLARATION_EXEMPT - set(fetched)),
-            [],
-            "an exemption that no call site needs any more — drop it",
-        )

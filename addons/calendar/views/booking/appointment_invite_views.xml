@@ -183,9 +183,9 @@
     <record id="appointment_invite_view_form_insert_link" model="ir.ui.view">
         <field name="name">appointment.invite.view.form</field>
         <field name="model">appointment.invite</field>
+        <field name="inherit_id" ref="appointment_invite_view_form" />
         <field name="mode">primary</field>
         <field name="priority">20</field>
-        <field name="inherit_id" ref="appointment_invite_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//form" position="attributes">
                 <attribute name="js_class">appointment_insert_link_form</attribute>

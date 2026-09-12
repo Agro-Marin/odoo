@@ -117,7 +117,7 @@ function saveByBeacon(record, changes, concurrencyBaseline) {
     }
     record.model.displayUrgentSaveNotification(
         _t(
-            `Heads up! Your recent changes are too large to save automatically. Please click the %(upload_icon)s button now to ensure your work is saved before you exit this tab.`,
+            "Heads up! Your recent changes are too large to save automatically. Please click the %(upload_icon)s button now to ensure your work is saved before you exit this tab.",
             {
                 upload_icon: markup`<i class="fa-solid fa-cloud-arrow-up"></i>`,
             },

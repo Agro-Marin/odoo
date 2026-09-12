@@ -4,9 +4,9 @@
     <!-- Calendar's reporting menu-->
     <menuitem
         id="reporting_menu_calendar"
-        parent="calendar.mail_menu_calendar"
         name="Reporting"
-        sequence="20"
-        action="calendar_event_action_report_all" />
+        parent="calendar.mail_menu_calendar"
+        action="calendar_event_action_report_all"
+        sequence="20" />
 
 </odoo>

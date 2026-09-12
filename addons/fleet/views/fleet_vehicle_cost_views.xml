@@ -37,9 +37,7 @@
                         </group>
                         <group col="2">
                             <field name="start_date" />
-                            <field
-                                name="expiration_date"
-                                required="repeat_unit" />
+                            <field name="expiration_date" required="repeat_unit" />
                             <field name="user_id" widget="many2one_avatar_user" />
                             <field name="purchaser_id" invisible="1" />
                         </group>

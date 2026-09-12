@@ -59,9 +59,7 @@
         <field name="name">appointment.type: apt administrator rule</field>
         <field name="model_id" ref="model_appointment_type" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <!-- appointment.slot -->
@@ -137,9 +135,7 @@
         <field name="name">appointment.slot: apt administrator rule</field>
         <field name="model_id" ref="model_appointment_slot" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <!-- appointment.invite -->
@@ -174,9 +170,7 @@
         <field name="name">appointment.invite: apt administrator rule</field>
         <field name="model_id" ref="model_appointment_invite" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <!-- survey.user_input.line -->
@@ -236,9 +230,7 @@
         <field name="name">survey.user_input.line: apt administrator rule</field>
         <field name="model_id" ref="survey.model_survey_user_input_line" />
         <field name="domain_force">[('appointment_type_id', '!=', False)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <!-- appointment.booking.line -->
@@ -298,9 +290,7 @@
         <field name="name">appointment.booking.line: apt administrator rule</field>
         <field name="model_id" ref="model_appointment_booking_line" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <record id="resource_calendar_leaves_rule_appointment_manager" model="ir.rule">
@@ -309,9 +299,7 @@
         <field name="model_id" ref="resource.model_resource_calendar_leaves" />
         <field
             name="domain_force">[('resource_id.appointment_resource_ids', '!=', False)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
         <field name="perm_read" eval="False" />
     </record>
 
@@ -371,9 +359,7 @@
         <field name="name">survey.user_input.line: apt administrator rule</field>
         <field name="model_id" ref="survey.model_survey_user_input" />
         <field name="domain_force">[('appointment_type_id', '!=', False)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <record id="survey_question_rule_appointment_reader" model="ir.rule">
@@ -390,9 +376,7 @@
         <field name="name">Appointment question: manager</field>
         <field name="model_id" ref="survey.model_survey_question" />
         <field name="domain_force">[('survey_id', '=', False)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <record id="survey_question_answer_rule_appointment_reader" model="ir.rule">
@@ -411,9 +395,7 @@
         <field name="model_id" ref="survey.model_survey_question_answer" />
         <field
             name="domain_force">[('question_id.survey_id', '=', False), ('question_id', '!=', False)]</field>
-        <field
-            name="groups"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+        <field name="groups" eval="[(4, ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <record id="appointment_response_read_boundary" model="ir.rule">

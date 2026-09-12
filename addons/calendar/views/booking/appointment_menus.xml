@@ -6,30 +6,30 @@
         id="main_menu_appointments"
         name="Bookings"
         parent="calendar.mail_menu_calendar"
-        sequence="15"
         action="calendar.appointment_type_action"
+        sequence="15"
         groups="base.group_user" />
 
     <!-- Schedule menu -->
     <menuitem
         id="menu_appointment_schedule_resources"
-        parent="calendar.main_menu_appointments"
         name="Schedule"
+        parent="calendar.main_menu_appointments"
         sequence="13"
         groups="group_appointment_user" />
 
     <menuitem
         id="menu_appointment_schedule_resource_booking"
+        name="Resources Bookings"
         parent="menu_appointment_schedule_resources"
-        action="calendar_event_action_all_resources_bookings"
-        name="Resources Bookings" />
+        action="calendar_event_action_all_resources_bookings" />
 
     <menuitem
         id="menu_appointment_schedule_staff_appointment"
+        name="Staff Bookings"
         parent="menu_appointment_schedule_resources"
         action="calendar_event_action_all_users_appointments"
-        sequence="20"
-        name="Staff Bookings" />
+        sequence="20" />
 
     <!-- Appointment's type, Shared Links -->
     <menuitem
@@ -40,50 +40,50 @@
 
     <menuitem
         id="menu_appointment_invite"
+        name="Shared Links"
         parent="calendar.main_menu_appointments"
         action="appointment_invite_action"
-        sequence="11"
-        name="Shared Links" />
+        sequence="11" />
 
     <!-- Appointment's Reporting -->
     <menuitem
         id="menu_appointment_reporting"
-        parent="calendar.main_menu_appointments"
         name="Reporting"
+        parent="calendar.main_menu_appointments"
         sequence="15" />
 
     <menuitem
         id="menu_appointment_reporting_bookings"
-        parent="menu_appointment_reporting"
         name="Bookings"
+        parent="menu_appointment_reporting"
         action="calendar_event_action_appointment_reporting" />
 
     <menuitem
         id="menu_appointment_reporting_answers"
-        parent="menu_appointment_reporting"
         name="Answers"
-        sequence="20"
-        action="appointment_answer_input_action" />
+        parent="menu_appointment_reporting"
+        action="appointment_answer_input_action"
+        sequence="20" />
 
     <!-- Appointment's config menu-->
     <menuitem
         id="appointment_menu_config"
-        parent="calendar.main_menu_appointments"
         name="Configuration"
+        parent="calendar.main_menu_appointments"
         sequence="20"
         groups="group_appointment_user" />
 
     <menuitem
         id="menu_appointment_questions"
-        parent="calendar.appointment_menu_config"
         name="Questions"
+        parent="calendar.appointment_menu_config"
         action="appointment_question_action"
         groups="group_appointment_user" />
 
     <menuitem
         id="menu_appointment_reminders"
-        parent="calendar.appointment_menu_config"
         name="Reminders"
+        parent="calendar.appointment_menu_config"
         action="calendar.action_calendar_alarm"
         sequence="20"
         groups="group_appointment_manager" />
@@ -97,10 +97,10 @@
 
     <menuitem
         id="menu_appointment_resource_leaves"
+        name="Resource Leaves"
         parent="calendar.appointment_menu_config"
         action="calendar.resource_calendar_leaves_action_show_appointment_resources"
-        groups="group_appointment_manager"
         sequence="40"
-        name="Resource Leaves" />
+        groups="group_appointment_manager" />
 
 </odoo>

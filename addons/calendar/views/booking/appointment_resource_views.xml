@@ -96,13 +96,13 @@
                 <field
                     name="appointment_type_ids"
                     widget="many2many_tags"
-                    optional="hidden" />
+                    optional="hide" />
                 <field
                     name="linked_resource_ids"
                     widget="many2many_tags"
-                    optional="hidden" />
-                <field name="shareable" optional="hidden" />
-                <field name="resource_calendar_id" optional="hidden" />
+                    optional="hide" />
+                <field name="shareable" optional="hide" />
+                <field name="resource_calendar_id" optional="hide" />
                 <field name="capacity" sum="Total Capacity" />
             </list>
         </field>
