@@ -81,3 +81,29 @@ test("a key is read from localStorage the first time and mirrored afterwards", a
     expect(seen).toEqual(["elsewhere"]);
     expect(readLocalStorageItem(store, "mail.test.mirrored")).toBe("later");
 });
+
+test("the call device ids are computed from their keys and follow another tab", async () => {
+    browser.localStorage.setItem("mail_user_setting_audio_input_device_id", "mic-1");
+    await start();
+    const store = getService("mail.store");
+    expect(store.settings.audioInputDeviceId).toBe("mic-1");
+    expect(store.settings.audioOutputDeviceId).toBe("");
+    expect(store.settings.cameraInputDeviceId).toBe("");
+    store.settings.setAudioOutputDevice("speaker-2");
+    store.settings.setCameraInputDevice("cam-3");
+    expect(store.settings.audioOutputDeviceId).toBe("speaker-2");
+    expect(store.settings.cameraInputDeviceId).toBe("cam-3");
+    expect(
+        browser.localStorage.getItem("mail_user_setting_camera_input_device_id"),
+    ).toBe("cam-3");
+    window.dispatchEvent(
+        new StorageEvent("storage", {
+            key: "mail_user_setting_audio_input_device_id",
+            newValue: "mic-9",
+        }),
+    );
+    expect(store.settings.audioInputDeviceId).toBe("mic-9");
+    window.dispatchEvent(new StorageEvent("storage", { key: null, newValue: null }));
+    expect(store.settings.audioInputDeviceId).toBe("");
+    expect(store.settings.cameraInputDeviceId).toBe("");
+});
