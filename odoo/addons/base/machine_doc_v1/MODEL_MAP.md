@@ -1834,6 +1834,12 @@ Contract for anything that publishes a KPI summary.
 
 Every N units. `repeat_interval` (Integer, default 1, positive), `repeat_unit` (Selection day/week/month/year; consumers widen it with `selection_add`). `_get_recurrence_delta()`, `_get_next_recurrence_after(start, after, tz)` over `odoo.tools.date_utils.next_after`. Taken by `ir.cron`, `account.move`, `account.transfer.model`, `fleet.vehicle.log.contract`, `sale.subscription.plan` and the rule mixin.
 
+### models/mixin_recurrence_anchored.py
+
+#### MixinRecurrenceAnchored — `mixin.recurrence.anchored` (AbstractModel)
+
+Fixed points inside a period rather than every N units: `repeat_unit` (day/week/month/year), `repeat_weekday` (MON..SUN), `repeat_day` and `repeat_month` (string Selections, the day clamped to the month), and with `repeat_twice` a second `repeat_second_day`/`repeat_second_month`. `_get_next_anchor(after)` is strictly after, `_get_previous_anchor(on)` on or before, over `odoo.tools.date_utils.next_anchor`/`previous_anchor`, which clamp a day past a short month's end instead of skipping the month. Taken by `hr.leave.accrual.level`. Owns `WEEKDAY_SELECTION`, which the rrule mixin imports.
+
 ### models/mixin_recurrence_rule.py
 
 #### MixinRecurrenceRule — `mixin.recurrence.rule` (AbstractModel, `_inherit = ['mixin.recurrence.interval']`)

@@ -43,33 +43,33 @@
                                 <br/>
                             </t>
                             <t t-elif="level.data.frequency == 'weekly'">
-                                every week on <t t-esc="getFullDay(level.data.week_day)"/>.
+                                every week on <t t-esc="getFullDay(level.data.repeat_weekday)"/>.
                                 <br/>
                             </t>
                             <t t-elif="level.data.frequency == 'bimonthly'">
-                                twice a month on the <t t-esc="level.data.first_day"/>
+                                twice a month on the <t t-esc="level.data.repeat_day"/>
                                 and the
-                                <t t-esc="level.data.second_day"/>
+                                <t t-esc="level.data.repeat_second_day"/>
                                 of the month.
                                 <br/>
                             </t>
                             <t t-elif="level.data.frequency == 'monthly'">
-                                every month on the <t t-esc="level.data.first_day"/>
+                                every month on the <t t-esc="level.data.repeat_day"/>
                                 of the month.
                                 <br/>
                             </t>
                             <t t-elif="level.data.frequency == 'biyearly'">
-                                twice a year on the <t t-esc="level.data.first_month_day"/>
+                                twice a year on the <t t-esc="level.data.repeat_day"/>
                                 of
-                                <t t-esc="getFullMonth(level.data.first_month)"/>
+                                <t t-esc="getFullMonth(level.data.repeat_month)"/>
                                 and the
-                                <t t-esc="level.data.second_month_day"/>
-                                of <t t-esc="getFullMonth(level.data.second_month)"/>.
+                                <t t-esc="level.data.repeat_second_day"/>
+                                of <t t-esc="getFullMonth(level.data.repeat_second_month)"/>.
                                 <br/>
                             </t>
                             <t t-elif="level.data.frequency == 'yearly'">
-                                every year on the <t t-esc="level.data.yearly_day"/>
-                                of <t t-esc="getFullMonth(level.data.yearly_month)"/>.
+                                every year on the <t t-esc="level.data.repeat_day"/>
+                                of <t t-esc="getFullMonth(level.data.repeat_month)"/>.
                                 <br/>
                             </t>
                         </h4>

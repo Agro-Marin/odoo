@@ -42,7 +42,7 @@
             <field name="start_count">1</field>
             <field name="start_type">day</field>
             <field name="added_value">1</field>
-            <field name="frequency">yearly</field>
+            <field name="repeat_unit">year</field>
             <field name="cap_accrued_time">True</field>
             <field name="action_with_unused_accruals">all</field>
             <field name="maximum_leave">100</field>
@@ -53,7 +53,7 @@
             <field name="start_count">4</field>
             <field name="start_type">year</field>
             <field name="added_value">2</field>
-            <field name="frequency">yearly</field>
+            <field name="repeat_unit">year</field>
             <field name="cap_accrued_time">True</field>
             <field name="action_with_unused_accruals">all</field>
             <field name="maximum_leave">100</field>
@@ -64,7 +64,7 @@
             <field name="start_count">8</field>
             <field name="start_type">year</field>
             <field name="added_value">3</field>
-            <field name="frequency">yearly</field>
+            <field name="repeat_unit">year</field>
             <field name="cap_accrued_time">True</field>
             <field name="action_with_unused_accruals">all</field>
             <field name="maximum_leave">100</field>

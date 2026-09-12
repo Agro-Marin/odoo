@@ -3,8 +3,9 @@ from calendar import monthrange
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.hr_holidays.models.hr_leave_accrual_plan_level import (
-    _get_selection_days,
+from odoo.addons.base.models.mixin_recurrence_anchored import (
+    DAY_SELECTION,
+    MONTH_SELECTION,
 )
 
 
@@ -78,7 +79,7 @@ class HrLeaveAccrualPlan(models.Model):
         string="Carry-Over Time",
     )
     carryover_day = fields.Selection(
-        _get_selection_days,
+        DAY_SELECTION,
         compute="_compute_carryover_day",
         export_string_translation=False,
         store=True,
@@ -86,20 +87,7 @@ class HrLeaveAccrualPlan(models.Model):
         default="1",
     )
     carryover_month = fields.Selection(
-        [
-            ("1", "January"),
-            ("2", "February"),
-            ("3", "March"),
-            ("4", "April"),
-            ("5", "May"),
-            ("6", "June"),
-            ("7", "July"),
-            ("8", "August"),
-            ("9", "September"),
-            ("10", "October"),
-            ("11", "November"),
-            ("12", "December"),
-        ],
+        MONTH_SELECTION,
         export_string_translation=False,
         default=lambda self: str((fields.Date.today()).month),
     )

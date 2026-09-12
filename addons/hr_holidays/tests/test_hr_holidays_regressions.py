@@ -305,25 +305,25 @@ class TestAccrualLevelPeriodBounds(TestHrHolidaysCommon):
         }
         monthly, bimonthly, yearly = self.env["hr.leave.accrual.level"].create(
             [
-                {**level_vals, "frequency": "monthly", "first_day": "20"},
+                {**level_vals, "frequency": "monthly", "repeat_day": "20"},
                 {
                     **level_vals,
                     "frequency": "bimonthly",
-                    "first_day": "20",
-                    "second_day": "25",
+                    "repeat_day": "20",
+                    "repeat_second_day": "25",
                 },
                 {
                     **level_vals,
                     "frequency": "yearly",
-                    "yearly_month": "6",
-                    "yearly_day": "20",
+                    "repeat_month": "6",
+                    "repeat_day": "20",
                 },
             ]
         )
         last_call = date(2026, 3, 15)
-        self.assertEqual(monthly._get_previous_date(last_call), date(2026, 2, 21))
-        self.assertEqual(bimonthly._get_previous_date(last_call), date(2026, 2, 25))
-        self.assertEqual(yearly._get_previous_date(last_call), date(2025, 6, 20))
+        self.assertEqual(monthly._get_previous_anchor(last_call), date(2026, 2, 21))
+        self.assertEqual(bimonthly._get_previous_anchor(last_call), date(2026, 2, 25))
+        self.assertEqual(yearly._get_previous_anchor(last_call), date(2025, 6, 20))
 
 
 @tagged("post_install", "-at_install")

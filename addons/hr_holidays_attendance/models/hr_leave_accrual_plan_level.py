@@ -5,18 +5,24 @@ from odoo.exceptions import ValidationError
 class HrLeaveAccrualLevel(models.Model):
     _inherit = "hr.leave.accrual.level"
 
-    frequency = fields.Selection(
-        selection_add=[("worked_hours", "Per Hour Worked")],
-        ondelete={"worked_hours": "cascade"},
-        compute="_compute_frequency",
+    accrual_basis = fields.Selection(
+        selection_add=[("worked_hour", "Per Hour Worked")],
+        ondelete={"worked_hour": "set default"},
+        compute="_compute_accrual_basis",
         store=True,
         readonly=False,
     )
+    frequency = fields.Selection(
+        selection_add=[("worked_hours", "Per Hour Worked")],
+    )
 
-    @api.constrains("frequency")
+    @api.constrains("accrual_basis")
     def _check_worked_hours(self):
         for level in self:
-            if level.frequency == "worked_hours" and level.accrued_gain_time == "start":
+            if (
+                level.accrual_basis == "worked_hour"
+                and level.accrued_gain_time == "start"
+            ):
                 raise ValidationError(
                     self.env._(
                         "You can't base accrued time on hours worked, because time is accrued at the start of the period."
@@ -24,10 +30,19 @@ class HrLeaveAccrualLevel(models.Model):
                 )
 
     @api.depends("accrued_gain_time")
-    def _compute_frequency(self):
+    def _compute_accrual_basis(self):
         for level in self:
-            if level.accrued_gain_time == "start" and level.frequency == "worked_hours":
-                level.frequency = "hourly"
+            if (
+                level.accrued_gain_time == "start"
+                and level.accrual_basis == "worked_hour"
+            ):
+                level.accrual_basis = "hour"
 
-    def _get_hourly_frequencies(self):
-        return super()._get_hourly_frequencies() + ["worked_hours"]
+    def _get_frequency_cadences(self):
+        return {
+            **super()._get_frequency_cadences(),
+            "worked_hours": ("day", False, "worked_hour"),
+        }
+
+    def _get_hourly_bases(self):
+        return super()._get_hourly_bases() + ["worked_hour"]

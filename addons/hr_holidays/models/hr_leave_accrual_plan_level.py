@@ -1,18 +1,25 @@
-from calendar import monthrange
+from datetime import timedelta
 
-from dateutil.relativedelta import relativedelta
-
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools.date_utils import get_timedelta
 
-
-def _get_selection_days(self):
-    return [(str(i), str(i)) for i in range(1, 32)]
+# The user-facing cadence choice, over what is stored: a period, whether it has a
+# second anchor, and whether the accrued amount is per period or per hour.
+FREQUENCY_CADENCE = {
+    "hourly": ("day", False, "hour"),
+    "daily": ("day", False, "period"),
+    "weekly": ("week", False, "period"),
+    "bimonthly": ("month", True, "period"),
+    "monthly": ("month", False, "period"),
+    "biyearly": ("year", True, "period"),
+    "yearly": ("year", False, "period"),
+}
 
 
 class HrLeaveAccrualLevel(models.Model):
     _name = "hr.leave.accrual.level"
+    _inherit = ["mixin.recurrence.anchored"]
     _description = "Accrual Plan Level"
     _order = "sequence asc"
 
@@ -67,6 +74,14 @@ class HrLeaveAccrualLevel(models.Model):
         readonly=False,
         export_string_translation=False,
     )
+    accrual_basis = fields.Selection(
+        [("period", "Per Period"), ("hour", "Per Hour")],
+        default="period",
+        required=True,
+        export_string_translation=False,
+        help="Whether the added value is granted once per period or for each hour"
+        " planned in it.",
+    )
     frequency = fields.Selection(
         [
             ("hourly", "Hourly"),
@@ -77,95 +92,9 @@ class HrLeaveAccrualLevel(models.Model):
             ("biyearly", "Twice a year"),
             ("yearly", "Yearly"),
         ],
-        default="daily",
-        required=True,
+        compute="_compute_frequency",
+        inverse="_inverse_frequency",
         string="Frequency",
-    )
-    week_day = fields.Selection(
-        [
-            ("0", "Monday"),
-            ("1", "Tuesday"),
-            ("2", "Wednesday"),
-            ("3", "Thursday"),
-            ("4", "Friday"),
-            ("5", "Saturday"),
-            ("6", "Sunday"),
-        ],
-        default="0",
-        required=True,
-        string="Allocation on",
-    )
-    first_day = fields.Selection(
-        _get_selection_days, default="1", export_string_translation=False
-    )
-    second_day = fields.Selection(
-        _get_selection_days, default="15", export_string_translation=False
-    )
-    first_month_day = fields.Selection(
-        _get_selection_days,
-        compute="_compute_first_month_day",
-        store=True,
-        readonly=False,
-        default="1",
-        export_string_translation=False,
-    )
-    first_month = fields.Selection(
-        [
-            ("1", "January"),
-            ("2", "February"),
-            ("3", "March"),
-            ("4", "April"),
-            ("5", "May"),
-            ("6", "June"),
-        ],
-        default="1",
-        export_string_translation=False,
-    )
-    second_month_day = fields.Selection(
-        _get_selection_days,
-        compute="_compute_second_month_day",
-        store=True,
-        readonly=False,
-        default="1",
-        export_string_translation=False,
-    )
-    second_month = fields.Selection(
-        [
-            ("7", "July"),
-            ("8", "August"),
-            ("9", "September"),
-            ("10", "October"),
-            ("11", "November"),
-            ("12", "December"),
-        ],
-        default="7",
-        export_string_translation=False,
-    )
-    yearly_month = fields.Selection(
-        [
-            ("1", "January"),
-            ("2", "February"),
-            ("3", "March"),
-            ("4", "April"),
-            ("5", "May"),
-            ("6", "June"),
-            ("7", "July"),
-            ("8", "August"),
-            ("9", "September"),
-            ("10", "October"),
-            ("11", "November"),
-            ("12", "December"),
-        ],
-        default="1",
-        export_string_translation=False,
-    )
-    yearly_day = fields.Selection(
-        _get_selection_days,
-        compute="_compute_yearly_day",
-        store=True,
-        readonly=False,
-        default="1",
-        export_string_translation=False,
     )
     cap_accrued_time = fields.Boolean(
         export_string_translation=False,
@@ -262,37 +191,6 @@ class HrLeaveAccrualLevel(models.Model):
         "You cannot have a cap on yearly accrued time without setting a maximum amount.",
     )
 
-    @api.constrains(
-        "first_day",
-        "second_day",
-        "week_day",
-        "frequency",
-        "first_month",
-        "first_month_day",
-        "second_month",
-        "second_month_day",
-    )
-    def _check_dates(self):
-        error_message = ""
-        for level in self:
-            if level.frequency == "weekly" and not level.week_day:
-                error_message = _(
-                    "Weekday must be selected to use the frequency weekly"
-                )
-            elif level.frequency == "bimonthly" and int(level.first_day) >= int(
-                level.second_day
-            ):
-                error_message = _("The first day must be lower than the second day.")
-            elif level.frequency == "biyearly" and (
-                int(level.first_month),
-                int(level.first_month_day),
-            ) >= (int(level.second_month), int(level.second_month_day)):
-                error_message = _(
-                    "The first date must be earlier in the year than the second date."
-                )
-        if error_message:
-            raise ValidationError(error_message)
-
     @api.constrains("cap_accrued_time", "maximum_leave")
     def _check_maximum_leaves(self):
         for level in self:
@@ -365,23 +263,28 @@ class HrLeaveAccrualLevel(models.Model):
             elif not level.added_value_type:
                 level.added_value_type = "day"
 
-    def _set_day(self, day_field, month_field):
+    def _get_frequency_cadences(self):
+        return FREQUENCY_CADENCE
+
+    @api.depends("repeat_unit", "repeat_twice", "accrual_basis")
+    def _compute_frequency(self):
+        by_cadence = {
+            cadence: code for code, cadence in self._get_frequency_cadences().items()
+        }
         for level in self:
-            level[day_field] = str(
-                min(monthrange(2020, int(level[month_field]))[1], int(level[day_field]))
+            level.frequency = by_cadence.get(
+                (level.repeat_unit, level.repeat_twice, level.accrual_basis)
             )
 
-    @api.depends("first_month")
-    def _compute_first_month_day(self):
-        self._set_day("first_month_day", "first_month")
-
-    @api.depends("second_month")
-    def _compute_second_month_day(self):
-        self._set_day("second_month_day", "second_month")
-
-    @api.depends("yearly_month")
-    def _compute_yearly_day(self):
-        self._set_day("yearly_day", "yearly_month")
+    def _inverse_frequency(self):
+        cadences = self._get_frequency_cadences()
+        for level in self:
+            if level.frequency in cadences:
+                (
+                    level.repeat_unit,
+                    level.repeat_twice,
+                    level.accrual_basis,
+                ) = cadences[level.frequency]
 
     @api.depends("cap_accrued_time")
     def _compute_maximum_leave(self):
@@ -418,118 +321,25 @@ class HrLeaveAccrualLevel(models.Model):
             if level.milestone_date == "creation":
                 level.start_count = 0
 
-    def _get_hourly_frequencies(self):
-        return ["hourly"]
+    def _get_hourly_bases(self):
+        return ["hour"]
 
-    def _get_next_date(self, last_call):
-        self.check_singleton()
-        if self.frequency in self._get_hourly_frequencies() + ["daily"]:
-            return last_call + relativedelta(days=1)
-
-        if self.frequency == "weekly":
-            return last_call + relativedelta(days=1, weekday=int(self.week_day))
-
-        if self.frequency == "bimonthly":
-            first_date = last_call + relativedelta(day=int(self.first_day))
-            second_date = last_call + relativedelta(day=int(self.second_day))
-            if last_call < first_date:
-                return first_date
-            if last_call < second_date:
-                return second_date
-            return last_call + relativedelta(day=int(self.first_day), months=1)
-
-        if self.frequency == "monthly":
-            date = last_call + relativedelta(day=int(self.first_day))
-            if last_call < date:
-                return date
-            return last_call + relativedelta(day=int(self.first_day), months=1)
-
-        if self.frequency == "biyearly":
-            first_date = last_call + relativedelta(
-                month=int(self.first_month), day=int(self.first_month_day)
-            )
-            second_date = last_call + relativedelta(
-                month=int(self.second_month), day=int(self.second_month_day)
-            )
-            if last_call < first_date:
-                return first_date
-            if last_call < second_date:
-                return second_date
-            return last_call + relativedelta(
-                month=int(self.first_month), day=int(self.first_month_day), years=1
-            )
-
-        if self.frequency == "yearly":
-            date = last_call + relativedelta(
-                month=int(self.yearly_month), day=int(self.yearly_day)
-            )
-            if last_call < date:
-                return date
-            return last_call + relativedelta(
-                month=int(self.yearly_month), day=int(self.yearly_day), years=1
-            )
-
-        raise ValidationError(
-            _(
-                "Your frequency selection is not correct: please choose a frequency between theses options:"
-                "Hourly, Daily, Weekly, Twice a month, Monthly, Twice a year and Yearly."
-            )
-        )
-
-    def _get_previous_date(self, last_call):
-        self.check_singleton()
-        if self.frequency in self._get_hourly_frequencies() + ["daily"]:
-            return last_call
-
-        if self.frequency == "weekly":
-            return last_call + relativedelta(days=-6, weekday=int(self.week_day))
-
-        if self.frequency == "bimonthly":
-            first_date = last_call + relativedelta(day=int(self.first_day))
-            second_date = last_call + relativedelta(day=int(self.second_day))
-            if last_call >= second_date:
-                return second_date
-            if last_call >= first_date:
-                return first_date
-            return last_call + relativedelta(day=int(self.second_day), months=-1)
-
-        if self.frequency == "monthly":
-            date = last_call + relativedelta(day=int(self.first_day))
-            if last_call >= date:
-                return date
-            return last_call + relativedelta(day=int(self.first_day), months=-1, days=1)
-
-        if self.frequency == "biyearly":
-            first_date = last_call + relativedelta(
-                month=int(self.first_month), day=int(self.first_month_day)
-            )
-            second_date = last_call + relativedelta(
-                month=int(self.second_month), day=int(self.second_month_day)
-            )
-            if last_call >= second_date:
-                return second_date
-            if last_call >= first_date:
-                return first_date
-            return last_call + relativedelta(
-                month=int(self.second_month), day=int(self.second_month_day), years=-1
-            )
-
-        if self.frequency == "yearly":
-            year_date = last_call + relativedelta(
-                month=int(self.yearly_month), day=int(self.yearly_day)
-            )
-            if last_call >= year_date:
-                return year_date
-            return last_call + relativedelta(
-                month=int(self.yearly_month), day=int(self.yearly_day), years=-1
-            )
-
-        raise ValidationError(
-            _(
-                "Your frequency selection is not correct: please choose a frequency between theses options:"
-                "Hourly, Daily, Weekly, Twice a month, Monthly, Twice a year and Yearly."
-            )
-        )
+    def _get_previous_anchor(self, on):
+        previous = super()._get_previous_anchor(on)
+        # Kept from the per-frequency branches this replaced, and only for a
+        # monthly level: when `on` falls before this month's anchor, the period
+        # it belongs to starts the day after the previous anchor. That is what
+        # lets an allocation starting on the 1st, on a plan accruing on the 31st,
+        # earn a whole month rather than 30/31 of one. Twice a month and the
+        # yearly frequencies never had it, so the same case prorates there; which
+        # of the two is right is an accrual policy question this move leaves open.
+        if (
+            self.repeat_unit == "month"
+            and not self.repeat_twice
+            and previous.month != on.month
+        ):
+            return previous + timedelta(days=1)
+        return previous
 
     def _get_level_transition_date(self, allocation_start):
         return allocation_start + get_timedelta(self.start_count, self.start_type)

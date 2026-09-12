@@ -70,7 +70,7 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 102 Python model files (core ORM infrastructure)
+├── models/                      # 103 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_actions_act_url.py        #   URL action
@@ -141,6 +141,7 @@ odoo/addons/base/
 │   ├── mixin_merge.py               #   Record merge engine (reference repointing)
 │   ├── mixin_module_link.py         #   Manifest-named module link (abstract)
 │   ├── mixin_properties_base_definition.py #   Properties support mixin
+│   ├── mixin_recurrence_anchored.py #   Fixed points inside a period: weekday, day, month, twice
 │   ├── mixin_recurrence_interval.py #   Every N units: repeat_interval, repeat_unit, next occurrence
 │   ├── mixin_recurrence_occurrence.py #   Which occurrences an edit applies to
 │   ├── mixin_recurrence_rrule.py    #   iCalendar RRULE engine over the rule
@@ -276,7 +277,7 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 102 |
+| Python (models) | 103 |
 | Python (wizards) | 11 |
 | Python (tests) | 137 |
 | XML (views) | 38 |

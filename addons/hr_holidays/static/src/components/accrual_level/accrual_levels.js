@@ -8,6 +8,8 @@ import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
+const WEEKDAY_CODES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
 export class AccrualLevels extends Component {
     static template = "hr_holidays.AccrualLevels";
     static props = {
@@ -50,8 +52,9 @@ export class AccrualLevels extends Component {
         }));
     }
 
-    getFullDay(day) {
-        return luxon.DateTime.fromFormat(day, "c", {
+    getFullDay(weekday) {
+        const isoWeekday = String(WEEKDAY_CODES.indexOf(weekday) + 1);
+        return luxon.DateTime.fromFormat(isoWeekday, "c", {
             locale: this.env.model.config.context.lang.replace("_", "-"),
         }).toLocaleString({ weekday: "long" });
     }

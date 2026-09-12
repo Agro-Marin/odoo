@@ -34,7 +34,7 @@
                                 <span name="weekly" invisible="frequency != 'weekly'">
                                     on
                                     <field
-                                        name="week_day"
+                                        name="repeat_weekday"
                                         placeholder="select a weekday"
                                         nolabel="1"
                                         required="frequency == 'weekly'"
@@ -43,7 +43,7 @@
                                 <span name="monthly" invisible="frequency != 'monthly'">
                                     on the
                                     <field
-                                        name="first_day"
+                                        name="repeat_day"
                                         placeholder="select a day"
                                         nolabel="1"
                                         required="frequency == 'monthly'"
@@ -56,14 +56,14 @@
                                     style="width: 100%">
                                     on the
                                     <field
-                                        name="first_day"
+                                        name="repeat_day"
                                         placeholder="select a day"
                                         nolabel="1"
                                         required="frequency == 'bimonthly'"
                                         class="o_field_accrual" />
                                     and the
                                     <field
-                                        name="second_day"
+                                        name="repeat_second_day"
                                         placeholder="select a day"
                                         nolabel="1"
                                         required="frequency == 'bimonthly'"
@@ -75,31 +75,31 @@
                                     invisible="frequency != 'biyearly'">
                                     on the
                                     <field
-                                        name="first_month_day"
+                                        name="repeat_day"
                                         placeholder="select a day"
                                         widget="day_selection"
                                         nolabel="1"
                                         required="frequency == 'biyearly'"
                                         class="o_field_accrual"
-                                        month_field="first_month" />
+                                        month_field="repeat_month" />
                                     of
                                     <field
-                                        name="first_month"
+                                        name="repeat_month"
                                         placeholder="select a month"
                                         required="frequency == 'biyearly'"
                                         class="o_field_accrual" />
                                     and the
                                     <field
-                                        name="second_month_day"
+                                        name="repeat_second_day"
                                         placeholder="select a day"
                                         widget="day_selection"
                                         nolabel="1"
                                         required="frequency == 'biyearly'"
                                         class="o_field_accrual"
-                                        month_field="second_month" />
+                                        month_field="repeat_second_month" />
                                     of
                                     <field
-                                        name="second_month"
+                                        name="repeat_second_month"
                                         placeholder="select a month"
                                         nolabel="1"
                                         required="frequency == 'biyearly'"
@@ -108,16 +108,16 @@
                                 <span name="yearly" invisible="frequency != 'yearly'">
                                     on the
                                     <field
-                                        name="yearly_day"
+                                        name="repeat_day"
                                         placeholder="select a day"
                                         widget="day_selection"
                                         nolabel="1"
                                         required="frequency == 'yearly'"
                                         class="o_field_accrual"
-                                        month_field="yearly_month" />
+                                        month_field="repeat_month" />
                                     of
                                     <field
-                                        name="yearly_month"
+                                        name="repeat_month"
                                         placeholder="select a month"
                                         nolabel="1"
                                         required="frequency == 'yearly'"

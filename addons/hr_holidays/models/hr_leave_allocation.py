@@ -534,9 +534,9 @@ class HrLeaveAllocation(models.Model):
             current_level.start_count, current_level.start_type
         )
         previous_level = level_ids[current_level_idx - 1]
-        if current_level._get_next_date(
+        if current_level._get_next_anchor(
             level_start_date
-        ) < previous_level._get_next_date(level_start_date):
+        ) < previous_level._get_next_anchor(level_start_date):
             return (previous_level, current_level_idx - 1)
         return (current_level, current_level_idx)
 
@@ -578,7 +578,7 @@ class HrLeaveAllocation(models.Model):
             planned_start, planned_end = start_date, end_date
             planned_worked = worked
         left = self._accrual_leave_hours(planned_start, planned_end, False)
-        if level.frequency in level._get_hourly_frequencies():
+        if level.accrual_basis in level._get_hourly_bases():
             if level.accrual_plan_id.is_based_on_worked_time:
                 work_entry_prorata = planned_worked
             else:
@@ -594,7 +594,7 @@ class HrLeaveAllocation(models.Model):
     ):
         self.check_singleton()
         if (
-            level.frequency in level._get_hourly_frequencies()
+            level.accrual_basis in level._get_hourly_bases()
             or level.accrual_plan_id.is_based_on_worked_time
         ):
             work_entry_prorata = self._get_accrual_plan_level_work_entry_prorata(
@@ -650,7 +650,7 @@ class HrLeaveAllocation(models.Model):
                     continue
                 allocation.lastcall = max(allocation.lastcall, first_level_start_date)
                 allocation.actual_lastcall = allocation.lastcall
-                allocation.nextcall = first_level._get_next_date(allocation.lastcall)
+                allocation.nextcall = first_level._get_next_anchor(allocation.lastcall)
                 carryover_date = allocation._get_carryover_date(allocation.nextcall)
                 allocation.nextcall = min(carryover_date, allocation.nextcall)
                 if len(level_ids) > 1:
@@ -679,9 +679,9 @@ class HrLeaveAllocation(models.Model):
                             )
                         )
                     current_level_maximum_leave = cap_days_by_level[current_level.id]
-                nextcall = current_level._get_next_date(allocation.nextcall)
-                period_start = current_level._get_previous_date(allocation.lastcall)
-                period_end = current_level._get_next_date(allocation.lastcall)
+                nextcall = current_level._get_next_anchor(allocation.nextcall)
+                period_start = current_level._get_previous_anchor(allocation.lastcall)
+                period_end = current_level._get_next_anchor(allocation.lastcall)
                 current_level_last_date = False
                 if (
                     current_level_idx < (len(level_ids) - 1)
@@ -772,7 +772,7 @@ class HrLeaveAllocation(models.Model):
                             last_carryover_date
                         )
                     )
-                    carryover_period_end = carryover_level._get_next_date(
+                    carryover_period_end = carryover_level._get_next_anchor(
                         last_carryover_date
                     )
                     if (
@@ -789,10 +789,7 @@ class HrLeaveAllocation(models.Model):
                         carryover_period_end = min(
                             carryover_period_end, carryover_level_last_date
                         )
-                    if (
-                        carryover_level.frequency
-                        in carryover_level._get_hourly_frequencies() + ["daily"]
-                    ):
+                    if carryover_level.repeat_unit == "day":
                         carryover_period_end = last_carryover_date
                     accrued = (
                         not allocation.already_accrued
@@ -828,7 +825,7 @@ class HrLeaveAllocation(models.Model):
                     or current_level
                     or allocation.accrual_plan_id.level_ids[0]
                 )
-                period_start = current_level._get_previous_date(
+                period_start = current_level._get_previous_anchor(
                     allocation.actual_lastcall
                 )
                 if current_level.cap_accrued_time:
@@ -973,7 +970,7 @@ class HrLeaveAllocation(models.Model):
                     allocation.actual_lastcall = allocation.lastcall
                     continue
                 allocation.lastcall = max(
-                    current_level._get_previous_date(today),
+                    current_level._get_previous_anchor(today),
                     allocation.date_from
                     + get_timedelta(
                         current_level.start_count, current_level.start_type
@@ -982,7 +979,9 @@ class HrLeaveAllocation(models.Model):
                 allocation.actual_lastcall = allocation.lastcall
             if current_level and not allocation.nextcall:
                 accrual_plan = allocation.accrual_plan_id
-                allocation.nextcall = current_level._get_next_date(allocation.lastcall)
+                allocation.nextcall = current_level._get_next_anchor(
+                    allocation.lastcall
+                )
                 if (
                     current_level_idx < (len(accrual_plan.level_ids) - 1)
                     and accrual_plan.transition_mode == "immediately"

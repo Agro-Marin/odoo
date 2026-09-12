@@ -566,8 +566,8 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                     "start_type": "day",
                                     "added_value": 1,
                                     "frequency": "bimonthly",
-                                    "first_day": 1,
-                                    "second_day": 15,
+                                    "repeat_day": "1",
+                                    "repeat_second_day": "15",
                                     "cap_accrued_time": True,
                                     "maximum_leave": 10000,
                                     "action_with_unused_accruals": "all",
@@ -1525,7 +1525,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                     "start_count": 1,
                                     "start_type": "day",
                                     "added_value": 1,
-                                    "first_day": 31,
+                                    "repeat_day": "31",
                                     "frequency": "monthly",
                                     "action_with_unused_accruals": "all",
                                     "carryover_options": "limited",
@@ -2104,7 +2104,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "cap_accrued_time": True,
                                 "maximum_leave": 3,
                                 "action_with_unused_accruals": "all",
-                                "first_day": 31,
+                                "repeat_day": "31",
                             },
                         ),
                         (
@@ -2119,7 +2119,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "cap_accrued_time": True,
                                 "maximum_leave": 6,
                                 "action_with_unused_accruals": "all",
-                                "first_day": 31,
+                                "repeat_day": "31",
                             },
                         ),
                         (
@@ -2134,7 +2134,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "cap_accrued_time": True,
                                 "maximum_leave": 100,
                                 "action_with_unused_accruals": "all",
-                                "first_day": 31,
+                                "repeat_day": "31",
                             },
                         ),
                     ],
@@ -2403,7 +2403,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "weekly",
-                                "week_day": "0",
+                                "repeat_weekday": "MON",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 5,
                                 "action_with_unused_accruals": "all",
@@ -2472,7 +2472,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "weekly",
-                                "week_day": "0",
+                                "repeat_weekday": "MON",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 10,
                                 "action_with_unused_accruals": "all",
@@ -2548,7 +2548,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "daily",
-                                "week_day": "0",
+                                "repeat_weekday": "MON",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 5,
                                 "action_with_unused_accruals": "all",
@@ -2608,7 +2608,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 0.06,
                                 "frequency": "hourly",
-                                "week_day": "0",
+                                "repeat_weekday": "MON",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 180,
                                 "cap_accrued_time_yearly": True,
@@ -2729,7 +2729,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "weekly",
-                                "week_day": "0",
+                                "repeat_weekday": "MON",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 5,
                                 "action_with_unused_accruals": "all",
@@ -2812,7 +2812,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1.5,
                                 "frequency": "monthly",
-                                "first_day": 13,
+                                "repeat_day": "13",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 15,
                                 "action_with_unused_accruals": "all",
@@ -2867,7 +2867,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "weekly",
-                                "week_day": "2",
+                                "repeat_weekday": "WED",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 10,
                             },
@@ -2881,7 +2881,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "month",
                                 "added_value": 2,
                                 "frequency": "weekly",
-                                "week_day": "2",
+                                "repeat_weekday": "WED",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 5,
                             },
@@ -2951,7 +2951,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": 27,
+                                "repeat_day": "27",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "lost",
                             },
@@ -3026,7 +3026,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "accrued_gain_time": "start",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 20,
+                    "carryover_day": "20",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -3038,7 +3038,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 10,
                                 "frequency": "monthly",
-                                "first_day": 11,
+                                "repeat_day": "11",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -3086,7 +3086,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "accrued_gain_time": "end",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 5,
+                    "carryover_day": "5",
                     "carryover_month": "6",
                     "level_ids": [
                         (
@@ -3099,7 +3099,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": 9,
+                                "repeat_day": "9",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 15,
                                 "action_with_unused_accruals": "all",
@@ -3116,10 +3116,10 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "month",
                                 "added_value": 2,
                                 "frequency": "biyearly",
-                                "first_month_day": 17,
-                                "first_month": "2",
-                                "second_month_day": 29,
-                                "second_month": "10",
+                                "repeat_day": "17",
+                                "repeat_month": "2",
+                                "repeat_second_day": "29",
+                                "repeat_second_month": "10",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 10,
                                 "action_with_unused_accruals": "all",
@@ -3136,8 +3136,8 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "month",
                                 "added_value": 12,
                                 "frequency": "yearly",
-                                "yearly_month": "7",
-                                "yearly_day": 15,
+                                "repeat_month": "7",
+                                "repeat_day": "15",
                                 "cap_accrued_time": True,
                                 "maximum_leave": 21,
                                 "action_with_unused_accruals": "lost",
@@ -3375,7 +3375,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": "31",
+                                "repeat_day": "31",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "lost",
                             },
@@ -3426,7 +3426,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": "31",
+                                "repeat_day": "31",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -3479,7 +3479,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": "1",
+                                "repeat_day": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                             },
@@ -3527,7 +3527,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": "1",
+                                "repeat_day": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                             },
@@ -3613,7 +3613,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "monthly",
-                                "first_day": "31",
+                                "repeat_day": "31",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                                 "carryover_options": "limited",
@@ -3979,7 +3979,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 1,
                                 "frequency": "daily",
-                                "first_day": "1",
+                                "repeat_day": "1",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
                             },
@@ -4069,7 +4069,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "7",
                     "level_ids": [
                         (
@@ -4191,7 +4191,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "7",
                     "level_ids": [
                         (
@@ -4272,7 +4272,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "accrued_gain_time": "start",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "6",
                     "level_ids": [
                         (
@@ -4358,7 +4358,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "accrued_gain_time": "start",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "6",
                     "level_ids": [
                         (
@@ -4445,7 +4445,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -4457,10 +4457,10 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 10,
                                 "frequency": "biyearly",
-                                "first_month": "1",
-                                "first_month_day": 1,
-                                "second_month": "7",
-                                "second_month_day": 1,
+                                "repeat_month": "1",
+                                "repeat_day": "1",
+                                "repeat_second_month": "7",
+                                "repeat_second_day": "1",
                                 "action_with_unused_accruals": "all",
                                 "accrual_validity": True,
                                 "accrual_validity_type": "month",
@@ -4477,10 +4477,10 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "month",
                                 "added_value": 20,
                                 "frequency": "biyearly",
-                                "first_month": "1",
-                                "first_month_day": 1,
-                                "second_month": "7",
-                                "second_month_day": 1,
+                                "repeat_month": "1",
+                                "repeat_day": "1",
+                                "repeat_second_month": "7",
+                                "repeat_second_day": "1",
                                 "action_with_unused_accruals": "all",
                                 "accrual_validity": True,
                                 "accrual_validity_type": "month",
@@ -4524,7 +4524,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -4601,7 +4601,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "5",
                     "level_ids": [
                         (
@@ -4684,7 +4684,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "5",
                     "level_ids": [
                         (
@@ -4752,7 +4752,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "5",
                     "level_ids": [
                         (
@@ -4826,7 +4826,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 20,
+                    "carryover_day": "20",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -4887,7 +4887,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -4899,10 +4899,10 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "start_type": "day",
                                 "added_value": 10,
                                 "frequency": "biyearly",
-                                "first_month": "1",
-                                "first_month_day": 1,
-                                "second_month": "7",
-                                "second_month_day": 1,
+                                "repeat_month": "1",
+                                "repeat_day": "1",
+                                "repeat_second_month": "7",
+                                "repeat_second_day": "1",
                                 "action_with_unused_accruals": "all",
                                 "accrual_validity": True,
                                 "accrual_validity_type": "month",
@@ -4970,7 +4970,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                     "name": "Accrual Plan For Test",
                     "can_be_carryover": True,
                     "carryover_date": "other",
-                    "carryover_day": 1,
+                    "carryover_day": "1",
                     "carryover_month": "4",
                     "level_ids": [
                         (
@@ -5296,7 +5296,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "frequency": "monthly",
                                 "cap_accrued_time": False,
                                 "action_with_unused_accruals": "all",
-                                "first_day": 31,
+                                "repeat_day": "31",
                             },
                         )
                     ],
@@ -5362,16 +5362,13 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "carryover_options": "limited",
                                 "added_value": 21,
                                 "cap_accrued_time": True,
-                                "first_day": 1,
-                                "first_month": "1",
-                                "first_month_day": 1,
+                                "repeat_day": "1",
+                                "repeat_month": "1",
                                 "frequency": "yearly",
                                 "maximum_leave": 28,
                                 "postpone_max_days": 7,
                                 "start_count": 0,
                                 "start_type": "day",
-                                "yearly_day": 1,
-                                "yearly_month": "1",
                             },
                         )
                     ],
@@ -5436,7 +5433,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
         with Form(plan) as f:
             f.added_value = 21
             f.frequency = "yearly"
-            f.yearly_day = "1"
+            f.repeat_day = "1"
             f.cap_accrued_time = True
             f.maximum_leave = 28
             f.start_count = 0
@@ -5551,8 +5548,8 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                             "added_value_type": "day",
                             "action_with_unused_accruals": "lost",
                             "frequency": "yearly",
-                            "yearly_month": "1",
-                            "yearly_day": "1",
+                            "repeat_month": "1",
+                            "repeat_day": "1",
                         }
                     )
                 ],
@@ -5615,8 +5612,8 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                                 "added_value_type": "day",
                                 "action_with_unused_accruals": "lost",
                                 "frequency": "bimonthly",
-                                "first_day": "20",
-                                "second_day": "3",
+                                "repeat_day": "20",
+                                "repeat_second_day": "3",
                             }
                         )
                     ],
@@ -5802,7 +5799,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
                             "added_value": 2,
                             "added_value_type": "day",
                             "frequency": "monthly",
-                            "first_day": "31",
+                            "repeat_day": "31",
                             "cap_accrued_time": True,
                             "maximum_leave": 10000,
                         },
@@ -5838,7 +5835,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
             "frequency": "yearly",
             "carryover_options": "limited",
             "postpone_max_days": 5,
-            "week_day": "0",
+            "repeat_weekday": "MON",
         }
         accrual_plan = self.env["hr.leave.accrual.plan"].create(
             {

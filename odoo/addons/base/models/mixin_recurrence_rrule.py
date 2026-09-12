@@ -8,6 +8,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.datetime import localize_standard, timezone
 
+from odoo.addons.base.models.mixin_recurrence_anchored import WEEKDAY_SELECTION
 from odoo.addons.base.models.mixin_recurrence_rule import (
     REPEAT_TYPE_COUNT,
     REPEAT_TYPE_SELECTION,
@@ -50,16 +51,6 @@ RRULE_WEEKDAYS = {
 MONTH_BY_SELECTION = [
     ("date", "Date of month"),
     ("day", "Day of month"),
-]
-
-WEEKDAY_SELECTION = [
-    ("MON", "Monday"),
-    ("TUE", "Tuesday"),
-    ("WED", "Wednesday"),
-    ("THU", "Thursday"),
-    ("FRI", "Friday"),
-    ("SAT", "Saturday"),
-    ("SUN", "Sunday"),
 ]
 
 BYDAY_SELECTION = [

@@ -37,6 +37,7 @@ from . import ir_attachment_assets
 from . import ir_binary
 
 from . import mixin_recurrence_interval
+from . import mixin_recurrence_anchored
 from . import mixin_recurrence_rule
 from . import mixin_recurrence_occurrence
 from . import ir_cron
