@@ -20,6 +20,7 @@ from odoo.exceptions import (
     AccessError,
     UserError,
 )
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.models import BaseModel
 from odoo.modules.registry import Registry
@@ -39,6 +40,7 @@ if typing.TYPE_CHECKING:
     from .transaction import RetryParticipant
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Params:
@@ -146,7 +148,16 @@ def call_kw(model: BaseModel, name: str, args: Sequence, kwargs: Mapping) -> typ
     recs = recs.with_context(context)
 
     _logger.debug("call %s.%s(%s)", recs, method.__name__, Params(args, kwargs))
-    result = method(recs, *args, **kwargs)
+    with _debug.perf(
+        "rpc.call_kw",
+        cr=recs.env.cr,
+        model=recs._name,
+        method=name,
+        records=len(recs),
+        api_model=api_model,
+        context_keys=len(context),
+    ):
+        result = method(recs, *args, **kwargs)
 
     if name == "create":
         result = result.id if isinstance(create_vals, Mapping) else result.ids
@@ -180,6 +191,14 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
     thread = current_worker_thread()
     thread.dbname = db
     thread.uid = uid
+    _debug.pipeline(
+        "rpc.dispatch",
+        method=dispatch_method,
+        db=db,
+        uid=uid,
+        model=model,
+        model_method=model_method,
+    )
     try:
         registry = Registry(db).check_signaling()
     except psycopg.errors.InvalidCatalogName as exc:

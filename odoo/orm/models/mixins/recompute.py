@@ -7,6 +7,7 @@ from itertools import batched
 from typing import Self
 
 from odoo.exceptions import MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 from odoo.tools import OrderedSet
 from odoo.tools.misc import PENDING
@@ -19,6 +20,7 @@ from ._model_stubs import _ModelStubs
 
 _orm_cache = logging.getLogger("odoo.orm.cache")
 _orm_compute = logging.getLogger("odoo.orm.compute")
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from ..._typing import IdType
@@ -45,6 +47,12 @@ class RecomputeMixin(_ModelStubs):
             scheduler = core.new_scheduler()
             self._modified_trigger_loop(fnames, False, scheduler)
 
+            _debug.pipeline(
+                "recompute.modified_before",
+                model=self._name,
+                records=len(self),
+                fields_to_recompute=len(scheduler.to_recompute),
+            )
             for field, ids in scheduler.to_recompute.items():
                 records = self.env[field.model_name].browse(ids)
                 self.env.add_to_compute(field, records)
@@ -206,6 +214,12 @@ class RecomputeMixin(_ModelStubs):
                 self_ids = self._ids
                 real_ids = [id_ for id_ in self_ids if id_]
                 records = model.browse()
+                _debug.logic(
+                    "recompute.trigger_search_fallback",
+                    model=self._name,
+                    via=f"{field.model_name}.{field.name}",
+                    records=len(real_ids),
+                )
                 if real_ids:
                     records = model.search([(field.name, "in", real_ids)], order="id")
                 if len(real_ids) != len(self_ids):
@@ -371,6 +385,12 @@ class RecomputeMixin(_ModelStubs):
                             elif core.is_pending(f, id_):
                                 core.mark_dirty(f, (id_,))
                             else:
+                                _debug.logic(
+                                    "recompute.flush_pending_unscheduled",
+                                    model=self._name,
+                                    field=f.name,
+                                    record=id_,
+                                )
                                 raise RuntimeError(
                                     f"Cannot flush {f}: the cached value is "
                                     f"PENDING on {self._name}({id_}) but the "

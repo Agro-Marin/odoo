@@ -2,8 +2,12 @@ from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from functools import partial
 
+from odoo.libs.debug_log import DebugLog
+
 from ._init_phase import InitModelsPhase
 from ._registry_stubs import _RegistryStubs
+
+_debug = DebugLog(__name__)
 
 
 class _RegistryInitPhaseMixin(_RegistryStubs):
@@ -40,14 +44,20 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
             install=install,
             model_tables=frozenset(model_tables),
         )
+        _debug.lifecycle("registry.init_phase.opened", install=install)
         try:
             yield self._init_phase
             self.drain_post_init()
         finally:
+            _debug.lifecycle(
+                "registry.init_phase.closed",
+                relations=len(self._init_phase.relation_reflections),
+            )
             self._init_phase = None
 
     def drain_post_init(self) -> None:
         post_init_queue = self.init_phase.post_init_queue
+        _debug.pipeline("registry.init_phase.drain", queued=len(post_init_queue))
         while post_init_queue:
             post_init_queue.popleft()()
 

@@ -16,12 +16,14 @@ from typing import Any, BinaryIO, Protocol, cast
 import werkzeug.serving
 from werkzeug.urls import uri_to_iri
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 
 from ._env import get_env_float, get_env_int
 from .settings import current
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 _THREAD_EXHAUSTION_RESPONSE = (
     b"HTTP/1.1 503 Service Unavailable\r\n"
@@ -321,6 +323,11 @@ class ThreadedWSGIServerReloadable(
         worker = as_worker_thread(t)
         worker.type = "http"
         worker.start_time = time.monotonic()
+        _debug.lifecycle(
+            "wsgi.request_thread.spawn",
+            client=client_address,
+            active_threads=threading.active_count(),
+        )
         try:
             t.start()
         except RuntimeError as exc:
@@ -337,6 +344,9 @@ class ThreadedWSGIServerReloadable(
 
     def _handle_request_noblock(self) -> None:
         if self.max_http_threads and not self.http_threads_sem.acquire(timeout=0.1):
+            _debug.logic(
+                "wsgi.http_slot.unavailable", max_http_threads=self.max_http_threads
+            )
             return
         cast("_NonblockingRequestServer", super())._handle_request_noblock()
 

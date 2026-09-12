@@ -4,6 +4,7 @@ import psycopg
 import psycopg.errors
 
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, format_list, ormcache
 
 from ... import decorators as api
@@ -11,6 +12,7 @@ from ...validation import check_object_name
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 class SchemaMixin(_ModelStubs):
@@ -38,6 +40,11 @@ class SchemaMixin(_ModelStubs):
             parent=SQL.identifier(self._parent_name),
         )
         self.env.cr.execute(query)
+        _debug.perf.count(
+            "schema.parent_path_computed",
+            model=self._name,
+            rows=self.env.cr.rowcount,
+        )
         self.invalidate_model(["parent_path"])
 
     def _check_removed_columns(self) -> None:
@@ -55,6 +62,11 @@ class SchemaMixin(_ModelStubs):
                 self._name,
             )
             if col_data["is_nullable"] == "NO":
+                _debug.logic(
+                    "schema.removed_column_not_null_dropped",
+                    model=self._name,
+                    column=col_name,
+                )
                 sql.drop_not_null(cr, self._table, col_name)
 
     def _init_column(self, column_name: str, *, new_column: bool = False) -> None:
@@ -107,6 +119,14 @@ class SchemaMixin(_ModelStubs):
         update_custom_fields = self.env.context.get("update_custom_fields", False)
         must_create_table = not sql.table_exists(cr, self._table)
         parent_path_compute = False
+        _debug.pipeline(
+            "schema.auto_init",
+            model=self._name,
+            table=self._table,
+            auto=self._auto,
+            create_table=must_create_table,
+            update_custom_fields=update_custom_fields,
+        )
 
         if self._auto:
             if must_create_table:
@@ -139,6 +159,7 @@ class SchemaMixin(_ModelStubs):
 
             columns = sql.get_table_columns(cr, self._table)
             fields_to_compute = []
+            new_columns = 0  # debuglog
 
             for field in sorted(self._fields.values(), key=lambda f: f.column_order):
                 if not field.store:
@@ -146,8 +167,18 @@ class SchemaMixin(_ModelStubs):
                 if field.manual and not update_custom_fields:
                     continue
                 new = field.update_db(self, columns)
+                if new:  # debuglog
+                    new_columns += 1  # debuglog
                 if new and field.compute:
                     fields_to_compute.append(field)
+
+            _debug.perf.count(
+                "schema.columns_updated",
+                model=self._name,
+                existing=len(columns),
+                new=new_columns,
+                to_compute=len(fields_to_compute),
+            )
 
             if fields_to_compute:
                 cr.execute(SQL("SELECT id FROM %s", SQL.identifier(self._table)))
@@ -181,6 +212,11 @@ class SchemaMixin(_ModelStubs):
             )
 
     def _add_sql_constraints(self) -> None:
+        _debug.pipeline(
+            "schema.table_objects",
+            model=self._name,
+            objects=len(self._table_objects),
+        )
         for obj in self._table_objects.values():
             obj.apply_to_database(self)
 
@@ -202,9 +238,27 @@ class SchemaMixin(_ModelStubs):
                 )
             )
             if message := cons_rec.message:
+                _debug.logic(
+                    "schema.sql_error.constraint_message",
+                    model=self._name,
+                    constraint=constraint_name,
+                    source="ir.model.constraint",
+                )
                 return message
             if message := cons.get_error_message(self, exc.diag):
+                _debug.logic(
+                    "schema.sql_error.constraint_message",
+                    model=self._name,
+                    constraint=constraint_name,
+                    source="table_object",
+                )
                 return message
+        _debug.logic(
+            "schema.sql_error.generic",
+            model=self._name,
+            error=type(exc).__name__,
+            constraint=exc.diag.constraint_name,
+        )
         return self._sql_error_to_message_generic(exc)
 
     @api.model

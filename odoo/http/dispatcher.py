@@ -19,6 +19,7 @@ from werkzeug.exceptions import (
 )
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from ._params import coerce_params
 from ._protocols import get_ir_http
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
     from ._protocols import Endpoint, RequestState
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _dispatchers: dict[str, type[Dispatcher]] = {}
 
@@ -112,6 +114,14 @@ class Dispatcher(ABC):
         if vary:
             self.request.future_response.headers.set("Vary", ", ".join(vary))
 
+        _debug.pipeline(
+            "http.dispatch.pre",
+            dispatcher=self.routing_type,
+            preflight=is_preflight,
+            cors=bool(routing.get("cors")),
+            vary=len(vary),
+            save_session=self.request.session.can_save,
+        )
         self._answer_options_request(routing, is_preflight)
         self._apply_max_content_length(rule, routing)
 
@@ -212,6 +222,13 @@ class Dispatcher(ABC):
 
     def _call_endpoint(self, endpoint: Endpoint) -> Any:
         specs = getattr(endpoint, "_param_specs", None)
+        _debug.pipeline(
+            "http.dispatch.call",
+            dispatcher=self.routing_type,
+            endpoint=getattr(endpoint, "__qualname__", None),
+            params=len(self.request.params),
+            typed=bool(specs),
+        )
         if specs:
             self.request.params = coerce_params(self.request.params, specs)
         if self.request.db:

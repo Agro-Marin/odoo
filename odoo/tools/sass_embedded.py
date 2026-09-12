@@ -20,8 +20,10 @@ from odoo.libs._vendor.embedded_sass_pb2 import (  # type: ignore[attr-defined]
     InboundMessage,
     OutboundMessage,
 )
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _RX_DEPRECATION = re.compile(r"DEPRECATION WARNING \[([a-z-]+)\]")
 _RX_OMITTED = re.compile(r"(\d+) repetitive deprecation warnings omitted")
@@ -158,6 +160,7 @@ class SassEmbeddedCompiler:
                 f"sass --embedded exited immediately with code {returncode}"
             )
         self._started = True
+        _debug.lifecycle("sass.process_started", pid=self._process.pid, path=sass_path)
 
     def _pipes(self) -> tuple[IO[bytes], IO[bytes]]:
         proc = self._process
@@ -252,17 +255,26 @@ class SassEmbeddedCompiler:
             watchdog.daemon = True
             watchdog.start()
             try:
-                return self._compile_with_embedded_sass(
-                    compilation_id,
-                    source,
-                    syntax,
-                    style,
-                    source_map,
-                    importers or [],
-                    load_paths or [],
-                    quiet_deps,
-                    url,
-                )
+                with _debug.perf(
+                    "sass.compile",
+                    compilation=compilation_id,
+                    url=url,
+                    syntax=syntax,
+                    style=style,
+                    source_bytes=len(source),
+                    importers=len(importers or ()),
+                ):
+                    return self._compile_with_embedded_sass(
+                        compilation_id,
+                        source,
+                        syntax,
+                        style,
+                        source_map,
+                        importers or [],
+                        load_paths or [],
+                        quiet_deps,
+                        url,
+                    )
             except SassCompileError:
                 raise
             except Exception:

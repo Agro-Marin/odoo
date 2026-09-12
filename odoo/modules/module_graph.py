@@ -4,6 +4,7 @@ import typing
 from typing import Literal
 
 from odoo.db.schema import column_exists
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet, reset_cached_properties
 
 from ._protocols import GraphSqlReader
@@ -22,6 +23,7 @@ if typing.TYPE_CHECKING:
     ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class ModuleNode:
@@ -129,6 +131,13 @@ class ModuleGraph:
         self._update_depends(names)
         self._update_depth(names)
         self._update_from_database(names)
+        _debug.pipeline(
+            "module_graph.extended",
+            requested=len(names),
+            kept=sum(1 for name in names if name in self._modules),
+            total=len(self._modules),
+            mode=self.mode,
+        )
 
     @functools.cached_property
     def _imported_modules(self) -> OrderedSet[str]:
@@ -249,6 +258,7 @@ class ModuleGraph:
 
     def _remove(self, name: str, log_dependents: bool = True) -> None:
         module = self._modules.pop(name)
+        _debug.logic("module_graph.removed", module=name, log_dependents=log_dependents)
         for another, another_module in list(self._modules.items()):
             if (
                 module in another_module.depends

@@ -29,6 +29,7 @@ except ImportError:
 
 
 from odoo.db import PoolError
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 
 from ._cron import (
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
     from .server import PreforkServer
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 
 class CpuTimeLimitExceeded(Exception):
@@ -115,12 +117,26 @@ class Worker:
             self.alive = False
         if self.request_max > 0 and self.request_count >= self.request_max:
             self.logger.info("Max request (%s) reached.", self.request_count)
+            _debug.lifecycle(
+                "worker.recycle",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                reason="request_max",
+                requests=self.request_count,
+            )
             self.alive = False
         memory = get_memory_over_soft_limit(
             self._process_handle, current().limit_memory_soft
         )
         if memory is not None:
             self.logger.info("RSS memory soft-limit reached: %s bytes.", memory)
+            _debug.lifecycle(
+                "worker.recycle",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                reason="memory_soft",
+                rss=memory,
+            )
             self.alive = False
 
         limit_time_cpu = current().limit_time_cpu
@@ -140,6 +156,13 @@ class Worker:
         self.pid = os.getpid()
         self.setproctitle()
         self.logger.info("Alive")
+        _debug.lifecycle(
+            "worker.start",
+            kind=self.__class__.__name__,
+            pid=self.pid,
+            ppid=self.ppid,
+            request_max=self.request_max,
+        )
         random.seed()
         self._process_handle = psutil.Process(self.pid)
         if self.multi.socket:
@@ -196,6 +219,13 @@ class Worker:
                     self._CPU_LIMIT_JOIN_GRACE_S,
                 )
         finally:
+            _debug.lifecycle(
+                "worker.exit",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                requests=self.request_count,
+                failed=self._runloop_exc is not None,
+            )
             self.stop()
 
     def _run_work_loop(self) -> None:

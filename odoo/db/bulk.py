@@ -14,12 +14,14 @@ from psycopg.adapt import Transformer as _Transformer
 from psycopg.types.json import Jsonb as _Jsonb
 
 from odoo.libs.datetime import real_time
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 
 from .errors import CURSOR_LOGGER_NAME, has_reached_server
 from .utils import get_value_marker_positions
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
+_debug = DebugLog(__name__)
 
 _NO_ROWS = object()
 
@@ -295,8 +297,17 @@ class _BulkAccessMixin:
 
         col_types = self._get_column_type_oids(table, columns) if binary else None
         if col_types is not None and not self._is_binary_copy_worthwhile(col_types):
+            _debug.logic("bulk.copy.binary_not_worthwhile", table=table)
             binary = False
             col_types = None
+        _debug.logic(
+            "bulk.copy.strategy",
+            table=table,
+            columns=len(columns),
+            binary=binary,
+            returning_ids=returning_ids,
+            on_error=on_error,
+        )
 
         copy_stmt = _prepare_copy_statement(table, columns, binary, on_error)
         write_rows = _coerce_rows(rows, col_types) if col_types else rows

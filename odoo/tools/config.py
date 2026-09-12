@@ -18,6 +18,7 @@ import odoo
 from odoo import release
 from odoo.db.settings import PoolSettings
 from odoo.db.settings import provide as _provide_pool_settings
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import appdirs
 from odoo.libs.func import classproperty
 from odoo.libs.password import CryptContext
@@ -32,6 +33,7 @@ crypt_context = CryptContext(
 )
 
 _dangerous_logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 optparse._ = str  # type: ignore[attr-defined]
 
@@ -1623,6 +1625,14 @@ class configmanager:
         self._check_config_file_is_readable()
         self._load_file_options(self["config"])
         self._postprocess_options()
+        _debug.lifecycle(
+            "config.parsed",
+            rcfile=self["config"],
+            env_options=len(self._env_options),
+            cli_options=len(self._cli_options),
+            file_options=len(self._file_options),
+            save=bool(opt.save),
+        )
 
         if opt.save:
             self.save()

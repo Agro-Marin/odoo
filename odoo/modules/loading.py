@@ -13,6 +13,7 @@ import odoo.db
 from odoo import api, tools
 from odoo.api import Environment
 from odoo.db import schema
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.hashing import cache_hash
 from odoo.logutils import RUNBOT
 from odoo.tools import OrderedSet
@@ -42,6 +43,7 @@ if typing.TYPE_CHECKING:
     from .module_graph import ModuleNode
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _GC_YOUNG_BACKLOG_LIMIT = 100_000
 _GC_FULL_CYCLE_EVERY = 16
@@ -198,6 +200,14 @@ def _load_tracked_file(
         elif not contended:
             registry.loaded_xmlids.update(entry["xmlids"])
             _logger.info("skipping unchanged %s/%s", package.name, filename)
+            _debug.perf.count(
+                "modules.data_file_loaded",
+                module=package.name,
+                file=filename,
+                xmlids=len(entry["xmlids"]),
+                dynamic=False,
+                reused=True,
+            )
             return entry
         else:
             _logger.info(
@@ -211,6 +221,14 @@ def _load_tracked_file(
 
     _logger.info("loading %s/%s", package.name, filename)
     recorder = _convert_and_record(env, package, filename, idref, mode, kind)
+    _debug.perf.count(
+        "modules.data_file_loaded",
+        module=package.name,
+        file=filename,
+        xmlids=len(recorder),
+        dynamic=dynamic,
+        reused=False,
+    )
     return {"sha": digest, "xmlids": sorted(recorder), "dyn": dynamic}
 
 
@@ -234,6 +252,15 @@ def load_data(
         _files_missing_records(env.cr, stored_files) if stored_files else set()
     )
     new_files: dict = {}
+    _debug.pipeline(
+        "modules.load_data",
+        module=package.name,
+        kind=kind,
+        mode=mode,
+        tracked=track,
+        stored=len(stored_files),
+        stale=len(stale_files),
+    )
 
     files: set[str] = set()
     for k in keys:
@@ -433,6 +460,14 @@ class _PackageLoader:
             self.operation = None
         if self.operation:
             self.log_level = logging.INFO
+        _debug.logic(
+            "modules.package.operation",
+            module=self.name,
+            state=package.state,
+            operation=self.operation,
+            index=self.index,
+            count=self.module_count,
+        )
 
     def announce_module(self) -> None:
         _logger.log(
@@ -449,7 +484,8 @@ class _PackageLoader:
         if self.operation == "upgrade":
             if self.name != "base":
                 self.registry._setup_models__(self.env.cr, [], skip_if_clean=True)
-            self.migrations.migrate_module(self.package, "pre")
+            with _debug.perf("modules.migration", module=self.name, stage="pre"):
+                self.migrations.migrate_module(self.package, "pre")
         if self.name != "base":
             self.env.flush_all()
 
@@ -462,7 +498,8 @@ class _PackageLoader:
             return
         if pre_init := self.package.manifest.get("pre_init_hook"):
             self.registry._setup_models__(self.env.cr, [], skip_if_clean=True)
-            getattr(self.py_module, pre_init)(self.env)
+            with _debug.perf("modules.hook", module=self.name, hook=pre_init):
+                getattr(self.py_module, pre_init)(self.env)
 
     def load_models(self) -> None:
         registry, package = self.registry, self.package
@@ -486,6 +523,13 @@ class _PackageLoader:
             self.models_to_check |= model_names
 
         self.model_names = model_names
+        _debug.pipeline(
+            "modules.package.models_loaded",
+            module=self.name,
+            models=len(model_names),
+            operation=self.operation,
+            to_check=len(self.models_to_check),
+        )
 
     def load_data_and_demo(self) -> None:
         if not self.operation:
@@ -495,16 +539,23 @@ class _PackageLoader:
         self.module._check()
 
         idref: dict = {}
-        if self.operation == "install":
-            load_data(env, idref, "init", kind="data", package=package)
-            if self.install_demo and package.demo_installable:
-                package.demo = load_demo(env, package, idref, "init")
-        else:
-            self.module.write(self.module.get_values_from_terp(package.manifest))
-            mode: LoadMode = "update" if self.operation == "upgrade" else "init"
-            load_data(env, idref, mode, kind="data", package=package)
-            if package.demo:
-                package.demo = load_demo(env, package, idref, mode)
+        with _debug.perf(
+            "modules.package.data",
+            cr=env.cr,
+            module=self.name,
+            operation=self.operation,
+        ) as span:
+            if self.operation == "install":
+                load_data(env, idref, "init", kind="data", package=package)
+                if self.install_demo and package.demo_installable:
+                    package.demo = load_demo(env, package, idref, "init")
+            else:
+                self.module.write(self.module.get_values_from_terp(package.manifest))
+                mode: LoadMode = "update" if self.operation == "upgrade" else "init"
+                load_data(env, idref, mode, kind="data", package=package)
+                if package.demo:
+                    package.demo = load_demo(env, package, idref, mode)
+            span.set(idrefs=len(idref), demo=bool(package.demo))
         env.cr.execute(
             "UPDATE ir_module_module SET demo = %s WHERE id = %s",
             (package.demo, package.id),
@@ -514,9 +565,13 @@ class _PackageLoader:
     def run_post_migration(self) -> None:
         if not self.operation:
             return
-        self.migrations.migrate_module(self.package, "post")
+        with _debug.perf("modules.migration", module=self.name, stage="post"):
+            self.migrations.migrate_module(self.package, "post")
         overwrite = tools.config["overwrite_existing_translations"]
-        self.module._update_translations(overwrite=overwrite)
+        with _debug.perf(
+            "modules.package.translations", module=self.name, overwrite=overwrite
+        ):
+            self.module._update_translations(overwrite=overwrite)
 
     def mark_module_loaded(self) -> None:
         self.registry.loaded_modules.add(self.name)
@@ -524,9 +579,11 @@ class _PackageLoader:
     def run_post_init_hook(self) -> None:
         if self.operation == "install":
             if post_init := self.package.manifest.get("post_init_hook"):
-                getattr(self.py_module, post_init)(self.env)
+                with _debug.perf("modules.hook", module=self.name, hook=post_init):
+                    getattr(self.py_module, post_init)(self.env)
         elif self.operation == "upgrade":
-            self.env["ir.ui.view"]._check_module_views(self.name)
+            with _debug.perf("modules.package.check_views", module=self.name):
+                self.env["ir.ui.view"]._check_module_views(self.name)
 
     def mark_module_installed(self) -> None:
         if not self.operation:
@@ -546,6 +603,12 @@ class _PackageLoader:
         self.package.state = "installed"
         env.flush_all()
         env.cr.commit()
+        _debug.lifecycle(
+            "modules.package.installed",
+            module=self.name,
+            operation=self.operation,
+            version=values["db_version"],
+        )
 
     def run_at_install_tests(self) -> None:
         update_from_config = (
@@ -580,6 +643,11 @@ class _PackageLoader:
             self.registry._setup_models__(self.cr, [], skip_if_clean=True)
         self.registry.check_null_constraints(self.cr)
         tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
+        _debug.pipeline(
+            "modules.package.at_install_tests",
+            module=self.name,
+            tests=suite.countTestCases(),
+        )
         self.test_results = loader.run_suite(suite, global_report=self.report)
         assert self.report is not None, "Missing report during tests"
         self.report.update(self.test_results)
@@ -670,12 +738,15 @@ def _run_gc_cycle(registry: Registry, cycles: int) -> int:
         return cycles
     registry._caches.clear_all()
     cycles += 1
-    if cycles % _GC_FULL_CYCLE_EVERY == 0:
-        gc.unfreeze()
-        gc.collect()
-    else:
-        gc.collect(generation=1)
-    gc.freeze()
+    with _debug.perf(
+        "modules.gc_cycle", cycle=cycles, full=cycles % _GC_FULL_CYCLE_EVERY == 0
+    ):
+        if cycles % _GC_FULL_CYCLE_EVERY == 0:
+            gc.unfreeze()
+            gc.collect()
+        else:
+            gc.collect(generation=1)
+        gc.freeze()
     return cycles
 
 
@@ -699,6 +770,13 @@ def load_module_graph(
         migrations = MigrationManager(cr, graph)
     module_count = len(graph)
     _logger.info("loading %d modules...", module_count)
+    _debug.pipeline(
+        "modules.load_graph.begin",
+        modules=module_count,
+        already_loaded=len(registry.loaded_modules),
+        update_module=update_module,
+        run_tests=run_tests,
+    )
 
     t0 = time.time()
     extra_queries_at_start = odoo.db.sql_counter
@@ -913,6 +991,14 @@ class _ModuleLoader:
 
         self.graph = ModuleGraph(cr, mode="update" if self.update_module else "load")
         self.graph.extend(["base"])
+        _debug.pipeline(
+            "modules.bootstrap",
+            db=cr.dbname,
+            update_module=self.update_module,
+            upgrade=len(self.upgrade_modules),
+            install=len(self.install_modules),
+            reinit=len(self.reinit_modules),
+        )
         if not self.graph:
             _logger.critical("module base cannot be loaded! (hint: verify addons-path)")
             msg = "Module `base` cannot be loaded! (hint: verify addons-path)"
@@ -968,7 +1054,8 @@ class _ModuleLoader:
 
         if lang_pending:
             for lang in load_lang.split(","):
-                tools.translate.load_language(self.cr, lang)
+                with _debug.perf("modules.load_language", cr=self.cr, lang=lang):
+                    tools.translate.load_language(self.cr, lang)
             self.registry._load_language_done = True
 
     def apply_module_requests(self) -> None:
@@ -1034,6 +1121,12 @@ class _ModuleLoader:
             ("installed", "base"),
         )
         Module.invalidate_model(["state"])
+        _debug.pipeline(
+            "modules.requests_applied",
+            install=len(self.install_modules),
+            upgrade=len(self.upgrade_modules),
+            reinit=len(self.registry._reinit_modules),
+        )
 
     def converge_module_graph(self) -> None:
         env = self.env
@@ -1048,6 +1141,12 @@ class _ModuleLoader:
             module_list = [
                 name for (name,) in env.cr.fetchall() if name not in self.graph
             ]
+            _debug.pipeline(
+                "modules.converge",
+                new=len(module_list),
+                graph=len(self.graph),
+                updated=len(self.registry.updated_modules),
+            )
             if not module_list:
                 break
             self.graph.extend(module_list)
@@ -1081,13 +1180,21 @@ class _ModuleLoader:
                 if field and not field.translate:
                     _logger.debug("Making field %s non-translated", field)
                     models_to_untranslate.add(model_name)
+        _debug.logic(
+            "modules.untranslate_dropped_fields",
+            candidates=len(database_translated_fields),
+            models=len(models_to_untranslate),
+        )
         registry.init_models(
             self.cr, list(models_to_untranslate), {"models_to_check": True}
         )
 
     def finalize_registry_setup(self) -> None:
         self.registry.loaded = True
-        self.registry._setup_models__(self.cr)
+        with _debug.perf(
+            "modules.finalize_registry_setup", cr=self.cr, models=len(self.registry)
+        ):
+            self.registry._setup_models__(self.cr)
 
     def run_deferred_at_install_tests(self) -> None:
         _run_deferred_at_install_tests(self.registry, self.cr, self.env, self.report)
@@ -1107,8 +1214,9 @@ class _ModuleLoader:
     def run_end_migrations(self) -> None:
         if not self.update_module:
             return
-        for package in self.graph:
-            self.migrations.migrate_module(package, "end")
+        with _debug.perf("modules.end_migrations", modules=len(self.graph)):
+            for package in self.graph:
+                self.migrations.migrate_module(package, "end")
 
     def log_pending_module_states(self) -> None:
         cr = self.cr

@@ -10,6 +10,7 @@ import psycopg
 
 from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.lru import LRU
 from odoo.tools.translate import _
 
@@ -20,6 +21,7 @@ from ...parsing import fix_import_export_id_paths
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 if typing.TYPE_CHECKING:
@@ -75,6 +77,12 @@ class LoadMixin(_ModelStubs):
         except Exception:
             _logger.debug("Batch load failed, retrying record by record", exc_info=True)
 
+        _debug.logic(
+            "load.batch_failed_retry_one_by_one",
+            model=self._name,
+            records=len(data_list),
+            update=update,
+        )
         errors = self._load_data_list_one_by_one(data_list, update, messages, ids)
         if errors and global_error_message and global_error_message not in messages:
             messages.insert(0, global_error_message)
@@ -96,6 +104,12 @@ class LoadMixin(_ModelStubs):
                 if message["type"] == "error":
                     errors += 1
             if errors >= 10 and (errors >= position / 10):
+                _debug.logic(
+                    "load.interrupted_too_many_errors",
+                    model=self._name,
+                    position=position,
+                    errors=errors,
+                )
                 messages.append(
                     {
                         "type": "warning",
@@ -202,6 +216,16 @@ class LoadMixin(_ModelStubs):
             savepoint.close(rollback=True)
             raise
         savepoint.close(rollback=False)
+        _debug.pipeline(
+            "load.end",
+            model=self._name,
+            mode=mode,
+            module=current_module,
+            rows=len(data),
+            ids=len(ids),
+            failed=failed,
+            messages=len(messages),
+        )
 
         nextrow = info["rows"]["to"] + 1
         if nextrow < limit:
@@ -560,6 +584,16 @@ class LoadMixin(_ModelStubs):
                 imd.browse(d_id).unlink()
                 to_create.append(data)
 
+        _debug.pipeline(
+            "load.records_partitioned",
+            model=self._name,
+            records=len(data_list),
+            xml_ids=len(xml_ids),
+            existing=len(existing),
+            to_create=len(to_create),
+            to_update=len(to_update),
+            update=update,
+        )
         for data in to_update:
             data["record"]._load_records_write(data["values"])
 

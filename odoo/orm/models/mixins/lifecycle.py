@@ -2,6 +2,7 @@ import typing
 from collections import defaultdict
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import _
 
 from ... import decorators as api
@@ -15,6 +16,8 @@ if typing.TYPE_CHECKING:
     from collections.abc import Collection
 
     from ...fields.base import Field
+
+_debug = DebugLog(__name__)
 
 
 class LifecycleMixin(_ModelStubs):
@@ -55,6 +58,12 @@ class LifecycleMixin(_ModelStubs):
         if not field_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(lambda record: record[field_name])
+        _debug.logic(
+            "lifecycle.archive",
+            model=self._name,
+            records=len(self),
+            archived=len(active_recs),
+        )
         active_recs[field_name] = False
 
     def action_unarchive(self) -> None:
@@ -62,6 +71,12 @@ class LifecycleMixin(_ModelStubs):
         if not field_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         inactive_recs = self.filtered(lambda record: not record[field_name])
+        _debug.logic(
+            "lifecycle.unarchive",
+            model=self._name,
+            records=len(self),
+            unarchived=len(inactive_recs),
+        )
         inactive_recs[field_name] = True
 
     def _register_hook(self) -> None:
@@ -92,7 +107,16 @@ class LifecycleMixin(_ModelStubs):
     def _apply_onchange_methods(
         self, field_name: str, result: dict, excluded_methods=()
     ) -> None:
-        for method in self._onchange_methods.get(field_name, ()):
+        methods = self._onchange_methods.get(field_name, ())
+        if _debug.pipeline.enabled and methods:
+            _debug.pipeline(
+                "lifecycle.onchange.apply",
+                model=self._name,
+                field=field_name,
+                methods=len(methods),
+                excluded=len(excluded_methods),
+            )
+        for method in methods:
             if method in excluded_methods:
                 continue
             res = method(self)

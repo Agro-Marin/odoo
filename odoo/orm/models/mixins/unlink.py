@@ -2,6 +2,7 @@ import typing
 from itertools import batched
 from typing import Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 
 from ...fields.reference import REFERENCE_VERIFIED_CACHE_KEY, Reference
@@ -13,6 +14,8 @@ from ._crud_common import (
 from ._model_stubs import _ModelStubs
 
 _UNLINK_LOG_MAX_IDS = 1000
+
+_debug = DebugLog(__name__)
 
 
 class UnlinkMixin(_ModelStubs):
@@ -30,9 +33,18 @@ class UnlinkMixin(_ModelStubs):
         self.check_access("unlink")
         prof.mark("acl")
 
+        ondelete_run = 0  # debuglog
         for func in self._ondelete_methods:
             if func._ondelete or not self.env.context.get(MODULE_UNINSTALL_FLAG):
+                ondelete_run += 1  # debuglog
                 func(self)
+        _debug.pipeline(
+            "unlink.ondelete",
+            model=self._name,
+            records=len(self),
+            methods=len(self._ondelete_methods),
+            run=ondelete_run,
+        )
         prof.mark("ondelete")
 
         self._discard_pending_recomputes()
@@ -70,6 +82,14 @@ class UnlinkMixin(_ModelStubs):
         else:
             self._invalidate_after_unlink()
 
+        _debug.pipeline(
+            "unlink.cascade",
+            model=self._name,
+            records=len(deleted_ids),
+            xmlids=len(ir_model_data_unlink),
+            attachments=len(ir_attachment_unlink),
+            uninstalling=bool(self.env.context.get(MODULE_UNINSTALL_FLAG)),
+        )
         if ir_model_data_unlink:
             ir_model_data_unlink.unlink()
         if ir_attachment_unlink:
@@ -135,6 +155,12 @@ class UnlinkMixin(_ModelStubs):
                 field._invalidate_cache(env, keep_dirty=True)
         for field in registry.fields_reading_through_a_reference:
             field._invalidate_cache(env, keep_dirty=True)
+        _debug.logic(
+            "unlink.invalidated_models",
+            model=self._name,
+            models=len(gone),
+            reference_fields=len(registry.fields_reading_through_a_reference),
+        )
         Reference.discard_verified_models(env, gone)
         self._invalidate_ref_cache(gone)
 

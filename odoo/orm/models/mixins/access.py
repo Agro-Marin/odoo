@@ -6,6 +6,7 @@ from operator import itemgetter
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import unquote
 from odoo.tools.translate import LazyTranslate, _
 
@@ -24,6 +25,7 @@ if typing.TYPE_CHECKING:
 _lt = LazyTranslate("base")
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 class AccessMixin(_ModelStubs):
@@ -153,11 +155,26 @@ class AccessMixin(_ModelStubs):
             return readable
         visible_ids = hidden._get_display_name_visible_ids() & set(hidden._ids)
         allowed_ids = set(readable._ids) | visible_ids
+        _debug.logic(
+            "access.display_name_filtered",
+            model=self._name,
+            uid=self.env.uid,
+            records=len(self),
+            hidden=len(hidden),
+            visible_by_name=len(visible_ids),
+        )
         return self.browse(id_ for id_ in self._ids if id_ in allowed_ids)
 
     def _check_access(self, operation: str) -> tuple[Self, Callable] | None:
         Access = self.env["ir.model.access"]
         if not Access.check(self._name, operation, raise_exception=False):
+            _debug.logic(
+                "access.denied_by_acl",
+                model=self._name,
+                operation=operation,
+                uid=self.env.uid,
+                records=len(self),
+            )
             return self, functools.partial(
                 Access._prepare_access_error, self._name, operation
             )
@@ -172,6 +189,14 @@ class AccessMixin(_ModelStubs):
                 .with_context(active_test=False)
                 .filtered_domain(domain)
             ):
+                _debug.logic(
+                    "access.denied_by_rule",
+                    model=self._name,
+                    operation=operation,
+                    uid=self.env.uid,
+                    records=len(real_self),
+                    forbidden=len(forbidden),
+                )
                 return forbidden, functools.partial(
                     Rule._prepare_access_error, operation, forbidden
                 )
@@ -278,6 +303,13 @@ class AccessMixin(_ModelStubs):
         ]
 
         if inconsistencies:
+            _debug.logic(
+                "access.company_inconsistent",
+                model=self._name,
+                records=len(self),
+                violations=len(inconsistencies),
+                fields=sorted({name for _record, name, _co in inconsistencies}),
+            )
             lines = [_("Uh-oh! You've got some company inconsistencies here:")]
             company_msg = _lt(
                 "- Record is company \u201c%(company)s\u201d while \u201c%(field)s\u201d (%(fname)s: %(values)s) belongs to another company."

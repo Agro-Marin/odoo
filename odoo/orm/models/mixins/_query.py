@@ -3,6 +3,7 @@ import typing
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL, Query, ormcache, partition
 from odoo.tools.translate import _
@@ -21,6 +22,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
+_debug = DebugLog(__name__)
 
 
 class _QueryMixin(_ModelStubs):
@@ -193,6 +195,7 @@ class _QueryMixin(_ModelStubs):
 
         domain = domain.optimize_full(typing.cast("BaseModel", self))
         if domain.is_false():
+            _debug.logic("query.search.domain_false", model=self._name)
             return self.browse()._as_query()
 
         backend = self.env.backend
@@ -271,4 +274,11 @@ class _QueryMixin(_ModelStubs):
         if not ids:
             return self
         valid_ids = {*self.env.backend.get_existing_ids(self, ids), *new_ids}
+        if _debug.logic.enabled and len(valid_ids) != len(self._ids):
+            _debug.logic(
+                "query.exists.missing",
+                model=self._name,
+                records=len(self._ids),
+                missing=len(self._ids) - len(valid_ids),
+            )
         return self.browse(i for i in self._ids if i in valid_ids)

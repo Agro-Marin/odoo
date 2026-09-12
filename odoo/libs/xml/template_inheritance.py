@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from lxml import etree
 from lxml.builder import E
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text.html import html_escape
 
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 RSTRIP_REGEXP = re.compile(r"\n[ \t]*$")
 
 
@@ -356,9 +358,23 @@ def apply_inheritance_specs(
         pre_locate(spec)
         node = locate_node(source, spec)
         if node is None:
+            _debug.logic(
+                "template_inheritance.unlocatable",
+                spec_tag=spec.tag,
+                expr=spec.get("expr"),
+                position=spec.get("position", "inside"),
+            )
             raise _prepare_unlocatable_error(spec)
 
         pos = spec.get("position", "inside")
+        _debug.pipeline(
+            "template_inheritance.apply",
+            spec_tag=spec.tag,
+            target=node.tag,
+            position=pos,
+            mode=spec.get("mode") if pos == "replace" else None,
+            branding=inherit_branding,
+        )
         if pos == "replace":
             mode = spec.get("mode", "outer")
             if mode == "outer":

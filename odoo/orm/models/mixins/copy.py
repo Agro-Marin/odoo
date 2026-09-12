@@ -3,6 +3,8 @@ import typing
 from collections import defaultdict
 from typing import Self
 
+from odoo.libs.debug_log import DebugLog
+
 from ..._typing import ValuesType
 from ...primitives import MAGIC_COLUMNS, Command
 from ._model_stubs import _ModelStubs
@@ -13,6 +15,7 @@ if typing.TYPE_CHECKING:
     from ..._typing import BaseModel
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 class CopyMixin(_ModelStubs):
@@ -200,6 +203,13 @@ class CopyMixin(_ModelStubs):
             for rec, vals in zip(self, vals_list, strict=True)
             if vals is not None
         ]
+        _debug.pipeline(
+            "copy.records",
+            model=self._name,
+            records=len(self),
+            copyable=len(pairs),
+            default_keys=len(default or ()),
+        )
         if not pairs:
             return self.browse()
         new_records = self.create([vals for _, vals in pairs])

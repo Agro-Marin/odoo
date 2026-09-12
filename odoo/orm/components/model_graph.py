@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from odoo.libs.accel import get_trigger_trees as _get_trigger_trees
 from odoo.libs.collections import Collector
+from odoo.libs.debug_log import DebugLog
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterable, Iterator
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
 
 
 _Collector = Collector
+
+_debug = DebugLog(__name__)
 
 
 def _get_stored_compute_adjacency(triggers: defaultdict) -> dict:
@@ -291,8 +294,19 @@ class ModelGraph:
             if epoch is not None and (
                 self._invalidation_barrier or epoch != self._epoch
             ):
+                _debug.logic(
+                    "model_graph.set_triggers.rejected",
+                    epoch=epoch,
+                    current_epoch=self._epoch,
+                    barrier=self._invalidation_barrier,
+                )
                 return False
             self._state = state
+        _debug.lifecycle(
+            "model_graph.triggers_published",
+            epoch=self._epoch,
+            fields=len(triggers),
+        )
         return True
 
     @property
@@ -303,11 +317,13 @@ class ModelGraph:
         with self._publish_lock:
             self._epoch += 1
             self._invalidation_barrier = True
+        _debug.lifecycle("model_graph.invalidation_begin", epoch=self._epoch)
 
     def end_invalidation(self) -> None:
         with self._publish_lock:
             self._epoch += 1
             self._invalidation_barrier = False
+        _debug.lifecycle("model_graph.invalidation_end", epoch=self._epoch)
 
     def reset_field_metadata(self) -> None:
         self._inverses.clear()
@@ -454,11 +470,13 @@ class ModelGraph:
 
     def freeze(self) -> None:
         state = self._state
-        self._add_missing_trees(state)
-        for field in state.triggers:
-            self._is_modifying_relations(state, field)
-        if state.recompute_order is None:
-            state.recompute_order = self._get_recompute_order(state.triggers)
+        with _debug.perf("model_graph.freeze", fields=len(state.triggers)) as span:
+            self._add_missing_trees(state)
+            for field in state.triggers:
+                self._is_modifying_relations(state, field)
+            if state.recompute_order is None:
+                state.recompute_order = self._get_recompute_order(state.triggers)
+            span.set(trees=len(state.trees), ordered=len(state.recompute_order or ()))
 
     def set_inverses(self, inverses: _Collector) -> None:
         self._inverses = inverses

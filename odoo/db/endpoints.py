@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import threading
 
+from odoo.libs.debug_log import DebugLog
+
 from .budget import ConnectionBudget
 from .dsn import _expand_conninfo
 from .pool import ConnectionPool
@@ -9,6 +11,7 @@ from .settings import PoolSettings, current
 from .utils import get_connection_info_for_database
 
 DEFAULT_PG_PORT = 5432
+_debug = DebugLog(__name__)
 
 
 def _coerce_port(port: object) -> int:
@@ -97,6 +100,13 @@ class EndpointRegistry:
             pool = self._pools.get(key)
             if pool is None:
                 budget = self.get_budget_at_endpoint(endpoint, settings)
+                _debug.lifecycle(
+                    "endpoints.pool_created",
+                    endpoint=endpoint,
+                    readonly=readonly,
+                    maxconn=budget.maxconn,
+                    pools=len(self._pools) + 1,
+                )
                 pool = self._pools[key] = ConnectionPool(
                     budget.maxconn,
                     readonly=readonly,

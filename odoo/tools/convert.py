@@ -27,6 +27,7 @@ except ImportError:
     jingtrang = None
 
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import split_refs, str2bool
 
 if TYPE_CHECKING:
@@ -40,6 +41,7 @@ from .misc import SKIPPED_ELEMENT_TYPES
 from .safe_eval import _UNSAFE_ATTRIBUTES, pytz, safe_eval, time
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _ABORT_RECORD = object()
 _SKIP_FIELD = object()
@@ -546,11 +548,25 @@ form: module.record_id""" % (xml_id,)
             if not rec_id:
                 return None
             if self._noupdate_skips_record(rec, env, xid):
+                _debug.logic(
+                    "convert.record.noupdate_skipped",
+                    module=self.module,
+                    xml_id=xid,
+                    model=rec_model,
+                )
                 return None
 
         foreign_record_to_create = False
         if xid and xid.partition(".")[0] != self.module:
             record = self.env["ir.model.data"]._load_xmlid(xid)
+            _debug.logic(
+                "convert.record.foreign",
+                module=self.module,
+                xml_id=xid,
+                model=rec_model,
+                exists=bool(record),
+                forcecreate=nodeattr2bool(rec, "forcecreate"),
+            )
             if not record and not (
                 foreign_record_to_create := nodeattr2bool(rec, "forcecreate")
             ):
@@ -578,6 +594,16 @@ form: module.record_id""" % (xml_id,)
         record = model._load_records([data], self.mode == "update")
         if xid:
             self.idref[xid] = record.id
+        _debug.pipeline(
+            "convert.record",
+            module=self.module,
+            model=rec_model,
+            xml_id=xid or None,
+            record=record.id,
+            fields=len(res),
+            sub_records=len(sub_records),
+            update=self.mode == "update",
+        )
         if config.get("import_partial"):
             env.cr.commit()
         for child_rec, inverse_name in sub_records:
@@ -786,7 +812,17 @@ form: module.record_id""" % (xml_id,)
 
     def parse(self, de: etree._Element) -> None:
         assert de.tag in self.DATA_ROOTS, "Root xml tag must be <odoo> or <data>."
-        self._tag_root(de)
+        with _debug.perf(
+            "convert.xml_file",
+            cr=self.env.cr,
+            module=self.module,
+            file=self.xml_filename,
+            mode=self.mode,
+            noupdate=self.noupdate,
+            nodes=len(de),
+        ) as span:
+            self._tag_root(de)
+            span.set(idrefs=len(self.idref))
 
     DATA_ROOTS = ["odoo", "data"]
 
@@ -876,7 +912,18 @@ def convert_csv_import(
         "install_filename": fname,
         "noupdate": noupdate,
     }
-    result = env[model].with_context(**context).load(fields, datas)
+    with _debug.perf(
+        "convert.csv_file",
+        cr=env.cr,
+        module=module,
+        file=fname,
+        model=model,
+        mode=mode,
+        rows=len(datas),
+        columns=len(fields),
+    ) as span:
+        result = env[model].with_context(**context).load(fields, datas)
+        span.set(ids=len(result["ids"] or ()), messages=len(result["messages"]))
     if any(msg["type"] == "error" for msg in result["messages"]):
         warning_msg = "\n".join(msg["message"] for msg in result["messages"])
         raise ValueError(

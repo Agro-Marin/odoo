@@ -11,6 +11,7 @@ from collections.abc import Iterable, Iterator
 from odoo import db
 from odoo.db import is_maintenance_db
 from odoo.libs import backoff
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL, JOB_QUEUE_CHANNEL
 
@@ -22,6 +23,7 @@ if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 __all__ = [
     "CRON_NOTIFY_JITTER_MAX_S",
@@ -247,6 +249,11 @@ class CronListener:
         self._cursor = cursor
         self._selector = selector
         self._backoff.reset()
+        _debug.lifecycle(
+            "cron.listener.connected",
+            channel=self._channel,
+            extra_fd=self._extra_read_fd is not None,
+        )
 
     def reconnect_after_failure(
         self,
@@ -257,6 +264,9 @@ class CronListener:
         try:
             self.connect()
         except Exception as exc:
+            _debug.logic(
+                "cron.listener.reconnect_failed", what=what, error=type(exc).__name__
+            )
             self._backoff.wait_after_failure(what, exc, sleep)
             return False
         return True
@@ -309,9 +319,18 @@ class CronSchedule:
     def reset_known_databases(self) -> OrderedSet[str]:
         self._known = OrderedSet(self._list_databases())
         self._listed_at = self._clock()
+        _debug.logic("cron.schedule.databases_listed", databases=len(self._known))
         return self._known
 
     def get_due_databases(self, notified: Iterable[str]) -> list[str]:
         if self._is_stale():
-            return order_notified_first(notified, self.reset_known_databases())
-        return [name for name in notified if name in self._known]
+            due = order_notified_first(notified, self.reset_known_databases())
+        else:
+            due = [name for name in notified if name in self._known]
+        _debug.pipeline(
+            "cron.schedule.due",
+            due=len(due),
+            notified=len(list(notified)),
+            known=len(self._known),
+        )
+        return due

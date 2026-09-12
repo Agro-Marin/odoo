@@ -5,6 +5,8 @@ import typing
 
 import psycopg
 
+from odoo.libs.debug_log import DebugLog
+
 from .breaker import CircuitBreaker
 from .lag import LAG_SQL, ReplicaLagGate
 from .pool import PoolError
@@ -15,6 +17,7 @@ if typing.TYPE_CHECKING:
     from .pool import Connection
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 REPLICA_RETRY_TIME = 20 * 60
 
@@ -57,7 +60,17 @@ class ReplicaRouter:
             return self.primary.cursor(), "rw"
         cr = self._resolve_replica_cursor(self.readonly)
         if cr is not None:
+            _debug.logic(
+                "replica.route", db=getattr(self.primary, "dbname", None), mode="ro"
+            )
             return cr, "ro"
+        _debug.logic(
+            "replica.route",
+            db=getattr(self.primary, "dbname", None),
+            mode="ro->rw",
+            breaker_closed=self.breaker.closed,
+            lagging=not self.lag.is_replica_usable(),
+        )
         return self.primary.cursor(), "ro->rw"
 
     def _resolve_replica_cursor(self, replica: Connection) -> BaseCursor | None:

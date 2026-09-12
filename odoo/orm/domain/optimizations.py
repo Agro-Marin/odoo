@@ -8,6 +8,7 @@ from collections.abc import Set as AbstractSet
 
 from odoo.exceptions import MissingError
 from odoo.libs.collections import FrozenOrderedSet
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, partition, str2bool
 
 from ..primitives import COLLECTION_TYPES
@@ -39,6 +40,7 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
 
 _logger = logging.getLogger("odoo.domains")
+_debug = DebugLog(__name__)
 
 
 def _check_operators(caller: str, operators: Collection[str]) -> None:
@@ -558,8 +560,23 @@ def _optimize_hierarchy(condition, model):
         )
     coids += comodel.search(search_domain, order="id").ids
     if not coids:
+        _debug.logic(
+            "domain.hierarchy.no_roots",
+            model=model._name,
+            field=field.name,
+            operator=condition.operator,
+        )
         return _FALSE_DOMAIN
     result = hierarchy(comodel_sudo.browse(coids), parent)
+    _debug.logic(
+        "domain.hierarchy.resolved",
+        model=model._name,
+        field=field.name,
+        operator=condition.operator,
+        roots=len(coids),
+        via="parent_path" if isinstance(result, Domain) else "walk",
+        matched=None if isinstance(result, Domain) else len(result),
+    )
     if isinstance(result, Domain):
         if field.name == "id":
             return result
@@ -612,6 +629,12 @@ def _get_domain_parent_of(comodel: BaseModel, parent: str) -> OrderedSet:
 @operator_optimization(["any", "not any"], level=OptimizationLevel.FULL)
 def _optimize_any_with_rights(condition, model):
     if model.env.su or condition._get_field(model).bypass_search_access:
+        _debug.logic(
+            "domain.any.bypass_access",
+            model=model._name,
+            field=condition.field_expr,
+            su=model.env.su,
+        )
         return DomainCondition(
             condition.field_expr, condition.operator + "!", condition.value
         )

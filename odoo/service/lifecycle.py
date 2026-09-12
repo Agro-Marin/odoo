@@ -12,6 +12,7 @@ from pathlib import Path
 
 from odoo import api, db
 from odoo.libs import gc
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import osutil
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.module import load_odoo_module
@@ -25,6 +26,7 @@ from ._env import _IS_POSIX, _IS_WINDOWS, get_env_float, get_env_int
 from .settings import current
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 
 def load_server_wide_modules() -> None:
@@ -165,18 +167,27 @@ def preload_registries(dbnames: list[str] | None) -> int:
                 settings = current()
                 update_module = settings.update_module
 
-                with Registry._lock:
-                    registry = Registry.new(
-                        dbname,
-                        update_module=update_module,
-                        install_modules=settings.init,
-                        upgrade_modules=settings.update,
-                        reinit_modules=settings.reinit,
-                    )
+                with _debug.perf(
+                    "service.preload_registry",
+                    db=dbname,
+                    update_module=update_module,
+                    init=len(settings.init),
+                    update=len(settings.update),
+                ):
+                    with Registry._lock:
+                        registry = Registry.new(
+                            dbname,
+                            update_module=update_module,
+                            install_modules=settings.init,
+                            upgrade_modules=settings.update,
+                            reinit_modules=settings.reinit,
+                        )
 
                 unrun = 0
                 if settings.test_enable:
-                    unrun = _run_post_install_tests(registry, update_module)
+                    with _debug.perf("service.post_install_tests", db=dbname) as span:
+                        unrun = _run_post_install_tests(registry, update_module)
+                        span.set(unrun=unrun)
                 report = registry._assertion_report
                 if report and not report.wasSuccessful():
                     rc += 1

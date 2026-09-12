@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Self
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.libs.sql import SQL
 from odoo.tools.translate import _
@@ -13,6 +14,8 @@ from ._crud_common import (
     get_forbidden_field_names,
 )
 from ._model_stubs import _ModelStubs
+
+_debug = DebugLog(__name__)
 
 
 class _WriteFieldPlan(typing.NamedTuple):
@@ -158,6 +161,16 @@ class WriteMixin(_ModelStubs):
         field_values = plan.field_values
         inverses_by_hook = plan.inverses_by_hook
         protected = plan.protected
+        _debug.pipeline(
+            "write.classified",
+            model=self._name,
+            records=len(self),
+            fields=len(field_values),
+            inverse_hooks=len(inverses_by_hook),
+            modifying_relations=len(plan.fnames_modifying_relations),
+            protected=len(protected),
+            x2many_inverses=len(plan.x2m_inverse_fnames),
+        )
         self._write_settle_protected(plan, vals)
         prof.mark("classify")
 
@@ -251,6 +264,11 @@ class WriteMixin(_ModelStubs):
         self._sync_log_access_cache(log_vals, log_only_ids)
 
         if parent_records:
+            _debug.logic(
+                "write.parent_path_changed",
+                model=self._name,
+                records=len(parent_records),
+            )
             parent_records._update_parent_path_on_write()
 
         prof.stop()
@@ -324,6 +342,12 @@ class WriteMixin(_ModelStubs):
             if prefix:
                 parent_ids = {int(label) for label in prefix.split("/")[:-1]}
                 if not parent_ids.isdisjoint(records._ids):
+                    _debug.logic(
+                        "write.parent_path_recursion",
+                        model=self._name,
+                        parent=parent.id,
+                        records=len(records),
+                    )
                     raise UserError(_("Recursion Detected."))
 
             updated = dict(

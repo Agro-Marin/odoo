@@ -19,6 +19,7 @@ from psycopg.types.json import Json, Jsonb, JsonDumper
 
 from odoo.exceptions import LockError, UserError
 from odoo.libs.accel import fast_clone
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
 from odoo.libs.profiling import _OrmProfile
@@ -42,6 +43,7 @@ if typing.TYPE_CHECKING:
 _logger = logging.getLogger("odoo.orm.backend")
 _orm_crud = logging.getLogger("odoo.orm.crud")
 _orm_read = logging.getLogger("odoo.orm.read")
+_debug = DebugLog(__name__)
 
 COPY_THRESHOLD = int(os.environ.get("ODOO_COPY_THRESHOLD", "10"))
 COPY_DISABLED = os.environ.get("ODOO_DISABLE_COPY", "").lower() in (
@@ -255,8 +257,14 @@ def _prepare_postgres_search_query(
         )
         sec_domain = sec_domain.optimize_full(model_sudo)
         if sec_domain.is_false():
+            _debug.logic(
+                "backend.search.rules_deny_all", model=model._name, uid=model.env.uid
+            )
             return model.browse()._as_query()
         if not sec_domain.is_true():
+            _debug.logic(
+                "backend.search.rules_applied", model=model._name, uid=model.env.uid
+            )
             query.add_where(sec_domain._to_sql(model_sudo, model._table, query))
     prof.mark("rules")
 
@@ -302,6 +310,14 @@ class PostgresBackend:
             and col_fields
             and len(stored_list) >= COPY_THRESHOLD
             and not cr.in_pipeline
+        )
+        _debug.logic(
+            "backend.create_rows.strategy",
+            model=model._name,
+            strategy="copy" if use_copy else "insert",
+            rows=len(stored_list),
+            columns=len(columns),
+            in_pipeline=cr.in_pipeline,
         )
         subprof = _OrmProfile(_orm_crud)
 
@@ -374,8 +390,23 @@ class PostgresBackend:
         self, model: BaseModel, fnames: tuple[str, ...], rows: list[tuple]
     ) -> None:
         if (values := self._resolve_uniform_update_values(rows)) is not None:
+            _debug.logic(
+                "backend.update_rows.strategy",
+                model=model._name,
+                strategy="uniform",
+                rows=len(rows),
+                columns=len(fnames),
+            )
             self._update_rows_uniform(model, fnames, [row[0] for row in rows], values)
             return
+        _debug.logic(
+            "backend.update_rows.strategy",
+            model=model._name,
+            strategy="values",
+            rows=len(rows),
+            columns=len(fnames),
+            batches=-(-len(rows) // UPDATE_BATCH_SIZE),
+        )
         for sub_rows in batched(rows, UPDATE_BATCH_SIZE, strict=False):
             self._update_rows_values(model, fnames, sub_rows)
 
@@ -509,6 +540,11 @@ class PostgresBackend:
             prof.mark("sql")
 
             if not rows:
+                _debug.logic(
+                    "backend.fetch.no_rows",
+                    model=model._name,
+                    columns=len(column_fields),
+                )
                 return model.browse()
 
             column_values = zip(*rows, strict=False)
@@ -586,6 +622,13 @@ class PostgresBackend:
         sql = SQL("%s %s", query.select(), self._lock_clause(allow_referencing))
         rows = model.env.execute_query(sql)
         if len(rows) != len(ids):
+            _debug.logic(
+                "backend.lock_for_update.contended",
+                model=model._name,
+                requested=len(ids),
+                locked=len(rows),
+                allow_referencing=allow_referencing,
+            )
             raise LockError(model.env._("Cannot grab a lock on records"))
 
     def try_lock_for_update(
@@ -611,6 +654,13 @@ class PostgresBackend:
         sql = SQL("%s %s", query.select(), self._lock_clause(allow_referencing))
         real_ids = (id_ for [id_] in model.env.execute_query(sql))
         valid_ids = {*real_ids, *new_ids}
+        _debug.perf.count(
+            "backend.try_lock_for_update",
+            model=model._name,
+            requested=len(ids),
+            locked=len(valid_ids) - len(new_ids),
+            limit=limit,
+        )
         return model.browse(i for i in model._ids if i in valid_ids)
 
     def unlink_rows(
@@ -646,6 +696,15 @@ class PostgresBackend:
 
         many2one_fields = env.registry.many2one_company_dependents[model._name]
         uninstalling = env.context.get(MODULE_UNINSTALL_FLAG)
+        _debug.pipeline(
+            "backend.unlink_rows",
+            model=model._name,
+            rows=len(sub_ids),
+            xmlids=len(data),
+            attachments=len(attachments),
+            company_dependent_referrers=len(many2one_fields),
+            uninstalling=bool(uninstalling),
+        )
         if many2one_fields and not uninstalling:
             self._unlink_default_guard(model, sub_ids, Defaults, many2one_fields)
 
@@ -757,6 +816,12 @@ class PostgresBackend:
             )
         )
         if affected:
+            _debug.logic(
+                "backend.unlink.company_dependent_cleared",
+                model=referrer._name,
+                field=field.name,
+                affected=len(affected),
+            )
             affected_recs = referrer.browse(row[0] for row in affected)
             affected_recs.modified([field.name])
 
@@ -790,7 +855,8 @@ class PostgresBackend:
         column2: str,
         pairs: typing.Iterable[tuple[int, int]],
     ) -> None:
-        model.env.cr.execute(
+        cr = model.env.cr
+        cr.execute(
             SQL(
                 "INSERT INTO %s (%s, %s) VALUES %s ON CONFLICT DO NOTHING",
                 SQL.identifier(relation),
@@ -798,6 +864,12 @@ class PostgresBackend:
                 SQL.identifier(column2),
                 SQL(", ").join(pairs),
             )
+        )
+        _debug.perf.count(
+            "backend.m2m.linked",
+            model=model._name,
+            relation=relation,
+            inserted=cr.rowcount,
         )
 
     def unlink_m2m_pairs(
@@ -814,7 +886,8 @@ class PostgresBackend:
             y_to_xs[y].add(x)
         for y, xs in y_to_xs.items():
             xs_to_ys[frozenset(xs)].add(y)
-        model.env.cr.execute(
+        cr = model.env.cr
+        cr.execute(
             SQL(
                 "DELETE FROM %s WHERE %s",
                 SQL.identifier(relation),
@@ -829,6 +902,13 @@ class PostgresBackend:
                     for xs, ys in xs_to_ys.items()
                 ),
             )
+        )
+        _debug.perf.count(
+            "backend.m2m.unlinked",
+            model=model._name,
+            relation=relation,
+            groups=len(xs_to_ys),
+            deleted=cr.rowcount,
         )
 
 

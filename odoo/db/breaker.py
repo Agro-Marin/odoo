@@ -3,7 +3,10 @@ from __future__ import annotations
 import threading
 from time import monotonic
 
+from odoo.libs.debug_log import DebugLog
+
 _INITIAL_COOLDOWN = 1.0
+_debug = DebugLog(__name__)
 
 _PROBE_ABANDON_AFTER = 60.0
 
@@ -63,10 +66,17 @@ class CircuitBreaker:
             if self._probing_since and now - self._probing_since < _PROBE_ABANDON_AFTER:
                 return False
             self._probing_since = now
+            _debug.logic(
+                "breaker.probe", cooldown=self._cooldown, failures=self.failures
+            )
             return True
 
     def record_success(self) -> None:
         with self._lock:
+            if _debug.lifecycle.enabled and self._open:
+                _debug.lifecycle(
+                    "breaker.closed", failures=self.failures, trips=self.trips
+                )
             self._open = False
             self._cooldown = 0.0
             self._opened_at = 0.0
@@ -82,11 +92,19 @@ class CircuitBreaker:
                 self._opened_at = monotonic()
                 self._probing_since = 0.0
                 self.trips += 1
+                _debug.lifecycle(
+                    "breaker.opened", cooldown=self._cooldown, trips=self.trips
+                )
                 return
             if self._probing_since:
                 self._cooldown = min(self._cooldown * 2, self.max_cooldown)
                 self._opened_at = monotonic()
                 self._probing_since = 0.0
+                _debug.logic(
+                    "breaker.cooldown_extended",
+                    cooldown=self._cooldown,
+                    failures=self.failures,
+                )
 
     def get_snapshot(self) -> dict:
         with self._lock:

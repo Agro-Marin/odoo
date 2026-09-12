@@ -9,6 +9,7 @@ from psycopg.errors import InsufficientPrivilege
 
 import odoo
 import odoo.release  # noqa: F401  binds the submodule so `odoo.release.version` resolves below
+from odoo.libs.debug_log import DebugLog
 from odoo.service import db, server
 from odoo.tools import config
 
@@ -16,6 +17,7 @@ from . import Command
 from .command import check_db_not_maintenance
 
 _logger = logging.getLogger("odoo")
+_debug = DebugLog(__name__)
 
 
 def warn_running_as_root() -> None:
@@ -113,7 +115,15 @@ def run_server(args: list[str]) -> None:
     stop = config["stop_after_init"]
 
     write_pid_file()
+    _debug.lifecycle(
+        "cli.server.start",
+        databases=len(config["db_name"]),
+        stop_after_init=stop,
+        workers=config["workers"],
+        test_enable=config["test_enable"],
+    )
     rc = server.start(preload=config["db_name"], stop=stop)
+    _debug.lifecycle("cli.server.exit", rc=rc)
     sys.exit(rc)
 
 

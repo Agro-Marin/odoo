@@ -2,11 +2,14 @@ import logging
 import typing
 from collections.abc import Collection, Mapping, Sequence
 
+from odoo.libs.debug_log import DebugLog
+
 from ... import decorators as api
 from ...helpers import get_fields_by_name
 from ._model_stubs import _ModelStubs
 
 _orm_cache = logging.getLogger("odoo.orm.cache")
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from ..._typing import IdType
@@ -126,6 +129,12 @@ class CacheMixin(_ModelStubs):
         if found is None:
             return
         field, overlap = found
+        _debug.logic(
+            "cache.invalidate_refused_pending_write",
+            model=self._name,
+            field=field.name,
+            pending=len(overlap),
+        )
         raise ValueError(
             f"Refusing to invalidate {field} on records {overlap[:10]} with "
             f"flush=False: they hold a pending write that would be silently "

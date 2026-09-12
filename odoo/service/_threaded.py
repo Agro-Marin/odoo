@@ -14,6 +14,7 @@ import werkzeug.serving
 
 from odoo import db
 from odoo.db import PoolError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import as_worker_thread, current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.tools.cache import log_ormcache_stats
@@ -41,6 +42,7 @@ from .lifecycle import preload_registries, restart
 from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 _RECYCLE_MAX_AGE = "get_max_age"
 _RECYCLE_CONN_LOST = "connection_lost"
@@ -151,6 +153,14 @@ class ThreadedServer(CommonServer):
             if not thread.is_alive():
                 self.limits_reached_threads.remove(thread)
         if self.limits_reached_threads or memory_over_limit:
+            _debug.logic(
+                "server.limits_reached",
+                threads=len(self.limits_reached_threads),
+                memory_over_limit=memory_over_limit,
+                since_s=0.0
+                if not self.limit_reached_time
+                else now - self.limit_reached_time,
+            )
             self.limit_reached_time = self.limit_reached_time or now
         else:
             self.limit_reached_time = None
@@ -186,7 +196,12 @@ class ThreadedServer(CommonServer):
             thread = current_worker_thread()
             thread.start_time = time.monotonic()
             try:
-                process_jobs(db_name)
+                with _debug.perf(
+                    "server.process_jobs",
+                    db=db_name,
+                    kind=getattr(process_jobs, "__qualname__", None),
+                ):
+                    process_jobs(db_name)
             except Exception:
                 cron_logger.warning(
                     "Uncaught error for database %s", db_name, exc_info=True
@@ -337,10 +352,20 @@ class ThreadedServer(CommonServer):
                 self.settings.limit_time_cpu,
             )
 
+        _debug.lifecycle(
+            "server.threaded.start",
+            http=self.settings.http_enable and (self.settings.test_enable or not stop),
+            stop_after_init=stop,
+        )
         if self.settings.http_enable and (self.settings.test_enable or not stop):
             self.spawn_http_server()
 
     def stop(self) -> None:
+        _debug.lifecycle(
+            "server.threaded.stop",
+            phoenix=_process_state.server_phoenix,
+            stop_after_init=self._stop_after_init,
+        )
         if _process_state.server_phoenix:
             self.logger.info("Initiating server reload")
         elif self._stop_after_init:

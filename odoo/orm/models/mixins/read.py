@@ -5,6 +5,7 @@ from typing import Self
 
 from odoo.exceptions import MissingError
 from odoo.libs.accel import batch_cache_fill as _batch_cache_fill
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
+_debug = DebugLog(__name__)
 
 
 class ReadMixin(_ModelStubs):
@@ -112,6 +114,12 @@ class ReadMixin(_ModelStubs):
                 except MissingError:
                     vals.clear()
             if miss_indices and is_cache_detached(field, env, field_cache):
+                _debug.logic(
+                    "read.cache_detached_slow_path",
+                    model=self._name,
+                    field=name,
+                    misses=len(miss_indices),
+                )
                 self._read_format_scalar_slow(name, field, results, use_display_name)
             return
         _detached = False
@@ -272,6 +280,14 @@ class ReadMixin(_ModelStubs):
                 fnames.append(field.name)
         else:
             fnames = [field.name]
+        _debug.logic(
+            "read.fetch_field",
+            model=self._name,
+            field=field.name,
+            prefetch=field.prefetch,
+            fields=len(fnames),
+            records=len(self),
+        )
         self.fetch(fnames)
 
     @api.private
@@ -292,7 +308,14 @@ class ReadMixin(_ModelStubs):
             try:
                 self.check_access("read")
             except MissingError:
+                before = len(self)  # debuglog
                 self = self.exists()
+                _debug.logic(
+                    "read.fetch.missing_records_dropped",
+                    model=self._name,
+                    before=before,
+                    after=len(self),
+                )
                 self.check_access("read")
             if not fields_to_fetch:
                 return
@@ -319,6 +342,13 @@ class ReadMixin(_ModelStubs):
 
         if fetched != self:
             forbidden = (self - fetched).exists()
+            _debug.logic(
+                "read.fetch.short",
+                model=self._name,
+                requested=len(self),
+                fetched=len(fetched),
+                forbidden=len(forbidden),
+            )
             if forbidden:
                 msg = "read"
                 raise self.env["ir.rule"]._prepare_access_error(msg, forbidden)

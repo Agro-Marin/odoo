@@ -11,6 +11,7 @@ from odoo.exceptions import AccessError, UserError
 from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.datetime import utc
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     SQL,
     OrderedSet,
@@ -60,6 +61,7 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 _logger = logging.getLogger("odoo.api")
+_debug = DebugLog(__name__)
 
 
 class _Protecting:
@@ -117,6 +119,9 @@ class Environment(Mapping[str, "BaseModel"]):
         transaction = cr.transaction
         if transaction is None:
             transaction = cr.transaction = Transaction(Registry(cr.dbname))
+            _debug.lifecycle(
+                "environment.transaction_attached", db=cr.dbname, uid=uid, su=su
+            )
         return transaction.environment(cr, uid, context, su)
 
     @classmethod
@@ -297,6 +302,13 @@ class Environment(Mapping[str, "BaseModel"]):
             if ref_cache.get(cache_key) or record.exists():
                 ref_cache[cache_key] = True
                 return record
+            _debug.logic(
+                "environment.ref.record_missing",
+                xml_id=xml_id,
+                model=res_model,
+                res_id=res_id,
+                raise_if_not_found=raise_if_not_found,
+            )
             if raise_if_not_found:
                 raise ValueError(
                     f"No record found for unique ID {xml_id}. It may have been deleted."
@@ -340,6 +352,12 @@ class Environment(Mapping[str, "BaseModel"]):
         company_ids = self.context.get("allowed_company_ids", [])
         if company_ids and not self.su:
             if set(company_ids) - set(self.user._get_company_ids()):
+                _debug.logic(
+                    "environment.company.unauthorized",
+                    uid=self.uid,
+                    allowed=company_ids,
+                    user_companies=self.user._get_company_ids(),
+                )
                 raise AccessError(
                     self._("Access to unauthorized or invalid companies.")
                 )
@@ -349,6 +367,7 @@ class Environment(Mapping[str, "BaseModel"]):
     def company(self) -> BaseModel:
         if company_ids := self._get_allowed_company_ids():
             return self["res.company"].browse(company_ids[0])
+        _debug.logic("environment.company.fallback_to_user", uid=self.uid)
         return self.user.company_id.with_env(self)
 
     @functools.cached_property
@@ -410,12 +429,14 @@ class Environment(Mapping[str, "BaseModel"]):
         return source
 
     def clear(self) -> None:
+        _debug.lifecycle("environment.clear", uid=self.uid)
         reset_cached_properties(self)
         self.transaction.clear()
 
     def invalidate_all(
         self, flush: bool = True, *, keep_new_records: bool = False
     ) -> None:
+        _debug.lifecycle("environment.invalidate_all", uid=self.uid, flush=flush)
         if flush:
             self.flush_all()
         self.transaction.invalidate_field_data(keep_new_records=keep_new_records)
@@ -508,6 +529,11 @@ class Environment(Mapping[str, "BaseModel"]):
         if not fields_to_flush:
             return
 
+        _debug.pipeline(
+            "environment.flush_query",
+            fields=len(fields_to_flush),
+            first=f"{fields_to_flush[0].model_name}.{fields_to_flush[0].name}",
+        )
         first = fields_to_flush[0]
         if len(fields_to_flush) == 1:
             self[first.model_name].flush_model([first.name])

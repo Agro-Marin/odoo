@@ -22,6 +22,7 @@ if os.name == "posix":
 
 from odoo import db
 from odoo.libs import backoff
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks, stripped_sys_argv
@@ -34,6 +35,7 @@ from ._worker import Worker, WorkerCron, WorkerHTTP, WorkerJob
 from .lifecycle import preload_registries
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 GRACEFUL_STOP_TIMEOUT_S = 60.0
 
@@ -267,6 +269,13 @@ class PreforkServer(CommonServer):
             worker.spawn_time = time.monotonic()
             self.workers[pid] = worker
             workers_registry[pid] = worker
+            _debug.lifecycle(
+                "prefork.worker_spawned",
+                kind=klass.__name__,
+                pid=pid,
+                generation=self.generation,
+                workers=len(self.workers),
+            )
             return worker
         else:
             for _sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
@@ -398,6 +407,13 @@ class PreforkServer(CommonServer):
                 return
             name = worker.__class__.__name__
             lifetime = time.monotonic() - getattr(worker, "spawn_time", 0.0)
+        _debug.lifecycle(
+            "prefork.worker_exited",
+            kind=name,
+            pid=pid,
+            lifetime_s=lifetime,
+            status=status,
+        )
         if lifetime >= WORKER_MIN_HEALTHY_LIFETIME_S:
             self._consecutive_fast_deaths = 0
             self._respawn_not_before = 0.0
@@ -410,6 +426,11 @@ class PreforkServer(CommonServer):
             self._consecutive_fast_deaths += 1
             delay = self._get_respawn_delay()
             self._respawn_not_before = time.monotonic() + delay
+            _debug.logic(
+                "prefork.fast_death_backoff",
+                fast_deaths=self._consecutive_fast_deaths,
+                backoff_s=delay,
+            )
             cause = (
                 f"exit {os.WEXITSTATUS(status)}"
                 if exited_nonzero

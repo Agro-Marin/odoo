@@ -12,6 +12,8 @@ from PIL import (
 from PIL.Image import Image as PILImage
 from PIL.Image import Palette, Resampling
 
+from odoo.libs.debug_log import DebugLog
+
 __all__ = [
     "EXIF_TAG_ORIENTATION",
     "FILETYPE_BASE64_MAGICWORD",
@@ -62,6 +64,7 @@ FILETYPE_BASE64_MAGICWORD = {
 EXIF_TAG_ORIENTATION = 0x112
 
 IMAGE_MAX_RESOLUTION = 50e6
+_debug = DebugLog(__name__)
 
 
 Image.preinit()
@@ -314,28 +317,36 @@ def image_process(
     ):
         return source
 
-    image = processor(source, verify_resolution)
-    if size:
-        if crop:
-            center_x = 0.5
-            center_y = 0.5
-            if crop == "top":
-                center_y = 0
-            elif crop == "bottom":
-                center_y = 1
-            image.crop_resize(
-                max_width=size[0],
-                max_height=size[1],
-                center_x=center_x,
-                center_y=center_y,
-            )
-        else:
-            image.resize(max_width=size[0], max_height=size[1], expand=expand)
-    if padding:
-        image.add_padding(padding)
-    if colorize:
-        image.colorize(colorize if isinstance(colorize, tuple) else None)
-    return image.image_quality(quality=quality, output_format=output_format)
+    with _debug.perf(
+        "image.process",
+        source_bytes=len(source),
+        size=f"{size[0]}x{size[1]}" if size else None,
+        crop=crop,
+        quality=quality,
+        output_format=output_format or None,
+    ):
+        image = processor(source, verify_resolution)
+        if size:
+            if crop:
+                center_x = 0.5
+                center_y = 0.5
+                if crop == "top":
+                    center_y = 0
+                elif crop == "bottom":
+                    center_y = 1
+                image.crop_resize(
+                    max_width=size[0],
+                    max_height=size[1],
+                    center_x=center_x,
+                    center_y=center_y,
+                )
+            else:
+                image.resize(max_width=size[0], max_height=size[1], expand=expand)
+        if padding:
+            image.add_padding(padding)
+        if colorize:
+            image.colorize(colorize if isinstance(colorize, tuple) else None)
+        return image.image_quality(quality=quality, output_format=output_format)
 
 
 def average_dominant_color(

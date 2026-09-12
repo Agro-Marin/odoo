@@ -1,12 +1,15 @@
 import itertools
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL, normalize_identifier
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
     from odoo.api import Environment
+
+_debug = DebugLog(__name__)
 
 
 def _prepare_table_sql(alias: str, table: SQL) -> SQL:
@@ -283,11 +286,19 @@ class Query:
                 self._ids = tuple(
                     id_ for (id_,) in self._env.execute_query(self.select())
                 )
+                _debug.perf.count(
+                    "query.result_ids",
+                    table=self.table,
+                    joins=len(self._joins),
+                    rows=len(self._ids),
+                    limit=self.limit,
+                )
             return self._ids
 
         # Another transaction: the result is neither read from nor written to
         # the memo, which belongs to the cursor that built this query and would
         # otherwise hand back rows read in a transaction that already ended.
+        _debug.logic("query.result_ids.foreign_transaction", table=self.table)
         return tuple(id_ for (id_,) in env.execute_query(self.select()))
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:

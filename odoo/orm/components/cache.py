@@ -2,6 +2,8 @@ from collections import ChainMap, defaultdict
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
+
 from ._protocols import FieldKey
 
 if TYPE_CHECKING:
@@ -9,6 +11,8 @@ if TYPE_CHECKING:
 
 _MISSING = object()
 _REITERABLE = (list, tuple, set, frozenset)
+
+_debug = DebugLog(__name__)
 
 
 class FieldCache[F: FieldKey = FieldKey]:
@@ -149,6 +153,14 @@ class FieldCache[F: FieldKey = FieldKey]:
     def invalidate_all(self, *, keep: Callable[[Any], bool] | None = None) -> None:
         if self._on_detach is not None:
             self._on_detach()
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "field_cache.invalidate_all",
+                fields=len(self._data.keys() | self._contexts.keys()),
+                entries=sum(len(values) for values in self._data.values()),
+                dirty_fields=sum(1 for ids in self._dirty.values() if ids),
+                dirty_entries=self.get_dirty_entry_count(),
+            )
         if not self._dirty and keep is None:
             self._data.clear()
             self._contexts.clear()
@@ -174,6 +186,13 @@ class FieldCache[F: FieldKey = FieldKey]:
     def clear(self) -> None:
         if self._on_detach is not None:
             self._on_detach()
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "field_cache.clear",
+                fields=len(self._data.keys() | self._contexts.keys()),
+                dirty_entries=self.get_dirty_entry_count(),
+                patched_fields=len(self._patches),
+            )
         self._data.clear()
         self._contexts.clear()
         self._dirty.clear()

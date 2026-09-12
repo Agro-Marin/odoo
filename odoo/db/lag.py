@@ -3,6 +3,10 @@ from __future__ import annotations
 import threading
 from time import monotonic
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 LAG_SQL = """
     SELECT coalesce(
         CASE
@@ -90,8 +94,17 @@ class ReplicaLagGate:
     def record(self, lag_seconds: float | None) -> None:
         lag = 0.0 if lag_seconds is None else max(0.0, lag_seconds)
         with self._lock:
+            was_lagging = self._lagging  # debuglog
             self.last_lag = lag
             self._lagging = self.enabled and lag > self.max_lag
+            _debug.perf.count(
+                "replica.lag_sampled",
+                lag=lag,
+                max_lag=self.max_lag,
+                lagging=self._lagging,
+                changed=was_lagging != self._lagging,
+                measured=lag_seconds is not None,
+            )
 
     def get_snapshot(self) -> dict:
         with self._lock:

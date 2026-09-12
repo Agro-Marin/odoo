@@ -1,7 +1,11 @@
 from collections import defaultdict
 
+from odoo.libs.debug_log import DebugLog
+
 from ..domain.ast import Domain, DomainCondition, DomainCustom, DomainNary, DomainNot
 from ..parsing import parse_field_expr, regex_order
+
+_debug = DebugLog(__name__)
 
 
 class _DependencyCollector:
@@ -73,6 +77,13 @@ def flush_search_dependencies(model, domain, order):
     collector.collect_domain(model, domain)
     if order:
         collector.collect_order(model, order)
+    _debug.logic(
+        "search.flush_dependencies",
+        model=model._name,
+        opaque=collector.opaque,
+        models=len(collector.fields_by_model),
+        fields=sum(len(f) for f in collector.fields_by_model.values()),
+    )
     if collector.opaque:
         model.env.flush_all()
     else:

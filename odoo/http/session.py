@@ -14,6 +14,7 @@ from stat import S_ISREG
 from typing import Any
 
 from odoo.libs._vendor import sessions
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps_bytes as _dumps_bytes
 from odoo.libs.json import loads as _loads
 from odoo.tools import get_lang
@@ -28,6 +29,8 @@ from .constants import (
 )
 from .core import request
 from .exceptions import SessionExpiredException
+
+_debug = DebugLog(__name__)
 
 _SESSION_KEY_LENGTH = 84
 assert STORED_SESSION_BYTES < _SESSION_KEY_LENGTH, (
@@ -182,6 +185,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 self.save(session)
 
     def stage_rotation(self, session: Session, env: Any, soft: bool = False) -> None:
+        _debug.lifecycle("http.session.rotate", soft=soft, uid=session.uid)
         if session.rotation is not None:
             return
         original = session.snapshot()
@@ -517,7 +521,15 @@ class Session(collections.abc.MutableMapping):
         self["pre_uid"] = pre_uid
 
         user = env["res.users"].browse(pre_uid)
-        if auth_info.get("mfa") == "skip" or not user._get_mfa_url():
+        mfa_required = auth_info.get("mfa") != "skip" and bool(user._get_mfa_url())
+        _debug.logic(
+            "http.session.authenticated",
+            db=env.registry.db_name,
+            uid=pre_uid,
+            mfa_required=mfa_required,
+            auth_type=credential.get("type"),
+        )
+        if not mfa_required:
             self.finalize_login(env)
 
         if request and request.session is self and request.db == env.registry.db_name:
@@ -545,6 +557,7 @@ class Session(collections.abc.MutableMapping):
         )
 
     def logout(self, keep_db: bool = False) -> None:
+        _debug.lifecycle("http.session.logout", uid=self.uid, keep_db=keep_db)
         db = self.db if keep_db else None
         debug = self.debug
         self.clear()

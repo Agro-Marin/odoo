@@ -13,6 +13,7 @@ import psycopg
 from psycopg_pool import ConnectionPool as _PsycopgPool
 from psycopg_pool import PoolClosed, PoolTimeout
 
+from odoo.libs.debug_log import DebugLog
 from odoo.release import MIN_PG_VERSION
 
 from .budget import ConnectionBudget
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 _logger_conn = _logger.getChild("connection")
+_debug = DebugLog(__name__)
 
 
 class _SuppressKnownPoolWarnings(logging.Filter):
@@ -229,6 +231,14 @@ class ConnectionPool:
             self._pools[key] = pool
             self.stats.record_pool_created()
             self._debug("Created pool for %s", dict(key))
+            _debug.lifecycle(
+                "pool.created",
+                db=dict(key).get("database"),
+                readonly=self._readonly,
+                pools=len(self._pools),
+                min=self._minconn,
+                max=self._maxconn,
+            )
 
             ident = frozenset(t for t in key if t[0] != "password_fp")
             stale_keys = [
@@ -306,6 +316,14 @@ class ConnectionPool:
 
         if not self._budget.acquire(deadline - monotonic()):
             self.stats.record_borrow_failed()
+            _debug.logic(
+                "pool.budget_exhausted",
+                db=dbname,
+                budget=self._budget.maxconn,
+                pools=len(self._pools),
+                direct=self._direct_out,
+                waited_ms=(monotonic() - started) * 1000.0,
+            )
             raise self._prepare_budget_exhausted_error()
         conn = None
         try:
@@ -317,6 +335,14 @@ class ConnectionPool:
             self._checkouts.track(conn, _get_borrow_caller())
             self._warn_about_leaks()
             self.stats.record_borrow(started)
+            if _debug.perf.enabled:
+                _debug.perf.count(
+                    "pool.borrow",
+                    db=dbname,
+                    wait_ms=(monotonic() - started) * 1000.0,
+                    pool_size=pool.get_stats().get("pool_size", 0),
+                    available=pool.get_stats().get("pool_available", 0),
+                )
             return conn
         except BaseException:
             self.stats.record_borrow_failed()
@@ -406,6 +432,11 @@ class ConnectionPool:
                 self._direct_out += 1
             self._checkouts.track(conn, _get_borrow_caller())
             self.stats.record_direct_borrow()
+            _debug.lifecycle(
+                "pool.borrow_direct",
+                db=kwargs.get("dbname"),
+                direct_out=self._direct_out,
+            )
             return conn
         except BaseException:
             self.stats.record_borrow_failed()
@@ -444,6 +475,13 @@ class ConnectionPool:
                 self._debug("Pool closed under borrow(); rebuilding for %s", dict(key))
                 pool = self._get_or_create_pool(key, connection_info, deadline)
             except PoolTimeout as e:
+                _debug.logic(
+                    "pool.borrow_timeout",
+                    db=dict(key).get("database"),
+                    attempt=attempt,
+                    pool_size=pool.get_stats().get("pool_size", 0),
+                    waiting=pool.get_stats().get("requests_waiting", 0),
+                )
                 if pool.get_stats().get("pool_size", 0) == 0:
                     with self._lock:
                         if self._pools.get(key) is pool:
@@ -498,6 +536,11 @@ class ConnectionPool:
         try:
             if not keep_in_pool:
                 self.stats.record_connection_discarded()
+                _debug.lifecycle(
+                    "pool.connection_discarded",
+                    closed=connection.closed,
+                    pool_size=pool.get_stats().get("pool_size", 0),
+                )
                 with contextlib.suppress(Exception):
                     connection.close()
 

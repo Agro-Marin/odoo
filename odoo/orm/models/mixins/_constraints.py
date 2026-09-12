@@ -4,6 +4,7 @@ import logging
 import typing
 from inspect import getmembers
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 
 from ... import decorators as api
@@ -15,6 +16,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_crud = logging.getLogger("odoo.orm.crud")
+_debug = DebugLog(__name__)
 
 
 class _ConstraintsMixin(_ModelStubs):
@@ -84,6 +86,13 @@ class _ConstraintsMixin(_ModelStubs):
                 check._constrains
             ) and excluded_names.isdisjoint(check._constrains):
                 use_sudo = getattr(check, "_constrains_sudo", True)
+                _debug.pipeline(
+                    "constraints.check",
+                    model=self._name,
+                    method=getattr(check, "__name__", "?"),
+                    records=len(self),
+                    sudo=use_sudo,
+                )
                 check(records_sudo if use_sudo else records_user)
                 if prof.debug:
                     _count += 1

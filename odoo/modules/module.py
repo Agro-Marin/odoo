@@ -17,6 +17,7 @@ from pathlib import Path
 
 import odoo.upgrade
 from odoo import release, tools
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.hashing import ALGO_TAG, prepare_cache_hasher, update_from_file
 
 import odoo.addons
@@ -108,6 +109,7 @@ TYPED_FIELD_DEFINITION_RE = re.compile(
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _ManifestStat = tuple[int, int] | None
 """``(st_mtime_ns, st_size)`` of a module's manifest, or None when it has none."""
@@ -577,11 +579,14 @@ def load_odoo_module(module_name: str) -> None:
         return
 
     try:
-        __import__(qualname)
+        with _debug.perf("module.import", module=module_name) as span:
+            __import__(qualname)
 
-        manifest = Manifest.for_addon(module_name)
-        if manifest and (post_load := manifest.get("post_load")):
-            getattr(sys.modules[qualname], post_load)()
+            manifest = Manifest.for_addon(module_name)
+            post_load = manifest.get("post_load") if manifest else None
+            span.set(post_load=post_load)
+            if post_load:
+                getattr(sys.modules[qualname], post_load)()
 
     except AttributeError as err:
         _logger.critical("Couldn't load module %s", module_name)

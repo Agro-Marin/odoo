@@ -4,6 +4,7 @@ import typing
 from typing import Self
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import ormcache
 
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.models")
 _orm_read = logging.getLogger("odoo.orm.read")
+_debug = DebugLog(__name__)
 
 
 def _is_unset_name(value: typing.Any) -> bool:
@@ -157,6 +159,12 @@ class SearchMixin(_ModelStubs):
             search_fnames = usable
         if not search_fnames:
             return self._search_display_name_unsearchable(operator, value)
+        _debug.logic(
+            "search.display_name",
+            model=self._name,
+            operator=operator,
+            fields=search_fnames,
+        )
         if operator.endswith("like") and not value and "=" not in operator:
             return (
                 Domain.FALSE if operator in Domain.NEGATIVE_OPERATORS else Domain.TRUE

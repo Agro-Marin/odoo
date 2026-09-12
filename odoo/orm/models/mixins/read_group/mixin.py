@@ -4,6 +4,7 @@ import itertools
 import typing
 from collections import defaultdict
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, unique
 
 from .... import decorators as api
@@ -18,6 +19,8 @@ from .sql import _ReadGroupSQLMixin
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
+
+_debug = DebugLog(__name__)
 
 
 class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMixin):
@@ -206,6 +209,16 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 if self._can_groupby_spec_duplicate_rows(self, spec)
             )
 
+        _debug.logic(
+            "read_group.grouping_sets",
+            model=self._name,
+            sets=len(grouping_sets),
+            groupby=len(all_groupby_specs),
+            aggregates=len(aggregates),
+            many2many=len(many2many_groupby_specs),
+            dedup=bool(many2many_groupby_specs)
+            and self._read_group_is_dedup_required(aggregates),
+        )
         if many2many_groupby_specs and self._read_group_is_dedup_required(aggregates):
             if self._read_grouping_sets_split_m2m(
                 domain,
@@ -357,6 +370,12 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
     ) -> list[tuple]:
         query = self._search(domain)
         if query.is_empty():
+            _debug.logic(
+                "read_group.empty_query",
+                model=self._name,
+                groupby=len(groupby),
+                having=bool(having),
+            )
             self._check_read_group_spec_access(groupby, aggregates, query)
             if not groupby:
                 if having:
@@ -396,6 +415,15 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             query.having = self._read_group_having(list(having), query)
 
         row_values = self.env.execute_query(query.select(*select_args))
+        _debug.perf.count(
+            "read_group.rows",
+            model=self._name,
+            groupby=len(groupby),
+            aggregates=len(aggregates),
+            rows=len(row_values),
+            limit=limit,
+            offset=offset,
+        )
 
         if not row_values:
             return []
@@ -570,6 +598,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
             (rows_dict and fill_temporal) or isinstance(fill_temporal, dict)
         ):
             return rows_dict
+        _debug.logic(
+            "read_group.fill_temporal",
+            model=self._name,
+            rows=len(rows_dict),
+            groupby=len(lazy_groupby),
+            options=isinstance(fill_temporal, dict),
+        )
         if not isinstance(fill_temporal, dict):
             fill_temporal = {}
         else:

@@ -3,6 +3,7 @@ import typing
 from psycopg.types.json import Jsonb
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.translate import _
 
@@ -11,6 +12,8 @@ if typing.TYPE_CHECKING:
 
 
 from ._model_stubs import _ModelStubs
+
+_debug = DebugLog(__name__)
 
 
 class TranslationMixin(_ModelStubs):
@@ -180,16 +183,42 @@ class TranslationMixin(_ModelStubs):
         self._check_translation_langs(translations, source_lang)
 
         if not field.translate:
+            _debug.logic(
+                "translation.update_skipped",
+                model=self._name,
+                field=field_name,
+                reason="not_translated",
+            )
             return False
 
         if not field.store and not field.related and field.compute:
+            _debug.logic(
+                "translation.update_skipped",
+                model=self._name,
+                field=field_name,
+                reason="computed_unstored",
+            )
             return False
 
         if field.related and not field.store:
             related_path, field_name = field.related.rsplit(".", 1)
+            _debug.logic(
+                "translation.update_delegated",
+                model=self._name,
+                field=field.name,
+                related=field.related,
+            )
             return self.mapped(related_path)._update_field_translations(
                 field_name, translations, digest, source_lang=source_lang
             )
+        _debug.pipeline(
+            "translation.update",
+            model=self._name,
+            field=field_name,
+            langs=len(translations),
+            source_lang=source_lang,
+            mode="model" if field.translate is True else "terms",
+        )
 
         if field.translate is True:
             if not self._update_model_translations(field_name, translations):

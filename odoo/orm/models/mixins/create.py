@@ -4,6 +4,7 @@ from itertools import batched
 from operator import attrgetter
 from typing import Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _n1_enabled, _OrmProfile
 from odoo.tools import SQL, OrderedSet, clean_context
 from odoo.tools.misc import PENDING
@@ -25,6 +26,8 @@ from ._model_stubs import _ModelStubs
 if typing.TYPE_CHECKING:
     from ..._typing import BaseModel
     from ...fields.base import Field
+
+_debug = DebugLog(__name__)
 
 
 class CreateMixin(_ModelStubs):
@@ -80,6 +83,15 @@ class CreateMixin(_ModelStubs):
         for model, names in parent_fields.items():
             defaults.update(env[model].default_get(names))
 
+        _debug.logic(
+            "create.default_get",
+            model=self._name,
+            requested=len(fields),
+            resolved=len(defaults),
+            from_context=sum(1 for name in fields if name in context_defaults),
+            from_ir_default=sum(1 for name in fields if name in ir_defaults),
+            parent_models=len(parent_fields),
+        )
         return defaults
 
     @api.model
@@ -208,6 +220,13 @@ class CreateMixin(_ModelStubs):
 
             data_list.append(data)
 
+        _debug.pipeline(
+            "create.partitioned",
+            model=self._name,
+            records=len(data_list),
+            inverse_hooks=len(inverses_by_hook),
+            bypass_access_fields=len(bypass_access_ids),
+        )
         for field, co_ids in bypass_access_ids.items():
             self.env[field.comodel_name].browse(co_ids).check_access("read")
         return data_list, inverses_by_hook
@@ -223,6 +242,12 @@ class CreateMixin(_ModelStubs):
                     parent.write(data["inherited"][model_name])
 
             if parent_data_list:
+                _debug.pipeline(
+                    "create.parent_records",
+                    model=self._name,
+                    parent=model_name,
+                    records=len(parent_data_list),
+                )
                 parents = self.env[model_name].create(
                     [data["inherited"][model_name] for data in parent_data_list]
                 )
@@ -376,6 +401,12 @@ class CreateMixin(_ModelStubs):
             return
 
         records = self.browse().concat(*(self.new(vals) for vals in vals_list_todo))
+        _debug.pipeline(
+            "create.precompute",
+            model=self._name,
+            records=len(vals_list_todo),
+            fields=len(precomputable),
+        )
 
         givens = [
             {

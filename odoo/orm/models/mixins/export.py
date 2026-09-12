@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Self
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, groupby, unique
 from odoo.tools.translate import _
 
@@ -14,6 +15,7 @@ from ...parsing import fix_import_export_id_paths
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 if typing.TYPE_CHECKING:
@@ -323,4 +325,13 @@ class ExportMixin(_ModelStubs):
                 )
             )
         field_paths = [fix_import_export_id_paths(f) for f in fields_to_export]
-        return {"datas": self._export_rows(field_paths)}
+        with _debug.perf(
+            "export.data",
+            cr=self.env.cr,
+            model=self._name,
+            records=len(self),
+            fields=len(field_paths),
+        ) as span:
+            rows = self._export_rows(field_paths)
+            span.set(rows=len(rows))
+        return {"datas": rows}

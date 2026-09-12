@@ -4,6 +4,7 @@ import typing
 from collections.abc import Callable, Collection, Iterable, Iterator
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import _OrmProfile
 
 from .._recordset import is_recordset
@@ -15,6 +16,7 @@ if typing.TYPE_CHECKING:
     from .base import Field
 
 _orm_compute = logging.getLogger("odoo.orm.compute")
+_debug = DebugLog(__name__)
 
 
 def call_hook(
@@ -76,9 +78,16 @@ def recompute(field: Field, records: ModelLike) -> None:
             pass
 
         existing = records.exists()
+        missing = records - existing
+        _debug.logic(
+            "field.recompute.missing_records",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
+            missing=len(missing),
+        )
         if existing:
             func(existing)
-        missing = records - existing
         for f in records.pool.field_computed[field]:
             records.env.remove_to_compute(f, missing)
 
@@ -121,6 +130,13 @@ def _recompute_singly(
     if expanded:
         records = records.browse(
             itertools.islice(_expand_ids(record_ids[0], to_compute_ids), PREFETCH_MAX)
+        )
+        _debug.logic(
+            "field.recompute.recursive_expanded",
+            model=field.model_name,
+            field=field.name,
+            pending=len(to_compute_ids),
+            batch=len(records),
         )
 
     try:

@@ -15,6 +15,7 @@ from odoo.db.errors import (
 )
 from odoo.exceptions import ConcurrencyError, ValidationError
 from odoo.libs import backoff
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -22,6 +23,7 @@ if typing.TYPE_CHECKING:
     from odoo.api import Environment
 
 _logger = logging.getLogger("odoo.service.model")
+_debug = DebugLog(__name__)
 
 PG_CONCURRENCY_ERRORS_TO_RETRY = PG_RETRY_SQLSTATES
 PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
@@ -99,6 +101,11 @@ def _commit_and_signal_changes(env: Environment) -> None:
 
 
 def _rollback_transaction(env: Environment, exc: Exception) -> None:
+    _debug.lifecycle(
+        "retrying.rollback",
+        error=type(exc).__name__,
+        sqlstate=getattr(exc, "sqlstate", None),
+    )
     try:
         env.cr.rollback()
     except Exception as rollback_error:
@@ -135,6 +142,11 @@ def retrying[T](
                     break
                 env.cr.flush()
                 _commit_and_signal_changes(env)
+                _debug.pipeline(
+                    "retrying.committed",
+                    func=getattr(func, "__qualname__", None),
+                    attempt=tryno,
+                )
                 break
             except _RECOVERY_EXCEPTIONS as exc:
                 if env.cr.closed or env.cr.commit_count > commits_before:
@@ -148,6 +160,12 @@ def retrying[T](
                     translated = None
                     with suppress(Exception):
                         translated = _integrity_error_to_validation_error(env, exc)
+                    _debug.logic(
+                        "retrying.integrity_error",
+                        constraint=exc.diag.constraint_name,
+                        table=exc.diag.table_name,
+                        translated=translated is not None,
+                    )
                     if translated is not None:
                         raise translated from exc
                     raise
@@ -170,6 +188,13 @@ def retrying[T](
                     tryno,
                     base=BASE_CONCURRENCY_BACKOFF_SECONDS,
                     cap=MAX_CONCURRENCY_BACKOFF_SECONDS,
+                )
+                _debug.logic(
+                    "retrying.retry",
+                    error=error,
+                    attempt=tryno,
+                    tries_left=tryleft,
+                    wait_s=wait_time,
                 )
                 _logger.info(
                     "%s, %s tries left, try again in %.04f sec...",

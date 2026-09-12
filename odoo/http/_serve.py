@@ -16,6 +16,7 @@ from werkzeug.exceptions import (
 import odoo.api
 from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service.transaction import retrying
@@ -32,6 +33,7 @@ from .stream import Stream
 from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _PROMOTE = object()
 """What `_serve_readonly` answers when the handler must be replayed read/write."""
@@ -102,9 +104,18 @@ class _RequestServeMixin(RequestState):
             try:
                 rule, args = router.match(return_rule=True)
             except NotFound as exc:
+                _debug.logic(
+                    "http.route.unmatched", path=self.httprequest.path, db=None
+                )
                 self.dispatcher = get_dispatcher_for_unmatched_route(self)(self)
                 set_error_response(exc, self._prepare_nodb_not_found_response(exc))
                 raise
+            _debug.pipeline(
+                "http.route.matched",
+                db=None,
+                endpoint=getattr(rule.endpoint, "__qualname__", None),
+                type=rule.endpoint.routing["type"],
+            )
             self._update_dispatcher(rule)
             self.dispatcher.pre_dispatch(rule, args)
             response = self.dispatcher.dispatch(rule.endpoint, args)
@@ -135,6 +146,12 @@ class _RequestServeMixin(RequestState):
                 registry = Registry(db)
             cr = registry.cursor(readonly=True)
             self.registry = registry.check_signaling(cr)
+            _debug.pipeline(
+                "http.registry.acquired",
+                db=db,
+                readonly_cursor=getattr(cr, "readonly", None),
+                reloaded=self.registry is not registry,
+            )
             return cr
         except (
             PoolError,
@@ -161,6 +178,13 @@ class _RequestServeMixin(RequestState):
             err = RegistryError(f"Cannot get registry {db}")
             err.db_absent = db_absent
             err.transient = not isinstance(e, psycopg.ProgrammingError)
+            _debug.logic(
+                "http.registry.unavailable",
+                db=db,
+                error=type(e).__name__,
+                db_absent=db_absent,
+                transient=err.transient,
+            )
             raise err from e
         except BaseException:
             if cr is not None:
@@ -171,6 +195,9 @@ class _RequestServeMixin(RequestState):
         try:
             rule, args = get_ir_http(registry)._match(self.httprequest.path)
         except NotFound as not_found_exc:
+            _debug.logic(
+                "http.route.unmatched", path=self.httprequest.path, db=registry.db_name
+            )
             self.dispatcher = get_dispatcher_for_unmatched_route(self)(self)
             return functools.partial(self._serve_ir_http_fallback, not_found_exc), True
 
@@ -178,6 +205,14 @@ class _RequestServeMixin(RequestState):
         readonly = rule.endpoint.routing["readonly"]
         if callable(readonly):
             readonly = readonly(rule.endpoint.func.__self__, rule, args)
+        _debug.pipeline(
+            "http.route.matched",
+            db=registry.db_name,
+            endpoint=getattr(rule.endpoint, "__qualname__", None),
+            type=rule.endpoint.routing["type"],
+            auth=rule.endpoint.routing.get("auth"),
+            readonly=bool(readonly),
+        )
         return functools.partial(self._serve_ir_http, rule, args), bool(readonly)
 
     def _serve_readwrite(
@@ -238,6 +273,11 @@ class _RequestServeMixin(RequestState):
             current_worker_thread().cursor_mode = "ro->rw"
             participant.on_rollback(exc)
             rewind_uploaded_files(self.httprequest, cause=exc)
+            _debug.logic(
+                "http.serve.promoted_to_rw",
+                method=self.httprequest.method,
+                path=self.httprequest.path,
+            )
             return _PROMOTE
         except Exception as exc:
             if not env.cr.closed and env.cr.commit_count == commits_before:
@@ -260,6 +300,7 @@ class _RequestServeMixin(RequestState):
         if env is None:
             raise RuntimeError("a database-bound request has an environment")
         if cr.readonly:
+            _debug.lifecycle("http.serve.cursor_replaced", db=env.registry.db_name)
             cr.close()
             cr = env.registry.cursor()
         else:
@@ -289,6 +330,13 @@ class _RequestServeMixin(RequestState):
             participant = RequestRetryParticipant(self)
 
             promoted = False
+            _debug.pipeline(
+                "http.serve.db",
+                db=registry.db_name,
+                uid=self.session.uid,
+                readonly_route=readonly,
+                readonly_cursor=getattr(cr, "readonly", None),
+            )
             if readonly and cr.readonly:
                 served = self._serve_readonly(serve_func, participant)
                 if served is not _PROMOTE:
@@ -362,7 +410,17 @@ class _RequestServeMixin(RequestState):
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
         registry = self._get_bound_registry()
         get_ir_http(registry)._authenticate(rule.endpoint)
+        _debug.pipeline(
+            "http.serve.authenticated",
+            endpoint=getattr(rule.endpoint, "__qualname__", None),
+            uid=None if self.env is None else self.env.uid,
+        )
         get_ir_http(registry)._pre_dispatch(rule, args)
         response = self.dispatcher.dispatch(rule.endpoint, args)
+        _debug.pipeline(
+            "http.serve.dispatched",
+            endpoint=getattr(rule.endpoint, "__qualname__", None),
+            status=getattr(response, "status_code", None),
+        )
         get_ir_http(registry)._post_dispatch(response)
         return response

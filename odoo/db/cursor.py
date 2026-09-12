@@ -15,6 +15,7 @@ from psycopg.pq import TransactionStatus as _TxStatus
 
 from odoo.libs.accel import rows_to_dicts as _rows_to_dicts
 from odoo.libs.datetime import real_time
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.func import Callbacks, frame_codeinfo
 from odoo.libs.sql import SQL
 
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
     from odoo.orm.runtime import Transaction
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _TX_IDLE = _TxStatus.IDLE
 
@@ -272,6 +274,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self._cnx.commit()
 
             self._closed = False
+            _debug.lifecycle(
+                "cursor.opened",
+                db=dbname,
+                readonly=self._readonly,
+                thread=self._thread.name,
+            )
         except BaseException:
             obj = self.__dict__.get("_obj")
             if obj is not None:
@@ -552,6 +560,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         clear_prepared_cache(self._cnx)
         self._schema_cache.invalidate_catalog_facts()
         mark_stale_cached_plan(exc)
+        _debug.logic(
+            "cursor.stale_plan_invalidated",
+            db=vars(self).get("dbname"),
+            error=type(exc).__name__,
+        )
         return True
 
     def _drain_sibling_connections(self) -> None:
@@ -560,6 +573,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         drain_db(self.dbname)
 
     def _invalidate_caches_after_ddl(self) -> None:
+        _debug.logic("cursor.ddl_detected", db=vars(self).get("dbname"))
         self.invalidate_cached_plans()
         self._schema_changed = True
 
@@ -676,6 +690,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             sync_cost = monotonic() - t0 - self._pipeline_statement_time
             if sync_cost > 0:
                 self._record_metrics(sync_cost, count=0, statement=False)
+            _debug.perf.count(
+                "cursor.pipeline",
+                db=self.dbname,
+                statements=self._pipeline_statements,
+                entered=self._pipeline_entered,
+                statement_ms=self._pipeline_statement_time * 1000.0,
+                sync_ms=max(sync_cost, 0.0) * 1000.0,
+            )
             self._pipeline_stack = None
             self._pipeline_depth = 0
             self._pipeline_entered = False
@@ -710,6 +732,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         finally:
             self._closed = True
             del self._obj
+            if _debug.lifecycle.enabled:
+                state = vars(self)  # debuglog
+                _debug.lifecycle(
+                    "cursor.closed",
+                    db=state.get("dbname"),
+                    keep_in_pool=keep_in_pool,
+                    commits=state.get("commit_count"),
+                    statements=state.get("sql_statement_count"),
+                )
             self.__pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
 
     def _is_connection_clean(self) -> bool:
@@ -726,9 +757,17 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 "Cannot commit inside a savepoint! "
                 "This would corrupt the savepoint's rollback state."
             )
-        self.flush()
+        with _debug.perf("cursor.commit.flush", cr=self, db=self.dbname):
+            self.flush()
         self._cnx.commit()
         self.commit_count += 1
+        _debug.lifecycle(
+            "cursor.committed",
+            db=self.dbname,
+            commits=self.commit_count,
+            schema_changed=self._schema_changed,
+            postcommit=len(self.postcommit),
+        )
         if self._schema_changed:
             self._schema_changed = False
             self._drain_sibling_connections()
@@ -750,6 +789,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._rollback()
 
     def _rollback(self) -> None:
+        _debug.lifecycle(
+            "cursor.rollback",
+            db=self.dbname,
+            prerollback=len(self.prerollback),
+            postrollback=len(self.postrollback),
+        )
         self.clear()
         self.postcommit.clear()
         try:

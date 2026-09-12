@@ -4,7 +4,10 @@ from typing import Protocol
 
 from odoo.db.cursor import BaseCursor
 from odoo.db.savepoint import _FlushingSavepoint
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import reset_cached_properties
+
+_debug = DebugLog(__name__)
 
 
 class CacheInvalidating(Protocol):
@@ -25,6 +28,12 @@ class _OrmFlushingSavepoint(_FlushingSavepoint):
             return
         self._clear_invalidated_caches(txn.registry)
         current = type(txn.registry).registries.get(txn.registry.db_name)
+        _debug.logic(
+            "savepoint.restore_orm_state",
+            db=txn.registry.db_name,
+            registry_replaced=current is not None and current is not txn.registry,
+            envs=len(txn.envs),
+        )
         if current is not None and current is not txn.registry:
             txn.reset()
         else:

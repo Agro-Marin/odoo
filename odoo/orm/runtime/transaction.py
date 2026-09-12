@@ -4,6 +4,7 @@ from contextlib import suppress
 from weakref import WeakSet, WeakValueDictionary
 from weakref import ref as weakref_ref
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import (
     NplusOneTracker,
     OrmProfiler,
@@ -30,6 +31,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.api")
 _orm_cache = logging.getLogger("odoo.orm.cache")
+_debug = DebugLog(__name__)
 
 MAX_FIXPOINT_ITERATIONS = 1000
 
@@ -134,6 +136,13 @@ class Transaction:
         self._orm_profiler: OrmProfiler | None = (
             OrmProfiler() if _orm_profiling_enabled else None
         )
+        _debug.lifecycle(
+            "transaction.new",
+            db=registry.db_name,
+            backend=type(self.backend).__name__,
+            n1_tracker=self._n1_tracker is not None,
+            orm_profiler=self._orm_profiler is not None,
+        )
 
     def environment(
         self, cr: BaseCursor, uid: int | None, context: dict, su: bool = False
@@ -155,6 +164,13 @@ class Transaction:
             env = Environment._interned(self, cr, uid, frozen_context, su)
             envs.add(env)
             self._adopt_default_env(env)
+            _debug.lifecycle(
+                "transaction.environment_interned",
+                uid=uid,
+                su=su,
+                context_keys=len(frozen_context),
+                envs=len(envs),
+            )
         self._last_env = weakref_ref(env)
         return env
 
@@ -190,6 +206,13 @@ class Transaction:
                     env[model_name].flush_model()
 
         result = self.unit_of_work.flush_until_converged(recompute_fn, flush_fn)
+        _debug.pipeline(
+            "transaction.flush",
+            uid=env.uid,
+            iterations=result.iterations,
+            converged=result.converged,
+            stalled=len(result.stalled_fields),
+        )
 
         if not result.converged:
             remaining = result.stalled_fields
@@ -226,6 +249,12 @@ class Transaction:
                 del env._field_cache_memo
 
     def clear(self):
+        _debug.lifecycle(
+            "transaction.clear",
+            db=self.registry.db_name,
+            envs=len(self.envs),
+            ref_cache=len(self._ref_cache),
+        )
         self._cache_store.clear()
         self._compute_engine.clear()
         self._ref_cache.clear()
@@ -239,11 +268,13 @@ class Transaction:
         return registry.model_graph.recompute_order
 
     def reset(self) -> None:
+        _debug.lifecycle("transaction.reset", db=self.registry.db_name)
         self.registry = Registry(self.registry.db_name)
         for env in self.envs:
             reset_cached_properties(env)
         self.clear()
 
     def invalidate_field_data(self, *, keep_new_records: bool = False) -> None:
+        _debug.lifecycle("transaction.invalidate_field_data", db=self.registry.db_name)
         self._cache_store.invalidate_all(keep=_is_new_id if keep_new_records else None)
         self._ref_cache.clear()

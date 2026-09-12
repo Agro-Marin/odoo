@@ -2,6 +2,7 @@ import typing
 from collections.abc import Callable
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import SENTINEL
 
 if typing.TYPE_CHECKING:
@@ -9,6 +10,8 @@ if typing.TYPE_CHECKING:
     from ..primitives import IdType
     from ..runtime import Environment
     from .base import Field
+
+_debug = DebugLog(__name__)
 
 
 def _run_batch_then_single(
@@ -162,14 +165,27 @@ def get_cache_miss(
     field: Field, record: BaseModel, env: Environment, record_id: IdType
 ) -> typing.Any:
     if field.store and record_id:
+        source = "storage"  # debuglog
         value = get_cache_miss_from_storage(field, record, env, record_id)
     elif field.store and record._has_origin and not (field.compute and field.readonly):
+        source = "origin"  # debuglog
         value = get_cache_miss_from_origin(field, record, env, record_id)
     elif field.compute:
+        source = "compute"  # debuglog
         value = get_cache_miss_by_compute(field, record, env, record_id)
     elif field.is_delegating and not record_id:
+        source = "delegation"  # debuglog
         value = get_cache_miss_by_delegation(field, record, env)
     else:
+        source = "default"  # debuglog
         value = get_cache_miss_from_default(field, record, env, record_id)
 
+    if _debug.logic.enabled:
+        _debug.logic(
+            "field.cache_miss",
+            model=field.model_name,
+            field=field.name,
+            record=record_id,
+            source=source,
+        )
     return field.convert_to_record(value, record)

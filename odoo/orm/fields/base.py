@@ -17,6 +17,7 @@ from collections.abc import (
 from operator import attrgetter
 
 from odoo.libs.accel import to_prefetch_ids as _to_prefetch_ids
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import reset_cached_properties
 from odoo.tools.misc import (
     PENDING,
@@ -80,6 +81,7 @@ def _get_recordset_like(records: BaseModel, ids: Iterable[IdType]) -> BaseModel:
 
 
 _logger = logging.getLogger("odoo.fields")
+_debug = DebugLog(__name__)
 
 
 def _prepare_fast_get(
@@ -692,6 +694,14 @@ class Field[T](
             else:
                 other_ids.append(record_id)
 
+        _debug.logic(
+            "field.set.split",
+            model=self.model_name,
+            field=self.name,
+            protected=len(protected_ids),
+            new=len(new_ids),
+            real=len(other_ids),
+        )
         if protected_ids:
             self._update_protected(records, protected_ids, value)
         if new_ids:

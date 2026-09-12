@@ -9,6 +9,7 @@ from pathlib import Path
 
 import odoo.upgrade
 from odoo import release
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.parse_version import parse_version
 from odoo.modules.module import load_script
 from odoo.tools.misc import file_path
@@ -21,6 +22,7 @@ if typing.TYPE_CHECKING:
     from . import module_graph
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 VERSION_RE = re.compile(
@@ -224,6 +226,19 @@ class MigrationManager:
         target_version = pkg.manifest["version"]
 
         versions = _get_migration_versions(pkg, stage)
+        _debug.logic(
+            "migration.versions",
+            module=pkg.name,
+            stage=stage,
+            installed=installed_version,
+            target=target_version,
+            versions=len(versions),
+            applicable=sum(
+                1
+                for version in versions
+                if _is_migration_applicable(version, installed_version, target_version)
+            ),
+        )
         for version in versions:
             if _is_migration_applicable(version, installed_version, target_version):
                 for pyfile in _get_migration_files(pkg, version, stage):
@@ -292,4 +307,7 @@ def run_migration_script(
         )
 
     _logger.info("module %s: Running migration %s %s", addon, version, mod.__name__)
-    mod.migrate(cr, installed_version)
+    with _debug.perf(
+        "migration.script", cr=cr, module=addon, stage=stage, script=p.name
+    ):
+        mod.migrate(cr, installed_version)

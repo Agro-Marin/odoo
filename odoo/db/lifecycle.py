@@ -6,7 +6,11 @@ import psycopg
 from psycopg.adapt import Loader
 from psycopg_pool import ConnectionPool as _PsycopgPool
 
+from odoo.libs.debug_log import DebugLog
+
 from .settings import current
+
+_debug = DebugLog(__name__)
 
 _PREPARE_THRESHOLD = 2
 """Executions of one statement text before psycopg prepares it server-side.
@@ -67,6 +71,7 @@ def _configure_connection(conn: psycopg.Connection) -> None:
 def _reset_connection(conn: psycopg.Connection, *, discard: bool | None = None) -> None:
     if discard is None:
         discard = current().discard_on_return
+    _debug.lifecycle("connection.reset", discard=discard)
     if discard:
         conn.autocommit = True
         conn.execute("DISCARD ALL", prepare=False)
@@ -87,5 +92,14 @@ def _check_connection(conn: psycopg.Connection, *, grace: float | None = None) -
         grace = current().healthcheck_grace
     idle_since = getattr(conn, _IDLE_SINCE_ATTR, None)
     if grace and idle_since is not None and monotonic() - idle_since < grace:
+        _debug.logic(
+            "connection.healthcheck_skipped",
+            idle_s=monotonic() - idle_since,
+            grace=grace,
+        )
         return
+    _debug.logic(
+        "connection.healthcheck",
+        idle_s=None if idle_since is None else monotonic() - idle_since,
+    )
     _PsycopgPool.check_connection(conn)

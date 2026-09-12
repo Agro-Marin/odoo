@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import werkzeug.routing
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import unique
 from odoo.tools.misc import submap
 
@@ -25,6 +26,7 @@ from .dispatcher import _dispatchers
 from .wrappers import Response
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _KNOWN_ROUTING_PARAMETERS: set[str] = {
     "auth",
@@ -103,10 +105,12 @@ def prepare_routing_map(
     converters: dict[str, type] | None = None,
 ) -> werkzeug.routing.Map:
     routing_map = werkzeug.routing.Map(strict_slashes=False, converters=converters)
-    for url, endpoint in rules:
-        rule = FasterRule(url, endpoint=endpoint, **prepare_rule_kwargs(endpoint))
-        rule.merge_slashes = False
-        routing_map.add(rule)
+    with _debug.perf("http.routing_map.prepare") as span:
+        for url, endpoint in rules:
+            rule = FasterRule(url, endpoint=endpoint, **prepare_rule_kwargs(endpoint))
+            rule.merge_slashes = False
+            routing_map.add(rule)
+        span.set(rules=len(routing_map._rules))
     return routing_map
 
 
@@ -310,6 +314,9 @@ def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
             )
             name += f" (extended by {extended_by})"
 
+        _debug.pipeline(
+            "http.controller.assembled", controller=name, leaves=len(leaf_controllers)
+        )
         try:
             Ctrl = type(name, tuple(reversed(leaf_controllers)), {})
         except TypeError:

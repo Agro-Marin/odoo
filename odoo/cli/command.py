@@ -11,10 +11,12 @@ from typing import Literal, NoReturn, overload
 import odoo.cli
 import odoo.init  # noqa: F401  imported for the bootstrap side effect (gc, monkeypatches)
 from odoo.db import is_maintenance_db
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import initialize_sys_path, load_script
 from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 COMMAND_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*\Z")
 PROG_NAME = Path(sys.argv[0]).name
@@ -104,6 +106,13 @@ def open_environment(
         context = {}
 
     registry_cls = Registry.new if new_registry else Registry
+    _debug.lifecycle(
+        "cli.open_environment",
+        db=db_name,
+        readonly=readonly,
+        uid=uid,
+        new_registry=new_registry,
+    )
     with registry_cls(db_name).cursor(readonly=readonly) as cr:
         env = Environment(cr, uid, context)
         env.transaction.default_env = env
@@ -342,6 +351,12 @@ def main() -> None:
         command_name = DEFAULT_COMMAND
 
     odoo.cli.COMMAND = command_name
+    _debug.lifecycle(
+        "cli.command",
+        command=command_name,
+        args=len(args),
+        addons_path=bootstrap.addons_path is not None,
+    )
     if command := get_cli_command(command_name):
         command().run(args)
     else:

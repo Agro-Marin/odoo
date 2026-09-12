@@ -32,6 +32,7 @@ import odoo
 import odoo.release
 from odoo.exceptions import UserError
 from odoo.libs.collections import OrderedSet, ReadonlyDict
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 
 import odoo.addons
@@ -53,6 +54,7 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 PYTHON_TRANSLATION_COMMENT = "odoo-python"
 
@@ -1857,7 +1859,15 @@ class TranslationImporter:
             reader = translation_file_reader(
                 fileobj, fileformat=fileformat, module=module
             )
-            self._load(reader, lang, xmlids)
+            with _debug.perf(
+                "translate.load_file",
+                lang=lang,
+                format=fileformat,
+                module=module,
+                xmlids=None if xmlids is None else len(xmlids),
+                file=getattr(fileobj, "name", None),
+            ):
+                self._load(reader, lang, xmlids)
         except OSError:
             iso_lang = get_iso_codes(lang)
             filename = "[lang: %s][format: %s]" % (
@@ -2250,6 +2260,7 @@ class CodeTranslations:
     ) -> dict[str, str]:
         po_paths = get_po_paths(module_name, lang)
         translations = {}
+        files = 0  # debuglog
         for po_path in po_paths:
             try:
                 with file_open(po_path, mode="rb") as fileobj:
@@ -2257,10 +2268,18 @@ class CodeTranslations:
                         fileobj, filter_func
                     )
                 translations.update(p)
+                files += 1  # debuglog
             except OSError:
                 iso_lang = get_iso_codes(lang)
                 filename = "[lang: %s][format: %s]" % (iso_lang or "new", "po")
                 _logger.exception("couldn't read translation file %s", filename)
+        _debug.perf.count(
+            "translate.code_translations_loaded",
+            module=module_name,
+            lang=lang,
+            files=files,
+            terms=len(translations),
+        )
         return translations
 
     def _load_python_translations(self, module_name: str, lang: str) -> None:

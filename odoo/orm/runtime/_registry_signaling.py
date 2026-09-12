@@ -5,6 +5,7 @@ import typing
 from collections.abc import Collection
 
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.lru import LRU
 from odoo.tools import SQL
 from odoo.tools.constants import CACHES_BY_KEY, REGISTRY_CACHES
@@ -16,6 +17,7 @@ if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
 
 _logger = logging.getLogger("odoo.registry")
+_debug = DebugLog(__name__)
 
 
 def get_signaling_table_name(cache_name: str) -> str:
@@ -94,6 +96,16 @@ class _RegistrySignalingMixin(_RegistryStubs):
         self._caches.clear_group(cache_name)
 
     def _invalidate_cache_groups(self, cache_names: Collection[str]) -> None:
+        if _debug.perf.enabled:
+            _debug.perf.count(
+                "registry.cache.invalidate_groups",
+                groups=",".join(cache_names),
+                entries=sum(
+                    len(self._caches.lrus[cache])
+                    for cache_name in cache_names
+                    for cache in CACHES_BY_KEY[cache_name]
+                ),
+            )
         for cache_name in cache_names:
             self._clear_cache_group(cache_name)
             self.cache_invalidated.add(cache_name)
@@ -123,6 +135,9 @@ class _RegistrySignalingMixin(_RegistryStubs):
 
     def _reset_cache_changes(self) -> None:
         if self.cache_invalidated:
+            _debug.logic(
+                "registry.cache.reset_changes", groups=sorted(self.cache_invalidated)
+            )
             for cache_name in self.cache_invalidated:
                 self._clear_cache_group(cache_name)
             self.cache_invalidated.clear()
@@ -131,6 +146,7 @@ class _RegistrySignalingMixin(_RegistryStubs):
         existing_sig_tables = tuple(sql.get_tables_existing(cr, _SIGNALING_TABLES))
         for table_name in _SIGNALING_TABLES:
             if table_name not in existing_sig_tables:
+                _debug.lifecycle("registry.signaling.table_created", table=table_name)
                 cr.execute(
                     SQL(
                         "CREATE TABLE IF NOT EXISTS %s (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())",
@@ -179,6 +195,12 @@ class _RegistrySignalingMixin(_RegistryStubs):
         for cache_name, cache_sequence in self.cache_sequences.items():
             expected_sequence = db_cache_sequences[cache_name]
             if expected_sequence > cache_sequence:
+                _debug.logic(
+                    "registry.signaling.cache_stale",
+                    cache=cache_name,
+                    local=cache_sequence,
+                    db=expected_sequence,
+                )
                 for cache in CACHES_BY_KEY[cache_name]:
                     if cache not in invalidated:
                         invalidated.append(cache)
@@ -211,7 +233,13 @@ class _RegistrySignalingMixin(_RegistryStubs):
     def _signal_registry_change(self, cr: BaseCursor) -> None:
         _logger.info("Registry changed, signaling through the database")
         cr.execute("INSERT INTO orm_signaling_registry DEFAULT VALUES RETURNING id")
+        previous = self.registry_sequence  # debuglog
         self.registry_sequence = self._get_signalled_id(cr, self.registry_sequence)
+        _debug.lifecycle(
+            "registry.signaling.registry_signalled",
+            previous=previous,
+            sequence=self.registry_sequence,
+        )
 
     def _signal_cache_changes(self, cr: BaseCursor) -> None:
         _logger.info(

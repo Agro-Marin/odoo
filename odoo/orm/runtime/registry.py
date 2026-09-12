@@ -12,6 +12,7 @@ from odoo import db
 from odoo.db import schema as sql
 from odoo.db.replica import ReplicaRouter, is_readonly_cursor_enabled
 from odoo.libs import gc
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.func import locked, reset_cached_properties
 from odoo.libs.lru import LRU
 from odoo.libs.worker_thread import current_worker_thread
@@ -39,6 +40,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
+_debug = DebugLog(__name__)
 
 
 _ASSERTION_REPORTS: dict[str, typing.Any] = {}
@@ -110,6 +112,14 @@ class Registry(
         registry.signal_changes()
 
         _logger.info("Registry loaded in %.3fs", time.time() - t0)
+        _debug.lifecycle(
+            "registry.ready",
+            db=db_name,
+            models=len(registry.models),
+            modules=len(registry.loaded_modules),
+            updated=len(registry.updated_modules),
+            update_module=update_module,
+        )
         registry.last_used = time.monotonic()
         cls._evict_idle_registries()
         return registry
@@ -141,6 +151,16 @@ class Registry(
         registry.init(db_name)
         registry.new = registry.init = registry.registries = None  # type: ignore[method-assign, assignment]
         first_registry = not cls.registries
+        _debug.lifecycle(
+            "registry.new",
+            db=db_name,
+            first=first_registry,
+            update_module=update_module,
+            install=len(install_modules),
+            upgrade=len(upgrade_modules),
+            reinit=len(reinit_modules),
+            registries=len(cls.registries),
+        )
 
         cls.remove(db_name)
         cls.registries[db_name] = registry
@@ -181,8 +201,11 @@ class Registry(
                 raise
             finally:
                 exit_stack.close()
-        except Exception:
+        except Exception as exc:
             _logger.error("Failed to load registry")
+            _debug.lifecycle(
+                "registry.load_failed", db=db_name, error=type(exc).__name__
+            )
             cls.remove(db_name)
             raise
 
@@ -233,6 +256,7 @@ class Registry(
     def remove(cls, db_name: str) -> None:
         if db_name in cls.registries:
             del cls.registries[db_name]
+            _debug.lifecycle("registry.removed", db=db_name)
         from odoo.tools.cache import remove_counters
 
         remove_counters(db_name)
@@ -290,6 +314,9 @@ class Registry(
             )
             model_names.append(model_cls._name)
 
+        _debug.pipeline(
+            "registry.load_module", module=module.name, models=len(model_names)
+        )
         return model_names
 
     def _setup_reset_all_models(self) -> None:
@@ -352,6 +379,14 @@ class Registry(
             done.add(field)
             todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  todo is a worklist: appending newly discovered dependents here is how they get processed later in this same loop
 
+        _debug.logic(
+            "registry.setup.reset_named",
+            requested=len(list(model_names)),
+            models=len(model_names_to_setup),
+            fields_reset=len(done),
+            models_kept=len(models_field_depends_done),
+        )
+
     def _setup_field_depends(self, env, models_field_depends_done: set) -> None:
         for model_cls in self.models.values():
             if model_cls in models_field_depends_done:
@@ -370,8 +405,6 @@ class Registry(
         *,
         skip_if_clean: bool = False,
     ) -> None:
-        from .environment import Environment
-
         if (
             skip_if_clean
             and model_names is not None
@@ -381,47 +414,59 @@ class Registry(
                 for model_cls in self.models.values()
             )
         ):
+            _debug.logic("registry.setup_models.skipped", db=self.db_name)
             return
 
-        env = Environment(cr, SUPERUSER_ID, {})
-        env.invalidate_all()
+        with _debug.perf(
+            "registry.setup_models",
+            cr=cr,
+            db=self.db_name,
+            scope="all" if model_names is None else "named",
+            ready=self.ready,
+        ):
+            from .environment import Environment
 
-        if self.ready:
-            for model in env.values():
-                model._unregister_hook()
+            env = Environment(cr, SUPERUSER_ID, {})
+            env.invalidate_all()
 
-        self._caches.clear_all()
+            if self.ready:
+                for model in env.values():
+                    model._unregister_hook()
 
-        self.model_graph.begin_invalidation()
-        try:
-            reset_cached_properties(self)
-            self.model_graph.clear_caches()
-            self.registry_invalidated = True
+            self._caches.clear_all()
 
-            models_field_depends_done: set[type] = set()
+            self.model_graph.begin_invalidation()
+            try:
+                reset_cached_properties(self)
+                self.model_graph.clear_caches()
+                self.registry_invalidated = True
 
-            if model_names is None:
-                self._setup_reset_all_models()
-            else:
-                self._setup_reset_named_models(model_names, models_field_depends_done)
+                models_field_depends_done: set[type] = set()
 
-            self.many2one_company_dependents.clear()
+                if model_names is None:
+                    self._setup_reset_all_models()
+                else:
+                    self._setup_reset_named_models(
+                        model_names, models_field_depends_done
+                    )
 
-            registration.setup_model_classes(env)
+                self.many2one_company_dependents.clear()
 
-            self._setup_field_depends(env, models_field_depends_done)
+                registration.setup_model_classes(env)
 
-            reset_cached_properties(self)
+                self._setup_field_depends(env, models_field_depends_done)
 
-        finally:
-            self.model_graph.end_invalidation()
+                reset_cached_properties(self)
 
-        if self.ready:
-            for model in env.values():
-                model._register_hook()
-            self.__dict__.pop("_field_triggers", None)
-            self._get_field_triggers()
-            env.flush_all()
+            finally:
+                self.model_graph.end_invalidation()
+
+            if self.ready:
+                for model in env.values():
+                    model._register_hook()
+                self.__dict__.pop("_field_triggers", None)
+                self._get_field_triggers()
+                env.flush_all()
 
     def init_models(
         self,
@@ -447,35 +492,49 @@ class Registry(
         env = Environment(cr, SUPERUSER_ID, context)
         models = [env[model_name] for model_name in model_names]
 
-        with self.init_models_window(
-            install,
-            model_tables=(
-                model._table for model in self.models.values() if not model._abstract
-            ),
-        ) as phase:
-            for model in models:
-                model._auto_init()
-                model.init()
+        with _debug.perf(
+            "registry.init_models",
+            cr=cr,
+            models=len(model_names),
+            install=install,
+            module=context.get("module"),
+        ):
+            with self.init_models_window(
+                install,
+                model_tables=(
+                    model._table
+                    for model in self.models.values()
+                    if not model._abstract
+                ),
+            ) as phase:
+                for model in models:
+                    model._auto_init()
+                    model.init()
 
-            env["ir.model"]._reflect_models(model_names)
-            env["ir.model.fields"]._reflect_fields(model_names)
-            env["ir.model.fields.selection"]._reflect_selections(model_names)
-            env["ir.model.constraint"]._reflect_constraints(model_names)
-            env["ir.model.inherit"]._reflect_inherits(model_names)
-            env["ir.model.relation"]._reflect_relations(
-                phase.relation_reflections, model_tables=phase.model_tables
-            )
+                env["ir.model"]._reflect_models(model_names)
+                env["ir.model.fields"]._reflect_fields(model_names)
+                env["ir.model.fields.selection"]._reflect_selections(model_names)
+                env["ir.model.constraint"]._reflect_constraints(model_names)
+                env["ir.model.inherit"]._reflect_inherits(model_names)
+                env["ir.model.relation"]._reflect_relations(
+                    phase.relation_reflections, model_tables=phase.model_tables
+                )
 
-            self._ordinary_tables = {}
+                self._ordinary_tables = {}
 
-            self.drain_post_init()
+                _debug.pipeline(
+                    "registry.init_models.reflected",
+                    models=len(model_names),
+                    relations=len(phase.relation_reflections),
+                )
+                self.drain_post_init()
 
-            self.check_indexes(cr, model_names)
-            self.check_foreign_keys(cr)
+                self.check_indexes(cr, model_names)
+                self.check_foreign_keys(cr)
 
-            env.flush_all()
+                env.flush_all()
 
-            self.check_tables_exist(cr)
+                self.check_tables_exist(cr)
 
     def clear_all_caches(self) -> None:
         self._invalidate_cache_groups(CACHES_BY_KEY)
@@ -531,6 +590,12 @@ class Registry(
             and published.ready
             and published.registry_sequence >= db_registry_sequence
         ):
+            _debug.logic(
+                "registry.reload.reuse_published",
+                db=self.db_name,
+                sequence=published.registry_sequence,
+                db_sequence=db_registry_sequence,
+            )
             return published
         from odoo.db import drain_db
 
@@ -543,6 +608,16 @@ class Registry(
                 "Calling signal_changes when registry is not ready is not supported"
             )
             return
+
+        if _debug.logic.enabled and (
+            self.registry_invalidated or self.cache_invalidated
+        ):
+            _debug.logic(
+                "registry.signal_changes",
+                db=self.db_name,
+                registry=self.registry_invalidated,
+                caches=sorted(self.cache_invalidated),
+            )
 
         if self.registry_invalidated:
             with self.cursor() as cr:
@@ -557,6 +632,7 @@ class Registry(
 
     def reset_changes(self) -> None:
         if self.registry_invalidated:
+            _debug.logic("registry.reset_changes", db=self.db_name)
             with closing(self.cursor()) as cr:
                 self._setup_models__(cr)
                 self.registry_invalidated = False

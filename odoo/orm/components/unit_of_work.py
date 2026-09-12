@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -11,6 +13,8 @@ if TYPE_CHECKING:
 STALL_REPEATS = 16
 
 SNAPSHOT_AFTER = 3
+
+_debug = DebugLog(__name__)
 
 
 @dataclass(slots=True)
@@ -88,11 +92,23 @@ class UnitOfWork[F: FieldKey = FieldKey]:
             if iteration >= SNAPSHOT_AFTER:
                 snapshot = self._get_pending_snapshot()
                 repeats = repeats + 1 if snapshot == previous else 0
+                if _debug.logic.enabled and (iteration == SNAPSHOT_AFTER or repeats):
+                    _debug.logic(
+                        "unit_of_work.recompute.slow_convergence",
+                        iteration=iteration,
+                        repeats=repeats,
+                        pending_fields=len(snapshot),
+                    )
                 if repeats >= STALL_REPEATS:
                     result.iterations = iteration
                     result.converged = False
                     result.stalled_fields = sorted(
                         self._get_field_label(f) for f in snapshot
+                    )
+                    _debug.logic(
+                        "unit_of_work.recompute.stalled",
+                        iteration=iteration,
+                        stalled=result.stalled_fields,
                     )
                     break
                 previous = snapshot
@@ -145,6 +161,14 @@ class UnitOfWork[F: FieldKey = FieldKey]:
             if iteration >= SNAPSHOT_AFTER:
                 snapshot = (self._get_dirty_snapshot(), self._get_pending_snapshot())
                 repeats = repeats + 1 if snapshot == previous else 0
+                if _debug.logic.enabled and (iteration == SNAPSHOT_AFTER or repeats):
+                    _debug.logic(
+                        "unit_of_work.flush.slow_convergence",
+                        iteration=iteration,
+                        repeats=repeats,
+                        dirty_fields=len(snapshot[0]),
+                        pending_fields=len(snapshot[1]),
+                    )
                 if repeats >= STALL_REPEATS:
                     result.iterations = iteration
                     result.converged = False
@@ -152,9 +176,20 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                         {self._get_field_label(f) for f in snapshot[0]}
                         | {self._get_field_label(f) for f in snapshot[1]}
                     )
+                    _debug.logic(
+                        "unit_of_work.flush.stalled",
+                        iteration=iteration,
+                        stalled=result.stalled_fields,
+                    )
                     break
                 previous = snapshot
 
+            _debug.pipeline(
+                "unit_of_work.flush.iteration",
+                iteration=iteration,
+                recompute_iterations=recompute_result.iterations,
+                models=len(model_names),
+            )
             flush_fn(model_names)
         else:
             result.iterations = self.max_iterations

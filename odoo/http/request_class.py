@@ -10,6 +10,7 @@ import werkzeug.datastructures
 import werkzeug.exceptions
 
 import odoo
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import loads as _fast_loads
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
@@ -34,6 +35,7 @@ from .session import Session
 from .wrappers import FutureResponse, HTTPRequest, Response, get_cookie_identity
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _UNIONED_HEADERS = frozenset({"vary"})
 
@@ -137,6 +139,18 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             session.db = dbname
 
         session.mark_clean()
+        _debug.logic(
+            "http.session.selected",
+            db=dbname,
+            source="session"
+            if session.db and not header_dbname
+            else "header"
+            if header_dbname
+            else "single",
+            session_new=session.is_new,
+            uid=session.uid,
+            rotate=session.should_rotate,
+        )
         return session, dbname
 
     @property
@@ -163,6 +177,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self.env = env = env(None, user, context, su)
         env.transaction.default_env = env
         current_worker_thread().uid = env.uid
+        _debug.lifecycle("http.request.env_updated", uid=env.uid, su=env.su)
 
     def update_context(self, **overrides: Any) -> None:
         env = self.env
@@ -402,6 +417,15 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             return
 
         on_disk = written or not sess.is_new
+        _debug.logic(
+            "http.session.saved",
+            written=written,
+            modified=modified,
+            content_changed=content_changed,
+            rotate=sess.should_rotate,
+            can_rotate=can_rotate,
+            on_disk=on_disk,
+        )
 
         cookie_sid = self.httprequest.session_id
         if on_disk and (modified or cookie_sid != sess.sid):

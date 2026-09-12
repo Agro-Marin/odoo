@@ -18,6 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix as ProxyFix_
 from werkzeug.wrappers import Response as WerkzeugResponse
 
 from odoo.exceptions import AccessDenied, AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules import module as module_manager
 from odoo.tools import file_path
@@ -45,6 +46,7 @@ from .settings import current as current_settings
 from .wrappers import HTTPRequest, Response, prepare_no_content_response
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _noop_start_response(status: str, headers: list[tuple[str, str]]) -> None:
@@ -147,11 +149,15 @@ class Application:
 
     @_locked_cached_property
     def nodb_routing_map(self):
-        return prepare_routing_map(
-            _generate_routing_rules(
-                ["", *current_settings().server_wide_modules], nodb_only=True
+        with _debug.perf(
+            "http.nodb_routing_map",
+            modules=len(current_settings().server_wide_modules),
+        ):
+            return prepare_routing_map(
+                _generate_routing_rules(
+                    ["", *current_settings().server_wide_modules], nodb_only=True
+                )
             )
-        )
 
     @_locked_cached_property
     def session_store(self):
@@ -241,6 +247,13 @@ class Application:
         request.db = None
         durable = exc.db_absent is True or (
             exc.db_absent is False and not exc.transient
+        )
+        _debug.logic(
+            "http.registry_error.recover",
+            path=httprequest.path,
+            db_absent=exc.db_absent,
+            transient=exc.transient,
+            durable=durable,
         )
         if not durable:
             request.session.can_save = False
@@ -337,6 +350,14 @@ class Application:
 
                 request._post_init()
                 current_worker_thread().url = httprequest.url
+                _debug.pipeline(
+                    "http.request.begin",
+                    method=httprequest.method,
+                    path=httprequest.path,
+                    db=request.db,
+                    uid=request.session.uid,
+                    session_new=request.session.is_new,
+                )
 
                 if httprequest.method in REJECTED_HTTP_METHODS:
                     raise MethodNotAllowed(
@@ -347,22 +368,40 @@ class Application:
                     raise NotFound
 
                 static_file = self.get_static_file_path(httprequest.path)
-                if static_file:
-                    response = self._serve_static_file(request, static_file)
-                elif request.db:
-                    try:
-                        with request._profile_request():
-                            response = request._serve_db()
-                    except RegistryError as exc:
-                        response = self._recover_from_registry_error(
-                            request, httprequest, exc
-                        )
-                else:
-                    response = request._serve_nodb()
+                with _debug.perf(
+                    "http.request",
+                    method=httprequest.method,
+                    path=httprequest.path,
+                    kind="static" if static_file else "db" if request.db else "nodb",
+                ) as span:
+                    if static_file:
+                        response = self._serve_static_file(request, static_file)
+                    elif request.db:
+                        try:
+                            with request._profile_request():
+                                response = request._serve_db()
+                        except RegistryError as exc:
+                            response = self._recover_from_registry_error(
+                                request, httprequest, exc
+                            )
+                    else:
+                        response = request._serve_nodb()
+                    span.set(
+                        status=getattr(response, "status_code", None),
+                        queries=current_worker_thread().query_count,
+                        query_ms=current_worker_thread().query_time * 1000.0,
+                    )
                 return response(environ, start_response)
 
             except Exception as exc:
                 self._log_request_exception(exc)
+                _debug.pipeline(
+                    "http.request.failed",
+                    method=httprequest.method,
+                    path=httprequest.path,
+                    error=type(exc).__name__,
+                    status=getattr(exc, "code", None),
+                )
                 if _is_debugger_handover_required(request):
                     raise
                 error_response = self._finalize_error_response(

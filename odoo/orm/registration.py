@@ -5,6 +5,7 @@ from types import MappingProxyType
 
 from odoo.db import schema as sql
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import LastOrderedSet, OrderedSet, discardattr, frozendict
 from odoo.tools.translate import FIELD_TRANSLATE, _
 
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
     from odoo.orm.runtime import Registry
 
 _logger = logging.getLogger("odoo.registry")
+_debug = DebugLog(__name__)
 
 
 def is_model_definition(cls: type) -> bool:
@@ -130,9 +132,19 @@ def add_model_to_registry(
 
     registry[name] = model_cls
 
-    for model_name in registry.get_descendants([name], "_inherit", "_inherits"):
+    descendants = registry.get_descendants([name], "_inherit", "_inherits")
+    for model_name in descendants:
         registry[model_name]._setup_done__ = False
 
+    _debug.pipeline(
+        "registration.model_added",
+        model=name,
+        module=model_def._module,
+        extension=name in parent_names,
+        parents=len(parent_names),
+        bases=len(model_cls._base_classes__),
+        descendants_reset=len(descendants),
+    )
     return model_cls
 
 
@@ -223,6 +235,12 @@ def setup_model_classes(env: Environment):
         _add_manual_models(env)
 
     models_classes = list(registry.values())
+    _debug.pipeline(
+        "registration.setup_model_classes",
+        models=len(models_classes),
+        to_setup=sum(1 for model_cls in models_classes if not model_cls._setup_done__),
+        manual_models=bool(registry.loaded_modules),
+    )
     for model_cls in models_classes:
         _reset_setup(model_cls)
 
@@ -292,6 +310,13 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
     _check_active_name(model_cls)
 
     _add_table_objects(model_cls)
+    _debug.pipeline(
+        "registration.model_setup",
+        model=model_cls._name,
+        fields=len(model_cls._fields),
+        inherits=len(model_cls._inherits),
+        table_objects=len(model_cls._table_objects),
+    )
 
 
 def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
@@ -524,7 +549,13 @@ def _add_manual_models(env: Environment):
         "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'",
         prepare=False,
     )
-    for model_data in env.cr.dictfetchall():
+    manual_models = env.cr.dictfetchall()
+    _debug.pipeline(
+        "registration.manual_models",
+        removed_fields=len(removed_fields),
+        manual=len(manual_models),
+    )
+    for model_data in manual_models:
         attrs = env["ir.model"]._prepare_class_attrs(model_data)
 
         table_name = model_data["model"].replace(".", "_")
@@ -548,10 +579,21 @@ def _add_manual_fields(model_cls: type[BaseModel], env: Environment):
     IrModelFields = env["ir.model.fields"]
 
     fields_data = IrModelFields._get_manual_field_data(model_cls._name)
+    if _debug.pipeline.enabled and fields_data:
+        _debug.pipeline(
+            "registration.manual_fields",
+            model=model_cls._name,
+            candidates=len(fields_data),
+        )
     for name, field_data in fields_data.items():
         if name not in model_cls._fields and field_data["state"] == "manual":
             try:
                 if not IrModelFields._is_field_ready(field_data):
+                    _debug.logic(
+                        "registration.manual_field_not_ready",
+                        model=model_cls._name,
+                        field=name,
+                    )
                     continue
                 attrs = IrModelFields._prepare_field_attrs(field_data)
                 field = fields.Field._by_type__[field_data["ttype"]](**attrs)

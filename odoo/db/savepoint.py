@@ -6,10 +6,13 @@ from typing import TYPE_CHECKING, Any, Protocol, Self
 
 import psycopg.errors
 
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from .cursor import BaseCursor
 
 _savepoint_counter = itertools.count()
+_debug = DebugLog(__name__)
 
 
 class SavepointHost(Protocol):
@@ -28,6 +31,12 @@ class Savepoint:
         cr.execute(f'SAVEPOINT "{self.name}"')
         if hasattr(cr, "_savepoint_depth"):
             cr._savepoint_depth += 1
+        _debug.lifecycle(
+            "savepoint.opened",
+            name=self.name,
+            depth=getattr(cr, "_savepoint_depth", None),
+            flushing=self._restores_orm_state,
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -60,6 +69,7 @@ class Savepoint:
             self.closed = True
             if hasattr(self._cr, "_savepoint_depth"):
                 self._cr._savepoint_depth -= 1
+            _debug.lifecycle("savepoint.closed", name=self.name, rollback=rollback)
 
 
 class _FlushingSavepoint(Savepoint):
@@ -112,6 +122,9 @@ def get_or_create_row[T](
             return insert(), True
     except psycopg.errors.UniqueViolation:
         existing = find()
+        _debug.logic(
+            "savepoint.get_or_create.conflict", conflict=conflict, found=bool(existing)
+        )
         if not existing:
             raise ConcurrencyError(
                 f"{conflict} was created by a concurrent transaction"

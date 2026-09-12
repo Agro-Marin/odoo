@@ -13,6 +13,7 @@ import warnings
 
 from odoo.exceptions import UserError
 from odoo.libs.collections import FrozenOrderedSet
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query, classproperty, frozendict
 
 from .._recordset import is_recordset
@@ -40,6 +41,7 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 _logger = logging.getLogger("odoo.domains")
+_debug = DebugLog(__name__)
 
 
 def _parse_prefix_domain(arg, internal: bool) -> Domain:
@@ -440,6 +442,11 @@ class Domain:
         if opt_model == model_name and opt_level >= level:
             return self
         if opt_model is not None and opt_model != model_name:
+            _debug.logic(
+                "domain.optimize.model_changed",
+                model=model_name,
+                previous_model=opt_model,
+            )
             domain = self._reset_opt_copy()
         else:
             domain = self
@@ -457,6 +464,13 @@ class Domain:
             previous, domain = domain, domain._optimize_step(model, next_level)
             if domain == previous and domain._opt[0] < next_level:
                 object.__setattr__(domain, "_opt", (next_level, model_name))
+        if _debug.perf.enabled and count > 2:
+            _debug.perf.count(
+                "domain.optimize.iterations",
+                model=model_name,
+                level=level.name,
+                iterations=count,
+            )
         return domain
 
     def _reset_opt_copy(self) -> Domain:
