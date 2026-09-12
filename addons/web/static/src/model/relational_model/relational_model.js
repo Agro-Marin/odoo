@@ -330,7 +330,7 @@ export class RelationalModel extends Model {
         if (profiling) {
             performance.measure("model:loadData", "model:loadData:start");
         }
-        this.root = this._createRoot(config, data);
+        this.root = this._createRoot(config, data, { previousRoot: this.root });
         endLoad({
             loadId: config.loadId,
             records: data?.records?.length ?? data?.groups?.length ?? (data ? 1 : 0),
@@ -497,16 +497,19 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Record<string, unknown>} data
+     * @param {{ previousRoot?: any }} [options]
      * @returns {any}
      */
-    _createRoot(config, data) {
+    _createRoot(config, data, { previousRoot } = {}) {
         if (config.isMonoRecord) {
             return new this.Class.Record(this, config, data);
         }
         if (config.groupBy.length) {
             return new this.Class.DynamicGroupList(this, config, data);
         }
-        return new this.Class.DynamicRecordList(this, config, data);
+        return new this.Class.DynamicRecordList(this, config, data, {
+            previousRoot: this.orm.isSample ? undefined : previousRoot,
+        });
     }
 
     _retireRootLoadDef() {

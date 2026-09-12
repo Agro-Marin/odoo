@@ -1,6 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
+import { toRaw } from "@odoo/owl";
+import { shallowEqual } from "@web/core/utils/collections/objects";
+
 import { DynamicList } from "./dynamic_list.js";
 
 /** @import { ListInsertion } from "./editable_list_datapoint.js" */
@@ -11,17 +14,62 @@ export class DynamicRecordList extends DynamicList {
     /**
      * @param {import("./relational_model").RelationalModelConfig} config
      * @param {Object} data
+     * @param {{ previousRoot?: any }} [options]
      */
-    setup(config, data) {
+    setup(config, data, { previousRoot } = {}) {
         super.setup(config);
+        /** @type {RelationalRecord[]} */
+        this._records =
+            previousRoot instanceof DynamicRecordList &&
+            previousRoot.resModel === this.resModel
+                ? previousRoot._records
+                : [];
         this.setData(data);
     }
 
     setData(data) {
+        const reusable = new Map();
+        for (const record of this._records) {
+            if (this._canReuseRecord(record)) {
+                reusable.set(record.resId, record);
+            }
+        }
         /** @type {RelationalRecord[]} */
-        this._records = data.records.map((r) => this._createRecordDatapoint(r));
+        this._records = data.records.map((values) => {
+            const existing = values.id ? reusable.get(values.id) : undefined;
+            if (!existing) {
+                return this._createRecordDatapoint(values);
+            }
+            reusable.delete(values.id);
+            existing.selected = false;
+            existing.setData(values);
+            return existing;
+        });
         this._adoptCount(data);
         this._selectDomain(this.isDomainSelected);
+    }
+
+    /**
+     * A reloaded row keeps its datapoint, and so its components, when it still
+     * describes the same record under the same field set; anything the user
+     * touched, or a row built for another config, is rebuilt. Config members
+     * are compared raw: the list and its records reach them through different
+     * reactive proxies of one object.
+     *
+     * @param {RelationalRecord} record
+     * @returns {boolean}
+     */
+    _canReuseRecord(record) {
+        const { config } = record;
+        return (
+            Boolean(record.resId) &&
+            !record.manuallyAdded &&
+            !record.isInEdition &&
+            !record.dirty &&
+            toRaw(config.activeFields) === toRaw(this.activeFields) &&
+            toRaw(config.fields) === toRaw(this.fields) &&
+            shallowEqual(config.context, this.context)
+        );
     }
 
     get records() {
