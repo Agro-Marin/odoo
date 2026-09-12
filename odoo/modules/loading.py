@@ -81,6 +81,12 @@ def _read_stored_checksums(env: Environment, package: ModuleNode) -> dict:
         return {}
     stored = row[0]
     if not isinstance(stored, dict) or stored.get("v") != _DATA_FILE_CHECKSUM_VERSION:
+        _debug.logic(
+            "modules.checksums.discarded",
+            module=package.name,
+            reason="absent" if stored is None else "version",
+            version=stored.get("v") if isinstance(stored, dict) else None,
+        )
         return {}
     files = stored.get("files")
     return files if isinstance(files, dict) else {}
@@ -97,6 +103,12 @@ def _write_stored_checksums(
         ],
     )
     env["ir.module.module"].invalidate_model(["data_file_checksums"])
+    _debug.lifecycle(
+        "modules.checksums.written",
+        module=package.name,
+        files=len(new_files),
+        dynamic=sum(1 for entry in new_files.values() if entry.get("dyn")),
+    )
 
 
 def _is_reusable_checksum_entry(entry: object, digest: str) -> typing.TypeGuard[dict]:
@@ -120,21 +132,30 @@ def _files_missing_records(cr: BaseCursor, stored_files: dict) -> set[str]:
                 files_by_xmlid.setdefault(xmlid, []).append(filename)
     if not files_by_xmlid:
         return set()
-    cr.execute(
-        """
-        SELECT x.xmlid
-          FROM unnest(%s::text[]) AS x(xmlid)
-         WHERE NOT EXISTS (
-               SELECT 1 FROM ir_model_data d
-                WHERE d.module = split_part(x.xmlid, '.', 1)
-                  AND d.name = substr(x.xmlid, strpos(x.xmlid, '.') + 1)
-         )
-    """,
-        [list(files_by_xmlid)],
-    )
-    stale: set[str] = set()
-    for [xmlid] in cr.fetchall():
-        stale.update(files_by_xmlid[xmlid])
+    with _debug.perf(
+        "modules.checksums.stale_scan",
+        cr=cr,
+        files=len(stored_files),
+        xmlids=len(files_by_xmlid),
+    ) as span:
+        cr.execute(
+            """
+            SELECT x.xmlid
+              FROM unnest(%s::text[]) AS x(xmlid)
+             WHERE NOT EXISTS (
+                   SELECT 1 FROM ir_model_data d
+                    WHERE d.module = split_part(x.xmlid, '.', 1)
+                      AND d.name = substr(x.xmlid, strpos(x.xmlid, '.') + 1)
+             )
+        """,
+            [list(files_by_xmlid)],
+        )
+        stale: set[str] = set()
+        missing = 0
+        for [xmlid] in cr.fetchall():
+            missing += 1
+            stale.update(files_by_xmlid[xmlid])
+        span.set(missing=missing, stale=len(stale))
     return stale
 
 
@@ -151,14 +172,23 @@ def _convert_and_record(
     previous_recorder = registry.loading.xmlid_recorder
     registry.loading.xmlid_recorder = recorder
     try:
-        convert_file(
-            env,
-            package.name,
-            filename,
-            idref,
-            mode,
-            noupdate=kind == "demo",
-        )
+        with _debug.perf(
+            "modules.convert_file",
+            cr=env.cr,
+            module=package.name,
+            file=filename,
+            mode=mode,
+            kind=kind,
+        ) as span:
+            convert_file(
+                env,
+                package.name,
+                filename,
+                idref,
+                mode,
+                noupdate=kind == "demo",
+            )
+            span.set(xmlids=len(recorder))
     finally:
         registry.loading.xmlid_recorder = previous_recorder
     registry.loading.xmlids_written.update(recorder)
@@ -180,9 +210,11 @@ def _load_tracked_file(
     digest, dynamic = _get_data_file_digest_and_dynamic_flag(filename, content)
     registry = env.registry
     entry = stored_files.get(filename)
+    reason = "new" if entry is None else "dynamic" if dynamic else "changed"
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
         contended = registry.loading.xmlids_written.intersection(entry["xmlids"])
         if filename in stale_files:
+            reason = "stale"
             _logger.info(
                 "re-applying unchanged %s/%s: records it declares are gone from "
                 "the database, so its digest no longer witnesses their presence",
@@ -190,6 +222,7 @@ def _load_tracked_file(
                 filename,
             )
         elif _has_xmlids_of_another_module(entry, package.name):
+            reason = "foreign_xmlids"
             _logger.info(
                 "re-applying unchanged %s/%s: it writes records another "
                 "module declares, so its effect is its place in the load "
@@ -210,6 +243,7 @@ def _load_tracked_file(
             )
             return entry
         else:
+            reason = "contended"
             _logger.info(
                 "re-applying unchanged %s/%s: it owns %d record(s) already "
                 "rewritten in this run (%s)",
@@ -219,6 +253,13 @@ def _load_tracked_file(
                 ", ".join(sorted(contended)[:5]),
             )
 
+    _debug.logic(
+        "modules.data_file.reapplied",
+        module=package.name,
+        file=filename,
+        reason=reason,
+        dynamic=dynamic,
+    )
     _logger.info("loading %s/%s", package.name, filename)
     recorder = _convert_and_record(env, package, filename, idref, mode, kind)
     _debug.perf.count(
@@ -263,28 +304,55 @@ def load_data(
     )
 
     files: set[str] = set()
-    for k in keys:
-        deprecation = _DEPRECATED_MANIFEST_KEYS.get(k)
-        if deprecation and package.manifest[k]:
-            _logger.warning(deprecation, package.name)
-        for filename in package.manifest[k]:
-            if filename in files:
-                _logger.warning(
-                    "File %s is imported twice in module %s %s",
-                    filename,
-                    package.name,
-                    kind,
+    with _debug.perf(
+        "modules.load_data.files",
+        cr=env.cr,
+        module=package.name,
+        kind=kind,
+        mode=mode,
+    ) as span:
+        for k in keys:
+            deprecation = _DEPRECATED_MANIFEST_KEYS.get(k)
+            if deprecation and package.manifest[k]:
+                _debug.logic(
+                    "modules.load_data.deprecated_key",
+                    module=package.name,
+                    key=k,
+                    files=len(package.manifest[k]),
                 )
-            files.add(filename)
+                _logger.warning(deprecation, package.name)
+            for filename in package.manifest[k]:
+                if filename in files:
+                    _debug.logic(
+                        "modules.load_data.duplicate_file",
+                        module=package.name,
+                        file=filename,
+                        kind=kind,
+                    )
+                    _logger.warning(
+                        "File %s is imported twice in module %s %s",
+                        filename,
+                        package.name,
+                        kind,
+                    )
+                files.add(filename)
 
-            if not track:
-                _logger.info("loading %s/%s", package.name, filename)
-                _convert_and_record(env, package, filename, idref, mode, kind)
-                continue
+                if not track:
+                    _logger.info("loading %s/%s", package.name, filename)
+                    _convert_and_record(env, package, filename, idref, mode, kind)
+                    continue
 
-            new_files[filename] = _load_tracked_file(
-                env, package, filename, idref, mode, kind, stored_files, stale_files
-            )
+                new_files[filename] = _load_tracked_file(
+                    env,
+                    package,
+                    filename,
+                    idref,
+                    mode,
+                    kind,
+                    stored_files,
+                    stale_files,
+                )
+        span.set(files=len(files), idrefs=len(idref))
 
     if track:
         _write_stored_checksums(env, package, new_files)
@@ -297,13 +365,22 @@ def load_demo(
     try:
         if package.manifest.get("demo") or package.manifest.get("demo_xml"):
             _logger.info("Module %s: loading demo", package.name)
+            _debug.pipeline(
+                "modules.demo.begin",
+                module=package.name,
+                mode=mode,
+                files=len(package.manifest.get("demo") or ())
+                + len(package.manifest.get("demo_xml") or ()),
+            )
             # A flushing savepoint restores the ORM state on rollback: without it the
             # failed file's pending writes survive and reference the rows the rollback
             # removed, and the next flush fails the whole installation.
             with env.cr.savepoint():
                 load_data(env(su=True), idref, mode, kind="demo", package=package)
+        else:
+            _debug.logic("modules.demo.none", module=package.name)
         return True
-    except Exception:
+    except Exception as exc:
         _logger.warning(
             "Module %s demo data failed to install, installed without demo data",
             package.name,
@@ -312,6 +389,12 @@ def load_demo(
 
         todo = env.ref("base.demo_failure_todo", raise_if_not_found=False)
         Failure = env.get("ir.demo_failure")
+        _debug.lifecycle(
+            "modules.demo.failed",
+            module=package.name,
+            error=type(exc).__name__,
+            recorded=bool(todo and Failure is not None),
+        )
         if todo and Failure is not None:
             todo.write({"state": "open"})
             Failure.create({"module_id": package.id, "error": traceback.format_exc()})
@@ -325,8 +408,15 @@ def force_demo(env: Environment) -> None:
     module_list = [name for (name,) in env.cr.fetchall()]
     graph = ModuleGraph(env.cr, mode="load")
     graph.extend(module_list)
+    _debug.pipeline(
+        "modules.force_demo.begin", modules=len(module_list), graph=len(graph)
+    )
 
-    loaded = [package.name for package in graph if load_demo(env, package, {}, "init")]
+    with _debug.perf("modules.force_demo", cr=env.cr, modules=len(graph)) as span:
+        loaded = [
+            package.name for package in graph if load_demo(env, package, {}, "init")
+        ]
+        span.set(loaded=len(loaded), failed=len(graph) - len(loaded))
 
     env.cr.execute(
         "UPDATE ir_module_module SET demo = (name = ANY(%s)) WHERE name = ANY(%s)",
@@ -356,6 +446,12 @@ def _warn_models_without_access_rules(
     models = [model for [model] in env.cr.fetchall()]
     if not models:
         return
+    _debug.logic(
+        "modules.access_rules.missing",
+        module=module_name,
+        models=len(models),
+        checked=len(concrete_models),
+    )
     lines = [
         f"The models {models} have no access rules in module {module_name}, consider adding some, like:",
         "id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink",
@@ -481,6 +577,13 @@ class _PackageLoader:
             "SELECT state, demo FROM ir_module_module WHERE id = %s", [package.id]
         )
         row = self.cr.fetchone()
+        _debug.logic(
+            "modules.package.state_adopted",
+            module=self.name,
+            graph_state=package.state,
+            db_state=row[0] if row else None,
+            adopted=row is not None and row[0] == "to upgrade",
+        )
         if not row or row[0] != "to upgrade":
             return
         package.state = package.load_state = "to upgrade"
@@ -502,10 +605,13 @@ class _PackageLoader:
         if self.operation == "upgrade":
             if self.name != "base":
                 self.registry.setup_models(self.env.cr, [], skip_if_clean=True)
-            with _debug.perf("modules.migration", module=self.name, stage="pre"):
+            with _debug.perf(
+                "modules.migration", cr=self.cr, module=self.name, stage="pre"
+            ):
                 self.migrations.migrate_module(self.package, "pre")
         if self.name != "base":
-            self.env.flush_all()
+            with _debug.perf("modules.package.pre_flush", cr=self.cr, module=self.name):
+                self.env.flush_all()
 
     def import_python_module(self) -> None:
         load_odoo_module(self.name)
@@ -516,24 +622,38 @@ class _PackageLoader:
             return
         if pre_init := self.package.manifest.get("pre_init_hook"):
             self.registry.setup_models(self.env.cr, [], skip_if_clean=True)
-            with _debug.perf("modules.hook", module=self.name, hook=pre_init):
+            with _debug.perf(
+                "modules.hook", cr=self.cr, module=self.name, hook=pre_init
+            ):
                 getattr(self.py_module, pre_init)(self.env)
 
     def load_models(self) -> None:
         registry, package = self.registry, self.package
-        model_names: OrderedSet[str] = OrderedSet(registry.load(package))
+        with _debug.perf(
+            "modules.package.registry_load", cr=self.cr, module=self.name
+        ) as span:
+            model_names: OrderedSet[str] = OrderedSet(registry.load(package))
+            span.set(models=len(model_names))
+        declared = len(model_names)
 
         if self.operation:
             model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
             self.models_updated.update(model_names)
             self.models_to_check -= model_names
             registry.setup_models(self.cr, [], skip_if_clean=True)
-            registry.init_models(
-                self.cr,
-                model_names,
-                {"module": package.name},
-                self.operation == "install",
-            )
+            with _debug.perf(
+                "modules.package.init_models",
+                cr=self.cr,
+                module=self.name,
+                models=len(model_names),
+                install=self.operation == "install",
+            ):
+                registry.init_models(
+                    self.cr,
+                    model_names,
+                    {"module": package.name},
+                    self.operation == "install",
+                )
         elif self.update_module and package.state != "to remove":
             model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
             self.models_to_check |= model_names & self.models_updated
@@ -545,6 +665,7 @@ class _PackageLoader:
             "modules.package.models_loaded",
             module=self.name,
             models=len(model_names),
+            declared=declared,
             operation=self.operation,
             to_check=len(self.models_to_check),
         )
@@ -554,7 +675,8 @@ class _PackageLoader:
             return
         env, package = self.env, self.package
         self.module = env["ir.module.module"].browse(package.id)
-        self.module._check()
+        with _debug.perf("modules.package.check", cr=env.cr, module=self.name):
+            self.module._check()
 
         idref: dict = {}
         with _debug.perf(
@@ -583,24 +705,38 @@ class _PackageLoader:
     def run_post_migration(self) -> None:
         if not self.operation:
             return
-        with _debug.perf("modules.migration", module=self.name, stage="post"):
+        with _debug.perf(
+            "modules.migration", cr=self.cr, module=self.name, stage="post"
+        ):
             self.migrations.migrate_module(self.package, "post")
         overwrite = tools.config["overwrite_existing_translations"]
         with _debug.perf(
-            "modules.package.translations", module=self.name, overwrite=overwrite
+            "modules.package.translations",
+            cr=self.cr,
+            module=self.name,
+            overwrite=overwrite,
         ):
             self.module._update_translations(overwrite=overwrite)
 
     def mark_module_loaded(self) -> None:
         self.registry.loaded_modules.add(self.name)
+        _debug.lifecycle(
+            "modules.package.loaded",
+            module=self.name,
+            loaded=len(self.registry.loaded_modules),
+        )
 
     def run_post_init_hook(self) -> None:
         if self.operation == "install":
             if post_init := self.package.manifest.get("post_init_hook"):
-                with _debug.perf("modules.hook", module=self.name, hook=post_init):
+                with _debug.perf(
+                    "modules.hook", cr=self.cr, module=self.name, hook=post_init
+                ):
                     getattr(self.py_module, post_init)(self.env)
         elif self.operation == "upgrade":
-            with _debug.perf("modules.package.check_views", module=self.name):
+            with _debug.perf(
+                "modules.package.check_views", cr=self.cr, module=self.name
+            ):
                 self.env["ir.ui.view"]._check_module_views(self.name)
 
     def mark_module_installed(self) -> None:
@@ -619,13 +755,15 @@ class _PackageLoader:
         self.module.write(values)
 
         self.package.state = "installed"
-        env.flush_all()
-        env.cr.commit()
+        with _debug.perf("modules.package.commit", cr=self.cr, module=self.name):
+            env.flush_all()
+            env.cr.commit()
         _debug.lifecycle(
             "modules.package.installed",
             module=self.name,
             operation=self.operation,
             version=values["db_version"],
+            checksum="content_checksum" in values,
         )
 
     def run_at_install_tests(self) -> None:
@@ -643,12 +781,24 @@ class _PackageLoader:
 
         suite = loader.prepare_suite([self.name], "at_install")
         if not suite.countTestCases():
+            _debug.logic(
+                "modules.package.at_install_tests.skipped",
+                module=self.name,
+                reason="no_tests",
+            )
             return
         if pending := self._get_installed_dependents_not_yet_loaded():
             # The table already carries those modules' columns -- a NOT NULL
             # one has no field in this registry to give it a value -- so the
             # registry cannot represent the schema the tests would write to.
             # The suite runs once it can, after the graph is loaded.
+            _debug.logic(
+                "modules.package.at_install_tests.skipped",
+                module=self.name,
+                reason="deferred",
+                tests=suite.countTestCases(),
+                pending=len(pending),
+            )
             _logger.info(
                 "Module %s: %d at_install test(s) deferred until %s are loaded",
                 self.name,
@@ -671,6 +821,15 @@ class _PackageLoader:
         self.report.update(self.test_results)
         self.test_time = time.time() - tests_t0
         self.test_queries = odoo.db.sql_counter - tests_q0
+        _debug.perf.count(
+            "modules.package.at_install_tests.done",
+            module=self.name,
+            tests=self.test_results.testsRun,
+            failures=self.test_results.failures_count,
+            errors=self.test_results.errors_count,
+            ms=self.test_time * 1000.0,
+            queries=self.test_queries,
+        )
 
     def _get_installed_dependents_not_yet_loaded(self) -> list[str]:
         return get_installed_dependents_not_yet_loaded(
@@ -694,6 +853,17 @@ class _PackageLoader:
             f" (incl. {self.test_time:.2f}s test)" if self.test_time else "",
             self.cr.sql_log_count - self.cursor_queries_at_start,
             f" ({', '.join(extras)})" if extras else "",
+        )
+        _debug.perf.count(
+            "modules.package.cost",
+            module=self.name,
+            index=self.index,
+            operation=self.operation,
+            ms=(time.time() - self.started_at) * 1000.0,
+            queries=self.cr.sql_log_count - self.cursor_queries_at_start,
+            extra_queries=extra_queries,
+            test_ms=self.test_time * 1000.0,
+            test_queries=self.test_queries,
         )
         results = self.test_results
         if results and not results.wasSuccessful():
@@ -761,12 +931,16 @@ def get_installed_dependents_not_yet_loaded(
 
 
 def _run_gc_cycle(registry: Registry, cycles: int) -> int:
-    if gc.get_count()[0] <= _GC_YOUNG_BACKLOG_LIMIT:
+    young = gc.get_count()[0]
+    if young <= _GC_YOUNG_BACKLOG_LIMIT:
         return cycles
     registry.clear_all_caches()
     cycles += 1
     with _debug.perf(
-        "modules.gc_cycle", cycle=cycles, full=cycles % _GC_FULL_CYCLE_EVERY == 0
+        "modules.gc_cycle",
+        cycle=cycles,
+        full=cycles % _GC_FULL_CYCLE_EVERY == 0,
+        young=young,
     ):
         if cycles % _GC_FULL_CYCLE_EVERY == 0:
             gc.unfreeze()
@@ -811,10 +985,12 @@ def load_module_graph(
 
     models_updated: set[str] = set()
     gc_cycles = 0
+    skipped = 0
 
     try:
         for index, package in enumerate(graph, 1):
             if package.name in registry.loaded_modules:
+                skipped += 1
                 continue
             _PackageLoader(
                 env,
@@ -843,6 +1019,17 @@ def load_module_graph(
         cr.sql_log_count - cursor_queries_at_start,
         odoo.db.sql_counter - extra_queries_at_start,
     )
+    _debug.perf.count(
+        "modules.load_graph.done",
+        modules=module_count,
+        skipped=skipped,
+        ms=(time.time() - t0) * 1000.0,
+        queries=cr.sql_log_count - cursor_queries_at_start,
+        extra_queries=odoo.db.sql_counter - extra_queries_at_start,
+        gc_cycles=gc_cycles,
+        models_updated=len(models_updated),
+        to_check=len(models_to_check),
+    )
 
 
 def _warn_invalid_module_names(cr: BaseCursor, module_names: Iterable[str]) -> None:
@@ -858,6 +1045,11 @@ def _warn_invalid_module_names(cr: BaseCursor, module_names: Iterable[str]) -> N
         if row[0] != len(mod_names):
             cr.execute("SELECT name FROM ir_module_module")
             incorrect_names = mod_names.difference(name for [name] in cr.fetchall())
+            _debug.logic(
+                "modules.invalid_module_names",
+                requested=len(mod_names),
+                invalid=",".join(sorted(incorrect_names)),
+            )
             _logger.warning(
                 "invalid module names, ignored: %s", ", ".join(incorrect_names)
             )
@@ -874,6 +1066,7 @@ def _run_deferred_at_install_tests(
         return
     from odoo.tests import loader
 
+    _debug.pipeline("modules.deferred_tests.begin", modules=len(names))
     registry.check_null_constraints(cr)
     for name in names:
         suite = loader.prepare_suite([name], "at_install")
@@ -893,6 +1086,15 @@ def _run_deferred_at_install_tests(
             time.time() - tests_t0,
             odoo.db.sql_counter - tests_q0,
         )
+        _debug.perf.count(
+            "modules.deferred_tests.module",
+            module=name,
+            tests=results.testsRun,
+            failures=results.failures_count,
+            errors=results.errors_count,
+            ms=(time.time() - tests_t0) * 1000.0,
+            queries=odoo.db.sql_counter - tests_q0,
+        )
         if not results.wasSuccessful():
             _logger.error(
                 "Module %s: %d failures, %d errors of %d tests",
@@ -911,40 +1113,53 @@ def _drop_not_null_on_removed_columns(
     tables = {env[model]._table for model in models if not env[model]._abstract}
     if not tables:
         return
-    cr.execute(
-        """
-        SELECT c.relname AS table_name,
-               a.attname AS column_name,
-               CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable
-          FROM pg_attribute a
-          JOIN pg_class c ON a.attrelid = c.oid
-         WHERE c.relname = ANY(%s)
-           AND c.relnamespace = current_schema::regnamespace
-           AND a.attnum > 0
-           AND NOT a.attisdropped
-        """,
-        [list(tables)],
-    )
-    columns_by_table: dict[str, dict[str, str]] = {}
-    for table_name, column_name, is_nullable in cr.fetchall():
-        columns_by_table.setdefault(table_name, {})[column_name] = is_nullable
+    with _debug.perf(
+        "modules.removed_columns", cr=cr, models=len(models), tables=len(tables)
+    ) as span:
+        cr.execute(
+            """
+            SELECT c.relname AS table_name,
+                   a.attname AS column_name,
+                   CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable
+              FROM pg_attribute a
+              JOIN pg_class c ON a.attrelid = c.oid
+             WHERE c.relname = ANY(%s)
+               AND c.relnamespace = current_schema::regnamespace
+               AND a.attnum > 0
+               AND NOT a.attisdropped
+            """,
+            [list(tables)],
+        )
+        columns_by_table: dict[str, dict[str, str]] = {}
+        for table_name, column_name, is_nullable in cr.fetchall():
+            columns_by_table.setdefault(table_name, {})[column_name] = is_nullable
 
-    for model in models:
-        Model = env[model]
-        if Model._abstract:
-            continue
-        cols = {name for name, field in Model._fields.items() if field.is_column}
-        for col_name, is_nullable in columns_by_table.get(Model._table, {}).items():
-            if col_name in cols:
+        orphans = dropped = 0
+        for model in models:
+            Model = env[model]
+            if Model._abstract:
                 continue
-            _logger.debug(
-                "column %s is in the table %s but not in the corresponding object %s",
-                col_name,
-                Model._table,
-                model,
-            )
-            if is_nullable == "NO":
-                schema.drop_not_null(cr, Model._table, col_name)
+            cols = {name for name, field in Model._fields.items() if field.is_column}
+            for col_name, is_nullable in columns_by_table.get(Model._table, {}).items():
+                if col_name in cols:
+                    continue
+                orphans += 1
+                _logger.debug(
+                    "column %s is in the table %s but not in the corresponding object %s",
+                    col_name,
+                    Model._table,
+                    model,
+                )
+                if is_nullable == "NO":
+                    dropped += 1
+                    _debug.lifecycle(
+                        "modules.removed_column.not_null_dropped",
+                        model=model,
+                        table=Model._table,
+                        column=col_name,
+                    )
+                    schema.drop_not_null(cr, Model._table, col_name)
+        span.set(orphans=orphans, dropped=dropped)
 
 
 class _UninstallRequiresReload(Exception):
@@ -998,7 +1213,16 @@ class _ModuleLoader:
     def bootstrap(self) -> bool:
         cr = self.cr
         cr.execute("SET SESSION lock_timeout = '15s'")
-        if not modules_db.is_initialized(cr):
+        initialized = modules_db.is_initialized(cr)
+        _debug.logic(
+            "modules.bootstrap.decision",
+            db=cr.dbname,
+            initialized=initialized,
+            update_module=self.update_module,
+            base_upgrade="base" in self.upgrade_modules,
+            base_reinit="base" in self.reinit_modules,
+        )
+        if not initialized:
             if not self.update_module:
                 _logger.info(
                     "Database %s not initialized, skipping (use `-i base` to bootstrap).",
@@ -1006,7 +1230,8 @@ class _ModuleLoader:
                 )
                 return False
             _logger.info("Initializing database %s", cr.dbname)
-            modules_db.initialize(cr)
+            with _debug.perf("modules.bootstrap.initialize", cr=cr, db=cr.dbname):
+                modules_db.initialize(cr)
         elif "base" in self.reinit_modules:
             self.registry.loading.reinit_modules.add("base")
 
@@ -1014,6 +1239,9 @@ class _ModuleLoader:
             cr.execute(
                 "update ir_module_module set state=%s where name=%s and state=%s",
                 ("to upgrade", "base", "installed"),
+            )
+            _debug.lifecycle(
+                "modules.bootstrap.base_marked_to_upgrade", marked=cr.rowcount == 1
             )
 
         self.graph = ModuleGraph(cr, mode="update" if self.update_module else "load")
@@ -1035,7 +1263,13 @@ class _ModuleLoader:
     def run_pre_upgrade_scripts(self) -> None:
         if not (self.update_module and self.upgrade_modules):
             return
-        for pyfile in tools.config["pre_upgrade_scripts"]:
+        scripts = tools.config["pre_upgrade_scripts"]
+        _debug.pipeline(
+            "modules.pre_upgrade_scripts",
+            scripts=len(scripts),
+            base_version=self.graph["base"].db_version,
+        )
+        for pyfile in scripts:
             odoo.modules.migration.run_migration_script(
                 self.cr, self.graph["base"].db_version or "", pyfile, "base", "pre"
             )
@@ -1043,7 +1277,8 @@ class _ModuleLoader:
     def capture_database_field_metadata(self) -> None:
         if not (self.update_module and schema.table_exists(self.cr, "ir_model_fields")):
             return
-        self.registry.reflect_database_fields(self.cr)
+        with _debug.perf("modules.reflect_database_fields", cr=self.cr):
+            self.registry.reflect_database_fields(self.cr)
 
     def open_environment_and_load_base(self) -> None:
         self.report = None
@@ -1054,6 +1289,12 @@ class _ModuleLoader:
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
         self.env.transaction.default_env = self.env
         self.migrations = MigrationManager(self.cr, self.graph)
+        _debug.lifecycle(
+            "modules.environment_opened",
+            db=self.registry.db_name,
+            test_report=self.report is not None,
+            migrations=len(self.migrations.migrations),
+        )
         load_module_graph(
             self.env,
             self.graph,
@@ -1068,6 +1309,12 @@ class _ModuleLoader:
     def load_languages(self) -> None:
         load_lang = tools.config.get("load_language")
         lang_pending = bool(load_lang) and not self.registry.loading.load_language_done
+        _debug.logic(
+            "modules.load_languages",
+            requested=load_lang or None,
+            pending=lang_pending,
+            update_module=self.update_module,
+        )
         if lang_pending or self.update_module:
             self.registry.setup_models(self.cr, [], skip_if_clean=True)
 
@@ -1084,7 +1331,8 @@ class _ModuleLoader:
         cr = self.cr
         Module = env["ir.module.module"]
         _logger.info("updating modules list")
-        Module.update_list()
+        with _debug.perf("modules.update_list", cr=cr):
+            Module.update_list()
 
         _warn_invalid_module_names(
             cr, itertools.chain(self.install_modules, self.upgrade_modules)
@@ -1097,8 +1345,15 @@ class _ModuleLoader:
                     ("name", "in", tuple(self.install_modules)),
                 ]
             )
+            _debug.logic(
+                "modules.request",
+                kind="install",
+                requested=len(self.install_modules),
+                matched=len(modules),
+            )
             if modules:
-                modules.button_install()
+                with _debug.perf("modules.button_install", cr=cr, modules=len(modules)):
+                    modules.button_install()
 
         if self.upgrade_modules:
             modules = Module.search(
@@ -1107,8 +1362,15 @@ class _ModuleLoader:
                     ("name", "in", tuple(self.upgrade_modules)),
                 ]
             )
+            _debug.logic(
+                "modules.request",
+                kind="upgrade",
+                requested=len(self.upgrade_modules),
+                matched=len(modules),
+            )
             if modules:
-                modules.button_upgrade()
+                with _debug.perf("modules.button_upgrade", cr=cr, modules=len(modules)):
+                    modules.button_upgrade()
 
         if self.reinit_modules:
             modules = Module.search(
@@ -1133,6 +1395,14 @@ class _ModuleLoader:
                 for m in reinit_records.mapped("name")
                 if m not in self.graph._imported_modules
             )
+            _debug.logic(
+                "modules.request",
+                kind="reinit",
+                requested=len(self.reinit_modules),
+                matched=len(modules),
+                downstream=len(reinit_records) - len(modules),
+                marked=len(self.registry.loading.reinit_modules),
+            )
 
         env.flush_all()
         cr.execute(
@@ -1149,7 +1419,9 @@ class _ModuleLoader:
 
     def converge_module_graph(self) -> None:
         env = self.env
+        iteration = 0
         while True:
+            iteration += 1
             states: tuple[str, ...] = ("installed", "to upgrade", "to remove")
             if self.update_module:
                 states += ("to install",)
@@ -1162,11 +1434,18 @@ class _ModuleLoader:
             ]
             _debug.pipeline(
                 "modules.converge",
+                iteration=iteration,
                 new=len(module_list),
                 graph=len(self.graph),
                 updated=len(self.registry.updated_modules),
             )
             if not module_list:
+                _debug.logic(
+                    "modules.converge.stop",
+                    iteration=iteration,
+                    reason="no_new_modules",
+                    graph=len(self.graph),
+                )
                 break
             self.graph.extend(module_list)
             _logger.debug("Updating graph with %d more modules", len(module_list))
@@ -1182,6 +1461,14 @@ class _ModuleLoader:
                 migrations=self.migrations,
             )
             if len(self.registry.updated_modules) == updated_modules_count:
+                _debug.logic(
+                    "modules.converge.stop",
+                    iteration=iteration,
+                    reason="no_progress",
+                    graph=len(self.graph),
+                    requested=len(module_list),
+                    kept=sum(1 for name in module_list if name in self.graph),
+                )
                 break
 
     def untranslate_dropped_fields(self) -> None:
@@ -1223,6 +1510,12 @@ class _ModuleLoader:
             Module._get_domain_modules_to_load(), ["name"], order="name"
         )
         missing = [name for name in modules.mapped("name") if name not in self.graph]
+        _debug.logic(
+            "modules.never_loaded",
+            to_load=len(modules),
+            graph=len(self.graph),
+            missing=len(missing),
+        )
         if missing:
             _logger.error(
                 "Some modules are not loaded, some dependencies or manifest may be missing: %s",
@@ -1232,7 +1525,7 @@ class _ModuleLoader:
     def run_end_migrations(self) -> None:
         if not self.update_module:
             return
-        with _debug.perf("modules.end_migrations", modules=len(self.graph)):
+        with _debug.perf("modules.end_migrations", cr=self.cr, modules=len(self.graph)):
             for package in self.graph:
                 self.migrations.migrate_module(package, "end")
 
@@ -1242,6 +1535,12 @@ class _ModuleLoader:
             "SELECT name, state FROM ir_module_module WHERE state IN ('to install', 'to upgrade')"
         )
         pending = cr.fetchall()
+        _debug.logic(
+            "modules.pending_states",
+            update_module=self.update_module,
+            to_install=sum(1 for _name, state in pending if state == "to install"),
+            to_upgrade=sum(1 for _name, state in pending if state == "to upgrade"),
+        )
         if pending and self.update_module:
             _logger.error(
                 "Some modules have inconsistent states after upgrade, "
@@ -1267,7 +1566,8 @@ class _ModuleLoader:
                 )
 
     def finalize_constraints(self) -> None:
-        self.registry.finalize_constraints(self.cr)
+        with _debug.perf("modules.finalize_constraints", cr=self.cr):
+            self.registry.finalize_constraints(self.cr)
 
     def _check_removed_columns(self, models: list[str]) -> None:
         _drop_not_null_on_removed_columns(self.env, self.cr, models)
@@ -1279,25 +1579,41 @@ class _ModuleLoader:
         cr = self.cr
         cr.execute("SELECT model from ir_model")
         checked_models = []
+        unloadable = 0
         for (model,) in cr.fetchall():
             if model in self.registry:
                 checked_models.append(model)
-            elif _logger.isEnabledFor(logging.INFO):
-                _logger.log(
-                    RUNBOT,
-                    "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
-                    model,
-                )
+            else:
+                unloadable += 1
+                if _logger.isEnabledFor(logging.INFO):
+                    _logger.log(
+                        RUNBOT,
+                        "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",
+                        model,
+                    )
+        _debug.pipeline(
+            "modules.post_update_checks",
+            updated_modules=len(self.registry.updated_modules),
+            models=len(checked_models),
+            unloadable=unloadable,
+        )
         self._check_removed_columns(checked_models)
 
         self._reflect_inherits_across_the_whole_registry()
 
-        env["ir.model.data"]._process_end(self.registry.updated_modules)
+        with _debug.perf(
+            "modules.process_end",
+            cr=cr,
+            modules=len(self.registry.updated_modules),
+            xmlids_written=len(self.registry.loading.xmlids_written),
+        ):
+            env["ir.model.data"]._process_end(self.registry.updated_modules)
         self.registry.loading.xmlids_written.clear()
         vacuum_cron = typing.cast(
             "IrCronProtocol | None",
             env.ref("base.autovacuum_job", raise_if_not_found=False),
         )
+        _debug.logic("modules.autovacuum_trigger", found=vacuum_cron is not None)
         if vacuum_cron:
             trigger_at = datetime.datetime.now(datetime.UTC).replace(
                 tzinfo=None
@@ -1309,7 +1625,12 @@ class _ModuleLoader:
     def _reflect_inherits_across_the_whole_registry(self) -> None:
         if not self.registry.updated_modules:
             return
-        with self.registry.init_models_window(install=False):
+        with (
+            _debug.perf(
+                "modules.reflect_inherits", cr=self.cr, models=len(self.registry.models)
+            ),
+            self.registry.init_models_window(install=False),
+        ):
             self.env["ir.model.inherit"]._reflect_inherits(list(self.registry.models))
 
     def uninstall_removed_modules(self) -> None:
@@ -1324,18 +1645,28 @@ class _ModuleLoader:
         modules_to_remove = dict(cr.fetchall())
         if not modules_to_remove:
             return
+        _debug.pipeline(
+            "modules.uninstall.begin",
+            modules=len(modules_to_remove),
+            names=",".join(sorted(modules_to_remove)[:8]),
+        )
 
         pkgs = reversed([p for p in self.graph if p.name in modules_to_remove])
         for pkg in pkgs:
             uninstall_hook = pkg.manifest.get("uninstall_hook")
             if uninstall_hook:
                 py_module = sys.modules[f"odoo.addons.{pkg.name}"]
-                getattr(py_module, uninstall_hook)(env)
-                env.flush_all()
+                with _debug.perf(
+                    "modules.hook", cr=cr, module=pkg.name, hook=uninstall_hook
+                ):
+                    getattr(py_module, uninstall_hook)(env)
+                    env.flush_all()
 
         Module = env["ir.module.module"]
-        Module.browse(modules_to_remove.values()).module_uninstall()
-        cr.commit()
+        with _debug.perf("modules.uninstall", cr=cr, modules=len(modules_to_remove)):
+            Module.browse(modules_to_remove.values()).module_uninstall()
+            cr.commit()
+        _debug.lifecycle("modules.uninstall.reload_required", db=cr.dbname)
         raise _UninstallRequiresReload
 
     def collect_models_with_manual_fields(self) -> None:
@@ -1344,31 +1675,49 @@ class _ModuleLoader:
         self.cr.execute(
             """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
         )
+        rows = self.cr.fetchall()
+        before = len(self.models_to_check)
         self.models_to_check.update(
-            model_name
-            for (model_name,) in self.cr.fetchall()
-            if model_name in self.registry
+            model_name for (model_name,) in rows if model_name in self.registry
+        )
+        _debug.logic(
+            "modules.manual_fields",
+            models=len(rows),
+            added=len(self.models_to_check) - before,
+            to_check=len(self.models_to_check),
         )
 
     def reinit_models_to_check(self) -> None:
         if not self.models_to_check:
             return
         models = [model for model in self.models_to_check if model in self.registry]
-        self.registry.init_models(
-            self.cr,
-            models,
-            {"models_to_check": True, "update_custom_fields": True},
-        )
+        with _debug.perf(
+            "modules.reinit_models_to_check",
+            cr=self.cr,
+            models=len(models),
+            unknown=len(self.models_to_check) - len(models),
+        ):
+            self.registry.init_models(
+                self.cr,
+                models,
+                {"models_to_check": True, "update_custom_fields": True},
+            )
 
     def warn_invalid_custom_views(self) -> None:
         if not self.update_module:
             return
         View = self.env["ir.ui.view"]
-        for model in self.registry:
-            try:
-                View._has_valid_custom_views(model)
-            except Exception as e:
-                _logger.warning("invalid custom view(s) for model %s: %s", model, e)
+        with _debug.perf(
+            "modules.custom_views_check", cr=self.cr, models=len(self.registry)
+        ) as span:
+            invalid = 0
+            for model in self.registry:
+                try:
+                    View._has_valid_custom_views(model)
+                except Exception as e:
+                    invalid += 1
+                    _logger.warning("invalid custom view(s) for model %s: %s", model, e)
+            span.set(invalid=invalid)
 
     def log_assertion_report(self) -> None:
         report = self.report
@@ -1376,14 +1725,28 @@ class _ModuleLoader:
             _logger.info("Modules loaded.")
         else:
             _logger.error("At least one test failed when loading the modules.")
+        _debug.lifecycle(
+            "modules.loaded",
+            db=self.registry.db_name,
+            update_module=self.update_module,
+            updated_modules=len(self.registry.updated_modules),
+            graph=len(self.graph),
+            tests=report.testsRun if report else 0,
+            failures=report.failures_count if report else 0,
+            errors=report.errors_count if report else 0,
+        )
 
     def register_model_hooks(self) -> None:
-        for model in self.env.values():
-            model._register_hook()
-        self.env.flush_all()
+        with _debug.perf(
+            "modules.register_hooks", cr=self.cr, models=len(self.registry)
+        ):
+            for model in self.env.values():
+                model._register_hook()
+            self.env.flush_all()
 
     def check_null_constraints(self) -> None:
-        self.registry.check_null_constraints(self.cr)
+        with _debug.perf("modules.check_null_constraints", cr=self.cr):
+            self.registry.check_null_constraints(self.cr)
 
     def mark_database_partially_updated(self) -> None:
         if not self.update_module:
@@ -1394,6 +1757,9 @@ class _ModuleLoader:
             WHERE EXISTS(SELECT FROM ir_module_module WHERE state IN ('to upgrade', 'to install', 'to remove'))
             ON CONFLICT DO NOTHING
             """)
+        _debug.lifecycle(
+            "modules.partially_updated", db=self.cr.dbname, marked=self.cr.rowcount == 1
+        )
 
 
 def load_modules(
@@ -1412,7 +1778,19 @@ def load_modules(
 
     initialize_sys_path()
 
-    with registry.cursor() as cr:
+    with (
+        registry.cursor() as cr,
+        _debug.perf(
+            "modules.load_modules",
+            cr=cr,
+            db=registry.db_name,
+            update_module=update_module,
+            install=len(install_modules),
+            upgrade=len(upgrade_modules),
+            reinit=len(reinit_modules),
+            run_tests=run_tests,
+        ) as span,
+    ):
         assert isinstance(cr, odoo.db.Cursor), "Need a real Cursor to load modules"
         loader = _ModuleLoader(
             registry,
@@ -1427,6 +1805,7 @@ def load_modules(
         )
 
         if not loader.bootstrap():
+            span.set(outcome="not_initialized")
             return
 
         loader.run_pre_upgrade_scripts()
@@ -1448,6 +1827,7 @@ def load_modules(
             loader.uninstall_removed_modules()
         except _UninstallRequiresReload:
             _logger.info("Reloading registry once more after uninstalling modules")
+            span.set(outcome="reload_after_uninstall")
             Registry.new(
                 cr.dbname,
                 update_module=update_module,
@@ -1462,12 +1842,14 @@ def load_modules(
         loader.register_model_hooks()
         loader.check_null_constraints()
         loader.mark_database_partially_updated()
+        span.set(outcome="loaded", modules=len(loader.graph))
 
 
 def reset_modules_state(db_name: str) -> None:
     db = odoo.db.db_connect(db_name)
     with db.cursor() as cr:
         if not schema.table_exists(cr, "ir_module_module"):
+            _debug.logic("modules.reset_state.skipped", db=db_name)
             _logger.info(
                 "skipping reset_modules_state, ir_module_module table does not exist"
             )
@@ -1480,6 +1862,12 @@ def reset_modules_state(db_name: str) -> None:
             "UPDATE ir_module_module SET state='uninstalled' WHERE state='to install'"
         )
         reset_count += cr.rowcount
+        _debug.lifecycle(
+            "modules.reset_state",
+            db=db_name,
+            reset=reset_count,
+            to_uninstalled=cr.rowcount,
+        )
         if reset_count:
             _logger.warning(
                 "Transient module states were reset (%d modules)", reset_count

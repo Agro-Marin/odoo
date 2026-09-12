@@ -81,14 +81,18 @@ def _insert_modules(cr: SqlReader, rows: list[tuple]) -> dict[str, int]:
     placeholder = "(" + ", ".join(["%s"] * len(_MODULE_COLUMNS)) + ")"
     columns = ", ".join(_MODULE_COLUMNS)
     ids: dict[str, int] = {}
-    for chunk in batched(rows, _MODULE_INSERT_CHUNK, strict=False):
-        cr.execute(
-            f"INSERT INTO ir_module_module ({columns}) VALUES "
-            + ", ".join([placeholder] * len(chunk))
-            + " RETURNING id, name",
-            [value for row in chunk for value in row],
-        )
-        ids.update({name: module_id for module_id, name in cr.fetchall()})
+    with _debug.perf("modules.db.insert_modules", cr=cr, rows=len(rows)) as span:
+        chunks = 0
+        for chunk in batched(rows, _MODULE_INSERT_CHUNK, strict=False):
+            chunks += 1
+            cr.execute(
+                f"INSERT INTO ir_module_module ({columns}) VALUES "
+                + ", ".join([placeholder] * len(chunk))
+                + " RETURNING id, name",
+                [value for row in chunk for value in row],
+            )
+            ids.update({name: module_id for module_id, name in cr.fetchall()})
+        span.set(chunks=chunks, inserted=len(ids))
     return ids
 
 
@@ -100,7 +104,10 @@ def _create_base_schema(cr: Cursor) -> None:
         _logger.critical(m)
         raise OSError(m) from e
 
-    with odoo.tools.misc.file_open(f) as base_sql_file:
+    with (
+        odoo.tools.misc.file_open(f) as base_sql_file,
+        _debug.perf("modules.db.base_schema", cr=cr, path=f),
+    ):
         cr.execute(base_sql_file.read())
 
 
@@ -123,36 +130,56 @@ def _copy_module_metadata(
         triggers = info["auto_install"] or ()
         all_dep_rows.extend((module_id, d, d in triggers) for d in info["depends"])
 
-    if all_data_rows:
-        cr.copy_from(
-            "ir_model_data",
-            ["name", "model", "module", "res_id", "noupdate"],
-            all_data_rows,
-        )
-    if all_dep_rows:
-        cr.copy_from(
-            "ir_module_module_dependency",
-            ["module_id", "name", "auto_install_required"],
-            all_dep_rows,
-        )
+    with _debug.perf(
+        "modules.db.copy_module_metadata",
+        cr=cr,
+        xmlids=len(all_data_rows),
+        dependencies=len(all_dep_rows),
+    ):
+        if all_data_rows:
+            cr.copy_from(
+                "ir_model_data",
+                ["name", "model", "module", "res_id", "noupdate"],
+                all_data_rows,
+            )
+        if all_dep_rows:
+            cr.copy_from(
+                "ir_module_module_dependency",
+                ["module_id", "name", "auto_install_required"],
+                all_dep_rows,
+            )
 
 
 def _mark_auto_install_modules(cr: Cursor) -> None:
-    while True:
-        cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
-        to_auto_install = [x[0] for x in cr.fetchall()]
-        cr.execute(_AUTO_INSTALL_CLOSURE_QUERY, [to_auto_install, to_auto_install])
-        to_auto_install.extend(x[0] for x in cr.fetchall())
+    iteration = 0
+    marked = 0
+    with _debug.perf("modules.db.mark_auto_install", cr=cr) as span:
+        while True:
+            iteration += 1
+            cr.execute(_AUTO_INSTALL_CANDIDATES_QUERY)
+            to_auto_install = [x[0] for x in cr.fetchall()]
+            candidates = len(to_auto_install)
+            cr.execute(_AUTO_INSTALL_CLOSURE_QUERY, [to_auto_install, to_auto_install])
+            to_auto_install.extend(x[0] for x in cr.fetchall())
+            _debug.logic(
+                "modules.db.auto_install.iteration",
+                iteration=iteration,
+                candidates=candidates,
+                closure=len(to_auto_install) - candidates,
+            )
 
-        if not to_auto_install:
-            break
-        cr.execute(
-            """UPDATE ir_module_module SET state='to install' WHERE name = ANY(%s)""",
-            (list(to_auto_install),),
-        )
+            if not to_auto_install:
+                break
+            marked += len(to_auto_install)
+            cr.execute(
+                """UPDATE ir_module_module SET state='to install' WHERE name = ANY(%s)""",
+                (list(to_auto_install),),
+            )
+        span.set(iterations=iteration, marked=marked)
 
 
 def initialize(cr: Cursor) -> None:
+    _debug.pipeline("modules.db.initialize", db=cr.dbname)
     _create_base_schema(cr)
 
     manifests = Manifest.get_all_addon_manifests()
@@ -188,6 +215,7 @@ def initialize(cr: Cursor) -> None:
     )
 
     if odoo.tools.config.get("skip_auto_install"):
+        _debug.logic("modules.db.auto_install.skipped", db=cr.dbname)
         cr.execute(
             """UPDATE ir_module_module SET state='to install' WHERE name = 'base'"""
         )
@@ -238,6 +266,12 @@ def get_or_create_category_id(
             """,
                 ("base", xml_id, p_id, "ir.module.category", True),
             )
+            _debug.lifecycle(
+                "modules.db.category_created",
+                xml_id=xml_id,
+                id=p_id,
+                depth=len(built),
+            )
         else:
             p_id = row[0]
         assert isinstance(p_id, int)
@@ -261,20 +295,40 @@ def initialize_db(
     try:
         odoo.tools.config["load_language"] = lang
 
-        registry = Registry.new(
-            db_name, update_module=True, new_db_demo=demo, run_tests=False
+        _debug.pipeline(
+            "modules.db.initialize_db.begin",
+            db=db_name,
+            demo=demo,
+            lang=lang,
+            country=normalized_country,
         )
+        with _debug.perf("modules.db.initialize_db.registry", db=db_name):
+            registry = Registry.new(
+                db_name, update_module=True, new_db_demo=demo, run_tests=False
+            )
 
         with closing(registry.cursor()) as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
 
             if lang:
                 modules = env["ir.module.module"].search([("state", "=", "installed")])
-                modules._update_translations(lang)
+                with _debug.perf(
+                    "modules.db.initialize_db.translations",
+                    cr=cr,
+                    lang=lang,
+                    modules=len(modules),
+                ):
+                    modules._update_translations(lang)
 
             if normalized_country:
                 country = env["res.country"].search(
                     [("code", "ilike", normalized_country)], limit=1
+                )
+                _debug.logic(
+                    "modules.db.initialize_db.country",
+                    code=normalized_country,
+                    found=bool(country),
+                    currency=bool(country and country.currency_id),
                 )
                 if country:
                     company_values = {"country_id": country.id}
@@ -284,9 +338,16 @@ def initialize_db(
                     from odoo.libs.datetime import country_timezones
 
                     tz_mapping = country_timezones()
-                    if len(tz_mapping.get(normalized_country, [])) == 1:
+                    timezones = tz_mapping.get(normalized_country) or ()
+                    _debug.logic(
+                        "modules.db.initialize_db.timezone",
+                        code=normalized_country,
+                        candidates=len(timezones),
+                        applied=len(timezones) == 1,
+                    )
+                    if len(timezones) == 1:
                         users = env["res.users"].search([])
-                        users.write({"tz": tz_mapping[normalized_country][0]})
+                        users.write({"tz": timezones[0]})
 
             if phone:
                 env["res.company"].browse(1).write(

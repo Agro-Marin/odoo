@@ -61,6 +61,7 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
         name = Path(path).name
         if name.startswith(_STAGE_PREFIXES) or name == "__init__.py":
             continue
+        _debug.logic("migration.unstaged_script", path=path)
         _logger.warning(
             "Migration script %s will never run: its name matches no stage. "
             "Rename it to one of %s (lower-case, hyphen) or move it out of %s.",
@@ -113,6 +114,7 @@ def _is_upgrade_version_dir(path: str, version: str) -> bool:
     if version == "tests":
         return False
     if not VERSION_RE.match(version):
+        _debug.logic("migration.invalid_version_dir", path=str(full_path))
         _logger.warning("Invalid version for upgrade script %r", str(full_path))
         return False
     return True
@@ -129,6 +131,12 @@ def _get_scripts_by_version(path: str) -> dict[str, list[str]]:
     }
     for version, files in by_version.items():
         _warn_unstaged_scripts(p / version, files)
+    _debug.perf.count(
+        "migration.scripts_indexed",
+        path=path,
+        versions=len(by_version),
+        scripts=sum(len(files) for files in by_version.values()),
+    )
     return by_version
 
 
@@ -152,26 +160,45 @@ class MigrationManager:
         return pkg.load_state == "to upgrade"
 
     def index_migration_scripts(self) -> None:
-        for pkg in self.graph:
-            if pkg.name in self.migrations:
-                continue
-            if not self._is_migration_required(pkg):
-                continue
+        with _debug.perf(
+            "migration.index", graph=len(self.graph), indexed=len(self.migrations)
+        ) as span:
+            added = 0
+            for pkg in self.graph:
+                if pkg.name in self.migrations:
+                    continue
+                if not self._is_migration_required(pkg):
+                    continue
 
-            self.migrations[pkg.name] = {
-                "module": _get_scripts_by_version(
-                    _get_addon_path(pkg.name + "/migrations")
-                ),
-                "module_upgrades": _get_scripts_by_version(
-                    _get_addon_path(pkg.name + "/upgrades")
-                ),
-            }
+                added += 1
+                self.migrations[pkg.name] = {
+                    "module": _get_scripts_by_version(
+                        _get_addon_path(pkg.name + "/migrations")
+                    ),
+                    "module_upgrades": _get_scripts_by_version(
+                        _get_addon_path(pkg.name + "/upgrades")
+                    ),
+                }
 
-            scripts = defaultdict(list)
-            for p in _iter_upgrade_paths(pkg.name):
-                for v, s in _get_scripts_by_version(p).items():
-                    scripts[v].extend(s)
-            self.migrations[pkg.name]["upgrade"] = scripts
+                scripts = defaultdict(list)
+                for p in _iter_upgrade_paths(pkg.name):
+                    for v, s in _get_scripts_by_version(p).items():
+                        scripts[v].extend(s)
+                self.migrations[pkg.name]["upgrade"] = scripts
+                _debug.lifecycle(
+                    "migration.module_indexed",
+                    module=pkg.name,
+                    installed=getattr(pkg, "load_version", None),
+                    target=getattr(pkg, "manifest", {}).get("version"),
+                    versions=len(
+                        {
+                            version
+                            for source in self.migrations[pkg.name].values()
+                            for version in source
+                        }
+                    ),
+                )
+            span.set(added=added)
 
     def migrate_module(
         self,
@@ -239,17 +266,31 @@ class MigrationManager:
                 if _is_migration_applicable(version, installed_version, target_version)
             ),
         )
+        scripts_run = 0
         for version in versions:
-            if _is_migration_applicable(version, installed_version, target_version):
-                for pyfile in _get_migration_files(pkg, version, stage):
-                    run_migration_script(
-                        self.cr,
-                        installed_version,
-                        pyfile,
-                        pkg.name,
-                        stage,
-                        stageformat[stage] % version,
-                    )
+            if not _is_migration_applicable(version, installed_version, target_version):
+                continue
+            files = _get_migration_files(pkg, version, stage)
+            _debug.logic(
+                "migration.version_applicable",
+                module=pkg.name,
+                stage=stage,
+                version=version,
+                scripts=len(files),
+            )
+            for pyfile in files:
+                scripts_run += 1
+                run_migration_script(
+                    self.cr,
+                    installed_version,
+                    pyfile,
+                    pkg.name,
+                    stage,
+                    stageformat[stage] % version,
+                )
+        _debug.lifecycle(
+            "migration.stage_done", module=pkg.name, stage=stage, scripts=scripts_run
+        )
 
 
 VALID_MIGRATE_PARAMS = list(
@@ -271,15 +312,34 @@ def run_migration_script(
     version = version or installed_version
     p = Path(pyfile)
     if p.suffix.lower() != ".py":
+        _debug.logic("migration.script_skipped", module=addon, script=pyfile)
         return
+    _debug.pipeline(
+        "migration.script",
+        module=addon,
+        stage=stage,
+        script=p.name,
+        version=version,
+        installed=installed_version,
+    )
     try:
         mod = load_script(pyfile, p.stem)
     except ImportError as e:
+        _debug.logic(
+            "migration.script_failed",
+            module=addon,
+            script=p.name,
+            reason="import",
+            error=type(e).__name__,
+        )
         raise ImportError(
             f"module {addon}: Unable to load {stage}-migration file {pyfile}"
         ) from e
 
     if not hasattr(mod, "migrate"):
+        _debug.logic(
+            "migration.script_failed", module=addon, script=p.name, reason="no_migrate"
+        )
         raise AttributeError(
             f"module {addon}: Each {stage}-migration file must have a"
             f' "migrate(cr, installed_version)" function, not found in {pyfile}'
@@ -301,6 +361,13 @@ def run_migration_script(
             for param in sig.parameters.values()
         )
     ):
+        _debug.logic(
+            "migration.script_failed",
+            module=addon,
+            script=p.name,
+            reason="signature",
+            signature=str(sig),
+        )
         raise TypeError(
             f"module {addon}: `migrate`'s signature should be `(cr, version)`,"
             f" {mod.migrate} is {sig}"

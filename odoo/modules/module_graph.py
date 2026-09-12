@@ -32,6 +32,8 @@ class ModuleNode:
         manifest = Manifest.for_addon(name, display_warning=False)
         if manifest is not None:
             manifest._force_parse()
+        else:
+            _debug.logic("module_graph.manifest_missing", module=name)
         self.manifest: Mapping = manifest or {}
 
         self.id: int = 0
@@ -103,34 +105,46 @@ class ModuleGraph:
         return self._modules[name]
 
     def __iter__(self) -> Iterator[ModuleNode]:
-        return iter(
-            sorted(
+        with _debug.perf("module_graph.sort", modules=len(self._modules)):
+            ordered = sorted(
                 self._modules.values(),
                 key=lambda p: (p.phase, p.depth, p.order_name),
             )
-        )
+        return iter(ordered)
 
     def __len__(self) -> int:
         return len(self._modules)
 
     def extend(self, names: Collection[str]) -> None:
-        for module in self._modules.values():
-            reset_cached_properties(module)
+        with _debug.perf(
+            "module_graph.extend", requested=len(names), mode=self.mode
+        ) as span:
+            for module in self._modules.values():
+                reset_cached_properties(module)
 
-        names = [name for name in names if name not in self._modules]
+            names = [name for name in names if name not in self._modules]
+            span.set(new=len(names))
 
-        for name in names:
-            module = self._modules[name] = ModuleNode(name, self)
-            if not module.manifest.get("installable"):
-                if name in self._imported_modules:
-                    self._remove(name, log_dependents=False)
-                else:
-                    _logger.warning("module %s: not installable, skipped", name)
-                    self._remove(name)
+            for name in names:
+                module = self._modules[name] = ModuleNode(name, self)
+                if not module.manifest.get("installable"):
+                    imported = name in self._imported_modules
+                    _debug.logic(
+                        "module_graph.not_installable",
+                        module=name,
+                        imported=imported,
+                        manifest=bool(module.manifest),
+                    )
+                    if imported:
+                        self._remove(name, log_dependents=False)
+                    else:
+                        _logger.warning("module %s: not installable, skipped", name)
+                        self._remove(name)
 
-        self._update_depends(names)
-        self._update_depth(names)
-        self._update_from_database(names)
+            self._update_depends(names)
+            self._update_depth(names)
+            self._update_from_database(names)
+            span.set(kept=sum(1 for name in names if name in self._modules))
         _debug.pipeline(
             "module_graph.extended",
             requested=len(names),
@@ -143,14 +157,22 @@ class ModuleGraph:
         self._cr.execute(
             "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade')"
         )
-        return [name for (name,) in self._cr.fetchall() if name not in self._modules]
+        outside = [name for (name,) in self._cr.fetchall() if name not in self._modules]
+        _debug.perf.count(
+            "module_graph.installed_outside", outside=len(outside), graph=len(self)
+        )
+        return outside
 
     @functools.cached_property
     def _imported_modules(self) -> OrderedSet[str]:
         result = ["studio_customization"]
-        if column_exists(self._cr, "ir_module_module", "imported"):
+        has_column = column_exists(self._cr, "ir_module_module", "imported")
+        if has_column:
             self._cr.execute("SELECT name FROM ir_module_module WHERE imported")
             result += [m[0] for m in self._cr.fetchall()]
+        _debug.logic(
+            "module_graph.imported_modules", column=has_column, modules=len(result)
+        )
         return OrderedSet(result)
 
     def _update_depends(self, names: Iterable[str]) -> None:
@@ -161,6 +183,11 @@ class ModuleGraph:
                     module.depends = OrderedSet(self._modules[dep] for dep in depends)
                 except KeyError:
                     missing = [dep for dep in depends if dep not in self._modules]
+                    _debug.logic(
+                        "module_graph.depends_missing",
+                        module=name,
+                        missing=",".join(missing),
+                    )
                     _logger.warning(
                         "module %s: some depends are not loaded (%s), skipped",
                         name,
@@ -169,8 +196,12 @@ class ModuleGraph:
                     self._remove(name)
 
     def _update_depth(self, names: Iterable[str]) -> None:
-        for cycle_member in self._get_module_names_in_cycles():
+        with _debug.perf("module_graph.cycle_scan", modules=len(self._modules)) as span:
+            cycle_members = self._get_module_names_in_cycles()
+            span.set(on_cycle=len(cycle_members))
+        for cycle_member in cycle_members:
             if cycle_member in self._modules:
+                _debug.logic("module_graph.cycle_member", module=cycle_member)
                 _logger.warning(
                     "module %s: in a dependency loop, skipped",
                     cycle_member,
@@ -243,14 +274,19 @@ class ModuleGraph:
             WHERE name = ANY(%s)
         """
         self._cr.execute(query, [list(names)])
-        for name, id_, state, demo, db_version in self._cr.fetchall():
+        rows = self._cr.fetchall()
+        states: dict[str, int] = {}
+        for name, id_, state, demo, db_version in rows:
             if name not in self._modules:
                 continue
+            states[state] = states.get(state, 0) + 1
             if state == "uninstallable":
+                _debug.logic("module_graph.skipped", module=name, state=state)
                 _logger.warning("module %s: not installable, skipped", name)
                 self._remove(name)
                 continue
             if self.mode == "load" and state in ["to install", "uninstalled"]:
+                _debug.logic("module_graph.skipped", module=name, state=state)
                 _logger.info("module %s: not installed, skipped", name)
                 self._remove(name)
                 continue
@@ -261,6 +297,13 @@ class ModuleGraph:
             module.db_version = db_version
             module.load_version = db_version
             module.load_state = state
+        _debug.pipeline(
+            "module_graph.database_states",
+            names=len(names),
+            rows=len(rows),
+            mode=self.mode,
+            **{state.replace(" ", "_"): count for state, count in states.items()},
+        )
 
     def _remove(self, name: str, log_dependents: bool = True) -> None:
         module = self._modules.pop(name)
