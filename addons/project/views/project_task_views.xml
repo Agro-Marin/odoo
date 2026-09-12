@@ -78,7 +78,7 @@
                 <filter
                     name="templates"
                     string="Templates"
-                    domain="['|', ('has_template_ancestor', '=', True), ('project_id.is_template', '=', True)]"
+                    domain="[('has_template_ancestor', '=', True)]"
                     context="{'render_task_templates': True}" />
                 <group>
                     <filter
@@ -991,7 +991,7 @@
                             name="predecessor_ids"
                             widget="notebook_task_one2many"
                             mode="list,kanban"
-                            context="{                                         'default_project_id': project_id,                                         'search_view_ref' : 'project.view_task_search_form',                                         'search_default_project_id': project_id,                                         'list_view_ref': 'project.open_view_all_tasks_list_view',                                         'search_default_open_tasks': 1,                                         'kanban_view_ref': 'project.project_sub_task_view_kanban_mobile',                                         'closed_X2M_count': closed_predecessor_count,                                         'default_is_template': is_template,                                    }">
+                            context="{                                         'default_project_id': project_id,                                         'search_view_ref' : 'project.view_task_search_form',                                         'search_default_project_id': project_id,                                         'list_view_ref': 'project.open_view_all_tasks_list_view',                                         'search_default_open_tasks': 1,                                         'kanban_view_ref': 'project.project_sub_task_view_kanban_mobile',                                         'closed_X2M_count': closed_predecessor_count,                                         'default_is_template': is_template,                                         'render_task_templates': False,                                    }">
                             <list
                                 editable="bottom"
                                 open_form_view="True"

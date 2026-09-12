@@ -140,6 +140,7 @@ export class ProjectTask extends models.Model {
     date_start_effective = fields.Date({ string: "Date Start" });
     planning_overlap = fields.Html();
     is_template = fields.Boolean({ string: "Is Template", default: false });
+    has_template_ancestor = fields.Boolean({ default: false });
     triage_id = fields.Many2one({ relation: "project.triage" });
 
     has_access() {
