@@ -22,6 +22,10 @@ const DISABLE_CALL_AUTO_FOCUS_LS = "mail_user_setting_disable_call_auto_focus";
 const AUDIO_INPUT_DEVICE_LS = "mail_user_setting_audio_input_device_id";
 const AUDIO_OUTPUT_DEVICE_LS = "mail_user_setting_audio_output_device_id";
 const CAMERA_INPUT_DEVICE_LS = "mail_user_setting_camera_input_device_id";
+const SHOW_ONLY_VIDEO_LS = "mail_user_setting_show_only_video";
+const BACKGROUND_BLUR_AMOUNT_LS = "mail_user_setting_background_blur_amount";
+const EDGE_BLUR_AMOUNT_LS = "mail_user_setting_edge_blur_amount";
+const VOICE_THRESHOLD_LS = "mail_user_setting_voice_threshold";
 
 export class Settings extends Record {
     /** @type {number} */
@@ -31,8 +35,20 @@ export class Settings extends Record {
         super.setup();
         this.saveVoiceThresholdDebounce = debounce(() => {
             browser.localStorage.setItem(
-                "mail_user_setting_voice_threshold",
+                VOICE_THRESHOLD_LS,
                 this.voiceActivationThreshold.toString(),
+            );
+        }, 2000);
+        this.saveBackgroundBlurAmountDebounce = debounce(() => {
+            browser.localStorage.setItem(
+                BACKGROUND_BLUR_AMOUNT_LS,
+                this.backgroundBlurAmount.toString(),
+            );
+        }, 2000);
+        this.saveEdgeBlurAmountDebounce = debounce(() => {
+            browser.localStorage.setItem(
+                EDGE_BLUR_AMOUNT_LS,
+                this.edgeBlurAmount.toString(),
             );
         }, 2000);
         const canvasContext = document.createElement("canvas").getContext("2d");
@@ -56,6 +72,8 @@ export class Settings extends Record {
         this.volumeSettingsTimeouts.clear();
         browser.clearTimeout(this.globalSettingsTimeout);
         this.saveVoiceThresholdDebounce.cancel();
+        this.saveBackgroundBlurAmountDebounce.cancel();
+        this.saveEdgeBlurAmountDebounce.cancel();
         super.delete();
     }
 
@@ -119,7 +137,12 @@ export class Settings extends Record {
 
     backgroundBlurAmount = 10;
     edgeBlurAmount = 10;
-    showOnlyVideo = false;
+    showOnlyVideo = fields.Attr(false, {
+        /** @this {import("models").Settings} */
+        compute() {
+            return readLocalStorageItem(this.store, SHOW_ONLY_VIDEO_LS) === "true";
+        },
+    });
     useBlur = fields.Attr(false, {
         /** @this {import("models").Settings} */
         compute() {
@@ -336,6 +359,20 @@ export class Settings extends Record {
         this.voiceActivationThreshold = voiceActivationThreshold;
         this.saveVoiceThresholdDebounce();
     }
+    /** @param {boolean} showOnlyVideo */
+    setShowOnlyVideo(showOnlyVideo) {
+        setLocalStorageItem(this.store, SHOW_ONLY_VIDEO_LS, String(showOnlyVideo));
+    }
+    /** @param {number} backgroundBlurAmount */
+    setBackgroundBlurAmount(backgroundBlurAmount) {
+        this.backgroundBlurAmount = backgroundBlurAmount;
+        this.saveBackgroundBlurAmountDebounce();
+    }
+    /** @param {number} edgeBlurAmount */
+    setEdgeBlurAmount(edgeBlurAmount) {
+        this.edgeBlurAmount = edgeBlurAmount;
+        this.saveEdgeBlurAmountDebounce();
+    }
 
     /**
      * @param {Object} shortcut
@@ -399,28 +436,21 @@ export class Settings extends Record {
         this._saveSettings();
     }
     _loadLocalSettings() {
-        const voiceActivationThresholdString = browser.localStorage.getItem(
-            "mail_user_setting_voice_threshold",
-        );
+        const voiceActivationThresholdString =
+            browser.localStorage.getItem(VOICE_THRESHOLD_LS);
         this.voiceActivationThreshold = voiceActivationThresholdString
             ? parseFloat(voiceActivationThresholdString)
             : this.voiceActivationThreshold;
-        this.showOnlyVideo =
-            browser.localStorage.getItem("mail_user_setting_show_only_video") ===
-            "true";
         const backgroundBlurAmount = browser.localStorage.getItem(
-            "mail_user_setting_background_blur_amount",
+            BACKGROUND_BLUR_AMOUNT_LS,
         );
         this.backgroundBlurAmount = backgroundBlurAmount
             ? parseInt(backgroundBlurAmount)
             : 10;
-        const edgeBlurAmount = browser.localStorage.getItem(
-            "mail_user_setting_edge_blur_amount",
-        );
+        const edgeBlurAmount = browser.localStorage.getItem(EDGE_BLUR_AMOUNT_LS);
         this.edgeBlurAmount = edgeBlurAmount ? parseInt(edgeBlurAmount) : 10;
         log.lifecycle("localSettings loaded", () => ({
             voiceActivationThreshold: this.voiceActivationThreshold,
-            showOnlyVideo: this.showOnlyVideo,
             backgroundBlurAmount: this.backgroundBlurAmount,
             edgeBlurAmount: this.edgeBlurAmount,
         }));

@@ -9,7 +9,6 @@ import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog";
 
 const log = makeLogger("mail.rtc.settings");
@@ -31,18 +30,6 @@ export class CallSettings extends Component {
             userDevices: [],
         });
         this.pttExtService = useService("discuss.ptt_extension");
-        this.saveBackgroundBlurAmount = debounce(() => {
-            browser.localStorage.setItem(
-                "mail_user_setting_background_blur_amount",
-                this.store.settings.backgroundBlurAmount.toString(),
-            );
-        }, 2000);
-        this.saveEdgeBlurAmount = debounce(() => {
-            browser.localStorage.setItem(
-                "mail_user_setting_edge_blur_amount",
-                this.store.settings.edgeBlurAmount.toString(),
-            );
-        }, 2000);
         useExternalListener(
             browser,
             "keydown",
@@ -170,11 +157,7 @@ export class CallSettings extends Component {
     onChangeShowOnlyVideo(ev) {
         const showOnlyVideo = /** @type {HTMLInputElement} */ (ev.target).checked;
         log.logic("onChangeShowOnlyVideo", () => ({ showOnlyVideo }));
-        this.store.settings.showOnlyVideo = showOnlyVideo;
-        browser.localStorage.setItem(
-            "mail_user_setting_show_only_video",
-            String(this.store.settings.showOnlyVideo),
-        );
+        this.store.settings.setShowOnlyVideo(showOnlyVideo);
         const activeRtcSessions = this.store.allActiveRtcSessions;
         if (showOnlyVideo && activeRtcSessions) {
             activeRtcSessions
@@ -187,22 +170,16 @@ export class CallSettings extends Component {
 
     /** @param {Event} ev */
     onChangeBackgroundBlurAmount(ev) {
-        this.store.settings.backgroundBlurAmount = Number(
-            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
-                ev.target
-            ).value,
+        this.store.settings.setBackgroundBlurAmount(
+            Number(/** @type {HTMLInputElement} */ (ev.target).value),
         );
-        this.saveBackgroundBlurAmount();
     }
 
     /** @param {Event} ev */
     onChangeEdgeBlurAmount(ev) {
-        this.store.settings.edgeBlurAmount = Number(
-            /** @type {HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement} */ (
-                ev.target
-            ).value,
+        this.store.settings.setEdgeBlurAmount(
+            Number(/** @type {HTMLInputElement} */ (ev.target).value),
         );
-        this.saveEdgeBlurAmount();
     }
 }
 
