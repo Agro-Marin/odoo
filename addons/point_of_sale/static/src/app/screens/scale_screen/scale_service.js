@@ -1,10 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { formatFloat, roundDecimals } from "@web/core/utils/format/numbers";
 import { SignalStore } from "@web/core/utils/reactive";
 const MEASURING_DELAY_MS = 500;
 const TARE_TIMEOUT_MS = 3000;
+const log = makeLogger("pos.scale");
 
 export class PosScaleService extends SignalStore {
     constructor(env, deps) {
@@ -22,6 +24,10 @@ export class PosScaleService extends SignalStore {
 
     start(errorCallback) {
         this.onError = errorCallback;
+        log.lifecycle("start", () => ({
+            manual: this.isManualMeasurement,
+            product: this.product?.name,
+        }));
         if (!this.isManualMeasurement) {
             this.isMeasuring = true;
             this._readWeightContinuously();
@@ -29,6 +35,10 @@ export class PosScaleService extends SignalStore {
     }
 
     reset() {
+        log.lifecycle("reset", () => ({
+            wasMeasuring: this.isMeasuring,
+            polling: Boolean(this._pollHandle),
+        }));
         this.tare = 0;
         this.tareRequested = false;
         this.loading = false;
@@ -41,6 +51,11 @@ export class PosScaleService extends SignalStore {
 
     confirmWeight() {
         this.lastWeight = this.weight;
+        log.logic("confirmWeight", () => ({
+            gross: this.weight,
+            tare: this.tare,
+            net: this.netWeight,
+        }));
         return this.netWeight;
     }
 
@@ -65,12 +80,15 @@ export class PosScaleService extends SignalStore {
 
     async readWeight() {
         this.loading = true;
+        const endRead = log.perf("readWeight");
         try {
             this._checkScaleIsConnected();
             this.weight = await this._getWeightFromScale();
             this._clearLastWeightIfValid();
+            endRead({ weight: this.weight });
         } catch (error) {
             this.isMeasuring = false;
+            endRead({ error: error.message });
             this.onError?.(error.message);
         }
         this.loading = false;
@@ -88,6 +106,7 @@ export class PosScaleService extends SignalStore {
 
     _setTareIfRequested() {
         if (this.tareRequested) {
+            log.logic("setTare", () => ({ tare: this.weight }));
             this.tare = this.weight;
             this.tareRequested = false;
         }
@@ -100,6 +119,10 @@ export class PosScaleService extends SignalStore {
     }
 
     requestTare() {
+        log.logic("requestTare", () => ({
+            manual: this.isManualMeasurement,
+            loading: this.loading,
+        }));
         this.tareRequested = true;
         if (this.isManualMeasurement && !this.loading) {
             this.readWeight();

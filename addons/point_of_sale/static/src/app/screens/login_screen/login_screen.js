@@ -31,6 +31,12 @@ export class LoginScreen extends Component {
     cashierLogIn() {
         const selectedScreen = this.pos.getDefaultPage();
         const order = this.pos.getOrder();
+        log.pipeline("cashierLogIn", () => ({
+            cashier: this.pos.cashier?.id,
+            page: selectedScreen.page,
+            order: order?.uuid,
+            createOrder: !order && selectedScreen.page === "ProductScreen",
+        }));
         if (!order && selectedScreen.page === "ProductScreen") {
             this.pos.addNewOrder();
         }
@@ -42,6 +48,7 @@ export class LoginScreen extends Component {
         this.pos.hasLoggedIn = true;
     }
     selectOneCashier(cashier) {
+        log.lifecycle("selectOneCashier", () => ({ cashier: cashier?.id }));
         this.pos.setCashier(cashier);
         this.cashierLogIn();
     }

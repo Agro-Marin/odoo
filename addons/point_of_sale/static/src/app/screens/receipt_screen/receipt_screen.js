@@ -83,8 +83,9 @@ export class ReceiptScreen extends Component {
         return false;
     }
 
-    generateTicketImage = async (basicReceipt = false) =>
-        await this.renderer.toJpeg(
+    generateTicketImage = async (basicReceipt = false) => {
+        const endRender = log.perf("generateTicketImage");
+        const image = await this.renderer.toJpeg(
             OrderReceipt,
             {
                 order: this.currentOrder,
@@ -92,8 +93,21 @@ export class ReceiptScreen extends Component {
             },
             { addClass: "pos-receipt-print p-3" },
         );
+        endRender({
+            order: this.currentOrder?.uuid,
+            basicReceipt,
+            bytes: image?.length,
+        });
+        return image;
+    };
     async _sendReceiptToCustomer({ action, destination }) {
         const order = this.currentOrder;
+        log.pipeline("sendReceiptToCustomer", () => ({
+            order: order.uuid,
+            action,
+            synced: order.isSynced,
+            basicReceipt: this.pos.config.basic_receipt,
+        }));
         if (!order.isSynced) {
             this.dialog.add(ConfirmationDialog, {
                 title: _t("Unsynced order"),
@@ -108,12 +122,14 @@ export class ReceiptScreen extends Component {
         const basicTicketImage = this.pos.config.basic_receipt
             ? await this.generateTicketImage(true)
             : null;
+        const endSend = log.perf(`sendReceiptToCustomer ${action}`);
         await this.pos.data.call("pos.order", action, [
             [order.id],
             destination,
             fullTicketImage,
             basicTicketImage,
         ]);
+        endSend({ order: order.uuid });
     }
 }
 

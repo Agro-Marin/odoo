@@ -2,9 +2,12 @@
 import { Component, onMounted, useState } from "@odoo/owl";
 import { useAutoFocusToLast } from "@point_of_sale/app/hooks/hooks";
 import { AutoComplete } from "@web/components/autocomplete";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.lots");
 export class SelectLotPopup extends Component {
     static template = "point_of_sale.SelectLotPopup";
     static components = { Dialog, AutoComplete };
@@ -22,7 +25,16 @@ export class SelectLotPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this._id = 0;
+        log.lifecycle("opened", () => ({
+            product: this.props.name,
+            isSingleItem: this.props.isSingleItem,
+            existing: this.props.array.length,
+            options: this.props.options?.length ?? 0,
+            customInput: Boolean(this.props.customInput),
+            uniqueValues: Boolean(this.props.uniqueValues),
+        }));
         this.state = useState({
             value: this.props.isSingleItem ? this.props.array[0]?.text : "",
             values: this.props.array
@@ -90,6 +102,12 @@ export class SelectLotPopup extends Component {
         ];
     }
     onSelect(lot) {
+        log.logic("onSelect", () => ({
+            create: lot.create,
+            fromInput: Boolean(lot.currentInput),
+            id: lot.id,
+            duplicate: this.state.values.some((item) => item.text === lot.currentInput),
+        }));
         if (this.state.values.some((item) => item.text === lot.currentInput)) {
             return this.notification.add(
                 _t("The Lot/Serial number is already added."),
@@ -138,6 +156,14 @@ export class SelectLotPopup extends Component {
                 ...(matchingLot ? { id: matchingLot.id } : {}),
             };
         });
+        log.pipeline("confirm", () => ({
+            product: this.props.name,
+            entered: this.state.values.length,
+            valid: validItems.length,
+            deduplicated: validItems.length - filteredValues.length,
+            existing: result.filter((r) => r.id).length,
+            new: result.filter((r) => !r.id).length,
+        }));
         this.props.getPayload(result);
         this.props.close();
     }

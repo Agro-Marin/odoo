@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { RetryPrintPopup } from "@point_of_sale/app/components/popups/retry_print_popup/retry_print_popup";
 import { PrinterService } from "@point_of_sale/app/services/printer_service";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { AlertDialog } from "@web/ui/dialog";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
+const log = makeLogger("pos.printer");
 
 export const posPrinterService = {
     dependencies: ["hardware_proxy", "dialog", "renderer"],
@@ -33,6 +35,7 @@ export class PosPrinterService extends PrinterService {
         try {
             return super.printWeb(...arguments);
         } catch {
+            log.logic("printWeb: unsupported browser");
             this.dialog.add(AlertDialog, {
                 title: _t("Printing is not supported on some browsers"),
                 body: _t(
@@ -47,6 +50,12 @@ export class PosPrinterService extends PrinterService {
         try {
             return await super.printHtml(...arguments);
         } catch (error) {
+            log.logic("printHtml: failed, retry popup", () => ({
+                title: error.title,
+                canRetry: error.canRetry,
+                errorCode: error.errorCode,
+                unknown: error.body === undefined,
+            }));
             if (error.body === undefined) {
                 logPosMessage(
                     "PosPrinterService",

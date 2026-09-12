@@ -1,9 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 
 import { Base } from "./related_models/index.js";
 const { DateTime } = luxon;
+const log = makeLogger("pos.preset");
 
 export class PosPreset extends Base {
     static pythonModel = "pos.preset";
@@ -50,6 +52,11 @@ export class PosPreset extends Base {
     get availabilities() {
         const now = DateTime.now();
         if (this.uiState.generatedFor !== `${now.toISODate()}/${now.zoneName}`) {
+            log.logic("availabilities: stale, regenerating", () => ({
+                preset: this.id,
+                generatedFor: this.uiState.generatedFor,
+                now: `${now.toISODate()}/${now.zoneName}`,
+            }));
             this.computeAvailabilities(this.uiState.serverUsage, now);
         }
         return this.uiState.availabilities;
@@ -72,6 +79,7 @@ export class PosPreset extends Base {
     }
 
     computeAvailabilities(usages = {}, now = DateTime.now()) {
+        const endCompute = log.perf("computeAvailabilities");
         this.uiState.serverUsage = usages;
         this.generateSlots(now);
 
@@ -85,6 +93,12 @@ export class PosPreset extends Base {
             slot.order_ids = new Set([...slot.order_ids, ...(usage || [])]);
             slot.isFull = slot.order_ids.size >= this.slots_per_interval;
         }
+        endCompute({
+            preset: this.id,
+            slots: Object.keys(allSlots).length,
+            full: Object.values(allSlots).filter((s) => s.isFull).length,
+            serverUsage: Object.keys(usages || {}).length,
+        });
 
         return this.uiState.availabilities;
     }
@@ -153,6 +167,13 @@ export class PosPreset extends Base {
 
         this.uiState.availabilities = slots;
         this.uiState.generatedFor = `${now.toISODate()}/${now.zoneName}`;
+        log.lifecycle("generateSlots", () => ({
+            preset: this.id,
+            interval,
+            days: Object.keys(slots).length,
+            attendances: this.attendance_ids.length,
+            localUsage: Object.keys(usage).length,
+        }));
     }
 }
 

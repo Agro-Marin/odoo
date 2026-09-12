@@ -2,15 +2,19 @@
 import { onWillRender, onWillStart, useState } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { colorScheme } from "@web/core/color_scheme";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { AlertDialog } from "@web/ui/dialog";
 import { KanbanController, KanbanRenderer, kanbanView } from "@web/views/kanban";
+const log = makeLogger("pos.backend.kanban");
 async function updatePosKanbanViewState(orm, stateObj) {
+    const endState = log.perf("get_pos_kanban_view_state");
     const result = await orm.call("pos.config", "get_pos_kanban_view_state");
     Object.assign(stateObj, result);
+    endState(result);
 }
 
 export class PosKanbanController extends KanbanController {
@@ -43,20 +47,35 @@ export class PosKanbanRenderer extends KanbanRenderer {
             async ({ functionName, isRestaurant }) =>
                 await this.callWithViewUpdate(async () => {
                     let isInstalledWithDemo = false;
+                    log.pipeline("loadScenario", () => ({
+                        functionName,
+                        isRestaurant,
+                        restaurantInstalled: this.posState.is_restaurant_installed,
+                        mainCompany: this.posState.is_main_company,
+                    }));
                     if (isRestaurant && !this.posState.is_restaurant_installed) {
+                        const endInstall = log.perf("install_pos_restaurant");
                         const result = await this.orm.call(
                             "pos.config",
                             "install_pos_restaurant",
                         );
                         isInstalledWithDemo = result.installed_with_demo;
+                        endInstall({ installedWithDemo: isInstalledWithDemo });
                     }
-                    if (
+                    const runScenario =
                         !isInstalledWithDemo ||
-                        (isInstalledWithDemo && !this.posState.is_main_company)
-                    ) {
+                        (isInstalledWithDemo && !this.posState.is_main_company);
+                    log.logic("loadScenario: run", () => ({
+                        functionName,
+                        isInstalledWithDemo,
+                        runScenario,
+                    }));
+                    if (runScenario) {
+                        const endScenario = log.perf(functionName);
                         const result = await this.orm.call("pos.config", functionName, [
                             false,
                         ]);
+                        endScenario();
                         return result;
                     }
                 }),
@@ -87,6 +106,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
                 user.hasGroup("base.group_system"),
             ]);
 
+            log.logic("callWithViewUpdate: rights", () => ({ isPosManager, isAdmin }));
             if (!(isPosManager && isAdmin)) {
                 this.dialog.add(AlertDialog, {
                     title: _t("Access Denied"),

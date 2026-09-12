@@ -44,6 +44,11 @@ export class PartnerList extends Component {
         });
         this.searchInputRef = null;
         this.loadedPartnerIds = new Set(this.state.initialPartners.map((p) => p.id));
+        log.lifecycle("setup: partners", () => ({
+            initial: this.state.initialPartners.length,
+            total: this.pos.models["res.partner"].length,
+            current: this.props.partner?.id,
+        }));
         useHotkey("enter", () => this.onEnter(), {
             bypassEditableProtection: true,
         });
@@ -78,11 +83,16 @@ export class PartnerList extends Component {
         const scrollHeight = this.modalContent.scrollHeight;
 
         if (scrollTop + height >= scrollHeight * 0.8) {
+            log.logic("onScroll: load more", () => ({
+                query: this.state.query,
+                loaded: this.loadedPartnerIds.size,
+            }));
             this.getNewPartners();
         }
     }
     async editPartner(p = false) {
         const partner = await this.pos.editPartner(p);
+        log.logic("editPartner", () => ({ from: p?.id, result: partner?.id }));
         if (partner) {
             this.clickPartner(partner);
         }
@@ -95,6 +105,10 @@ export class PartnerList extends Component {
             return;
         }
         const result = await this.searchPartner();
+        log.logic("onEnter: server search", () => ({
+            query: this.state.query,
+            results: result.length,
+        }));
         if (result.length > 0) {
             this.notification.add(
                 _t('%s customer(s) found for "%s".', result.length, this.state.query),
@@ -120,16 +134,27 @@ export class PartnerList extends Component {
             },
             filter: partnerHasActiveOrders ? "" : "SYNCED",
         };
+        log.pipeline("goToOrders", () => ({
+            partner: partner.id,
+            partnerHasActiveOrders,
+            filter: stateOverride.filter,
+        }));
         this.pos.navigate("TicketScreen", { stateOverride });
     }
 
     getPartners(partners) {
+        const endFilter = log.perf("getPartners");
         const searchWord = normalize(this.state.query?.trim() ?? "");
         const exactMatches = partners.filter((partner) =>
             partner.exactMatch(searchWord),
         );
 
         if (exactMatches.length > 0) {
+            endFilter({
+                searchWord,
+                candidates: partners.length,
+                exact: exactMatches.length,
+            });
             return exactMatches;
         }
         const numberString = searchWord.replace(/[+\s()-]/g, "");
@@ -152,12 +177,19 @@ export class PartnerList extends Component {
                             : (a.name || "").localeCompare(b.name || ""),
                   );
 
+        endFilter({
+            searchWord,
+            candidates: partners.length,
+            isSearchWordNumber,
+            result: availablePartners.length,
+        });
         return availablePartners;
     }
     get isBalanceDisplayed() {
         return false;
     }
     clickPartner(partner) {
+        log.logic("clickPartner", () => ({ partner: partner?.id }));
         this.props.getPayload(partner);
         this.props.close();
     }
@@ -168,6 +200,12 @@ export class PartnerList extends Component {
     async getNewPartners() {
         let domain = [];
         const offset = this.globalState.offsetBySearch[this.state.query] || 0;
+        log.logic("getNewPartners", () => ({
+            query: this.state.query,
+            offset,
+            loaded: this.loadedPartnerIds.size,
+            exhausted: offset > this.loadedPartnerIds.size,
+        }));
         if (offset > this.loadedPartnerIds.size) {
             return [];
         }
@@ -195,6 +233,7 @@ export class PartnerList extends Component {
             ];
         }
 
+        const endFetch = log.perf("getNewPartners");
         try {
             this.state.loading = true;
 
@@ -207,15 +246,24 @@ export class PartnerList extends Component {
             this.globalState.offsetBySearch[this.state.query] =
                 offset + (result["res.partner"].length || 100);
 
+            let added = 0;
             for (const partner of result["res.partner"]) {
                 if (!this.loadedPartnerIds.has(partner.id)) {
                     this.loadedPartnerIds.add(partner.id);
                     this.state.loadedPartners.push(partner);
+                    added++;
                 }
             }
 
+            endFetch({
+                query: this.state.query,
+                offset,
+                fetched: result["res.partner"].length,
+                added,
+            });
             return result["res.partner"];
         } catch {
+            endFetch({ query: this.state.query, offset, failed: true });
             return [];
         } finally {
             this.state.loading = false;

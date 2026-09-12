@@ -1,7 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 
 import { DATE_TIME_TYPE, X2MANY_TYPES } from "./utils.js";
+const log = makeLogger("pos.models.serialization");
 const deepSerialization = (
     record,
     opts,
@@ -76,6 +78,13 @@ const deepSerialization = (
                     }
                     serialized[relatedModel][childRecord.uuid] = childRecord.uuid;
                 }
+                log.logic("x2many commands", () => ({
+                    model: currentModel,
+                    record: record.uuid ?? record.id,
+                    field: fieldName,
+                    update: toUpdate.length,
+                    create: toCreate.length,
+                }));
                 stack.push([
                     result,
                     fieldName,
@@ -128,6 +137,15 @@ const deepSerialization = (
                 };
                 processRecords(modelCommands.unlink.get(fieldName) || [], 3);
                 processRecords(modelCommands.delete.get(fieldName) || [], 2);
+                log.logic("x2many unlink/delete commands", () => ({
+                    model: currentModel,
+                    record: record.uuid ?? record.id,
+                    field: fieldName,
+                    unlink: (modelCommands.unlink.get(fieldName) || []).length,
+                    delete: (modelCommands.delete.get(fieldName) || []).length,
+                    emitted: result[fieldName].filter((c) => c[0] === 2 || c[0] === 3)
+                        .length,
+                }));
 
                 for (const commands of [modelCommands.unlink, modelCommands.delete]) {
                     if (opts.keepCommands) {
@@ -220,11 +238,19 @@ const deepSerialization = (
 
 export const ormSerialization = (record, opts) => {
     const uuidMapping = {};
+    const endSerialize = log.perf(`serializeForORM ${record.model.name}`);
     const result = deepSerialization(record, opts, {
         uuidMapping,
     });
     if (Object.keys(uuidMapping).length !== 0) {
         result.relations_uuid_mapping = uuidMapping;
     }
+    endSerialize({
+        record: record.uuid ?? record.id,
+        keys: Object.keys(result).length,
+        uuidMappings: Object.keys(uuidMapping).length,
+        deferClear: Boolean(opts.deferClear),
+        keepCommands: Boolean(opts.keepCommands),
+    });
     return result;
 };

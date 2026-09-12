@@ -78,6 +78,10 @@ export class ProductScreen extends Component {
         useEffect(
             () => {
                 if (this.currentOrder?.state !== "draft" && !this.isValidatingOrder) {
+                    log.logic("effect: non-draft order, adding new", () => ({
+                        order: this.currentOrder?.uuid,
+                        state: this.currentOrder?.state,
+                    }));
                     this.pos.addNewOrder();
                 }
             },
@@ -85,12 +89,19 @@ export class ProductScreen extends Component {
         );
 
         onWillUnmount(async () => {
-            if (
+            const futurePreset =
                 this.pos.config.use_presets &&
                 this.currentOrder &&
                 this.currentOrder.preset_id &&
-                this.currentOrder.preset_time
-            ) {
+                this.currentOrder.preset_time;
+            log.logic("willUnmount: preset sync", () => ({
+                order: this.currentOrder?.uuid,
+                futurePreset: Boolean(futurePreset),
+                sync: Boolean(
+                    futurePreset && this.currentOrder.preset_time > DateTime.now(),
+                ),
+            }));
+            if (futurePreset) {
                 if (this.currentOrder.preset_time > DateTime.now()) {
                     this.pos.addPendingOrder([this.currentOrder.id]);
                     await this.pos.syncAllOrders();
@@ -198,6 +209,10 @@ export class ProductScreen extends Component {
             return;
         }
         if (this.pos.selectedOrder.isRefund && buttonValue !== "Backspace") {
+            log.logic("onNumpadClick: refund order, rejected", () => ({
+                buttonValue,
+                mode: this.pos.numpadMode,
+            }));
             return this.dialog.add(AlertDialog, {
                 title: _t("%s update not allowed", this.pos.numpadMode),
                 body: _t(
@@ -249,6 +264,9 @@ export class ProductScreen extends Component {
         }
 
         if (!product) {
+            log.pipeline("[barcode] product: server lookup", () => ({
+                code: code.base_code,
+            }));
             const records = await this.pos.loadNewProducts([
                 ["product_variant_ids.barcode", "in", [code.base_code]],
             ]);
@@ -258,17 +276,29 @@ export class ProductScreen extends Component {
             }
         }
 
+        log.logic("[barcode] product lookup", () => ({
+            code: code.base_code,
+            type: code.type,
+            product: product?.id,
+        }));
         return product;
     }
     async _barcodeProductAction(code) {
         const product = await this._getProductByBarcode(code);
 
         if (!product) {
+            log.logic("[barcode] product not found", () => ({ code: code.base_code }));
             this.sound.play("scan-error");
             this.barcodeReader.showNotFoundNotification(code);
             return;
         }
         this.sound.play("beep");
+        log.pipeline("[barcode] add product", () => ({
+            code: code.base_code,
+            type: code.type,
+            product: product.id,
+            configure: product.needToConfigure(),
+        }));
 
         await this.pos.addLineToCurrentOrder(
             { product_id: product, product_tmpl_id: product.product_tmpl_id },
@@ -290,6 +320,11 @@ export class ProductScreen extends Component {
     }
     async _barcodePartnerAction(code) {
         const partner = await this._getPartnerByBarcode(code);
+        log.logic("[barcode] partner", () => ({
+            code: code.code,
+            partner: partner?.id,
+            current: this.currentOrder.getPartner()?.id,
+        }));
         if (partner) {
             this.sound.play("beep");
             if (this.currentOrder.getPartner() !== partner) {
@@ -302,6 +337,10 @@ export class ProductScreen extends Component {
     }
     _barcodeDiscountAction(code) {
         const last_orderline = this.currentOrder.getLastOrderline();
+        log.logic("[barcode] discount", () => ({
+            value: code.value,
+            line: last_orderline?.uuid,
+        }));
         if (last_orderline) {
             this.pos.setDiscountFromUI(last_orderline, code.value);
         }
@@ -315,6 +354,9 @@ export class ProductScreen extends Component {
         const product = await this._getProductByBarcode(productBarcode);
 
         if (!product) {
+            log.logic("[barcode] gs1 product not found", () => ({
+                code: productBarcode?.base_code,
+            }));
             this.sound.play("scan-error");
             this.barcodeReader.showNotFoundNotification(productBarcode);
             return;
@@ -324,12 +366,20 @@ export class ProductScreen extends Component {
             product_id: product,
             product_tmpl_id: product.product_tmpl_id,
         };
-        if (
+        const uomMatches = Boolean(
             qty &&
             product.uom_id &&
             qty.rule?.associated_uom_id &&
-            product.uom_id.id === qty.rule.associated_uom_id[0]
-        ) {
+            product.uom_id.id === qty.rule.associated_uom_id[0],
+        );
+        log.pipeline("[barcode] gs1", () => ({
+            elements: parsed_results.map((e) => e.type),
+            product: product.id,
+            lot: lotBarcode?.code,
+            qty: qty?.value,
+            uomMatches,
+        }));
+        if (uomMatches) {
             vals.qty = qty.value;
         }
 
@@ -363,6 +413,11 @@ export class ProductScreen extends Component {
             this.state.currentOffset = 0;
         }
         const result = await this.loadProductFromDB();
+        log.logic("onPressEnterKey: server search", () => ({
+            searchProductWord,
+            offset: this.state.currentOffset,
+            results: result.length,
+        }));
         if (result.length === 0) {
             this.notification.add(
                 _t('No other products found for "%s".', searchProductWord),
@@ -406,6 +461,10 @@ export class ProductScreen extends Component {
         const domain = this.loadProductFromDBDomain(searchProductWord);
 
         const { limit_categories, iface_available_categ_ids } = this.pos.config;
+        log.logic("loadProductFromDB: category limit", () => ({
+            limit_categories,
+            categories: iface_available_categ_ids.length,
+        }));
         if (limit_categories && iface_available_categ_ids.length > 0) {
             const categIds = iface_available_categ_ids.map((categ) => categ.id);
             domain.push(["pos_categ_ids", "in", categIds]);
@@ -431,6 +490,11 @@ export class ProductScreen extends Component {
             const searchedProduct = product.product_variant_ids.filter(
                 (p) => p.barcode && p.barcode.includes(barcode),
             );
+            log.logic("addProductToOrder: preset variant", () => ({
+                product: product.id,
+                barcode,
+                matches: searchedProduct.length,
+            }));
             if (searchedProduct.length === 1) {
                 options["presetVariant"] = searchedProduct[0];
             }
@@ -439,6 +503,10 @@ export class ProductScreen extends Component {
         this.showOptionalProductPopupIfNeeded(product);
     }
     showOptionalProductPopupIfNeeded(product) {
+        log.logic("showOptionalProductPopupIfNeeded", () => ({
+            product: product.id,
+            optional: product.pos_optional_product_ids?.length ?? 0,
+        }));
         if (product.pos_optional_product_ids?.length) {
             this.dialog.add(OptionalProductPopup, {
                 productTemplate: product,

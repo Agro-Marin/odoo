@@ -1,10 +1,12 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 
 import { Base } from "../related_models/index.js";
+const log = makeLogger("pos.product.pricing");
 
 export class ProductTemplateAccounting extends Base {
     static pythonModel = "product.template";
@@ -70,6 +72,11 @@ export class ProductTemplateAccounting extends Base {
         let price = basePrice + (price_extra || 0);
 
         if (!pricelist) {
+            log.logic("getPrice: no pricelist", () => ({
+                template: productTmpl.id,
+                variant: product?.id,
+                price,
+            }));
             return price;
         }
 
@@ -104,6 +111,21 @@ export class ProductTemplateAccounting extends Base {
             .filter((r) => !r.min_quantity || r.min_quantity <= quantity);
 
         const rule = rules.length && rules[0];
+        log.logic("getPrice: rule", () => ({
+            template: productTmpl.id,
+            variant: product?.id,
+            pricelist: pricelist.id,
+            quantity,
+            candidates: {
+                product: productRules.length,
+                template: tmplRules.length,
+                general: generalRulesIds.length,
+                applicable: rules.length,
+            },
+            rule: rule
+                ? { id: rule.id, base: rule.base, compute: rule.compute_price }
+                : null,
+        }));
         if (!rule) {
             return price;
         }
@@ -141,6 +163,14 @@ export class ProductTemplateAccounting extends Base {
                 price = Math.min(price, price_limit + rule.price_max_margin);
             }
         }
+        log.logic("getPrice: result", () => ({
+            template: productTmpl.id,
+            variant: product?.id,
+            pricelist: pricelist.id,
+            rule: rule.id,
+            basePrice,
+            price,
+        }));
 
         return price;
     }

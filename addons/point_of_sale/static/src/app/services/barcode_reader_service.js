@@ -39,6 +39,11 @@ export class BarcodeReader {
     }
 
     register(cbMap, exclusive) {
+        log.lifecycle("register", () => ({
+            exclusive: Boolean(exclusive),
+            types: Object.keys(cbMap),
+            registered: this.cbMaps.size,
+        }));
         if (exclusive) {
             this.exclusiveCbMap = cbMap;
         } else {
@@ -63,6 +68,7 @@ export class BarcodeReader {
         }
 
         const cbMaps = this.exclusiveCbMap ? [this.exclusiveCbMap] : [...this.cbMaps];
+        const endScan = log.perf("scan");
 
         let parseBarcode;
         try {
@@ -75,20 +81,39 @@ export class BarcodeReader {
             }
         } catch (error) {
             if (error instanceof GS1BarcodeError) {
+                log.logic("scan: gs1 error", () => ({
+                    code,
+                    fallback: Boolean(this.fallbackParser),
+                }));
                 if (this.fallbackParser) {
                     parseBarcode = this.fallbackParser.parse_barcode(code);
                 } else {
                     this.showGS1IncompatibleBarcodeWarning();
+                    endScan({ code, gs1Incompatible: true });
                     return;
                 }
             } else {
+                endScan({ code, error: error?.message });
                 throw error;
             }
         }
         if (Array.isArray(parseBarcode)) {
+            log.logic("scan: gs1 dispatch", () => ({
+                code,
+                elements: parseBarcode.map((e) => e.type),
+                handlers: cbMaps.filter((cb) => cb.gs1).length,
+            }));
             await Promise.all(cbMaps.map((cb) => cb.gs1?.(parseBarcode)));
         } else {
             const cbs = cbMaps.map((cbMap) => cbMap[parseBarcode.type]).filter(Boolean);
+            log.logic("scan: dispatch", () => ({
+                code,
+                type: parseBarcode.type,
+                baseCode: parseBarcode.base_code,
+                value: parseBarcode.value,
+                handlers: cbs.length,
+                exclusive: Boolean(this.exclusiveCbMap),
+            }));
             if (cbs.length === 0) {
                 this.showNotFoundNotification(parseBarcode);
             }
@@ -96,6 +121,10 @@ export class BarcodeReader {
                 await cb(parseBarcode);
             }
         }
+        endScan({
+            code,
+            type: Array.isArray(parseBarcode) ? "gs1" : parseBarcode.type,
+        });
     }
     showNotFoundNotification(code) {
         this.notification.add(
@@ -131,6 +160,9 @@ export class BarcodeReader {
 
     connectToProxy() {
         this.remoteScanning = true;
+        log.lifecycle("connectToProxy", () => ({
+            alreadyActive: this.remoteActive >= 1,
+        }));
         if (this.remoteActive >= 1) {
             return;
         }
@@ -151,13 +183,18 @@ export class BarcodeReader {
                 break;
             }
             if (barcode) {
+                log.pipeline("[proxy] barcode received", () => ({ barcode }));
                 await this.scan(barcode).catch(() => {});
             }
         }
         this.remoteActive = 0;
+        log.lifecycle("waitForBarcode: loop ended");
     }
 
     disconnectFromProxy() {
+        log.lifecycle("disconnectFromProxy", () => ({
+            wasScanning: this.remoteScanning,
+        }));
         this.remoteScanning = false;
     }
 }
@@ -167,6 +204,7 @@ export const barcodeReaderService = {
     async start(env, deps) {
         const { dialog, barcode, orm } = deps;
         let barcodeReader = null;
+        const endStart = log.perf("service start");
 
         try {
             if (session.nomenclature_id) {
@@ -196,8 +234,17 @@ export const barcodeReaderService = {
                 [error],
             );
         }
+        endStart({
+            nomenclature: session.nomenclature_id,
+            fallback: session.fallback_nomenclature_id,
+            ready: Boolean(barcodeReader),
+        });
 
         barcode.bus.addEventListener("barcode_scanned", (ev) => {
+            log.pipeline("[bus] barcode_scanned", () => ({
+                barcode: ev.detail.barcode,
+                ready: Boolean(barcodeReader),
+            }));
             if (barcodeReader) {
                 barcodeReader.scan(ev.detail.barcode);
             } else if (session.nomenclature_id) {

@@ -59,6 +59,11 @@ export class PosData extends SignalStore {
 
         this.localUnsyncedPaidOrderUuids = new Set();
 
+        const endSetup = log.perf("setup");
+        log.lifecycle("setup", () => ({
+            config: odoo.pos_config_id,
+            db: this.databaseName,
+        }));
         await this.checkConnectivity();
 
         this.initializeWebsocket();
@@ -68,11 +73,18 @@ export class PosData extends SignalStore {
         browser.addEventListener("online", () => this.checkConnectivity());
         browser.addEventListener("offline", () => this.checkConnectivity());
         this.bus.addEventListener("BUS:CONNECT", this.reconnectWebSocket.bind(this));
+        endSetup({
+            offline: this.network.offline,
+            device: this.device?.identifier,
+            models: Object.keys(this.models || {}).length,
+        });
     }
 
     async initializeDeviceIdentifier() {
+        const endInit = log.perf("initializeDeviceIdentifier");
         this.device = new DeviceIdentifierSequence({ orm: this.orm });
         await this.device.initialize();
+        endInit({ identifier: this.device.identifier });
     }
 
     async checkConnectivity() {
@@ -83,9 +95,17 @@ export class PosData extends SignalStore {
             this.network.warningTriggered = false;
 
             await rpc("/pos/ping");
+            log.lifecycle("checkConnectivity: online", () => ({
+                unsynced: this.network.unsyncData.length,
+            }));
             await this.syncData();
             window.dispatchEvent(new CustomEvent("pos-network-online"));
         } catch (error) {
+            log.logic("checkConnectivity: failed", () => ({
+                connectionLost: error instanceof ConnectionLostError,
+                navigatorOnLine: navigator.onLine,
+                error: error?.message,
+            }));
             if (error instanceof ConnectionLostError) {
                 this.network.offline = true;
                 if (navigator.onLine) {
@@ -103,6 +123,9 @@ export class PosData extends SignalStore {
     }
 
     reconnectWebSocket() {
+        log.lifecycle("[bus] reconnectWebSocket", () => ({
+            channels: this.channels.map((c) => c.channel),
+        }));
         this.initializeWebsocket();
         const channels = [...this.channels];
         this.channels = [];
@@ -120,6 +143,7 @@ export class PosData extends SignalStore {
     }
 
     connectWebSocket(channel, method) {
+        log.lifecycle("[bus] connectWebSocket", () => ({ channel }));
         this.channels.push({
             channel,
             method,
@@ -133,10 +157,12 @@ export class PosData extends SignalStore {
     }
 
     async resetIndexedDB() {
+        log.lifecycle("[idb] reset", () => ({ db: this.databaseName }));
         await this.indexedDB.reset();
     }
 
     async deleteRecordsInIndexedDB(model, ids) {
+        log.lifecycle("[idb] delete", () => ({ model, ids: ids.length }));
         return await this.indexedDB.delete(model, ids);
     }
 
@@ -152,8 +178,13 @@ export class PosData extends SignalStore {
             return [key, model];
         });
         models.push(["uuid", UNSYNC_QUEUE_STORE]);
+        const endInit = log.perf("[idb] initIndexedDB");
+        log.pipeline("[idb] initIndexedDB", () => ({
+            db: this.databaseName,
+            stores: models.length,
+        }));
 
-        return new Promise((resolve) => {
+        const db = await new Promise((resolve) => {
             this.indexedDB = new IndexedDB(
                 this.databaseName,
                 false,
@@ -162,6 +193,8 @@ export class PosData extends SignalStore {
                 this.dialog,
             );
         });
+        endInit();
+        return db;
     }
 
     async syncLocalDataInIndexedDB() {
@@ -190,6 +223,11 @@ export class PosData extends SignalStore {
             }
 
             data[model] = put;
+            log.pipeline("[idb] synchronizeLocalData: model", () => ({
+                model,
+                put: put.length,
+                remove: remove.length,
+            }));
 
             if (remove.length) {
                 await this.indexedDB.delete(model, remove);
@@ -209,6 +247,12 @@ export class PosData extends SignalStore {
                 for (const trackedUuid of [...this.localUnsyncedPaidOrderUuids]) {
                     const written = writtenByUuid.get(trackedUuid);
                     const localRecord = this.models[model].getBy("uuid", trackedUuid);
+                    log.logic("[idb] unsynced paid guard", () => ({
+                        order: trackedUuid,
+                        stillUnsyncedPaid: Boolean(localRecord?.isUnsyncedPaid),
+                        written: Boolean(written),
+                        writeSucceeded,
+                    }));
                     if (!localRecord?.isUnsyncedPaid) {
                         this.localUnsyncedPaidOrderUuids.delete(trackedUuid);
                     } else if (written?.state === "paid" && writeSucceeded) {
@@ -230,8 +274,14 @@ export class PosData extends SignalStore {
     }
 
     async syncServerDataInIndexedDB(serverData = {}) {
+        const endSync = log.perf("[idb] syncServerDataInIndexedDB");
         try {
             const clone = JSON.parse(JSON.stringify(serverData));
+            log.pipeline("[idb] syncServerDataInIndexedDB", () => ({
+                models: Object.fromEntries(
+                    Object.entries(clone).map(([model, rows]) => [model, rows.length]),
+                ),
+            }));
             for (const [model, data] of Object.entries(clone)) {
                 try {
                     await this.indexedDB.create(model, data);
@@ -252,16 +302,26 @@ export class PosData extends SignalStore {
                 CONSOLE_COLOR,
             );
         }
+        endSync({ models: Object.keys(serverData).length });
     }
 
     async getLocalDataFromIndexedDB(data = false) {
         const models = Object.keys(this.opts.databaseTable);
+        const endLoad = log.perf("[idb] getLocalDataFromIndexedDB");
 
         if (!data) {
             data = await this.indexedDB.readAll(models);
         }
 
+        log.pipeline("[idb] getLocalDataFromIndexedDB", () => ({
+            models: data
+                ? Object.fromEntries(
+                      Object.entries(data).map(([model, rows]) => [model, rows.length]),
+                  )
+                : null,
+        }));
         if (!data) {
+            endLoad({ empty: true });
             return;
         }
 
@@ -276,6 +336,11 @@ export class PosData extends SignalStore {
             loadedProductIds.has(line.product_id),
         );
         const droppedLines = restoredLines.length - missing["pos.order.line"].length;
+        log.logic("[idb] getLocalDataFromIndexedDB: restored lines", () => ({
+            restored: restoredLines.length,
+            dropped: droppedLines,
+            loadedProducts: loadedProductIds.size,
+        }));
         if (droppedLines) {
             logPosMessage(
                 "DataService",
@@ -288,11 +353,13 @@ export class PosData extends SignalStore {
         const results = this.models.loadConnectedData(missing, []);
 
         await this.checkAndDeleteMissingOrders(results);
+        endLoad({ orders: results["pos.order"]?.length });
 
         return results;
     }
 
     async getCachedServerDataFromIndexedDB() {
+        const endRead = log.perf("[idb] getCachedServerDataFromIndexedDB");
         const data = await this.indexedDB.readAll();
         const modelToIgnore = new Set([
             ...Object.keys(this.opts.databaseTable),
@@ -306,6 +373,7 @@ export class PosData extends SignalStore {
             }
             results[name] = data[name];
         }
+        endRead({ models: Object.keys(results).length });
 
         return results;
     }
@@ -322,23 +390,35 @@ export class PosData extends SignalStore {
             fromBackend: Boolean(odoo.from_backend),
         }));
 
-        if (
+        const loadFromServer =
             (!this.network.offline && session?.state !== "opened") ||
             session?.id !== odoo.pos_session_id ||
-            odoo.from_backend
-        ) {
+            odoo.from_backend;
+        log.logic("loadInitialData: source", () => ({
+            loadFromServer,
+            cachedSession: session?.id,
+            currentSession: odoo.pos_session_id,
+        }));
+        if (loadFromServer) {
             try {
                 const limitedLoading = this.isLimitedLoading();
                 const serverDate = localData["pos.config"]?.[0]?._data_server_date;
                 const lastConfigChange = DateTime.fromSQL(odoo.last_data_change);
                 const serverDateTime = DateTime.fromSQL(serverDate);
 
+                log.logic("loadInitialData: cache validity", () => ({
+                    limitedLoading,
+                    serverDate,
+                    lastConfigChange: odoo.last_data_change,
+                    resetCache: serverDateTime < lastConfigChange,
+                }));
                 if (serverDateTime < lastConfigChange) {
                     await this.resetIndexedDB();
                     await this.initIndexedDB(this.relations);
                     localData = {};
                 }
 
+                const endServerLoad = log.perf("loadInitialData: load_data");
                 const data = await this.orm.call(
                     "pos.session",
                     "load_data",
@@ -351,6 +431,14 @@ export class PosData extends SignalStore {
                         },
                     },
                 );
+                endServerLoad({
+                    models: Object.fromEntries(
+                        Object.entries(data).map(([model, rows]) => [
+                            model,
+                            rows.length,
+                        ]),
+                    ),
+                });
 
                 const local_records_to_filter = {};
                 for (const model of this.opts.cleanupModels) {
@@ -360,15 +448,37 @@ export class PosData extends SignalStore {
                     }
                 }
 
+                const endFilter = log.perf("loadInitialData: filter_local_data");
                 const data_to_remove = await this.orm.call(
                     "pos.session",
                     "filter_local_data",
                     [odoo.pos_session_id, local_records_to_filter],
                 );
+                endFilter({
+                    sent: Object.fromEntries(
+                        Object.entries(local_records_to_filter).map(([model, ids]) => [
+                            model,
+                            ids.length,
+                        ]),
+                    ),
+                    toRemove: Object.fromEntries(
+                        Object.entries(data_to_remove).map(([model, ids]) => [
+                            model,
+                            ids.length,
+                        ]),
+                    ),
+                });
 
                 for (const [model, values] of Object.entries(data)) {
                     let local = localData[model] || [];
 
+                    log.logic("loadInitialData: merge", () => ({
+                        model,
+                        local: local.length,
+                        server: values.length,
+                        unique: this.opts.uniqueModels.includes(model),
+                        removed: data_to_remove[model]?.length ?? 0,
+                    }));
                     if (this.opts.uniqueModels.includes(model) && values.length > 0) {
                         this.indexedDB.delete(
                             model,
@@ -429,6 +539,9 @@ export class PosData extends SignalStore {
                 (line) => line.is_reward_line && !line.coupon_id && !line.reward_id,
             ),
         );
+        log.logic("sanitizeData", () => ({
+            ordersWithOrphanRewards: order_to_delete.map((o) => o.uuid),
+        }));
         for (const order of order_to_delete) {
             for (let i = order.lines.length - 1; i >= 0; i--) {
                 order.lines[i].delete();
@@ -439,16 +552,20 @@ export class PosData extends SignalStore {
     async loadFieldsAndRelations() {
         const key = `pos_data_params_${odoo.pos_config_id}`;
         if (this.network.offline) {
+            log.logic("loadFieldsAndRelations: offline, localStorage", () => ({ key }));
             return JSON.parse(localStorage.getItem(key));
         }
 
+        const endLoad = log.perf("loadFieldsAndRelations");
         try {
             const params = await this.orm.call("pos.session", "load_data_params", [
                 odoo.pos_session_id,
             ]);
             localStorage.setItem(key, JSON.stringify(params));
+            endLoad({ models: Object.keys(params).length });
             return params;
         } catch {
+            endLoad({ fallback: "localStorage" });
             return JSON.parse(localStorage.getItem(key));
         }
     }
@@ -457,6 +574,7 @@ export class PosData extends SignalStore {
         const modelClasses = {};
         const fields = {};
         const relations = {};
+        const endInit = log.perf("intializeDataRelation");
         const dataParams = await this.loadFieldsAndRelations();
         await this.initIndexedDB(dataParams);
         await this.restoreUnsyncQueue();
@@ -477,7 +595,12 @@ export class PosData extends SignalStore {
             };
         }
 
+        const endModels = log.perf("createRelatedModels");
         const { models } = createRelatedModels(relations, modelClasses, this.opts);
+        endModels({
+            models: Object.keys(relations).length,
+            classes: Object.keys(modelClasses).length,
+        });
 
         this.fields = fields;
         this.relations = relations;
@@ -498,6 +621,10 @@ export class PosData extends SignalStore {
         }
 
         this.network.loading = false;
+        endInit({
+            models: Object.keys(models).length,
+            unsynced: this.network.unsyncData.length,
+        });
     }
 
     debugInfos() {
@@ -548,6 +675,11 @@ export class PosData extends SignalStore {
 
             this.models[model].addEventListener("update", (params) => {
                 const record = this.models[model].get(params.id)?.raw;
+                log.lifecycle("[event] static model update", () => ({
+                    model,
+                    id: params.id,
+                    found: Boolean(record),
+                }));
                 if (!record) {
                     return;
                 }
@@ -638,10 +770,20 @@ export class PosData extends SignalStore {
                 const limitedFields = modelFields.some(
                     (field) => !fields.includes(field),
                 );
+                log.logic("execute: auto-load", () => ({
+                    type,
+                    model,
+                    rows: Array.isArray(result) ? result.length : null,
+                    limitedFields,
+                }));
                 if (limitedFields && type !== "create") {
                     const missingIds = result
                         .filter((row) => !this.models[model].get(row.id))
                         .map((row) => row.id);
+                    log.logic("execute: complete limited rows", () => ({
+                        model,
+                        missing: missingIds.length,
+                    }));
                     if (missingIds.length) {
                         const complete = await this.orm.read(
                             model,
@@ -658,6 +800,13 @@ export class PosData extends SignalStore {
                 const records = ids
                     .map((id) => this.models[model].get(id))
                     .filter(Boolean);
+                log.logic("execute: local write apply", () => ({
+                    model,
+                    ids,
+                    local: records.length,
+                    optimistic,
+                    keys: Object.keys(values || {}),
+                }));
                 if (!optimistic) {
                     for (const record of records) {
                         record.update(values, { omitUnknownField: true });
@@ -677,6 +826,15 @@ export class PosData extends SignalStore {
             let throwErr = true;
             endExecute({ inFlight: this._inFlight, error: error?.constructor?.name });
             const uuids = this.network.unsyncData.map((d) => d.uuid);
+            log.logic("execute: error", () => ({
+                type,
+                model,
+                method,
+                queue,
+                alreadyQueued: uuids.includes(uuid),
+                connectionLost: error instanceof ConnectionLostError,
+                error: error?.constructor?.name,
+            }));
             if (
                 queue &&
                 !uuids.includes(uuid) &&
@@ -716,6 +874,7 @@ export class PosData extends SignalStore {
 
     async loadServerRecords(model, rows) {
         log.pipeline("loadServerRecords", () => ({ model, rows: rows.length }));
+        const endLoad = log.perf(`loadServerRecords ${model}`);
         const key = this.opts.databaseTable[model]?.key || "id";
         const identified = rows.map((row) => {
             const local = this.models[model].get(row.id);
@@ -723,6 +882,14 @@ export class PosData extends SignalStore {
         });
         const data = await this.missingRecursive({ [model]: identified });
         const results = this.models.connectNewData(data);
+        endLoad({
+            models: Object.fromEntries(
+                Object.entries(results).map(([name, records]) => [
+                    name,
+                    records.length,
+                ]),
+            ),
+        });
         this.syncServerDataInIndexedDB(
             Object.fromEntries(
                 Object.entries(results).map(([name, records]) => [
@@ -744,6 +911,9 @@ export class PosData extends SignalStore {
         }
 
         if (this.network.offline) {
+            log.logic("missingRecursive: offline, skip", () => ({
+                models: Object.keys(recordMap),
+            }));
             return acc;
         }
 
@@ -807,6 +977,14 @@ export class PosData extends SignalStore {
         }
 
         const newRecordMap = {};
+        log.pipeline("missingRecursive", () => ({
+            from: Object.fromEntries(
+                Object.entries(recordMap).map(([model, rows]) => [model, rows.length]),
+            ),
+            missing: Object.fromEntries(
+                Object.entries(missingRecords).map(([model, ids]) => [model, ids.size]),
+            ),
+        }));
         for (const [model, ids] of Object.entries(missingRecords)) {
             if (!idsMap[model]) {
                 idsMap[model] = new Set(ids);
@@ -814,6 +992,7 @@ export class PosData extends SignalStore {
                 idsMap[model] = idsMap[model] = new Set([...idsMap[model], ...ids]);
             }
 
+            const endFetch = log.perf(`missingRecursive: fetch ${model}`);
             try {
                 if (["product.product", "product.template"].includes(model)) {
                     const domain =
@@ -828,6 +1007,7 @@ export class PosData extends SignalStore {
                             },
                         },
                     );
+                    endFetch({ ids: ids.size, via: "load_product_from_pos" });
                     continue;
                 }
 
@@ -840,8 +1020,10 @@ export class PosData extends SignalStore {
                     },
                 );
                 newRecordMap[model] = data;
+                endFetch({ ids: ids.size, rows: data.length });
             } catch {
                 newRecordMap[model] = [];
+                endFetch({ ids: ids.size, failed: true });
             }
         }
 
@@ -853,6 +1035,7 @@ export class PosData extends SignalStore {
     }
 
     async _persistQueueEntry(entry) {
+        log.lifecycle("[queue] persist", () => ({ uuid: entry.uuid, try: entry.try }));
         const saved = await this.indexedDB.createOrdered(UNSYNC_QUEUE_STORE, {
             uuid: entry.uuid,
             sequence: entry.sequence,
@@ -864,6 +1047,7 @@ export class PosData extends SignalStore {
     }
 
     _unpersistQueueEntry(uuid) {
+        log.lifecycle("[queue] unpersist", () => ({ uuid }));
         this.indexedDB?.delete(UNSYNC_QUEUE_STORE, [uuid])?.catch?.(() => {});
     }
 
@@ -883,6 +1067,10 @@ export class PosData extends SignalStore {
                 }
             }
             this.network.unsyncData.sort(compareQueueEntries);
+            log.lifecycle("[queue] restored", () => ({
+                rows: rows.length,
+                pending: this.network.unsyncData.length,
+            }));
         } catch {
             logPosMessage(
                 "DataService",
@@ -894,6 +1082,10 @@ export class PosData extends SignalStore {
     }
 
     drainRestoredQueue() {
+        log.logic("[queue] drainRestoredQueue", () => ({
+            pending: this.network.unsyncData.length,
+            offline: this.network.offline,
+        }));
         if (!this.network.unsyncData.length || this.network.offline) {
             return;
         }
@@ -910,15 +1102,25 @@ export class PosData extends SignalStore {
 
     async syncData() {
         log.pipeline("syncData", () => ({ pending: this.network.unsyncData.length }));
+        const endSync = log.perf("[queue] syncData");
+        let replayed = 0;
         await this.mutex.exec(async () => {
             while (this.network.unsyncData.length > 0) {
                 const data = this.network.unsyncData[0];
                 try {
+                    log.pipeline("[queue] replay", () => ({
+                        uuid: data.uuid,
+                        try: data.try,
+                        type: data.args[0]?.type,
+                        model: data.args[0]?.model,
+                        method: data.args[0]?.method,
+                    }));
                     await this.execute({
                         ...data.args[0],
                         uuid: data.uuid,
                         optimistic: data.appliedLocally === true,
                     });
+                    replayed++;
                     this.network.unsyncData.shift();
                     this._unpersistQueueEntry(data.uuid);
                     const params = data.args[0];
@@ -930,7 +1132,15 @@ export class PosData extends SignalStore {
                         ).catch(() => {});
                     }
                 } catch (error) {
+                    log.logic("[queue] replay failed", () => ({
+                        uuid: data.uuid,
+                        try: data.try,
+                        connectionLost: error instanceof ConnectionLostError,
+                        rpcError: error instanceof RPCError,
+                        error: error?.message,
+                    }));
                     if (error instanceof ConnectionLostError) {
+                        endSync({ replayed, connectionLost: true });
                         throw error;
                     }
                     if (!(error instanceof RPCError)) {
@@ -950,6 +1160,10 @@ export class PosData extends SignalStore {
                     this.network.unsyncData.shift();
                     this._unpersistQueueEntry(data.uuid);
                     this.network.deadSyncData.push({ ...data, error });
+                    log.lifecycle("[queue] dead", () => ({
+                        uuid: data.uuid,
+                        dead: this.network.deadSyncData.length,
+                    }));
                     logPosMessage(
                         "DataService",
                         "syncData",
@@ -960,9 +1174,12 @@ export class PosData extends SignalStore {
                 }
             }
         });
+        endSync({ replayed, pending: this.network.unsyncData.length });
     }
 
     async loadServerOrders(domain) {
+        const endLoad = log.perf("loadServerOrders");
+        log.pipeline("loadServerOrders", () => ({ domain }));
         const result = await this.callRelated(
             "pos.order",
             "read_pos_orders",
@@ -981,6 +1198,7 @@ export class PosData extends SignalStore {
             order.config_id = config;
             order.session_id = session;
         }
+        endLoad({ orders: orders.length, lines: result["pos.order.line"]?.length });
         return orders;
     }
 
@@ -992,10 +1210,14 @@ export class PosData extends SignalStore {
             if (ids.size) {
                 const orders = await this.loadServerOrders([["id", "in", [...ids]]]);
                 const serverIds = orders.map((r) => r.id);
-                for (const id of [...ids]) {
-                    if (!serverIds.includes(id)) {
-                        this.localDeleteCascade(this.models["pos.order"].get(id));
-                    }
+                const missing = [...ids].filter((id) => !serverIds.includes(id));
+                log.logic("checkAndDeleteMissingOrders", () => ({
+                    local: ids.size,
+                    server: serverIds.length,
+                    missing,
+                }));
+                for (const id of missing) {
+                    this.localDeleteCascade(this.models["pos.order"].get(id));
                 }
             }
         }
@@ -1017,11 +1239,19 @@ export class PosData extends SignalStore {
         const serverIds = records
             .filter((record) => typeof record.id === "number")
             .map((record) => record.id);
+        log.lifecycle("write", () => ({
+            model,
+            ids,
+            local: records.length,
+            server: serverIds.length,
+            keys: Object.keys(values),
+        }));
         try {
             if (serverIds.length) {
                 await this.ormWrite(model, serverIds, values, true, true);
             }
         } catch (error) {
+            log.logic("write: rollback optimistic", () => ({ model, ids }));
             update.rollback();
             throw error;
         }
@@ -1036,6 +1266,12 @@ export class PosData extends SignalStore {
         const serverIds = records
             .filter((record) => typeof record.id === "number")
             .map((record) => record.id);
+        log.lifecycle("delete", () => ({
+            model,
+            ids,
+            local: records.length,
+            server: serverIds.length,
+        }));
         if (serverIds.length) {
             await this.ormDelete(model, serverIds);
         }
@@ -1121,6 +1357,19 @@ export class PosData extends SignalStore {
             data = await this.missingRecursive(data);
         }
 
+        log.pipeline("callRelated: connect", () => ({
+            model,
+            method,
+            loadMessingRecords,
+            models: data
+                ? Object.fromEntries(
+                      Object.entries(data).map(([name, rows]) => [
+                          name,
+                          Array.isArray(rows) ? rows.length : null,
+                      ]),
+                  )
+                : null,
+        }));
         if (data) {
             this.deviceSync?.dispatch && this.deviceSync.dispatch(data);
             const result = this.models.connectNewData(data);
@@ -1169,6 +1418,13 @@ export class PosData extends SignalStore {
         );
 
         const idbKey = (rec) => rec[databaseTable[rec.model.name]?.key || "id"];
+        log.lifecycle("localDeleteCascade", () => ({
+            model: recordModel,
+            id: record.id,
+            removeFromServer,
+            relations: relationsToDelete,
+            cascade: recordsToDelete.length,
+        }));
         this.deleteRecordsInIndexedDB(recordModel, [idbKey(record)]);
         for (const item of recordsToDelete) {
             this.deleteRecordsInIndexedDB(item.model.name, [idbKey(item)]);
@@ -1187,6 +1443,7 @@ export class PosData extends SignalStore {
         const url = new URL(window.location.href);
         const limitedLoading =
             url.searchParams.get("limited_loading") === "0" ? false : true;
+        log.logic("isLimitedLoading", () => ({ limitedLoading }));
 
         if (!limitedLoading) {
             url.searchParams.delete("limited_loading");

@@ -5,10 +5,13 @@ import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { AlertDialog } from "@web/ui/dialog";
+const log = makeLogger("pos.screen.product.summary");
 export class OrderSummary extends Component {
     static template = "point_of_sale.OrderSummary";
     static components = {
@@ -18,6 +21,7 @@ export class OrderSummary extends Component {
     static props = {};
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.numberBuffer = useService("number_buffer");
         this.dialog = useService("dialog");
@@ -40,6 +44,11 @@ export class OrderSummary extends Component {
 
     async editPackLotLines(line) {
         const isAllowOnlyOneLot = line.product_id.isAllowOnlyOneLot();
+        log.pipeline("editPackLotLines", () => ({
+            line: line.uuid,
+            refund: Boolean(line.refunded_orderline_id),
+            isAllowOnlyOneLot,
+        }));
         let editedPackLotLines;
         if (line.refunded_orderline_id) {
             editedPackLotLines = await this.pos.editLotsRefund(line);
@@ -55,6 +64,10 @@ export class OrderSummary extends Component {
     clickLine(ev, orderline) {
         ev.stopPropagation();
         this.numberBuffer.reset();
+        log.logic("clickLine", () => ({
+            line: orderline.uuid,
+            select: !orderline.isSelected(),
+        }));
 
         if (!orderline.isSelected()) {
             this.pos.selectOrderLine(this.currentOrder, orderline);
@@ -70,6 +83,11 @@ export class OrderSummary extends Component {
         if (orderline.combo_parent_id) {
             orderline = orderline.combo_parent_id;
         }
+        log.pipeline("onOrderlineLongPress", () => ({
+            order: order.uuid,
+            line: orderline.uuid,
+            synced: typeof order.id === "number",
+        }));
 
         if (typeof order.id === "number") {
             const preparation_data = await this.pos.data.call(
@@ -80,10 +98,14 @@ export class OrderSummary extends Component {
             const prep = JSON.parse(
                 preparation_data.last_order_preparation_change || "{}",
             );
-            if (
-                prep.lines &&
-                Object.keys(prep.lines).some((l) => l === orderline.uuid)
-            ) {
+            const sentToKitchen = Boolean(
+                prep.lines && Object.keys(prep.lines).some((l) => l === orderline.uuid),
+            );
+            log.logic("onOrderlineLongPress: kitchen check", () => ({
+                line: orderline.uuid,
+                sentToKitchen,
+            }));
+            if (sentToKitchen) {
                 this.dialog.add(AlertDialog, {
                     title: _t("Cannot edit orderline"),
                     body: _t(
@@ -148,6 +170,14 @@ export class OrderSummary extends Component {
             orderline.price_unit = values.price_unit;
         }
         orderline.setFullProductName();
+        log.lifecycle("onOrderlineLongPress: reconfigured", () => ({
+            line: orderline.uuid,
+            product: orderline.product_id?.id,
+            qty: orderline.qty,
+            priceExtra: orderline.price_extra,
+            attributes: orderline.attribute_value_ids?.length,
+            comboLines: orderline.combo_line_ids?.length,
+        }));
 
         this.pos.tryMergeOrderline(order, orderline, orderline.price_type !== "manual");
         return true;
@@ -156,6 +186,20 @@ export class OrderSummary extends Component {
     async updateSelectedOrderline({ buffer, key }) {
         const order = this.pos.getOrder();
         const selectedLine = order.getSelectedOrderline();
+        log.logic("updateSelectedOrderline", () => ({
+            order: order.uuid,
+            line: selectedLine?.uuid,
+            mode: this.pos.numpadMode,
+            buffer,
+            key,
+            tipLine: selectedLine?.isTipLine(),
+            restricted:
+                (this.pos.numpadMode === "quantity" &&
+                    this.pos.disallowLineQuantityChange()) ||
+                (this.pos.numpadMode === "discount" &&
+                    this.pos.restrictLineDiscountChange()) ||
+                (this.pos.numpadMode === "price" && this.pos.restrictLinePriceChange()),
+        }));
         if (!selectedLine) {
             this.numberBuffer.reset();
             return;
@@ -239,6 +283,12 @@ export class OrderSummary extends Component {
     _setValue(val) {
         const { numpadMode } = this.pos;
         const selectedLine = this.currentOrder.getSelectedOrderline();
+        log.logic("_setValue", () => ({
+            line: selectedLine?.uuid,
+            edited: this.editedLine?.uuid,
+            numpadMode,
+            val,
+        }));
         if (!selectedLine) {
             return;
         }
@@ -274,6 +324,12 @@ export class OrderSummary extends Component {
     }
     setLineQuantity(line, quantity) {
         const result = line.setQuantity(quantity, Boolean(line.combo_line_ids?.length));
+        log.logic("setLineQuantity", () => ({
+            line: line.uuid,
+            quantity,
+            accepted: result === true,
+            rejection: result === true ? null : result?.title,
+        }));
         if (result === true) {
             return true;
         }
@@ -286,6 +342,18 @@ export class OrderSummary extends Component {
         if (newQuantity !== null) {
             const selectedLine = this.editedLine;
             const currentQuantity = selectedLine.getQuantity();
+            log.logic("updateQuantityNumber", () => ({
+                line: selectedLine.uuid,
+                current: currentQuantity,
+                saved: selectedLine.uiState.savedQuantity,
+                requested: newQuantity,
+                branch:
+                    newQuantity >= currentQuantity
+                        ? "set"
+                        : newQuantity >= selectedLine.uiState.savedQuantity
+                          ? "decreaseUnsaved"
+                          : "decreaseLine",
+            }));
             if (newQuantity >= currentQuantity) {
                 return this.setLineQuantity(selectedLine, newQuantity);
             } else if (newQuantity >= selectedLine.uiState.savedQuantity) {
@@ -320,6 +388,13 @@ export class OrderSummary extends Component {
         }
         const newLine = this.getNewLine();
         const decreasedQuantity = current_saved_quantity - newQuantity;
+        log.lifecycle("handleDecreaseLine", () => ({
+            line: selectedLine.uuid,
+            decreaseLine: newLine.uuid,
+            reused: newLine === selectedLine,
+            savedQuantity: current_saved_quantity,
+            decreasedQuantity,
+        }));
         if (decreasedQuantity !== 0) {
             newLine.setQuantity(-decreasedQuantity + newLine.getQuantity(), true);
         }

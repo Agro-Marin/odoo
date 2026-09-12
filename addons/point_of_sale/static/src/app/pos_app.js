@@ -26,12 +26,22 @@ export class Chrome extends Component {
         this.pos = usePos();
         useIdleTimer(this.pos.idleTimeout, (ev) => {
             const stopEventPropagation = ["mousedown", "click", "keypress"];
+            log.logic("idle timer: wake", () => ({
+                event: ev.type,
+                screen: this.pos.router.state.current,
+            }));
             if (stopEventPropagation.includes(ev.type)) {
                 ev.stopPropagation();
             }
             this.pos.navigateToFirstPage();
             return false;
         });
+        log.lifecycle("Chrome setup", () => ({
+            screen: this.pos.router.state.current,
+            debug: this.env.debug,
+            fakeTours: Boolean(odoo.use_pos_fake_tours),
+            bigScrollbars: this.pos.config.iface_big_scrollbars,
+        }));
         if (this.pos.router.state.current === "SaverScreen") {
             this.pos.navigateToFirstPage();
         }
@@ -80,6 +90,11 @@ export class Chrome extends Component {
 
     sendOrderToCustomerDisplay(selectedOrder, scaleData) {
         const adapter = this.customerDisplayAdapter;
+        log.pipeline("[customer_display] send order", () => ({
+            order: selectedOrder.uuid,
+            lines: selectedOrder.lines?.length,
+            scale: Boolean(scaleData),
+        }));
         adapter.formatOrderData(selectedOrder);
         adapter.data.scaleData = scaleData;
         adapter.dispatch(this.pos);

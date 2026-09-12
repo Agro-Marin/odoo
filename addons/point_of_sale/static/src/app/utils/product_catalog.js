@@ -1,5 +1,7 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { normalize } from "@web/core/l10n/utils";
+const log = makeLogger("pos.catalog");
 
 export function getExcludedProductIds(pos) {
     return [
@@ -36,6 +38,7 @@ export function orderProductBySequenceAndFav(pos, products) {
 export function getProductsBySearchWord(searchWord, products) {
     const query = normalize(searchWord);
     const matches = [];
+    const endSearch = log.perf("getProductsBySearchWord");
 
     for (const product of products) {
         const searchStr = product.searchString;
@@ -56,6 +59,7 @@ export function getProductsBySearchWord(searchWord, products) {
             a.index - b.index ||
             (a.name === b.name ? 0 : a.name > b.name ? 1 : -1),
     );
+    endSearch({ query, candidates: products.length, matches: matches.length });
 
     return matches.map((m) => m.product);
 }
@@ -65,6 +69,7 @@ export function computeProductsToDisplay(pos) {
     const allProducts = pos.models["product.template"].getAll();
     let list;
     const isSearchByWord = searchWord !== "";
+    const endCompute = log.perf("computeProductsToDisplay");
 
     if (isSearchByWord) {
         list = pos.getProductsBySearchWord(
@@ -82,6 +87,7 @@ export function computeProductsToDisplay(pos) {
     }
 
     if (!list || list.length === 0) {
+        endCompute({ searchWord, category: pos.selectedCategory?.id, result: 0 });
         return [];
     }
 
@@ -90,13 +96,18 @@ export function computeProductsToDisplay(pos) {
     const availableCateg = new Set(
         (pos.config.iface_available_categ_ids || []).map((c) => c.id),
     );
+    let scanned = 0;
+    let excluded = 0;
+    let hiddenByCategory = 0;
 
     for (const p of list) {
         if (filteredList.length >= 100) {
             break;
         }
+        scanned++;
 
         if (excludedProductIds.has(p.id) || !p.canBeDisplayed) {
+            excluded++;
             continue;
         }
 
@@ -105,17 +116,29 @@ export function computeProductsToDisplay(pos) {
             !pos.config._pos_special_display_products_ids?.includes(p.id) &&
             !p.pos_categ_ids.some((c) => availableCateg.has(c.id))
         ) {
+            hiddenByCategory++;
             continue;
         }
 
         filteredList.push(p);
     }
 
-    if (
+    const allSpecial =
         !isSearchByWord &&
         !pos.selectedCategory?.id &&
-        pos.areAllProductsSpecial(filteredList)
-    ) {
+        pos.areAllProductsSpecial(filteredList);
+    endCompute({
+        searchWord,
+        category: pos.selectedCategory?.id,
+        candidates: list.length,
+        scanned,
+        excluded,
+        hiddenByCategory,
+        capped: scanned < list.length,
+        allSpecial,
+        result: allSpecial ? 0 : filteredList.length,
+    });
+    if (allSpecial) {
         return [];
     }
 
@@ -128,6 +151,7 @@ export function computeProductToDisplayByCateg(pos) {
         return sortedProducts.length ? [["0", sortedProducts]] : [];
     }
 
+    const endCompute = log.perf("computeProductToDisplayByCateg");
     const results = [];
     const searchWord = pos.searchProductWord.trim();
     const byCateg = pos.models["product.template"].getAllBy("pos_categ_ids");
@@ -167,6 +191,12 @@ export function computeProductToDisplayByCateg(pos) {
             results.push([catId, sorted.splice(0, 100)]);
         }
     }
+    endCompute({
+        searchWord,
+        category: pos.selectedCategory?.id,
+        categories: selectedCategoryIds.length,
+        groups: results.length,
+    });
 
     return results;
 }

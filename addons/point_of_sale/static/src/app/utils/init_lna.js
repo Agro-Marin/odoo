@@ -5,8 +5,11 @@
  * message: string
  * }>}
  */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
+const log = makeLogger("pos.lna");
 export const initLNA = async (notificationService, callback = () => {}) => {
+    log.lifecycle("initLNA", () => ({ useLna: Boolean(odoo.use_lna) }));
     if (!odoo.use_lna) {
         callback("info", _t("Local Network Access is not configured for this POS."));
         return;
@@ -15,6 +18,7 @@ export const initLNA = async (notificationService, callback = () => {}) => {
     const processLNAState = (result) => {
         let type;
         let message;
+        log.logic("processLNAState", () => ({ state: result.state }));
 
         if (result.state === "granted") {
             type = "success";
@@ -45,6 +49,9 @@ export const initLNA = async (notificationService, callback = () => {}) => {
         odoo.use_lna = false;
         const isChromiumBased =
             navigator.userAgent.includes("Chromium") || !!window.chrome;
+        log.logic("permission query unsupported, LNA disabled", () => ({
+            isChromiumBased,
+        }));
         let message;
         if (!isChromiumBased) {
             message = _t(

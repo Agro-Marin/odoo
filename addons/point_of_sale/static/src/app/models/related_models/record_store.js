@@ -1,8 +1,10 @@
 /** @odoo-module native */
 import { reactive, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import { Base } from "./base.js";
 import { RAW_SYMBOL } from "./utils.js";
+const log = makeLogger("pos.models.store");
 
 export class RecordStore {
     /**
@@ -25,6 +27,14 @@ export class RecordStore {
                 modelMap.set(key, new Map());
             }
         });
+        log.lifecycle("RecordStore", () => ({
+            models: models.length,
+            indexed: Object.fromEntries(
+                Object.entries(this.indexes)
+                    .filter(([, keys]) => keys.size > 1)
+                    .map(([model, keys]) => [model, [...keys]]),
+            ),
+        }));
         return reactive(this);
     }
 

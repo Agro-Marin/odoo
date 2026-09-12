@@ -217,6 +217,11 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
             const key = uuidv4();
             callbacks[this.name][event].set(key, callback);
+            log.lifecycle("addEventListener", () => ({
+                model: this.name,
+                event,
+                listeners: callbacks[this.name][event].size,
+            }));
             return () => callbacks[this.name][event].delete(key);
         }
 
@@ -229,6 +234,13 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 return;
             }
 
+            log.pipeline("triggerEvents", () => ({
+                model: this.name,
+                event,
+                listeners: callbacks[this.name][event].size,
+                ids: data.ids?.length ?? (data.id !== undefined ? 1 : 0),
+                fields: data.fields,
+            }));
             for (const callback of [...callbacks[this.name][event].values()]) {
                 callback(data);
             }
@@ -366,6 +378,14 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 this._connectRecords(record, dataToConnect);
             }
 
+            log.lifecycle("create", () => ({
+                model: this.name,
+                id: record.id,
+                serverData,
+                connectRecords,
+                delaySetup,
+                keys: Object.keys(vals),
+            }));
             if (!delaySetup) {
                 setupRecord(record, vals, uiState);
                 record.model.triggerEvents("create", { ids: [record.id] });
@@ -393,6 +413,13 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     ownFields[name] &&
                     this[STORE_SYMBOL].hasIndex(this.name, name),
             );
+            log.lifecycle("update", () => ({
+                model: this.name,
+                id: record.id,
+                keys: Object.keys(vals),
+                silent: Boolean(opts.silent),
+                reIndexRecord,
+            }));
             if (reIndexRecord) {
                 this[STORE_SYMBOL].remove(record);
             }
@@ -555,6 +582,13 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         _delete(record, opts = {}) {
             const id = record.id;
             const ownFields = getFields(this.name);
+            log.lifecycle("delete", () => ({
+                model: this.name,
+                id,
+                synced: record.isSynced,
+                silent: Boolean(opts.silent),
+                backend: Boolean(opts.backend),
+            }));
             const handleCommand = (inverse, field, record, backend = false) => {
                 if (inverse && !inverse.dummy && record.isSynced) {
                     const modelCommands = commands[field.relation];
@@ -766,6 +800,11 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                             if (
                                 this._isPendingDeletion(model, vals[modelKey], vals.id)
                             ) {
+                                log.logic("loadData: skip pending deletion", () => ({
+                                    model,
+                                    id: vals.id,
+                                    key: vals[modelKey],
+                                }));
                                 continue;
                             }
                         }
@@ -803,6 +842,17 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     }
                 }
                 const finalResults = {};
+                log.logic("loadData: resolved", () => ({
+                    models: Object.fromEntries(
+                        Object.entries(results).map(([model, entries]) => [
+                            model,
+                            {
+                                created: entries.filter((e) => !e.isUpdate).length,
+                                updated: entries.filter((e) => e.isUpdate).length,
+                            },
+                        ]),
+                    ),
+                }));
                 for (const model in results) {
                     const entries = results[model];
                     const createdIds = [];

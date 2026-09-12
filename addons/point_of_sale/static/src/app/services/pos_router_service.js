@@ -42,12 +42,19 @@ export class PosRouter extends SignalStore {
 
         window.addEventListener("popstate", (event) => {
             this.path = window.location.pathname;
+            log.lifecycle("[popstate]", () => ({ path: this.path }));
             this.matchURL();
             this.popStateCallback && this.popStateCallback(event);
         });
 
         this.initRegisteredRoutes();
         this.matchURL();
+        log.lifecycle("setup", () => ({
+            path: this.path,
+            routes: Object.keys(this.registeredRoutes),
+            current: this.state.current,
+            params: this.state.params,
+        }));
     }
 
     get page() {
@@ -91,6 +98,10 @@ export class PosRouter extends SignalStore {
     }
 
     back() {
+        log.logic("back", () => ({
+            historyPage: this.historyPage,
+            toLogin: !this.historyPage?.length,
+        }));
         if (!this.historyPage?.length) {
             this.navigate("LoginScreen", {
                 configId: odoo.pos_config_id,
@@ -102,6 +113,7 @@ export class PosRouter extends SignalStore {
     }
 
     close() {
+        log.lifecycle("close", () => ({ config: odoo.pos_config_id }));
         window.location.href = `/pos/ui/${odoo.pos_config_id}`;
     }
 
@@ -114,12 +126,19 @@ export class PosRouter extends SignalStore {
             const match = path.match(regex);
             if (match) {
                 const parsedParams = parseParams(match.slice(1), paramSpecs);
+                log.logic("matchURL", () => ({
+                    path,
+                    routeName,
+                    params: parsedParams,
+                    previous: this.state.current,
+                }));
                 this.state.current = routeName;
                 this.state.params = { ...props, ...parsedParams };
                 return;
             }
         }
 
+        log.logic("matchURL: no route, LoginScreen", () => ({ path }));
         this.state.current = "LoginScreen";
     }
 
@@ -128,6 +147,7 @@ export class PosRouter extends SignalStore {
             const { route } = this.registeredRoutes[routeName];
             return route;
         } catch {
+            log.logic("getRoute: unknown route, ProductScreen", () => ({ routeName }));
             const { route } = this.registeredRoutes["ProductScreen"];
             return route;
         }
@@ -155,6 +175,7 @@ export class PosRouter extends SignalStore {
     }
 
     registerRoutes(routes) {
+        log.lifecycle("registerRoutes", () => ({ routes: Object.keys(routes) }));
         Object.assign(this.registeredRoutes, routes);
     }
 }

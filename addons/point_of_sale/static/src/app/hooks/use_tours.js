@@ -1,6 +1,8 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
 import { tourState } from "@web_tour/js/tour_state";
+const log = makeLogger("pos.tours");
 
 import { TourSelectorPopup } from "../components/tour_selector_popup/tour_selector_popup.js";
 import { makeAwaitable } from "../utils/make_awaitable_dialog.js";
@@ -21,6 +23,7 @@ export default function useTours() {
         states.index = 0;
         states.running = !states.running;
         clearInterval(fakeTourInterval);
+        log.lifecycle("toggle", () => ({ running: states.running }));
 
         if (!states.running) {
             tourState.clear();
@@ -35,6 +38,7 @@ export default function useTours() {
         }
 
         states.selectedTours = tours;
+        log.lifecycle("tours selected", () => ({ tours }));
         fakeTourInterval = setInterval(() => {
             const state = tourState.getCurrentTour();
             if (!state) {
@@ -48,9 +52,11 @@ export default function useTours() {
             if (states.index >= states.selectedTours.length) {
                 states.index = 0;
             }
+            const endTour = log.perf(`tour ${states.selectedTours[states.index]}`);
             await tour.startTour(states.selectedTours[states.index], {
                 throw: false,
             });
+            endTour({ index: states.index });
 
             states.index++;
         } catch (error) {

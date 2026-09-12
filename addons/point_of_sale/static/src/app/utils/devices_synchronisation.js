@@ -1,8 +1,17 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 
 import { logPosMessage } from "./pretty_console_log.js";
 const CONSOLE_COLOR = "#b56be3";
+const log = makeLogger("pos.sync.devices");
+const countByModel = (data) =>
+    Object.fromEntries(
+        Object.entries(data || {}).map(([model, records]) => [
+            model,
+            Array.isArray(records) ? records.length : records,
+        ]),
+    );
 export default class DevicesSynchronisation {
     constructor(dynamicModels, staticModels, posStore) {
         this.setup(dynamicModels, staticModels, posStore);
@@ -19,6 +28,10 @@ export default class DevicesSynchronisation {
         this.pos = posStore;
         this.models = posStore.models;
 
+        log.lifecycle("setup", () => ({
+            dynamic: [...this.dynamicModels],
+            static: this.staticModels.size,
+        }));
         this.pos.data.connectWebSocket("SYNCHRONISATION", this.collect.bind(this));
     }
 
@@ -40,12 +53,19 @@ export default class DevicesSynchronisation {
             "Dispatching synchronization",
             CONSOLE_COLOR,
         );
+        const endDispatch = log.perf("[bus] dispatch");
+        log.pipeline("[bus] dispatch", () => ({
+            device: this.pos.device.identifier,
+            static: countByModel(recordIds),
+            ignoredDynamic: Object.keys(data).filter((m) => !this.staticModels.has(m)),
+        }));
         await this.pos.data.call("pos.config", "notify_synchronisation", [
             odoo.pos_config_id,
             odoo.pos_session_id,
             this.pos.device.identifier,
             recordIds,
         ]);
+        endDispatch({ models: Object.keys(recordIds).length });
     }
 
     /**
@@ -66,6 +86,12 @@ export default class DevicesSynchronisation {
             `Incoming synchronization from ${isSameDevice ? "this" : "another"} device`,
             CONSOLE_COLOR,
         );
+        log.pipeline("[bus] collect", () => ({
+            from: device_identifier,
+            session: session_id,
+            ignored: isSameDevice,
+            static: countByModel(static_records),
+        }));
 
         if (isSameDevice) {
             return;
@@ -80,6 +106,11 @@ export default class DevicesSynchronisation {
 
     async readDataFromServer() {
         const { domain, recordIds } = this.getOrdersDomain();
+        const endRead = log.perf("readDataFromServer");
+        log.pipeline("readDataFromServer", () => ({
+            recordIds: countByModel(recordIds),
+            domainModels: Object.keys(domain),
+        }));
         let response;
         try {
             response = await this.pos.data.call(
@@ -88,6 +119,7 @@ export default class DevicesSynchronisation {
                 [odoo.pos_config_id, domain, recordIds],
             );
         } catch (error) {
+            endRead({ failed: true });
             logPosMessage(
                 "Synchronisation",
                 "readDataFromServer",
@@ -97,6 +129,10 @@ export default class DevicesSynchronisation {
             return;
         }
 
+        log.pipeline("readDataFromServer: response", () => ({
+            dynamic: countByModel(response.dynamic_records),
+            deleted: countByModel(response.deleted_record_ids),
+        }));
         if (Object.keys(response.dynamic_records).length) {
             const missing = await this.pos.data.missingRecursive(
                 response.dynamic_records,
@@ -113,6 +149,10 @@ export default class DevicesSynchronisation {
                 { dynamicR: {}, staticR: {} },
             );
 
+            log.logic("readDataFromServer: split", () => ({
+                dynamic: countByModel(dynamicR),
+                static: countByModel(staticR),
+            }));
             this.processStaticRecords(staticR);
             const res = await this.processDynamicRecords(dynamicR);
             if (res && res["pos.order"]) {
@@ -132,6 +172,10 @@ export default class DevicesSynchronisation {
         if (Object.keys(response.deleted_record_ids).length) {
             this.processDeletedRecords(response.deleted_record_ids);
         }
+        endRead({
+            dynamic: Object.keys(response.dynamic_records).length,
+            deleted: Object.keys(response.deleted_record_ids).length,
+        });
     }
 
     /**
@@ -155,6 +199,12 @@ export default class DevicesSynchronisation {
         for (const [model, ids] of Object.entries(deletedRecords)) {
             const records = this.models[model].readMany(ids).filter(Boolean);
             const dbTable = this.pos.data.opts.databaseTable[model];
+            log.lifecycle("processDeletedRecords", () => ({
+                model,
+                ids: ids.length,
+                local: records.length,
+                idb: Boolean(dbTable),
+            }));
             if (dbTable) {
                 const key = dbTable.key || "id";
                 const keys = records.map((r) => r[key]).filter((k) => k !== undefined);
@@ -225,6 +275,10 @@ export default class DevicesSynchronisation {
             ]).toList();
         }
 
+        log.logic("getOrdersDomain", () => ({
+            recordIds: countByModel(recordIdsByModel),
+            orderDomainClauses: domainByModel["pos.order"]?.length,
+        }));
         return { domain: domainByModel, recordIds: recordIdsByModel };
     }
 }

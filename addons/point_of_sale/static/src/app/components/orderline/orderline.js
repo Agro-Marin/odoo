@@ -3,6 +3,9 @@ import { Component, useRef } from "@odoo/owl";
 import { useTimedPress } from "@point_of_sale/app/utils/use_timed_press";
 import { TagsList } from "@web/components/tags_list";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+const log = makeLogger("pos.component.orderline");
 export class Orderline extends Component {
     static components = { TagsList };
     static template = "point_of_sale.Orderline";
@@ -29,6 +32,7 @@ export class Orderline extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.root = useRef("root");
         if (this.props.mode === "display") {
             useTimedPress(this.root, [

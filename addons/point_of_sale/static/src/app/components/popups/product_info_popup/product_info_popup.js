@@ -2,15 +2,23 @@
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { AlertDialog, Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.product_info");
 export class ProductInfoPopup extends Component {
     static template = "point_of_sale.ProductInfoPopup";
     static components = { Dialog };
     static props = ["info", "productTemplate", "close"];
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
+        log.lifecycle("opened", () => ({
+            template: this.props.productTemplate?.id,
+            marginsVisible: this._hasMarginsCostsAccessRights(),
+        }));
     }
     searchProduct(productName) {
         this.pos.setSelectedCategory(0);
@@ -33,6 +41,7 @@ export class ProductInfoPopup extends Component {
     async toggleFavorite() {
         const template = this.props.productTemplate;
         const next = !template.is_favorite;
+        log.pipeline("toggleFavorite", () => ({ template: template.id, next }));
         try {
             const applied = await this.pos.data.call(
                 "product.template",

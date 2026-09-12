@@ -1,9 +1,17 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+const log = makeLogger("pos.store.navigation");
 
 export function navigate(pos, routeName, routeParams = {}) {
     const pageParams = registry.category("pos_pages").get(routeName);
     const component = pageParams.component;
+    log.logic("navigate", () => ({
+        routeName,
+        orderUuid: routeParams.orderUuid,
+        storeOnOrder: component.storeOnOrder ?? true,
+        currentOrder: pos.getOrder()?.uuid,
+    }));
 
     if (routeParams.orderUuid) {
         pos.selectedOrderUuid = routeParams.orderUuid;
@@ -28,6 +36,11 @@ export function navigateToOrderScreen(pos, order) {
     const params = orderPage?.props || {
         orderUuid: order.uuid,
     };
+    log.logic("navigateToOrderScreen", () => ({
+        order: order.uuid,
+        savedScreen: orderPage?.name,
+        page,
+    }));
     pos.ticket_screen_mobile_pane = "left";
     pos.navigate(page, params);
 }
@@ -42,6 +55,10 @@ export function computeDefaultPage(pos) {
 }
 
 export function consumeBootFlags(pos) {
+    log.logic("consumeBootFlags", () => ({
+        fromBackend: Boolean(odoo.from_backend),
+        posHr: pos.config.module_pos_hr,
+    }));
     if (odoo.from_backend) {
         const url = new URL(window.location.href);
         url.searchParams.delete("from_backend");
@@ -56,7 +73,14 @@ export function consumeBootFlags(pos) {
 }
 
 export function computeFirstPage(pos) {
-    return !pos.cashier ? { page: "LoginScreen", params: {} } : pos.getDefaultPage();
+    const page = !pos.cashier
+        ? { page: "LoginScreen", params: {} }
+        : pos.getDefaultPage();
+    log.logic("computeFirstPage", () => ({
+        cashier: pos.cashier?.id,
+        page: page.page,
+    }));
+    return page;
 }
 
 export function switchPane(pos) {

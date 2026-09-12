@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("pos.component.product_card");
 
 const STOCK_BADGE_POSITION_CLASSES = {
     top_left: "top-0 start-0",
@@ -33,6 +36,7 @@ export class ProductCard extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = useService("pos");
         this.posStock = useService("pos_stock");
         this.stockQuantities = useState(this.posStock.quantities);

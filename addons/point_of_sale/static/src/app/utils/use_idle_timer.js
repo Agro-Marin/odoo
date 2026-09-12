@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { onWillUnmount, useExternalListener } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.idle_timer");
 
 const UserPresenceEvents = [
     "mousemove",
@@ -21,12 +23,20 @@ export function useIdleTimer(steps, onAlive) {
         for (const step of steps) {
             if (step.timeout === state.time * 1000 && !state.idle) {
                 state.idle = step.action();
+                log.logic("step reached", () => ({
+                    timeout: step.timeout,
+                    idle: state.idle,
+                }));
             }
         }
     };
 
     const onMove = (ev) => {
         if (state.idle) {
+            log.logic("activity while idle", () => ({
+                event: ev.type,
+                idleFor: state.time,
+            }));
             state.idle = onAlive(ev);
         }
         state.time = 0;

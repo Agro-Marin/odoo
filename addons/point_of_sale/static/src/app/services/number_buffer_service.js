@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
 import { EventBus, onWillDestroy, useComponent } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { parseFloat as oParseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
+const log = makeLogger("pos.number_buffer");
 
 const INPUT_KEYS = new Set(
     ["Delete", "Backspace", "+1", "+2", "+5", "+10", "+20", "+50"].concat(
@@ -47,6 +49,11 @@ class NumberBuffer extends EventBus {
     set(val) {
         this.state.lastSet = val;
         this.state.buffer = !isNaN(parseFloat(val)) ? val : "";
+        log.logic("set", () => ({
+            val,
+            buffer: this.state.buffer,
+            holder: this.component?.constructor?.name,
+        }));
         this.trigger("buffer-update", this.state.buffer);
     }
     reset() {
@@ -56,6 +63,10 @@ class NumberBuffer extends EventBus {
     }
     capture() {
         if (this.handler) {
+            log.logic("capture: flushing pending keys", () => ({
+                pending: this.eventsBuffer?.length,
+                holder: this.component?.constructor?.name,
+            }));
             clearTimeout(this._timeout);
             this.handler(true);
             delete this.handler;
@@ -86,12 +97,26 @@ class NumberBuffer extends EventBus {
             config,
         };
         this.bufferHolderStack.push(holder);
+        log.lifecycle("use", () => ({
+            component: currentComponent.constructor.name,
+            depth: this.bufferHolderStack.length,
+            useWithBarcode: config.useWithBarcode,
+            triggers: {
+                enter: Boolean(config.triggerAtEnter),
+                esc: Boolean(config.triggerAtEsc),
+                input: Boolean(config.triggerAtInput),
+            },
+        }));
         this._setUp();
         onWillDestroy(() => {
             const indexComponent = this.bufferHolderStack.indexOf(holder);
             if (indexComponent !== -1) {
                 this.bufferHolderStack.splice(indexComponent, 1);
             }
+            log.lifecycle("release", () => ({
+                component: currentComponent.constructor.name,
+                depth: this.bufferHolderStack.length,
+            }));
             this._setUp();
         });
     }
@@ -114,6 +139,10 @@ class NumberBuffer extends EventBus {
     _onKeyboardInput(event) {
         const overlays = Object.values(this.overlay.overlays);
         if (overlays.length && !this._currentBufferHolder?.config?.captureWithOverlay) {
+            log.logic("keyboard input ignored: overlay open", () => ({
+                key: event.key,
+                overlays: overlays.length,
+            }));
             return;
         }
         return (
@@ -150,11 +179,18 @@ class NumberBuffer extends EventBus {
     }
     _onInput(keyAccessor) {
         return (manualCapture = false) => {
-            if (
+            const process =
                 manualCapture ||
                 session.test_mode ||
-                (!manualCapture && this.eventsBuffer.length <= 2)
-            ) {
+                (!manualCapture && this.eventsBuffer.length <= 2);
+            log.logic("onInput", () => ({
+                keys: this.eventsBuffer.map(keyAccessor),
+                manualCapture,
+                process,
+                treatedAsBarcode: !process,
+                holder: this.component?.constructor?.name,
+            }));
+            if (process) {
                 for (const event of this.eventsBuffer) {
                     if (!ALLOWED_KEYS.has(keyAccessor(event))) {
                         this.eventsBuffer = [];
@@ -171,6 +207,11 @@ class NumberBuffer extends EventBus {
         };
     }
     _handleInput(key) {
+        log.logic("handleInput", () => ({
+            key,
+            buffer: this.state.buffer,
+            holder: this.component?.constructor?.name,
+        }));
         if (key === "Enter" && this.config.triggerAtEnter) {
             this.config.triggerAtEnter(this.state);
         } else if (key === "Esc" && this.config.triggerAtEsc) {

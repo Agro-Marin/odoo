@@ -2,7 +2,10 @@
 import { Component, useState } from "@odoo/owl";
 import { ProductInfoBanner } from "@point_of_sale/app/components/product_info_banner/product_info_banner";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.popup.configurator");
 export class BaseProductAttribute extends Component {
     static template = "";
     static props = [
@@ -101,6 +104,7 @@ export class ProductConfiguratorPopup extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.state = useState({
             attributes:
@@ -117,6 +121,14 @@ export class ProductConfiguratorPopup extends Component {
                 ),
         });
 
+        log.lifecycle("opened", () => ({
+            template: this.props.productTemplate.id,
+            line: this.props.line?.uuid,
+            fromLine: Boolean(this.props.line?.selectedAttributes),
+            attributeLines: this.props.productTemplate.attribute_line_ids.length,
+            hideAlwaysVariants: this.props.hideAlwaysVariants,
+            forceVariant: Boolean(this.props.forceVariantValue),
+        }));
         if (!this.props.line?.selectedAttributes) {
             this.initAttributes();
         }
@@ -156,9 +168,12 @@ export class ProductConfiguratorPopup extends Component {
 
     initAttributes() {
         const getNext = this.generateCombinations(this.attributes);
+        const endInit = log.perf("initAttributes");
+        let tried = 0;
 
         let combination;
         while ((combination = getNext()) !== null) {
+            tried++;
             if (
                 !combination.some((value) =>
                     this.pos.doHaveConflictWith(value, combination),
@@ -178,6 +193,11 @@ export class ProductConfiguratorPopup extends Component {
                 break;
             }
         }
+        endInit({
+            template: this.props.productTemplate.id,
+            tried,
+            found: combination !== null,
+        });
     }
 
     generateCombinations(attributes) {
@@ -211,6 +231,12 @@ export class ProductConfiguratorPopup extends Component {
 
     setSelected(attribute) {
         return (selected) => {
+            log.logic("setSelected", () => ({
+                attribute: attribute.attribute_id.id,
+                selected: Array.isArray(selected)
+                    ? selected.map((v) => v.id)
+                    : selected?.id,
+            }));
             if (!this.state.attributes[attribute.attribute_id.id]) {
                 this.state.attributes[attribute.attribute_id.id] = {
                     selected: {},
@@ -294,7 +320,17 @@ export class ProductConfiguratorPopup extends Component {
     }
 
     confirm() {
-        this.props.getPayload(this.computePayload());
+        const payload = this.computePayload();
+        log.pipeline("confirm", () => ({
+            template: this.props.productTemplate.id,
+            product: this.product?.id,
+            attributeValues: payload.attribute_value_ids,
+            customValues: Object.keys(payload.attribute_custom_values).length,
+            priceExtra: payload.price_extra,
+            valid: this.isValidCombination(),
+            archived: this.isArchivedCombination(),
+        }));
+        this.props.getPayload(payload);
         this.props.close();
     }
 

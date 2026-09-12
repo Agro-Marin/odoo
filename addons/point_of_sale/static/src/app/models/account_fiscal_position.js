@@ -1,13 +1,21 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { Base } from "./related_models/index.js";
+const log = makeLogger("pos.fiscal_position");
 export class AccountFiscalPosition extends Base {
     static pythonModel = "account.fiscal.position";
 
     getTaxesAfterFiscalPosition(taxes) {
         if (!this.tax_ids?.length) {
-            return taxes.filter((tax) => !tax.fiscal_position_ids?.length);
+            const kept = taxes.filter((tax) => !tax.fiscal_position_ids?.length);
+            log.logic("getTaxesAfterFiscalPosition: no mapping", () => ({
+                fiscalPosition: this.id,
+                taxes: taxes.map((t) => t.id),
+                kept: kept.map((t) => t.id),
+            }));
+            return kept;
         }
 
         const taxMap = this.tax_map || {};
@@ -23,6 +31,12 @@ export class AccountFiscalPosition extends Base {
         }
 
         const resolved = this.models["account.tax"].readMany(newTaxIds);
+        log.logic("getTaxesAfterFiscalPosition: mapped", () => ({
+            fiscalPosition: this.id,
+            from: taxes.map((t) => t.id),
+            to: newTaxIds,
+            unresolved: resolved.filter((t) => !t).length,
+        }));
         const missingIdx = resolved.findIndex((tax) => !tax);
         if (missingIdx !== -1) {
             console.warn(

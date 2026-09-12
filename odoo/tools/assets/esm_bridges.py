@@ -20,7 +20,7 @@ from odoo.tools.assets.esm_graph import (
     _strict_stub_source,
 )
 from odoo.tools.assets.esm_lexer import lex_module
-from odoo.tools.assets.esm_registry import external_libs
+from odoo.tools.assets.esm_registry import esm_registry, external_libs
 
 __all__ = ["BridgeShimManager", "NativeModuleLike"]
 
@@ -187,9 +187,14 @@ class BridgeShimManager:
         exports_cache: dict[str, set[str]] = {}
 
         shims_by_spec: dict[str, str] = {}
+        skip_legacy_tests = self.bundle_name in esm_registry().import_map_includes
         for asset in self.native_modules:
             specifier = asset.module_path
             if not specifier.startswith("@"):
+                continue
+            if skip_legacy_tests and "/static/tests/" in (
+                getattr(asset, "url", None) or ""
+            ):
                 continue
             src = asset.raw_content
             names, _ = _extract_esm_exports(

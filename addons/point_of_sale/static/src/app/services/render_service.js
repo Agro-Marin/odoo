@@ -2,10 +2,12 @@
 import { Component, onMounted, reactive, useRef, xml } from "@odoo/owl";
 import { toCanvas } from "@point_of_sale/app/utils/html-to-image";
 import { waitImages } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 
 const renderMutex = new Mutex();
+const log = makeLogger("pos.render");
 class ComponentRenderer extends Component {
     static props = ["comp", "onMounted"];
     static template = xml`
@@ -50,6 +52,7 @@ export const renderService = {
         });
         const toHtml = (component, props) =>
             renderMutex.exec(async () => {
+                const endRender = log.perf(`toHtml ${component?.name}`);
                 Object.assign(toBeRenderedComponentData, { component, props });
                 let timer;
                 try {
@@ -68,6 +71,7 @@ export const renderService = {
                 } finally {
                     clearTimeout(timer);
                     toBeRenderedComponentData.component = null;
+                    endRender({ tag: elem?.tagName });
                 }
                 return elem;
             });
@@ -75,9 +79,16 @@ export const renderService = {
             htmlToCanvas(await toHtml(component, props), options);
         const toJpeg = async (component, props, options) => {
             const canvas = await toCanvas(component, props, options);
-            return canvas
+            const endEncode = log.perf(`toJpeg ${component?.name}`);
+            const jpeg = canvas
                 .toDataURL("image/jpeg")
                 .replace("data:image/jpeg;base64,", "");
+            endEncode({
+                width: canvas.width,
+                height: canvas.height,
+                bytes: jpeg.length,
+            });
+            return jpeg;
         };
         const whenMounted = async ({ el, container, callback }) => {
             container ||= document.querySelector(".render-container");
@@ -121,19 +132,22 @@ export const htmlToCanvas = async (el, options) => {
         el.classList.add(...options.addClass.split(" "));
     }
     sanitizeNodeText(el);
+    const endCanvas = log.perf("htmlToCanvas");
     return await renderMutex.exec(() =>
         applyWhenMounted({
             el,
             container: document.querySelector(".render-container"),
             callback: async (el) => {
                 await waitImages(el);
-                return toCanvas(el, {
+                const canvas = await toCanvas(el, {
                     backgroundColor: "#ffffff",
                     height: Math.ceil(el.clientHeight),
                     width: Math.ceil(el.clientWidth),
                     pixelRatio: 1,
                     includeQueryParams: true,
                 });
+                endCanvas({ width: canvas.width, height: canvas.height });
+                return canvas;
             },
         }),
     );

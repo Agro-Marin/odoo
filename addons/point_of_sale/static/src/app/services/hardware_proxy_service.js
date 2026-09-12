@@ -33,6 +33,11 @@ export class HardwareProxy extends EventBus {
     }
 
     setConnectionInfo(info) {
+        log.lifecycle("setConnectionInfo", () => ({
+            from: this.connectionInfo.status,
+            to: info.status,
+            drivers: info.drivers ? Object.keys(info.drivers) : undefined,
+        }));
         Object.assign(this.connectionInfo, info);
         if (!info.drivers && this.connectionInfo.status === "disconnected") {
             this.connectionInfo.drivers = {};
@@ -55,12 +60,15 @@ export class HardwareProxy extends EventBus {
         if (this.pos.config.iface_print_via_proxy) {
             this.connectToPrinter();
         }
+        const endConnect = log.perf("connect");
         try {
             if (await this.message("handshake")) {
                 this.setConnectionInfo({ status: "connected" });
                 localStorage.hw_proxy_url = this.host;
                 this.keepAlive();
+                endConnect({ host: this.host, connected: true });
             } else {
+                endConnect({ host: this.host, refused: true });
                 this.setConnectionInfo({ status: "disconnected" });
                 logPosMessage(
                     "HardwareProxy",
@@ -69,6 +77,7 @@ export class HardwareProxy extends EventBus {
                 );
             }
         } catch {
+            endConnect({ host: this.host, unreachable: true });
             this.setConnectionInfo({ status: "disconnected" });
             logPosMessage("HardwareProxy", "connect", "Could not connect to the Proxy");
         }
@@ -87,13 +96,20 @@ export class HardwareProxy extends EventBus {
     async autoConnect(options) {
         this.setConnectionInfo({ status: "connecting", drivers: {} });
         let url = options.force_ip || localStorage.hw_proxy_url;
+        log.logic("autoConnect", () => ({
+            forceIp: options.force_ip,
+            stored: localStorage.hw_proxy_url,
+            url,
+        }));
         if (!url) {
             return new Promise(() => {});
         }
 
         url = deduceUrl(url);
 
-        if (await this.checkProxyAvailability(url)) {
+        const available = await this.checkProxyAvailability(url);
+        log.logic("autoConnect: availability", () => ({ url, available }));
+        if (available) {
             this.host = url;
             return this.connect(url);
         }
@@ -114,6 +130,10 @@ export class HardwareProxy extends EventBus {
                     (drivers) =>
                         this.setConnectionInfo({ status: "connected", drivers }),
                     () => {
+                        log.logic("keepAlive: status failed", () => ({
+                            host: this.host,
+                            status: this.connectionInfo.status,
+                        }));
                         if (this.connectionInfo.status !== "connecting") {
                             this.setConnectionInfo({ status: "disconnected" });
                         }
@@ -123,6 +143,7 @@ export class HardwareProxy extends EventBus {
         };
 
         if (!this.keptalive) {
+            log.lifecycle("keepAlive: started", () => ({ host: this.host }));
             this.keptalive = true;
             status();
         }
@@ -153,6 +174,7 @@ export class HardwareProxy extends EventBus {
     async checkProxyAvailability(url) {
         this.setConnectionInfo({ status: "connecting" });
         const maxRetries = 3;
+        const endCheck = log.perf("checkProxyAvailability");
         for (let i = 0; i <= maxRetries; i++) {
             const timeoutController = new AbortController();
             setTimeout(() => timeoutController.abort(), 1000);
@@ -163,9 +185,11 @@ export class HardwareProxy extends EventBus {
                 })
                 .catch(() => ({}));
             if (response.ok) {
+                endCheck({ url, attempt: i + 1, ok: true });
                 return true;
             }
         }
+        endCheck({ url, attempts: maxRetries + 1, ok: false });
         this.setConnectionInfo({ status: "disconnected" });
         return false;
     }
@@ -174,6 +198,12 @@ export class HardwareProxy extends EventBus {
         const isPrinterConnected =
             ["connected", "init"].includes(this.connectionInfo.status) ||
             this.pos.config.epson_printer_ip;
+        log.logic("openCashbox", () => ({
+            action,
+            cashdrawer: this.pos.config.iface_cashdrawer,
+            printer: Boolean(this.printer),
+            isPrinterConnected: Boolean(isPrinterConnected),
+        }));
         if (this.pos.config.iface_cashdrawer && this.printer && isPrinterConnected) {
             this.printer.openCashbox();
             if (action) {

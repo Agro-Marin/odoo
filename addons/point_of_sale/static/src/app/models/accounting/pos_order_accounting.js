@@ -149,6 +149,14 @@ export class PosOrderAccounting extends Base {
         const amount = this.shouldRound(paymentMethod)
             ? this.config.rounding_method.round(this.remainingDue)
             : this.remainingDue;
+        log.logic("getDefaultAmountDueToPayIn", () => ({
+            order: this.uuid,
+            method: paymentMethod.id,
+            rounded: this.shouldRound(paymentMethod),
+            remainingDue: this.remainingDue,
+            amount,
+            change: this.change,
+        }));
         return amount || this.change;
     }
 
@@ -165,6 +173,13 @@ export class PosOrderAccounting extends Base {
             line.price_subtotal = line.currency.round(line.prices.total_excluded);
             line.price_subtotal_incl = line.currency.round(line.prices.total_included);
         });
+        log.lifecycle("setOrderPrices: stored", () => ({
+            order: this.uuid,
+            amount_total: this.amount_total,
+            amount_tax: this.amount_tax,
+            amount_paid: this.amount_paid,
+            amount_return: this.amount_return,
+        }));
     }
     getPriceWithOptions(opts = {}) {
         return this._constructPriceData(opts);
@@ -174,9 +189,17 @@ export class PosOrderAccounting extends Base {
      * @private Compute
      */
     _constructPriceData(opts = {}) {
+        const endConstruct = log.perf("constructPriceData");
         const data = this._computeAllPrices(opts);
         const lines = opts.lines || this.lines;
-        const noDiscount = lines.some((l) => l.getDiscount() > 0)
+        const hasDiscount = lines.some((l) => l.getDiscount() > 0);
+        log.logic("constructPriceData: discount pass", () => ({
+            order: this.uuid,
+            lines: lines.length,
+            hasDiscount,
+            secondPass: hasDiscount,
+        }));
+        const noDiscount = hasDiscount
             ? this._computeAllPrices({
                   ...opts,
                   baseLineOpts: { ...(opts.baseLineOpts || {}), discount: 0.0 },
@@ -214,6 +237,12 @@ export class PosOrderAccounting extends Base {
                 [data],
             );
         }
+        endConstruct({
+            order: this.uuid,
+            lines: lines.length,
+            total: data.taxDetails.total_amount_currency,
+            tax: data.taxDetails.tax_amount_currency,
+        });
         return data;
     }
 

@@ -1,7 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { Base } from "./related_models/index.js";
+const log = makeLogger("pos.pricelist");
 export class ProductPricelist extends Base {
     static pythonModel = "product.pricelist";
 
@@ -48,6 +50,12 @@ export class ProductPricelist extends Base {
 
             this.uiState.generalRulesIds[index] = item.id;
         }
+        log.lifecycle("computeGeneralRulesByCateg", () => ({
+            pricelist: this.id,
+            items: this.item_ids.length,
+            general: Object.keys(this.uiState.generalRulesIds).length,
+            categories: Object.keys(this.uiState.generalRulesIdsByCateg).length,
+        }));
     }
 }
 

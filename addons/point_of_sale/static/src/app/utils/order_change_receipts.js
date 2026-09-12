@@ -1,10 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 
 import { parseNoteEntries } from "../models/utils/note_entries.js";
 
 const { DateTime } = luxon;
+const log = makeLogger("pos.order.change.receipts");
 
 export function getStrNotes(note) {
     return parseNoteEntries(note)
@@ -58,6 +60,18 @@ export function generateOrderChange(
     const orderData = pos.getOrderData(order, reprint);
 
     const changes = pos.filterChangeByCategories(categories, orderChange);
+    log.logic("generateOrderChange", () => ({
+        order: order.uuid,
+        reprint,
+        categories: categories?.length,
+        combo: comboChanges.length,
+        normal: normalChanges.length,
+        afterFilter: {
+            new: changes.new.length,
+            cancelled: changes.cancelled.length,
+            noteUpdate: changes.noteUpdate.length,
+        },
+    }));
     const stringifyNotes = (items) =>
         items.map((changeItem) => ({
             ...changeItem,
@@ -114,6 +128,14 @@ export async function generateReceiptsDataToPrint(
         orderDataNote.changes = { title: "", data: [] };
         receiptsData.push(await pos.prepareReceiptGroupedData(orderDataNote));
     }
+    log.pipeline("generateReceiptsDataToPrint", () => ({
+        order: orderData.pos_reference,
+        receipts: receiptsData.map((r) => ({
+            title: r.changes.title,
+            lines: r.changes.data.length,
+            groups: r.changes.groupedData?.length,
+        })),
+    }));
     return receiptsData;
 }
 

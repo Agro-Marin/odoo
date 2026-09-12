@@ -1,8 +1,10 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
+const log = makeLogger("pos.backend.payment_providers");
 export class PosPaymentProviderCards extends Component {
     static template = "point_of_sale.PosPaymentProviderCards";
     static components = {};
@@ -20,11 +22,13 @@ export class PosPaymentProviderCards extends Component {
         });
 
         onWillStart(async () => {
+            const endStatus = log.perf("get_provider_status");
             const res = await this.orm.call(
                 "pos.payment.method",
                 "get_provider_status",
                 [providers.map((p) => p[1])],
             );
+            endStatus({ asked: providers.length, known: res.state.length });
 
             this.state.providers = providers
                 .filter((prov) =>
@@ -49,6 +53,7 @@ export class PosPaymentProviderCards extends Component {
 
     async installModule(moduleId) {
         const recordSave = await this.props.record.save();
+        log.pipeline("installModule", () => ({ moduleId, recordSave }));
         if (!recordSave) {
             return;
         }
@@ -68,6 +73,10 @@ export class PosPaymentProviderCards extends Component {
 
     async setupProvider(moduleId) {
         const provider = this.state.providers.find((p) => p.id === moduleId);
+        log.logic("setupProvider", () => ({
+            moduleId,
+            selection: provider?.selection,
+        }));
         if (provider) {
             this.props.record.update({
                 payment_method_type: "terminal",

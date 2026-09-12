@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.boot.error");
 
 export class CriticalPOSError extends Component {
     static template = "point_of_sale.CriticalPOSError";
@@ -7,13 +9,19 @@ export class CriticalPOSError extends Component {
 
     setup() {
         this.state = useState({ expanded: false });
+        log.lifecycle("shown", () => ({
+            name: this.props.error?.constructor?.name,
+            message: this.props.error?.message,
+        }));
     }
     retry() {
+        log.lifecycle("retry: reload");
         location.reload();
     }
 
     async exportLocalData() {
         const dump = {};
+        const endExport = log.perf("exportLocalData");
         const dbs = await indexedDB.databases();
         for (const { name } of dbs) {
             if (!name) {
@@ -41,6 +49,7 @@ export class CriticalPOSError extends Component {
             }
         }
         const blob = new Blob([JSON.stringify(dump)], { type: "application/json" });
+        endExport({ databases: Object.keys(dump).length, bytes: blob.size });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
         link.download = `pos-data-backup-${new Date().toISOString().replaceAll(":", "-")}.json`;
@@ -61,6 +70,7 @@ export class CriticalPOSError extends Component {
                 await fn();
             } catch {}
         };
+        log.lifecycle("fullReset: confirmed");
 
         try {
             await step(() => this.exportLocalData());

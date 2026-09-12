@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+const log = makeLogger("pos.screen.ticket.search");
 /**
  * @prop {{
  * config: {
@@ -20,6 +23,7 @@ export class SearchBar extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.ui = useService("ui");
         useAutofocus();
         useExternalListener(window, "click", this._hideOptions);
@@ -46,6 +50,10 @@ export class SearchBar extends Component {
         );
     }
     _onSelectFilter(key) {
+        log.logic("onSelectFilter", () => ({
+            from: this.state.selectedFilter,
+            to: key,
+        }));
         this.state.selectedFilter = key;
         this.props.onFilterSelected(this.state.selectedFilter);
     }
@@ -73,6 +81,10 @@ export class SearchBar extends Component {
     }
     _onClickSearchField(fieldName) {
         this.state.showSearchFields = false;
+        log.logic("onClickSearchField", () => ({
+            fieldName,
+            searchTerm: this.state.searchInput,
+        }));
         this.props.onSearch({ fieldName, searchTerm: this.state.searchInput });
     }
     /**

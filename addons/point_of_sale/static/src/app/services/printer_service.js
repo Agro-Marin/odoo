@@ -23,9 +23,16 @@ export class PrinterService extends SignalStore {
         this.state = { isPrinting: false };
     }
     setPrinter(newDevice) {
+        if (newDevice !== this.device) {
+            log.lifecycle("setPrinter", () => ({
+                from: this.device?.constructor?.name,
+                to: newDevice?.constructor?.name,
+            }));
+        }
         this.device = newDevice;
     }
     printWeb(el) {
+        log.pipeline("printWeb", () => ({ tag: el?.tagName }));
         this.renderer.whenMounted({
             el,
             callback: async (el) => {
@@ -37,9 +44,16 @@ export class PrinterService extends SignalStore {
     }
     async printHtml(el, { webPrintFallback = false } = {}) {
         if (!this.device) {
+            log.logic("printHtml: no device", () => ({ webPrintFallback }));
             return webPrintFallback && this.printWeb(el);
         }
+        const endDevice = log.perf("printHtml: device.printReceipt");
         const printResult = await this.device.printReceipt(el);
+        endDevice({
+            successful: printResult.successful,
+            errorCode: printResult.errorCode,
+            warningCode: printResult.warningCode,
+        });
         if (printResult.successful) {
             return printResult;
         }
@@ -67,7 +81,9 @@ export class PrinterService extends SignalStore {
             options,
         }));
         try {
+            const endRender = log.perf(`print: render ${component.name}`);
             const el = await this.renderer.toHtml(component, props);
+            endRender();
             try {
                 await waitImages(el);
             } catch (e) {

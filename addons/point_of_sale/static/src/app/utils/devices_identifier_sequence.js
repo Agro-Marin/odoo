@@ -1,4 +1,6 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.device");
 export default class DeviceIdentifierSequence {
     static uniqueDeviceIdentifierKey = `${odoo.access_token}-unique_device_identifier`;
 
@@ -24,6 +26,9 @@ export default class DeviceIdentifierSequence {
             parsed = null;
         }
         if (!parsed || typeof parsed !== "object") {
+            log.logic("data: localStorage empty or invalid", () => ({
+                key: localStorageKey,
+            }));
             return this.defaultData;
         }
         return { ...this.defaultData, ...parsed };
@@ -51,11 +56,13 @@ export default class DeviceIdentifierSequence {
         const deviceIdentifier = localStorage.getItem(localStorageKey);
 
         if (!deviceIdentifier) {
+            const endRegister = log.perf("register_new_device_identifier");
             const data = await this.orm.call(
                 "pos.config",
                 "register_new_device_identifier",
                 [odoo.pos_config_id],
             );
+            endRegister({ identifier: data.device_identifier });
 
             this.device_identifier = data.device_identifier;
             this.save({
@@ -66,6 +73,12 @@ export default class DeviceIdentifierSequence {
         } else {
             this.device_identifier = this.data.device_identifier;
         }
+        log.lifecycle("initialize", () => ({
+            identifier: this.device_identifier,
+            registered: !deviceIdentifier,
+            nextNumber: this.data.next_number,
+            unsynced: this.unsyncedNumberStack.length,
+        }));
     }
 
     getFirstUnsyncedNumber() {
@@ -87,6 +100,10 @@ export default class DeviceIdentifierSequence {
     useNext() {
         const unsyncedNumber = this.getFirstUnsyncedNumber();
         if (unsyncedNumber) {
+            log.logic("useNext: reused unsynced number", () => ({
+                number: unsyncedNumber,
+                remaining: this.unsyncedNumberStack.length,
+            }));
             return unsyncedNumber;
         }
 
@@ -99,6 +116,7 @@ export default class DeviceIdentifierSequence {
         };
 
         this.save(newData);
+        log.logic("useNext: new number", () => ({ number, next: number + 1 }));
         return number;
     }
 
@@ -130,6 +148,11 @@ export default class DeviceIdentifierSequence {
             ...data.unsynced_number_stack,
             ...numbers,
         ]);
+        log.lifecycle("saveUnusedNumber", () => ({
+            orders: orders.length,
+            recovered: numbers,
+            stack: unsyncedNumberStack.size,
+        }));
 
         this.save({
             device_identifier: data.device_identifier,

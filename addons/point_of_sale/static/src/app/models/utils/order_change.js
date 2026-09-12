@@ -1,4 +1,7 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.order.change");
+
 export const changesToOrder = (
     order,
     orderPreparationCategories,
@@ -23,6 +26,15 @@ export const changesToOrder = (
         }
     }
 
+    log.pipeline("changesToOrder", () => ({
+        order: order.uuid,
+        cancelled,
+        new: toAdd.length,
+        removed: toRemove.length,
+        noteUpdate: Object.keys(orderChanges.noteUpdate).length,
+        generalNote: orderChanges.general_customer_note !== undefined,
+        internalNote: orderChanges.internal_note !== undefined,
+    }));
     return {
         new: toAdd,
         cancelled: toRemove,
@@ -42,6 +54,8 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
     const noteUpdate = {};
     let changesCount = 0;
     let changeAbsCount = 0;
+    let skippedNoCategory = 0;
+    const endChanges = log.perf("getOrderChanges");
 
     const hasPreparationCategory = (product) => {
         if (!product) {
@@ -119,14 +133,17 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
                 orderline.setHasChange(false);
             }
         } else {
+            skippedNoCategory++;
             orderline.setHasChange(false);
         }
     }
+    let removedLines = 0;
     for (const [lineKey, lineResume] of Object.entries(
         order.last_order_preparation_change.lines,
     )) {
         if (!order.models["pos.order.line"].getBy("uuid", lineResume["uuid"])) {
             const quantity = isNaN(lineResume["quantity"]) ? 0 : lineResume["quantity"];
+            removedLines++;
             if (!changes[lineKey]) {
                 changes[lineKey] = {
                     uuid: lineResume["uuid"],
@@ -166,6 +183,17 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
     if (lastInternalNote !== order.internal_note) {
         result.internal_note = order.internal_note;
     }
+    endChanges({
+        order: order.uuid,
+        lines: order.getOrderlines().length,
+        prepaCategories: prepaCategoryIds.size,
+        skippedNoCategory,
+        changed: Object.keys(changes).length,
+        removedLines,
+        noteUpdates: Object.keys(noteUpdate).length,
+        count: changesCount,
+        nbrOfChanges: changeAbsCount,
+    });
     return result;
 };
 

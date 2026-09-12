@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
 import { getLNATargetAddressSpace, initLNA } from "@point_of_sale/app/utils/init_lna";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -26,6 +27,7 @@ const EPSON_ERRORS = {
     ),
     EX_TIMEOUT: _t("Timeout occured, please try again"),
 };
+const log = makeLogger("pos.backend.test_epos");
 
 export class TestEPos extends Component {
     static template = `point_of_sale.TestEPosButton`;
@@ -77,6 +79,7 @@ export class TestEPos extends Component {
             const protocol = odoo.use_lna ? "http:" : window.location.protocol;
             const url = protocol + "//" + printer_ip;
             this.address = url + "/cgi-bin/epos/service.cgi?devid=local_printer";
+            log.pipeline("test print", () => ({ url, lna: Boolean(odoo.use_lna) }));
             const params = {
                 method: "POST",
                 body: this._getReceipt(),
@@ -88,10 +91,12 @@ export class TestEPos extends Component {
                 await initLNA(this.notification, (status) => {
                     lnaStatus = status;
                 });
+                log.logic("test print: lna status", () => ({ lnaStatus }));
                 if (lnaStatus === "danger") {
                     return;
                 }
             }
+            const endPrint = log.perf("test print fetch");
             const result = await fetch(this.address, params);
             const body = await result.text();
             const parser = new DOMParser();
@@ -99,6 +104,7 @@ export class TestEPos extends Component {
             const response = parsedBody.querySelector("response");
             const success = response.getAttribute("success") === "true";
             const errorCode = response.getAttribute("code");
+            endPrint({ http: result.status, success, errorCode });
             if (!success || errorCode !== "") {
                 const errorMessage =
                     EPSON_ERRORS[errorCode] ||
@@ -109,7 +115,11 @@ export class TestEPos extends Component {
                     type: "info",
                 });
             }
-        } catch {
+        } catch (error) {
+            log.logic("test print: unreachable", () => ({
+                url: this.address,
+                error: error?.name,
+            }));
             this.notification.add(
                 _t(
                     "Failed to reach the printer. Check the configured url. Make sure that the printer is online and you are on the same network.",

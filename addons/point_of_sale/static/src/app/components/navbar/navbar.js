@@ -88,15 +88,21 @@ export class Navbar extends Component {
     }
 
     checkInput(event) {
-        if (
+        const redirect =
             !this.ui.isSmall &&
             this.inputRef?.el &&
             document.activeElement !== this.inputRef.el &&
             !this.pos.getOrder()?.getSelectedOrderline() &&
             this.noOpenDialogs() &&
             event.key?.length === 1 &&
-            this.bufferedInput.length < 3
-        ) {
+            this.bufferedInput.length < 3;
+        if (this.bufferedInput) {
+            log.logic("checkInput: keyboard to search", () => ({
+                buffered: this.bufferedInput.length,
+                redirect: Boolean(redirect),
+            }));
+        }
+        if (redirect) {
             this.inputRef.el.focus();
             this.inputRef.el.value = this.bufferedInput;
             event.preventDefault();
@@ -106,6 +112,10 @@ export class Navbar extends Component {
 
     onClickRegister() {
         let order = this.pos.getOrder();
+        log.logic("onClickRegister", () => ({
+            order: order?.uuid,
+            createOrder: !order,
+        }));
 
         if (!order) {
             order = this.pos.addNewOrder();
@@ -118,6 +128,10 @@ export class Navbar extends Component {
         return document.querySelectorAll(".modal-dialog, .debug-widget").length === 0;
     }
     onClickScan() {
+        log.logic("onClickScan", () => ({
+            scanning: this.pos.scanning,
+            screen: this.pos.router.state.current,
+        }));
         if (!this.pos.scanning) {
             const screenName = this.pos.router.state.current;
             if (["ProductScreen", "TicketScreen"].includes(screenName)) {
@@ -148,11 +162,15 @@ export class Navbar extends Component {
     async reloadProducts() {
         this.dialog.add(SyncPopup, {
             title: _t("Reload Data"),
-            confirm: (fullReload) => this.pos.reloadData(fullReload),
+            confirm: (fullReload) => {
+                log.pipeline("reloadProducts: confirmed", () => ({ fullReload }));
+                return this.pos.reloadData(fullReload);
+            },
         });
     }
 
     openCustomerDisplay() {
+        log.pipeline("openCustomerDisplay", () => ({ config: this.pos.config.id }));
         const customer_display_url = `/pos_customer_display/${
             this.pos.config.id
         }/${getDeviceUuid()}?access_token=${encodeURIComponent(this.pos.config.access_token)}`;
