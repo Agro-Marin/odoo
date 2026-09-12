@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { onWillRender, useRef } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors";
-import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useNestedSortable } from "@web/core/utils/dnd";
@@ -10,7 +9,11 @@ import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
 import { ConfirmationDialog } from "@web/ui/dialog";
-import { ListRenderer, processAllColumns } from "@web/views/list";
+import {
+    ListRenderer,
+    processAllColumns,
+    useListOptionalFields,
+} from "@web/views/list";
 
 export class AccountReportListRenderer extends ListRenderer {
     static template = "account.AccountReportList";
@@ -25,7 +28,18 @@ export class AccountReportListRenderer extends ListRenderer {
             this.props.archInfo.columns,
             this.props.list,
         );
-        this.keyOptionalFields = `optional_fields,${this.createViewKey()}`;
+        const key = this.createViewKey();
+        this.keyOptionalFields = `optional_fields,${key}`;
+        this.keyDebugOpenView = `debug_open_view,${key}`;
+        this.opt = useListOptionalFields(
+            this.keyOptionalFields,
+            this.keyDebugOpenView,
+            {
+                getAllColumns: () => this.allColumns,
+                getOptionalActiveFields: () => this.optionalActiveFields,
+                onSave: () => this.saveOptionalActiveFields(),
+            },
+        );
         this.optionalActiveFields = this.computeOptionalActiveFields();
         this.columns = this.getActiveColumns();
         this.visibleOptionalColumns = this.getVisibleOptionalColumns();
@@ -59,43 +73,6 @@ export class AccountReportListRenderer extends ListRenderer {
             this.columns = this.getActiveColumns();
             this.visibleOptionalColumns = this.getVisibleOptionalColumns();
         });
-    }
-
-    //------------------------------------------------------------------------------------------------------------------
-    // Optional fields — self-contained overrides (this.opt is not initialized since super.setup() is skipped)
-    //------------------------------------------------------------------------------------------------------------------
-    computeOptionalActiveFields() {
-        const localStorageValue = browser.localStorage.getItem(this.keyOptionalFields);
-        const optionalColumns = this.allColumns.filter(
-            (col) => col.type === "field" && col.optional,
-        );
-        const result = {};
-        if (localStorageValue !== null) {
-            const active = localStorageValue.split(",");
-            for (const col of optionalColumns) {
-                result[col.name] = active.includes(col.name);
-            }
-        } else {
-            for (const col of optionalColumns) {
-                result[col.name] = col.optional === "show";
-            }
-        }
-        return result;
-    }
-
-    saveOptionalActiveFields() {
-        browser.localStorage.setItem(
-            this.keyOptionalFields,
-            Object.keys(this.optionalActiveFields).filter(
-                (fieldName) => this.optionalActiveFields[fieldName],
-            ),
-        );
-    }
-
-    async toggleOptionalField(fieldName) {
-        this.optionalActiveFields[fieldName] = !this.optionalActiveFields[fieldName];
-        this.saveOptionalActiveFields();
-        this.render();
     }
 
     //------------------------------------------------------------------------------------------------------------------
