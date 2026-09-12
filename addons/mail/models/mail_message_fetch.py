@@ -157,6 +157,13 @@ class MailMessage(models.Model):
                 [("subtype_id.description", "ilike", search_term)],
             ]
         )
+        _debug.logic(
+            "text_search_domain",
+            model=thread._name if thread else None,
+            record=thread.id if thread else None,
+            term_length=len(search_term),
+            with_tracking=bool(thread and is_notification is not False),
+        )
         if thread and is_notification is not False:
             domain |= Domain(
                 "id", "in", self._search_tracking_message_ids(search_term, thread)

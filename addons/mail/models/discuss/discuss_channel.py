@@ -1730,10 +1730,13 @@ class DiscussChannel(models.Model):
         if member := self.self_member_id:
             return member
         if not self.env.user._is_public():
+            _debug.logic("member_for_self", channel=self.id, by="user_added")
             return self._add_members(users=self.env.user)
         guest = self.env["mail.guest"]._get_guest_from_context()
         if guest:
+            _debug.logic("member_for_self", channel=self.id, by="guest_added")
             return self._add_members(guests=guest)
+        _debug.logic("member_for_self", channel=self.id, by="none")
         return self.env["discuss.channel.member"]
 
     def _get_or_create_persona_for_channel(
@@ -1879,6 +1882,12 @@ class DiscussChannel(models.Model):
         if member_ids:
             channel_member_domain &= Domain("id", "in", member_ids)
         members = self.env["discuss.channel.member"].search(channel_member_domain)
+        _debug.lifecycle(
+            "rtc_invitations_cancelled",
+            channel=self.id,
+            asked=len(member_ids or ()),
+            cancelled=len(members),
+        )
         members.rtc_inviting_session_id = False
         if members:
             Store(bus_channel=self).add(
@@ -1963,6 +1972,7 @@ class DiscussChannel(models.Model):
                 "name": name,
             }
         )
+        _debug.lifecycle("group_created", channel=channel.id, partners=len(partners_to))
         channel._broadcast(channel.channel_member_ids.partner_id.ids)
         return channel
 
@@ -2010,6 +2020,9 @@ class DiscussChannel(models.Model):
             body=notification,
             message_type="notification",
             subtype_xmlid="mail.mt_comment",
+        )
+        _debug.lifecycle(
+            "sub_channel_created", parent=self.id, sub_channel=sub_channel.id
         )
         return sub_channel
 

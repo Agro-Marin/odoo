@@ -253,6 +253,9 @@ class MailMail(models.Model):
             if mail.mail_server_id and not mail._filtered_mail_mail_servers(
                 mail.mail_server_id
             ):
+                _debug.logic(
+                    "mail_server_refused", mail=mail.id, server=mail.mail_server_id.id
+                )
                 raise ValidationError(
                     _("You may not create a message using another user's mail server.")
                 )
@@ -367,6 +370,7 @@ class MailMail(models.Model):
         }
 
     def mark_outgoing(self) -> Literal[True]:
+        _debug.lifecycle("mark_outgoing", mails=self.ids)
         res = self.write(
             {"failure_reason": False, "failure_type": False, "state": "outgoing"}
         )
@@ -374,6 +378,7 @@ class MailMail(models.Model):
         return res
 
     def cancel(self) -> Literal[True]:
+        _debug.lifecycle("cancel", mails=self.ids)
         res = self.write({"state": "cancel"})
         self._sync_email_notification_status()
         return res
@@ -603,6 +608,12 @@ class MailMail(models.Model):
 
     def _record_unreached_notifications(self, unreached: MailNotification) -> None:
         by_address = unreached.filtered(lambda notif: not notif.res_partner_id)
+        _debug.logic(
+            "unreached_notifications",
+            mails=self.ids,
+            by_address=len(by_address),
+            orphaned=len(unreached) - len(by_address),
+        )
         if by_address:
             by_address.sudo().write(
                 {
@@ -693,6 +704,7 @@ class MailMail(models.Model):
         if self.env["ir.config_parameter"]._get_bool_param(
             "mail.disable_personal_mail_servers"
         ):
+            _debug.logic("personal_servers_disabled", mails=self.ids)
             return mail_servers.filtered(lambda server: not server.owner_user_id)
         authors = self.mail_message_id.create_uid
         return mail_servers.filtered(
@@ -827,6 +839,13 @@ class MailMail(models.Model):
                 already_sent_pids[mail_id].add(notification.res_partner_id.id)
             elif status and status != "canceled":
                 pending_ids[mail_id].append(notification.id)
+        _debug.perf.count(
+            "email_notifications_loaded",
+            mails=len(mail_ids),
+            notifications=len(notifications),
+            already_sent=sum(len(pids) for pids in already_sent_pids.values()),
+            pending=sum(len(ids) for ids in pending_ids.values()),
+        )
         return already_sent_pids, pending_ids
 
     def _prepare_outgoing_attachments(
@@ -1447,10 +1466,12 @@ class MailMail(models.Model):
         try:
             smtp_session.quit()
         except smtplib.SMTPServerDisconnected:
+            _debug.logic("smtp_quit_failed", error="SMTPServerDisconnected")
             _logger.info(
                 "Ignoring SMTPServerDisconnected while trying to quit non open session"
             )
-        except Exception:
+        except Exception as error:
+            _debug.logic("smtp_quit_failed", error=type(error).__name__)
             _logger.info("Ignoring error while closing SMTP session", exc_info=True)
             with contextlib.suppress(Exception):
                 smtp_session.close()

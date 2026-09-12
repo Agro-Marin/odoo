@@ -147,6 +147,9 @@ class MixinMailGateway(models.AbstractModel):
             return
         bounce_from = self._routing_get_bounce_from(message)
         if not bounce_from:
+            _debug.logic(
+                "bounce_skipped", reason="no_bounce_from", email_from=email_from
+            )
             _logger.info(
                 "Not bouncing mail with Message-Id %s: this database configures no "
                 "address to send a bounce from -- no bounce alias, no default-from, "
@@ -167,10 +170,19 @@ class MixinMailGateway(models.AbstractModel):
             "email_from": bounce_from,
         }
         bounce_mail_values.update(mail_values)
-        self.env["mail.mail"].sudo().create(bounce_mail_values).send()
+        bounce = self.env["mail.mail"].sudo().create(bounce_mail_values)
+        _debug.lifecycle(
+            "bounce_sent",
+            mail=bounce.id,
+            to=bounce_to,
+            by_return_path=bool(return_path),
+            extra=sorted(mail_values),
+        )
+        bounce.send()
 
     def _routing_get_bounce_from(self, message: EmailMessage) -> str | Literal[False]:
         if bounce_from := self.env.company.bounce_email:
+            _debug.logic("bounce_from", by="company_bounce")
             return formataddr(("MAILER-DAEMON", bounce_from))
 
         alias_domain_names = self.env["mail.alias.domain"]._get_alias_domain_names()
@@ -182,6 +194,7 @@ class MixinMailGateway(models.AbstractModel):
             if recipient in catchall_aliases:
                 continue
             if recipient.rsplit("@", 1)[-1] in alias_domain_names:
+                _debug.logic("bounce_from", by="alias_domain_recipient")
                 return recipient
 
         noreply = (
@@ -190,6 +203,7 @@ class MixinMailGateway(models.AbstractModel):
             or self.env["mail.alias.domain"]._get_default_domain().default_from_email
             or self.env.user.email_normalized
         )
+        _debug.logic("bounce_from", by="noreply" if noreply else "none")
         return formataddr(("MAILER-DAEMON", noreply)) if noreply else False
 
     @api.model
@@ -513,6 +527,7 @@ class MixinMailGateway(models.AbstractModel):
     ) -> None:
         normalized_from = email_normalize(message_dict["email_from"])
         if normalized_from:
+            _debug.lifecycle("bounce_counters_reset", email_from=normalized_from)
             for model_name in self.env["ir.model"]._get_mail_blacklist_models():
                 self.env[model_name].sudo().search(  # noqa: E8507  the loop is over blacklist models, not records: one query per table
                     [
@@ -998,6 +1013,7 @@ class MixinMailGateway(models.AbstractModel):
             and hasattr(target, "_routing_check_route")
         ):
             return target
+        _debug.logic("route_check_by_gateway", model=model)
         return self
 
     @api.model

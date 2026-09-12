@@ -1087,6 +1087,22 @@ class MixinMailRender(models.AbstractModel):
             **(getattr(template_field, "render_options", None) or {}),
             **(options or {}),
         }
+        _debug.logic(
+            "render_field",
+            model=self._name,
+            record=self.id,
+            field=field,
+            engine=engine,
+            records=len(res_ids),
+            lang_by="given"
+            if res_ids_lang
+            else "computed"
+            if compute_lang
+            else "set"
+            if set_lang
+            else "context",
+            langs=len(templates_res_ids),
+        )
 
         return {
             res_id: rendered

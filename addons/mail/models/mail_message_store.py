@@ -212,6 +212,11 @@ class MailMessage(models.Model):
         target_user = store.target.get_user(self.env)
         if not (target_user and add_followers and non_channel_records):
             return record_fields
+        _debug.perf.count(
+            "self_followers_resolved",
+            threads=len(non_channel_records),
+            by="search" if followers is None else "given",
+        )
         if followers is None:
             domain = Domain.OR(
                 [

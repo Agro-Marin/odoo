@@ -233,8 +233,17 @@ class MailActivityType(models.Model):
             base = fields.Date.to_date(
                 self.env.context.get("activity_previous_deadline")
             )
+            by = "previous_activity"
         else:
             base = self.env["mail.activity"]._today_for(user)
+            by = "today"
+        _debug.logic(
+            "deadline_computed",
+            activity_type=self.id,
+            by=by,
+            base=base,
+            delay=str(self._get_delay_delta()),
+        )
         return base + self._get_delay_delta()
 
     @api.model

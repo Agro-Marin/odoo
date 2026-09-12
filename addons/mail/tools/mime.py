@@ -146,6 +146,11 @@ def _alternative(part: EmailMessage, stop_at_first_body: bool) -> _Fragment:
         enumerate(children),
         key=lambda pair: (_alternative_rank(pair[1].get_content_type()), pair[0]),
     )[0]
+    _debug.logic(
+        "alternative_chosen",
+        candidates=[child.get_content_type() for child in children],
+        chosen=children[best].get_content_type(),
+    )
     return _Fragment(
         fragments[best].body,
         [a for fragment in fragments for a in fragment.attachments],

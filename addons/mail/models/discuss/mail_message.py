@@ -1,12 +1,15 @@
 import typing
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
     from .discuss_call_history import DiscussCallHistory
     from .discuss_channel import DiscussChannel
+
+_debug = DebugLog(__name__)
 
 
 class MailMessage(models.Model):
@@ -62,5 +65,6 @@ class MailMessage(models.Model):
             return self.channel_id
         guest = self.env["mail.guest"]._get_guest_from_context()
         if self.env.user._is_public() and guest:
+            _debug.logic("bus_channel", message=self.id, by="guest", guest=guest.id)
             return guest
         return super()._bus_channel()

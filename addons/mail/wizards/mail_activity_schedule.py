@@ -200,6 +200,15 @@ class MailActivitySchedule(models.TransientModel):
                 errors.add(
                     _("Can't schedule activities without either a record or a user.")
                 )
+            if _debug.logic.enabled and (errors or warnings):
+                _debug.logic(
+                    "schedule_complaints",
+                    wizard=scheduler.id,
+                    plan=scheduler.plan_id.id or None,
+                    model=scheduler.res_model or None,
+                    errors=len(errors),
+                    warnings=len(warnings),
+                )
             if errors:
                 error_header = (
                     _(
@@ -629,6 +638,12 @@ class MailActivitySchedule(models.TransientModel):
             for operation, records in operations.items():
                 records.check_access(operation)
         except AccessError as err:
+            _debug.logic(
+                "assignee_cannot_upload",
+                wizard=self.id,
+                model=model,
+                user=activity_user.id,
+            )
             raise UserError(
                 _(
                     "Selected user '%(user)s' cannot upload documents on model '%(model)s'",

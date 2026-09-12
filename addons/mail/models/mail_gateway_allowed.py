@@ -2,6 +2,9 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MailGatewayAllowed(models.Model):
@@ -25,6 +28,9 @@ class MailGatewayAllowed(models.Model):
     def _check_email_normalizes(self) -> None:
         for record in self:
             if not tools.email_normalize(record.email):
+                _debug.logic(
+                    "email_rejected", record=record.id, reason="not_normalizable"
+                )
                 raise ValidationError(_("Invalid email address “%s”", record.email))
 
     @api.model

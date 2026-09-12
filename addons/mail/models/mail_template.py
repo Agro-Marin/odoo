@@ -522,6 +522,9 @@ class MailTemplate(models.Model):
                 continue
             if record := self.env[model].search([], limit=1):  # noqa: E8507  the loop is over distinct models, not records: one sample row per table
                 samples[model] = record
+        _debug.perf.count(
+            "rendering_samples", templates=self.ids, models=sorted(samples)
+        )
         return samples
 
     def _compile_dynamic_fields(
@@ -1027,9 +1030,15 @@ class MailTemplate(models.Model):
             records_emails[record] = tools.email_split(
                 emails.get("email_to", "")
             ) + tools.email_split(emails.get("email_cc", ""))
-        for res_id, partners in records._partner_get_or_create_from_emails(
-            records_emails
-        ).items():
+        resolved = records._partner_get_or_create_from_emails(records_emails)
+        _debug.logic(
+            "recipient_partners_resolved",
+            template=self.id,
+            records=len(records),
+            emails=sum(len(emails) for emails in records_emails.values()),
+            partners=sum(len(partners) for partners in resolved.values()),
+        )
+        for res_id, partners in resolved.items():
             contribution.setdefault(res_id, {}).setdefault("partner_ids", []).extend(
                 partners.ids
             )

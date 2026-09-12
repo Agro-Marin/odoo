@@ -175,6 +175,14 @@ class MailMessage(models.Model):
                 record.id for record in records if record.id not in forbidden_doc_ids
             ]
 
+        _debug.perf.count(
+            "documents_checked",
+            model=doc_model,
+            operation=operation,
+            asked=len(documents_all),
+            operations=sorted(operation_res_ids),
+            allowed=len(allowed_ids),
+        )
         return self.env[doc_model].browse(allowed_ids)
 
     @api.model
@@ -183,6 +191,9 @@ class MailMessage(models.Model):
         allowed_ids = set()
         for doc_model, doc_dict in model_ids.items():
             if not IrModelAccess.check(doc_model, "read", False):
+                _debug.logic(
+                    "model_unreadable", model=doc_model, documents=len(doc_dict)
+                )
                 continue
             allowed = self._get_accessible_documents(doc_model, list(doc_dict), "read")
             allowed_ids |= {

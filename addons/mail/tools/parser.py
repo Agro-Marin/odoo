@@ -2,10 +2,13 @@ import ast
 import typing
 
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import is_list_of
 
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
+
+_debug = DebugLog(__name__)
 
 
 def parse_res_ids(
@@ -21,9 +24,14 @@ def parse_res_ids(
     try:
         res_ids = ast.literal_eval(res_ids)
     except Exception as e:
+        _debug.logic("res_ids_rejected", reason="not_a_literal", error=type(e).__name__)
         raise ValidationError(error_msg) from e
 
     if not is_list_of(res_ids, int):
+        _debug.logic(
+            "res_ids_rejected", reason="not_int_list", type=type(res_ids).__name__
+        )
         raise ValidationError(error_msg)
 
+    _debug.logic("res_ids_parsed", count=len(res_ids))
     return res_ids

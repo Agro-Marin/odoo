@@ -1300,6 +1300,16 @@ class MailComposeMessage(models.TransientModel):
             ),
             res_ids_lang=res_ids_lang,
         )
+        _debug.pipeline(
+            "template_values_applied",
+            wizard=self.id,
+            template=self.template_id.id,
+            records=len(res_ids),
+            allow_suggested=self.composition_mode == "comment"
+            and not self.composition_batch
+            and self.message_type == "comment"
+            and not self.subtype_is_log,
+        )
         for res_id in res_ids:
             template_values[res_id].pop("attachment_ids", None)
             mail_values_all[res_id].update(template_values[res_id])
@@ -1674,4 +1684,10 @@ class MailComposeMessage(models.TransientModel):
                 self[composer_fname] = rendered_values[template_fname]
             else:
                 self[composer_fname] = self.template_id[template_fname]
+            _debug.logic(
+                "composer_value_from_template",
+                wizard=self.id,
+                field=composer_fname,
+                by="rendered" if self.template_render_values else "raw",
+            )
         return self[composer_fname]

@@ -57,6 +57,7 @@ class IrWebsocket(models.AbstractModel):
                 continue
             data["channels"].discard(channel)
             if not (match := re.match(PRESENCE_CHANNEL_REGEX, channel)):
+                _debug.logic("presence_channel_malformed", channel=channel[:80])
                 _logger.warning("Malformed presence channel: %s", channel)
                 continue
             model, record_id, token = match.groups()
@@ -103,6 +104,13 @@ class IrWebsocket(models.AbstractModel):
                 )
             )
             | guest
+        )
+        _debug.logic(
+            "presence_subscriptions",
+            partners_asked=len(partner_ids),
+            partners_allowed=len(allowed_partners),
+            guests_asked=len(guest_ids),
+            guests_allowed=len(allowed_guests),
         )
         data["channels"].update((partner, "presence") for partner in allowed_partners)
         data["channels"].update((guest, "presence") for guest in allowed_guests)

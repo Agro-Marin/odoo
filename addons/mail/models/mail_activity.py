@@ -703,6 +703,12 @@ class MailActivity(models.Model):
             per_user = defaultdict(set)
             for activity in activities.filtered("user_id"):
                 per_user[activity.user_id].add(activity.res_id)
+            _debug.lifecycle(
+                "assignees_subscribed",
+                model=model,
+                activities=len(activities),
+                users=len(per_user),
+            )
             for user, res_ids in per_user.items():
                 pids = (
                     user.partner_id.ids
@@ -1027,6 +1033,12 @@ class MailActivity(models.Model):
         )
         _messages, next_activities = self._action_done(
             feedback=feedback, attachment_ids=attachment_ids
+        )
+        _debug.logic(
+            "feedback_schedule_next",
+            activities=self.ids,
+            chained=len(next_activities),
+            by="triggered" if next_activities else "wizard",
         )
         if next_activities:
             return False
