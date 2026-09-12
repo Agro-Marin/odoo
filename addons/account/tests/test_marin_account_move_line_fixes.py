@@ -325,7 +325,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         deliberately_undeclared = {
             "account_id",
             "partner_id",
-            "analytic_coverage",
             "move_attachment_ids",
         }
         model = self.env["account.move.line"]
