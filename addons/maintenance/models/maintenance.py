@@ -388,7 +388,7 @@ class MaintenanceRequest(models.Model):
             if not request.maintenance_team_id:
                 request.maintenance_team_id = request.with_company(
                     request.company_id
-                )._get_default_team_id()
+                )._default_maintenance_team_id()
 
     @api.depends("company_id", "equipment_id")
     def _compute_user_id(self):

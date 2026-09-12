@@ -9,7 +9,6 @@
     "license": "LGPL-3",
     "depends": [
         "analytic",
-        "mixin_recurrence",
         "rating",
         "resource",
         "digest",
