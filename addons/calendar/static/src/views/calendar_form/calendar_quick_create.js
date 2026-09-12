@@ -13,6 +13,9 @@ export const QUICK_CREATE_CALENDAR_EVENT_FIELDS = {
     stop_date: { type: "date" },
     stop: { type: "datetime" },
     allday: { type: "boolean" },
+    // the quick-create form keeps the recomputed duration in a hidden,
+    // force_save'd field; without it the full form reopens on the drag's
+    duration: { type: "float" },
     partner_ids: { type: "many2many" },
     videocall_location: { type: "string" },
     description: { type: "string" },
