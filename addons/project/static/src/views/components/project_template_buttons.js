@@ -1,6 +1,5 @@
 /** @odoo-module native */
-import { Component, onWillStart } from "@odoo/owl";
-import { user } from "@web/core/user";
+import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog, deleteConfirmationMessage } from "@web/ui/dialog";
 
@@ -15,11 +14,6 @@ export class ProjectTemplateButtons extends Component {
         this.orm = useService("orm");
         this.dialogService = useService("dialog");
         this.action = useService("action");
-        onWillStart(async () => {
-            this.isProjectManager = await user.hasGroup(
-                "project.group_project_manager",
-            );
-        });
     }
 
     onEditClick() {

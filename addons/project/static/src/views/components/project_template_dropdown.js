@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 
 import { ProjectTemplateButtons } from "./project_template_buttons.js";
@@ -39,7 +40,14 @@ export class ProjectTemplateDropdown extends Component {
         this.action = useService("action");
         this.orm = useService("orm");
         this.state = useState({ projectTemplates: [] });
+        this.isProjectManager = false;
         onWillStart(this.onWillStart);
+    }
+
+    get templateItemClasses() {
+        return `btn btn-link o-dropdown-item-indent o-project-template d-flex align-items-center${
+            this.isProjectManager ? " pe-0" : ""
+        }`;
     }
 
     get readFields() {
@@ -51,6 +59,15 @@ export class ProjectTemplateDropdown extends Component {
     }
 
     async onWillStart() {
+        await Promise.all([
+            user
+                .hasGroup("project.group_project_manager")
+                .then((isProjectManager) => (this.isProjectManager = isProjectManager)),
+            this.fetchProjectTemplates(),
+        ]);
+    }
+
+    async fetchProjectTemplates() {
         this.state.projectTemplates = await this.orm
             .cache({
                 type: "disk",
