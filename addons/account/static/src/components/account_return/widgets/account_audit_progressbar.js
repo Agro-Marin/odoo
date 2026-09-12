@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { ProgressBarField, progressBarField } from "@web/fields/display/progress_bar";
 import { registry } from "@web/core/registry";
+import { ProgressBarField, progressBarField } from "@web/fields/display/progress_bar";
 export class AccountAuditProgressbar extends ProgressBarField {
     static template = "account.AccountAuditProgressBar";
 

@@ -137,17 +137,6 @@ export class AccountReportFilters extends Component {
         return _t("None");
     }
 
-    get selectedSectionName() {
-        for (const section of this.controller.cachedFilterOptions.sections) {
-            if (
-                section.id === this.controller.cachedFilterOptions.selected_section_id
-            ) {
-                return section.name;
-            }
-        }
-        return undefined;
-    }
-
     get selectedAccountType() {
         let selectedAccountType =
             this.controller.cachedFilterOptions.account_type.filter(

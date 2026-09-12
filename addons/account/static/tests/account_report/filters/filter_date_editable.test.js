@@ -1,13 +1,12 @@
+import { AccountReportFilters } from "@account/components/account_report/filters/filters";
+import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import {
     contains,
-    mountWithCleanup,
-    makeMockEnv,
     defineModels,
+    makeMockEnv,
+    mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { mailModels } from "@mail/../tests/mail_test_helpers";
-
-import { AccountReportFilters } from "@account/components/account_report/filters/filters";
 
 // The filters component depends on the mail module, so its models must be defined too.
 defineModels(mailModels);

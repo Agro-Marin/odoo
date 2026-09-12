@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { reactive, useState } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 class AuditBalanceListChatterService {
     constructor() {

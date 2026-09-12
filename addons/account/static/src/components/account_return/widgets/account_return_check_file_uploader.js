@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { FileUploader } from "@web/core/file_upload";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { Component } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets";
-import { FileUploader } from "@web/core/file_upload";
 
 class CustomAccountReturnFileUploaderComponent extends FileUploader {
     static template = "account.CustomAccountReturnFileUploaderComponent";
@@ -47,8 +47,6 @@ class AccountReturnCheckFileUploader extends Component {
     }
 
     async onClick(event) {
-        console.log("uploader");
-        console.log(event.target);
         event.stopPropagation();
     }
 }

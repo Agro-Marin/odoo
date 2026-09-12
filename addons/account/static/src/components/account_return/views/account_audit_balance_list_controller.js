@@ -1,8 +1,9 @@
 /** @odoo-module native */
+import { onWillStart } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
+
 import { useAuditBalanceListChatterService } from "./account_audit_balance_list_chatter_service.js";
-import { onWillStart } from "@odoo/owl";
 
 export class AccountAuditBalanceListController extends ListController {
     static template = "account.account_audit_balance_list_controller";

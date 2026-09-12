@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
-
-import { ListRenderer } from "@web/views/list";
 import { AccountReportChatter } from "@account/components/mail/chatter";
-import { useAuditBalanceListChatterService } from "./account_audit_balance_list_chatter_service.js";
 import { useEffect, useRef } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
+import { ListRenderer } from "@web/views/list";
+
+import { useAuditBalanceListChatterService } from "./account_audit_balance_list_chatter_service.js";
 
 export class AccountAuditBalanceListRenderer extends ListRenderer {
     static template = "account.account_audit_balance_list_renderer";

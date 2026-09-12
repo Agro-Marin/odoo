@@ -1,8 +1,7 @@
 /** @odoo-module native */
+import { AccountReportLineCell } from "@account/components/account_report/line_cell/line_cell";
 import { useRef, useState } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
-
-import { AccountReportLineCell } from "@account/components/account_report/line_cell/line_cell";
 
 export class AccountReportLineCellEditable extends AccountReportLineCell {
     static template = "account.AccountReportLineCellEditable";

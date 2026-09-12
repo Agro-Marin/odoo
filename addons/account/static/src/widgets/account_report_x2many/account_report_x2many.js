@@ -1,16 +1,16 @@
 /** @odoo-module native */
-import { useRef, onWillRender } from "@odoo/owl";
-import { ConfirmationDialog } from "@web/ui/dialog";
+import { onWillRender, useRef } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors";
-import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
-import { useNestedSortable } from "@web/core/utils/dnd";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { ListRenderer, processAllColumns } from "@web/views/list";
+import { _t } from "@web/core/translation";
+import { useNestedSortable } from "@web/core/utils/dnd";
+import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { ListRenderer, processAllColumns } from "@web/views/list";
 
 export class AccountReportListRenderer extends ListRenderer {
     static template = "account.AccountReportList";
@@ -105,9 +105,11 @@ export class AccountReportListRenderer extends ListRenderer {
         const fields = this.allColumns.map((column) => column.name);
 
         return records.map((record) => {
-            let recordData = {};
+            const recordData = {};
 
-            for (const field of fields) recordData[field] = record.data[field];
+            for (const field of fields) {
+                recordData[field] = record.data[field];
+            }
 
             return recordData;
         });
@@ -117,10 +119,10 @@ export class AccountReportListRenderer extends ListRenderer {
     // Format
     //------------------------------------------------------------------------------------------------------------------
     formatData() {
-        let idToIndexMap = {};
-        let tree = [];
+        const idToIndexMap = {};
+        const tree = [];
 
-        let lines = this.recordsDataDeepCopy(this.props.list.records);
+        const lines = this.recordsDataDeepCopy(this.props.list.records);
 
         for (const [index, line] of lines.entries()) {
             line.index = index;
@@ -220,8 +222,9 @@ export class AccountReportListRenderer extends ListRenderer {
 
         const hierarchyLevels = {};
 
-        if (parentRecord)
+        if (parentRecord) {
             hierarchyLevels[parentRecord.id] = parentRecord.hierarchy_level;
+        }
 
         const ancestors = new Set();
 
@@ -233,7 +236,9 @@ export class AccountReportListRenderer extends ListRenderer {
             const record = this.props.list.records[index];
             const parentId = record.data.parent_id ? record.data.parent_id.id : false;
 
-            if (ancestors.size && !ancestors.has(parentId)) break;
+            if (ancestors.size && !ancestors.has(parentId)) {
+                break;
+            }
 
             let parentHierarchyLevel = record.data.parent_id
                 ? hierarchyLevels[record.data.parent_id.id]
@@ -300,18 +305,20 @@ export class AccountReportListRenderer extends ListRenderer {
         // We add the element(s) we are moving into the new position
         this.props.list.records.splice(newCurrentRecordIndex, 0, ...recordsToMove);
 
-        for (const [index, record] of this.props.list.records.entries())
+        for (const [index, record] of this.props.list.records.entries()) {
             await record.update({ sequence: index + 1 });
+        }
     }
 
     async onDrop(ctx) {
         const parentRecordIndex = ctx.parent?.dataset.record_index;
 
         // We can't drop a line if its parent has a 'user_groupby'
-        if (this.props.list.records[parentRecordIndex]?.data.user_groupby)
+        if (this.props.list.records[parentRecordIndex]?.data.user_groupby) {
             return this.dialog.add(WarningDialog, {
                 message: _t("A line with a 'Group By' value cannot have children."),
             });
+        }
 
         // We need to save it beforehand as its value might change during the calculations below
         const previousElementDescendantCount = ctx.previous?.dataset.descendants_count;
@@ -368,13 +375,17 @@ export class AccountReportListRenderer extends ListRenderer {
         ) {
             const record = this.props.list.records[index];
 
-            if (!ancestors.has(record.data.parent_id.id)) break;
+            if (!ancestors.has(record.data.parent_id.id)) {
+                break;
+            }
 
             recordsToDelete.push(record);
             ancestors.add(record.data.id);
         }
 
-        for (const record of recordsToDelete) this.props.list.delete(record);
+        for (const record of recordsToDelete) {
+            this.props.list.delete(record);
+        }
     }
 }
 
@@ -403,8 +414,9 @@ export class AccountReportsLinesListX2ManyField extends X2ManyField {
                 for (const [
                     index,
                     record,
-                ] of this.props.record.data.line_ids.records.entries())
+                ] of this.props.record.data.line_ids.records.entries()) {
                     record.update({ sequence: index + 1 });
+                }
 
                 record.update({
                     sequence: this.props.record.data.line_ids.records.length,

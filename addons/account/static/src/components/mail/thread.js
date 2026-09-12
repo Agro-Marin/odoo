@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread";
+
 import { AccountReportMessage } from "./message.js";
 
 export class AccountReportThread extends Thread {

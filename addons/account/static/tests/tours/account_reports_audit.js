@@ -1,5 +1,6 @@
-import { Asserts } from "./asserts.js";
 import { registry } from "@web/core/registry";
+
+import { Asserts } from "./asserts.js";
 
 registry.category("web_tour.tours").add("account_reports_audit", {
     url: "/odoo/action-account.action_view_account_audit",

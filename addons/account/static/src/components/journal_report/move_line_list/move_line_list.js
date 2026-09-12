@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import {
     AccountMoveLineListRenderer,
     AccountMoveLineListView,
 } from "@account/components/move_line_list/move_line_list";
+import { registry } from "@web/core/registry";
 
 export class JournalReportAccountMoveLineReconcileListRenderer extends AccountMoveLineListRenderer {
     setup() {

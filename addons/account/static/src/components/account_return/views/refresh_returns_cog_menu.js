@@ -22,13 +22,10 @@ export class RefreshAccountReturns extends Component {
 export const refreshAccountReturns = {
     Component: RefreshAccountReturns,
     groupNumber: 5,
-    isDisplayed: ({ config }) => {
-        return (
-            config.actionType === "ir.actions.act_window" &&
-            ["kanban"].includes(config.viewType) &&
-            ["account_return_kanban"].includes(config.viewSubType)
-        );
-    },
+    isDisplayed: ({ config }) =>
+        config.actionType === "ir.actions.act_window" &&
+        ["kanban"].includes(config.viewType) &&
+        ["account_return_kanban"].includes(config.viewSubType),
 };
 
 cogMenuRegistry.add("refresh-account-returns-menu", refreshAccountReturns, {

@@ -1,3 +1,4 @@
+import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { waitFor } from "@odoo/hoot-dom";
 import {
@@ -9,7 +10,6 @@ import {
     onRpc,
     sortableDrag,
 } from "@web/../tests/web_test_helpers";
-import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 
 class Report extends models.Model {
     _name = "report";

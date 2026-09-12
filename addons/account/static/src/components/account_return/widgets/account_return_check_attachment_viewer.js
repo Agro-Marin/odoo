@@ -1,11 +1,12 @@
 /** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { useFileViewer } from "@web/components/file_viewer";
+import { downloadFile } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { useFileViewer } from "@web/components/file_viewer";
-import { Component } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets";
+
 import { CheckAttachment } from "./account_return_check_attachment_model.js";
-import { downloadFile } from "@web/core/network";
 
 class AccountReturnCheckAttachmentViewer extends Component {
     static template = "account.AccountReturnCheckAttachmentViewer";
@@ -21,7 +22,7 @@ class AccountReturnCheckAttachmentViewer extends Component {
     }
 
     async openAttachments() {
-        let result = await this.orm.read(
+        const result = await this.orm.read(
             this.props.record.resModel,
             [this.props.record.resId],
             ["attachment_ids"],
@@ -42,8 +43,8 @@ class AccountReturnCheckAttachmentViewer extends Component {
                     "mimetype",
                 ],
             );
-            let attachments = [];
-            for (let attachmentData of attachmentsData) {
+            const attachments = [];
+            for (const attachmentData of attachmentsData) {
                 const splittedName = attachmentData.name.split(".");
                 const extension = splittedName[splittedName.length - 1];
                 attachments.push(
@@ -56,7 +57,7 @@ class AccountReturnCheckAttachmentViewer extends Component {
             }
             const viewableFiles = attachments.filter((file) => file.isViewable);
             const unviewableFiles = attachments.filter((file) => !file.isViewable);
-            for (let unviewableFile of unviewableFiles) {
+            for (const unviewableFile of unviewableFiles) {
                 downloadFile(unviewableFile.downloadUrl);
             }
             if (viewableFiles.length) {

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { serializeDate } from "@web/core/l10n/dates";
+
 import { DateTime } from "luxon";
 export class AccountReportComposer extends Composer {
     static props = [...Composer.props, "reportController?", "date_to", "list?"];

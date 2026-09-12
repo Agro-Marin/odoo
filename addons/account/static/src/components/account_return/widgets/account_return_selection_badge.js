@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { colorScheme } from "@web/core/color_scheme";
-import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { Component, onWillStart } from "@odoo/owl";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { colorScheme } from "@web/core/color_scheme";
+import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class AccountReturnSelectionBadge extends Component {
     static template = "account.AccountReturnSelectionBadgeField";
@@ -61,7 +61,7 @@ export class AccountReturnSelectionBadge extends Component {
                 this.props.record.resId,
             )
         ) {
-            for (let [key, value] of Object.entries(this.props.options)) {
+            for (const [key, value] of Object.entries(this.props.options)) {
                 if (
                     [true, undefined].includes(value.can_edit) ||
                     (typeof value.can_edit == "string" &&
@@ -114,9 +114,7 @@ export class AccountReturnSelectionBadge extends Component {
 export const accountReturnSelectionBadge = {
     supportedTypes: ["selection"],
     component: AccountReturnSelectionBadge,
-    extractProps: ({ options }) => {
-        return { options };
-    },
+    extractProps: ({ options }) => ({ options }),
 };
 
 registry

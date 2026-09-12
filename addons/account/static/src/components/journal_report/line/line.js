@@ -11,9 +11,13 @@ export class JournalReportLine extends AccountReportLine {
     get lineClasses() {
         let classes = super.lineClasses;
 
-        if (this.props.line.id.includes("|headers~~")) classes += " accent_header";
+        if (this.props.line.id.includes("|headers~~")) {
+            classes += " accent_header";
+        }
 
-        if (this.props.line.move_id) classes += " accent_line";
+        if (this.props.line.move_id) {
+            classes += " accent_line";
+        }
 
         return classes;
     }

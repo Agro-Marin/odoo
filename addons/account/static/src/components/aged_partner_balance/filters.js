@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { WarningDialog } from "@web/components/errors";
 import { AccountReport } from "@account/components/account_report/account_report";
 import { AccountReportFilters } from "@account/components/account_report/filters/filters";
+import { WarningDialog } from "@web/components/errors";
+import { _t } from "@web/core/translation";
 
 export class AgedPartnerBalanceFilters extends AccountReportFilters {
     static template = "account.AgedPartnerBalanceFilters";

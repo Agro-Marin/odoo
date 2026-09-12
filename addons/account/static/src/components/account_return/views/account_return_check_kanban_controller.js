@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useSubEnv, useEffect } from "@odoo/owl";
+import { useEffect, useSubEnv } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { KanbanController } from "@web/views/kanban";
 
