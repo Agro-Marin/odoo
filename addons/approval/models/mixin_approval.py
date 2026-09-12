@@ -6,7 +6,7 @@ from markupsafe import Markup, escape
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Domain
+from odoo.fields import Command, Domain
 from odoo.tools import SQL
 
 from . import approval_trace as trace
@@ -464,7 +464,102 @@ class MixinApproval(models.AbstractModel):
                             name=blocked[:1].display_name,
                         ),
                     )
-        return super().write(vals)
+        invalidated = self._get_records_approval_invalidated_by(vals)
+        for record, _fields_changed in invalidated:
+            # Refuse the edit rather than leave an approval standing that no
+            # longer describes the document, where the request cannot be reset.
+            record.approval_request_id.sudo()._check_reset_allowed()
+        result = super().write(vals)
+        for record, fields_changed in invalidated:
+            record._reset_approval_for_subject_change(fields_changed)
+        return result
+
+    def _is_approval_invalidated_by_changes(self, fields_changed: list[str]) -> bool:
+        """Whether changing these protected fields after approval takes the
+        approval away. A document that re-checks some of them against what was
+        approved at its own gate -- an amount compared at posting -- may keep
+        the approval for those, and only those."""
+        return True
+
+    def _get_records_approval_invalidated_by(self, vals: dict[str, Any]):
+        """The approved records this write would change in what was approved.
+
+        Compared value by value, not by key: a form saves the fields it shows,
+        and an unchanged partner written back must not take an approval away.
+        """
+        protected = set(self._get_fields_approval_protected()) & vals.keys()
+        if not protected or self.env.context.get("approval_keep_on_subject_change"):
+            return []
+        invalidated = []
+        for record in self:
+            if record.approval_state != "approved":
+                continue
+            changed = sorted(
+                name
+                for name in protected
+                if record._approval_value_changes(name, vals[name])
+            )
+            if changed and record._is_approval_invalidated_by_changes(changed):
+                invalidated.append((record, changed))
+        trace.MIXIN.event(
+            "subject_change_check",
+            records=self,
+            fields=sorted(protected),
+            invalidated=[record.id for record, _changed in invalidated],
+        )
+        return invalidated
+
+    def _approval_value_changes(self, name: str, value: Any) -> bool:
+        self.check_singleton()
+        field = self._fields[name]
+        current = self[name]
+        if field.type in ("one2many", "many2many"):
+            ids = set(current.ids)
+            for command in value or ():
+                if not isinstance(command, (list, tuple)):
+                    return True
+                code = command[0]
+                if code in (Command.CREATE, Command.UPDATE):
+                    return True
+                if code in (Command.DELETE, Command.UNLINK) and command[1] in ids:
+                    return True
+                if code == Command.LINK and command[1] not in ids:
+                    return True
+                if code == Command.CLEAR and ids:
+                    return True
+                if code == Command.SET and set(command[2]) != ids:
+                    return True
+            return False
+        if field.type == "many2one":
+            new_id = (
+                value.id if isinstance(value, models.BaseModel) else (value or False)
+            )
+            return new_id != current.id
+        return (
+            field.convert_to_record(field.convert_to_cache(value, self), self)
+            != current
+        )
+
+    def _reset_approval_for_subject_change(self, fields_changed: list[str]) -> None:
+        """What was approved is not what the document says any more: the approval
+        goes back to draft, recorded as a reset with the fields that moved, and
+        the document hears it as it would from a manager's reset."""
+        self.check_singleton()
+        labels = ", ".join(self._fields[name].string for name in fields_changed)
+        trace.MIXIN.note(
+            "approval_reset_by_subject_change",
+            record=self,
+            request=self.approval_request_id.id,
+            fields=fields_changed,
+        )
+        self.approval_request_id.sudo()._force_draft(
+            note=self.env._(
+                "The approved document changed (%(fields)s) by %(user)s, so the "
+                "approval no longer covers it.",
+                fields=labels,
+                user=self.env.user.name,
+            )
+        )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_pending_approval(self) -> None:

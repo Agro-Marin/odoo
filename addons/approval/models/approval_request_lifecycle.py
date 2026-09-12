@@ -861,7 +861,7 @@ class ApprovalRequestLifecycle(models.Model):
             request._check_reset_allowed()
             request._force_draft()
 
-    def _force_draft(self) -> None:
+    def _force_draft(self, note: str | None = None) -> None:
         """Clear every decision and send the request back to draft, whatever its state.
 
         action_reset_to_draft is the guarded way in for a user; an approval binding
@@ -871,7 +871,7 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         request = self
         previous_state = request.state
-        request._append_decision_log("reset")
+        request._append_decision_log("reset", note=note)
         request._close_pending_change()
         request.approver_ids.sudo().write(
             {

@@ -134,6 +134,12 @@ class ApprovalCategory(models.Model):
         "on every routing path: listed approvers, the security group, rules and "
         "steps.",
     )
+    notify_pool_members = fields.Boolean(
+        tracking=True,
+        help="With a security group as approvers, ask every member with an activity "
+        "and an e-mail. Off, the group is a queue: its members decide from To Review "
+        "and nobody is notified individually.",
+    )
     group_approval = fields.Selection(
         selection=[
             ("no", "Users"),

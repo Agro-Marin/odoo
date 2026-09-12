@@ -30,6 +30,7 @@ from . import (
     test_lifecycle,
     test_multi_company,
     test_prediction_and_snapshot,
+    test_pool_queue,
     test_print_button,
     test_request_change,
     test_request_grant,

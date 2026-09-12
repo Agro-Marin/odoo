@@ -132,6 +132,7 @@ so category names are unique per company, archived rows included.
 | `has_document` | Selection(required/optional) | Yes | Yes | default="optional", tracking |
 | `group_approval` | Selection(`no`="Users" / `exclusive`="Security group") | Yes | Yes | default="no", tracking. Labelled "Approver Source". Only two values, so `!= "no"` and `== "exclusive"` are the same test in `_compute_desired_approvers` — in `exclusive` mode the category list, the manager hook and approver-replacing rules are all bypassed and the group's `all_user_ids` become the approvers, all optional |
 | `allow_self_approval` | Boolean | No | Yes | Whether the request owner may also decide. Off by default; categories existing at 19.0.2.1.0 were migrated to on |
+| `notify_pool_members` | Boolean | No | Yes | With a security group as approvers, whether each member gets an activity. Off, the group is a queue decided from To Review (`_is_notifiable`); group categories existing at 19.0.2.2.0 were migrated to on |
 | `approver_group_id` | Many2one(`res.groups`) | Yes | No | tracking |
 | `approver_group_user_ids` | Many2many(`res.users`) | No | No | related=approver_group_id.all_user_ids — members reachable through implied groups, not just direct ones |
 | `allowed_user_ids` | Many2many(`res.users`) | Yes | No | Gate request creation; also the `restricted_users` read audience |
@@ -1178,6 +1179,8 @@ closure with it. Read their fields in those modules.
 **Invariants.** Created only by `_append_decision_log`, which every funnel calls: `_apply_decision`, `action_withdraw`, `_withdraw_decided_steps`, `_force_draft` (before it clears the rows), `_force_terminal`, `_revoke`, `_approve_without_decision`. `write` and `unlink` raise for every caller.
 
 **Separation of duties (19.0.2.1.0).** `approval.category.allow_self_approval`, mirrored on the request: when false, `_compute_desired_approvers` never stages the request owner, on any routing path, and `_check_not_deciding_own_request` refuses a decision on a row whose effective approver is the owner -- checked before `_check_decision_actor`'s superuser return, so `sudo()` does not reopen it. Categories existing at the upgrade were migrated to allowing. The Studio editor's categories allow it by design: a button's approval restricts who may press, and the presser is the approver.
+
+**Subject integrity (19.0.2.2.0).** After approval, a write that actually changes a field of `_get_fields_approval_protected()` -- compared value by value, x2many commands included -- sends the request back to draft through `_force_draft`, logged as a `reset` naming the fields, unless `_is_approval_invalidated_by_changes(fields)` says the document re-checks those fields itself. Applies to every caller; a request whose `_check_reset_allowed` refuses makes the write refuse instead. Context key `approval_keep_on_subject_change` skips it.
 
 **Coverage integrity (19.0.2.1.0).** `mixin.approval` refuses writes to `approval_state`, `date_approval_granted` and `date_approval_requested` for every caller, and accepts an `approval_request_id` only for a request about the record itself or a subject-less request still in `new`, which the write binds to the record.
 

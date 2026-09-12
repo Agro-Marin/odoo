@@ -43,6 +43,7 @@ class ApprovalRequestRouting(models.Model):
             "approve_sequentially": cat.approve_sequentially,
             "group_approval": cat.group_approval,
             "allow_self_approval": cat.allow_self_approval,
+            "notify_pool_members": cat.notify_pool_members,
             "approval_deadline_hours": cat.approval_deadline_hours,
             "sla_target_hours": cat.sla_target_hours,
             "sla_warning_pct": cat.sla_warning_pct,

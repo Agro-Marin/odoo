@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.2.1.0 (matches `__manifest__.py`) |
+| Version | 19.0.2.2.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -25,7 +25,7 @@ dashboards.
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
-| Test files | 44 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
+| Test files | 45 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
 | JS files | 26 (14 `static/src` + 12 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
@@ -116,6 +116,7 @@ dashboards.
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
 | `test_lifecycle.py` | Cancelled state, reset-to-draft, forced-terminal paths, locked fields, delegation fan-in (19.0.1.0.7) |
 | `test_request_change.py` | Approver-requested mid-flow edit (`pending_change_field`), and re-routing at re-submit (`TestRequestChangeReroutes`) |
+| `test_pool_queue.py` | A security group is a queue: its members get rows and decide from To Review, nobody gets a personal activity, and a category may still ask every member (`notify_pool_members`) |
 | `test_print_button.py` | Print-button visibility on the request form arch |
 | `test_dashboard.py` | Dashboard singleton, KPIs, bottleneck detection |
 | `test_analytics_accuracy.py` | SQL view accuracy, metric calculations |
@@ -229,8 +230,8 @@ approval/
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 23 script directories (1.0.1 .. 2.1)
-+-- tests/                            # 44 test modules + common.py
++-- migrations/                       # 24 script directories (1.0.1 .. 2.2)
++-- tests/                            # 45 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -243,7 +244,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 44 (+ `common.py`) |
+| Python test files | 45 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 26 |
@@ -255,7 +256,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 3 |
 | Cron jobs | 3 |
-| Migration script directories | 23 |
+| Migration script directories | 24 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

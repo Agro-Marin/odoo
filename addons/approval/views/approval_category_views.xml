@@ -433,6 +433,9 @@
                                         name="approve_sequentially"
                                         invisible="approval_minimum == 0 or group_approval != 'no'" />
                                     <field name="allow_self_approval" />
+                                    <field
+                                        name="notify_pool_members"
+                                        invisible="group_approval != 'exclusive'" />
                                 </group>
                             </group>
                             <group

@@ -13,4 +13,5 @@ from . import (
     test_step_advisory,
     test_step_document_policy,
     test_step_progress,
+    test_subject_integrity,
 )

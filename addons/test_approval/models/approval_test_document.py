@@ -50,6 +50,10 @@ class ApprovalTestDocument(models.Model):
         comodel_name="approval.category",
         help="Category to use for approval (for testing)",
     )
+    protected_field_names = fields.Char(
+        help="Comma-separated fields this document protects, for the tests",
+    )
+    keeps_approval_on_change = fields.Boolean()
     operation_count = fields.Integer(
         default=0,
         help="How many times action_record_operation actually ran",
@@ -74,6 +78,12 @@ class ApprovalTestDocument(models.Model):
         if self.test_category_id:
             return [("id", "=", self.test_category_id.id)]
         return []
+
+    def _get_fields_approval_protected(self) -> list[str]:
+        return (self.protected_field_names or "").split(",") if self else []
+
+    def _is_approval_invalidated_by_changes(self, fields_changed) -> bool:
+        return not self.keeps_approval_on_change
 
     def _get_fields_approval_required(self) -> list[str]:
         return ["name", "partner_id"]
