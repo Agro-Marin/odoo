@@ -30,6 +30,10 @@ export class MailCoreWeb {
             (payload, { id: notifId }) => {
                 log.pipeline("mail.activity/updated", () => payload);
                 if (notifId <= this.store.activity_counter_bus_id) {
+                    log.logic("mail.activity/updated stale", () => ({
+                        notifId,
+                        lastSeen: this.store.activity_counter_bus_id,
+                    }));
                     return;
                 }
                 let countDiff = 0;
@@ -53,6 +57,11 @@ export class MailCoreWeb {
             "mail.message/delete",
             /** @param {CustomEvent<{message: import("models").Message, notifId: number}>} ev */
             ({ detail: { message, notifId } }) => {
+                log.pipeline("mail.message/delete counters", () => ({
+                    messageId: message.id,
+                    needaction: message.needaction,
+                    starred: message.starred,
+                }));
                 if (message.needaction) {
                     applyCounterDelta(this.store.inbox, "counter", -1, {
                         busId: notifId,
@@ -88,6 +97,12 @@ export class MailCoreWeb {
                 const inbox = this.store.inbox;
                 applyCounterDelta(inbox, "counter", 1, { busId: notifId });
                 if (!message) {
+                    log.logic(
+                        "mail.message/inbox message missing after insert",
+                        () => ({
+                            messageId,
+                        }),
+                    );
                     return;
                 }
                 inbox.messages.add(message);
@@ -97,6 +112,7 @@ export class MailCoreWeb {
                     });
                 }
                 if (this.store.self_partner?.im_status?.includes("busy")) {
+                    log.logic("mail.message/inbox notification suppressed: busy");
                     return;
                 }
                 this.store.env.services["mail.out_of_focus"].notify(message);
@@ -137,6 +153,10 @@ export class MailCoreWeb {
                     notifId,
                 );
                 if (inbox.counter > inbox.messages.length) {
+                    log.logic("mark_as_read refills inbox", () => ({
+                        counter: inbox.counter,
+                        loaded: inbox.messages.length,
+                    }));
                     inbox.fetchMoreMessages();
                 }
             },

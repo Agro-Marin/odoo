@@ -3,7 +3,10 @@
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.rtc");
 export const CALL_PROMOTE_FULLSCREEN = Object.freeze({
     INACTIVE: "INACTIVE",
     ACTIVE: "ACTIVE",
@@ -180,6 +183,12 @@ const ThreadPatch = {
         ) {
             return;
         }
+        log.pipeline("rtcSessionIds update", () => ({
+            thread: this.localId,
+            sessions: this.lastSessionIds.size,
+            joined: shouldPlayJoinSound,
+            left: shouldPlayLeaveSound,
+        }));
         if (shouldPlayJoinSound) {
             this.store.env.services["mail.sound_effects"].play("call-join");
             this.store.rtc.call({ asFallback: true });
@@ -214,6 +223,10 @@ const ThreadPatch = {
         if (!otherStreamingSession) {
             return;
         }
+        log.logic("focusAvailableVideo", () => ({
+            thread: this.localId,
+            session: otherStreamingSession.id,
+        }));
         this.activeRtcSession = otherStreamingSession;
         otherStreamingSession.mainVideoStreamType =
             otherStreamingSession.is_screen_sharing_on ? "screen" : "camera";
@@ -221,6 +234,10 @@ const ThreadPatch = {
     /** @param {Object} [options] */
     open(options) {
         if (this.store.fullscreenChannel?.notEq(this)) {
+            log.logic("open exits fullscreen of another channel", () => ({
+                thread: this.localId,
+                fullscreen: this.store.fullscreenChannel.localId,
+            }));
             this.store.rtc.exitFullscreen();
         }
         return super.open(...arguments);

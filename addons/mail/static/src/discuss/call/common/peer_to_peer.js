@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { Deferred } from "@web/core/utils/concurrency";
+
+const log = makeLogger("mail.rtc.p2p");
 export const STREAM_TYPE = Object.freeze({
     AUDIO: "audio",
     CAMERA: "camera",
@@ -305,6 +308,11 @@ export class PeerToPeer extends EventTarget {
         this.channelId = channelId;
         this._iceServers = iceServers;
         this._localInfo = Object.assign(this._localInfo, info);
+        log.lifecycle("connect", () => ({
+            selfId,
+            channelId,
+            iceServers: iceServers?.length,
+        }));
     }
 
     removeAllPeers() {
@@ -315,6 +323,11 @@ export class PeerToPeer extends EventTarget {
     }
 
     disconnect() {
+        log.lifecycle("disconnect", () => ({
+            selfId: this.selfId,
+            channelId: this.channelId,
+            pendingNotifications: this._notificationsToSend.size,
+        }));
         this.removeAllPeers();
         this.selfId = undefined;
         this.channelId = undefined;
@@ -339,8 +352,10 @@ export class PeerToPeer extends EventTarget {
         if (peer) {
             return peer;
         }
+        const endAddPeer = log.perf("addPeer");
         const newPeer = this._createPeer(id, options);
         await newPeer.ready;
+        endAddPeer({ id, retryDelay: options.connectRetryDelay });
         return newPeer;
     }
     /** @param {number} id */
@@ -352,6 +367,7 @@ export class PeerToPeer extends EventTarget {
         if (!peer) {
             return;
         }
+        log.lifecycle("removePeer", () => ({ id, remaining: this.peers.size - 1 }));
         this.peers.delete(id);
         peer.disconnect();
     }
@@ -458,6 +474,12 @@ export class PeerToPeer extends EventTarget {
         }
         const { event, channelId, payload } = notification;
         this._emitLog(id, `received notification: ${event}`, LOG_LEVEL.DEBUG);
+        log.pipeline("notification", () => ({
+            from: id,
+            event,
+            sameChannel: channelId === this.channelId,
+            knownPeer: this.peers.has(id),
+        }));
         if (channelId !== this.channelId) {
             return;
         }
@@ -734,6 +756,11 @@ export class PeerToPeer extends EventTarget {
         const delay =
             Math.min(peer.connectRetryDelay * 1.5, MAXIMUM_RECONNECT_DELAY) +
             1000 * Math.random();
+        log.logic("recover scheduled", () => ({
+            id,
+            reason,
+            delay: Math.round(delay),
+        }));
         this._recoverTimeouts.set(
             id,
             browser.setTimeout(async () => {
@@ -757,6 +784,12 @@ export class PeerToPeer extends EventTarget {
                     this._recover(peer.id, `${reason} (still progressing)`);
                     return;
                 }
+                log.logic("recover attempt", () => ({
+                    id,
+                    reason,
+                    connectionState: peer.connection.connectionState,
+                    iceConnectionState: peer.connection.iceConnectionState,
+                }));
                 this._emitUpdate({ name: UPDATE_EVENT.RECOVERY, payload: { id } });
                 this._emitLog(
                     id,
@@ -803,6 +836,7 @@ export class PeerToPeer extends EventTarget {
                         }),
                     ]);
                 });
+                const endSend = log.perf("sendNotifications");
                 try {
                     await rpc(
                         this._notificationRoute,
@@ -811,7 +845,9 @@ export class PeerToPeer extends EventTarget {
                         },
                         { silent: true },
                     );
+                    endSend({ notifications: notifications.length });
                 } catch {
+                    endSend({ notifications: notifications.length, failed: true });
                     failedAttempts++;
                     if (failedAttempts > MAX_NOTIFICATION_RETRIES) {
                         this._emitLog(
@@ -884,6 +920,11 @@ export class PeerToPeer extends EventTarget {
                 Boolean(track),
             );
         } catch (error) {
+            log.logic("updateRemote failed", () => ({
+                id: peer.id,
+                streamType,
+                message: error?.message,
+            }));
             this._recover(
                 peer.id,
                 `failed to update ${streamType} transceiver for peer ${peer.id}: ${error}`,
@@ -933,6 +974,10 @@ export class PeerToPeer extends EventTarget {
             );
         });
         peerConnection.addEventListener("connectionstatechange", async () => {
+            log.lifecycle("connectionstatechange", () => ({
+                id,
+                state: peerConnection.connectionState,
+            }));
             this._emitUpdate({
                 name: UPDATE_EVENT.CONNECTION_CHANGE,
                 payload: { id, peer, state: peerConnection.connectionState },
@@ -1055,6 +1100,11 @@ export class PeerToPeer extends EventTarget {
      */
     _createPeer(id, options = {}) {
         this.removePeer(id);
+        log.lifecycle("createPeer", () => ({
+            id,
+            hasPriority: id > this.selfId,
+            sequence: options.sequence,
+        }));
         const peerConnection = new window.RTCPeerConnection({
             iceServers: this._iceServers,
         });

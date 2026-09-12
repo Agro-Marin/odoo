@@ -3,8 +3,11 @@
 import { Component, onWillDestroy, onWillStart, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isBrowserChrome } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.rtc.devices");
 /** @type {Set<string>} */
 const deviceKind = new Set(["audioinput", "videoinput", "audiooutput"]);
 
@@ -49,6 +52,10 @@ export class DeviceSelect extends Component {
     async updateDevicesList() {
         this.state.userDevices =
             await browser.navigator.mediaDevices.enumerateDevices();
+        log.pipeline("updateDevicesList", () => ({
+            kind: this.props.kind,
+            devices: this.state.userDevices.length,
+        }));
     }
 
     async setupEventListeners() {
@@ -77,6 +84,11 @@ export class DeviceSelect extends Component {
 
     /** @param {"audioinput"|"videoinput"|"audiooutput"} kind */
     async showPermissionDialog(kind) {
+        log.logic("showPermissionDialog", () => ({
+            kind,
+            camera: this.store.rtc.cameraPermission,
+            microphone: this.store.rtc.microphonePermission,
+        }));
         if (kind === "videoinput") {
             if (this.store.rtc.cameraPermission === "denied") {
                 this.store.rtc.showMediaUnavailableWarning({ camera: true });

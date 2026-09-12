@@ -1,6 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.activity");
 
 export class ActivityMarkAsDone extends Component {
     static template = "mail.ActivityMarkAsDone";
@@ -41,6 +44,7 @@ export class ActivityMarkAsDone extends Component {
             model: res_model,
             id: res_id,
         });
+        log.logic("onClickDone", () => ({ activityId: this.props.activity.id }));
         await this.props.activity.markAsDone();
         this.props.onActivityChanged(thread);
         await thread.fetchNewMessages();
@@ -59,6 +63,10 @@ export class ActivityMarkAsDone extends Component {
             this.props.close();
         }
         const action = await this.props.activity.markAsDoneAndScheduleNext();
+        log.logic("onClickDoneAndScheduleNext", () => ({
+            activityId: this.props.activity.id,
+            nextAction: Boolean(action),
+        }));
         thread.fetchNewMessages();
         this.props.onActivityChanged(thread);
         if (!action) {

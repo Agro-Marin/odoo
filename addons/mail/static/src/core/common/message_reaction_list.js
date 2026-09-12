@@ -4,8 +4,11 @@ import { useHover } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji } from "@web/components/emoji_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.message.reaction");
 export class MessageReactionList extends Component {
     static template = "mail.MessageReactionList";
     static components = { Dropdown };
@@ -89,8 +92,16 @@ export class MessageReactionList extends Component {
     /** @param {import("models").MessageReactions} reaction */
     onClickReaction(reaction) {
         if (!this.props.message.canAddReaction()) {
+            log.logic("onClickReaction refused", () => ({
+                messageId: this.props.message.id,
+            }));
             return;
         }
+        log.logic("onClickReaction", () => ({
+            messageId: this.props.message.id,
+            content: reaction.content,
+            remove: this.hasSelfReacted(reaction),
+        }));
         if (this.hasSelfReacted(reaction)) {
             reaction.remove();
         } else {

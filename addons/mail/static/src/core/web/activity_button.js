@@ -2,8 +2,11 @@
 /** @odoo-module native */
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Component, useEnv, useRef } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { usePopover } from "@web/ui/popover";
+
+const log = makeLogger("mail.activity");
 export class ActivityButton extends Component {
     static props = {
         record: { type: Object },
@@ -83,6 +86,12 @@ export class ActivityButton extends Component {
                 selectedIds.includes(resId) && selectedIds.length > 1
                     ? selectedIds
                     : undefined;
+            log.logic("open activity popover", () => ({
+                resModel: this.props.record.resModel,
+                resId,
+                resIds: resIds?.length,
+                activities: this.props.record.data.activity_ids.currentIds.length,
+            }));
             this.popover.open(this.buttonRef.el, {
                 activityIds: this.props.record.data.activity_ids.currentIds,
                 /** @param {import("models").Thread} thread */

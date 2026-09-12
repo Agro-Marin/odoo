@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { createElementWithContent } from "@web/core/utils/dom/html";
+
+const log = makeLogger("mail.user");
 
 export class ResUsers extends Record {
     static _name = "res.users";
@@ -42,6 +45,10 @@ export class ResUsers extends Record {
         if (this.partner_id) {
             return Promise.resolve(this.partner_id);
         }
+        log.logic("fetchPartner", () => ({
+            userId: this.id,
+            inFlight: Boolean(this._partnerFetch),
+        }));
         this._partnerFetch ??= this.store.env.services.orm.silent
             .read("res.users", [this.id], ["partner_id"], {
                 context: { active_test: false },

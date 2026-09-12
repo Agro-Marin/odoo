@@ -14,9 +14,12 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.rtc.ui");
 /** @type {Set<string>} */
 const HIDDEN_CONNECTION_STATES = new Set(["connected", "completed"]);
 
@@ -220,6 +223,12 @@ export class CallParticipantCard extends Component {
         }
         if (this.rtcSession) {
             const channel = this.rtcSession.channel;
+            log.logic("onClick card", () => ({
+                session: this.rtcSession.id,
+                type: this.props.cardData.type,
+                wasActive: this.rtcSession.eq(channel.activeRtcSession),
+                inset: Boolean(this.props.inset),
+            }));
             this.rtcSession.mainVideoStreamType = this.props.cardData.type;
             if (this.rtcSession.eq(channel.activeRtcSession) && !this.props.inset) {
                 channel.activeRtcSession = undefined;
@@ -234,6 +243,10 @@ export class CallParticipantCard extends Component {
             }
             return;
         }
+        log.logic("cancel call invitation", () => ({
+            thread: this.props.thread.localId,
+            memberId: this.channelMember.id,
+        }));
         await rpc("/mail/rtc/channel/cancel_call_invitation", {
             channel_id: this.props.thread.id,
             member_ids: [this.channelMember.id],

@@ -19,9 +19,13 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.rtc.ui");
 /**
  * @typedef CardData
  * @property {string} key
@@ -54,6 +58,7 @@ export class Call extends Component {
     overlayTimeout;
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.grid = useRef("grid");
         this.root = useRef("root");
@@ -243,6 +248,7 @@ export class Call extends Component {
             return;
         }
         this._lastTileInputsKey = inputsKey;
+        const endArrange = log.perf("arrangeTiles");
         let optimal = {
             area: 0,
             columnCount: 0,
@@ -280,5 +286,6 @@ export class Call extends Component {
         });
         this.grid.el.style.setProperty("--width", `${this.state.tileWidth}px`);
         this.grid.el.style.setProperty("--height", `${this.state.tileHeight}px`);
+        endArrange({ tileCount, columnCount: optimal.columnCount, remeasure });
     }
 }

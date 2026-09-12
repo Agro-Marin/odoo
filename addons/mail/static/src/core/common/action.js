@@ -516,6 +516,10 @@ export class UseActions extends SignalStore {
         this.component = component;
         this.transformedActions = transformedActions;
         this.store = store;
+        log.lifecycle("useActions", () => ({
+            owner: component?.constructor?.name,
+            actions: transformedActions.map((action) => action.id),
+        }));
     }
 
     /**
@@ -525,6 +529,10 @@ export class UseActions extends SignalStore {
      */
     more(data = {}, id) {
         if (!toRaw(this).moreActions.get(id)) {
+            log.lifecycle("more action created", () => ({
+                id,
+                actions: data.actions?.length,
+            }));
             toRaw(this).moreActions.set(
                 id,
                 new this.ActionClass({

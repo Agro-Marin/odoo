@@ -3,10 +3,13 @@
 import { Action, UseActions } from "@mail/core/common/action";
 import { SearchMessagesPanel } from "@mail/core/common/search_messages_panel";
 import { useComponent, useState, useSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.thread.action");
 export const threadActionsRegistry = registry.category("mixin.mail.thread/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
@@ -148,6 +151,11 @@ export class ThreadAction extends Action {
      * @param {ThreadAction} [options.nextActiveAction]
      */
     close({ nextActiveAction } = {}) {
+        log.lifecycle("close", () => ({
+            id: this.id,
+            nextActiveAction: nextActiveAction?.id,
+            stack: this.owner.threadActions.actionStack.length,
+        }));
         if (this.toggle) {
             this.owner.threadActions.activeAction =
                 this.owner.threadActions.actionStack.pop();
@@ -187,6 +195,11 @@ export class ThreadAction extends Action {
      * @param {boolean} [param0.keepPrevious]
      */
     open({ keepPrevious } = {}) {
+        log.lifecycle("open", () => ({
+            id: this.id,
+            keepPrevious,
+            previous: this.owner.threadActions.activeAction?.id,
+        }));
         if (this.toggle) {
             if (this.owner.threadActions.activeAction) {
                 if (keepPrevious) {

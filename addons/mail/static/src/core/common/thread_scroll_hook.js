@@ -10,7 +10,10 @@ import {
     useEffect,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Deferred } from "@web/core/utils/concurrency";
+
+const log = makeLogger("mail.thread.scroll");
 
 export const AT_BOTTOM_THRESHOLD = 30;
 
@@ -197,6 +200,7 @@ export class ThreadScroll {
         this.oldestPersistentMessage = thread.oldestPersistentMessage;
         this.loadNewer = thread.loadNewer;
         if (!this.loadedAndPatched) {
+            log.lifecycle("loadedAndPatched", () => ({ thread: thread.localId }));
             this.loadedAndPatched = true;
             this.loadOlderState.ready = true;
             this.loadNewerState.ready = true;
@@ -221,6 +225,14 @@ export class ThreadScroll {
             lastSetValue: this.lastSetValue,
             isSmoothScrolling: this.isSmoothScrolling,
         });
+        if (action.type !== "none") {
+            log.logic("scroll action", () => ({
+                thread: thread.localId,
+                ...action,
+                threadScrollTop: thread.scrollTop,
+                snapshot: this.snapshot,
+            }));
+        }
         switch (action.type) {
             case "snapshot-top":
             case "snapshot-bottom":
@@ -233,6 +245,10 @@ export class ThreadScroll {
     }
 
     reset() {
+        log.lifecycle("reset", () => ({
+            thread: toRaw(this.options.getThread())?.localId,
+            loadedAndPatched: this.loadedAndPatched,
+        }));
         this.options.onReset();
         this.loadOlderState.ready = false;
         this.loadNewerState.ready = false;
@@ -270,6 +286,7 @@ export class ThreadScroll {
             this.smoothScrollingDeferred = deferred;
             this.isSmoothScrolling = true;
             const onSmoothScrollingEnd = () => {
+                log.logic("smooth scroll end", () => ({ value }));
                 browser.clearTimeout(this.smoothScrollingTimeout);
                 document.removeEventListener("scrollend", onScrollEnd, {
                     capture: true,
@@ -347,6 +364,9 @@ export function useThreadScroll(options) {
                 scroll.smoothScrollingDeferred,
             ]);
             if (scroll.loadOlderState.isVisible) {
+                log.logic("load-older visible", () => ({
+                    thread: toRaw(options.getThread()).localId,
+                }));
                 toRaw(options.getThread()).fetchMoreMessages();
             }
         },
@@ -360,6 +380,9 @@ export function useThreadScroll(options) {
                 scroll.smoothScrollingDeferred,
             ]);
             if (scroll.loadNewerState.isVisible) {
+                log.logic("load-newer visible", () => ({
+                    thread: toRaw(options.getThread()).localId,
+                }));
                 toRaw(options.getThread()).fetchMoreMessages("newer");
             }
         },

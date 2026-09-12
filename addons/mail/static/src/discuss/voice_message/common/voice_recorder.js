@@ -3,11 +3,14 @@
 import { loadLamejs } from "@mail/discuss/voice_message/common/voice_message_service";
 import { onWillUnmount, status, useComponent, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { Mp3Encoder } from "./mp3_encoder.js";
+
+const log = makeLogger("mail.voice.recorder");
 export const patchable = {
     /**
      * @param {File} file
@@ -67,17 +70,24 @@ class VoiceRecorder {
 
     async startRecording() {
         if (this.state.isActionPending) {
+            log.logic("startRecording ignored: action pending");
             return;
         }
+        log.lifecycle("startRecording", () => ({
+            hasMicrophone: Boolean(this.microphone),
+        }));
         this.state.isActionPending = true;
         if (!this.microphone && !(await this._openMicrophone())) {
             return;
         }
         this.state.elapsed = "00 : 00";
         this.state.recording = true;
+        const endOpen = log.perf("openEncoder");
         try {
             await this._openEncoder();
+            endOpen({ sampleRate: this.config.sampleRate });
         } catch {
+            endOpen({ failed: true });
             this.notification.add(_t("Voice recording is not available."), {
                 type: "warning",
             });
@@ -94,6 +104,7 @@ class VoiceRecorder {
                 audio: this.store.settings.audioConstraints,
             });
         } catch {
+            log.logic("microphone refused");
             this.notification.add(
                 _t('"%(hostname)s" needs to access your microphone', {
                     hostname: browser.location.host,
@@ -179,6 +190,10 @@ class VoiceRecorder {
     }
 
     stopRecording() {
+        log.lifecycle("stopRecording", () => ({
+            hasEncoder: Boolean(this.encoder),
+            elapsed: this.state.elapsed,
+        }));
         if (!this.encoder) {
             this.cleanUp();
             return;
@@ -186,6 +201,7 @@ class VoiceRecorder {
         this.getMp3()
             .then((buffer) => {
                 const file = this._makeFile(buffer, "audio/mp3");
+                log.logic("voice file ready", () => ({ size: file.size }));
                 if (file.size === 0) {
                     return;
                 }

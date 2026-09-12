@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { toRaw } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { debounce } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.rtc.transport");
 
 let sequence = 1;
 export const getSequence = () => sequence++;
@@ -246,6 +249,12 @@ export class CallTransport {
      */
     async initConnection({ sessionId, channelId }) {
         const epoch = ++this._connectEpoch;
+        log.lifecycle("initConnection", () => ({
+            epoch,
+            sessionId,
+            channelId,
+            sfu: Boolean(this.serverInfo),
+        }));
         this.hooks.setLocalConnectionState("selecting network type");
         this.state.connectionType = CONNECTION_TYPES.P2P;
         this.network?.disconnect();
@@ -265,9 +274,15 @@ export class CallTransport {
                 serverInfo: toRaw(this.serverInfo),
             });
             this.hooks.setLocalConnectionState("loading SFU assets");
+            const endLoadSfu = log.perf("loadSfuClient");
             try {
                 const { sfuClient, SFU_CLIENT_STATE } = await this._loadSfuClient();
+                endLoadSfu({ epoch });
                 if (epoch !== this._connectEpoch) {
+                    log.logic("sfu client loaded for a stale epoch", () => ({
+                        epoch,
+                        current: this._connectEpoch,
+                    }));
                     sfuClient.disconnect();
                     return;
                 }
@@ -277,9 +292,13 @@ export class CallTransport {
                 this.state.connectionType = CONNECTION_TYPES.SERVER;
                 this.network.addSfu(this.sfuClient);
             } catch (e) {
+                endLoadSfu({ epoch, failed: true });
                 if (epoch !== this._connectEpoch) {
                     return;
                 }
+                log.logic("sfu load failed, falling back to p2p", () => ({
+                    message: e?.message,
+                }));
                 this.state.fallbackMode = true;
                 this.hooks.notify(
                     _t("Failed to load the SFU server, falling back to peer-to-peer"),
@@ -311,6 +330,11 @@ export class CallTransport {
         if (asFallback && !this.state.fallbackMode) {
             return;
         }
+        log.pipeline("call", () => ({
+            asFallback,
+            connectionType: this.state.connectionType,
+            sfuState: this.sfuClient?.state,
+        }));
         if (this.state.connectionType === CONNECTION_TYPES.SERVER) {
             if (this.sfuClient.state === this.SFU_CLIENT_STATE.DISCONNECTED) {
                 browser.clearTimeout(this.sfuTimeout);
@@ -330,6 +354,9 @@ export class CallTransport {
                         },
                     );
                 } catch (error) {
+                    log.logic("sfu connect failed", () => ({
+                        message: error?.message,
+                    }));
                     this.hooks.log("failed to connect to the SFU server", {
                         error,
                         important: true,
@@ -344,6 +371,10 @@ export class CallTransport {
             return;
         }
         const sequence = getSequence();
+        log.pipeline("p2p addPeers", () => ({
+            peers: peerSessionIds.length,
+            sequence,
+        }));
         for (const id of peerSessionIds) {
             this.p2p.addPeer(id, { sequence });
         }
@@ -353,6 +384,7 @@ export class CallTransport {
         if (this.state.connectionType !== CONNECTION_TYPES.SERVER) {
             return;
         }
+        log.lifecycle("downgrade to p2p");
         browser.clearTimeout(this.sfuTimeout);
         this.serverInfo = undefined;
         this.state.fallbackMode = true;
@@ -366,6 +398,11 @@ export class CallTransport {
     /** @param {boolean} hasTurnServer */
     onP2pRecovery(hasTurnServer) {
         this._p2pRecoveryCount++;
+        log.logic("onP2pRecovery", () => ({
+            count: this._p2pRecoveryCount,
+            hasTurnServer,
+            upgrade: this._p2pRecoveryCount > 1 || !hasTurnServer,
+        }));
         if (this._p2pRecoveryCount > 1 || !hasTurnServer) {
             this.upgradeConnectionDebounce();
         }
@@ -376,6 +413,7 @@ export class CallTransport {
         if (this.serverInfo || this.state.fallbackMode || !channelId) {
             return;
         }
+        log.logic("upgradeConnection requested", () => ({ channelId }));
         await rpc(
             "/mail/rtc/channel/upgrade_connection",
             { channel_id: channelId },
@@ -385,6 +423,7 @@ export class CallTransport {
 
     /** @param {CustomEvent<{state: string, cause?: string}>} ev */
     async _handleSfuStateChange({ detail: { state, cause } }) {
+        log.lifecycle("sfu state", () => ({ state, cause }));
         this.hooks.log(`connection state change: ${state}`, { state, cause });
         this.hooks.setLocalConnectionState(state);
         switch (state) {
@@ -426,6 +465,10 @@ export class CallTransport {
     }
 
     dispose() {
+        log.lifecycle("dispose", () => ({
+            epoch: this._connectEpoch + 1,
+            connectionType: this.state.connectionType,
+        }));
         this._connectEpoch++;
         browser.clearTimeout(this.sfuTimeout);
         this.sfuClient = undefined;

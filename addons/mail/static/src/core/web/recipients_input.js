@@ -5,6 +5,7 @@ import { parseEmail } from "@mail/utils/common/format";
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { useTagNavigation } from "@web/components/record_selectors";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { isEmail } from "@web/core/utils/format/strings";
@@ -15,6 +16,8 @@ import { usePopover } from "@web/ui/popover";
 
 import { RecipientsInputTagsList } from "./recipients_input_tags_list.js";
 import { RecipientsPopover } from "./recipients_popover.js";
+
+const log = makeLogger("mail.recipients");
 
 export class RecipientsInput extends Component {
     static template = "mail.RecipientsInput";
@@ -84,6 +87,7 @@ export class RecipientsInput extends Component {
      * @param {number} limit
      */
     async searchRecipientCandidates(name, email, partnerIds, limit) {
+        const endSearch = log.perf("searchRecipientCandidates");
         const matches = await this.orm.searchRead(
             "res.partner",
             [
@@ -95,7 +99,7 @@ export class RecipientsInput extends Component {
             ["display_name", "email", "id", "lang", "name"],
             { limit },
         );
-
+        endSearch({ name, email, excluded: partnerIds.size, matches: matches.length });
         return matches;
     }
     /**
@@ -155,6 +159,11 @@ export class RecipientsInput extends Component {
                     thread_id: this.props.thread.id,
                     emails: [term],
                 });
+                log.logic("create recipient from email", () => ({
+                    thread: this.props.thread.localId,
+                    email,
+                    found: partners.length,
+                }));
                 if (partners.length) {
                     const partner = partners[0];
                     this.insertAdditionalRecipient({
@@ -175,6 +184,11 @@ export class RecipientsInput extends Component {
                 const [partnerId] = await this.orm.create("res.partner", [
                     { name, email },
                 ]);
+                log.logic("create recipient partner", () => ({
+                    thread: this.props.thread.localId,
+                    name,
+                    partnerId,
+                }));
                 this.insertAdditionalRecipient({
                     email,
                     name,
@@ -261,6 +275,11 @@ export class RecipientsInput extends Component {
                     }
                 },
                 onDelete: () => {
+                    log.logic("delete recipient tag", () => ({
+                        thread: this.props.thread.localId,
+                        recipientField,
+                        partnerId: recipient.partner_id,
+                    }));
                     this.props.thread[recipientField] = this.props.thread[
                         recipientField
                     ].filter(
@@ -294,6 +313,7 @@ export class RecipientsInput extends Component {
      * @param {number} recipientPartnerId
      */
     async updateRecipient(emailNormalized, recipientPartnerId) {
+        log.logic("updateRecipient", () => ({ recipientPartnerId }));
         await this.orm.write("res.partner", [recipientPartnerId], {
             email: emailNormalized,
         });
@@ -321,8 +341,17 @@ export class RecipientsInput extends Component {
     /** @param {SuggestedRecipient} recipient */
     insertAdditionalRecipient(recipient) {
         if (this.hasRecipient(recipient)) {
+            log.logic("insertAdditionalRecipient duplicate", () => ({
+                partnerId: recipient.partner_id,
+                email: recipient.email,
+            }));
             return;
         }
+        log.logic("insertAdditionalRecipient", () => ({
+            thread: this.props.thread.localId,
+            partnerId: recipient.partner_id,
+            email: recipient.email,
+        }));
         this.props.thread.additionalRecipients.push(recipient);
     }
 

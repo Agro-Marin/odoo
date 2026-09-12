@@ -5,10 +5,13 @@ import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzo
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { EventBus, toRaw, useEffect, useRef, useSubEnv } from "@odoo/owl";
 import { useCustomDropzone } from "@web/components/dropzone";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { formView } from "@web/views/form";
+
+const log = makeLogger("mail.composer.form");
 export class MailComposerFormController extends formView.Controller {
     static props = {
         ...formView.Controller.props,
@@ -88,8 +91,13 @@ export class MailComposerFormRenderer extends formView.Renderer {
             onDrop: async (event) => {
                 const [thread] = this._getActiveMailThreads();
                 if (!thread) {
+                    log.logic("onDrop without active thread");
                     return;
                 }
+                log.logic("onDrop", () => ({
+                    thread: thread.localId,
+                    files: /** @type {DragEvent} */ (event).dataTransfer.files.length,
+                }));
                 const composer =
                     this.props.record.resModel === "mail.scheduled.message"
                         ? { attachments: [] }
@@ -153,6 +161,10 @@ export class MailComposerFormRenderer extends formView.Renderer {
             [["id", "in", selectedPartnerIds]],
             ["email", "id", "lang", "name"],
         );
+        log.pipeline("syncRecipientsFromFullComposer", () => ({
+            selected: selectedPartnerIds.length,
+            threads: this._getActiveMailThreads().map((thread) => thread.localId),
+        }));
         for (const thread of this._getActiveMailThreads()) {
             this._updateThreadRecipients(thread, selectedPartners, selectedPartnerIds);
         }

@@ -4,11 +4,14 @@ import { DISCUSS_SIDEBAR_COMPACT_LS } from "@mail/core/public_web/discuss_app_mo
 import { Component, onMounted, useSubEnv } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 import { ActionList } from "../common/action_list.js";
 import { DiscussSearch } from "./discuss_search.js";
+
+const log = makeLogger("mail.discuss.sidebar");
 
 export const discussSidebarItemsRegistry = registry.category(
     "mail.discuss_sidebar_items",
@@ -42,6 +45,7 @@ export class DiscussSidebar extends Component {
         if (!this.mounted) {
             return;
         }
+        log.logic("onResize", () => ({ width, compact: width <= 100 }));
         if (width <= 100) {
             browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, String(true));
         } else {

@@ -3,7 +3,10 @@
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.message.reaction");
 /**
  * @typedef {Object} Props
  * @property {Object} action
@@ -76,6 +79,11 @@ export class QuickReactionMenu extends Component {
 
     /** @param {string} [initialSearchTerm] */
     togglePicker(initialSearchTerm) {
+        log.logic("togglePicker", () => ({
+            messageId: this.props.message.id,
+            wasOpen: this.picker.isOpen,
+            initialSearchTerm,
+        }));
         if (this.picker.isOpen) {
             this.picker.close();
         } else {
@@ -95,6 +103,7 @@ export class QuickReactionMenu extends Component {
 
     onClick() {
         if (!this.store.emojiLoader.loaded) {
+            log.logic("onClick triggers emoji load");
             loadEmoji();
         }
         if (this.ui.isSmall) {
@@ -115,6 +124,11 @@ export class QuickReactionMenu extends Component {
             (r) =>
                 r.content === emoji && this.props.message.effectiveSelf.in(r.personas),
         );
+        log.logic("toggleReaction", () => ({
+            messageId: this.props.message.id,
+            emoji,
+            remove: Boolean(reaction),
+        }));
         if (reaction) {
             reaction.remove();
         } else {

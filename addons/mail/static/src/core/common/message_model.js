@@ -59,6 +59,7 @@ export class Message extends Record {
     update(data) {
         super.update(data);
         if (typeof this.id === "number" && this.store.deletedMessageIds?.has(this.id)) {
+            log.logic("update of a deleted message", () => ({ id: this.id }));
             this.delete();
             return;
         }
@@ -590,6 +591,7 @@ export class Message extends Record {
             notification = _t("Message Link Copy Failed (Permission denied?)!");
             type = "danger";
         }
+        log.logic("copyLink", () => ({ id: this.id, type }));
         this.store.env.services.notification.add(notification, { type });
     }
 
@@ -718,6 +720,11 @@ export class Message extends Record {
     /** @param {import("models").Thread} thread */
     exitEditMode(thread) {
         const threadAsInEdition = this.threadAsInEdition;
+        log.lifecycle("exitEditMode", () => ({
+            id: this.id,
+            thread: thread?.localId,
+            refocus: Boolean(threadAsInEdition && threadAsInEdition.eq(thread)),
+        }));
         this.composer = undefined;
         if (threadAsInEdition && threadAsInEdition.eq(thread)) {
             threadAsInEdition.composer.autofocus++;
@@ -741,14 +748,21 @@ export class Message extends Record {
 
     async onClickToggleTranslation() {
         if (!this.translationValue) {
+            const endTranslate = log.perf("translate");
             const { error, lang_name, body } = await rpc("/mail/message/translate", {
                 message_id: this.id,
             });
+            endTranslate({ id: this.id, lang: lang_name, error: Boolean(error) });
             this.translationValue = body && markup(body);
             this.translationSource = lang_name;
             this.translationErrors = error;
         }
         this.showTranslation = !this.showTranslation && Boolean(this.translationValue);
+        log.logic("toggleTranslation", () => ({
+            id: this.id,
+            shown: this.showTranslation,
+            source: this.translationSource,
+        }));
     }
 
     /** @param {string} content */
@@ -814,6 +828,11 @@ export class Message extends Record {
             this.thread && snapshotCounter(this.thread, "message_needaction_counter");
         let inboxApplied = 0;
         let threadApplied = 0;
+        log.logic("setDone", () => ({
+            id: this.id,
+            wasNeedaction,
+            thread: this.thread?.localId,
+        }));
         if (wasNeedaction) {
             this.needaction = false;
             if (inbox) {
@@ -839,6 +858,7 @@ export class Message extends Record {
                 [[this.id]],
             );
         } catch (e) {
+            log.logic("setDone rollback", () => ({ id: this.id, wasNeedaction }));
             if (wasNeedaction) {
                 this.needaction = true;
                 if (inbox) {
@@ -867,6 +887,11 @@ export class Message extends Record {
     }
 
     async unfollow() {
+        log.logic("unfollow", () => ({
+            id: this.id,
+            thread: this.thread?.localId,
+            needaction: this.needaction,
+        }));
         if (this.needaction) {
             await this.setDone();
         }
@@ -881,6 +906,10 @@ export class Message extends Record {
     }
 
     hideAllLinkPreviews() {
+        log.logic("hideAllLinkPreviews", () => ({
+            id: this.id,
+            previews: this.message_link_preview_ids.length,
+        }));
         rpc("/mail/link_preview/hide", {
             message_link_preview_ids: this.message_link_preview_ids.map(
                 (lpm) => lpm.id,

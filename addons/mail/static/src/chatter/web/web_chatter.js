@@ -18,12 +18,15 @@ import { status, useEffect } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { useCustomDropzone } from "@web/components/dropzone";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { FileUploader } from "@web/core/file_upload";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
+
+const log = makeLogger("mail.chatter");
 export const DELAY_FOR_SPINNER = 1000;
 
 /** @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, highlightMessageId?: number, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props */
@@ -245,8 +248,10 @@ export class WebChatter extends Chatter {
             email: email || null,
         });
         if (queryKey === this._lastRecipientsQueryKey) {
+            log.logic("updateRecipients dedup", () => ({ queryKey }));
             return;
         }
+        const endRecipients = log.perf("suggested recipients");
         const recipients = await this.keepLastSuggestedRecipientsUpdate.add(
             rpc("/mail/thread/recipients/get_suggested_recipients", {
                 thread_model: this.props.threadModel,
@@ -255,7 +260,13 @@ export class WebChatter extends Chatter {
                 main_email: email,
             }),
         );
+        endRecipients({ thread: thread?.localId, recipients: recipients?.length });
         if (status(this) === "destroyed" || !this.state.thread?.eq(thread)) {
+            log.logic("updateRecipients result dropped", () => ({
+                thread: thread?.localId,
+                current: this.state.thread?.localId,
+                destroyed: status(this) === "destroyed",
+            }));
             return;
         }
         this._lastRecipientsQueryKey = queryKey;
@@ -356,6 +367,11 @@ export class WebChatter extends Chatter {
             this.state.composerType = false;
             this.closeSearch();
         } else {
+            if (this.onThreadCreated) {
+                log.lifecycle("onThreadCreated callback", () => ({
+                    thread: this.state.thread.localId,
+                }));
+            }
             this.onThreadCreated?.(this.state.thread);
             this.onThreadCreated = null;
             this.messageSearch.thread = this.state.thread;
@@ -389,6 +405,10 @@ export class WebChatter extends Chatter {
 
     /** @param {import("models").Thread} thread */
     onActivityChanged(thread) {
+        log.logic("onActivityChanged", () => ({
+            thread: thread.localId,
+            parentReload: this.props.hasParentReloadOnActivityChanged,
+        }));
         this.load(thread, [...this.requestList, "messages"]);
         if (this.props.hasParentReloadOnActivityChanged) {
             this.reloadParentView();
@@ -396,6 +416,7 @@ export class WebChatter extends Chatter {
     }
 
     onAddFollowers() {
+        log.logic("onAddFollowers", () => ({ thread: this.state.thread?.localId }));
         this.load(this.state.thread, ["followers", "suggestedRecipients"]);
         if (this.props.hasParentReloadOnFollowersUpdate) {
             this.reloadParentView();
@@ -425,6 +446,7 @@ export class WebChatter extends Chatter {
     }
 
     onClickSearch() {
+        log.logic("onClickSearch", () => ({ open: !this.state.isSearchOpen }));
         this.state.composerType = false;
         this.state.isSearchOpen = !this.state.isSearchOpen;
     }
@@ -452,6 +474,10 @@ export class WebChatter extends Chatter {
     }
 
     onPostCallback() {
+        log.logic("onPostCallback", () => ({
+            thread: this.state.thread?.localId,
+            parentReload: this.props.hasParentReloadOnMessagePosted,
+        }));
         if (this.props.hasParentReloadOnMessagePosted) {
             this.reloadParentView();
         }
@@ -490,10 +516,16 @@ export class WebChatter extends Chatter {
                                       model: self.props.threadModel,
                                       id: self.props.record.resId,
                                   });
+                        log.logic("handleUpload", () => ({
+                            uploadThread: uploadThread.localId,
+                            current: self.state.thread?.localId,
+                            name: data.name,
+                        }));
                         await self.attachmentUploader.uploadData(data, {
                             thread: uploadThread,
                         });
                         if (!uploadThread.eq(self.state.thread)) {
+                            log.logic("handleUpload thread changed during upload");
                             return;
                         }
                         if (self.props.hasParentReloadOnAttachmentsChanged) {
@@ -514,16 +546,23 @@ export class WebChatter extends Chatter {
     }
 
     async reloadParentView() {
+        const endReload = log.perf("reloadParentView");
         const saved = await this.props.saveRecord?.();
         if (saved === false) {
+            endReload({ saved: false });
             return;
         }
         if (this.props.record) {
             await this.props.record.load();
         }
+        endReload({ thread: this.state.thread?.localId });
     }
 
     async scheduleActivity() {
+        log.logic("scheduleActivity", () => ({
+            thread: this.state.thread?.localId,
+            persisted: Boolean(this.state.thread.id),
+        }));
         this.closeSearch();
         /** @param {import("models").Thread} thread */
         const schedule = async (thread) => {
@@ -549,6 +588,9 @@ export class WebChatter extends Chatter {
     }
 
     toggleChatterCollapse() {
+        log.logic("toggleChatterCollapse", () => ({
+            collapsed: !this.state.isCollapsed,
+        }));
         this.state.isCollapsed = !this.state.isCollapsed;
         browser.localStorage.setItem(
             "chatter_aside_collapsed",
@@ -562,6 +604,13 @@ export class WebChatter extends Chatter {
      * @param {boolean} [options.force=false]
      */
     async toggleComposer(mode = false, { force = false } = {}) {
+        log.logic("toggleComposer", () => ({
+            thread: this.state.thread?.localId,
+            from: this.state.composerType,
+            mode,
+            force,
+            persisted: Boolean(this.state.thread.id),
+        }));
         this.closeSearch();
         const toggle = () => {
             if (!force && this.state.composerType === mode) {
@@ -590,6 +639,7 @@ export class WebChatter extends Chatter {
 
     /** @param {import("models").Attachment} attachment */
     async unlinkAttachment(attachment) {
+        log.logic("unlinkAttachment", () => ({ attachmentId: attachment.id }));
         await this.attachmentUploader.unlink(attachment);
         if (this.props.hasParentReloadOnAttachmentsChanged) {
             this.reloadParentView();

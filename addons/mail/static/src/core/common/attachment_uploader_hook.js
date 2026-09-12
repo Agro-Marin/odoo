@@ -1,7 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.attachment_upload");
 /**
  * @param {string} data
  * @param {string} type
@@ -48,6 +51,14 @@ export class AttachmentUploader {
      */
     async uploadFile(file, options) {
         const thread = options?.thread || this.thread;
+        log.logic("uploadFile", () => ({
+            thread: thread?.localId,
+            composer: Boolean(this.composer),
+            name: file.name,
+            size: file.size,
+            voice: options?.voice,
+            activity: options?.activity?.id,
+        }));
         return this.attachmentUploadService.upload(
             thread,
             this.composer,

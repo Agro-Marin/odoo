@@ -9,6 +9,7 @@ import {
     makeSequential,
     nearestGreaterThanOrEqual,
 } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatList } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
@@ -17,6 +18,8 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { patch } from "@web/core/utils/patch";
 import { getOrigin, imageUrl } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.thread");
 const commandRegistry = registry.category("discuss.channel_commands");
 
 /** @type {Partial<typeof Thread> & ThisType<typeof Thread>} */
@@ -65,8 +68,14 @@ const threadStaticPatch = {
             data.id,
         );
         if (fetchChannelInfoDeferred) {
+            log.logic("getOrFetch channel dedup", () => ({ channelId: data.id }));
             return fetchChannelInfoDeferred;
         }
+        log.pipeline("getOrFetch channel", () => ({
+            channelId: data.id,
+            known: Boolean(thread),
+            state: thread?.fetchChannelInfoState,
+        }));
         /** @type {Deferred<import("models").Thread | undefined>} */
         const def = new Deferred();
         this.store.channelIdsFetchingDeferred.set(data.id, def);
@@ -77,6 +86,10 @@ const threadStaticPatch = {
                     id: data.id,
                     model: data.model,
                 });
+                log.pipeline("getOrFetch channel resolved", () => ({
+                    channelId: data.id,
+                    found: Boolean(thread?.exists()),
+                }));
                 if (thread?.exists()) {
                     thread.fetchChannelInfoState = "fetched";
                     def.resolve(thread);
@@ -85,6 +98,7 @@ const threadStaticPatch = {
                 }
             },
             () => {
+                log.logic("getOrFetch channel failed", () => ({ channelId: data.id }));
                 this.store.channelIdsFetchingDeferred.delete(data.id);
                 const thread = this.store.Thread.get({
                     id: data.id,
@@ -505,6 +519,10 @@ const threadPatch = {
      * @returns {Promise<any>}
      */
     executeCommand(command, body = "") {
+        log.logic("executeCommand", () => ({
+            thread: this.localId,
+            method: command.methodName,
+        }));
         return this.store.env.services.orm.call(
             "discuss.channel",
             command.methodName,
@@ -513,6 +531,7 @@ const threadPatch = {
         );
     },
     async markAsFetched() {
+        log.logic("markAsFetched", () => ({ thread: this.localId }));
         await this.store.env.services.orm.silent.call(
             "discuss.channel",
             "channel_fetched",
@@ -521,6 +540,7 @@ const threadPatch = {
     },
     /** @param {string} data */
     async notifyAvatarToServer(data) {
+        log.logic("notifyAvatarToServer", () => ({ thread: this.localId }));
         await rpc("/discuss/channel/update_avatar", {
             channel_id: this.id,
             data,
@@ -533,6 +553,7 @@ const threadPatch = {
     async notifyDescriptionToServer(description) {
         const previousDescription = this.description;
         this.description = description;
+        log.logic("notifyDescriptionToServer", () => ({ thread: this.localId }));
         try {
             return await this.store.env.services.orm.call(
                 "discuss.channel",
@@ -541,6 +562,9 @@ const threadPatch = {
                 { description },
             );
         } catch (e) {
+            log.logic("notifyDescriptionToServer rollback", () => ({
+                thread: this.localId,
+            }));
             this.description = previousDescription;
             throw e;
         }
@@ -552,6 +576,13 @@ const threadPatch = {
             newName !== this.displayName &&
             ((newName && this.channel_type === "channel") || this.isChatChannel)
         ) {
+            log.logic("rename", () => ({
+                thread: this.localId,
+                channel_type: this.channel_type,
+                custom: !(
+                    this.channel_type === "channel" || this.channel_type === "group"
+                ),
+            }));
             if (this.channel_type === "channel" || this.channel_type === "group") {
                 const previousName = this.name;
                 this.name = newName;
@@ -563,6 +594,7 @@ const threadPatch = {
                         { name: newName },
                     );
                 } catch (e) {
+                    log.logic("rename rollback", () => ({ thread: this.localId }));
                     this.name = previousName;
                     throw e;
                 }
@@ -594,6 +626,14 @@ const threadPatch = {
      * @param {boolean} [options.force=false]
      */
     async leaveChannel({ force = false } = {}) {
+        log.logic("leaveChannel", () => ({
+            thread: this.localId,
+            channel_type: this.channel_type,
+            force,
+            isAdmin: Boolean(
+                this.create_uid?.eq(this.store.self_partner?.main_user_id),
+            ),
+        }));
         if (
             this.channel_type !== "group" &&
             this.create_uid?.eq(this.store.self_partner?.main_user_id) &&
@@ -696,6 +736,9 @@ const threadPatch = {
     },
     async fetchChannelMembers() {
         if (this.fetchMembersState === "pending") {
+            log.logic("fetchChannelMembers already pending", () => ({
+                thread: this.localId,
+            }));
             return;
         }
         const previousState = this.fetchMembersState;
@@ -704,24 +747,37 @@ const threadPatch = {
             (channelMember) => channelMember.id,
         );
         let data;
+        const endFetch = log.perf("fetchChannelMembers");
         try {
             data = await rpc("/discuss/channel/members", {
                 channel_id: this.id,
                 known_member_ids: known_member_ids,
             });
         } catch (e) {
+            endFetch({ thread: this.localId, failed: true });
             this.fetchMembersState = previousState;
             throw e;
         }
+        endFetch({
+            thread: this.localId,
+            known: known_member_ids.length,
+            memberCount: this.member_count,
+        });
         this.fetchMembersState = "fetched";
         this.store.insert(data);
     },
     /** @param {number} [limit=30] */
     async fetchMoreAttachments(limit = 30) {
         if (this.isLoadingAttachments || this.areAttachmentsLoaded) {
+            log.logic("fetchMoreAttachments skipped", () => ({
+                thread: this.localId,
+                loading: this.isLoadingAttachments,
+                loaded: this.areAttachmentsLoaded,
+            }));
             return;
         }
         this.isLoadingAttachments = true;
+        const endFetch = log.perf("fetchMoreAttachments");
         try {
             const data = await rpc("/discuss/channel/attachments", {
                 before: Math.min(...this.attachments.map(({ id }) => id)),
@@ -729,6 +785,12 @@ const threadPatch = {
                 limit,
             });
             this.store.insert(data.store_data);
+            endFetch({
+                thread: this.localId,
+                limit,
+                hasMore: data.has_more,
+                attachments: this.attachments.length,
+            });
             if (!data.has_more) {
                 this.areAttachmentsLoaded = true;
             }
@@ -786,8 +848,18 @@ const threadPatch = {
             this.self_member_id.seen_message_id?.id >= newestPersistentMessage.id &&
             this.self_member_id.new_message_separator > newestPersistentMessage.id;
         if (alreadyReadBySelf) {
+            log.logic("markAsRead already read", () => ({
+                thread: this.localId,
+                lastMessageId: newestPersistentMessage.id,
+            }));
             return;
         }
+        log.pipeline("markAsRead channel", () => ({
+            thread: this.localId,
+            lastMessageId: newestPersistentMessage.id,
+            seenMessageId: this.self_member_id.seen_message_id?.id,
+            separator: this.self_member_id.new_message_separator,
+        }));
         this.markReadSequential(async () => {
             this.markingAsRead = true;
             try {
@@ -825,6 +897,10 @@ const threadPatch = {
         ) {
             return;
         }
+        log.logic("onNewSelfMessage advances seen", () => ({
+            thread: this.localId,
+            messageId: message.id,
+        }));
         this.self_member_id.seen_message_id = message;
         this.self_member_id.new_message_separator = Number(message.id) + 1;
         this.self_member_id.new_message_separator_ui =
@@ -893,6 +969,10 @@ const threadPatch = {
                 (!command.channel_types ||
                     command.channel_types.includes(this.channel_type))
             ) {
+                log.logic("post as command", () => ({
+                    thread: this.localId,
+                    command: firstWord,
+                }));
                 await this.executeCommand(command, textContent);
                 return;
             }

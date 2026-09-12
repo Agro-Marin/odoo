@@ -3,8 +3,11 @@
 import { Message } from "@mail/core/common/message";
 import { useVisible } from "@mail/utils/common/hooks";
 import { Component, useSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.message.search");
 /**
  * @typedef {Object} Props
  * @property {string} [emptyText]
@@ -50,6 +53,13 @@ export class MessageCardList extends Component {
 
     /** @param {import("models").Message} message */
     async onClickJump(message) {
+        log.logic("onClickJump", () => ({
+            messageId: message.id,
+            thread: this.props.thread?.localId,
+            small: this.ui.isSmall,
+            inChatWindow: Boolean(this.env.inChatWindow),
+            inMeetingView: Boolean(this.env.inMeetingView),
+        }));
         this.props.onClickJump?.();
         if (this.ui.isSmall || this.env.inChatWindow || this.env.inMeetingView) {
             this.env.pinMenu?.close();

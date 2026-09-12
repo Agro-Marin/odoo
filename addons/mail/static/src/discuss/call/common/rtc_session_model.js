@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Deferred } from "@web/core/utils/concurrency";
+
+const log = makeLogger("mail.rtc.session");
 /**
  * @typedef {object} SessionInfo
  * @property {boolean} [isSelfMuted]
@@ -36,9 +39,11 @@ export class RtcSession extends Record {
         if (!session) {
             let deferred = this.awaitedRecords.get(id);
             if (!deferred) {
+                log.logic("getWhenReady waits", () => ({ session: id }));
                 deferred = new Deferred();
                 this.awaitedRecords.set(id, deferred);
                 deferred._timeout = browser.setTimeout(() => {
+                    log.logic("getWhenReady timed out", () => ({ session: id }));
                     deferred.resolve();
                     if (this.awaitedRecords.get(id) === deferred) {
                         this.awaitedRecords.delete(id);
@@ -260,6 +265,10 @@ export class RtcSession extends Record {
             await this.audioElement.play();
             this.audioError = undefined;
         } catch (error) {
+            log.logic("playAudio failed", () => ({
+                session: this.id,
+                error: error.name,
+            }));
             this.audioError = error.name;
         }
     }

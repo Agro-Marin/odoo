@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { HtmlField, htmlField } from "@html_editor/fields/html_field";
 import { ColumnPlugin } from "@html_editor/main/column_plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { getCSSRules, toInline } from "./convert_inline.js";
+
+const log = makeLogger("mail.html_mail_field");
 /** @type {WeakMap<Element, Object[]>} */
 const cssRulesByElement = new WeakMap();
 
@@ -31,11 +34,13 @@ export class HtmlMailField extends HtmlField {
     async getEditorContent() {
         const el = await super.getEditorContent();
         if (this.editor.editable) {
+            const endInline = log.perf("inline css");
             await HtmlMailField.getInlinedEditorContent(
                 cssRulesByElement,
                 this.editor,
                 el,
             );
+            endInline({ field: this.props.name });
         }
         return el;
     }

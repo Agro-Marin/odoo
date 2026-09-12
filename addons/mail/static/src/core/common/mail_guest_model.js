@@ -3,10 +3,13 @@
 import { IM_STATUS_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, Record } from "@mail/core/common/record";
 import { toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { debounce } from "@web/core/utils/timing";
 import { imageUrl } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.guest");
 const TRANSPARENT_AVATAR =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAQAAABpN6lAAAAAqElEQVR42u3QMQEAAAwCoNm/9GJ4CBHIjYsAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBDQ9+KgAIHd5IbMAAAAAElFTkSuQmCC";
 const { DateTime } = luxon;
@@ -127,6 +130,7 @@ export class MailGuest extends Record {
 
     /** @param {string} name */
     async updateGuestName(name) {
+        log.logic("updateGuestName", () => ({ id: this.id }));
         await rpc("/mail/guest/update_name", {
             guest_id: this.id,
             name,
@@ -140,6 +144,11 @@ export class MailGuest extends Record {
 
     /** @param {ImStatus} newStatus */
     updateImStatus(newStatus) {
+        log.pipeline("updateImStatus", () => ({
+            id: this.id,
+            from: this.im_status,
+            to: newStatus,
+        }));
         if (newStatus === "offline") {
             this.offline_since = DateTime.now();
         }

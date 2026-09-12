@@ -6,10 +6,13 @@ import { useMicrophoneVolume } from "@mail/utils/common/hooks";
 import { Component, onWillStart, useExternalListener, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog";
+
+const log = makeLogger("mail.rtc.settings");
 export class CallSettings extends Component {
     static template = "discuss.CallSettings";
     static props = ["withActionPanel?", "*"];
@@ -54,6 +57,7 @@ export class CallSettings extends Component {
         );
         onWillStart(async () => {
             if (!browser.navigator.mediaDevices) {
+                log.logic("media devices unavailable");
                 this.notification.add(
                     _t("Media devices unobtainable. SSL might not be set up properly."),
                     { type: "warning" },
@@ -122,6 +126,7 @@ export class CallSettings extends Component {
         this.store.settings.logRtc = /** @type {HTMLInputElement} */ (
             ev.target
         ).checked;
+        log.logic("onChangeLogRtc", () => ({ logRtc: this.store.settings.logRtc }));
     }
 
     /** @param {Event} ev */
@@ -134,11 +139,15 @@ export class CallSettings extends Component {
     }
 
     onClickDownloadLogs() {
+        log.logic("onClickDownloadLogs");
         this.rtc.dumpLogs({ download: true });
     }
 
     onClickRegisterKeyButton() {
         this.store.settings.isRegisteringKey = !this.store.settings.isRegisteringKey;
+        log.logic("onClickRegisterKeyButton", () => ({
+            isRegisteringKey: this.store.settings.isRegisteringKey,
+        }));
     }
 
     /** @param {Event} ev */
@@ -160,6 +169,7 @@ export class CallSettings extends Component {
     /** @param {Event} ev */
     onChangeShowOnlyVideo(ev) {
         const showOnlyVideo = /** @type {HTMLInputElement} */ (ev.target).checked;
+        log.logic("onChangeShowOnlyVideo", () => ({ showOnlyVideo }));
         this.store.settings.showOnlyVideo = showOnlyVideo;
         browser.localStorage.setItem(
             "mail_user_setting_show_only_video",

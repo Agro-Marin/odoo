@@ -3,7 +3,10 @@
 import { FollowerSubtypeDialog } from "@mail/core/web/follower_subtype_dialog";
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.follower");
 /**
  * @typedef {Object} Props
  * @property {import("models").Follower} follower
@@ -37,6 +40,9 @@ export class Follower extends Component {
     }
 
     async onClickRemove() {
+        log.logic("onClickRemove", () => ({
+            partnerId: this.props.follower.partner_id?.id,
+        }));
         await this.props.follower.remove();
         this.props.onFollowerChanged?.();
     }

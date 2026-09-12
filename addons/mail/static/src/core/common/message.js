@@ -158,6 +158,10 @@ export class Message extends Component {
                 const el = this.shadowBody.el;
                 if (el) {
                     if (!this.shadowRoot || this.shadowRoot.host !== el) {
+                        log.lifecycle("shadow body attached", () => ({
+                            messageId: this.message.id,
+                            reused: Boolean(el.shadowRoot),
+                        }));
                         if (el.shadowRoot) {
                             this.shadowRoot = el.shadowRoot;
                         } else {
@@ -166,6 +170,7 @@ export class Message extends Component {
                         }
                     }
                     const shadowRoot = this.shadowRoot;
+                    const endShadowBody = log.perf("shadow body render");
                     const bodyEl = createElementWithContent(
                         "span",
                         this.message.showTranslation
@@ -176,6 +181,7 @@ export class Message extends Component {
                     );
                     this.prepareMessageBody(bodyEl);
                     shadowRoot.appendChild(bodyEl);
+                    endShadowBody({ messageId: this.message.id });
                     return () => {
                         shadowRoot.removeChild(bodyEl);
                     };
@@ -472,12 +478,19 @@ export class Message extends Component {
 
     /** @param {import("models").Attachment} attachment */
     async onClickAttachmentUnlink(attachment) {
+        log.logic("onClickAttachmentUnlink", () => ({
+            messageId: this.message.id,
+            attachmentId: attachment.id,
+        }));
         await toRaw(attachment).remove();
     }
 
     /** @param {MouseEvent} ev */
     async onClick(ev) {
         if (this.linkNavigation.handleClickOnLink(ev, this.props.thread)) {
+            log.logic("onClick handled as link navigation", () => ({
+                messageId: this.message.id,
+            }));
             return;
         }
         if (
@@ -541,6 +554,10 @@ export class Message extends Component {
     /** @param {MouseEvent} ev */
     onClickNotification(ev) {
         const message = toRaw(this.message);
+        log.logic("onClickNotification", () => ({
+            messageId: message.id,
+            failures: message.failureNotifications.length,
+        }));
         if (message.failureNotifications.length > 0) {
             markEventHandled(ev, "Message.ClickFailure");
         }
@@ -564,6 +581,10 @@ export class Message extends Component {
     /** @param {import("models").MessageReactions} [reaction] */
     openReactionMenu(reaction) {
         const message = toRaw(this.props.message);
+        log.logic("openReactionMenu", () => ({
+            messageId: message.id,
+            reaction: reaction?.content,
+        }));
         this.dialog.add(
             MessageReactionMenu,
             { message, initialReaction: reaction },

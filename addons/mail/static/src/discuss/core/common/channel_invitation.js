@@ -4,9 +4,12 @@ import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.channel.invitation");
 export class ChannelInvitation extends Component {
     static components = { ImStatus, ActionPanel };
     static defaultProps = { hasSizeConstraints: false };
@@ -106,6 +109,7 @@ export class ChannelInvitation extends Component {
     }
 
     async fetchPartnersToInvite() {
+        const endFetch = log.perf("fetchPartnersToInvite");
         const results = await this.sequential(() =>
             this.orm.call("res.partner", "search_for_channel_invite", [
                 this.searchStr,
@@ -113,8 +117,16 @@ export class ChannelInvitation extends Component {
             ]),
         );
         if (!results) {
+            endFetch({ superseded: true });
             return;
         }
+        endFetch({
+            thread: this.props.thread?.localId,
+            search: this.searchStr,
+            partners: results.partner_ids.length,
+            count: results.count,
+            selectableEmail: Boolean(results.selectable_email),
+        });
         this.store.insert(results.store_data);
         const selectablePartners = results.partner_ids.map((id) =>
             this.store["res.partner"].get(id),
@@ -200,10 +212,17 @@ export class ChannelInvitation extends Component {
             notification = _t("Invitation link copy failed (Permission denied?)!");
             type = "danger";
         }
+        log.logic("onClickCopy", () => ({ thread: this.props.thread.localId, type }));
         this.notification.add(notification, { type });
     }
 
     async onClickInvite() {
+        log.logic("onClickInvite", () => ({
+            thread: this.props.thread.localId,
+            channel_type: this.props.thread.channel_type,
+            partners: this.selectedPartners.length,
+            emails: this.state.selectedEmails.length,
+        }));
         if (this.props.thread.channel_type === "chat") {
             const partnerIds = this.selectedPartners.map((partner) => partner.id);
             if (this.props.thread.correspondent?.partner_id) {

@@ -56,6 +56,9 @@ export class ChatHub extends Component {
                 this.chatHub.folded.length &&
                 this.store.channels?.status === "not_fetched"
             ) {
+                log.logic("folded windows trigger channels fetch", () => ({
+                    folded: this.chatHub.folded.length,
+                }));
                 this.store.channels.fetch();
             }
         });
@@ -131,6 +134,7 @@ export class ChatHub extends Component {
      * @param {number} position.left
      */
     onDrop({ top, left }) {
+        log.logic("onDrop", () => ({ top, left }));
         this.position.bottom = "unset";
         this.position.right = "unset";
         this.position.top = `${top}px`;
@@ -184,6 +188,10 @@ export class ChatHub extends Component {
     }
 
     expand() {
+        log.logic("expand", () => ({
+            opened: this.chatHub.opened.length,
+            folded: this.chatHub.folded.length,
+        }));
         browser.localStorage.removeItem(CHAT_HUB_COMPACT_LS);
         this.chatHub._recomputeCompact++;
         this.more.isOpen = this.chatHub.folded.length > this.chatHub.maxFolded;

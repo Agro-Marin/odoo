@@ -2,8 +2,11 @@
 /** @odoo-module native */
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
 import { debounce } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.store");
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const storeServicePatch = {
     setup() {
@@ -28,6 +31,11 @@ const storeServicePatch = {
      * @returns {Promise<import("models").Thread>}
      */
     async createGroupChat({ default_display_mode, partners_to, name }) {
+        log.logic("createGroupChat", () => ({
+            default_display_mode,
+            partners: partners_to?.length,
+            named: Boolean(name),
+        }));
         const { channel } = await this.fetchStoreData(
             "/discuss/create_group",
             { default_display_mode, partners_to, name },
@@ -38,6 +46,7 @@ const storeServicePatch = {
     },
     /** @param {number} channelId */
     async fetchChannel(channelId) {
+        log.pipeline("fetchChannel", () => ({ channelId }));
         await this.fetchStoreData("discuss.channel", [channelId], {
             merge: (queuedIds, [id]) =>
                 queuedIds.includes(id) ? queuedIds : [...queuedIds, id],
@@ -67,6 +76,7 @@ const storeServicePatch = {
     /** @param {number[]} partnerIds */
     async startChat(partnerIds) {
         const partners_to = [...new Set([this.self.id, ...partnerIds])];
+        log.logic("startChat", () => ({ partners: partners_to.length }));
         if (partners_to.length === 1) {
             const chat = await this.joinChat(partners_to[0], true);
             chat.open({ focus: true, bypassCompact: true });

@@ -3,12 +3,15 @@
 import { useDiscussSystray } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useCommand } from "@web/ui/commands";
+
+const log = makeLogger("mail.activity");
 export class ActivityMenu extends Component {
     static components = { Dropdown };
     static props = [];
@@ -37,6 +40,7 @@ export class ActivityMenu extends Component {
     }
 
     onBeforeOpen() {
+        log.pipeline("onBeforeOpen fetches systray activities");
         this.store.fetchStoreData("systray_get_activities");
     }
 
@@ -59,6 +63,12 @@ export class ActivityMenu extends Component {
      * @param {boolean} [newWindow]
      */
     openActivityGroup(group, filter = "all", newWindow) {
+        log.logic("openActivityGroup", () => ({
+            model: group.model,
+            filter,
+            newWindow,
+            activities: group.activity_ids?.length,
+        }));
         this.dropdown.close();
         const context = {
             force_search_count: 1,
@@ -123,6 +133,7 @@ export class ActivityMenu extends Component {
 
     /** @param {boolean} [newWindow] */
     openMyActivities(newWindow) {
+        log.logic("openMyActivities", () => ({ newWindow }));
         this.dropdown.close();
         this.action.doAction("mail.mail_activity_action_my", {
             newWindow,

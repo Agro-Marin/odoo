@@ -3,8 +3,11 @@
 import { useHover } from "@mail/utils/common/hooks";
 import { Component } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.discuss");
 /**
  * @typedef {Object} Props
  * @extends {Component<Props, import("@web/env").OdooEnv>}
@@ -62,6 +65,9 @@ export class DiscussSearch extends Component {
     }
 
     onClickNewMeeting() {
+        log.logic("onClickNewMeeting", () => ({
+            supported: Boolean(this.store.startMeeting),
+        }));
         this.store.startMeeting?.();
         if (this.env.inMessagingMenu) {
             this.env.inMessagingMenu.dropdown.close();

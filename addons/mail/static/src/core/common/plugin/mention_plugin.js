@@ -4,6 +4,9 @@ import { Plugin } from "@html_editor/plugin";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { generateThreadMentionElement } from "@mail/utils/common/format";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.composer.mention_plugin");
 
 export class MentionPlugin extends Plugin {
     static id = "mention";
@@ -30,6 +33,7 @@ export class MentionPlugin extends Plugin {
         super.setup();
         /** @type {import("models").Store} */
         this.store = this.services["mail.store"];
+        log.lifecycle("setup");
     }
 
     /**
@@ -110,6 +114,13 @@ export class MentionPlugin extends Plugin {
             )
                 .filter(({ isValid }) => isValid)
                 .map(({ el }) => el);
+            if (mentionLinks.length) {
+                log.pipeline("updateMentionLinks", () => ({
+                    selector,
+                    links: mentionLinks.length,
+                    valid: validMentionLinks.length,
+                }));
+            }
             this.wrapValidMentionLinks(validMentionLinks);
             validMentionsHandler?.(validMentionLinks);
         }
@@ -119,6 +130,9 @@ export class MentionPlugin extends Plugin {
     wrapValidMentionLinks(validMentionLinks) {
         for (const el of validMentionLinks) {
             if (el.parentElement === this.editable) {
+                log.logic("wrap bare mention link in base container", () => ({
+                    href: el.getAttribute("href"),
+                }));
                 const baseContainer =
                     this.dependencies.baseContainer.createBaseContainer();
                 baseContainer.appendChild(el.cloneNode(true));

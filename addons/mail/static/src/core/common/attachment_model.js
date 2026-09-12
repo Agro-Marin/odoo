@@ -4,9 +4,12 @@ import { fields, Record } from "@mail/core/common/record";
 import { assignDefined } from "@mail/utils/common/misc";
 import { generatePdfThumbnail } from "@mail/utils/common/pdf_thumbnail";
 import { FileModelMixin } from "@web/components/file_viewer";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { imageUrl, url } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.attachment");
 export class Attachment extends FileModelMixin(Record) {
     static _name = "ir.attachment";
     static id = "id";
@@ -105,6 +108,11 @@ export class Attachment extends FileModelMixin(Record) {
     }
 
     async remove() {
+        log.logic("remove", () => ({
+            id: this.id,
+            persisted: this.id > 0,
+            message: this.message?.id,
+        }));
         if (this.id > 0) {
             await rpc(
                 "/mail/attachment/delete",
@@ -128,6 +136,7 @@ export class Attachment extends FileModelMixin(Record) {
                 assignDefined({}, { access_token: this.ownership_token }),
             ),
         );
+        log.logic("setPdfThumbnail", () => ({ id: this.id, isPdfValid }));
         if (isPdfValid) {
             rpc(
                 `/mail/attachment/update_thumbnail`,

@@ -104,6 +104,7 @@ export class SuggestionService {
             /** @type {Promise<any> & {abort?: () => void}} */
             const req = this.orm.silent.call(model, method, args, kwargs);
             const onAbort = () => {
+                log.logic("makeOrmCall aborted", () => ({ model, method }));
                 try {
                     req.abort();
                 } catch (e) {
@@ -128,6 +129,7 @@ export class SuggestionService {
         if (thread?.isChannelKind) {
             kwargs.channel_id = Number(thread.id);
         }
+        const endFetch = log.perf("fetchPartnersRoles");
         const data = await this.makeOrmCall(
             "res.partner",
             thread?.isChannelKind
@@ -137,6 +139,7 @@ export class SuggestionService {
             kwargs,
             { abortSignal },
         );
+        endFetch({ term, models: Object.keys(data || {}) });
         this.store.insert(data);
     }
 
@@ -146,6 +149,7 @@ export class SuggestionService {
      * @param {AbortSignal} [options.abortSignal]
      */
     async fetchThreads(term, { abortSignal } = {}) {
+        const endFetch = log.perf("fetchThreads");
         const data = await this.makeOrmCall(
             "discuss.channel",
             "get_mention_suggestions",
@@ -153,6 +157,7 @@ export class SuggestionService {
             { search: term },
             { abortSignal },
         );
+        endFetch({ term, models: Object.keys(data || {}) });
         this.store.insert(data);
     }
 

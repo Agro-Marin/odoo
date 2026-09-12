@@ -3,8 +3,11 @@
 import { parseVersion } from "@mail/utils/common/misc";
 import { markRaw, markup, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("mail.rtc.ptt");
 const INITIAL_RELEASE_TIMEOUT = 750;
 const COMMON_RELEASE_TIMEOUT = 200;
 const EXT_ID = "mdiacebcbkmjjlpclnbcgiepgifcnpmg";
@@ -54,11 +57,13 @@ export class PttExtensionService {
     }
 
     subscribe() {
+        log.lifecycle("subscribe", () => ({ isEnabled: this.isEnabled }));
         this.voiceActivated = false;
         this.sendMessage("subscribe");
     }
 
     unsubscribe() {
+        log.lifecycle("unsubscribe", () => ({ isEnabled: this.isEnabled }));
         this.voiceActivated = false;
         this.sendMessage("unsubscribe");
     }
@@ -93,6 +98,7 @@ export class PttExtensionService {
         ) {
             return;
         }
+        log.pipeline("extension message", () => ({ type: data.type }));
         switch (data.type) {
             case "push-to-talk-pressed":
                 this.onPushToTalkPressed(rtc);

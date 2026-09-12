@@ -2,11 +2,14 @@
 /** @odoo-module native */
 import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { WebClient } from "@web/webclient/webclient";
+
+const log = makeLogger("mail.push");
 const USER_DEVICES_MODEL = "mail.push.device";
 
 patch(WebClient.prototype, {
@@ -29,6 +32,9 @@ patch(WebClient.prototype, {
         if (browser.navigator.permissions) {
             let notificationPerm;
             const onPermissionChange = () => {
+                log.logic("notification permission change", () => ({
+                    permission: browser.Notification?.permission,
+                }));
                 if (this._canSendNativeNotification) {
                     this._subscribePush();
                 } else {
@@ -65,12 +71,18 @@ patch(WebClient.prototype, {
         await this.serviceWorker.registrationSettled;
         const pushManager = await this.pushManager();
         if (!pushManager) {
+            log.logic("subscribePush: no push manager");
             return;
         }
         let subscription = await pushManager.getSubscription();
         const previousEndpoint = browser.localStorage.getItem(
             `${USER_DEVICES_MODEL}_endpoint`,
         );
+        log.pipeline("subscribePush", () => ({
+            numberTry,
+            hasSubscription: Boolean(subscription),
+            hasPreviousEndpoint: Boolean(previousEndpoint),
+        }));
         if (!subscription) {
             try {
                 subscription = await pushManager.subscribe({
@@ -78,6 +90,9 @@ patch(WebClient.prototype, {
                     applicationServerKey: await this._getApplicationServerKey(),
                 });
             } catch (error) {
+                log.logic("pushManager.subscribe failed", () => ({
+                    message: error?.message,
+                }));
                 console.warn(error);
                 this.notification.add(error.message, {
                     title: _t("Failed to enable push notifications"),
@@ -112,7 +127,14 @@ patch(WebClient.prototype, {
                 `${USER_DEVICES_MODEL}_endpoint`,
                 subscription.endpoint,
             );
+            log.lifecycle("push device registered", () => ({
+                endpointChanged: Boolean(kwargs.previous_endpoint),
+            }));
         } catch (e) {
+            log.logic("register_devices failed", () => ({
+                name: e.data?.name,
+                numberTry,
+            }));
             const invalidVapidErrorClass =
                 "odoo.addons.mail.tools.jwt.InvalidVapidError";
             const warningMessage =
@@ -146,6 +168,7 @@ patch(WebClient.prototype, {
         if (!subscription) {
             return;
         }
+        log.lifecycle("unsubscribePush");
         await this.orm.call(USER_DEVICES_MODEL, "unregister_devices", [], {
             endpoint: subscription.endpoint,
         });

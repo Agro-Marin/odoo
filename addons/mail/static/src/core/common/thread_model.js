@@ -61,8 +61,14 @@ export class Thread extends Record {
         const promiseKey = `${baseKey},${missingFieldNames.join(",")}`;
         const pending = store._threadFetchPromises.get(promiseKey);
         if (pending) {
+            log.logic("getOrFetch dedup", () => ({ promiseKey }));
             return pending;
         }
+        log.pipeline("getOrFetch", () => ({
+            baseKey,
+            known: Boolean(thread),
+            missing: missingFieldNames,
+        }));
         const promise = (async () => {
             try {
                 await store.fetchStoreData("mixin.mail.thread", {
@@ -91,6 +97,10 @@ export class Thread extends Record {
                 for (const fieldName of stillMissing) {
                     store._threadFetchAttempted.add(`${baseKey},${fieldName}`);
                 }
+                log.logic("getOrFetch fields absent from response", () => ({
+                    baseKey,
+                    stillMissing,
+                }));
                 console.warn(
                     `Thread.getOrFetch: fields [${stillMissing.join(", ")}] of thread ${baseKey} were requested but absent from the server response; they will not be requested again.`,
                 );
@@ -574,6 +584,13 @@ export class Thread extends Record {
             (epoch === "older" && !this.loadOlder) ||
             (epoch === "newer" && !this.loadNewer)
         ) {
+            log.logic("fetchMoreMessages skipped", () => ({
+                thread: this.localId,
+                epoch,
+                status: this.status,
+                loadOlder: this.loadOlder,
+                loadNewer: this.loadNewer,
+            }));
             return;
         }
         const before = epoch === "older" ? this.oldestPersistentMessage?.id : undefined;
@@ -590,12 +607,25 @@ export class Thread extends Record {
             (before !== undefined &&
                 !this.messages.some((message) => message.id === before))
         ) {
+            log.logic("fetchMoreMessages anchor gone", () => ({
+                thread: this.localId,
+                epoch,
+                after,
+                before,
+            }));
             return;
         }
         const alreadyKnownMessages = new Set(this.messages.map(({ id }) => id));
         const messagesToAdd = fetched.filter(
             (message) => !alreadyKnownMessages.has(message.id),
         );
+        log.pipeline("fetchMoreMessages", () => ({
+            thread: this.localId,
+            epoch,
+            fetched: fetched.length,
+            added: messagesToAdd.length,
+            exhausted: fetched.length < this.store.FETCH_LIMIT,
+        }));
         if (epoch === "older") {
             this.messages.unshift(...messagesToAdd);
         } else {
@@ -636,6 +666,12 @@ export class Thread extends Record {
             this.status === "loading" ||
             (this.isLoaded && this.busKeepsMessagesFresh)
         ) {
+            log.logic("fetchNewMessages skipped", () => ({
+                thread: this.localId,
+                status: this.status,
+                isLoaded: this.isLoaded,
+                busKeepsMessagesFresh: this.busKeepsMessagesFresh,
+            }));
             return;
         }
         const after = this.isLoaded ? this.newestPersistentMessage?.id : undefined;
@@ -653,6 +689,10 @@ export class Thread extends Record {
                 (message) => message.id === after,
             );
             if (afterIndex === -1) {
+                log.logic("fetchNewMessages anchor gone", () => ({
+                    thread: this.localId,
+                    after,
+                }));
                 return;
             } else {
                 startIndex = afterIndex + 1;
@@ -662,6 +702,13 @@ export class Thread extends Record {
         const filtered = fetched.filter(
             (message) => !alreadyKnownMessages.has(message.id),
         );
+        log.pipeline("fetchNewMessages", () => ({
+            thread: this.localId,
+            after,
+            fetched: fetched.length,
+            added: filtered.length,
+            startIndex,
+        }));
         this.messages.splice(startIndex, 0, ...filtered);
         if (
             after === undefined &&
@@ -718,14 +765,26 @@ export class Thread extends Record {
     /** @param {number | string} [messageId] */
     async _loadAround(messageId) {
         if (this.isLoaded && this.messages.some(({ id }) => id === messageId)) {
+            log.logic("loadAround already loaded", () => ({
+                thread: this.localId,
+                messageId,
+            }));
             return;
         }
+        log.pipeline("loadAround", () => ({
+            thread: this.localId,
+            messageId,
+            phantom: this.messages.length,
+        }));
         this.isLoaded = false;
         this.scrollTop = undefined;
+        const endLoadAround = log.perf("loadAround");
         try {
             this.phantomMessages = this.messages;
             this.messages = await this.fetchMessages({ around: messageId });
+            endLoadAround({ thread: this.localId, messages: this.messages.length });
         } catch {
+            endLoadAround({ thread: this.localId, failed: true });
             this.isLoaded = true;
             return;
         } finally {
@@ -771,6 +830,12 @@ export class Thread extends Record {
             }
         }
         this.message_needaction_counter = 0;
+        log.pipeline("markAllMessagesAsRead", () => ({
+            thread: this.localId,
+            messages: messages.length,
+            inboxApplied,
+        }));
+        const endMarkAll = log.perf("markAllMessagesAsRead");
         try {
             await this.store.env.services.orm.silent.call(
                 "mail.message",
@@ -782,7 +847,13 @@ export class Thread extends Record {
                     ],
                 ],
             );
+            endMarkAll({ thread: this.localId });
         } catch (e) {
+            endMarkAll({ thread: this.localId, failed: true });
+            log.logic("markAllMessagesAsRead rollback", () => ({
+                thread: this.localId,
+                messages: messages.length,
+            }));
             for (const message of messages) {
                 message.needaction = true;
                 if (inbox) {
@@ -804,6 +875,9 @@ export class Thread extends Record {
             loaded: this.isLoaded,
         }));
         if (!newestPersistentMessage && !this.isLoaded) {
+            log.logic("markAsRead deferred until loaded", () => ({
+                thread: this.localId,
+            }));
             this.isLoadedDeferred
                 .then(() => new Promise((resolve) => browser.setTimeout(resolve)))
                 .then(() => this.markAsRead(options));
@@ -863,9 +937,19 @@ export class Thread extends Record {
     } = {}) {
         const thread = await this.store.Thread.getOrFetch(this);
         if (!thread) {
+            log.logic("openChatWindow thread not fetched", () => ({
+                thread: this.localId,
+            }));
             return;
         }
         await this.store.chatHub.initPromise;
+        log.logic("openChatWindow", () => ({
+            thread: this.localId,
+            focus,
+            fromMessagingMenu,
+            bypassCompact,
+            swapOpened,
+        }));
         const cw = this.store.ChatWindow.insert(
             assignDefined({ thread: this }, { fromMessagingMenu, bypassCompact }),
         );
@@ -877,6 +961,11 @@ export class Thread extends Record {
     async closeChatWindow(options = {}) {
         await this.store.chatHub.initPromise;
         const chatWindow = this.store.ChatWindow.get({ thread: this });
+        log.logic("closeChatWindow", () => ({
+            thread: this.localId,
+            found: Boolean(chatWindow),
+            options,
+        }));
         await chatWindow?.close({ notifyState: false, ...options });
     }
 
@@ -942,12 +1031,18 @@ export class Thread extends Record {
             params.post_data.parent_id = parentId;
         }
         const tmpMsg = await this.makeOptimisticPendingMessage(tmpId, body, postData);
+        log.pipeline("post optimistic", () => ({
+            thread: this.localId,
+            tmpId,
+            optimistic: Boolean(tmpMsg),
+        }));
         if (tmpMsg) {
             this.messages.push(tmpMsg);
             this.onNewSelfMessage(tmpMsg);
         }
         const data = await this.store.doMessagePost(params, tmpMsg);
         if (!data) {
+            log.logic("post no response", () => ({ thread: this.localId, tmpId }));
             return;
         }
         return this.processMessagePostResponse(data, tmpMsg);
@@ -962,6 +1057,12 @@ export class Thread extends Record {
         this.store.insert(data.store_data);
         /** @type {import("models").Message} */
         const message = this.store["mail.message"].get(data.message_id);
+        log.pipeline("processMessagePostResponse", () => ({
+            thread: this.localId,
+            messageId: data.message_id,
+            replacedTmp: Boolean(tmpMsg),
+            hasLink: message.hasLink,
+        }));
         this.addOrReplaceMessage(message, tmpMsg);
         this.onNewSelfMessage(message);
         tmpMsg?.delete();
@@ -973,6 +1074,10 @@ export class Thread extends Record {
 
     /** @param {number} index */
     async setMainAttachmentFromIndex(index) {
+        log.logic("setMainAttachmentFromIndex", () => ({
+            thread: this.localId,
+            index,
+        }));
         this.message_main_attachment_id = this.attachmentsInWebClientView[index];
         await this.store.env.services.orm.call(
             "ir.attachment",

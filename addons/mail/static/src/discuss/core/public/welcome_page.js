@@ -3,8 +3,11 @@
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
 import { Component, useState, useSubEnv } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.discuss.public");
 export class WelcomePage extends Component {
     static props = ["proceed?"];
     static template = "mail.WelcomePage";
@@ -31,6 +34,11 @@ export class WelcomePage extends Component {
     }
 
     async joinChannel() {
+        log.logic("joinChannel", () => ({
+            guest: !this.store.self_partner,
+            hasMicrophone: this.state.hasMicrophone,
+            hasCamera: this.state.hasCamera,
+        }));
         if (!this.store.self_partner) {
             await this.store.self_guest?.updateGuestName(this.state.userName.trim());
         }

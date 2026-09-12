@@ -2,12 +2,15 @@
 /** @odoo-module native */
 import { hasHardwareAcceleration } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { debounce } from "@web/core/utils/timing";
 
 import { fields, Record } from "./record.js";
+
+const log = makeLogger("mail.settings");
 export const MESSAGE_SOUND = "mail.user_setting.message_sound";
 export const USE_BLUR_LS = "mail_user_setting_use_blur";
 
@@ -44,9 +47,17 @@ export class Settings extends Record {
         this.hasCanvasFilterSupport =
             Boolean(canvasContext) && typeof canvasContext.filter !== "undefined";
         this._loadLocalSettings();
+        log.lifecycle("setup", () => ({
+            id: this.id,
+            hasCanvasFilterSupport: this.hasCanvasFilterSupport,
+        }));
     }
 
     delete() {
+        log.lifecycle("delete", () => ({
+            id: this.id,
+            pendingVolumeSaves: this.volumeSettingsTimeouts.size,
+        }));
         browser.removeEventListener("storage", this.onStorage);
         for (const timeoutId of this.volumeSettingsTimeouts.values()) {
             browser.clearTimeout(timeoutId);
@@ -212,6 +223,7 @@ export class Settings extends Record {
 
     /** @param {boolean} newValue */
     setUseBlur(newValue) {
+        log.logic("setUseBlur", () => ({ newValue }));
         if (newValue) {
             browser.localStorage.setItem(USE_BLUR_LS, "true");
         } else {
@@ -238,6 +250,10 @@ export class Settings extends Record {
      * @param {import("models").Thread} thread
      */
     async setCustomNotifications(custom_notifications, thread = undefined) {
+        log.logic("setCustomNotifications", () => ({
+            custom_notifications,
+            thread: thread?.localId,
+        }));
         return rpc("/discuss/settings/custom_notifications", {
             custom_notifications:
                 !thread && custom_notifications === "mentions"
@@ -252,6 +268,7 @@ export class Settings extends Record {
      * @param {import("models").Thread} thread
      */
     async setMuteDuration(minutes, thread = undefined) {
+        log.logic("setMuteDuration", () => ({ minutes, thread: thread?.localId }));
         return rpc("/discuss/settings/mute", {
             minutes,
             channel_id: thread?.id,
@@ -260,6 +277,7 @@ export class Settings extends Record {
 
     /** @param {String} audioInputDeviceId */
     async setAudioInputDevice(audioInputDeviceId) {
+        log.logic("setAudioInputDevice", () => ({ audioInputDeviceId }));
         this.audioInputDeviceId = audioInputDeviceId;
         browser.localStorage.setItem(
             "mail_user_setting_audio_input_device_id",
@@ -268,6 +286,7 @@ export class Settings extends Record {
     }
     /** @param {String} audioOutputDeviceId */
     async setAudioOutputDevice(audioOutputDeviceId) {
+        log.logic("setAudioOutputDevice", () => ({ audioOutputDeviceId }));
         this.audioOutputDeviceId = audioOutputDeviceId;
         browser.localStorage.setItem(
             "mail_user_setting_audio_output_device_id",
@@ -276,6 +295,7 @@ export class Settings extends Record {
     }
     /** @param {String} cameraInputDeviceId */
     async setCameraInputDevice(cameraInputDeviceId) {
+        log.logic("setCameraInputDevice", () => ({ cameraInputDeviceId }));
         this.cameraFacingMode = undefined;
         this.cameraInputDeviceId = cameraInputDeviceId;
         browser.localStorage.setItem(
@@ -285,6 +305,7 @@ export class Settings extends Record {
     }
     /** @param {string} value */
     setDelayValue(value) {
+        log.logic("setDelayValue", () => ({ value }));
         this.voice_active_duration = parseInt(value, 10);
         this._saveSettings();
     }
@@ -297,6 +318,7 @@ export class Settings extends Record {
         if (!nonElligibleKeys.has(ev.key)) {
             pushToTalkKey += `.${ev.key === " " ? "Space" : ev.key}`;
         }
+        log.logic("setPushToTalkKey", () => ({ pushToTalkKey }));
         this.push_to_talk_key = pushToTalkKey;
         this._saveSettings();
     }
@@ -390,6 +412,7 @@ export class Settings extends Record {
     }
     /** @param {boolean} value */
     setPushToTalk(value) {
+        log.logic("setPushToTalk", () => ({ value }));
         this.use_push_to_talk = value;
         this._saveSettings();
     }
@@ -425,9 +448,18 @@ export class Settings extends Record {
         this.useCallAutoFocus = !browser.localStorage.getItem(
             "mail_user_setting_disable_call_auto_focus",
         );
+        log.lifecycle("localSettings loaded", () => ({
+            voiceActivationThreshold: this.voiceActivationThreshold,
+            audioInputDeviceId: this.audioInputDeviceId,
+            audioOutputDeviceId: this.audioOutputDeviceId,
+            cameraInputDeviceId: this.cameraInputDeviceId,
+            showOnlyVideo: this.showOnlyVideo,
+            useCallAutoFocus: this.useCallAutoFocus,
+        }));
     }
     async _onSaveGlobalSettingsTimeout() {
         this.globalSettingsTimeout = undefined;
+        const endSave = log.perf("saveGlobalSettings");
         try {
             await this.store.env.services.orm.call(
                 "res.users.settings",
@@ -441,7 +473,9 @@ export class Settings extends Record {
                     },
                 },
             );
+            endSave();
         } catch {
+            endSave({ failed: true });
             this.store.env.services.notification.add(
                 _t("Failed to save your voice settings, please try again."),
                 { type: "warning" },
@@ -457,6 +491,7 @@ export class Settings extends Record {
      */
     async _onSaveVolumeSettingTimeout({ key, partnerId, guestId, volume }) {
         this.volumeSettingsTimeouts.delete(key);
+        log.logic("saveVolumeSetting", () => ({ key, partnerId, guestId, volume }));
         try {
             await this.store.env.services.orm.call(
                 "res.users.settings",
@@ -465,6 +500,7 @@ export class Settings extends Record {
                 { guest_id: guestId },
             );
         } catch {
+            log.logic("saveVolumeSetting failed", () => ({ key }));
             this.store.env.services.notification.add(
                 _t("Failed to save the volume setting, please try again."),
                 { type: "warning" },
@@ -473,6 +509,7 @@ export class Settings extends Record {
     }
     /** @param {StorageEvent} ev */
     onStorage(ev) {
+        log.logic("onStorage", () => ({ key: ev.key, newValue: ev.newValue }));
         if (ev.key === MESSAGE_SOUND) {
             this._recomputeMessageSound++;
         }
@@ -491,6 +528,7 @@ export class Settings extends Record {
     }
     async _saveSettings() {
         if (!this.store.self_partner) {
+            log.logic("_saveSettings skipped: no self partner");
             return;
         }
         browser.clearTimeout(this.globalSettingsTimeout);

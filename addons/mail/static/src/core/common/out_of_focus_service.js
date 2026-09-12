@@ -44,6 +44,7 @@ export class OutOfFocusService {
             modelsHandleByPush.includes(message.thread?.model) &&
             (await this.hasServiceWorkInstalledAndPushSubscriptionActive())
         ) {
+            log.logic("notify delegated to push", () => ({ message: message.id }));
             return;
         }
         const author = message.author;
@@ -97,6 +98,9 @@ export class OutOfFocusService {
             native: this.canSendNativeNotification,
         }));
         if (!this.canSendNativeNotification || !(await this.multiTab.isOnMainTab())) {
+            log.logic("sendNotification sound only", () => ({
+                native: this.canSendNativeNotification,
+            }));
             if (sound) {
                 this._playSound();
             }
@@ -106,6 +110,7 @@ export class OutOfFocusService {
             this.sendNativeNotification(title, message, icon, { sound });
         } catch (error) {
             if (String(error?.message ?? "").includes("ServiceWorkerRegistration")) {
+                log.logic("native notification fell back to odoo notification");
                 this.sendOdooNotification(message, { sound, title, type });
             } else {
                 throw error;
@@ -154,6 +159,7 @@ export class OutOfFocusService {
             this.store.settings.messageSound &&
             (await this.multiTab.isOnMainTab())
         ) {
+            log.logic("playSound new-message");
             this.soundEffectService.play("new-message");
         }
     }

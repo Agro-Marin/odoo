@@ -1,7 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { AND, fields, Record } from "@mail/core/common/record";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
+
+const log = makeLogger("mail.message.reaction");
 export class MessageReactions extends Record {
     static id = AND("message", "content");
 
@@ -22,6 +25,10 @@ export class MessageReactions extends Record {
     sequence;
 
     async remove() {
+        log.logic("remove", () => ({
+            messageId: this.message?.id,
+            content: this.content,
+        }));
         this.store.insert(
             await rpc(
                 "/mail/message/reaction",

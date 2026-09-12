@@ -1,7 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { LinkNavigation } from "@mail/core/common/link_navigation_service";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.link_navigation");
 
 patch(LinkNavigation.prototype, {
     /**
@@ -15,6 +18,7 @@ patch(LinkNavigation.prototype, {
         const id = Number(target.dataset?.oeId);
         const isLinkHandledBySuper = super.handleClickOnLink(...arguments);
         if (!isLinkHandledBySuper && target.tagName === "A" && id && model) {
+            log.logic("record link", () => ({ model, id, thread: thread?.localId }));
             ev.preventDefault();
             Promise.resolve(
                 this.env.services.action.doAction({

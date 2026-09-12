@@ -107,6 +107,11 @@ export class Chatter extends Component {
      * @param {number|false} threadId
      */
     changeThread(threadModel, threadId) {
+        log.lifecycle("changeThread", () => ({
+            from: this.state.thread?.localId,
+            threadModel,
+            threadId,
+        }));
         this.state.thread = this.store.Thread.insert({
             model: threadModel,
             id: threadId,
@@ -148,9 +153,15 @@ export class Chatter extends Component {
      */
     async load(thread, requestList) {
         if (!thread.id || !this.state.thread?.eq(thread)) {
+            log.logic("load skipped", () => ({
+                thread: thread.localId,
+                current: this.state.thread?.localId,
+            }));
             return;
         }
+        const endLoad = log.perf("load");
         await thread.fetchThreadData(requestList);
+        endLoad({ thread: thread.localId, requestList });
     }
 
     /** @param {boolean} [isDiscard] */
@@ -169,6 +180,7 @@ export class Chatter extends Component {
     }
 
     onPostCallback() {
+        log.logic("onPostCallback", () => ({ thread: this.state.thread?.localId }));
         this.state.jumpThreadPresent++;
         this.load(this.state.thread, this.afterPostRequestList);
     }

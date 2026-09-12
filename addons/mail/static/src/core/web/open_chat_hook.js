@@ -1,6 +1,9 @@
 // @ts-check
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.store");
 export const helpers = {
     SUPPORTED_M2X_AVATAR_MODELS: ["res.users", "res.partner"],
     /**
@@ -29,6 +32,7 @@ export function useOpenChat(resModel) {
         );
     }
     return /** @param {number} id */ async (id) => {
+        log.logic("useOpenChat", () => ({ resModel, id }));
         store.openChat(helpers.prepareOpenChatParams(resModel, id));
     };
 }

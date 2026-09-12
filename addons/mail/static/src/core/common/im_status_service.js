@@ -52,6 +52,7 @@ export class ImStatusService {
     startAwayTimeout() {
         clearTimeout(this.becomeAwayTimeout);
         const awayTime = AWAY_DELAY - this.presence.getInactivityPeriod();
+        log.logic("startAwayTimeout", () => ({ awayTime }));
         if (awayTime > 0) {
             this.becomeAwayTimeout = browser.setTimeout(
                 () => this.updateBusPresence(),
@@ -79,6 +80,10 @@ export class ImStatusService {
         const partner = store["res.partner"].get(partner_id);
         const guest = store["mail.guest"].get(guest_id);
         if (!partner && !guest) {
+            log.logic("onImStatusUpdated for unknown persona", () => ({
+                partner_id,
+                guest_id,
+            }));
             return;
         }
         if (debounce) {
@@ -94,6 +99,10 @@ export class ImStatusService {
                 (presence_status === "away" && isOnline) ||
                 presence_status === "offline"
             ) {
+                log.logic("self presence disagrees with server", () => ({
+                    presence_status,
+                    isOnline,
+                }));
                 this.updateBusPresence();
             }
         }

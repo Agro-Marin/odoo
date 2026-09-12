@@ -110,6 +110,10 @@ export class DiscussCoreCommon {
      * @param {{id: number}} metadata
      */
     async _handleNotificationChannelDelete(thread, metadata) {
+        log.logic("channel delete", () => ({
+            thread: thread.localId,
+            messages: thread.messages.length,
+        }));
         await thread.closeChatWindow({ force: true });
         thread.messages.splice(0, thread.messages.length);
         thread.delete();
@@ -131,14 +135,30 @@ export class DiscussCoreCommon {
             id: channelId,
         });
         if (!channel?.exists()) {
+            log.logic("new_message for unknown channel", () => ({ channelId }));
             return;
         }
         const message = this.store["mail.message"].get(
             message_id ?? data["mail.message"]?.[0],
         );
         if (!message) {
+            log.logic("new_message without message record", () => ({
+                channelId,
+                message_id,
+            }));
             return;
         }
+        log.pipeline("new_message", () => ({
+            channel: channel.localId,
+            messageId: message.id,
+            known: message.in(channel.messages),
+            loadNewer: channel.loadNewer,
+            status: channel.status,
+            selfAuthored: message.isSelfAuthored,
+            displayed: channel.isDisplayed,
+            temporary_id,
+            silent,
+        }));
         if (message.notIn(channel.messages)) {
             if (!channel.loadNewer) {
                 channel.addOrReplaceMessage(
@@ -190,6 +210,10 @@ export class DiscussCoreCommon {
             channel.newestPersistentMessage?.eq(channel.newestMessage) &&
             !channel.markedAsUnread
         ) {
+            log.logic("new_message auto mark as read", () => ({
+                channel: channel.localId,
+                messageId: message.id,
+            }));
             channel.markAsRead();
         }
         this.env.bus.trigger("discuss.channel/new_message", {

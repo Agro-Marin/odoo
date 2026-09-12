@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { App } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
+
+const log = makeLogger("mail.popout");
 const DEFAULT_ID = Symbol("default");
 
 /** @typedef {{ externalWindow: Window|null, generation: number, hooks: { beforePopout?: Function, afterPopoutClosed?: Function }, app?: App }} Popout */
@@ -20,6 +23,7 @@ class MailPopout {
     }
 
     closeAll() {
+        log.lifecycle("closeAll", () => ({ popouts: this.popouts.size }));
         for (const popout of this.popouts.values()) {
             const externalWindow = popout.externalWindow;
             if (externalWindow && !externalWindow.closed) {
@@ -38,6 +42,12 @@ class MailPopout {
         if (!popout) {
             return;
         }
+        log.lifecycle("reset", () => ({
+            id: String(id),
+            useAlternativeAssets,
+            hadApp: Boolean(popout.app),
+            hasWindow: Boolean(popout.externalWindow?.document),
+        }));
         const doc = popout.externalWindow?.document;
         if (doc) {
             doc.head.textContent = "";
@@ -69,6 +79,10 @@ class MailPopout {
                 return;
             }
             if (popout.externalWindow?.closed) {
+                log.lifecycle("external window closed", () => ({
+                    id: String(id),
+                    generation,
+                }));
                 const hooks = popout.hooks;
                 hooks?.afterPopoutClosed?.();
                 popout.externalWindow = null;
@@ -91,6 +105,12 @@ class MailPopout {
             height ||
             (width ? width / aspectRatio : Math.min(240, browser.innerHeight));
         width = width || height * aspectRatio;
+        log.logic("openPipWindow", () => ({
+            id: String(id),
+            width,
+            height,
+            documentPictureInPicture: Boolean(window.documentPictureInPicture),
+        }));
         const externalWindow = window.documentPictureInPicture
             ? await window.documentPictureInPicture.requestWindow({ width, height })
             : browser.open(
@@ -121,6 +141,11 @@ class MailPopout {
      */
     _mount(id, component, props, env = this.env) {
         const popout = this.popouts.get(id);
+        log.lifecycle("mount", () => ({
+            id: String(id),
+            component: component?.name,
+            generation: popout.generation,
+        }));
         popout.app = new App(component, {
             name: "Popout",
             env,
@@ -180,6 +205,7 @@ class MailPopout {
     popout(id, component, props) {
         const popout = this.popouts.get(id);
         if (!popout.externalWindow || popout.externalWindow.closed) {
+            log.logic("popout opens a new window", () => ({ id: String(id) }));
             popout.hooks?.beforePopout?.();
             this._track(id, browser.open("about:blank", "_blank", "popup=yes"));
         }

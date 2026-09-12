@@ -83,6 +83,7 @@ export class MailCoreCommon {
      */
     _handleNotificationToggleStar(payload, metadata) {
         const { message_ids: messageIds, starred } = payload;
+        log.logic("toggle_star", () => ({ messages: messageIds.length, starred }));
         this.store["mail.message"].insert(messageIds.map((id) => ({ id, starred })));
     }
 }

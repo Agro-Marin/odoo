@@ -3,8 +3,11 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.channel.members");
 export class ChannelMemberList extends Component {
     static components = { ImStatus, ActionPanel };
     static props = ["thread", "openChannelInvitePanel", "className?"];
@@ -59,6 +62,9 @@ export class ChannelMemberList extends Component {
         if (!this.canOpenChatWith(member)) {
             return;
         }
+        log.logic("onClickAvatar opens chat", () => ({
+            partnerId: member.partner_id.id,
+        }));
         this.store.openChat({ partnerId: member.partner_id.id });
     }
 }

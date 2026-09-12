@@ -3,9 +3,12 @@
 import { MessageConfirmDialog } from "@mail/core/common/message_confirm_dialog";
 import { Message } from "@mail/core/common/message_model";
 import { fields } from "@mail/core/common/record";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.message.pin");
 /** @type {Partial<import("models").Message> & ThisType<import("models").Message>} */
 const modelPatch = {
     setup() {
@@ -33,6 +36,10 @@ const modelPatch = {
                 size: "md",
                 title: _t("Pin It"),
                 onConfirm: () => {
+                    log.logic("pin confirmed", () => ({
+                        messageId: this.id,
+                        thread: this.thread.localId,
+                    }));
                     def.resolve(true);
                     this.store.env.services.orm.call(
                         "discuss.channel",
@@ -62,6 +69,10 @@ const modelPatch = {
                 size: "md",
                 title: _t("Unpin Message"),
                 onConfirm: () => {
+                    log.logic("unpin confirmed", () => ({
+                        messageId: this.id,
+                        thread: this.thread.localId,
+                    }));
                     def.resolve(true);
                     this.store.env.services.orm.call(
                         "discuss.channel",

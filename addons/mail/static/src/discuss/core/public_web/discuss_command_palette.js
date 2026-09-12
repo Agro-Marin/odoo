@@ -3,12 +3,15 @@
 import { ImStatus } from "@mail/core/common/im_status";
 import { cleanTerm } from "@mail/utils/common/format";
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 
 import { ChannelInvitation } from "../common/channel_invitation.js";
+
+const log = makeLogger("mail.discuss.palette");
 
 const commandSetupRegistry = registry.category("command_setup");
 const commandProviderRegistry = registry.category("command_provider");
@@ -148,10 +151,12 @@ export class DiscussCommandPalette {
     }
 
     async fetch() {
+        const endFetch = log.perf("palette fetch");
         await Promise.all([
             this.store.channels.fetch(),
             this.store.searchConversations(this.cleanedTerm),
         ]);
+        endFetch({ term: this.cleanedTerm });
     }
 
     /** @param {Set<import("@mail/model/record").Record>} [filtered] */
@@ -322,6 +327,10 @@ commandProviderRegistry.add("find_or_start_conversation", {
         const palette = new DiscussCommandPalette(env, options);
         await palette.fetch();
         palette.addCommands();
+        log.pipeline("provide", () => ({
+            term: palette.cleanedTerm,
+            commands: palette.commands.length,
+        }));
         palette.commands = palette.commands.slice(0, 8);
         if (!palette.store.inPublicPage) {
             palette.commands.push(palette.makeDiscussCommand(NEW_CHANNEL));

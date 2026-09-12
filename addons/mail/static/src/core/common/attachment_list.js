@@ -6,11 +6,14 @@ import { Component } from "@odoo/owl";
 import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 import { useFileViewer } from "@web/components/file_viewer";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { download } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { url } from "@web/core/utils/urls";
 import { ConfirmationDialog } from "@web/ui/dialog";
+
+const log = makeLogger("mail.attachment_list");
 class Actions extends Component {
     static components = { Dropdown, DropdownItem };
     static props = ["actions"];
@@ -62,6 +65,7 @@ export class AttachmentList extends Component {
 
     /** @param {import("models").Attachment} attachment */
     onClickDownload(attachment) {
+        log.logic("onClickDownload", () => ({ attachmentId: attachment.id }));
         download({
             data: {},
             url: attachment.downloadUrl,
@@ -70,6 +74,10 @@ export class AttachmentList extends Component {
 
     /** @param {import("models").Attachment} attachment */
     onClickUnlink(attachment) {
+        log.logic("onClickUnlink", () => ({
+            attachmentId: attachment.id,
+            inComposer: Boolean(this.env.inComposer),
+        }));
         if (this.env.inComposer) {
             return this.props.unlinkAttachment(attachment);
         }
@@ -82,6 +90,10 @@ export class AttachmentList extends Component {
 
     /** @param {import("models").Attachment} attachment */
     onClickAttachment(attachment) {
+        log.logic("onClickAttachment", () => ({
+            attachmentId: attachment.id,
+            siblings: this.props.attachments.length,
+        }));
         this.fileViewer.open(attachment, this.props.attachments);
     }
 

@@ -1,10 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
+
+const log = makeLogger("mail.follower");
 /**
  * @typedef {Object} Props
  * @property {function} close
@@ -79,6 +82,12 @@ export class FollowerSubtypeDialog extends Component {
         const selected = this.state.subtypes.filter((subtype) =>
             this.isSelected(subtype.id),
         );
+        log.logic("onClickApply", () => ({
+            thread: this.props.follower.thread?.localId,
+            partnerId: this.props.follower.partner_id?.id,
+            selected: selected.length,
+            unmanaged: this.unmanagedSubtypes.length,
+        }));
         if (selected.length === 0) {
             await this.props.follower.remove();
         } else {

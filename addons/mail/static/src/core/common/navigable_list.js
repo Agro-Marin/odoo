@@ -12,9 +12,12 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { usePosition } from "@web/core/position/position_hook";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.navigable_list");
 export class NavigableList extends Component {
     static components = { ImStatus };
     static template = "mail.NavigableList";
@@ -131,6 +134,7 @@ export class NavigableList extends Component {
     }
 
     open() {
+        log.lifecycle("open", () => ({ options: this.props.options.length }));
         this.state.open = true;
         this.state.activeIndex = null;
         this.navigate("first");
@@ -139,6 +143,7 @@ export class NavigableList extends Component {
     /** @param {boolean} [force] */
     close(force = false) {
         if (force || this.props.closeOnSelect) {
+            log.lifecycle("close", () => ({ force }));
             this.state.open = false;
             this.state.activeIndex = null;
         }
@@ -158,6 +163,7 @@ export class NavigableList extends Component {
             this.close();
             return;
         }
+        log.logic("selectOption", () => ({ index, label: option.label }));
         this.props.onSelect(ev, option, {
             ...params,
         });

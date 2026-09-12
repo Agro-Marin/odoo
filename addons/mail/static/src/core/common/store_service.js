@@ -223,11 +223,20 @@ export class Store extends BaseStore {
                     endPost({ thread: mutexKey });
                 } catch (err) {
                     endPost({ thread: mutexKey, failed: true });
+                    debugLog.logic("doMessagePost failed", () => ({
+                        mutexKey,
+                        retryOffered: Boolean(tmpMessage),
+                        message: err?.message,
+                    }));
                     if (!tmpMessage) {
                         throw err;
                     }
                     console.warn("Failed to post message, retry offered", err);
                     tmpMessage.postFailRedo = async () => {
+                        debugLog.logic("doMessagePost retry", () => ({
+                            mutexKey,
+                            tmp: tmpMessage.id,
+                        }));
                         tmpMessage.postFailRedo = undefined;
                         const thread = tmpMessage.thread;
                         thread.messages.delete(tmpMessage);
@@ -268,10 +277,20 @@ export class Store extends BaseStore {
                     queuedName === name && queuedRequest._autoResolve,
             );
             if (queued) {
+                debugLog.logic("fetchStoreData merged into queued request", () => ({
+                    name,
+                }));
                 queued[1] = merge(queued[1], params);
                 return queued[2]._resultDef;
             }
         }
+        debugLog.pipeline("fetchStoreData queue", () => ({
+            name,
+            requestData,
+            readonly,
+            silent,
+            queued: this.fetchParams.length + 1,
+        }));
         const dataRequest =
             /** @type {typeof import("./data_response_model").DataResponse} */ (
                 this.Models.DataResponse
@@ -302,9 +321,13 @@ export class Store extends BaseStore {
                     break;
                 } catch (error) {
                     if (!(error instanceof ConnectionLostError)) {
+                        debugLog.logic("initialize failed", () => ({
+                            message: error?.message,
+                        }));
                         this._initializePromise = undefined;
                         throw error;
                     }
+                    debugLog.logic("initialize waiting for bus reconnect");
                     log("initialize:connection-lost, waiting for the bus");
                     await this._busReconnected();
                 }
@@ -341,8 +364,13 @@ export class Store extends BaseStore {
             ),
             fetch: () => {
                 if (["fetching", "fetched"].includes(r.status)) {
+                    debugLog.logic("cachedFetchData hit", () => ({
+                        name,
+                        status: r.status,
+                    }));
                     return def;
                 }
+                debugLog.pipeline("cachedFetchData fetch", () => ({ name }));
                 r.status = "fetching";
                 invalidatedWhileFetching = false;
                 def = new Deferred();
@@ -366,6 +394,10 @@ export class Store extends BaseStore {
                 return def;
             },
             invalidate: () => {
+                debugLog.logic("cachedFetchData invalidate", () => ({
+                    name,
+                    status: r.status,
+                }));
                 if (r.status === "fetching") {
                     invalidatedWhileFetching = true;
                 } else {
@@ -426,6 +458,10 @@ export class Store extends BaseStore {
                         dataRequest._resolve = true;
                         continue;
                     } else {
+                        debugLog.logic("fetchStoreData request unresolved", () => ({
+                            name,
+                            requestId: dataRequest.id,
+                        }));
                         dataRequest._resultDef.reject(
                             new Error(
                                 `Data request "${name}" (id ${dataRequest.id}) was not resolved by the server response. The server route probably lacks a "resolve_data_request()" call.`,
@@ -492,6 +528,13 @@ export class Store extends BaseStore {
                 const isInbox =
                     this.store.self_partner?.main_user_id?.notification_type ===
                         "inbox" && model !== "discuss.channel";
+                debugLog.logic("serviceWorker notification-display-request", () => ({
+                    model,
+                    res_id,
+                    isTabFocused,
+                    isDisplayed: thread?.isDisplayed,
+                    isInbox,
+                }));
                 if ((isTabFocused && thread?.isDisplayed) || isInbox) {
                     (
                         ev.source ?? browser.navigator.serviceWorker.controller
@@ -513,6 +556,7 @@ export class Store extends BaseStore {
 
     /** @param {{model: string, res_id: number}} payload */
     onPushNotificationDisplayed(payload) {
+        debugLog.logic("onPushNotificationDisplayed", () => payload);
         if (["mixin.mail.thread", "discuss.channel"].includes(payload.model)) {
             this.env.services["mail.out_of_focus"]._playSound();
         }
@@ -527,9 +571,15 @@ export class Store extends BaseStore {
     async getChat({ userId, partnerId }) {
         const partner = await this.getPartner({ userId, partnerId });
         if (!partner) {
+            debugLog.logic("getChat no partner", () => ({ userId, partnerId }));
             return;
         }
         let chat = partner.searchChat();
+        debugLog.logic("getChat", () => ({
+            partnerId: partner.id,
+            localChat: chat?.localId,
+            pinned: chat?.self_member_id?.is_pinned,
+        }));
         if (!chat?.self_member_id?.is_pinned) {
             chat = await this.joinChat(partner.id);
         }
@@ -581,6 +631,7 @@ export class Store extends BaseStore {
                 .insert({ id: userId })
                 .fetchPartner();
             if (!partner) {
+                debugLog.logic("getPartner user without partner", () => ({ userId }));
                 this.env.services.notification.add(
                     _t("You can only chat with existing users."),
                     {
@@ -603,6 +654,9 @@ export class Store extends BaseStore {
                     },
                 );
                 if (!userId) {
+                    debugLog.logic("getPartner partner without user", () => ({
+                        partnerId,
+                    }));
                     this.env.services.notification.add(
                         _t(
                             "You can only chat with partners that have a dedicated user.",
@@ -649,6 +703,7 @@ export class Store extends BaseStore {
      * @param {string} document.model
      */
     openDocument({ id, model }) {
+        debugLog.logic("openDocument", () => ({ id, model }));
         this.env.services.action.doAction({
             type: "ir.actions.act_window",
             res_model: model,
@@ -704,9 +759,16 @@ export const storeService = {
      * @returns {import("models").Store}
      */
     start(env, services) {
+        const endStart = debugLog.perf("service start");
         const store = makeStore(env);
         store.insert(session.storeData);
+        debugLog.lifecycle("service start", () => ({
+            sessionModels: Object.keys(session.storeData || {}),
+        }));
         services.bus_service.addEventListener("BUS:RECONNECT", () => {
+            debugLog.lifecycle("bus reconnected", () => ({
+                threadFetchAttempted: store._threadFetchAttempted.size,
+            }));
             store._threadFetchAttempted.clear();
         });
         store.self_guest ??= /** @type {typeof store.self_guest} */ (
@@ -716,6 +778,7 @@ export const storeService = {
             /** @type {unknown} */ ({})
         );
         store.onStarted();
+        endStart();
         return store;
     },
 };

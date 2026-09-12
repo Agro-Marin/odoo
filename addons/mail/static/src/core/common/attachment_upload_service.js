@@ -139,6 +139,7 @@ export class AttachmentUploadService {
      * @param {string} message
      */
     _abandonUpload(tmpId, message) {
+        log.logic("upload abandoned", () => ({ tmpId, message }));
         this.notificationService.add(message, { type: "danger" });
         this.deferredByAttachmentId.get(tmpId).resolve();
         this._cleanupUploading(tmpId);
@@ -156,6 +157,12 @@ export class AttachmentUploadService {
         this.store.insert(store_data);
         /** @type {import("models").Attachment} */
         const attachment = this.store["ir.attachment"].get(attachment_id);
+        log.pipeline("upload processed", () => ({
+            tmpId,
+            attachmentId: attachment_id,
+            thread: thread?.localId,
+            composer: Boolean(composer),
+        }));
         if (composer) {
             const index = composer.attachments.findIndex(({ id }) => id === tmpId);
             if (index >= 0) {
@@ -192,6 +199,10 @@ export class AttachmentUploadService {
 
     /** @param {import("models").Attachment} attachment */
     async unlink(attachment) {
+        log.logic("unlink", () => ({
+            attachmentId: attachment.id,
+            uploading: this.uploadingAttachmentIds.has(attachment.id),
+        }));
         if (this.uploadingAttachmentIds.has(attachment.id)) {
             const deferred = this.deferredByAttachmentId.get(attachment.id);
             const abort = this.abortByAttachmentId.get(attachment.id);
@@ -240,6 +251,10 @@ export class AttachmentUploadService {
         /** @type {Deferred<import("models").Attachment | undefined>} */
         const uploadDoneDeferred = new Deferred();
         this.deferredByAttachmentId.set(tmpId, uploadDoneDeferred);
+        const endUpload = log.perf("upload");
+        uploadDoneDeferred.then((attachment) =>
+            endUpload({ tmpId, attachmentId: attachment?.id, size: file.size }),
+        );
         await this.fileUploadService
             .upload(this.getUploadURL(thread), [file], {
                 /** @param {FormData} formData */

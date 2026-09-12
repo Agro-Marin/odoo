@@ -3,9 +3,12 @@
 import { Thread } from "@mail/core/common/thread_model";
 import { fields } from "@mail/model/misc";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.thread");
 /** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const threadPatch = {
     setup() {
@@ -129,6 +132,11 @@ const threadPatch = {
      * @param {string} [param0.name]
      */
     async createSubChannel({ initialMessage, name } = {}) {
+        log.logic("createSubChannel", () => ({
+            parent: this.parent_channel_id?.id || this.id,
+            fromMessageId: initialMessage?.id,
+            named: Boolean(name),
+        }));
         const { store_data, sub_channel } = await rpc(
             "/discuss/channel/sub_channel/create",
             {
@@ -154,9 +162,14 @@ const threadPatch = {
             this.searchSubChannelsDone = false;
         }
         if (searchTerm ? this.searchSubChannelsDone : this.loadSubChannelsDone) {
+            log.logic("loadMoreSubChannels exhausted", () => ({
+                thread: this.localId,
+                searchTerm,
+            }));
             return;
         }
         const limit = 30;
+        const endLoad = log.perf("loadMoreSubChannels");
         const { store_data, sub_channel_ids } = await rpc(
             "/discuss/channel/sub_channel/fetch",
             {
@@ -169,6 +182,12 @@ const threadPatch = {
             },
         );
         this.store.insert(store_data);
+        endLoad({
+            thread: this.localId,
+            searchTerm,
+            fetched: sub_channel_ids.length,
+            limit,
+        });
         const threads = sub_channel_ids.map((subChannelId) =>
             this.store.Thread.get({ model: "discuss.channel", id: subChannelId }),
         );
@@ -206,6 +225,7 @@ const threadPatch = {
     },
     openChannel() {
         if (this.store.discuss.isActive && !this.store.env.services.ui.isSmall) {
+            log.logic("openChannel in discuss", () => ({ thread: this.localId }));
             this.setAsDiscussThread();
             return true;
         }

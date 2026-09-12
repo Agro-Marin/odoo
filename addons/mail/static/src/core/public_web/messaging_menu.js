@@ -68,6 +68,12 @@ export class MessagingMenu extends Component {
      * @param {import("models").Message} [message]
      */
     onClickThread(isMarkAsRead, thread, message) {
+        log.logic("onClickThread", () => ({
+            thread: thread.localId,
+            isMarkAsRead,
+            messageId: message?.id,
+            userNotification: message?.message_type === "user_notification",
+        }));
         if (!isMarkAsRead) {
             if (message?.needaction && message.message_type === "user_notification") {
                 this.store.inbox.highlightMessage = message;
@@ -86,6 +92,7 @@ export class MessagingMenu extends Component {
      * @param {import("models").Message} msg
      */
     onClickInboxMsg(isMarkAsRead, msg) {
+        log.logic("onClickInboxMsg", () => ({ messageId: msg.id, isMarkAsRead }));
         if (!isMarkAsRead) {
             this.store.inbox.highlightMessage = msg;
             this.env.services.action.doAction({
@@ -100,6 +107,10 @@ export class MessagingMenu extends Component {
 
     /** @param {import("models").Thread} thread */
     markAsRead(thread) {
+        log.logic("markAsRead", () => ({
+            thread: thread.localId,
+            needaction: thread.needactionMessages.length,
+        }));
         if (thread.needactionMessages.length > 0) {
             thread.markAllMessagesAsRead();
         }
@@ -225,6 +236,10 @@ export class MessagingMenu extends Component {
         if (this.store.discuss.activeTab === tabId) {
             return;
         }
+        log.logic("onClickNavTab", () => ({
+            from: this.store.discuss.activeTab,
+            to: tabId,
+        }));
         this.store.discuss.activeTab = tabId;
         if (
             this.store.discuss.activeTab === "inbox" &&

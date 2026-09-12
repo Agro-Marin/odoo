@@ -10,15 +10,20 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
+
+const log = makeLogger("mail.attachment_view");
 class AbstractAttachmentView extends Component {
     static template = "mail.AttachmentView";
     static components = {};
     static props = ["threadId", "threadModel"];
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.store = useService("mail.store");
         this.uiService = useService("ui");
@@ -47,6 +52,11 @@ class AbstractAttachmentView extends Component {
         const index = this.state.thread.attachmentsInWebClientView.findIndex(
             (attachment) => attachment.eq(this.state.thread.message_main_attachment_id),
         );
+        log.logic("onClickNext", () => ({
+            thread: this.state.thread.localId,
+            index,
+            count: this.state.thread.attachmentsInWebClientView.length,
+        }));
         this.state.thread.setMainAttachmentFromIndex(
             index >= this.state.thread.attachmentsInWebClientView.length - 1
                 ? 0
@@ -58,6 +68,11 @@ class AbstractAttachmentView extends Component {
         const index = this.state.thread.attachmentsInWebClientView.findIndex(
             (attachment) => attachment.eq(this.state.thread.message_main_attachment_id),
         );
+        log.logic("onClickPrevious", () => ({
+            thread: this.state.thread.localId,
+            index,
+            count: this.state.thread.attachmentsInWebClientView.length,
+        }));
         this.state.thread.setMainAttachmentFromIndex(
             index <= 0
                 ? this.state.thread.attachmentsInWebClientView.length - 1
@@ -109,6 +124,7 @@ export function usePopoutAttachment() {
     const mailPopoutService = useService("mail.popout");
 
     function popout() {
+        log.logic("popout", () => extractPopoutProps(component.props));
         mailPopoutService.addHooks(
             () => {
                 setAttachmentViewHidden(true);
@@ -128,6 +144,7 @@ export function usePopoutAttachment() {
     /** @param {{threadId: number, threadModel: string}} [newProps=component.props] */
     function updatePopout(newProps = component.props) {
         if (mailPopoutService.externalWindow) {
+            log.logic("updatePopout", () => extractPopoutProps(newProps));
             setAttachmentViewHidden(true);
             mailPopoutService.popout(
                 PopoutAttachmentView,

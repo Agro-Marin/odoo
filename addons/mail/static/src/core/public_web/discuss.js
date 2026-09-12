@@ -78,6 +78,10 @@ export class Discuss extends Component {
                     if (!thread) {
                         return;
                     }
+                    log.logic("public page thread display", () => ({
+                        thread: thread.localId,
+                        isSmall,
+                    }));
                     if (isSmall) {
                         const promise = (this._openChatWindowPromise = this.thread
                             .openChatWindow({ focus: true })

@@ -18,11 +18,14 @@ import {
     xml,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+
+const log = makeLogger("mail.thread.ui");
 /**
  * @param {() => EventTarget|undefined} target
  * @param {string} eventName
@@ -476,6 +479,11 @@ export function useMessageScrolling(duration = 2000) {
         async highlightMessage(message, thread) {
             state.initiated = true;
             let messageScrollDirection;
+            log.logic("highlightMessage", () => ({
+                messageId: message.id,
+                thread: thread.localId,
+                loaded: message.in(thread.messages),
+            }));
             if (message.notIn(thread.messages)) {
                 messageScrollDirection =
                     message.id < thread.messages[0]?.id ? "top" : "bottom";
@@ -556,6 +564,9 @@ export function useMicrophoneVolume() {
             state.isReady = false;
             disconnectAudioMonitor?.();
             disconnectAudioMonitor = undefined;
+            log.logic("microphone volume toggle", () => ({
+                stop: Boolean(audioTrack),
+            }));
             if (audioTrack) {
                 audioTrack.stop();
                 audioTrack = null;
@@ -573,6 +584,7 @@ export function useMicrophoneVolume() {
                         });
                     track = audioStream.getAudioTracks()[0];
                 } catch {
+                    log.logic("microphone volume test refused");
                     store.env.services.notification.add(
                         _t('"%(hostname)s" requires microphone access', {
                             hostname: browser.location.host,

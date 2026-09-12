@@ -3,6 +3,7 @@
 import { RecipientsInputTagsList } from "@mail/core/web/recipients_input_tags_list";
 import { RecipientsPopover } from "@mail/core/web/recipients_popover";
 import { parseEmail } from "@mail/utils/common/format";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -13,6 +14,8 @@ import {
 } from "@web/fields/relational/many2many_tags";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { usePopover } from "@web/ui/popover";
+
+const log = makeLogger("mail.recipients");
 /** @typedef {import("@web/model/relational_model/record").RelationalRecord} RelationalRecord */
 export class FieldMany2ManyTagsEmailTagsList extends RecipientsInputTagsList {
     static template = "FieldMany2ManyTagsEmailTagsList";
@@ -123,6 +126,10 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
     async quickCreateRecipient(request) {
         const [name, email] = parseEmail(request);
         const [partnerId] = await this.orm.create("res.partner", [{ name, email }]);
+        log.logic("quickCreateRecipient", () => ({
+            partnerId,
+            hasEmail: Boolean(email),
+        }));
         return this.props.record.data[this.props.name].addAndRemove({
             add: [partnerId],
         });
@@ -138,6 +145,7 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
         const partnerRecord = list.records.find(
             /** @param {RelationalRecord} r */ (r) => r.resId === partnerId,
         );
+        log.logic("updateRecipient", () => ({ partnerId }));
         partnerRecord.canSaveOnUpdate = true;
         return partnerRecord.update({ email: newEmail }, { save: true });
     }

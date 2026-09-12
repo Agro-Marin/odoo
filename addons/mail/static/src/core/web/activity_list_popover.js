@@ -3,7 +3,10 @@
 import { ActivityListPopoverItem } from "@mail/core/web/activity_list_popover_item";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { Component, onWillRender, onWillUpdateProps } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.activity");
 /**
  * @typedef {Object} Props
  * @property {number[]} activityIds
@@ -77,9 +80,11 @@ export class ActivityListPopover extends Component {
 
     /** @param {{activityIds: number[]}} props */
     async updateFromProps(props) {
+        const endFormat = log.perf("activity_format");
         const data = await this.orm.silent.call("mail.activity", "activity_format", [
             props.activityIds,
         ]);
+        endFormat({ activities: props.activityIds.length });
         this.store.insert(data);
     }
 }

@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { saveComposerDraft } from "@mail/core/common/composer_draft";
 import { EventBus, toRaw, useComponent, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { isHtmlEmpty } from "@web/core/utils/dom/html";
+
+const log = makeLogger("mail.full_composer");
 
 /** @returns {{ bus: EventBus, isOpen: boolean, open: () => Promise<void>, saveContent: () => void, }} */
 /**
@@ -21,10 +24,16 @@ async function resolveFullComposerRecipients(comp) {
     if (newPartners.length === 0) {
         return allRecipients;
     }
+    const endResolve = log.perf("resolveFullComposerRecipients");
     const partners = await rpc("/mail/partner/from_email", {
         thread_model: comp.thread.model,
         thread_id: comp.thread.id,
         emails: newPartners.map((recipient) => recipient.email),
+    });
+    endResolve({
+        thread: comp.thread.localId,
+        emails: newPartners.length,
+        partners: partners.length,
     });
     for (const partnerData of partners) {
         const partner = comp.store["res.partner"].insert(partnerData);
@@ -96,6 +105,11 @@ export function useFullComposer() {
     function onFullComposerClose(args) {
         const accidentalDiscard = args?.dismiss;
         const isDiscard = accidentalDiscard || args?.special;
+        log.lifecycle("fullComposer close", () => ({
+            thread: comp.thread?.localId,
+            accidentalDiscard,
+            isDiscard,
+        }));
         if (accidentalDiscard) {
             bus.trigger("ACCIDENTAL_DISCARD", {
                 /** @param {boolean} isEmpty */
@@ -134,6 +148,11 @@ export function useFullComposer() {
             });
         },
         async open() {
+            log.lifecycle("fullComposer open", () => ({
+                thread: comp.thread?.localId,
+                type: comp.props.type,
+                attachments: comp.props.composer.attachments.length,
+            }));
             comp.props.composer.restoredFromFullComposer = false;
             const allRecipients = await resolveFullComposerRecipients(comp);
             const context = getFullComposerContext(

@@ -2,8 +2,11 @@
 /** @odoo-module native */
 import { observeKey } from "@mail/model/store";
 import { AssetsLoadingError, getBundle } from "@web/core/assets";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { memoize } from "@web/core/utils/functions";
 import { effect } from "@web/core/utils/reactive";
+
+const log = makeLogger("mail.utils");
 /**
  * @template {Object} T
  * @param {T} obj
@@ -342,6 +345,7 @@ export function effectWithDebouncedCleanup({
  * @param {string} bundleName
  */
 export async function loadCssFromBundle(targetNode, bundleName) {
+    const endLoad = log.perf("loadCssFromBundle");
     try {
         const res = await getBundle(bundleName);
         for (const url of res.cssLibs) {
@@ -354,8 +358,13 @@ export async function loadCssFromBundle(targetNode, bundleName) {
                 link.addEventListener("error", rej);
             });
         }
+        endLoad({ bundleName, cssLibs: res.cssLibs.length });
     } catch (e) {
+        endLoad({ bundleName, failed: true });
         if (e instanceof AssetsLoadingError && e.cause instanceof TypeError) {
+            log.logic("loadCssFromBundle stalls on a network TypeError", () => ({
+                bundleName,
+            }));
             return new Promise(() => {});
         } else {
             throw e;

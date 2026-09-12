@@ -3,7 +3,10 @@
 import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { compareDatetime } from "@mail/utils/common/misc";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.store");
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
     setup() {
@@ -57,6 +60,7 @@ const StorePatch = {
     onStarted() {
         super.onStarted();
         if (this.discuss.isActive) {
+            log.logic("discuss active at start: fetch channels");
             this.channels.fetch();
         }
     },

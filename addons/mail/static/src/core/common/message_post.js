@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { createDocumentFragmentFromContent, isMarkup } from "@web/core/utils/dom/html";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("mail.message.post");
 
 /** @param {HTMLElement[]} channelLinks */
 export function handleValidChannelMention(channelLinks) {
@@ -101,6 +104,21 @@ export function getMentionsFromText(
             segments.some((segment) => segment.includes(`@${special.label}`)),
         )
         .map((special) => special.label);
+    log.pipeline("getMentionsFromText", () => ({
+        thread: thread?.localId,
+        segments: segments.length,
+        candidates: {
+            threads: mentionedChannels.length,
+            partners: mentionedPartners.length,
+            roles: mentionedRoles.length,
+        },
+        valid: {
+            threads: validMentions.threads.length,
+            partners: validMentions.partners.length,
+            roles: validMentions.roles.length,
+            special: validMentions.specialMentions.length,
+        },
+    }));
     return validMentions;
 }
 
@@ -200,5 +218,15 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
     if (cannedResponseIds?.length) {
         params.canned_response_ids = cannedResponseIds;
     }
+    log.pipeline("getMessagePostParams", () => ({
+        thread: thread.localId,
+        subtype,
+        attachments: attachments.length,
+        partner_ids: partner_ids.length,
+        role_ids: role_ids.length,
+        recipientEmails: recipientEmails.length,
+        cannedResponses: cannedResponseIds?.length ?? 0,
+        bodyLength: String(postData.body).length,
+    }));
     return params;
 }

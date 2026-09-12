@@ -1,9 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getOrigin } from "@web/core/utils/urls";
+
+const log = makeLogger("mail.link_navigation");
 
 export class LinkNavigation {
     /** @type {import("models").Store} */
@@ -34,16 +37,19 @@ export class LinkNavigation {
         const model = link.dataset.oeModel;
         const id = Number(link.dataset.oeId);
         if (link.classList.contains("o_channel_redirect") && model && id) {
+            log.logic("channel redirect", () => ({ model, id }));
             ev.preventDefault();
             this.openRedirectedThread(model, id);
             return true;
         }
         if (link.classList.contains("o_mail_redirect") && id) {
+            log.logic("partner mention", () => ({ id }));
             ev.preventDefault();
             this.onClickPartnerMention(ev, id);
             return true;
         }
         if (link.classList.contains("o_message_redirect")) {
+            log.logic("message redirect", () => ({ id, thread: thread?.localId }));
             return this.openRedirectedMessage(ev, link, id, thread);
         }
         if (
@@ -66,6 +72,7 @@ export class LinkNavigation {
             if (thread) {
                 thread.open({ focus: true });
             } else {
+                log.logic("redirected thread unavailable", () => ({ model, id }));
                 this.env.services.notification.add(
                     _t("This thread is no longer available."),
                     { type: "danger" },
@@ -85,17 +92,21 @@ export class LinkNavigation {
         const message = this.store["mail.message"].get(id);
         const targetThread = message?.thread;
         if (targetThread) {
-            targetThread
-                .checkReadAccess()
-                .then((hasAccess) =>
-                    hasAccess
-                        ? this.revealMessage(message, targetThread, link, thread)
-                        : this.refuseMessage(link),
-                );
+            targetThread.checkReadAccess().then((hasAccess) => {
+                log.logic("message redirect access", () => ({
+                    messageId: id,
+                    targetThread: targetThread.localId,
+                    hasAccess,
+                }));
+                return hasAccess
+                    ? this.revealMessage(message, targetThread, link, thread)
+                    : this.refuseMessage(link);
+            });
             ev.preventDefault();
             return true;
         }
         if (link.href && new URL(link.href, getOrigin()).origin === getOrigin()) {
+            log.logic("message redirect to unknown message", () => ({ id }));
             this.notifyConversationUnavailable();
             ev.preventDefault();
             return true;
@@ -116,6 +127,10 @@ export class LinkNavigation {
             isOpen = targetThread.open({ focus: true, swapOpened: false });
         }
         if (!isOpen) {
+            log.logic("revealMessage falls back to window.open", () => ({
+                messageId: message.id,
+                href: link.href,
+            }));
             window.open(link.href);
         }
     }
@@ -150,6 +165,10 @@ export class LinkNavigation {
             browser.location.host === url.host &&
             browser.location.pathname.startsWith("/odoo")
         ) {
+            log.logic("fold chat window for internal link", () => ({
+                thread: thread?.localId,
+                href: link.href,
+            }));
             this.store.ChatWindow.get({ thread })?.fold();
         }
     }

@@ -3,9 +3,12 @@
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
 import { useEffect } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.messaging_menu");
 Object.assign(MessagingMenu.components, { MessagingMenuQuickSearch });
 
 patch(MessagingMenu.prototype, {
@@ -51,6 +54,10 @@ patch(MessagingMenu.prototype, {
                 this.store.inbox.status !== "loading" &&
                 this.store.inbox.counter !== this.store.inbox.messages.length
             ) {
+                log.logic("beforeOpen fetches inbox", () => ({
+                    counter: this.store.inbox.counter,
+                    loaded: this.store.inbox.messages.length,
+                }));
                 this.store.inbox.fetchNewMessages();
             }
         });
@@ -135,6 +142,11 @@ patch(MessagingMenu.prototype, {
                 .map(({ mail_message_id: message }) => message.thread?.id)
                 .filter((id) => id !== undefined),
         );
+        log.logic("onClickFailure", () => ({
+            type: failure.type,
+            resModel: failure.resModel,
+            threads: threadIds.size,
+        }));
         if (threadIds.size === 1) {
             const message = failure.notifications.find(
                 (n) => n.mail_message_id?.thread,
@@ -147,6 +159,7 @@ patch(MessagingMenu.prototype, {
     },
     /** @param {import("models").Thread} thread */
     async openThread(thread) {
+        log.logic("openThread", () => ({ thread: thread.localId }));
         thread.open({ focus: true, fromMessagingMenu: true });
         this.dropdown.close();
     },
@@ -175,6 +188,11 @@ patch(MessagingMenu.prototype, {
      * @returns {Promise<any>}
      */
     cancelNotifications(failure) {
+        log.logic("cancelNotifications", () => ({
+            type: failure.type,
+            resModel: failure.resModel,
+            notifications: failure.notifications.length,
+        }));
         return this.env.services.orm.call(
             failure.resModel,
             "notify_cancel_by_type",
@@ -185,6 +203,7 @@ patch(MessagingMenu.prototype, {
         );
     },
     toggleSearch() {
+        log.logic("toggleSearch", () => ({ open: !this.state.searchOpen }));
         this.store.discuss.searchTerm = "";
         this.state.searchOpen = !this.state.searchOpen;
     },

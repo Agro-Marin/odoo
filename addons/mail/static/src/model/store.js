@@ -93,6 +93,10 @@ export class Store extends Record {
      * @throws {Error}
      */
     handleError(err) {
+        log.logic("handleError", () => ({
+            deferred: this._.UPDATE !== 0,
+            message: err?.message,
+        }));
         if (this._.UPDATE === 0) {
             if (this.logErrors) {
                 console.warn(err);
@@ -303,6 +307,16 @@ export class Store extends Record {
         this._.RO_QUEUE.clear();
         this._.RD_QUEUE.clear();
         this._.RHD_QUEUE.clear();
+        log.pipeline("drainQueuesOnce", () => ({
+            compute: FC_QUEUE.size,
+            sort: FS_QUEUE.size,
+            onAdd: FA_QUEUE.size,
+            onDelete: FD_QUEUE.size,
+            onUpdate: FU_QUEUE.size,
+            observers: RO_QUEUE.size,
+            delete: RD_QUEUE.size,
+            hardDelete: RHD_QUEUE.size,
+        }));
         this._drainForcedComputes(FC_QUEUE);
         this._drainForcedSorts(FS_QUEUE);
         this._drainOnAdd(FA_QUEUE);
@@ -339,6 +353,7 @@ export class Store extends Record {
         if (!this._.ERRORS.length) {
             return;
         }
+        log.logic("throwFirstQueuedError", () => ({ errors: this._.ERRORS.length }));
         if (this.logErrors) {
             console.warn("Store data insert aborted due to following errors:");
             for (const err of this._.ERRORS) {
@@ -403,6 +418,7 @@ export class Store extends Record {
                     /** @type {unknown} */ (store)
                 );
                 if (!models[modelName]) {
+                    log.logic("insert unknown model", () => ({ modelName }));
                     console.warn(
                         `store.insert() received data for unknown model “${modelName}”.`,
                     );

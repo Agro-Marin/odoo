@@ -8,10 +8,13 @@ import { DiscussSidebarChannelActions } from "@mail/discuss/core/public_web/disc
 import { useHover, UseHoverOverlay } from "@mail/utils/common/hooks";
 import { Component, useSubEnv } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.discuss.sidebar");
 export const discussSidebarChannelIndicatorsRegistry = registry.category(
     "mail.discuss_sidebar_channel_indicators",
 );
@@ -239,6 +242,9 @@ export class DiscussSidebarCategory extends Component {
 
     toggle() {
         if (this.store.channels.status === "fetching") {
+            log.logic("toggle ignored while fetching", () => ({
+                id: this.category.id,
+            }));
             return;
         }
         this.category.open = !this.category.open;

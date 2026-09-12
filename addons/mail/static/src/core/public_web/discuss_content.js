@@ -49,6 +49,9 @@ export class DiscussContent extends Component {
             (a) => a.id === "member-list",
         );
         if (memberListAction && this.store.discuss.isMemberPanelOpenByDefault) {
+            log.logic("member panel auto-open", () => ({
+                thread: this.thread?.localId,
+            }));
             memberListAction.open();
         }
     }
@@ -75,6 +78,7 @@ export class DiscussContent extends Component {
 
     /** @param {{data: string}} file */
     async onFileUploaded(file) {
+        log.logic("avatar upload", () => ({ thread: this.thread.localId }));
         await this.thread.notifyAvatarToServer(file.data);
         this.notification.add(_t("The avatar has been updated!"), { type: "success" });
     }
@@ -89,6 +93,7 @@ export class DiscussContent extends Component {
 
     /** @param {string} name */
     async renameThread(name) {
+        log.logic("renameThread", () => ({ thread: this.thread.localId, name }));
         await this.thread.rename(name);
     }
 
@@ -99,6 +104,9 @@ export class DiscussContent extends Component {
             return;
         }
         if (newDescription !== this.thread.description) {
+            log.logic("updateThreadDescription", () => ({
+                thread: this.thread.localId,
+            }));
             await this.thread.notifyDescriptionToServer(newDescription);
         }
     }

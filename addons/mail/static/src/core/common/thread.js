@@ -169,6 +169,10 @@ export class Thread extends Component {
         useEffect(
             () => {
                 if (this.props.thread.highlightMessage && this.state.mountedAndLoaded) {
+                    log.logic("highlightMessage from thread", () => ({
+                        thread: this.props.thread.localId,
+                        messageId: this.props.thread.highlightMessage.id,
+                    }));
                     this.messageHighlight?.highlightMessage(
                         this.props.thread.highlightMessage,
                         this.props.thread,
@@ -189,6 +193,10 @@ export class Thread extends Component {
         );
         onMounted(() => {
             if (!this.env.chatter || this.env.chatter?.fetchMessages) {
+                log.lifecycle("mounted fetch", () => ({
+                    thread: this.props.thread.localId,
+                    inChatter: Boolean(this.env.chatter),
+                }));
                 if (this.env.chatter) {
                     this.env.chatter.fetchMessages = false;
                 }
@@ -231,6 +239,12 @@ export class Thread extends Component {
                 const el = jumpMessage
                     ? this.refByMessageId.get(jumpMessage.id)?.el
                     : undefined;
+                log.logic("jumpToNewMessage", () => ({
+                    thread: this.props.thread.localId,
+                    separatorId,
+                    jumpMessageId: jumpMessage?.id,
+                    found: Boolean(el),
+                }));
                 if (el) {
                     el.querySelector(".o-mail-Message-jumpTarget").scrollIntoView({
                         behavior: "instant",
@@ -249,6 +263,9 @@ export class Thread extends Component {
             ({ detail }) => {
                 const { model, id } = this.props.thread;
                 if (detail.model === model && detail.id === id) {
+                    log.pipeline("MAIL:RELOAD-THREAD", () => ({
+                        thread: this.props.thread.localId,
+                    }));
                     toRaw(this.props.thread).fetchNewMessages();
                 }
             },
@@ -257,6 +274,10 @@ export class Thread extends Component {
             /** @param {{thread: import("models").Thread, jumpPresent: number}} nextProps */
             (nextProps) => {
                 if (nextProps.thread.notEq(this.props.thread)) {
+                    log.lifecycle("thread swapped", () => ({
+                        from: this.props.thread.localId,
+                        to: nextProps.thread.localId,
+                    }));
                     this.lastJumpPresent = nextProps.jumpPresent;
                 }
                 if (!this.env.chatter || this.env.chatter?.fetchMessages) {
@@ -341,6 +362,7 @@ export class Thread extends Component {
     }
 
     onClickLoadOlder() {
+        log.logic("onClickLoadOlder", () => ({ thread: this.props.thread.localId }));
         this.props.thread.fetchMoreMessages();
     }
 
@@ -362,6 +384,11 @@ export class Thread extends Component {
         if (!targetThread) {
             return;
         }
+        log.logic("onParentMessageClick", () => ({
+            messageId: parentMessage.id,
+            sameThread: targetThread.eq(this.props.thread),
+            targetThread: targetThread.localId,
+        }));
         if (targetThread.eq(this.props.thread)) {
             this.env.messageHighlight?.highlightMessage(parentMessage, targetThread);
         } else {
@@ -386,6 +413,11 @@ export class Thread extends Component {
      * @param {boolean} [options.immediate=false]
      */
     async jumpToPresent({ immediate = false } = {}) {
+        log.logic("jumpToPresent", () => ({
+            thread: this.props.thread.localId,
+            immediate,
+            loadNewer: this.props.thread.loadNewer,
+        }));
         this.messageHighlight?.clear();
         if (!immediate || this.props.thread.loadNewer) {
             await this.props.thread.loadAround();
@@ -453,7 +485,10 @@ export class Thread extends Component {
         )?.el;
         if (el) {
             this.scrollingToHighlight = true;
-
+            log.logic("scrollToHighlighted", () => ({
+                thread: this.props.thread.localId,
+                messageId: this.messageHighlight.highlightedMessageId,
+            }));
             await this.messageHighlight.startupDeferred;
             this.messageHighlight
                 .scrollTo(el.querySelector(".o-mail-Message-jumpTarget"))

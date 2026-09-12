@@ -4,8 +4,11 @@ import { fields } from "@mail/core/common/record";
 import { Store } from "@mail/core/common/store_service";
 import { snapshotCounter } from "@mail/utils/common/counters";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.store");
 const unread_store = (() => {
     if (!window.idbKeyval) {
         return undefined;
@@ -85,6 +88,9 @@ const StorePatch = {
         } catch {
             this.activityBroadcastChannel = null;
         }
+        log.lifecycle("web onStarted", () => ({
+            activityBroadcastChannel: Boolean(this.activityBroadcastChannel),
+        }));
     },
     onUpdateActivityGroups() {},
     /**
@@ -93,6 +99,11 @@ const StorePatch = {
      * @param {number|undefined} defaultActivityTypeId
      */
     async scheduleActivity(resModel, resIds, defaultActivityTypeId = undefined) {
+        log.logic("scheduleActivity", () => ({
+            resModel,
+            resIds,
+            defaultActivityTypeId,
+        }));
         const context = {
             active_model: resModel,
             active_ids: resIds,
@@ -125,6 +136,10 @@ const StorePatch = {
         );
     },
     updateAppBadge() {
+        log.logic("updateAppBadge", () => ({
+            globalCounter: this.globalCounter,
+            supported: Boolean(unread_store),
+        }));
         if (unread_store) {
             Promise.resolve(
                 window.idbKeyval.set("unread", this.globalCounter, unread_store),
@@ -139,6 +154,10 @@ const StorePatch = {
      * @param {({type: "INSERT"|"DELETE", payload: Partial<import("models").Activity>} | {type: "RELOAD_CHATTER", payload: {model: string, id: number}})} param0.data
      */
     _onActivityBroadcastChannelMessage({ data }) {
+        log.pipeline("activity broadcast", () => ({
+            type: data.type,
+            payload: data.payload,
+        }));
         switch (data.type) {
             case "INSERT":
                 this.insert(data.payload, { broadcast: false });
@@ -165,6 +184,7 @@ const StorePatch = {
         const starredBox = this.store.starred;
         const messages = starredBox.messages.slice();
         const counterSnapshot = snapshotCounter(starredBox, "counter");
+        log.logic("unstarAll", () => ({ messages: messages.length }));
         for (const message of messages) {
             message.starred = false;
         }
@@ -175,6 +195,7 @@ const StorePatch = {
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
+            log.logic("unstarAll rollback", () => ({ messages: messages.length }));
             for (const message of messages) {
                 message.starred = true;
             }

@@ -32,6 +32,7 @@ export class ChatHub extends Record {
             /** @type {unknown} */ (super.new(data, ids))
         );
         chatHub._onStorage = /** @param {StorageEvent} ev */ (ev) => {
+            log.pipeline("crosstab storage", () => ({ key: ev.key }));
             if (ev.key === CHAT_HUB_KEY) {
                 chatHub.load(ev.newValue || undefined).catch(() => {});
             } else if (ev.key === null) {
@@ -42,10 +43,17 @@ export class ChatHub extends Record {
             }
         };
         browser.addEventListener("storage", chatHub._onStorage);
+        const endInit = log.perf("init");
         chatHub
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
             .catch(() => {})
-            .finally(() => chatHub.initPromise.resolve());
+            .finally(() => {
+                endInit({
+                    opened: chatHub.opened.length,
+                    folded: chatHub.folded.length,
+                });
+                chatHub.initPromise.resolve();
+            });
         return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (chatHub));
     }
 
@@ -92,6 +100,7 @@ export class ChatHub extends Record {
     }
 
     hideAll() {
+        log.logic("hideAll", () => ({ opened: this.opened.length }));
         for (const cw of this.opened) {
             cw.bypassCompact = false;
         }
@@ -100,6 +109,12 @@ export class ChatHub extends Record {
     }
 
     onRecompute() {
+        if (this.opened.length > this.maxOpened) {
+            log.logic("onRecompute folds overflow", () => ({
+                opened: this.opened.length,
+                maxOpened: this.maxOpened,
+            }));
+        }
         while (this.opened.length > this.maxOpened) {
             const cw = this.opened.pop();
             this.folded.unshift(cw);
@@ -126,6 +141,7 @@ export class ChatHub extends Record {
             opened.some((data) => !data.id || !data.model) ||
             folded.some((data) => !data.id || !data.model);
         if (hasInvalidData) {
+            log.logic("load discards invalid data");
             opened.length = 0;
             folded.length = 0;
             browser.localStorage.removeItem(CHAT_HUB_KEY);
@@ -145,6 +161,12 @@ export class ChatHub extends Record {
                 .map((thread) => this.store.ChatWindow.insert({ thread }));
         const toFold = insertChatWindows(foldThreads);
         const toOpen = insertChatWindows(openThreads);
+        log.pipeline("load resolved", () => ({
+            requestedOpened: opened.length,
+            requestedFolded: folded.length,
+            toOpen: toOpen.length,
+            toFold: toFold.length,
+        }));
         for (const chatWindow of [...this.opened, ...this.folded]) {
             if (chatWindow.notIn(toOpen) && chatWindow.notIn(toFold)) {
                 chatWindow.close({ notifyState: false });

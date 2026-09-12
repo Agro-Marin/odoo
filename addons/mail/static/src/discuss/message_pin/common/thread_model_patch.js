@@ -2,8 +2,11 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.message.pin");
 /** @type {Partial<import("models").Thread>} */
 const threadPatch = {
     setup() {
@@ -34,14 +37,17 @@ const threadPatch = {
         }
         this.pinnedMessagesState = "loading";
         let data;
+        const endFetch = log.perf("fetchPinnedMessages");
         try {
             data = await rpc("/discuss/channel/pinned_messages", {
                 channel_id: this.id,
             });
         } catch {
+            endFetch({ thread: this.localId, failed: true });
             this.pinnedMessagesState = "error";
             return;
         }
+        endFetch({ thread: this.localId, models: Object.keys(data || {}) });
         this.store.insert(data);
         this.pinnedMessagesState = "loaded";
     },

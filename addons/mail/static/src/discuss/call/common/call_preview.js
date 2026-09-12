@@ -19,8 +19,11 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.rtc.preview");
 /**
  * @typedef {Object} Props
  * @property {Number} [activateCamera]
@@ -233,14 +236,18 @@ export class CallPreview extends Component {
             this.rtc[permission] !== "granted" &&
             !(await this.rtc.askForBrowserPermission({ [kind]: true }))
         ) {
+            log.logic("acquireMedia refused: permission", () => ({ kind }));
             return false;
         }
         let stream;
+        const endAcquire = log.perf("acquireMedia");
         try {
             stream = await navigator.mediaDevices.getUserMedia({
                 [kind]: constraints,
             });
+            endAcquire({ kind });
         } catch {
+            endAcquire({ kind, failed: true });
             this.rtc.showMediaUnavailableWarning({
                 microphone: kind === "audio",
                 camera: kind === "video",
@@ -248,6 +255,7 @@ export class CallPreview extends Component {
             return false;
         }
         if (status(this) === "destroyed") {
+            log.logic("acquireMedia discards stream: destroyed", () => ({ kind }));
             closeStream(stream);
             return false;
         }
@@ -273,6 +281,10 @@ export class CallPreview extends Component {
     }
 
     async toggleMic() {
+        log.logic("toggleMic", () => ({
+            enabled: Boolean(this.state.audioStream),
+            permission: this.rtc.microphonePermission,
+        }));
         if (this.state.audioStream) {
             this.disableMicrophone();
             return;
@@ -311,6 +323,10 @@ export class CallPreview extends Component {
     }
 
     async toggleCamera() {
+        log.logic("toggleCamera", () => ({
+            enabled: Boolean(this.state.videoStream),
+            permission: this.rtc.cameraPermission,
+        }));
         if (this.state.videoStream) {
             this.disableCamera();
             return;
@@ -342,6 +358,7 @@ export class CallPreview extends Component {
             this.state.blurManager = manager;
             this.state.blurStream = blurStream;
         } catch (_e) {
+            log.logic("enableBlur failed", () => ({ message: _e?.message }));
             this.notification.add(_e.message, { type: "warning" });
             this.disableBlur();
         }

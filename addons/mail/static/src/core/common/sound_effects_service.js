@@ -86,6 +86,7 @@ export class SoundEffects {
     }
     /** @param {String} [soundEffectName] */
     stop(soundEffectName) {
+        log.logic("stop", () => ({ soundEffectName: soundEffectName ?? "all" }));
         const soundEffect = this.soundEffects[soundEffectName];
         if (soundEffect) {
             if (soundEffect.audio) {

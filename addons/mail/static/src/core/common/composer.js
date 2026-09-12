@@ -287,6 +287,10 @@ export class Composer extends Component {
             if (!this.editor?.editable) {
                 return;
             }
+            log.pipeline("composerSync model -> editor", () => ({
+                thread: this.props.composer.thread?.localId,
+                length: String(composerHtml).length,
+            }));
             setElementContent(this.editor.editable, composerHtml);
             this.setEditorCursorEnd();
             this.editor.shared.history.addStep();
@@ -476,6 +480,7 @@ export class Composer extends Component {
     /** @param {DragEvent} ev */
     onDropFile(ev) {
         if (isDragSourceExternalFile(ev.dataTransfer)) {
+            log.logic("onDropFile", () => ({ files: ev.dataTransfer.files.length }));
             for (const file of ev.dataTransfer.files) {
                 this.attachmentUploader.uploadFile(file);
             }
@@ -484,6 +489,11 @@ export class Composer extends Component {
 
     /** @param {boolean} isDiscard */
     onCloseFullComposerCallback(isDiscard) {
+        log.lifecycle("fullComposer closed", () => ({
+            thread: this.thread?.localId,
+            isDiscard,
+            delegated: Boolean(this.props.onCloseFullComposerCallback),
+        }));
         if (this.props.onCloseFullComposerCallback) {
             this.props.onCloseFullComposerCallback(isDiscard);
         } else {
@@ -510,6 +520,7 @@ export class Composer extends Component {
             return;
         }
         ev.preventDefault();
+        log.logic("onPaste files", () => ({ files: ev.clipboardData.files.length }));
         for (const file of ev.clipboardData.files) {
             this.attachmentUploader.uploadFile(file);
         }
@@ -526,6 +537,10 @@ export class Composer extends Component {
                     composer.thread
                 ) {
                     const messageToEdit = composer.thread.lastEditableMessageOfSelf;
+                    log.logic("ArrowUp edit last message", () => ({
+                        thread: composer.thread.localId,
+                        messageId: messageToEdit?.id,
+                    }));
                     if (messageToEdit) {
                         messageToEdit.enterEditMode(this.props.composer.thread);
                     }
@@ -540,6 +555,12 @@ export class Composer extends Component {
                     return;
                 }
                 const shouldPost = this.env.inChatter ? ev.ctrlKey : !ev.shiftKey;
+                log.logic("Enter", () => ({
+                    thread: composer.thread?.localId,
+                    shouldPost,
+                    inChatter: this.env.inChatter,
+                    editing: Boolean(composer.message),
+                }));
                 if (!shouldPost) {
                     return;
                 }
@@ -556,6 +577,9 @@ export class Composer extends Component {
                     return;
                 }
                 if (this.props.onDiscardCallback) {
+                    log.logic("Escape discard", () => ({
+                        thread: composer.thread?.localId,
+                    }));
                     this.props.onDiscardCallback();
                     markEventHandled(ev, "Composer.discard");
                 }
@@ -568,6 +592,7 @@ export class Composer extends Component {
     }
 
     async onClickFullComposer() {
+        log.logic("onClickFullComposer", () => ({ thread: this.thread?.localId }));
         await this.fullComposer.open();
     }
 
@@ -609,6 +634,7 @@ export class Composer extends Component {
             attachments: this.props.composer.attachments.length,
         }));
         if (this.props.composer.attachments.some(({ uploading }) => uploading)) {
+            log.logic("processMessage blocked by upload in progress");
             this.env.services.notification.add(
                 _t("Please wait while the file is uploading."),
                 {
@@ -617,9 +643,11 @@ export class Composer extends Component {
             );
         } else if (this.canProcessMessage) {
             if (!this.state.active) {
+                log.logic("processMessage already in flight");
                 return;
             }
             this.state.active = false;
+            const endProcess = log.perf("processMessage");
             try {
                 await cb(trimEmptyBlocksAround(this.props.composer.composerHtml));
                 if (this.props.onPostCallback) {
@@ -627,6 +655,13 @@ export class Composer extends Component {
                 }
                 this.clear();
                 this.ref.el?.focus();
+                endProcess({ thread: this.props.composer.thread?.localId });
+            } catch (error) {
+                endProcess({
+                    thread: this.props.composer.thread?.localId,
+                    failed: true,
+                });
+                throw error;
             } finally {
                 this.state.active = true;
             }
@@ -663,6 +698,10 @@ export class Composer extends Component {
                     (recipient) => !recipient.email || !isEmail(recipient.email),
                 )
             ) {
+                log.logic("sendMessage refused: invalid recipient email", () => ({
+                    thread: composer.thread?.localId,
+                    recipients: allRecipients.length,
+                }));
                 this.env.services.notification.add(
                     _t(
                         "Cannot send: a recipient has a missing or invalid email address.",
@@ -714,6 +753,13 @@ export class Composer extends Component {
         const postThread = toRaw(this.thread);
         const post = postThread.post.bind(postThread, value, postData, extraData);
         let message;
+        log.pipeline("_sendMessage", () => ({
+            thread: thread?.localId,
+            postThread: postThread.localId,
+            optimistic: postThread.hasOptimisticPost,
+            attachments: postData.attachments?.length,
+            isMailbox: thread.isMailbox,
+        }));
         if (postThread.hasOptimisticPost) {
             post();
         } else {
@@ -732,6 +778,10 @@ export class Composer extends Component {
 
     async editMessage() {
         const composer = toRaw(this.props.composer);
+        log.logic("editMessage", () => ({
+            messageId: composer.message?.id,
+            askDelete: this.askDeleteFromEdit,
+        }));
         if (!this.askDeleteFromEdit) {
             await this.processMessage(
                 /** @param {ReturnType<markup>|string} value */ async (value) =>
@@ -801,6 +851,7 @@ export class Composer extends Component {
 
     /** @param {import("@html_editor/editor").Editor} editor */
     onLoadWysiwyg(editor) {
+        log.lifecycle("wysiwyg loaded", () => ({ thread: this.thread?.localId }));
         this.editor = editor;
     }
 
@@ -847,8 +898,13 @@ export class Composer extends Component {
     saveContent() {
         const composer = toRaw(this.props.composer);
         if (composer.restoredFromFullComposer && !this.fullComposer.isOpen) {
+            log.logic("saveContent skipped: restored from full composer");
             return;
         }
+        log.logic("saveContent", () => ({
+            thread: composer.thread?.localId,
+            fullComposer: this.fullComposer.isOpen,
+        }));
         if (this.fullComposer.isOpen) {
             this.fullComposer.saveContent();
         } else {

@@ -9,9 +9,12 @@ import {
     generateThreadMentionElement,
 } from "@mail/utils/common/format";
 import { status, useComponent, useEffect, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ConnectionAbortedError } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.suggestion");
 
 /**
  * @typedef {Object} Option
@@ -75,6 +78,9 @@ export class UseSuggestion {
                     this.lastFetchedSearch?.count === 0 &&
                     this.isSearchMoreSpecificThanLastFetch
                 ) {
+                    log.logic("fetch skipped: narrower than an empty fetch", () => ({
+                        ...this.search,
+                    }));
                     return;
                 }
                 this.fetchSuggestions();
@@ -240,6 +246,7 @@ export class UseSuggestion {
                     start,
                 ),
             });
+            log.logic("detect", () => ({ ...this.search }));
             return;
         }
         this.clearSearch();
@@ -249,6 +256,22 @@ export class UseSuggestion {
     }
     /** @param {Option} option */
     insert(option) {
+        log.logic("insert", () => ({
+            delimiter: this.search.delimiter,
+            label: option.label,
+            kind: option.partner
+                ? "partner"
+                : option.role
+                  ? "role"
+                  : option.thread
+                    ? "thread"
+                    : option.cannedResponse
+                      ? "cannedResponse"
+                      : option.emoji
+                        ? "emoji"
+                        : "special",
+            html: this.comp.composerService.htmlEnabled,
+        }));
         let position = this.search.position + 1;
         if (
             [":", "::"].includes(this.search.delimiter) ||
@@ -313,6 +336,12 @@ export class UseSuggestion {
             return;
         }
         const limit = 8;
+        log.pipeline("update", () => ({
+            type,
+            term: this.search.term,
+            suggestions: suggestions.length,
+            shown: Math.min(suggestions.length, limit),
+        }));
         suggestions.length = Math.min(suggestions.length, limit);
         this.state.items = { type, suggestions };
     }
@@ -323,6 +352,7 @@ export class UseSuggestion {
         }
         const fetchedSearch = { ...this.search };
         let resetFetchingState = true;
+        const endFetch = log.perf("fetchSuggestions");
         try {
             this.abortController?.abort();
             this.abortController = new AbortController();
@@ -331,12 +361,15 @@ export class UseSuggestion {
                 thread: this.thread,
                 abortSignal: this.abortController.signal,
             });
+            endFetch({ ...fetchedSearch });
         } catch (e) {
             this.lastFetchedSearch = null;
             if (e instanceof ConnectionAbortedError) {
+                endFetch({ ...fetchedSearch, aborted: true });
                 resetFetchingState = false;
                 return;
             }
+            endFetch({ ...fetchedSearch, failed: true });
             throw e;
         } finally {
             if (resetFetchingState) {

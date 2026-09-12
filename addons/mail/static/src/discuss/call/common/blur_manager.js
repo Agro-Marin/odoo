@@ -2,6 +2,9 @@
 /** @odoo-module native */
 import { closeStream } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.rtc.blur");
 const FPS = 30;
 /** @typedef {HTMLCanvasElement | HTMLVideoElement | HTMLImageElement | ImageBitmap} RasterImage */
 /** @typedef {{image: RasterImage, segmentationMask: RasterImage}} SegmentationResult */
@@ -92,12 +95,21 @@ export class BlurManager {
             this.worker.onmessage = /** @param {MessageEvent} e */ (e) =>
                 this._handleWorkerMessage(e);
             this.worker.onerror = () => {
+                log.logic("tick worker errored, falling back to rAF");
                 this._terminateWorker();
                 this._requestFrame();
             };
         } catch {
+            log.logic("tick worker unavailable, using rAF");
             this.worker = null;
         }
+        log.lifecycle("new", () => ({
+            backgroundBlur,
+            edgeBlur,
+            modelSelection,
+            selfieMode,
+            worker: Boolean(this.worker),
+        }));
         this.video.srcObject = stream;
         this.video.load();
         this.selfieSegmentation.setOptions({
@@ -113,6 +125,10 @@ export class BlurManager {
     }
 
     close() {
+        log.lifecycle("close", () => ({
+            videoDataLoaded: this.isVideoDataLoaded,
+            streamPending: Boolean(this.rejectStreamPromise),
+        }));
         this.video.removeEventListener("loadeddata", this._onVideoPlay);
         this.video.srcObject = null;
         this.isVideoDataLoaded = false;
@@ -155,6 +171,7 @@ export class BlurManager {
     }
 
     _onVideoPlay() {
+        log.lifecycle("video data loaded", () => ({ worker: Boolean(this.worker) }));
         this.isVideoDataLoaded = true;
         if (this.worker) {
             this.worker.postMessage({ command: "start", fps: FPS });
@@ -176,6 +193,7 @@ export class BlurManager {
         try {
             await this.selfieSegmentation.send({ image: this.video });
         } catch (error) {
+            log.logic("segmentation send failed", () => ({ message: error?.message }));
             this.isVideoDataLoaded = false;
             if (this.resolveStreamPromise) {
                 this.rejectStreamPromise(error);

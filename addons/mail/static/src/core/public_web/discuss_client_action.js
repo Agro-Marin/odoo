@@ -9,8 +9,11 @@ import {
     onWillUpdateProps,
 } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.discuss");
 /**
  * @typedef {Object} Props
  * @property {Object} action
@@ -40,9 +43,11 @@ export class DiscussClientAction extends Component {
             },
         );
         onMounted(() => {
+            log.lifecycle("discuss active");
             this.store.discuss.isActive = true;
         });
         onWillUnmount(() => {
+            log.lifecycle("discuss inactive");
             this.store.discuss.isActive = false;
         });
     }
@@ -83,6 +88,11 @@ export class DiscussClientAction extends Component {
         const token = (this._restoreToken = (this._restoreToken ?? 0) + 1);
         const rawActiveId = this.getActiveId(props);
         const parsedActiveId = this.parseActiveId(rawActiveId);
+        log.pipeline("restoreDiscussThread", () => ({
+            token,
+            rawActiveId,
+            parsedActiveId,
+        }));
         if (!parsedActiveId) {
             this.store.discuss.thread = undefined;
             this.store.discuss.hasRestoredThread = true;
@@ -96,8 +106,17 @@ export class DiscussClientAction extends Component {
         const [model, id] = parsedActiveId;
         const activeThread = await this.store.Thread.getOrFetch({ model, id });
         if (token !== this._restoreToken) {
+            log.logic("restoreDiscussThread superseded", () => ({
+                token,
+                current: this._restoreToken,
+            }));
             return;
         }
+        log.pipeline("restoreDiscussThread resolved", () => ({
+            token,
+            thread: activeThread?.localId,
+            found: Boolean(activeThread),
+        }));
         if (activeThread) {
             const highlight_message_id =
                 props.action?.params?.highlight_message_id ||

@@ -4,10 +4,13 @@ import { Composer } from "@mail/core/common/composer";
 import { Typing } from "@mail/discuss/typing/common/typing";
 import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
 import { useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("mail.typing");
 const commandRegistry = registry.category("discuss.channel_commands");
 
 export const SHORT_TYPING = 5000;
@@ -33,6 +36,10 @@ patch(Composer.prototype, {
     /** @param {boolean} [is_typing=true] */
     notifyIsTyping(is_typing = true) {
         if (this.thread?.model === "discuss.channel" && Number(this.thread.id) > 0) {
+            log.logic("notifyIsTyping", () => ({
+                thread: this.thread.localId,
+                is_typing,
+            }));
             rpc(
                 "/discuss/channel/notify_typing",
                 {
@@ -68,6 +75,10 @@ patch(Composer.prototype, {
                     (!command.channel_types ||
                         command.channel_types.includes(this.thread.channel_type)))
             ) {
+                log.logic("command input does not count as typing", () => ({
+                    thread: this.thread.localId,
+                    firstWord,
+                }));
                 this.stopTyping();
                 return;
             }

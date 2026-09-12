@@ -3,6 +3,9 @@
 import { fields, Record } from "@mail/core/common/record";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.discuss.sidebar");
 export class DiscussAppCategory extends Record {
     static id = "id";
 
@@ -107,6 +110,11 @@ export class DiscussAppCategory extends Record {
 
     /** @param {boolean} value */
     set open(value) {
+        log.logic("category open", () => ({
+            id: this.id,
+            value,
+            server: Boolean(this.saveStateToServer),
+        }));
         if (this.saveStateToServer) {
             this.store.settings[this.serverStateKey] = value;
             this.store.env.services.orm.call(

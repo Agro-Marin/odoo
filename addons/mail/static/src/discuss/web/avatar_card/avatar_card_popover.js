@@ -4,7 +4,10 @@ import { discussComponentRegistry } from "@mail/core/common/discuss_component_re
 import { ImStatus } from "@mail/core/common/im_status";
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("mail.avatar_card");
 export class AvatarCardPopover extends Component {
     static template = "mail.AvatarCardPopover";
     static components = { ImStatus };
@@ -76,6 +79,7 @@ export class AvatarCardPopover extends Component {
     }
 
     onSendClick() {
+        log.logic("onSendClick", () => ({ userId: this.props.id }));
         this.openChat(this.props.id);
         this.props.close();
     }
@@ -84,6 +88,11 @@ export class AvatarCardPopover extends Component {
     async onClickViewProfile(newWindow) {
         const action = await this.getProfileAction();
         this.props.close();
+        log.logic("onClickViewProfile", () => ({
+            userId: this.props.id,
+            newWindow,
+            hasAction: Boolean(action),
+        }));
         if (!action) {
             return;
         }

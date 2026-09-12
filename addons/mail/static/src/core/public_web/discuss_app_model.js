@@ -2,6 +2,9 @@
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("mail.discuss");
 export const NO_MEMBERS_DEFAULT_OPEN_LS = "mail.user_setting.no_members_default_open";
 export const DISCUSS_SIDEBAR_COMPACT_LS = "mail.user_setting.discuss_sidebar_compact";
 export const LAST_DISCUSS_ACTIVE_ID_LS = "mail.user_setting.discuss_last_active_id";
@@ -78,6 +81,7 @@ export class DiscussApp extends Record {
 
     /** @param {StorageEvent} ev */
     onStorage(ev) {
+        log.pipeline("crosstab storage", () => ({ key: ev.key }));
         if (ev.key === DISCUSS_SIDEBAR_COMPACT_LS) {
             this._recomputeIsSidebarCompact++;
         }
@@ -93,6 +97,10 @@ export class DiscussApp extends Record {
 
     _threadOnUpdate() {
         this.lastActiveId = this.store.Thread.localIdToActiveId(this.thread?.localId);
+        log.logic("thread updated", () => ({
+            thread: this.thread?.localId,
+            lastActiveId: this.lastActiveId,
+        }));
     }
 }
 

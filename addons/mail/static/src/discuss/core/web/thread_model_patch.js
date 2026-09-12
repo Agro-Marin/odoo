@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("mail.thread");
 /** @type {Partial<import("models").Thread> & ThisType<import("models").Thread>} */
 const modelPatch = {
     setup() {
@@ -32,6 +35,10 @@ const modelPatch = {
                     this.store.discuss.channels.threads.find(
                         (thread) => thread.displayToSelf || thread.isLocallyPinned,
                     ) || this.store.inbox;
+                log.logic("unpinned discuss thread replaced", () => ({
+                    thread: this.localId,
+                    replacement: newThread.localId,
+                }));
                 newThread.setAsDiscussThread();
             } else {
                 this.store.discuss.thread = undefined;

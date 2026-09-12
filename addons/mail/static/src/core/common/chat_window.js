@@ -127,6 +127,10 @@ export class ChatWindow extends Component {
     onKeydown(ev) {
         const chatWindow = toRaw(this.props.chatWindow);
         if (ev.key === "Escape" && this.threadActions.activeAction) {
+            log.logic("Escape closes active action", () => ({
+                thread: chatWindow.thread?.localId,
+                action: this.threadActions.activeAction.id,
+            }));
             this.threadActions.activeAction.close();
             ev.stopPropagation();
             return;
@@ -156,6 +160,10 @@ export class ChatWindow extends Component {
                 const index = this.store.chatHub.opened.findIndex((cw) =>
                     cw.eq(chatWindow),
                 );
+                log.logic("tab to next chat window", () => ({
+                    index,
+                    opened: this.store.chatHub.opened.length,
+                }));
                 if (index === this.store.chatHub.opened.length - 1) {
                     this.store.chatHub.opened[0].focus({ jumpToNewMessage: true });
                 } else {
@@ -206,6 +214,7 @@ export class ChatWindow extends Component {
     /** @param {string} name */
     async renameThread(name) {
         const thread = toRaw(this.thread);
+        log.logic("renameThread", () => ({ thread: thread.localId, name }));
         await thread.rename(name);
         this.state.editingName = false;
     }
@@ -217,6 +226,9 @@ export class ChatWindow extends Component {
     /** @param {string} name */
     async renameGuest(name) {
         const newName = name.trim();
+        log.logic("renameGuest", () => ({
+            changed: this.store.self.name !== newName,
+        }));
         if (this.store.self.name !== newName) {
             await this.store.self_guest?.updateGuestName(newName);
         }

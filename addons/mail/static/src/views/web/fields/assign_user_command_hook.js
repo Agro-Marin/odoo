@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { useComponent } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -8,6 +9,8 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { getFieldDomain } from "@web/model/relational_model";
 import { useCommand } from "@web/ui/commands";
+
+const log = makeLogger("mail.assign_user");
 
 /**
  * @param {import("@odoo/owl").Component} component
@@ -30,6 +33,11 @@ function getCurrentAssignedIds(component, type) {
  * @param {[number, string]} record
  */
 function updateAssignment(component, type, record) {
+    log.logic("updateAssignment", () => ({
+        field: component.props.name,
+        type,
+        userId: record[0],
+    }));
     if (type === "many2one") {
         component.props.record.update({
             [component.props.name]: { id: record[0], display_name: record[1] },
@@ -46,6 +54,11 @@ function updateAssignment(component, type, record) {
  * @param {[number, string]} record
  */
 function clearAssignment(component, type, record) {
+    log.logic("clearAssignment", () => ({
+        field: component.props.name,
+        type,
+        userId: record?.[0],
+    }));
     if (type === "many2one") {
         component.props.record.update({ [component.props.name]: false });
     } else if (type === "many2many") {
