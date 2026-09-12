@@ -308,8 +308,7 @@ action_cancel() resets state back to inprogress.
 |--------|---------|
 | `_can_grant_badge()` | Return status code (1-5) |
 | `check_granting()` | Raise UserError if user cannot grant |
-| `_get_owners_info()` | SQL aggregation for owner stats |
-| `_get_badge_user_stats()` | SQL FILTER aggregation for per-user/monthly stats |
+| `_compute_owner_stats()` | One SQL aggregation for owner, per-user and monthly stats |
 | `_compute_remaining_sending()` | Compute remaining grants |
 
 ---
@@ -616,12 +615,11 @@ active ←──→ broken
 | Method | Trigger | Purpose |
 |--------|---------|---------|
 | `_compute_karma()` | `karma_tracking_ids.new_value` | Sum of all recorded gains (`new_value - old_value`) per user |
-| `_get_user_badge_level()` | `badge_ids` | SQL GROUP BY for gold/silver/bronze counts |
+| `_compute_badge_level_counts()` | `badge_ids` | SQL GROUP BY for gold/silver/bronze counts |
 | `_compute_xp_progress()` | `karma, rank_id, next_rank_id` | Progress bar calculation |
 | `_add_karma(gain, source, reason)` | explicit call | Create tracking record (single user) |
 | `_add_karma_batch(values_per_user)` | explicit call | Create tracking records (batch) |
-| `_recompute_rank()` | after karma change | Match user to rank tier |
-| `_recompute_rank_bulk()` | >N users | Optimized batch rank assignment |
+| `_recompute_rank()` | after karma change | Match user to rank tier: one query for the ranks, one write per distinct target rank |
 | `_rank_changed()` | after rank change | Grant unlock badges + send notification |
 | `_send_gamification_notification()` | various | Bus notification to user's partner |
 | `get_gamification_dashboard_data()` | @api.model RPC | Aggregate all gamification data for dashboard |
@@ -819,8 +817,8 @@ pending ──→ active ──→ completed (with rewards)
 
 | Method | Model | Purpose |
 |--------|-------|---------|
-| `_compute_step_count()` | quest | Count steps |
-| `_compute_enrollment_count()` | quest | Count enrolled + completed users |
+| `step_count`, `enrollment_count` | quest | `fields.Count` over `step_ids` / `enrollment_ids` |
+| `_compute_completion_count()` | quest | Count completed enrollments |
 | `complete_step(step)` | quest.enrollment | Validate state + prereqs, create completion, grant rewards, check quest done |
 | `_complete_quest()` | quest.enrollment | Grant quest rewards, log to feed |
 | `action_abandon()` | quest.enrollment | Set state to abandoned |

@@ -347,7 +347,7 @@ requester re-submits (`action_resubmit`).
 | Method | File | Purpose |
 |--------|------|---------|
 | `create()` | request.py | Approval minimum from category, subscribe owner, sync approvers (no name assignment — deferred to confirm) |
-| `write()` | request.py | Access check, forged-compute and locked-fields business rules, category-change guard, owner re-subscription, sync approvers when a field in `_get_approver_sync_trigger_fields()` is written |
+| `write()` | request.py | Access check, forged-compute and locked-fields business rules, category-change guard, owner re-subscription, sync approvers when a field in `_get_fields_approver_sync_trigger()` is written |
 | `copy_data()` / `copy()` | request.py | Duplicate with smart defaults from owner history (`_smart_clone_defaults`) + "Duplicated from" log |
 | `unlink()` | request.py | Two-layer validation (access + business rules: draft only) |
 | `_compute_display_name()` | request.py | Translated "New" placeholder for unnumbered drafts |
@@ -569,7 +569,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `action_view_approval_request()` | Open the linked request form |
 | `_clear_refused_approval_link()` | Release a refused/cancelled link so a reopened document can request a fresh approval |
 | `_get_domain_approval_category()` | **Override**: domain to find category |
-| `_get_approval_required_fields()` | **Override**: required fields before approval |
+| `_get_fields_approval_required()` | **Override**: required fields before approval |
 | `_get_approval_request_name()` | **Override**: customize request name |
 | `_prepare_approval_request_values()` | **Override**: customize request creation values. Honours `approval_binding_for` = (model, id, binding) in context, only when it names this record, so a binding-raised request knows its operation and a nested document cannot inherit the link |
 | `_on_approval_state_changed()` | **Dispatcher — do NOT override.** Routes to `_on_approval_approved` / `_on_approval_refused` / `_on_approval_cancelled` / `_on_approval_revoked` / `_on_approval_reset`. Base posts a chatter note per state; for the `pending` revocation it also schedules a To-Do for the responsible user on activity-enabled models. See conventions.md |
@@ -577,7 +577,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `_get_approval_category()` | Find matching category (uses domain + company). Owns the whole selection algorithm; supply `_get_domain_approval_category()`, `approval.category._is_applicable_for()`, `_get_approval_category_fallback()` and the two `_raise_*` hooks instead of overriding it |
 | `_approval_side_effect(failure_note)` | Context manager wrapping any document-advancing call made from a hook: savepoint + `UserError`/`ValidationError` catch + chatter note. Hooks run inside the approver's transaction — do not hand-roll this |
 | `_approval_decider_names(state)` | The filter-and-join over `approver_ids` that opens a decision message |
-| `write()` / `_get_approval_protected_fields()` | Freezes the listed source-document fields while an approval is in flight |
+| `write()` / `_get_fields_approval_protected()` | Freezes the listed source-document fields while an approval is in flight |
 | `unlink()` | Blocks deleting a document with a live approval |
 | `_check_can_request_approval()` / `_compute_can_request_approval()` | Gate on the "Request Approval" button |
 | `_before_approval_request_submit(approval)` | Hook between request creation and auto-confirm |

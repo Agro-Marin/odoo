@@ -427,7 +427,7 @@ factories) instead of rebuilding user fixtures.
 | `_get_additional_approvers()` override | Must return `list[tuple[int, bool, int]]` (user_id, required, sequence) |
 | `ESCALATION_RULES` constant (`approval_request.py`) | `_get_escalation_rules()` overlays `approval.escalation.<priority>.<kind>` system parameters on top of it -- do not restate the numbers elsewhere |
 | `action_confirm()` validation | `_check_confirm()` which calls `_check_enough_approvers()`, `_check_has_document_has_attachment()`, `_check_category_required_fields()` |
-| `_LOCKED_FIELDS` / `_get_locked_fields()` | `_PENDING_CHANGE_EDITABLE` (fields reopened by the change flow) and the form view `readonly` attrs |
+| `_LOCKED_FIELDS` / `_get_fields_locked()` | `_PENDING_CHANGE_EDITABLE` (fields reopened by the change flow) and the form view `readonly` attrs |
 | `approval_type` / `target_model` selection | Both are on `approval.category` with `selection_add` -- extend there, not on request (request uses related) |
 | Approver CRUD access checks | `approval_approver.py` (`_check_access_create/write/unlink`, `_check_business_rules_*`) — every o2m command on `approver_ids` reaches the row model, so the request has no second copy |
 | `_check_withdraw_allowed()` override | Use `_raise_withdraw_blocked()` for the canonical message; provide clear reasons why withdrawal is blocked |

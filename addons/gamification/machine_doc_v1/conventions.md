@@ -184,9 +184,10 @@ grep "tests when loading" ./odoo.log
    unlock logic.
 
 2. **Don't call `_recompute_rank()` on large user sets unnecessarily.**
-   The method auto-switches to `_recompute_rank_bulk()` when the user count
-   exceeds `len(ranks) * 3`, but callers should still pre-filter to users
-   with `karma > 0 or rank_id`.
+   The method costs one query for the ranks and one write per distinct target
+   rank however many users move, but every user who actually changes rank
+   still gets a bus message and an email, so pre-filter to users with
+   `karma > 0 or rank_id`.
 
 3. **Don't assume `_get_user_streaks` has been called.**
    Streak records are lazily created when `get_gamification_dashboard_data()`

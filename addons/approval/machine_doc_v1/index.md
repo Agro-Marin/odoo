@@ -318,7 +318,7 @@ request-a-change flow (`pending_change_field`) which keeps the request `pending`
 `_sync_approvers()` in `approval_request_routing.py` is the central approver
 computation method. It is NOT a computed field (creates/updates related records).
 Called from `create()`, `write()` (whenever a field in
-`_get_approver_sync_trigger_fields()` is written — `category_id`,
+`_get_fields_approver_sync_trigger()` is written — `category_id`,
 `request_owner_id` and every routing input the rules declare),
 `action_confirm()` and `action_reset_to_draft()`. The confirm-time call is
 what makes the CATEGORY's current configuration authoritative: every other

@@ -351,9 +351,9 @@ configuration, before the snapshot freezes it) and
 related `approval.approver` records.
 
 **Re-sync triggers (19.0.1.0.17).** `write()` no longer tests a
-hardcoded field set. `_get_approver_sync_trigger_fields()` unions
+hardcoded field set. `_get_fields_approver_sync_trigger()` unions
 `category_id`/`request_owner_id` with what `approval.rule` and
-reports from `_get_request_trigger_fields()` — the
+reports from `_get_fields_request_trigger()` — the
 flattened values of their `_CONDITION_FIELD_DEPENDS` /
 `_THRESHOLD_FIELD_DEPENDS` maps, today `amount`, `quantity`,
 `currency_id`, `date`, `date_start`, `date_end`, `priority`. The previous literal
@@ -842,10 +842,10 @@ and `has_product` now live in `approval_product`, which depends on
 | `_raise_approval_category_not_configured()` / `_raise_approval_category_not_matched(categories)` | Turn "no category" into a named configuration error instead of "no approval needed" | sale / purchase / maintenance / rma / credit_management_approval |
 | `_get_approval_reason_html()` | Justification stored on the request; base returns the document display name | account / sale / purchase / stock / rma / credit_management_approval |
 | `_get_category_required_field_mapping()` | Add required field validation | Extensions adding custom fields (must also add the field — base no longer maps `payment_method_id`) |
-| `_get_locked_fields()` | Extend the post-submit frozen field set | Extensions adding value fields |
+| `_get_fields_locked()` | Extend the post-submit frozen field set | Extensions adding value fields |
 | `_approval_rate_limit_exceeded(...)` | Submission throttle: too many, or too much in value, from this creator within a window. Multi-currency — thresholds are given in company currency and converted per counterparty currency before comparison | approval_purchase / approval_sale |
 | `_approval_rate_limit_rate_date()` | Pin the conversion date used by the throttle | any consumer |
-| `_get_approval_protected_fields()` | Fields on the SOURCE document frozen by the mixin's `write()` while an approval is in flight | any consumer |
+| `_get_fields_approval_protected()` | Fields on the SOURCE document frozen by the mixin's `write()` while an approval is in flight | any consumer |
 | `_before_approval_request_submit(approval)` | Act between request creation and auto-confirm | any consumer |
 | `_get_managed_approver_user_ids(replacement, matched_rules)` | Declare the user ids a satellite ACTUALLY injected, so a stale injection is not kept as a phantom manual approver (legacy backstop; `source_synced` covers rows since 19.0.1.0.13). Scoped to THIS request's category since 19.0.1.0.22 — it used to be seeded with every category approver in the company, which deleted a hand-added approver who merely appeared on an unrelated category | none today |
 | `approval_type` selection | Extend with new types (e.g., 'purchase', 'expense') | Domain-specific modules |
@@ -855,7 +855,7 @@ and `has_product` now live in `approval_product`, which depends on
 
 ## Category Snapshot (Audit Trail)
 
-At `action_confirm()`, `_build_category_snapshot()` captures the category
+At `action_confirm()`, `_prepare_category_snapshot()` captures the category
 configuration into a JSON field (`category_snapshot`). This preserves:
 
 - Category name, approval_minimum, approval_type

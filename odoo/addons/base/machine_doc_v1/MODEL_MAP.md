@@ -654,7 +654,7 @@ Scheduled jobs — executes server actions on a recurring schedule.
 - `_acquire_job(cr, job_id, include_not_ready)` — Lock job for execution (SELECT FOR UPDATE)
 - `_run_server_action(cron_name, server_action_id)` — Run the server action
 - `_trigger(at)`, `_add_triggers(at_list)` — Schedule immediate execution
-- `_notify_trigger_channel()` — Wake cron workers via pg_notify
+- `_notify_after_commit(cr)` — Wake cron workers via pg_notify once the transaction commits
 - `method_direct_trigger()` — Run cron immediately (UI button)
 - `toggle(model, domain)` — Toggle active state conditionally
 
@@ -708,7 +708,7 @@ cascade-cancelled (transitively) when a dependency fails or is cancelled.
 - `_record_failure(cr, job, exc)` — retry with backoff (`RetryableJobError.seconds` honored) or fail + cascade-cancel dependents
 - `_release_dependents(cr, job_id)` / `_cancel_dependents(cr, job_ids)` / `_release_ready_dependents(cr)` — graph resolution (inline fast path + repair sweep for unlocked enqueue races)
 - `_reap_dead_jobs(cr)` — requeue started jobs whose session advisory lock is gone
-- `_notifydb()` / `_notify_workers(db_name)` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
+- `_notify_after_commit(cr)` / `_notify_workers(db_name)` — wake job workers via pg_notify; `_job_ping(message)` — smoke-test job
 - `_notify_failed(cr, job, exc)` — hook on permanent failure (no-op in base; override per DB, cf. `IrCron._notify_admin`)
 - `action_run_now()` — execute a pending job inline in the current transaction (ignores eta/capacity, like cron's direct trigger)
 - `action_requeue()` (recomputes wait_deps vs pending), `action_cancel()` (wait_deps/pending; cascades) — UI/state actions
@@ -734,8 +734,8 @@ Per-channel concurrency capacity (cluster-wide, enforced by the claim query).
 File storage with pluggable backends (see `ir_attachment_storage.py`:
 `AttachmentStorage` / `DbStorage` / `FileStorage`, `@register_storage`).
 Two dispatch axes: `ir_attachment.location` selects where NEW content is
-written (`_storage_backend()`); existing content follows its store key,
-resolved by URI scheme via `_backend_for_key()` (plain sharded keys →
+written (`_get_storage_backend()`); existing content follows its store key,
+resolved by URI scheme via `_get_storage_backend_for_key()` (plain sharded keys →
 local filestore). The `_file_*` methods are local-filestore primitives.
 
 Filestore keys are **algorithm-tagged**: `b3/<shard>/<digest>` for the
@@ -760,11 +760,11 @@ no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
 - `index_content` (Text) — Extracted text for full-text search
 
 **Key Methods:**
-- `_storage()` — Configured location name (`file`, `db`, or custom)
-- `_storage_backend()` — Write-side backend for the configured location
-- `_backend_for_key(fname)` — Read-side backend owning a store key
+- `_get_storage_location()` — Configured location name (`file`, `db`, or custom)
+- `_get_storage_backend()` — Write-side backend for the configured location
+- `_get_storage_backend_for_key(fname)` — Read-side backend owning a store key
 - `_storage_delete(fname)` — Key-dispatched content deletion
-- `_filestore()` — Filestore directory path
+- `_get_filestore()` — Filestore directory path
 - `_file_read(fname, size)`, `_file_write(bin_value, checksum)`, `_file_delete(fname)`
 - `_gc_file_store()` — Autovacuum: runs every backend's `autovacuum()`
 - `_gc_rehash_legacy_keys(limit)` — Autovacuum: opt-in re-keying of rows
@@ -1637,7 +1637,7 @@ SVG avatar generation from name initials.
 
 **Key Methods:**
 - `_compute_avatar(avatar_field, image_field)` — Use image or generate SVG
-- `_avatar_generate_svg()` — Generate SVG with initials and HSL color
+- `_prepare_avatar_svg()` — Generate SVG with initials and HSL color
 
 ### models/properties_base_definition.py / mixin_properties_base_definition.py
 
