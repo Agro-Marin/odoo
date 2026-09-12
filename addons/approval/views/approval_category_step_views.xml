@@ -15,6 +15,7 @@
                             <field name="group_id" options="{'no_create': True}" />
                             <field name="minimum" />
                             <field name="exclusive" />
+                            <field name="in_order" />
                             <field
                                 name="subject_user_path"
                                 placeholder="e.g. employee_id.leave_manager_id"
@@ -51,6 +52,7 @@
                         <page name="members" string="Members">
                             <field name="member_ids">
                                 <list editable="bottom">
+                                    <field name="sequence" widget="handle" />
                                     <field name="user_id" />
                                     <field name="date_end" />
                                     <field name="delegated_by_id" optional="show" />

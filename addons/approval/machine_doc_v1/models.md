@@ -949,6 +949,7 @@ does not is left as it was.
 | `member_ids` | One2many(`approval.category.step.member`) | — | No | the step's named users |
 | `group_id` | Many2one(`res.groups`) | Yes | No | its members join the pool too — the union Studio's `approver_ids` / `approval_group_id` pair expresses |
 | `exclusive` | Boolean | Yes | No | an approval counting toward this step counts toward no other step of the request, and the other way round |
+| `in_order` | Boolean | Yes | No | string="Members Decide in Order". Only the member whose turn it is (`approval.request._get_step_turn_row`: the first, by member `sequence`, whose row has not approved the step) is asked and may decide; `_check_step_turn` refuses the others and `_get_steps_for_decision` leaves the step out of their decision. The step's quorum ends the chain. This is the step form of the flat `approve_sequentially`; `_check_in_order_pool` refuses a group or an approver path on such a step, whose users have no place in the order |
 | `advisory` | Boolean | Yes | No | The step's approvers are asked (its unmet advisory steps are open beside the lowest blocking step) and their decisions recorded, but it decides nothing: `_is_quorum_met` reads `_get_blocking_unmet_steps()`, a row refused only for advisory steps (`approval.approver._is_advisory_only()`) is no deciding refusal (`_get_deciding_refusals()`) and flips no other row, progress is reported for blocking steps only, and confirmation does not need an advisory step's pool. The ECO's optional and comment roles |
 | `notify_user_ids` | Many2many(`res.users`) | Yes | No | posted an internal note when an approver of this step decides |
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition and the approver path read; required when `subject_domain` or `subject_user_path` is set |
@@ -967,6 +968,7 @@ does not is left as it was.
 - `_check_pool`: a quorum of at least one, and members, a group or an approver path to give it
 - `_check_source_user_path`: an approver path names its source model, every part of it exists there, and it ends in a field whose comodel is `res.users`
 - `_check_condition`: a condition names its source model, and every path it reads exists there
+- `_check_in_order_pool`: a step whose members decide in order lists its approvers as members, with no group and no approver path
 - `_check_figure_condition`: a figure condition has a comparison, and a `between` band's upper bound is above its lower one (or 0 for none)
 - `_check_category_not_sequential`: the same refusal as `approval.category._constrains_steps_not_sequential`, from the step's side, since creating a step does not write the category
 

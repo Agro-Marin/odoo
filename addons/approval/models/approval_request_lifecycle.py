@@ -218,6 +218,7 @@ class ApprovalRequestLifecycle(models.Model):
             )
             self._raise_not_assigned_approver()
         self._check_steps_decidable(approver, steps)
+        self._check_step_turn(approver, steps)
         acting_user = approver[:1]._get_effective_approver()
         trace.DECISION.event(
             "actor",
@@ -369,7 +370,9 @@ class ApprovalRequestLifecycle(models.Model):
         fixed as later approvals come in.
         """
         self.check_singleton()
-        undecided = approver.step_ids - approver.decided_step_ids
+        undecided = (approver.step_ids - approver.decided_step_ids).filtered(
+            lambda step: self._is_row_turn(approver, step)
+        )
         if not any(approver.step_ids.mapped("exclusive")):
             trace.DECISION.event(
                 "steps_for_decision",
@@ -436,6 +439,34 @@ class ApprovalRequestLifecycle(models.Model):
                         name=self.display_name,
                     ),
                 )
+
+    def _check_step_turn(self, approvers, steps=None) -> None:
+        """Refuse a decision on a step whose members decide in order, out of turn."""
+        self.check_singleton()
+        for approver in approvers:
+            wanted = steps or (approver.step_ids - approver.decided_step_ids)
+            if not wanted:
+                continue
+            waiting = wanted.filtered(
+                lambda step, row=approver: not self._is_row_turn(row, step)
+            )
+            if not waiting or (not steps and waiting != wanted):
+                continue
+            trace.REFUSAL.event(
+                "step_out_of_turn",
+                request=self.id,
+                approver=approver.id,
+                steps=waiting.ids,
+            )
+            raise UserError(
+                self.env._(
+                    "%(user)s cannot decide %(steps)s on %(name)s yet: its members "
+                    "decide in order, and an earlier one has not approved it.",
+                    user=approver._get_effective_approver().name,
+                    steps=", ".join(waiting.mapped("name")),
+                    name=self.display_name,
+                ),
+            )
 
     def _notify_step_decision(
         self, approvers, acting_user, decision: str, steps=None
@@ -1074,6 +1105,10 @@ class ApprovalRequestLifecycle(models.Model):
                     )
                     parked.sudo().write({"state": "pending"})
                     parked._create_activity()
+                if request.approver_ids.step_ids:
+                    # A withdrawal can hand a turn back: whoever it passed to is no
+                    # longer asked.
+                    request._retire_unasked_approval_activities()
 
             acting_user = req_approver[:1]._get_effective_approver()
             request.with_user(acting_user).sudo().message_post(

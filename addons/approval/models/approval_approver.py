@@ -642,6 +642,7 @@ class ApprovalApprover(models.Model):
             wanted = listed & self.request_id._get_unmet_steps()
         else:
             wanted = listed & self.request_id._get_open_steps()
+        wanted = wanted.filtered(lambda step: self.request_id._is_row_turn(self, step))
         trace.ACTIVITY.event(
             "notifiable",
             approver=self.id,

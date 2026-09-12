@@ -55,6 +55,13 @@ class ApprovalCategoryStep(models.Model):
         "of the same request, and the other way round: a user who decided an "
         "exclusive step decides nothing else on that request.",
     )
+    in_order = fields.Boolean(
+        string="Members Decide in Order",
+        help="The step's members decide one after another, in the members' order: "
+        "only the first who has not approved it yet is asked and may decide. The "
+        "step's quorum ends the chain, so a quorum of one stops at the first "
+        "approval.",
+    )
     advisory = fields.Boolean(
         help="The step's approvers are asked and their decisions recorded, but the "
         "step decides nothing: the request is approved without it, and a refusal "
@@ -97,6 +104,25 @@ class ApprovalCategoryStep(models.Model):
         help="Field path on the source document naming users who approve this step, "
         "e.g. employee_id.leave_manager_id. Each document names its own approvers.",
     )
+
+    @api.constrains("in_order", "group_id", "subject_user_path")
+    def _check_in_order_pool(self) -> None:
+        for step in self.filtered("in_order"):
+            if step.group_id or step.subject_user_path:
+                trace.REFUSAL.event(
+                    "step_in_order_unordered_pool",
+                    step=step.id,
+                    group=step.group_id.id,
+                    path=step.subject_user_path,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' lets its members decide in order, so its "
+                        "approvers must be listed members: a group's users or the "
+                        "users a document names have no place in that order.",
+                        step=step.name,
+                    )
+                )
 
     @api.constrains("condition_field", "operator", "threshold", "threshold_max")
     def _check_figure_condition(self) -> None:
@@ -437,7 +463,7 @@ class ApprovalCategoryStep(models.Model):
 class ApprovalCategoryStepMember(models.Model):
     _name = "approval.category.step.member"
     _description = "Approval Step Member"
-    _order = "step_id, id"
+    _order = "step_id, sequence, id"
     _rec_name = "user_id"
 
     _step_user_uniq = models.Constraint(
@@ -456,6 +482,10 @@ class ApprovalCategoryStepMember(models.Model):
         store=True,
         readonly=True,
         index=True,
+    )
+    sequence = fields.Integer(
+        default=10,
+        help="The member's place when the step's members decide in order.",
     )
     user_id = fields.Many2one(
         comodel_name="res.users",

@@ -29,15 +29,17 @@ SCRIPTS = {
         (("approve", "a"), "pending", {"b"}, {"b"}),
         (("approve", "b"), "approved", set(), set()),
     ],
+    "sequential_withdrawal": [
+        (None, "pending", {"a"}, {"a"}),
+        (("approve", "a"), "pending", {"b"}, {"b"}),
+        (("withdraw", "a"), "pending", {"a"}, {"a"}),
+    ],
     "sequential_quorum_of_one": [
         (None, "pending", {"a"}, {"a"}),
         (("approve", "a"), "approved", set(), set()),
     ],
-    # What the closest step form (one step per approver, notify_sequentially)
-    # does instead. Steps order who is ASKED, not who
-    # may DECIDE: the later step's member can approve before the first one is
-    # met. And one step per approver needs every one of them, so a quorum of one
-    # does not end the chain.
+    # Separate steps notified in order: a later step's member may decide before the
+    # first step is met, which is documented step behaviour, not sequential approval.
     "sequential_as_steps": [
         (None, "pending", {"a", "b"}, {"a"}),
         (("approve", "a"), "pending", {"b"}, {"b"}),
@@ -209,6 +211,16 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
             "sequential",
         )
 
+    def test_sequential_withdrawal(self):
+        self._run(
+            self._flat(
+                [("a", True, 10), ("b", True, 20)],
+                approval_minimum=2,
+                approve_sequentially=True,
+            ),
+            "sequential_withdrawal",
+        )
+
     def test_sequential_quorum_of_one(self):
         self._run(
             self._flat(
@@ -339,7 +351,10 @@ class TestStepRoutingOutcomes(RoutingOutcomesCase):
                     "sequence": step_vals.pop("sequence", 10 * (index + 1)),
                     "minimum": minimum,
                     "member_ids": [
-                        Command.create({"user_id": self.people[key].id}) for key in keys
+                        Command.create(
+                            {"user_id": self.people[key].id, "sequence": 10 * position}
+                        )
+                        for position, key in enumerate(keys, start=1)
                     ],
                     **step_vals,
                 }
@@ -361,16 +376,33 @@ class TestStepRoutingOutcomes(RoutingOutcomesCase):
             "required_beside_optional",
         )
 
-    def test_sequential_has_no_step_form(self):
-        # The flat "sequential" and "sequential_quorum_of_one" scripts have no step
-        # form yet: steps notify in order but let any member decide early, and a
-        # quorum smaller than the chain cannot end it. One routing model needs a
-        # step that is decided in order, and a quorum across ordered members,
-        # before this reads as the flat scripts do.
+    def test_sequential(self):
+        # Sequential approvers are one step whose members decide in order.
+        self._run(self._stepped([(("a", "b"), 2, {"in_order": True})]), "sequential")
+
+    def test_sequential_withdrawal(self):
+        self._run(
+            self._stepped([(("a", "b"), 2, {"in_order": True})]),
+            "sequential_withdrawal",
+        )
+
+    def test_sequential_quorum_of_one(self):
+        self._run(
+            self._stepped([(("a", "b"), 1, {"in_order": True})]),
+            "sequential_quorum_of_one",
+        )
+
+    def test_separate_steps_order_who_is_asked_not_who_decides(self):
+        # Steps of their own, notified in order, are not sequential approval: a
+        # later step's member may decide before the first step is met.
         self._run(
             self._stepped([(("a",), 1, {}), (("b",), 1, {})], notify_sequentially=True),
             "sequential_as_steps",
         )
+
+    def test_members_in_order_need_listed_members(self):
+        with self.assertRaises(ValidationError):
+            self._stepped([(("a",), 1, {"in_order": True, "group_id": self.pool.id})])
 
     def test_one_refusal(self):
         self._run(self._stepped([(("a", "b"), 1, {})]), "one_refusal")

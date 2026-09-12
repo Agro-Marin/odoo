@@ -1036,6 +1036,31 @@ class ApprovalRequest(models.Model):
         self.check_singleton()
         return self._get_unmet_steps().filtered(lambda step: not step.advisory)
 
+    def _get_step_turn_row(self, step):
+        """On a step whose members decide in order, the row whose turn it is: the first
+        member, in the members' order, whose row has not approved the step yet."""
+        self.check_singleton()
+        position = {
+            member.user_id.id: index
+            for index, member in enumerate(
+                step.member_ids.sorted(lambda member: (member.sequence, member.id))
+            )
+        }
+        rows = self.approver_ids.filtered(lambda row: step in row.step_ids).sorted(
+            lambda row: (position.get(row.user_id.id, len(position)), row.id)
+        )
+        turn = rows.filtered(
+            lambda row: not (row.state == "approved" and step in row.decided_step_ids)
+        )[:1]
+        trace.STEPS.event(
+            "turn", request=self.id, step=step.id, rows=rows.ids, turn=turn.ids
+        )
+        return turn
+
+    def _is_row_turn(self, row, step) -> bool:
+        self.check_singleton()
+        return not step.in_order or self._get_step_turn_row(step) == row
+
     def _get_open_steps(self):
         """The unmet steps an approver is asked for now: the lowest sequence among the
         blocking ones, and every advisory step still unmet, which waits for nobody."""
