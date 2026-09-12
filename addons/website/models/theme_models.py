@@ -410,7 +410,7 @@ class IrUiView(models.Model):
 
     def write(self, vals):
         test_mode = modules.module.current_test
-        if not (test_mode or self.pool._init):
+        if self.pool.ready and not test_mode:
             return super().write(vals)
         no_arch_updated_views = other_views = self.env["ir.ui.view"]
         for record in self:

@@ -779,9 +779,7 @@ class IrModelFields(models.Model):
                 view._check_xml()
         except Exception:
             if not uninstalling:
-                self.pool._setup_models__(
-                    self.env.cr, OrderedSet(records.mapped("model"))
-                )
+                self.pool.setup_models(self.env.cr, OrderedSet(records.mapped("model")))
                 raise UserError(
                     _(
                         "Cannot rename/delete fields that are still present in views:\nFields: %(fields)s\nView: %(view)s",
@@ -795,7 +793,7 @@ class IrModelFields(models.Model):
                 view.name,
             )
         if not uninstalling and setup_models:
-            self.pool._setup_models__(self.env.cr, OrderedSet(records.mapped("model")))
+            self.pool.setup_models(self.env.cr, OrderedSet(records.mapped("model")))
 
         return self
 
@@ -864,7 +862,7 @@ class IrModelFields(models.Model):
                 fields_.add(self.pool[record.model]._fields[record.name])
 
         self.pool.registry_invalidated = True
-        self.pool._discard_fields(fields_)
+        self.pool.discard_fields(fields_)
 
         for field in fields_:
             self.env.core.discard_field(field)

@@ -1004,7 +1004,7 @@ class TestCrmPlsTeamPriors(CrmPlsCommon):
             "crm.pls_start_date", "2000-01-01"
         )
         cls.env["ir.config_parameter"].sudo().set_param("crm.pls_fields", "country_id")
-        cls.env.registry._setup_models__(cls.env.cr, ["crm.lead"])
+        cls.env.registry.setup_models(cls.env.cr, ["crm.lead"])
         cls.country = cls.env.ref("base.be")
 
         cls.env["crm.stage"].search([]).write({"sequence": 9999})

@@ -148,8 +148,8 @@ def _convert_and_record(
 ) -> set[str]:
     registry = env.registry
     recorder: set[str] = set()
-    previous_recorder = registry._xmlid_recorder
-    registry._xmlid_recorder = recorder
+    previous_recorder = registry.loading.xmlid_recorder
+    registry.loading.xmlid_recorder = recorder
     try:
         convert_file(
             env,
@@ -160,8 +160,8 @@ def _convert_and_record(
             noupdate=kind == "demo",
         )
     finally:
-        registry._xmlid_recorder = previous_recorder
-    registry._xmlids_written.update(recorder)
+        registry.loading.xmlid_recorder = previous_recorder
+    registry.loading.xmlids_written.update(recorder)
     return recorder
 
 
@@ -181,7 +181,7 @@ def _load_tracked_file(
     registry = env.registry
     entry = stored_files.get(filename)
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
-        contended = registry._xmlids_written.intersection(entry["xmlids"])
+        contended = registry.loading.xmlids_written.intersection(entry["xmlids"])
         if filename in stale_files:
             _logger.info(
                 "re-applying unchanged %s/%s: records it declares are gone from "
@@ -454,7 +454,7 @@ class _PackageLoader:
             self.operation = "install"
         elif package.state == "to upgrade":
             self.operation = "upgrade"
-        elif package.name in self.registry._reinit_modules:
+        elif package.name in self.registry.loading.reinit_modules:
             self.operation = "reinit"
         else:
             self.operation = None
@@ -483,7 +483,7 @@ class _PackageLoader:
             return
         if self.operation == "upgrade":
             if self.name != "base":
-                self.registry._setup_models__(self.env.cr, [], skip_if_clean=True)
+                self.registry.setup_models(self.env.cr, [], skip_if_clean=True)
             with _debug.perf("modules.migration", module=self.name, stage="pre"):
                 self.migrations.migrate_module(self.package, "pre")
         if self.name != "base":
@@ -497,7 +497,7 @@ class _PackageLoader:
         if self.operation != "install":
             return
         if pre_init := self.package.manifest.get("pre_init_hook"):
-            self.registry._setup_models__(self.env.cr, [], skip_if_clean=True)
+            self.registry.setup_models(self.env.cr, [], skip_if_clean=True)
             with _debug.perf("modules.hook", module=self.name, hook=pre_init):
                 getattr(self.py_module, pre_init)(self.env)
 
@@ -509,7 +509,7 @@ class _PackageLoader:
             model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
             self.models_updated.update(model_names)
             self.models_to_check -= model_names
-            registry._setup_models__(self.cr, [], skip_if_clean=True)
+            registry.setup_models(self.cr, [], skip_if_clean=True)
             registry.init_models(
                 self.cr,
                 model_names,
@@ -640,7 +640,7 @@ class _PackageLoader:
             self.registry.deferred_at_install_modules.append(self.name)
             return
         if not self.operation:
-            self.registry._setup_models__(self.cr, [], skip_if_clean=True)
+            self.registry.setup_models(self.cr, [], skip_if_clean=True)
         self.registry.check_null_constraints(self.cr)
         tests_t0, tests_q0 = time.time(), odoo.db.sql_counter
         _debug.pipeline(
@@ -724,13 +724,22 @@ def get_installed_dependents_not_yet_loaded(
         )
         return closure[node.name]
 
-    return [
+    pending = [
         node.name
         for node in graph
         if node.name not in loaded
         and node.state in ("installed", "to upgrade")
         and is_dependent(node)
     ]
+    if name == "base":
+        # The bootstrap graph holds base alone, so it cannot name base's
+        # dependents; the database can, and every installed module is one.
+        pending.extend(
+            module
+            for module in graph.installed_outside()
+            if module not in loaded and module not in pending
+        )
+    return pending
 
 
 def _run_gc_cycle(registry: Registry, cycles: int) -> int:
@@ -981,7 +990,7 @@ class _ModuleLoader:
             _logger.info("Initializing database %s", cr.dbname)
             modules_db.initialize(cr)
         elif "base" in self.reinit_modules:
-            self.registry._reinit_modules.add("base")
+            self.registry.loading.reinit_modules.add("base")
 
         if "base" in self.upgrade_modules:
             cr.execute(
@@ -1048,15 +1057,15 @@ class _ModuleLoader:
 
     def load_languages(self) -> None:
         load_lang = tools.config.get("load_language")
-        lang_pending = bool(load_lang) and not self.registry._load_language_done
+        lang_pending = bool(load_lang) and not self.registry.loading.load_language_done
         if lang_pending or self.update_module:
-            self.registry._setup_models__(self.cr, [], skip_if_clean=True)
+            self.registry.setup_models(self.cr, [], skip_if_clean=True)
 
         if lang_pending:
             for lang in load_lang.split(","):
                 with _debug.perf("modules.load_language", cr=self.cr, lang=lang):
                     tools.translate.load_language(self.cr, lang)
-            self.registry._load_language_done = True
+            self.registry.loading.load_language_done = True
 
     def apply_module_requests(self) -> None:
         if not self.update_module:
@@ -1109,7 +1118,7 @@ class _ModuleLoader:
                 )
                 + modules
             )
-            self.registry._reinit_modules.update(
+            self.registry.loading.reinit_modules.update(
                 m
                 for m in reinit_records.mapped("name")
                 if m not in self.graph._imported_modules
@@ -1125,7 +1134,7 @@ class _ModuleLoader:
             "modules.requests_applied",
             install=len(self.install_modules),
             upgrade=len(self.upgrade_modules),
-            reinit=len(self.registry._reinit_modules),
+            reinit=len(self.registry.loading.reinit_modules),
         )
 
     def converge_module_graph(self) -> None:
@@ -1171,7 +1180,7 @@ class _ModuleLoader:
         registry = self.registry
         database_translated_fields = registry._database_translated_fields
         registry._database_translated_fields = {}
-        registry._setup_models__(self.cr, [], skip_if_clean=True)
+        registry.setup_models(self.cr, [], skip_if_clean=True)
         models_to_untranslate = set()
         for full_name in database_translated_fields:
             model_name, field_name = full_name.rsplit(".", 1)
@@ -1194,7 +1203,7 @@ class _ModuleLoader:
         with _debug.perf(
             "modules.finalize_registry_setup", cr=self.cr, models=len(self.registry)
         ):
-            self.registry._setup_models__(self.cr)
+            self.registry.setup_models(self.cr)
 
     def run_deferred_at_install_tests(self) -> None:
         _run_deferred_at_install_tests(self.registry, self.cr, self.env, self.report)
@@ -1275,6 +1284,7 @@ class _ModuleLoader:
         self._reflect_inherits_across_the_whole_registry()
 
         env["ir.model.data"]._process_end(self.registry.updated_modules)
+        self.registry.loading.xmlids_written.clear()
         vacuum_cron = typing.cast(
             "IrCronProtocol | None",
             env.ref("base.autovacuum_job", raise_if_not_found=False),

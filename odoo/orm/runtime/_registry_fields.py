@@ -160,7 +160,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
         return self.model_graph.get_dependent_fields(field)
 
     @locked
-    def _discard_fields(self, fields: list[Field]) -> None:
+    def discard_fields(self, fields: list[Field]) -> None:
         _debug.lifecycle("registry.fields_discarded", fields=len(fields))
         self.model_graph.begin_invalidation()
         try:

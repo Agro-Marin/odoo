@@ -90,7 +90,7 @@ class AccountChartTemplate(models.AbstractModel):
             if sepa_module and sepa_module.state != "installed":
                 if (
                     self.env.registry.ready
-                    and not self.env.registry._init
+                    and self.env.registry.ready
                     and not modules.module.current_test
                     and not self.env.context.get("install_demo")
                 ):

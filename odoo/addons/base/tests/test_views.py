@@ -211,7 +211,7 @@ class TestViewInheritance(ViewCase):
     def setUp(self):
         super().setUp()
 
-        self.patch(self.registry, "_init", False)
+        self.patch(self.registry, "ready", True)
 
         self.model = "ir.ui.view.custom"
         self.view_ids = {}
@@ -1183,7 +1183,7 @@ class TestNoModel(ViewCase):
 class TestTemplating(ViewCase):
     def setUp(self):
         super().setUp()
-        self.patch(self.registry, "_init", False)
+        self.patch(self.registry, "ready", True)
 
     def test_render_public_asset_as_a_plain_user(self):
         # The mailing editor and the website builder fetch their templates
@@ -8138,7 +8138,7 @@ class TestCombineIsBatched(ViewCase):
 
 class TestCombineBatchingIsDeclinedAtInstall(ViewCase):
     def test_the_batch_is_declined_while_the_registry_is_loading(self):
-        self.assertTrue(self.env.registry._init, "this must run at install")
+        self.assertFalse(self.env.registry.ready, "this must run at install")
         views = self.View.create(
             [
                 {

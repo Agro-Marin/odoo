@@ -436,7 +436,7 @@ def test_clear_cache_honors_names():
 def test_discard_fields_works_without_attributeerror():
     registry = ModelRegistry([HWidget])
     field = registry["h.widget"]._fields["total"]
-    registry._discard_fields([field])
+    registry.discard_fields([field])
     assert field not in registry.field_depends
 
 

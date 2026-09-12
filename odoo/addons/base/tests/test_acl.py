@@ -12,12 +12,12 @@ from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 @contextmanager
 def registry_loading(registry, loading):
-    previous = registry._init
-    registry._init = loading
+    previous = registry.ready
+    registry.ready = not loading
     try:
         yield
     finally:
-        registry._init = previous
+        registry.ready = previous
 
 
 @contextmanager

@@ -34,12 +34,8 @@ def access_mode_columns(alias: str) -> dict[str, SQL]:
 
 
 def unloaded_module_scope(env: Any) -> tuple[int, str | None] | None:
-    # The module whose data or demo files are being converted counts as loaded:
-    # its own access rows and rules exist, and a `uid=` record in those files acts
-    # on its models. loaded_modules only grows while loading, so its size keys a
-    # cached answer to the set it was computed against.
     registry = env.registry
-    if not registry._init:
+    if registry.ready:
         return None
     return len(registry.loaded_modules), env.context.get("install_module")
 
@@ -47,7 +43,7 @@ def unloaded_module_scope(env: Any) -> tuple[int, str | None] | None:
 def unloaded_module_clause(env: Any, model: str, alias: str) -> SQL:
     registry = env.registry
     loaded_modules = list(registry.loaded_modules)
-    if not registry._init or not loaded_modules:
+    if registry.ready or not loaded_modules:
         return SQL("")
     if install_module := env.context.get("install_module"):
         loaded_modules.append(install_module)
@@ -130,7 +126,7 @@ def reload_schema(
     env.flush_all()
     registry = env.registry
     with _debug.perf("reload_schema_setup", cr=env.cr, models=len(setup_models)):
-        registry._setup_models__(env.cr, setup_models)
+        registry.setup_models(env.cr, setup_models)
     if init_models:
         affected_models = registry.get_descendants(init_models, "_inherits")
         with _debug.perf(

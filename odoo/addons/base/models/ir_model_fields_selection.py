@@ -231,7 +231,7 @@ class IrModelFieldsSelection(models.Model):
         if model_names:
             self.env.flush_all()
             with _debug.perf("registry_setup_after_create", cr=self.env.cr):
-                self.pool._setup_models__(self.env.cr, model_names)
+                self.pool.setup_models(self.env.cr, model_names)
 
         return recs
 
@@ -325,7 +325,7 @@ class IrModelFieldsSelection(models.Model):
         self.env.flush_all()
         if {"value", "sequence", "field_id"} & vals.keys():
             model_names = self.field_id.model_id.mapped("model")
-            self.pool._setup_models__(self.env.cr, model_names)
+            self.pool.setup_models(self.env.cr, model_names)
         elif "name" in vals:
             self.env.registry.clear_cache("stable")
 
@@ -366,7 +366,7 @@ class IrModelFieldsSelection(models.Model):
 
         if not uninstalling:
             self.env.flush_all()
-            self.pool._setup_models__(self.env.cr, model_names)
+            self.pool.setup_models(self.env.cr, model_names)
 
         return result
 

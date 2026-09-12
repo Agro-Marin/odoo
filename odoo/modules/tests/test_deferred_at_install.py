@@ -69,10 +69,29 @@ class TestDeferredAtInstall(unittest.TestCase):
 
     def test_the_closure_is_transitive_and_ordered_by_load_order(self):
         graph = self._graph({})
-        self.assertEqual(
-            get_installed_dependents_not_yet_loaded(graph, "base", {"base"}),
-            ["hr", "mail", "hr_work_entry", "hr_payroll"],
-        )
+        with patch.object(ModuleGraph, "installed_outside", return_value=[]):
+            self.assertEqual(
+                get_installed_dependents_not_yet_loaded(graph, "base", {"base"}),
+                ["hr", "mail", "hr_work_entry", "hr_payroll"],
+            )
+
+    def test_base_defers_to_installed_modules_the_bootstrap_graph_does_not_hold(self):
+        graph = self._graph({})
+        with patch.object(
+            ModuleGraph, "installed_outside", return_value=["crm", "base", "hr"]
+        ):
+            self.assertEqual(
+                get_installed_dependents_not_yet_loaded(graph, "base", {"base"}),
+                ["hr", "mail", "hr_work_entry", "hr_payroll", "crm"],
+            )
+
+    def test_only_base_consults_the_database_for_dependents(self):
+        graph = self._graph({})
+        with patch.object(
+            ModuleGraph, "installed_outside", return_value=["crm"]
+        ) as outside:
+            get_installed_dependents_not_yet_loaded(graph, "hr", {"base", "hr"})
+        outside.assert_not_called()
 
     def test_a_loaded_dependent_no_longer_counts(self):
         graph = self._graph({})

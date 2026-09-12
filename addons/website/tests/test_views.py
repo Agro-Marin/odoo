@@ -1480,8 +1480,8 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
 
         v1.with_context(website_id=1).write({"name": "Extension Specific"})
 
-        original_pool_init = View.pool._init
-        View.pool._init = True
+        original_ready = View.pool.ready
+        View.pool.ready = False
 
         try:
             View._load_records(
@@ -1499,7 +1499,7 @@ class TestCowViewSaving(TestViewSavingCommon, HttpCase):
                 ]
             )
         finally:
-            View.pool._init = original_pool_init
+            View.pool.ready = original_ready
 
     def test_specific_view_translation(self):
         self.env["res.lang"]._activate_lang("fr_BE")

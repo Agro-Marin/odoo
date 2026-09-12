@@ -618,7 +618,7 @@ class IrUiView(models.Model):
                         raise self._prepare_view_error(message, node)
 
     def _get_combined_archs_by_id(self) -> dict[int, _Element]:
-        if len(self) < 2 or self.pool._init:
+        if len(self) < 2 or not self.pool.ready:
             return {}
         try:
             return dict(zip(self.ids, self._get_combined_archs(), strict=True))
@@ -757,7 +757,7 @@ class IrUiView(models.Model):
                 else:
                     stack.append(child)
 
-        if self.pool._init and sibling_primary_views and self.pool.loaded_modules:
+        if not self.pool.ready and sibling_primary_views and self.pool.loaded_modules:
             sibling_primary_views = sibling_primary_views._filter_loaded_views(
                 include_loaded_xmlids=True
             )
@@ -1413,7 +1413,7 @@ class IrUiView(models.Model):
 
         all_tree_views = views._get_views_inheriting()
 
-        if self.pool._init and not self.env.context.get("load_all_views"):
+        if not self.pool.ready and not self.env.context.get("load_all_views"):
             all_tree_views = all_tree_views._filter_loaded_views(
                 set(views.env.context["check_view_ids"])
             )
@@ -3178,7 +3178,7 @@ class IrUiView(models.Model):
 
     @api.model
     def _check_module_views(self, module: str) -> None:
-        if not self.pool._init:
+        if self.pool.ready:
             msg = (
                 "_check_module_views() must only be called during module initialization"
             )

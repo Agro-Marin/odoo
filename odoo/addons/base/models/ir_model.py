@@ -339,7 +339,7 @@ class IrModel(models.Model):
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             self.env.flush_all()
             with _debug.perf("registry_setup_after_unlink", cr=self.env.cr):
-                self.pool._setup_models__(self.env.cr)
+                self.pool.setup_models(self.env.cr)
 
         return res
 
@@ -362,7 +362,7 @@ class IrModel(models.Model):
         if "order" in vals or "fold_name" in vals:
             self.env.flush_all()
             with _debug.perf("registry_setup_after_write", cr=self.env.cr):
-                self.pool._setup_models__(self.env.cr, [])
+                self.pool.setup_models(self.env.cr, [])
         return res
 
     @api.model_create_multi

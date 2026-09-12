@@ -254,7 +254,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
             SET compute = 'pass', depends = 'x_stuff_id.x_custom_1'
             WHERE model = 'x_test_10_compute_store_x_name' AND name = 'x_name'
         """)
-        self.registry._setup_models__(self.cr, ["x_test_10_compute_store_x_name"])
+        self.registry.setup_models(self.cr, ["x_test_10_compute_store_x_name"])
 
     def test_10_context_dependent_related(self):
         self.env["res.lang"]._activate_lang("fr_FR")
@@ -659,7 +659,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env["ir.config_parameter"].set_param("test_orm.full_name", "name1,name2")
 
         self.env.flush_all()
-        self.registry._setup_models__(self.cr, ["test_orm.compute.dynamic.depends"])
+        self.registry.setup_models(self.cr, ["test_orm.compute.dynamic.depends"])
         self.assertEqual(
             self.registry.field_depends[Model.full_name], ("name1", "name2")
         )
@@ -1407,7 +1407,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.assertTrue(text2.trim, "The related field was defined with trim=True")
 
         self.patch(text, "trim", True)
-        self.registry._setup_models__(self.cr, ["test_orm.foo"])
+        self.registry.setup_models(self.cr, ["test_orm.foo"])
         self.assertTrue(self.registry["test_orm.foo"].text.trim)
         self.assertTrue(self.registry["test_orm.bar"].text1.trim)
 
@@ -4456,7 +4456,7 @@ class TestMagicFields(TransactionCase):
         models = registry.models
 
         self.patch(registry, "models", OrderedDict(sorted(models.items())))
-        registry._setup_models__(self.cr)
+        registry.setup_models(self.cr)
         field = registry["test_orm.display"].display_name
         self.assertTrue(field.store)
 
@@ -4465,7 +4465,7 @@ class TestMagicFields(TransactionCase):
             "models",
             OrderedDict(sorted(models.items(), reverse=True)),
         )
-        registry._setup_models__(self.cr)
+        registry.setup_models(self.cr)
         field = registry["test_orm.display"].display_name
         self.assertTrue(field.store)
 
@@ -5146,7 +5146,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_default_no_default(self):
 
@@ -5165,7 +5165,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_value_no_valid(self):
 
@@ -5184,7 +5184,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_required_null_explicit(self):
 
@@ -5203,7 +5203,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
     def test_ondelete_required_null_implicit(self):
 
@@ -5221,7 +5221,7 @@ class TestSelectionOndeleteAdvanced(TransactionCase):
         add_model_to_registry(self.registry, Foo)
 
         with self.assertRaises(ValueError):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
 
 class TestFieldParametersValidation(TransactionCase):
@@ -5237,7 +5237,7 @@ class TestFieldParametersValidation(TransactionCase):
         self.addCleanup(self.registry.__delitem__, Foo._name)
 
         with self.assertLogs("odoo.fields", level="WARNING") as cm:
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
         self.assertTrue(
             cm.output[0].startswith(
@@ -5573,7 +5573,7 @@ class TestWrongRelatedError(TransactionCase):
             "test_orm.wrong_related_path.foo_non_existing does not exist."
         )
         with self.assertRaisesRegex(KeyError, errMsg):
-            self.registry._setup_models__(self.env.cr, [])
+            self.registry.setup_models(self.env.cr, [])
 
 
 class TestPrecomputeHonoursGivenValues(TransactionCase):
@@ -5637,7 +5637,7 @@ class TestPrecomputeModel(TransactionCase):
         self.addCleanup(self.registry.reset_changes)
         self.patch(Model.upper, "precompute", False)
         with self.assertWarns(UserWarning):
-            self.registry._setup_models__(self.cr, ["test_orm.precompute"])
+            self.registry.setup_models(self.cr, ["test_orm.precompute"])
             self.registry.field_computed
 
     def test_precompute_dependencies_base(self):
@@ -5651,7 +5651,7 @@ class TestPrecomputeModel(TransactionCase):
         self.patch(Model.upper, "precompute", False)
 
         with self.assertRaisesRegex(ValueError, "cannot be precomputed"):
-            self.registry._setup_models__(self.cr, ["test_orm.precompute"])
+            self.registry.setup_models(self.cr, ["test_orm.precompute"])
             self.registry.get_trigger_tree(Model._fields.values())
         self.assertTrue(Model.lowup.precompute)
 
@@ -5672,7 +5672,7 @@ class TestPrecomputeModel(TransactionCase):
         self.patch(Model.size, "precompute", True)
         self.patch(Line.size, "precompute", False)
         with self.assertRaisesRegex(ValueError, "cannot be precomputed"):
-            self.registry._setup_models__(
+            self.registry.setup_models(
                 self.cr, ["test_orm.precompute", "test_orm.precompute.line"]
             )
             self.registry.get_trigger_tree(Model._fields.values())

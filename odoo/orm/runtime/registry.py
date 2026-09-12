@@ -28,6 +28,7 @@ from ._registry_capabilities import (
 )
 from ._registry_fields import _RegistryFieldsMixin
 from ._registry_init_phase import _RegistryInitPhaseMixin
+from ._registry_loading_phase import _RegistryLoadingPhaseMixin
 from ._registry_models import _RegistryModelsMixin
 from ._registry_schema import _RegistrySchemaMixin
 from ._registry_signaling import _RegistrySignalingMixin
@@ -62,6 +63,7 @@ class Registry(
     _RegistrySchemaMixin,
     _RegistryModelsMixin,
     _RegistryInitPhaseMixin,
+    _RegistryLoadingPhaseMixin,
     _RegistryCapabilitiesMixin,
     _RegistrySignalingMixin,
     Mapping[str, type["BaseModel"]],
@@ -91,7 +93,6 @@ class Registry(
             except KeyError:
                 return cls.new(db_name)
 
-    _init: bool
     ready: bool
     loaded: bool
 
@@ -99,7 +100,6 @@ class Registry(
     def _new_finalize(cls, db_name: str, update_module: bool, t0: float) -> Registry:
         registry = cls.registries[db_name]
 
-        registry._init = False
         registry.ready = True
         registry.registry_invalidated = bool(update_module)
 
@@ -186,6 +186,7 @@ class Registry(
                     new_db_demo = config["with_demo"]
                 if first_registry:
                     exit_stack.enter_context(gc.disabling_gc())
+                exit_stack.enter_context(registry.loading_window())
                 load_modules(
                     registry,
                     update_module=update_module,
@@ -209,18 +210,16 @@ class Registry(
             cls.remove(db_name)
             raise
 
-        del registry._reinit_modules
-
         return cls._new_finalize(db_name, update_module, t0)
 
     def init(self, db_name: str) -> None:
-        self._init = True
         self.loaded = False
         self.ready = False
         self.last_used = time.monotonic()
 
         self._init_models_container()
         self._init_phase_state()
+        self._loading_phase_state()
         self._init_field_state()
         self._init_schema_state()
         self._init_signaling_state()
@@ -229,15 +228,10 @@ class Registry(
         self._database_company_dependent_fields: set[str] = set()
         self._assertion_report = _get_assertion_report(db_name)
 
-        self._reinit_modules: set[str] = set()
-
         self.loaded_modules: set[str] = set()
         self.updated_modules: list[str] = []
         self.deferred_at_install_modules: list[str] = []
         self.loaded_xmlids: set[str] = set()
-        self._xmlids_written: set[str] = set()
-        self._xmlid_recorder: set[str] | None = None
-        self._load_language_done: bool = False
 
         self.db_name = db_name
         self._replica = ReplicaRouter(
@@ -402,7 +396,7 @@ class Registry(
                 self.field_depends_context[field] = tuple(depends_context)
 
     @locked
-    def _setup_models__(
+    def setup_models(
         self,
         cr: BaseCursor,
         model_names: Iterable[str] | None = None,
@@ -658,7 +652,7 @@ class Registry(
         if self.registry_invalidated:
             _debug.logic("registry.reset_changes", db=self.db_name)
             with closing(self.cursor()) as cr:
-                self._setup_models__(cr)
+                self.setup_models(cr)
                 self.registry_invalidated = False
         self._reset_cache_changes()
 

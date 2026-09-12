@@ -139,6 +139,12 @@ class ModuleGraph:
             mode=self.mode,
         )
 
+    def installed_outside(self) -> list[str]:
+        self._cr.execute(
+            "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade')"
+        )
+        return [name for (name,) in self._cr.fetchall() if name not in self._modules]
+
     @functools.cached_property
     def _imported_modules(self) -> OrderedSet[str]:
         result = ["studio_customization"]

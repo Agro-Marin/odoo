@@ -227,7 +227,7 @@ class IrUiView(models.Model):
                         preserved_view_ids.add(preserved.id)
 
         specific_views = self.env["ir.ui.view"]
-        if self and self.pool._init:
+        if self and not self.pool.ready:
             for view in self.filtered(lambda view: not view.website_id):
                 specific_views += view._get_views_specific()
             specific_views -= self.browse(preserved_view_ids)

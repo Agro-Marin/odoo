@@ -518,7 +518,7 @@ class TestMergePartnerDefaultsCache(TransactionCase):
             }
         )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [])
+        self.env.registry.setup_models(self.env.cr, [])
         return "x_merge_default_probe"
 
     def test_a_repointed_default_is_not_served_from_cache(self):

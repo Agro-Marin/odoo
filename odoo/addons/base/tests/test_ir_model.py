@@ -499,7 +499,7 @@ class TestIrModelEdition(TransactionCase):
             }
         )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
         record = self.env[model.model].create({"x_src": "a"})
 
         try:
@@ -690,13 +690,13 @@ class TestIrModelFields(TransactionCase):
 
     def test_empty_write_skips_registry_setup(self):
         _model, field = self._make_manual_field("empty")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             self.assertTrue(field.write({}))
         mock_setup.assert_not_called()
 
     def test_label_translate_write_skips_registry_setup(self):
         Model, field = self._make_manual_field("label")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             field.write({"field_description": "Renamed Label"})
         mock_setup.assert_not_called()
         self.assertEqual(
@@ -748,14 +748,14 @@ class TestIrModelFields(TransactionCase):
     def test_field_rename_sets_up_the_registry_once(self):
         _Model, field = self._make_manual_field("setuponce")
         self.env.flush_all()
-        original = type(self.env.registry)._setup_models__
+        original = type(self.env.registry).setup_models
         calls = []
 
         def spy(registry, cr, model_names=None, **kwargs):
             calls.append(model_names)
             return original(registry, cr, model_names, **kwargs)
 
-        with patch.object(type(self.env.registry), "_setup_models__", spy):
+        with patch.object(type(self.env.registry), "setup_models", spy):
             field.write({"name": "x_setuponce2"})
         self.assertEqual(len(calls), 1, calls)
 
@@ -817,7 +817,7 @@ class TestIrModelFields(TransactionCase):
     def test_help_on_a_base_field_skips_registry_setup(self):
         field = self.env["ir.model.fields"]._get("res.partner", "comment")
         self.assertFalse(field.help)
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             field.write({"help": "Tooltip"})
         mock_setup.assert_not_called()
 
@@ -933,7 +933,7 @@ class TestIrModelFields(TransactionCase):
 
     def test_presence_preserving_label_write_still_skips_setup(self):
         Model, field = self._make_manual_field("keepfast", help="Tip")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             field.write({"field_description": "Renamed", "help": "Tip 2"})
         mock_setup.assert_not_called()
         self.assertEqual(
@@ -969,7 +969,7 @@ class TestIrModelFields(TransactionCase):
             }
         )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
 
         self.assertTrue(group.get_external_id()[group.id])
         self.assertEqual(
@@ -1010,7 +1010,7 @@ class TestIrModelFields(TransactionCase):
             [("model", "=", "res.groups"), ("res_id", "=", group.id)]
         ).unlink()
         self.env.registry.clear_cache("stable")
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
 
         self.assertEqual(
             self.env.registry[model.model]._fields[field.name].groups,
@@ -1100,7 +1100,7 @@ class TestIrModelFields(TransactionCase):
                 }
             )
         self.env.flush_all()
-        self.env.registry._setup_models__(self.env.cr, [model.model])
+        self.env.registry.setup_models(self.env.cr, [model.model])
         long_view = self.env["ir.ui.view"].create(
             {
                 "name": "IMF scan long",
@@ -1362,13 +1362,13 @@ class TestIrModelFields(TransactionCase):
         _Model, field = self._make_manual_field("scoped")
         self.env.flush_all()
         scopes = []
-        original = type(self.env.registry)._setup_models__
+        original = type(self.env.registry).setup_models
 
         def spy(registry, cr, model_names=None, **kwargs):
             scopes.append(model_names)
             return original(registry, cr, model_names, **kwargs)
 
-        with patch.object(type(self.env.registry), "_setup_models__", spy):
+        with patch.object(type(self.env.registry), "setup_models", spy):
             field.unlink()
 
         self.assertTrue(scopes)
@@ -1814,7 +1814,7 @@ class TestIrModelFieldsSelection(TransactionCase):
     def test_selection_label_rename_skips_registry_setup(self):
         Model, field = self._make_selection_field("label")
         draft = field.selection_ids.filtered(lambda s: s.value == "draft")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             draft.write({"name": "Brouillon"})
         mock_setup.assert_not_called()
         self.assertIn(
@@ -1825,7 +1825,7 @@ class TestIrModelFieldsSelection(TransactionCase):
     def test_selection_value_rename_triggers_registry_setup(self):
         _model, field = self._make_selection_field("setup")
         draft = field.selection_ids.filtered(lambda s: s.value == "draft")
-        with patch.object(self.env.registry, "_setup_models__") as mock_setup:
+        with patch.object(self.env.registry, "setup_models") as mock_setup:
             draft.write({"value": "pending"})
         mock_setup.assert_called()
 

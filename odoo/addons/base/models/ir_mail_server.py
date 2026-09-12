@@ -639,7 +639,7 @@ class IrMail_Server(models.Model):
 
     @classmethod
     def _disable_send(cls) -> bool:
-        return modules.module.current_test or cls.pool._init
+        return modules.module.current_test or not cls.pool.ready
 
     def _connect__(
         self,

@@ -581,7 +581,7 @@ def _add_manual_models(env: Environment):
                     inherits_parent_cls._inherits_children.discard(name)
 
     if removed_fields:
-        env.registry._discard_fields(list(removed_fields))
+        env.registry.discard_fields(list(removed_fields))
 
     env.cr.execute(
         "SELECT *, name->>'en_US' AS name FROM ir_model WHERE state = 'manual'",

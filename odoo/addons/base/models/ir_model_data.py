@@ -229,9 +229,7 @@ class IrModelData(models.Model):
 
         xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
         self.pool.loaded_xmlids.update(xml_ids)
-        recorder = getattr(self.pool, "_xmlid_recorder", None)
-        if recorder is not None:
-            recorder.update(xml_ids)
+        self.pool.record_xmlids_written(xml_ids)
 
         if any(row[2] == "res.groups" for row in rows):
             self.env.registry.clear_cache("groups")
@@ -269,9 +267,7 @@ class IrModelData(models.Model):
         record = self.env.ref(xml_id, raise_if_not_found=False)
         if record:
             self.pool.loaded_xmlids.add(xml_id)
-            recorder = getattr(self.pool, "_xmlid_recorder", None)
-            if recorder is not None:
-                recorder.add(xml_id)
+            self.pool.record_xmlids_written((xml_id,))
         return record
 
     @api.model
@@ -592,7 +588,6 @@ class IrModelData(models.Model):
         self.env["ir.ui.view"]._create_all_specific_views(modules)
 
         loaded_xmlids.clear()
-        self.pool._xmlids_written.clear()
 
     @api.model
     def toggle_noupdate(self, model: str, res_id: int) -> None:

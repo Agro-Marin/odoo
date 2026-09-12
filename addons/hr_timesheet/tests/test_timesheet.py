@@ -145,7 +145,7 @@ class TestCommonTimesheet(TransactionCase):
 class TestTimesheet(TestCommonTimesheet):
     def setUp(self):
         super().setUp()
-        self.env.registry._setup_models__(self.env.cr)
+        self.env.registry.setup_models(self.env.cr)
 
         rule = self.env.ref(
             "timesheet_grid.timesheet_line_rule_user_update-unlink",

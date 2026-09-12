@@ -605,7 +605,7 @@ class ResCompany(models.Model):
         uninstalled_modules = self.uninstalled_l10n_module_ids
         is_ready_and_not_test = (
             not tools.config["test_enable"]
-            and (self.env.registry.ready or not self.env.registry._init)
+            and self.env.registry.ready
             and not modules.module.current_test
             and not self.env.context.get("install_mode")
             and not self.env.context.get("import_file")

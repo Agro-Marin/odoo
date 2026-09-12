@@ -826,7 +826,7 @@ class IrModuleModule(models.Model):
     def _button_immediate_function(
         self, function: Callable[..., Any]
     ) -> dict[str, Any]:
-        if not self.env.registry.ready or self.env.registry._init:
+        if not self.env.registry.ready:
             raise UserError(
                 _(
                     "Immediate module operations cannot be performed on an init or non-loaded registry. Please use button_install instead."
