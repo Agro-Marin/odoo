@@ -632,20 +632,28 @@ export class ListRenderer extends Component {
             getFieldClass: (column) => this.getFieldClass(column),
             getFieldProps: (record, column) => this.getFieldProps(record, column),
             displayDeleteIcon: (record) => this.displayDeleteIcon(record),
-            onCellClicked: (record, column, ev, newWindow) =>
-                this.onCellClicked(rec(record), column, ev, newWindow),
-            onButtonCellClicked: (record, column, ev) =>
-                this.onButtonCellClicked(rec(record), column, ev),
-            onRemoveCellClicked: (record, ev) =>
-                this.onRemoveCellClicked(rec(record), ev),
-            onCellKeydown: (ev, group = null, record = null) =>
-                this.onCellKeydown(ev, grp(group), rec(record)),
-            toggleRecordSelection: (record) => this.toggleRecordSelection(rec(record)),
-            onRowTouchStart: (record, ev) => this.onRowTouchStart(rec(record), ev),
-            onRowTouchEnd: (record) => this.onRowTouchEnd(rec(record)),
-            onRowTouchMove: (record) => this.onRowTouchMove(rec(record)),
-            onClickCapture: (record, ev) => this.onClickCapture(rec(record), ev),
-            ignoreEventInSelectionMode: (ev) => this.ignoreEventInSelectionMode(ev),
+            // every argument reaches the renderer: a subclass may widen a
+            // handler's signature and its row template call it that way
+            onCellClicked: (record, ...args) =>
+                this.onCellClicked(rec(record), ...args),
+            onButtonCellClicked: (record, ...args) =>
+                this.onButtonCellClicked(rec(record), ...args),
+            onRemoveCellClicked: (record, ...args) =>
+                this.onRemoveCellClicked(rec(record), ...args),
+            onCellKeydown: (ev, group = null, record = null, ...args) =>
+                this.onCellKeydown(ev, grp(group), rec(record), ...args),
+            toggleRecordSelection: (record, ...args) =>
+                this.toggleRecordSelection(rec(record), ...args),
+            onRowTouchStart: (record, ...args) =>
+                this.onRowTouchStart(rec(record), ...args),
+            onRowTouchEnd: (record, ...args) =>
+                this.onRowTouchEnd(rec(record), ...args),
+            onRowTouchMove: (record, ...args) =>
+                this.onRowTouchMove(rec(record), ...args),
+            onClickCapture: (record, ...args) =>
+                this.onClickCapture(rec(record), ...args),
+            ignoreEventInSelectionMode: (...args) =>
+                this.ignoreEventInSelectionMode(...args),
             getGridState: () => this.gridState,
             getEditedRecord: () => this.editedRecord,
             displaySaveNotification: () => this.displaySaveNotification(),

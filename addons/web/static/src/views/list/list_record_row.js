@@ -106,145 +106,104 @@ export class ListRecordRow extends Component {
         return this.props.activeActions;
     }
 
-    /** @param {any} record */
-    getRowClass(record) {
-        return this.props.api.getRowClass(record);
+    /** @param {any[]} args */
+    getRowClass(...args) {
+        return this.props.api.getRowClass(...args);
     }
 
-    /** @param {any} record */
-    getColumns(record) {
-        return this.props.api.getColumns(record);
+    /** @param {any[]} args */
+    getColumns(...args) {
+        return this.props.api.getColumns(...args);
     }
 
-    /**
-     * @param {string} invisible
-     * @param {any} record
-     */
-    evalInvisible(invisible, record) {
-        return this.props.api.evalInvisible(invisible, record);
+    /** @param {any[]} args */
+    evalInvisible(...args) {
+        return this.props.api.evalInvisible(...args);
     }
 
-    /**
-     * @param {any} column
-     * @param {any} record
-     */
-    canUseFormatter(column, record) {
-        return this.props.api.canUseFormatter(column, record);
+    /** @param {any[]} args */
+    canUseFormatter(...args) {
+        return this.props.api.canUseFormatter(...args);
     }
 
-    /**
-     * @param {any} column
-     * @param {any} record
-     */
-    getFormattedValue(column, record) {
-        return this.props.api.getFormattedValue(column, record);
+    /** @param {any[]} args */
+    getFormattedValue(...args) {
+        return this.props.api.getFormattedValue(...args);
     }
 
-    /**
-     * @param {any} column
-     * @param {any} record
-     */
-    getCellClass(column, record) {
-        return this.props.api.getCellClass(column, record);
+    /** @param {any[]} args */
+    getCellClass(...args) {
+        return this.props.api.getCellClass(...args);
     }
 
-    /**
-     * @param {any} column
-     * @param {any} record
-     * @param {string} [formattedValue]
-     */
-    getCellTitle(column, record, formattedValue) {
-        return this.props.api.getCellTitle(column, record, formattedValue);
+    /** @param {any[]} args */
+    getCellTitle(...args) {
+        return this.props.api.getCellTitle(...args);
     }
 
-    /** @param {any} column */
-    getFieldClass(column) {
-        return this.props.api.getFieldClass(column);
+    /** @param {any[]} args */
+    getFieldClass(...args) {
+        return this.props.api.getFieldClass(...args);
     }
 
-    /**
-     * @param {any} record
-     * @param {any} column
-     */
-    getFieldProps(record, column) {
-        return this.props.api.getFieldProps(record, column);
+    /** @param {any[]} args */
+    getFieldProps(...args) {
+        return this.props.api.getFieldProps(...args);
     }
 
-    /** @param {any} record */
-    displayDeleteIcon(record) {
-        return this.props.api.displayDeleteIcon(record);
+    /** @param {any[]} args */
+    displayDeleteIcon(...args) {
+        return this.props.api.displayDeleteIcon(...args);
     }
 
-    /**
-     * @param {any} record
-     * @param {any} column
-     * @param {PointerEvent} ev
-     * @param {boolean} [newWindow]
-     */
-    onCellClicked(record, column, ev, newWindow) {
-        return this.props.api.onCellClicked(record, column, ev, newWindow);
+    /** @param {any[]} args */
+    onCellClicked(...args) {
+        return this.props.api.onCellClicked(...args);
     }
 
-    /**
-     * @param {any} record
-     * @param {any} column
-     * @param {PointerEvent} ev
-     */
-    onButtonCellClicked(record, column, ev) {
-        return this.props.api.onButtonCellClicked(record, column, ev);
+    /** @param {any[]} args */
+    onButtonCellClicked(...args) {
+        return this.props.api.onButtonCellClicked(...args);
     }
 
-    /**
-     * @param {any} record
-     * @param {PointerEvent} ev
-     */
-    onRemoveCellClicked(record, ev) {
-        return this.props.api.onRemoveCellClicked(record, ev);
+    /** @param {any[]} args */
+    onRemoveCellClicked(...args) {
+        return this.props.api.onRemoveCellClicked(...args);
     }
 
-    /**
-     * @param {KeyboardEvent} ev
-     * @param {any} [group]
-     * @param {any} [record]
-     */
-    onCellKeydown(ev, group = null, record = null) {
-        return this.props.api.onCellKeydown(ev, group, record);
+    /** @param {any[]} args */
+    onCellKeydown(...args) {
+        return this.props.api.onCellKeydown(...args);
     }
 
-    /** @param {any} record */
-    toggleRecordSelection(record) {
-        return this.props.api.toggleRecordSelection(record);
+    /** @param {any[]} args */
+    toggleRecordSelection(...args) {
+        return this.props.api.toggleRecordSelection(...args);
     }
 
-    /**
-     * @param {any} record
-     * @param {TouchEvent} ev
-     */
-    onRowTouchStart(record, ev) {
-        return this.props.api.onRowTouchStart(record, ev);
+    /** @param {any[]} args */
+    onRowTouchStart(...args) {
+        return this.props.api.onRowTouchStart(...args);
     }
 
-    /** @param {any} record */
-    onRowTouchEnd(record) {
-        return this.props.api.onRowTouchEnd(record);
+    /** @param {any[]} args */
+    onRowTouchEnd(...args) {
+        return this.props.api.onRowTouchEnd(...args);
     }
 
-    /** @param {any} record */
-    onRowTouchMove(record) {
-        return this.props.api.onRowTouchMove(record);
+    /** @param {any[]} args */
+    onRowTouchMove(...args) {
+        return this.props.api.onRowTouchMove(...args);
     }
 
-    /**
-     * @param {any} record
-     * @param {PointerEvent} ev
-     */
-    onClickCapture(record, ev) {
-        return this.props.api.onClickCapture(record, ev);
+    /** @param {any[]} args */
+    onClickCapture(...args) {
+        return this.props.api.onClickCapture(...args);
     }
 
-    /** @param {MouseEvent} ev */
-    ignoreEventInSelectionMode(ev) {
-        return this.props.api.ignoreEventInSelectionMode(ev);
+    /** @param {any[]} args */
+    ignoreEventInSelectionMode(...args) {
+        return this.props.api.ignoreEventInSelectionMode(...args);
     }
 }
 

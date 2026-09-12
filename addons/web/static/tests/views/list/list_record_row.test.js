@@ -115,6 +115,58 @@ test("api members dispatch on the renderer with the row's record (C1/C4)", async
     expect(".o_data_row .o_data_cell[name='name']").toHaveCount(3);
 });
 
+registerTemplate(
+    "test_list_record_row.WidenedRow",
+    "/web/static/tests/views/list/list_record_row.test.js",
+    `
+    <t t-name="test_list_record_row.WidenedRow"
+       t-inherit="web.ListRenderer.RecordRow"
+       t-inherit-mode="primary">
+        <xpath expr="//td[1]" position="replace">
+            <td class="o_list_record_selector">
+                <CheckBox onChange.bind="(selected) => this.toggleRecordSelection(selected, record)"/>
+            </td>
+        </xpath>
+    </t>`,
+);
+
+test.tags("desktop");
+test("a row handler forwards every argument, so a renderer may widen its signature", async () => {
+    // the shape account_online_synchronization's duplicate-transaction list
+    // takes: the renderer's toggleRecordSelection(selected, record) is called
+    // from its row template with both arguments
+    /** @type {any[]} */
+    const calls = [];
+    const listView = registry.category("views").get("list");
+    class WidenedListRenderer extends listView.Renderer {
+        static recordRowTemplate = "test_list_record_row.WidenedRow";
+        get hasSelectors() {
+            return true;
+        }
+        /**
+         * @param {boolean} selected
+         * @param {any} record
+         */
+        toggleRecordSelection(selected, record) {
+            calls.push([selected, record?.data.name]);
+        }
+    }
+    registry
+        .category("views")
+        .add(
+            "widened_row_list",
+            { ...listView, Renderer: WidenedListRenderer },
+            { force: true },
+        );
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list js_class="widened_row_list"><field name="name"/></list>`,
+    });
+    await contains(".o_data_row:eq(1) .o_list_record_selector input").click();
+    expect(calls).toEqual([[true, "beta"]]);
+});
+
 test.tags("desktop");
 test("action callbacks resolve the record to the renderer's context (C2)", async () => {
     const captured = setupCustomRowList();
