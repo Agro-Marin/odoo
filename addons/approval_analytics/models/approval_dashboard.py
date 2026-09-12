@@ -5,7 +5,7 @@ from odoo import api, fields, models
 from odoo.libs.datetime import timezone
 from odoo.tools import SQL
 
-from ..models import approval_trace as trace
+from odoo.addons.approval.models import approval_trace as trace
 
 
 class ApprovalDashboard(models.TransientModel):

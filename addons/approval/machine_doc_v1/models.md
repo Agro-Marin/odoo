@@ -77,17 +77,6 @@ mixin.approval.subjects (Abstract)     [inherits mixin.approval.source]
 approval.refusal.reason
     +-- category_ids ------> approval.category (m2m)
 
-approval.metrics (SQL View)
-    +-- category_id -------> approval.category
-
-approver.performance (SQL View)
-    +-- user_id -----------> res.users
-
-approval.dashboard (Singleton)
-    +-- slowest_category_id -> approval.category
-    +-- slowest_approver_id -> res.users
-    +-- most_pending_approver_id -> res.users
-
 mail.activity (extended)
     +-- approval_request_id -> approval.request (computed from approver_id)
     +-- approver_id -------> approval.approver (stored)
@@ -1150,113 +1139,14 @@ Approving is a 1-click action that never opens this wizard.
 
 ---
 
-## approval.metrics (SQL View)
+## The reporting models moved out at 19.0.2.0.0
 
-| Key | Value |
-|-----|-------|
-| Model | `approval.metrics` |
-| File | `reports/approval_metrics.py` |
-| Type | Model, `_auto = False`, `_inherit = "mixin.sql.report"` |
-| Order | `category_id, avg_approval_hours` |
-
-The model does **not** write `_table_query` itself. `mixin.sql.report`
-(`odoo/addons/mixin_report_sql`) owns `_table_query` and assembles the
-statement in `_query()` from four overrides this model supplies:
-`_get_fields_select()`, `_get_from_tables()`, `_get_where_conditions()`,
-`_get_fields_group_by()`. Add a field here and you must add its SELECT
-entry there — nothing links them automatically.
-
-### Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `category_id` | Many2one(`approval.category`) | Grouped by category |
-| `company_id` | Many2one(`res.company`) | Grouped by company |
-| `total_requests` | Integer | Total submitted |
-| `approved_count` | Integer | state = approved |
-| `rejected_count` | Integer | state = refused |
-| `pending_count` | Integer | state = pending |
-| `cancelled_count` | Integer | state = cancelled (labelled "Cancelled", not "Refused") |
-| `approval_rate` | Float | Approved / DECIDED (%). Denominator is `approval.request._DECISION_STATES` (approved + refused) — a cancelled request was retracted or expired, so nobody decided it. Counting cancellations made a category with 4 approvals, 4 retractions and zero refusals report 50%. |
-| `avg_approval_hours` | Float | AVG(approved - confirmed) in hours |
-| `median_approval_hours` | Float | PERCENTILE_CONT(0.5) in hours |
-| `sla_target_hours` | Float | From category config (`sla_target_hours`) |
-| `sla_compliant_count` | Integer | Approved within SLA |
-| `sla_compliance_rate` | Float | Compliant / approved (%) |
-
----
-
-## approver.performance (SQL View)
-
-| Key | Value |
-|-----|-------|
-| Model | `approver.performance` |
-| File | `reports/approver_performance.py` |
-| Type | Model, `_auto = False`, `_inherit = "mixin.sql.report"` (same four overrides as `approval.metrics`) |
-| Order | `avg_response_hours` |
-
-### Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `user_id` | Many2one(`res.users`) | Grouped by the deciding actor: `COALESCE(decided_by_user_id, user_id)` |
-| `company_id` | Many2one(`res.company`) | Grouped by company |
-| `total_approvals` | Integer | GENUINE decisions (approver rows with `decision_date` set) |
-| `approved_count` | Integer | Approvals with `decision_date` set |
-| `refused_count` | Integer | Refusals with `decision_date` set (cascade/consent flips excluded) |
-| `pending_count` | Integer | Currently pending |
-| `avg_response_hours` | Float | `AVG(a.decision_date − COALESCE(a.pending_since, ar.date_confirmed))` in hours — the clock starts when the ROW entered `pending`, so a sequential approver is not billed for the queue ahead of them. `date_confirmed` is only the fallback for rows predating `pending_since` |
-| `approval_rate` | Float | Approved / decided (%), genuine decisions only |
-
-> The view keys on `approval.approver.decision_date` (stamped only in
-> `_apply_decision`). Rows flipped to refused/cancelled by a sequential/
-> cascade close-out, consent auto-approval, or expiration have no
-> `decision_date` and are excluded — so an approver's rate is not tanked
-> by refusals they never made, and response time is per-approver
-> (2026-07-03 audit, majors #6 & #8).
->
-> Rows are attributed to whoever ACTUALLY decided, not to the slot owner.
-> Under delegation those differ, and grouping on `user_id` alone credited
-> the delegated decision, and its response time, to the absent principal
-> while the delegate who did the work scored nothing (measured 16.0h on
-> the principal, 0.0h on the delegate; 2026-08-11 audit). `pending_count`
-> deliberately still follows the assignee through the COALESCE fallback:
-> an undecided row has no actor, and "how much is queued on this person"
-> is a property of the slot. `approval.dashboard.my_avg_response_hours`
-> matches on the same expression.
-
----
-
-## approval.dashboard (Singleton)
-
-| Key | Value |
-|-----|-------|
-| Model | `approval.dashboard` |
-| File | `reports/approval_dashboard.py` |
-| Type | Model |
-
-### Fields
-
-`name` is the only stored column (the singleton's label); everything below
-is computed and non-stored, recalculated per read.
-
-| Group | Fields |
-|-------|--------|
-| Today | `pending_today`, `approved_today`, `refused_today`, `submitted_today`, `avg_response_time_hours` |
-| Meta | `last_refresh` |
-| Trends | `trend_7days`, `trend_15days`, `trend_30days`, and their rendered siblings `trend_7days_display`, `trend_15days_display`, `trend_30days_display` |
-| Bottlenecks | `slowest_category_id`, `slowest_category_hours`, `slowest_approver_id`, `slowest_approver_hours`, `most_pending_approver_id`, `most_pending_count` |
-| All-time | `total_requests_all_time`, `total_pending_all_time`, `overall_approval_rate`, `avg_approval_time_all_time` |
-| User | `my_pending_count`, `my_pending_urgent_count`, `my_avg_response_hours` |
-| Velocity | `requests_per_day_7d`, `requests_per_day_15d`, `requests_per_day_30d`, `approvals_per_day_7d`, `approvals_per_day_15d`, `approvals_per_day_30d`, `avg_response_hours_7d`, `avg_response_hours_15d`, `avg_response_hours_30d`, `median_approval_hours` |
-
-### Key Methods
-
-| Method | Purpose |
-|--------|---------|
-| `get_dashboard()` | Singleton pattern: search or create |
-| `action_refresh()` | Invalidate cache + reload |
-| `_get_avg_response_time_sql()` | Efficient SQL AVG calculation |
+`approval.metrics`, `approver.performance` and `approval.dashboard` now live in
+`approval_analytics`, and `approval.binding.reset_domain` /
+`reset_automation_id` in `approval_automation`. Both auto-install, so a database
+that had them keeps them; the split exists so that a module adopting
+`mixin.approval` does not take `mixin_report_sql` and the whole `automation`
+closure with it. Read their fields in those modules.
 
 ---
 

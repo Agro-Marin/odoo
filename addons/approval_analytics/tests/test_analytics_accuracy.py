@@ -5,7 +5,7 @@ from freezegun import freeze_time
 from odoo import fields
 from odoo.tests import common, tagged
 
-from .common import ApprovalCommon
+from odoo.addons.approval.tests.common import ApprovalCommon
 
 
 @tagged("post_install", "-at_install")
@@ -398,6 +398,68 @@ class TestAnalyticsAccuracy(common.TransactionCase):
             metrics2.total_requests,
             3,
             "Category 2 should have 3 requests",
+        )
+
+    def test_a_slower_category_ranks_above_a_faster_one(self):
+        category2 = self.env["approval.category"].create(
+            {
+                "sequence_code": "SC0003",
+                "name": "Fast Category",
+                "approval_minimum": 1,
+            }
+        )
+        self.env["approval.category.approver"].create(
+            {
+                "user_id": self.approver1.id,
+                "category_id": category2.id,
+                "required": True,
+            }
+        )
+
+        with freeze_time("2025-10-01 10:00:00"):
+            confirmed = fields.Datetime.now()
+
+        self._create_and_process_request(
+            "approved", confirmed, confirmed + timedelta(hours=5)
+        )
+
+        fast = self.env["approval.request"].create(
+            {
+                "name": "Fast Request",
+                "request_owner_id": self.admin_user.id,
+                "category_id": category2.id,
+            }
+        )
+        with freeze_time(confirmed):
+            fast.action_confirm()
+        approver = fast.approver_ids.filtered(lambda a: a.user_id == self.approver1)
+        approver.with_user(self.approver1).with_context(
+            skip_wizard=True
+        ).action_approve()
+        self.env.flush_all()
+        decided = confirmed + timedelta(hours=1)
+        self.env.cr.execute(
+            "UPDATE approval_request SET date_approval_granted = %s, write_date = %s "
+            "WHERE id = %s",
+            [decided, decided, fast.id],
+        )
+        self.env.cr.execute(
+            "UPDATE approval_approver SET write_date = %s, decision_date = %s "
+            "WHERE id = %s",
+            [decided, decided, approver.id],
+        )
+        fast.invalidate_recordset()
+
+        rows = self.env["approval.metrics"].search(
+            [("category_id", "in", (self.category + category2).ids)]
+        )
+        hours = {row.category_id: row.avg_approval_hours for row in rows}
+        self.assertGreater(
+            hours.get(self.category, 0.0),
+            hours.get(category2, 0.0),
+            "The five-hour category must rank above the one-hour category; this "
+            "cross-category ranking used to be asserted at the tail of the "
+            "dashboard's slowest-category test, which no longer sees this view.",
         )
 
     def test_approval_metrics_handles_no_approved_requests(self):

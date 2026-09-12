@@ -372,20 +372,12 @@
                                 </group>
                                 <group
                                     name="fields_documents"
-                                    string="Documents &amp; Automation">
+                                    string="Documents">
                                     <field
                                         name="has_document"
                                         string="Document"
                                         widget="radio"
                                         options="{'horizontal': true}" />
-                                    <field
-                                        name="has_automation"
-                                        string="Automation"
-                                        widget="radio"
-                                        options="{'horizontal': true}" />
-                                    <field
-                                        name="automation_id"
-                                        invisible="has_automation == 'no'" />
                                 </group>
                                 <group
                                     name="document_requirements_group"

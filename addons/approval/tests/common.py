@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from odoo.tests import common
 
 
@@ -138,3 +140,13 @@ class ApprovalCommon(common.TransactionCase):
         if confirm:
             request.action_confirm()
         return request
+
+    def _delegate_row(self, row, delegate):
+        today = date.today()
+        row.sudo().write(
+            {
+                "delegate_id": delegate.id,
+                "delegate_start_date": today - timedelta(days=1),
+                "delegate_end_date": today + timedelta(days=1),
+            },
+        )

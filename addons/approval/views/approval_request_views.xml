@@ -616,21 +616,6 @@
                             </field>
                         </page>
                         <page
-                            string="Automation Details"
-                            name="automation_details"
-                            invisible="has_automation == 'no'">
-                            <group>
-                                <group string="Operation Generation">
-                                    <field
-                                        name="automation_id"
-                                        invisible="has_automation == 'no'"
-                                        required="has_automation == 'required'"
-                                        readonly="state != 'new' and state != 'pending'" />
-                                    <field name="automation_runtime_id" readonly="1" />
-                                </group>
-                            </group>
-                        </page>
-                        <page
                             name="documents"
                             string="Documents"
                             invisible="not document_requirement_ids">

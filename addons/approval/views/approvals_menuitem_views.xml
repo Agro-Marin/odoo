@@ -77,26 +77,8 @@
         sequence="30"
         groups="approval.group_approval_manager" />
 
-    <menuitem
-        id="menu_approval_dashboard"
-        name="Dashboard"
-        parent="menu_approval_report"
-        action="action_approval_dashboard_view_singleton"
-        sequence="5" />
 
-    <menuitem
-        id="menu_approval_metrics"
-        name="Category Metrics"
-        parent="menu_approval_report"
-        action="action_approval_metrics"
-        sequence="10" />
 
-    <menuitem
-        id="menu_approver_performance"
-        name="Approver Performance"
-        parent="menu_approval_report"
-        action="action_approver_performance"
-        sequence="20" />
 
     <menuitem
         id="approvals_menu_config"

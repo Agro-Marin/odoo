@@ -9,8 +9,11 @@ from odoo.tools import mute_logger
 from .common import ApprovalCommon
 
 
-@tagged("post_install", "-at_install")
-class TestMultiCompanyIsolation(common.TransactionCase):
+class MultiCompanyCase(common.TransactionCase):
+    """Two companies, each with its own manager, category, rules and one approved
+    request. Shared with `approval_analytics`, whose SQL views are scoped by the
+    same record rules and must be tested against the same fixture."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -111,6 +114,9 @@ class TestMultiCompanyIsolation(common.TransactionCase):
             cls.request_b.approver_ids.sudo().write({"state": "approved"})
         cls.env.flush_all()
 
+
+@tagged("post_install", "-at_install")
+class TestMultiCompanyIsolation(MultiCompanyCase):
     def test_category_isolated_across_companies(self):
         found = (
             self.env["approval.category"]
@@ -183,40 +189,6 @@ class TestMultiCompanyIsolation(common.TransactionCase):
             self.env["approval.category.approver"]
             .with_user(self.user_b)
             .search([("category_id", "=", self.category_b.id)])
-        )
-        self.assertTrue(found_b)
-
-    def test_metrics_view_isolated_across_companies(self):
-        found = (
-            self.env["approval.metrics"]
-            .with_user(self.user_a)
-            .search([("category_id", "=", self.category_b.id)])
-        )
-        self.assertFalse(
-            found,
-            "Company A manager must not see Company B's approval metrics",
-        )
-        found_b = (
-            self.env["approval.metrics"]
-            .with_user(self.user_b)
-            .search([("category_id", "=", self.category_b.id)])
-        )
-        self.assertTrue(found_b, "Company B manager should see its own metrics")
-
-    def test_approver_performance_view_isolated_across_companies(self):
-        found = (
-            self.env["approver.performance"]
-            .with_user(self.user_a)
-            .search([("user_id", "=", self.approver_b.id)])
-        )
-        self.assertFalse(
-            found,
-            "Company A manager must not see Company B's approver performance data",
-        )
-        found_b = (
-            self.env["approver.performance"]
-            .with_user(self.user_b)
-            .search([("user_id", "=", self.approver_b.id)])
         )
         self.assertTrue(found_b)
 

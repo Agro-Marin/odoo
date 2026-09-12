@@ -8,7 +8,7 @@ from odoo import Command, fields
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-from .common import ApprovalCommon
+from odoo.addons.approval.tests.common import ApprovalCommon
 
 
 @tagged("post_install", "-at_install")
@@ -208,15 +208,6 @@ class TestApprovalDashboard(TransactionCase):
             dashboard.slowest_category_hours,
             0,
             "Slowest category time should be > 0",
-        )
-        metrics = self.env["approval.metrics"].search(
-            [("category_id", "in", (self.category + category2).ids)],
-        )
-        by_cat = {m.category_id: m.avg_approval_hours for m in metrics}
-        self.assertGreater(
-            by_cat.get(self.category, 0.0),
-            by_cat.get(category2, 0.0),
-            "Slow category (5h) should rank above fast category (1h) in metrics",
         )
 
     def test_bottleneck_detection_overloaded_approver(self):

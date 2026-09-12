@@ -1,6 +1,6 @@
 from odoo import fields, models
 
-from ..models import approval_trace as trace
+from odoo.addons.approval.models import approval_trace as trace
 
 
 class ApprovalMetrics(models.Model):

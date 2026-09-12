@@ -254,7 +254,6 @@ class ApprovalRequest(models.Model):
     can_change_request_owner = fields.Boolean(
         compute="_compute_can_change_request_owner",
     )
-    has_automation = fields.Selection(related="category_id.has_automation")
     has_date = fields.Selection(related="category_id.has_date")
     has_date_deadline = fields.Selection(related="category_id.has_date_deadline")
     has_date_planned = fields.Selection(related="category_id.has_date_planned")
@@ -441,13 +440,6 @@ class ApprovalRequest(models.Model):
     )
     count_attachment = fields.Integer(
         compute="_compute_count_attachment",
-    )
-    automation_id = fields.Many2one(
-        related="category_id.automation_id",
-    )
-    automation_runtime_id = fields.Many2one(
-        comodel_name="automation.runtime",
-        index="btree_not_null",
     )
 
     @api.model

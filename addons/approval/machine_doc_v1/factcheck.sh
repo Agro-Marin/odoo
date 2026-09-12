@@ -77,7 +77,7 @@ done
 # Forward: every shipped Python file is named somewhere in the docs. A file
 # that exists and is undocumented is the half of drift a reader cannot detect,
 # because nothing in the document looks wrong.
-for f in "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py; do
+for f in "$MOD"/models/*.py "$MOD"/wizards/*.py; do
     base="$(basename "$f")"
     [ "$base" = "__init__.py" ] && continue
     assert_doc_cites "$base" "source file $base"
@@ -120,7 +120,7 @@ while read -r field; do
     [ -z "$field" ] && continue
     assert_doc_cites "\`$field\`" "field $field"
 done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.[A-Z])' \
-    "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py | sort -u)
+    "$MOD"/models/*.py "$MOD"/wizards/*.py | sort -u)
 
 # ------------------------------------------------------------------- models --
 # Every model the module declares must appear in models.md, and every

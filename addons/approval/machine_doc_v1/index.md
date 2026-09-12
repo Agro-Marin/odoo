@@ -14,9 +14,9 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.9.0 (matches `__manifest__.py`) |
+| Version | 19.0.2.0.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
-| Dependencies | `automation`, `mixin_report_sql`, `mail` |
+| Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
 | Application | Yes |
 | License | LGPL-3 |
@@ -25,7 +25,7 @@ dashboards.
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
-| Test files | 46 (+ `common.py` shared fixtures) |
+| Test files | 43 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
 | JS files | 26 (14 `static/src` + 12 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
@@ -81,9 +81,6 @@ dashboards.
 
 | File | Model | Type | Purpose |
 |------|-------|------|---------|
-| `approval_metrics.py` | `approval.metrics` | SQL View (`mixin.sql.report`) | Aggregated stats: approval rate, avg/median time, SLA compliance, cancelled count |
-| `approver_performance.py` | `approver.performance` | SQL View (`mixin.sql.report`) | Per-approver: response time, approval rate, workload |
-| `approval_dashboard.py` | `approval.dashboard` | Singleton | Real-time KPIs: today, trends, bottlenecks, velocity, user metrics |
 | `approval_request_report.xml` | — | QWeb PDF | `action_report_approval_request` — printable request sheet, bound to `approval.request` as a report action. The template lives in `views/approval_request_template.xml`; the form's Print button gates on `state == "approved"` only (see `test_print_button.py`) |
 
 ### Tests (`tests/`)
@@ -113,7 +110,6 @@ dashboards.
 | `test_binding_client.py` | The approval button's questions: the `get_views` flag, an ungated button, who may decide each step before any call, a check that raises the request and runs nothing, decisions assigned to steps and withdrawn by a later step, a decision under one step leaving the user's other step open and withdrawn from that step alone, a step of another button refused, a refusal reopened by its refuser only, a record the caller cannot read, an action button |
 | `test_binding_editor.py` | Studio's editor on the engine: the first step binds the button as Studio did, further steps join it up to order nine, an action button named by xmlid, the approvers list keeping delegations, the steps action, the steps opening as a kanban with a quick-create card, a button whose steps are all archived no longer gated |
 | `test_binding_studio_parity.py` | What a Studio rule did, held by steps and bindings, each test naming its Studio test: a record no step applies to is not gated, an exclusive approval counts toward the exclusive step first, an archived step is ignored in any context, a group member decides but only listed members are asked, a step holding decisions is archived not deleted, a binding's target is fixed once it has requests |
-| `test_binding_reset.py` | Coverage reset: the managed automation rule keeps its transition filter across an edit, a record returning to the condition needs approval again, an edit that keeps it there resets nothing, leaving and re-entering is a transition, a second cycle runs on approval again, and the rule goes with the condition or the binding, and a request still waiting with one step decided is reset too |
 | `test_approver_replacement.py` | Approver-replacing rules: band matching, overlap validation, minimum override, batched constraints |
 | `test_document_requirements.py` | Required document validation on confirm, through the structural attachment link |
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
@@ -179,7 +175,6 @@ into `test_approvals.py`).
 | `views/view_button/view_button_patch.js` | Gives gated object and action buttons the widget, and chains `beforeExecute` into the server check -- always for an action button, which nothing on the server can refuse, and for an object button while its loaded approvals say it is gated, so a stopped click warns and stays on the record; `_isApprovalGated()` is the override point, which Studio's form editor uses to draw every button's approvals |
 | `views/view_button/form_controller_patch.js` | Reads `has_approval_bindings` from the view's related models |
 | `scss/approval.scss` + `approval.dark.scss` | Approval styles |
-| `scss/approval_dashboard.scss` + `approval_dashboard.dark.scss` | Dashboard styles |
 
 ### Security (`security/`)
 
@@ -231,12 +226,9 @@ approval/
 |   +-- approval_decision_wizard.py   # Refuse / request-change
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
-|   +-- approval_metrics.py           # SQL view: category stats
-|   +-- approver_performance.py       # SQL view: approver stats
-|   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 21 script directories (1.0.1 .. 1.8)
-+-- tests/                            # 46 test modules + common.py
++-- migrations/                       # 22 script directories (1.0.1 .. 2.0)
++-- tests/                            # 43 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -249,7 +241,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 46 (+ `common.py`) |
+| Python test files | 43 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 26 |
@@ -261,7 +253,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 3 |
 | Cron jobs | 3 |
-| Migration script directories | 21 |
+| Migration script directories | 22 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

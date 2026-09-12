@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from odoo import fields
 from odoo.exceptions import UserError
@@ -47,16 +47,6 @@ class TestDecisionFunnelScoping(ApprovalCommon):
 
 @tagged("post_install", "-at_install")
 class TestDecisionAttribution(ApprovalCommon):
-    def _delegate_row(self, row, delegate):
-        today = date.today()
-        row.sudo().write(
-            {
-                "delegate_id": delegate.id,
-                "delegate_start_date": today - timedelta(days=1),
-                "delegate_end_date": today + timedelta(days=1),
-            },
-        )
-
     def test_decided_by_records_the_delegate_not_the_principal(self):
         category = self._make_category(
             "Attribution",
@@ -90,37 +80,6 @@ class TestDecisionAttribution(ApprovalCommon):
         request.with_user(self.approver_1).action_approve()
         row = request.approver_ids[0]
         self.assertEqual(row.decided_by_user_id, self.approver_1)
-
-    def test_performance_view_credits_the_delegate(self):
-        category = self._make_category(
-            "Attribution Perf",
-            approvers=[(self.approver_1, True, 10)],
-        )
-        request = self._prepare_request(category)
-        row = request.approver_ids[0]
-        self._delegate_row(row, self.approver_2)
-        request.with_user(self.approver_2).action_approve()
-        self.env.flush_all()
-
-        rows = (
-            self.env["approver.performance"]
-            .sudo()
-            .search_read(
-                [("user_id", "in", (self.approver_1 | self.approver_2).ids)],
-                ["user_id", "total_approvals"],
-            )
-        )
-        credited = {r["user_id"][0]: r["total_approvals"] for r in rows}
-        self.assertEqual(
-            credited.get(self.approver_2.id),
-            1,
-            "the delegate who decided must be credited",
-        )
-        self.assertNotIn(
-            self.approver_1.id,
-            credited,
-            "the principal, who did nothing, must not be credited",
-        )
 
     def test_withdraw_clears_the_attribution(self):
         category = self._make_category(

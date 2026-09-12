@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_approval_dashboard"
+        name="Approval Dashboard"
+        parent="approval.menu_approval_report"
+        action="action_approval_dashboard_view_singleton"
+        sequence="5" />
+
+    <menuitem
+        id="menu_approval_metrics"
+        name="Approval Metrics"
+        parent="approval.menu_approval_report"
+        action="action_approval_metrics"
+        sequence="10" />
+
+    <menuitem
+        id="menu_approver_performance"
+        name="Approver Performance"
+        parent="approval.menu_approval_report"
+        action="action_approver_performance"
+        sequence="20" />
+
+</odoo>

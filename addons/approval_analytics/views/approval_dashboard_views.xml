@@ -48,7 +48,7 @@
                                                     readonly="1" />
                                             </div>
                                             <button
-                                                name="%(action_view_approval_request)d"
+                                                name="%(approval.action_view_approval_request)d"
                                                 type="action"
                                                 class="btn btn-link btn-sm p-0">
                                                 View all requests →
@@ -277,7 +277,7 @@
 
                     <group name="quick_actions" string="⚡ Quick Actions">
                         <group colspan="4" class="o_group_col_12">
-                            <div class="row g-2 mt-2">
+                            <div class="row g-2 mt-2" name="quick_action_buttons">
                                 <div class="col-md-3 col-sm-6">
                                     <button
                                         type="object"
@@ -290,28 +290,10 @@
                                 <div class="col-md-3 col-sm-6">
                                     <button
                                         type="action"
-                                        name="%(action_approval_request_all)d"
+                                        name="%(approval.action_approval_request_all)d"
                                         class="btn btn-secondary w-100"
                                         icon="fa-list">
                                         All Approvals
-                                    </button>
-                                </div>
-                                <div class="col-md-3 col-sm-6">
-                                    <button
-                                        type="action"
-                                        name="%(action_approval_metrics)d"
-                                        class="btn btn-info w-100"
-                                        icon="fa-bar-chart">
-                                        Category Metrics
-                                    </button>
-                                </div>
-                                <div class="col-md-3 col-sm-6">
-                                    <button
-                                        type="action"
-                                        name="%(action_approver_performance)d"
-                                        class="btn btn-success w-100"
-                                        icon="fa-users">
-                                        Approver Performance
                                     </button>
                                 </div>
                             </div>

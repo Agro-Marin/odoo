@@ -92,13 +92,6 @@ class ApprovalCategory(models.Model):
         default="no",
         tracking=True,
     )
-    has_automation = fields.Selection(
-        CATEGORY_SELECTION,
-        required=True,
-        default="no",
-        tracking=True,
-        help="Automation flows that should be specified on the request.",
-    )
     has_quantity = fields.Selection(
         CATEGORY_SELECTION,
         required=True,
@@ -375,11 +368,6 @@ class ApprovalCategory(models.Model):
         help="Auto-approve if no objection within N hours. "
         "0 = disabled. Only applies when all required approvers "
         "have not refused within the window.",
-    )
-
-    automation_id = fields.Many2one(
-        comodel_name="automation.rule",
-        domain="[('trigger', '=', 'on_hand')]",
     )
 
     _name_src_uniq = name_uniq_index(
