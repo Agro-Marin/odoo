@@ -42,6 +42,13 @@ BUCKET_OWNERS: dict[str, str] = {
         "worker, and from `default` that signal evicted record rules, ACLs, "
         "menus and every other unnamed ormcache cluster-wide"
     ),
+    "xmlid": (
+        "base — ir.model.data._xmlid_target, hits and misses. Its own bucket "
+        "because a miss is cached too (an optional xmlid probed on every request "
+        "re-ran its SELECT forever when only hits were kept), so a fresh insert "
+        "has to invalidate it, and from `default` that would have evicted record "
+        "rules, ACLs and menus in every worker on each new xmlid"
+    ),
 }
 
 

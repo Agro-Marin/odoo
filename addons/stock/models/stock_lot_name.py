@@ -148,6 +148,7 @@ class StockLotName(models.Model):
         for lot in self:
             lot.delivery_ids = delivery_ids_by_lot.get(lot.id, [])
 
+    @api.depends("delivery_ids")
     def _compute_partner_ids(self):
         for lot in self:
             lot.partner_ids = self._get_partners_from_deliveries(lot.delivery_ids)

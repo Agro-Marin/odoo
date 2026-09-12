@@ -2861,6 +2861,9 @@ class TestMany2one(TransactionCase):
 class TestOne2many(TransactionCase):
     def setUp(self):
         super().setUp()
+        self.env["ir.rule"].search(
+            [("model_id.model", "=", "res.partner.bank")]
+        ).active = False
         self.Partner = self.env["res.partner"].with_context(active_test=False)
         self.partner = self.Partner.create(
             {

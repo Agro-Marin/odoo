@@ -445,6 +445,9 @@ class Registry(
             finally:
                 self.model_graph.end_invalidation()
 
+            if self.not_null_columns:
+                self.rebuild_not_null_fields()
+
             if self.ready:
                 for model in env.values():
                     model._register_hook()

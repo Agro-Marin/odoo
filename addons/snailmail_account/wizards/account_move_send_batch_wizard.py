@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 
 
 class AccountMoveSendBatchWizard(models.TransientModel):
@@ -6,6 +6,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
 
     send_by_post_stamps = fields.Integer(compute="_compute_send_by_post_stamps")
 
+    @api.depends("move_ids")
     def _compute_send_by_post_stamps(self):
         for wizard in self:
             partner_with_valid_address = wizard.move_ids.partner_id.filtered(

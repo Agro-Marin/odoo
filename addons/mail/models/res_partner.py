@@ -107,7 +107,7 @@ class ResPartner(models.Model):
     def _mail_shares_root_email(self) -> bool:
         root_email = self._mail_get_root_email()
         return bool(root_email) and any(
-            partner.email_normalized == root_email for partner in self.sudo()
+            partner.email_normalized == root_email for partner in self.sudo().exists()
         )
 
     @api.model

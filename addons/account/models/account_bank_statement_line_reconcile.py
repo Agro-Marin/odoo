@@ -42,6 +42,7 @@ class AccountBankStatementLine(models.Model):
     def action_button_draft(self):
         return self.move_id.action_draft()
 
+    @api.depends("statement_id")
     def _compute_bank_statement_attachment_ids(self):
         attachments = (
             self.env["ir.attachment"]

@@ -1121,7 +1121,9 @@ ZeroDivisionError: division by zero"""
         self.assertIn("empty", str(cm.exception).lower())
 
     def test_b5_available_models_not_state_dependent(self):
-        compute = type(self.env["ir.actions.server"])._compute_available_model_ids
+        from odoo.addons.base.models.ir_actions_server import IrActionsServer
+
+        compute = IrActionsServer._compute_available_model_ids
         self.assertNotIn("state", getattr(compute, "_depends", ()))
 
     def test_b6_equation_evaluates_without_sudo_privilege(self):

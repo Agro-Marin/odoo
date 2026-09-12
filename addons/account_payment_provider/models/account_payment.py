@@ -67,11 +67,8 @@ class AccountPayment(models.Model):
             source_tx = payment.transaction_id.source_transaction_id
             payment.source_payment_id = source_tx.payment_ids[:1]
 
+    @api.depends("amount", "payment_method_id", "transaction_id")
     def _compute_amount_available_for_refund(self):
-        # Only consider refund transactions that are confirmed by summing the amounts of
-        # payments linked to such refund transactions. Indeed, should a refund transaction
-        # be stuck forever in a transient state (due to webhook failure, for example), the
-        # user would never be allowed to refund the source transaction again.
         rg_data = self.env["account.payment"]._read_group(
             domain=[("source_payment_id", "in", self.ids)],
             groupby=["source_payment_id"],

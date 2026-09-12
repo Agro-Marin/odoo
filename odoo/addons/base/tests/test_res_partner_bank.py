@@ -111,10 +111,17 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         partner_bank.unlink()
         self.assertFalse(partner_bank.active)
         with self.assertRaises(IntegrityError), self.cr.savepoint():
-            self.env["res.partner.bank"].create(
-                {"acc_number": "BE0012518823 03", "partner_id": partner.id}
+            self.cr.execute(
+                "INSERT INTO res_partner_bank"
+                " (partner_id, acc_number, sanitized_acc_number, company_id, active)"
+                " VALUES (%s, %s, %s, %s, TRUE)",
+                [
+                    partner.id,
+                    "BE0012518823 03",
+                    partner_bank.sanitized_acc_number,
+                    partner.company_id.id,
+                ],
             )
-            self.env["res.partner.bank"].flush_model()
 
     def test_acc_holder_name_follows_partner_rename_on_archived_accounts(self):
         partner = self.env["res.partner"].create({"name": "Old Name"})

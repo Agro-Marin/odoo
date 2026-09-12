@@ -26,12 +26,19 @@ REGISTRY_CACHES = {
     "groups": 64,
     "product_variants": 8192,
     "actions": 256,
+    "xmlid": 8192,
 }
 
 CACHES_BY_KEY = {
-    "default": ("default", "templates.cached_values", "product_variants"),
+    "default": ("default", "templates.cached_values", "product_variants", "xmlid"),
     "assets": ("assets", "assets.links", "templates.cached_values"),
-    "stable": ("stable", "default", "templates.cached_values", "product_variants"),
+    "stable": (
+        "stable",
+        "default",
+        "templates.cached_values",
+        "product_variants",
+        "xmlid",
+    ),
     "templates": ("templates", "templates.mail", "templates.cached_values"),
     "routing": ("routing", "routing.rewrites", "templates.cached_values"),
     "groups": (
@@ -42,4 +49,5 @@ CACHES_BY_KEY = {
     ),
     "product_variants": ("product_variants",),
     "actions": ("actions",),
+    "xmlid": ("xmlid",),
 }

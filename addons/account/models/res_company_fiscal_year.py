@@ -75,12 +75,12 @@ class ResCompany(models.Model):
 
     def write(self, vals):
         old_threshold_vals = {}
-        for record in self:
+        for record in self.exists():
             old_threshold_vals[record] = record.invoicing_switch_threshold
 
         rslt = super().write(vals)
 
-        for record in self:
+        for record in self.exists():
             if (
                 "invoicing_switch_threshold" in vals
                 and old_threshold_vals[record] != record.invoicing_switch_threshold

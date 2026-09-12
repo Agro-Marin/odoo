@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import re
 import shutil
 import smtplib
 import socket
@@ -92,6 +93,10 @@ class _EnvelopeRecordingHandler(aiosmtpd.handlers.Debugging if aiosmtpd else obj
 @unittest.skipUnless(aiosmtpd, "aiosmtpd couldn't be imported")
 @unittest.skipUnless(_openssl, "openssl not found in path")
 class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
+    def _refused_sender_regex(self, mail_server):
+        sender = re.escape(mail_server._get_test_email_from())
+        return rf"The server refused the sender address \({sender}\) with error .*"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -372,7 +377,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             (
                 True,
                 MISSING,
-                r"The server refused the sender address \(noreply@localhost\) with error .*",
+                self._refused_sender_regex(mail_server),
             ),
             (
                 True,
@@ -446,7 +451,7 @@ class TestIrMailServerSMTPD(TransactionCaseWithUserDemo):
             (
                 "none",
                 "starttls",
-                r"The server refused the sender address \(noreply@localhost\) with error .*",
+                self._refused_sender_regex(mail_server),
             ),
             (
                 "starttls",

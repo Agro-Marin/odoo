@@ -145,6 +145,7 @@ class AccountMoveLine(models.Model):
 
         return super()._field_to_sql(alias, fname, query)
 
+    @api.depends("analytic_distribution", "distribution_analytic_account_ids")
     def _compute_analytic_coverage(self):
         plan_id = self.env.context.get("selected_analytic_plan")
 

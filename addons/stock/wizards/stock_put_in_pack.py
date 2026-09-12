@@ -22,6 +22,7 @@ class StockPutInPack(models.TransientModel):
         compute="_compute_origin_package_ids",
     )
 
+    @api.depends("move_line_ids", "package_ids", "result_package_id")
     def _compute_origin_package_ids(self):
         for wizard in self:
             packages = wizard.package_ids

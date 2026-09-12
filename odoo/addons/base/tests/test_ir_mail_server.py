@@ -387,6 +387,8 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
                 "smtp_encryption": "none",
             }
         )
+        from odoo.addons.base.models.ir_mail_server import IrMail_Server
+
         for from_filter, expected_test_email in zip(
             [
                 "example_2.com, example_3.com",
@@ -406,7 +408,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         ):
             with self.subTest(from_filter=from_filter):
                 test_server.from_filter = from_filter
-                email_from = test_server._get_test_email_from()
+                email_from = IrMail_Server._get_test_email_from(test_server)
                 self.assertEqual(email_from, expected_test_email)
 
     def test_mail_server_match_from_filter(self):

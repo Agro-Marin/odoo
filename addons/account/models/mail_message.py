@@ -167,6 +167,7 @@ class MailMessage(models.Model):
     def _search_account_audit_log_partner_id(self, operator, value):
         return self._search_audit_log_related_record_id("res.partner", operator, value)
 
+    @api.depends("model")
     def _compute_account_audit_log_restricted(self):
         self.account_audit_log_restricted = False
         if potentially_restricted := self.filtered(lambda r: r.model in DOMAINS):

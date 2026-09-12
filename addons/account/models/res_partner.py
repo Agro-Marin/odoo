@@ -683,6 +683,7 @@ class ResPartner(models.Model):
     def _check_parent_vat_matches(self, parent_id, partner2move_lines):
         if not parent_id:
             return
+        parent_id = self._fields["parent_id"].convert_to_cache(parent_id, self)
         parent_vat = self.browse(parent_id).vat or ""
         mismatched = next(
             (

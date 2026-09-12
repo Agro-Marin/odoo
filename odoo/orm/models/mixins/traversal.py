@@ -398,6 +398,8 @@ class TraversalMixin(_ModelStubs):
             field = _fields.get(field_name)
             if field is None or not can_scan_sorted(field):
                 return None
+            if field.is_many2one and env[field.comodel_name]._order != "id":
+                return None
             desc = (match["direction"] or "").upper() == "DESC"
             nulls_raw = (match["nulls"] or "").upper()
             nulls_first = (nulls_raw == "NULLS FIRST") if nulls_raw else desc

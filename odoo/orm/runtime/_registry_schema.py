@@ -30,6 +30,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
     _ordinary_tables: dict[str, bool]
     _constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]]
     not_null_fields: set[Field]
+    not_null_columns: set[tuple[str, str]]
 
     database_translated_fields: dict[str, str]
     database_company_dependent_fields: set[str]
@@ -38,6 +39,7 @@ class _RegistrySchemaMixin(_RegistryStubs):
         self._ordinary_tables = {}
         self._constraint_queue = {}
         self.not_null_fields = set()
+        self.not_null_columns = set()
         self.database_translated_fields = {}
         self.database_company_dependent_fields = set()
 
@@ -105,8 +107,17 @@ class _RegistrySchemaMixin(_RegistryStubs):
             AND a.attnum > 0
             AND a.attname != 'id';
         """)
-        not_null_columns = set(cr.fetchall())
+        self.not_null_columns = set(cr.fetchall())
+        self.rebuild_not_null_fields(warn=True)
+        _debug.perf.count(
+            "registry.null_constraints_checked",
+            columns=len(self.not_null_columns),
+            fields=len(self.not_null_fields),
+        )
 
+    def rebuild_not_null_fields(self, *, warn: bool = False) -> None:
+        # the set holds Field objects, which setup_models recreates; rebuild it from
+        # the reflected columns so a re-setup never leaves it pointing at dead fields
         self.not_null_fields.clear()
         for Model in self.models.values():
             if Model._auto and not Model._abstract:
@@ -115,15 +126,10 @@ class _RegistrySchemaMixin(_RegistryStubs):
                         self.not_null_fields.add(field)
                         continue
                     if field.column_type and field.store and field.required:
-                        if (Model._table, field_name) in not_null_columns:
+                        if (Model._table, field_name) in self.not_null_columns:
                             self.not_null_fields.add(field)
-                        else:
+                        elif warn:
                             _schema.warning("Missing not-null constraint on %s", field)
-        _debug.perf.count(
-            "registry.null_constraints_checked",
-            columns=len(not_null_columns),
-            fields=len(self.not_null_fields),
-        )
 
     def _get_index_expression(self, field, index) -> tuple[str, str, str]:
         column_expression = f'"{field.name}"'

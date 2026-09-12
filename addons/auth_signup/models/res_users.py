@@ -32,6 +32,7 @@ class ResUsers(models.Model):
         in_log = "active" in value
         return Domain("log_ids", "!=" if in_log else "=", False)
 
+    @api.depends("login_date")
     def _compute_state(self):
         for user in self:
             user.state = "active" if user.login_date else "new"

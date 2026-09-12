@@ -309,7 +309,7 @@ class TestViewInheritance(ViewCase):
 
     def test_view_validate_button_action_query_count(self):
         _, _, counter = get_cache_key_counter(
-            self.env["ir.model.data"]._get_xmlid_target, "base.action_ui_view"
+            self.env["ir.model.data"]._xmlid_target, "base.action_ui_view"
         )
         hit, miss = counter.hit, counter.miss
 
@@ -339,7 +339,7 @@ class TestViewInheritance(ViewCase):
 
     def test_view_validate_attrs_groups_query_count(self):
         _, _, counter = get_cache_key_counter(
-            self.env["ir.model.data"]._get_xmlid_target, "base.group_system"
+            self.env["ir.model.data"]._xmlid_target, "base.group_system"
         )
         hit, miss = counter.hit, counter.miss
 

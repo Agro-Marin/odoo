@@ -102,14 +102,20 @@ class TestPacking(TestPackingCommon):
         pack_picking.move_ids.picked = True
 
         first_pack = pack_picking.action_put_in_pack()
-        ml = pack_picking.move_line_ids[0].copy()
+        lines_by_product = {
+            product: pack_picking.move_line_ids.filtered(
+                lambda line, product=product: line.product_id == product
+            )
+            for product in (self.productA, self.productB)
+        }
+        ml = lines_by_product[self.productA].copy()
         ml.write(
             {
                 "quantity": 4.0,
                 "result_package_id": False,
             }
         )
-        ml = pack_picking.move_line_ids[1].copy()
+        ml = lines_by_product[self.productB].copy()
         ml.write(
             {
                 "quantity": 3.0,
@@ -2162,8 +2168,10 @@ class TestPacking(TestPackingCommon):
             [("backorder_id", "=", picking.id)]
         )
         self.assertEqual(len(backorder.move_ids), 2)
-        self.assertEqual(backorder.move_ids[0].product_uom_qty, 2)
-        self.assertEqual(backorder.move_ids[1].product_uom_qty, 10)
+        backorder_qty = {
+            move.product_id: move.product_uom_qty for move in backorder.move_ids
+        }
+        self.assertEqual(backorder_qty, {self.productA: 2, self.productB: 10})
 
     def test_put_in_pack_partial_different_destinations(self):
         self.productA.tracking = "serial"
@@ -2415,11 +2423,13 @@ class TestPackagePropagation(TestPackingCommon):
         )
 
         self.assertEqual(len(pack_lines), 2, "Should have only 2 stock move line")
-        self.assertFalse(
-            pack_lines[0].result_package_id, "Should not have the reusable package"
+        self.assertNotIn(
+            reusable_package,
+            pack_lines.result_package_id,
+            "Should not have the reusable package",
         )
         self.assertEqual(
-            pack_lines[1].result_package_id,
+            pack_lines.result_package_id,
             disposable_package,
             "Should have only the disposable package",
         )

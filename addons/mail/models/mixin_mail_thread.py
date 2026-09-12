@@ -703,7 +703,9 @@ class MixinMailThread(models.AbstractModel):
                 continue
             writer_uids.setdefault(record.id, self.env.uid)
             values = initial_values.setdefault(record.id, {})
-            if values is not None:
+            if values is None:
+                continue
+            try:
                 for fname in fnames:
                     value = (
                         field.convert_to_read(record[fname], record)
@@ -711,6 +713,9 @@ class MixinMailThread(models.AbstractModel):
                         else record[fname]
                     )
                     values.setdefault(fname, value)
+            except MissingError:
+                initial_values.pop(record.id, None)
+                writer_uids.pop(record.id, None)
 
     def _track_discard(self) -> None:
         if not self._track_get_fields():

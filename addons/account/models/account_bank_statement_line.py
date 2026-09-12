@@ -186,6 +186,7 @@ class AccountBankStatementLine(models.Model):
                 st_line.journal_id.currency_id or st_line.company_id.currency_id
             )
 
+    @api.depends("journal_id")
     def _compute_running_balance(self):
         for model_name, fnames in _RUNNING_BALANCE_INPUTS.items():
             self.env[model_name].flush_model(fnames)

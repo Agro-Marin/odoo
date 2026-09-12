@@ -84,18 +84,25 @@ class IrModelData(models.Model):
                     xid.display_name = xid.complete_name
 
     @api.model
-    @tools.ormcache("xmlid")
-    def _get_xmlid_target(self, xmlid: str) -> tuple[str, int]:
+    @tools.ormcache("xmlid", cache="xmlid")
+    def _xmlid_target(self, xmlid: str) -> tuple[str, int] | None:
         if "." not in xmlid:
-            raise ValueError(f"External ID not found in the system: {xmlid}")
+            return None
         module, name = xmlid.split(".", 1)
         query = "SELECT model, res_id FROM ir_model_data WHERE module=%s AND name=%s"
         self.env.cr.execute(query, [module, name])
         result = self.env.cr.fetchone()
         if not (result and result[1]):
             _debug.logic("xmlid_miss", xmlid=xmlid)
-            raise ValueError(f"External ID not found in the system: {xmlid}")
+            return None
         return result
+
+    @api.model
+    def _get_xmlid_target(self, xmlid: str) -> tuple[str, int]:
+        target = self._xmlid_target(xmlid)
+        if target is None:
+            raise ValueError(f"External ID not found in the system: {xmlid}")
+        return target
 
     @api.model
     def _xmlid_to_res_model_res_id(
@@ -125,6 +132,7 @@ class IrModelData(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
         _debug.lifecycle("create", count=len(res))
+        self.env.registry.clear_cache("xmlid")
         if any(vals.get("model") == "res.groups" for vals in vals_list):
             _debug.logic("groups_cache_cleared", reason="create")
             self.env.registry.clear_cache("groups")
@@ -226,6 +234,8 @@ class IrModelData(models.Model):
         )
         if repointed:
             self.env.registry.clear_cache()
+        else:
+            self.env.registry.clear_cache("xmlid")
 
         xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
         self.pool.loaded_xmlids.update(xml_ids)

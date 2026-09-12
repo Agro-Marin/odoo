@@ -589,7 +589,11 @@ class BaseCase(TestCase):
     @staticmethod
     def _normalize_query(query: str) -> str:
         normalized = "".join(query.lower().split())
-        return re.sub(r"\((?:%s|default)(?:,(?:%s|default))*\)", "(%s)", normalized)
+        normalized = re.sub(
+            r"\((?:%s|default)(?:,(?:%s|default))*\)", "(%s)", normalized
+        )
+        normalized = normalized.replace("=any(%s)", "in(%s)")
+        return normalized.replace("!=all(%s)", "notin(%s)")
 
     def _assert_queries(
         self,

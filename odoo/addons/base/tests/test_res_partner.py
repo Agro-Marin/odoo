@@ -818,7 +818,12 @@ class TestPartnerCompanyDependentSync(TransactionCase):
             patch.object(Partner.__class__, "_check_fields"),
         ):
             self.assertEqual(
-                Partner._company_dependent_commercial_fields(), ["barcode"]
+                Partner._company_dependent_commercial_fields(),
+                [
+                    fname
+                    for fname in commercial_fields + ["barcode"]
+                    if Partner._fields[fname].company_dependent
+                ],
             )
             costs = []
             for extra in (3, 12):

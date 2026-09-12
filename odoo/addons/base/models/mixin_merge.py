@@ -606,6 +606,8 @@ class MixinMerge(models.AbstractModel):
                 and not (field.compute and field.readonly)
             ):
                 for item in itertools.chain(src_records, [dst_record]):
+                    if not item._has_field_access(field, "read"):
+                        continue
                     if item[column]:
                         if field.type == "reference":
                             values[column] = item[column]

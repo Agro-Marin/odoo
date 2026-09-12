@@ -8117,21 +8117,16 @@ class TestStockMove(TestStockCommon):
             15,
         )
 
-        aggregate_values1 = picking.move_line_ids[0]._get_aggregated_product_quantities(
-            strict=True
-        )
-        aggregated_val = aggregate_values1[
-            f"{self.productA.id}_{self.productA.name}__{self.productA.uom_id.id}_{self.productA.uom_id.id}_{picking.move_line_ids[0].result_package_id.id}"
-        ]
-        self.assertEqual(aggregated_val["qty_ordered"], 5)
-
-        aggregate_values2 = picking.move_line_ids[1]._get_aggregated_product_quantities(
-            strict=True
-        )
-        aggregated_val = aggregate_values2[
-            f"{self.productA.id}_{self.productA.name}__{self.productA.uom_id.id}_{self.productA.uom_id.id}_{picking.move_line_ids[1].result_package_id.id}"
-        ]
-        self.assertEqual(aggregated_val["qty_ordered"], 10)
+        qty_ordered_by_line_qty = {}
+        for move_line in picking.move_line_ids:
+            aggregate_values = move_line._get_aggregated_product_quantities(strict=True)
+            aggregated_val = aggregate_values[
+                f"{self.productA.id}_{self.productA.name}__{self.productA.uom_id.id}_{self.productA.uom_id.id}_{move_line.result_package_id.id}"
+            ]
+            qty_ordered_by_line_qty[move_line.quantity_product_uom] = aggregated_val[
+                "qty_ordered"
+            ]
+        self.assertEqual(qty_ordered_by_line_qty, {5: 5, 10: 10})
 
     def test_move_line_aggregated_product_quantities_incomplete_package(self):
         self.env["stock.quant"]._update_available_quantity(

@@ -352,16 +352,20 @@ class Many2one(_Relational):
                 continue
             ids1 = tuple(unique((ids0 or ()) + valid_records._ids))
             if corecord.id and not _is_cache_order_stable(records, ids1):
-                _debug.logic(
-                    "field.many2one.inverse_invalidated_unstable_order",
-                    model=self.model_name,
-                    field=self.name,
-                    inverse=f"{invf.model_name}.{invf.name}",
-                    corecord=corecord.id,
-                )
-                invf._invalidate_cache(corecord.env, [corecord.id])
-            else:
-                invf._update_cache(corecord, ids1)
+                # never invalidate here: the next read would fetch, and a fetch
+                # flushes the half-written transaction this call is part of
+                sorted_ids = records.browse(ids1)._sorted_by_ids(records._order, False)
+                if sorted_ids is not None:
+                    ids1 = sorted_ids
+                else:
+                    _debug.logic(
+                        "field.many2one.inverse_appended_unsorted",
+                        model=self.model_name,
+                        field=self.name,
+                        inverse=f"{invf.model_name}.{invf.name}",
+                        corecord=corecord.id,
+                    )
+            invf._update_cache(corecord, ids1)
 
     @override
     def to_sql(self, model: ModelLike, alias: str) -> SQL:

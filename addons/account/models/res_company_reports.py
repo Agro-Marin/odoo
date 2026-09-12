@@ -137,10 +137,11 @@ class ResCompany(models.Model):
         return companies
 
     def write(self, vals):
-        root_companies_before = self.root_id
+        companies = self.exists()
+        root_companies_before = companies.root_id
         res = super().write(vals)
 
-        roots_to_recompute = root_companies_before | self.root_id
+        roots_to_recompute = root_companies_before | companies.root_id
         if "account_opening_date" in vals:
             self.env["account.return.type"].with_context(
                 # 2 years to make sure we cover all cases, such as yearly returns with a deadline of more than 1 year.

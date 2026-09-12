@@ -118,7 +118,11 @@ class Base(models.AbstractModel):
         return frozenset(roots)
 
     def with_user(self, user: ResUsers | int) -> Self:
-        return super().with_user(user).with_context(guest=None)
+        records = super().with_user(user)
+        if "guest" not in records.env.context:
+            return records
+        context = {k: v for k, v in records.env.context.items() if k != "guest"}
+        return records.with_env(records.env(context=context))
 
     def unlink(self) -> Literal[True]:
         record_ids = self.ids if (not self._abstract and not self._transient) else []
