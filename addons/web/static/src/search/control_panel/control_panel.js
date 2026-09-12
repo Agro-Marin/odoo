@@ -19,7 +19,7 @@ import { useEmbeddedActions } from "@web/search/embedded_actions_bar/embedded_ac
 import { EmbeddedActionsBar } from "@web/search/embedded_actions_bar/embedded_actions_bar";
 import { EmbeddedActionsDropdown } from "@web/search/embedded_actions_bar/embedded_actions_dropdown";
 import { SearchBar } from "@web/search/search_bar/search_bar";
-import { useCommand } from "@web/ui/commands/command_hook";
+import { useCommand } from "@web/ui/commands";
 
 const STICKY_CLASS = "o_mobile_sticky";
 

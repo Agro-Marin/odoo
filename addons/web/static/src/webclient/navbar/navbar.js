@@ -23,7 +23,7 @@ import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
 
 import { menuHref } from "../menus/menu_utils.js";

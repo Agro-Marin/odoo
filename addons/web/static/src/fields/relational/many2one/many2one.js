@@ -15,7 +15,7 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { getFieldDomain } from "@web/model/relational_model";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
 

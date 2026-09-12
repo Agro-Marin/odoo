@@ -7,7 +7,7 @@ import { makeContext } from "@web/core/context";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
 
 /**
  * @typedef EmbeddedAction

@@ -18,7 +18,7 @@ import {
 } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { usePopover } from "@web/ui/popover";
 
 import {
     extractCreatePermissions,

@@ -8,7 +8,7 @@ import { FieldComponent } from "@web/fields/field_component";
 import { autosaveOption } from "@web/fields/field_options";
 import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { useCommand } from "@web/ui/commands/command_hook";
+import { useCommand } from "@web/ui/commands";
 
 export class PriorityField extends FieldComponent {
     static template = "web.PriorityField";

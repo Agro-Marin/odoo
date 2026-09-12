@@ -15,8 +15,8 @@ import { FieldComponent } from "@web/fields/field_component";
 import { archAttribute } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-import { usePopover } from "@web/ui/popover/popover_hook";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import { usePopover } from "@web/ui/popover";
 
 import {
     findEnclosingSeparator,

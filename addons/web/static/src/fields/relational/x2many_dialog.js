@@ -17,7 +17,7 @@ import {
     useService,
 } from "@web/core/utils/hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
-import { Dialog } from "@web/ui/dialog/dialog";
+import { Dialog } from "@web/ui/dialog";
 
 const views = registry.category("views");
 export class X2ManyFieldDialog extends Component {

@@ -12,7 +12,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user, userBus } from "@web/core/user";
 import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
-import { useCommand } from "@web/ui/commands/command_hook";
+import { useCommand } from "@web/ui/commands";
 import {
     CompanySelector,
     getCompany,
