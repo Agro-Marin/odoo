@@ -6,7 +6,6 @@ import { _t } from "@web/core/translation";
 import { TaskListRenderer } from "../task_list_renderer.js";
 
 export class NotebookTaskListRenderer extends TaskListRenderer {
-    static rowsTemplate = "project.NotebookTaskListRenderer.Rows";
     static createControlsTemplate = "project.NotebookTaskListRenderer.CreateControls";
     static hideClosedStorageKey = "project.notebook_task_list.hide_closed";
 
@@ -21,6 +20,15 @@ export class NotebookTaskListRenderer extends TaskListRenderer {
 
     get hideClosed() {
         return this.hideState.hide;
+    }
+
+    getRowRecords(list) {
+        const records = super.getRowRecords(list);
+        return this.hideClosed
+            ? records.filter(
+                  (record) => !["done", "canceled"].includes(record.data.state),
+              )
+            : records;
     }
 
     get closedX2MCount() {

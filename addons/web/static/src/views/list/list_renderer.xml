@@ -146,7 +146,7 @@
  </t>
  <t t-else="">
  <t t-if="!list.isGrouped">
- <t t-foreach="list.records" t-as="record" t-key="record.id">
+ <t t-foreach="getRowRecords(list)" t-as="record" t-key="record.id">
  <t t-component="rowComponent" t-props="getRowProps(record, group, groupId)"/>
  </t>
  <t t-call="{{ constructor.createControlsTemplate }}"/>

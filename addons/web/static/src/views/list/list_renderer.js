@@ -374,6 +374,7 @@ export class ListRenderer extends Component {
         this.gridState = new ListGridState({
             list: this.props.list,
             isRTL: this.isRTL,
+            getRecords: (list) => this.getRowRecords(list),
         });
 
         this.virt = useListVirtualization(this.gridContext, {
@@ -478,6 +479,18 @@ export class ListRenderer extends Component {
 
     get rowComponent() {
         return getRowComponentClass(this.constructor);
+    }
+
+    /**
+     * The records a list (or a group's list) renders as rows, in order. The
+     * template loop, the grid state and virtualization all read this, so a
+     * renderer that hides records overrides it once.
+     *
+     * @param {any} list
+     * @returns {any[]}
+     */
+    getRowRecords(list) {
+        return list.records;
     }
 
     /** @param {any} record */

@@ -27,10 +27,12 @@ export class ListGridState {
      * @param {object} options
      * @param {object} options.list
      * @param {boolean} [options.isRTL]
+     * @param {(list: any) => any[]} [options.getRecords]
      */
-    constructor({ list, isRTL = false }) {
+    constructor({ list, isRTL = false, getRecords = (list) => list.records }) {
         this._list = list;
         this._isRTL = isRTL;
+        this._getRecords = getRecords;
         this._hasSelectors = false;
         this._hasOpenFormViewColumn = false;
         this._hasActionsColumn = false;
@@ -267,7 +269,7 @@ export class ListGridState {
                 }
             }
         } else {
-            const records = list.records;
+            const records = this._getRecords(list);
             const count = records.length;
             const rawRecords = toRaw(records);
             for (let index = 0; index < count; index++) {
