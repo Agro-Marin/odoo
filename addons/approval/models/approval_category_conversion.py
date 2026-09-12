@@ -65,15 +65,17 @@ class ApprovalCategoryConversion(models.Model):
                     "'greater than or equal'."
                 )
             )
-        if len(bands) > 1:
-            blockers.append(self.env._("More than one band replaces the approvers."))
+        if len(bands) > 1 and not self._are_rules_ranges(bands):
+            blockers.append(
+                self.env._(
+                    "Several bands replace the approvers, and they are not ranges of "
+                    "one figure: bands that compare the same figure, in the same "
+                    "currency, with 'between', 'greater than or equal' or 'less than'."
+                )
+            )
         if added and bands:
             blockers.append(
                 self.env._("A category both adds and replaces approvers by rule.")
-            )
-        if bands and bands.operator == "between" and bands.threshold_max:
-            blockers.append(
-                self.env._("A closed band's complement is two ranges, not one step.")
             )
         if self.approve_sequentially and rules:
             blockers.append(self.env._("Sequential approvers with routing rules."))
@@ -124,6 +126,8 @@ class ApprovalCategoryConversion(models.Model):
         rules = self._get_routing_rules()
         band = rules.filtered(lambda rule: rule.action_type == "set_approvers")
         added = rules.filtered(lambda rule: rule.action_type == "add_approver")
+        if band and self._are_rules_ranges(band):
+            return self._prepare_ranged_band_steps(listed, band)
         if band:
             return self._prepare_pooled_steps(
                 listed, self.approval_minimum, self._complement_condition(band)
@@ -150,6 +154,66 @@ class ApprovalCategoryConversion(models.Model):
             and set(rules.mapped("operator")) == {"gte"}
             and len(rules.currency_id) <= 1
         )
+
+    @staticmethod
+    def _are_rules_ranges(rules) -> bool:
+        return (
+            len(set(rules.mapped("condition_field"))) == 1
+            and set(rules.mapped("operator")) <= {"between", "gte", "lt"}
+            and len(rules.currency_id) <= 1
+        )
+
+    @staticmethod
+    def _rule_interval(rule) -> tuple[float, float]:
+        infinity = float("inf")
+        if rule.operator == "lt":
+            return (-infinity, rule.threshold)
+        if rule.operator == "between" and rule.threshold_max:
+            return (rule.threshold, rule.threshold_max)
+        return (rule.threshold, infinity)
+
+    @staticmethod
+    def _interval_condition(low: float, high: float) -> dict:
+        infinity = float("inf")
+        if low == -infinity:
+            return {"operator": "lt", "threshold": high, "threshold_max": 0}
+        if high == infinity:
+            return {"operator": "gte", "threshold": low, "threshold_max": 0}
+        return {"operator": "between", "threshold": low, "threshold_max": high}
+
+    def _prepare_ranged_band_steps(self, listed, bands) -> list[dict]:
+        """Each band's approvers over its own range; the category's own approvers over
+        every range no band covers. Bands of one figure cannot overlap (the rule's
+        constraint), so the ranges and the gaps between them never do either."""
+        infinity = float("inf")
+        first = bands[0]
+        base = {
+            "condition_field": first.condition_field,
+            "currency_id": first.currency_id.id,
+        }
+        steps = []
+        cursor = -infinity
+        for band in bands.sorted(lambda rule: (self._rule_interval(rule), rule.id)):
+            low, high = self._rule_interval(band)
+            if cursor < low:
+                steps += self._prepare_pooled_steps(
+                    listed,
+                    self.approval_minimum,
+                    {**base, **self._interval_condition(cursor, low)},
+                )
+            steps += self._prepare_pooled_steps(
+                [(user, band.approver_required) for user in band.approver_ids],
+                band.approval_minimum,
+                {**base, **self._interval_condition(low, high)},
+            )
+            cursor = high
+        if cursor < infinity:
+            steps += self._prepare_pooled_steps(
+                listed,
+                self.approval_minimum,
+                {**base, **self._interval_condition(cursor, infinity)},
+            )
+        return steps
 
     def _prepare_tiered_steps(self, listed, added) -> list[dict]:
         """One pool per range of the figure, listing the approvers of every rule the

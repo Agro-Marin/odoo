@@ -90,6 +90,10 @@ SCRIPTS = {
         (None, "pending", {"b"}, {"b"}),
         (("approve", "b"), "approved", set(), set()),
     ],
+    "upper_band": [
+        (None, "pending", {"c"}, {"c"}),
+        (("approve", "c"), "approved", set(), set()),
+    ],
     "delegated_approver": [
         (None, "pending", {"b", "d"}, {"b", "d"}),
         (("approve", "d"), "approved", set(), set()),
@@ -357,6 +361,60 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
             request_vals={"amount": 10},
         )
 
+    def _two_bands_category(self):
+        category = self._amount_category(
+            "set_approvers",
+            ["b"],
+            operator="between",
+            threshold=1000,
+            threshold_max=5000,
+            approval_minimum=1,
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Routing band, upper",
+                "category_id": category.id,
+                "condition_type": "threshold",
+                "condition_field": "amount",
+                "operator": "gte",
+                "threshold": 5000,
+                "action_type": "set_approvers",
+                "approval_minimum": 1,
+                "approver_ids": [(6, 0, [self.people["c"].id])],
+            }
+        )
+        return category
+
+    def test_two_bands_below_both(self):
+        self._run(
+            self._two_bands_category(),
+            "rule_below_its_threshold",
+            request_vals={"amount": 10},
+        )
+
+    def test_two_bands_lower(self):
+        self._run(
+            self._two_bands_category(),
+            "band_replaces_the_approvers",
+            request_vals={"amount": 2000},
+        )
+
+    def test_two_bands_upper(self):
+        self._run(
+            self._two_bands_category(), "upper_band", request_vals={"amount": 9000}
+        )
+
+    def test_a_closed_band_leaves_the_approvers_above_it(self):
+        category = self._amount_category(
+            "set_approvers",
+            ["b"],
+            operator="between",
+            threshold=1000,
+            threshold_max=5000,
+            approval_minimum=1,
+        )
+        self._run(category, "rule_below_its_threshold", request_vals={"amount": 9000})
+
     def test_band_replaces_the_approvers(self):
         category = self._amount_category(
             "set_approvers",
@@ -573,7 +631,15 @@ class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
                 )
             )
         )
-        return super()._run(category, script_name, request_vals, after_confirm)
+
+        def covered_by_steps(request):
+            # Without a step, a request falls back to the flat approvers the
+            # category still lists, which would hide a range the conversion missed.
+            self.assertTrue(request._get_applicable_steps())
+            if after_confirm:
+                after_confirm(request)
+
+        return super()._run(category, script_name, request_vals, covered_by_steps)
 
     def test_a_configuration_steps_cannot_reproduce_is_refused(self):
         category = self._flat(
