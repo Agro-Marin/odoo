@@ -139,15 +139,10 @@ class HrEmployeeChangeRequest(models.Model):
         )
         return [("id", "=", category.id)] if category else []
 
-    def _filter_approval_step_user_ids(self, step, user_ids):
-        """Nobody reviews their own information change.
-
-        The hand-written workflow said this with a group check plus a test; the
-        engine says it by never staging the requester as an approver, so there
-        is no row for them to decide from in the first place.
-        """
-        user_ids = super()._filter_approval_step_user_ids(step, user_ids)
-        return user_ids - {self.requested_by_uid.id}
+    def _get_fields_approval_protected(self):
+        """What the reviewer is deciding on. The requester may not change it
+        after asking: an approval would otherwise apply values nobody reviewed."""
+        return ["employee_id", *self._PROPOSED_FIELDS]
 
     def _on_approval_approved(self):
         super()._on_approval_approved()

@@ -133,3 +133,11 @@ class TestEmployeeChangeRequest(TransactionCase):
         self.assertIn(mine, visible)
         self.assertNotIn(theirs, visible)
         self.assertIn(theirs, self.Request.with_user(self.officer).search([]))
+
+    def test_the_proposal_cannot_change_while_it_is_reviewed(self):
+        request = self._raise_request(private_street="Reviewed Street")
+        with self.assertRaises(UserError):
+            request.with_user(self.person).write({"private_street": "Swapped Street"})
+        self._decide(request, "approve")
+        self.employee.invalidate_recordset(["private_street"])
+        self.assertEqual(self.employee.private_street, "Reviewed Street")

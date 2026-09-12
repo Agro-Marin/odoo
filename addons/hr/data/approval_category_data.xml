@@ -7,6 +7,7 @@
             name="description">A person asking to change the private information held about them.</field>
         <field name="sequence_code">HRCHG</field>
         <field name="approval_minimum">1</field>
+        <field name="allow_self_approval" eval="False" />
         <field name="has_date">no</field>
         <field name="has_date_range">no</field>
         <field name="has_date_deadline">no</field>
