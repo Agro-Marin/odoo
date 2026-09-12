@@ -151,10 +151,10 @@ class TestSyncOdoo2Google(TestSyncGoogle):
                     "alarm_ids": [(4, alarm.id)],
                     "privacy": "private",
                     "need_sync": False,
-                    "interval": 1,
+                    "repeat_interval": 1,
                     "recurrency": True,
-                    "rrule_type": "daily",
-                    "end_type": "forever",
+                    "repeat_unit": "day",
+                    "repeat_type": "forever",
                     "res_model_id": partner_model.id,
                     "res_id": partner.id,
                 }
@@ -715,9 +715,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
             }
         )
         event_type = self.env["calendar.event.type"].create({"name": "type"})
-        event.write(
-            {"recurrence_update": "all", "categ_ids": [(4, event_type.id)]}
-        )
+        event.write({"recurrence_update": "all", "categ_ids": [(4, event_type.id)]})
         self.assertTrue(
             all(e.categ_ids == event_type for e in recurrence.calendar_event_ids)
         )

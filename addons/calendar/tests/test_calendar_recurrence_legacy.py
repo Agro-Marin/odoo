@@ -12,13 +12,13 @@ class TestRecurrentEventLegacy(common.TransactionCase):
         # I create a recurrent meeting with daily recurrence and fixed amount of time.
         self.CalendarEvent.create(
             {
-                "count": 5,
+                "repeat_number": 5,
                 "start": "2011-04-13 11:04:00",
                 "stop": "2011-04-13 12:04:00",
                 "duration": 1.0,
                 "name": "Test Meeting",
                 "recurrency": True,
-                "rrule_type": "daily",
+                "repeat_unit": "day",
             }
         )
         # I search for all the recurrent meetings
@@ -35,8 +35,8 @@ class TestRecurrentEventLegacy(common.TransactionCase):
                 "stop": "2011-04-18 12:47:00",
                 "day": 1,
                 "duration": 1.0,
-                "until": "2011-04-30",
-                "end_type": "end_date",
+                "repeat_until": "2011-04-30",
+                "repeat_type": "until",
                 "fri": True,
                 "mon": True,
                 "thu": True,
@@ -44,7 +44,7 @@ class TestRecurrentEventLegacy(common.TransactionCase):
                 "wed": True,
                 "name": "Review code with programmer",
                 "recurrency": True,
-                "rrule_type": "weekly",
+                "repeat_unit": "week",
             }
         )
 

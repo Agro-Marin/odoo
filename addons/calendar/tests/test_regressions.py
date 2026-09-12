@@ -8,7 +8,7 @@ used to break:
 - ``create`` must return events in the caller's order;
 - making a plain event recurrent must build the recurrence whatever the
   ``recurrence_update`` policy;
-- ``end_type='forever'`` must survive being stored;
+- ``repeat_type='forever'`` must survive being stored;
 - a notification must not copy a template attachment for an attendee it never
   mails;
 - building a recurrence must not mutate its stored ``count`` column;
@@ -143,9 +143,9 @@ class TestCalendarCreateOrdering(TransactionCase):
                 "start": "2026-10-05 10:00:00",
                 "stop": "2026-10-05 11:00:00",
                 "recurrency": True,
-                "rrule_type": "daily",
-                "end_type": "count",
-                "count": 2,
+                "repeat_unit": "day",
+                "repeat_type": "count",
+                "repeat_number": 2,
             },
             {
                 "name": "PLAIN-2",
@@ -157,9 +157,9 @@ class TestCalendarCreateOrdering(TransactionCase):
                 "start": "2026-10-07 10:00:00",
                 "stop": "2026-10-07 11:00:00",
                 "recurrency": True,
-                "rrule_type": "daily",
-                "end_type": "count",
-                "count": 2,
+                "repeat_unit": "day",
+                "repeat_type": "count",
+                "repeat_number": 2,
             },
             {
                 "name": "PLAIN-4",
@@ -203,10 +203,10 @@ class TestCalendarRecurrenceUpdateOnPlainEvent(TransactionCase):
         event.write(
             {
                 "recurrency": True,
-                "rrule_type": "weekly",
+                "repeat_unit": "week",
                 "mon": True,
-                "end_type": "count",
-                "count": 5,
+                "repeat_type": "count",
+                "repeat_number": 5,
                 "recurrence_update": recurrence_update,
             }
         )
@@ -227,19 +227,24 @@ class TestCalendarRecurrenceUpdateOnPlainEvent(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCalendarRecurrenceForever(TransactionCase):
-    """`end_type='forever'` must survive being stored."""
+    """`repeat_type='forever'` must survive being stored."""
 
     def test_forever_survives_a_flush(self):
         recurrence = self.env["calendar.recurrence"].create(
-            {"rrule_type": "weekly", "mon": True, "end_type": "forever", "interval": 1}
+            {
+                "repeat_unit": "week",
+                "mon": True,
+                "repeat_type": "forever",
+                "repeat_interval": 1,
+            }
         )
         self.env.flush_all()
         recurrence.invalidate_recordset()
         self.assertEqual(
-            recurrence.end_type,
+            recurrence.repeat_type,
             "forever",
             "_compute_rrule serialises 'forever' as COUNT=720 and _inverse_rrule "
-            "parses it back as end_type='count', losing the user's choice",
+            "parses it back as repeat_type='count', losing the user's choice",
         )
 
 
@@ -345,19 +350,19 @@ class TestCalendarRangeCalculation(TransactionCase):
         event.write(
             {
                 "recurrency": True,
-                "rrule_type": "weekly",
+                "repeat_unit": "week",
                 "mon": True,
                 "wed": True,
                 "fri": True,
-                "end_type": "count",
-                "count": 6,
+                "repeat_type": "count",
+                "repeat_number": 6,
             }
         )
         self.env.flush_all()
         recurrence = event.recurrence_id
         occurrences = recurrence.calendar_event_ids
         self.assertEqual(
-            recurrence.count,
+            recurrence.repeat_number,
             6,
             "_range_calculation must not leave an inflated value in the stored count",
         )
@@ -401,7 +406,12 @@ class TestCalendarPopoverDeleteWizard(TransactionCase):
         )
         self.env.flush_all()
         event.write(
-            {"recurrency": True, "rrule_type": "daily", "end_type": "count", "count": 5}
+            {
+                "recurrency": True,
+                "repeat_unit": "day",
+                "repeat_type": "count",
+                "repeat_number": 5,
+            }
         )
         self.env.flush_all()
         return event
@@ -705,10 +715,10 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
                         (6, 0, (self.organizer.partner_id + self.guest.partner_id).ids)
                     ],
                     "recurrency": True,
-                    "rrule_type": "weekly",
+                    "repeat_unit": "week",
                     "mon": True,
-                    "end_type": "count",
-                    "count": 4,
+                    "repeat_type": "count",
+                    "repeat_number": 4,
                     "event_tz": "UTC",
                 }
             )
@@ -893,10 +903,10 @@ class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
                     "user_id": self.user.id,
                     "partner_ids": [(6, 0, self.user.partner_id.ids)],
                     "recurrency": True,
-                    "rrule_type": "weekly",
+                    "repeat_unit": "week",
                     "mon": True,
-                    "end_type": "count",
-                    "count": 4,
+                    "repeat_type": "count",
+                    "repeat_number": 4,
                     "event_tz": "UTC",
                 }
             )
@@ -959,9 +969,9 @@ class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
 
         cut.action_mass_deletion("subsequent")
         self.env.flush_all()
-        self.assertEqual(recurrence.end_type, "end_date")
-        self.assertTrue(recurrence.until)
-        self.assertLess(recurrence.until, cut_date)
+        self.assertEqual(recurrence.repeat_type, "until")
+        self.assertTrue(recurrence.repeat_until)
+        self.assertLess(recurrence.repeat_until, cut_date)
 
 
 @tagged("post_install", "-at_install")
@@ -999,10 +1009,10 @@ class TestCalendarIcsRecurrence(TransactionCase):
                     "user_id": self.user.id,
                     "partner_ids": [(6, 0, self.user.partner_id.ids)],
                     "recurrency": True,
-                    "rrule_type": "weekly",
+                    "repeat_unit": "week",
                     "mon": True,
-                    "end_type": "count",
-                    "count": 4,
+                    "repeat_type": "count",
+                    "repeat_number": 4,
                     "event_tz": "UTC",
                 }
             )
@@ -1028,9 +1038,9 @@ class TestCalendarIcsRecurrence(TransactionCase):
                     "user_id": self.user.id,
                     "partner_ids": [(6, 0, self.user.partner_id.ids)],
                     "recurrency": True,
-                    "rrule_type": "daily",
-                    "end_type": "count",
-                    "count": 3,
+                    "repeat_unit": "day",
+                    "repeat_type": "count",
+                    "repeat_number": 3,
                     "event_tz": "UTC",
                 }
             )

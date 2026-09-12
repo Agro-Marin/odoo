@@ -140,13 +140,13 @@ class TestCalendar(SavepointCaseWithUserDemo):
         self.assertEqual(
             f.event_tz, "America/New_York", "The value should correspond to the user tz"
         )
-        self.assertEqual(f.count, 1, "The default value should be displayed")
-        self.assertEqual(f.interval, 1, "The default value should be displayed")
+        self.assertEqual(f.repeat_number, 1, "The default value should be displayed")
+        self.assertEqual(f.repeat_interval, 1, "The default value should be displayed")
         self.assertEqual(f.month_by, "date", "The default value should be displayed")
-        self.assertEqual(f.end_type, "count", "The default value should be displayed")
         self.assertEqual(
-            f.rrule_type, "weekly", "The default value should be displayed"
+            f.repeat_type, "count", "The default value should be displayed"
         )
+        self.assertEqual(f.repeat_unit, "week", "The default value should be displayed")
 
     @freezegun.freeze_time("2023-10-06 10:00:00")
     def test_event_creation_mail(self):

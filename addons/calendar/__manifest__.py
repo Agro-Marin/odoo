@@ -1,6 +1,6 @@
 {
     "name": "Calendar",
-    "version": "2.2",
+    "version": "2.3",
     "category": "Productivity/Calendar",
     "sequence": 165,
     "summary": "Meetings, resource bookings and public appointment scheduling",

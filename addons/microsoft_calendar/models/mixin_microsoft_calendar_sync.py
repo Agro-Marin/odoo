@@ -218,7 +218,10 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
                 need_sync_m=False,
             )
             to_create_values = []
-            if new_calendar_recurrence.get("end_type", False) in ["count", "forever"]:
+            if new_calendar_recurrence.get("repeat_type", False) in [
+                "count",
+                "forever",
+            ]:
                 to_create = list(to_create)[:MAX_RECURRENT_OCCURRENCES]
             for recurrent_event in to_create:
                 if recurrent_event.type == "occurrence":
@@ -301,7 +304,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         events_to_update = events.filter(
             lambda e: e.seriesMasterId == self.microsoft_id
         )
-        if self.end_type in ["count", "forever"]:
+        if self.repeat_type in ["count", "forever"]:
             events_to_update = list(events_to_update)[:MAX_RECURRENT_OCCURRENCES]
 
         # ... and update them

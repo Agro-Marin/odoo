@@ -292,10 +292,10 @@ class TestCalendarReservation(TransactionCase):
     def test_a_recurrence_books_every_occurrence_exactly_once(self):
         event = self._make_event(
             recurrency=True,
-            rrule_type="daily",
-            interval=1,
-            end_type="count",
-            count=3,
+            repeat_unit="day",
+            repeat_interval=1,
+            repeat_type="count",
+            repeat_number=3,
         )
         occurrences = event.recurrence_id.calendar_event_ids
         self.assertEqual(len(occurrences), 3)
@@ -309,10 +309,10 @@ class TestCalendarReservation(TransactionCase):
         automatic sync hook would not fire here at all."""
         event = self._make_event(
             recurrency=True,
-            rrule_type="daily",
-            interval=1,
-            end_type="count",
-            count=3,
+            repeat_unit="day",
+            repeat_interval=1,
+            repeat_type="count",
+            repeat_number=3,
         )
         base = event.recurrence_id.base_event_id
         base.write(

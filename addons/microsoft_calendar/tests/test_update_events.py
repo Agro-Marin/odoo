@@ -1127,7 +1127,7 @@ class TestUpdateEvents(TestCommon):
         # old recurrence
         self.assertEqual(len(self.recurrence.calendar_event_ids), 2)
         self.assertEqual(
-            self.recurrence.until,
+            self.recurrence.repeat_until,
             self.recurrence_end_date.date()
             - timedelta(
                 days=self.recurrent_event_interval * new_recurrence_event_count
@@ -1274,7 +1274,7 @@ class TestUpdateEvents(TestCommon):
         # old recurrence
         self.assertEqual(len(self.recurrence.calendar_event_ids), 2)
         self.assertEqual(
-            self.recurrence.until,
+            self.recurrence.repeat_until,
             self.recurrence_end_date.date()
             - timedelta(
                 days=self.recurrent_event_interval * new_recurrence_event_count
@@ -1589,11 +1589,11 @@ class TestUpdateEvents(TestCommon):
             simple_event.write(
                 {
                     "recurrency": True,
-                    "rrule_type": "weekly",
+                    "repeat_unit": "week",
                     "event_tz": "America/Sao_Paulo",
-                    "end_type": "count",
-                    "interval": 1,
-                    "count": 1,
+                    "repeat_type": "count",
+                    "repeat_interval": 1,
+                    "repeat_number": 1,
                     "fri": True,
                     "month_by": "date",
                     "day": 1,

@@ -483,10 +483,10 @@ class TestEventNotifications(CalendarMailCommon):
                         "start": now + relativedelta(minutes=15),
                         "stop": now + relativedelta(minutes=20),
                         "recurrency": True,
-                        "rrule_type": "monthly",
+                        "repeat_unit": "month",
                         "month_by": "date",
                         "day": 13,
-                        "count": 5,
+                        "repeat_number": 5,
                         "alarm_ids": [fields.Command.link(alarm.id)],
                     }
                 ).with_context(mail_notrack=True)
@@ -536,10 +536,10 @@ class TestEventNotifications(CalendarMailCommon):
                         "stop_date": now.date() + relativedelta(days=1),
                         "allday": True,
                         "recurrency": True,
-                        "rrule_type": "monthly",
+                        "repeat_unit": "month",
                         "month_by": "date",
                         "day": 13,
-                        "count": 5,
+                        "repeat_number": 5,
                         "alarm_ids": [fields.Command.link(alarm.id)],
                     }
                 ).with_context(mail_notrack=True)
@@ -566,8 +566,8 @@ class TestEventNotifications(CalendarMailCommon):
                         "start": now + relativedelta(hours=2),
                         "stop": now + relativedelta(hours=3),
                         "recurrency": True,
-                        "rrule_type": "monthly",
-                        "count": 2,
+                        "repeat_unit": "month",
+                        "repeat_number": 2,
                         "day": 16,
                         "alarm_ids": [fields.Command.link(alarm_hour.id)],
                     }
@@ -623,8 +623,8 @@ class TestEventNotifications(CalendarMailCommon):
                         "start": now + relativedelta(minutes=15),
                         "stop": now + relativedelta(minutes=20),
                         "recurrency": True,
-                        "rrule_type": "daily",
-                        "count": 3,
+                        "repeat_unit": "day",
+                        "repeat_number": 3,
                         "alarm_ids": [fields.Command.link(alarm.id)],
                     }
                 ).with_context(mail_notrack=True)
@@ -776,10 +776,10 @@ class TestEventNotifications(CalendarMailCommon):
 
         self.event._apply_recurrence_values(
             {
-                "interval": 2,
-                "rrule_type": "weekly",
+                "repeat_interval": 2,
+                "repeat_unit": "week",
                 "tue": True,
-                "count": 2,
+                "repeat_number": 2,
             }
         )
 
@@ -833,8 +833,8 @@ class TestEventNotifications(CalendarMailCommon):
                 "stop": stop.strftime("%Y-%m-%d %H:%M:%S"),
                 "duration": 3,
                 "recurrency": True,
-                "rrule_type": "daily",
-                "count": 3,
+                "repeat_unit": "day",
+                "repeat_number": 3,
                 "location": "Odoo S.A.",
                 "privacy": "public",
                 "show_as": "busy",
@@ -912,10 +912,10 @@ class TestEventNotifications(CalendarMailCommon):
         self.event.write(event_vals)
         self.event._apply_recurrence_values(
             {
-                "interval": 1,
-                "rrule_type": "weekly",
-                "end_type": "end_date",
-                "until": next_month.date().isoformat(),
+                "repeat_interval": 1,
+                "repeat_unit": "week",
+                "repeat_type": "until",
+                "repeat_until": next_month.date().isoformat(),
                 **weekday_dict,
             }
         )
@@ -945,10 +945,10 @@ class TestEventNotifications(CalendarMailCommon):
         self.event = self.env["calendar.event"].create(event_vals)
         self.event._apply_recurrence_values(
             {
-                "interval": 1,
-                "rrule_type": "daily",
-                "end_type": "count",
-                "count": recurrence_count,
+                "repeat_interval": 1,
+                "repeat_unit": "day",
+                "repeat_type": "count",
+                "repeat_number": recurrence_count,
             }
         )
         self.env.flush_all()

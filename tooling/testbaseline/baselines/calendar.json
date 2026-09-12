@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "green",
+  "run_spec": "-u calendar --test-enable --test-tags /calendar",
+  "suite": "/calendar",
+  "tests_total": 393,
+  "verified_at": "0e4f02d13aff"
+}

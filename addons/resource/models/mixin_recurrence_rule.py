@@ -25,6 +25,14 @@ REPEAT_TYPE_SELECTION = [
     ("until", "Until"),
 ]
 
+# The third policy, offered only by the consumers that can honour it. Not in
+# `REPEAT_TYPE_SELECTION` because a model that cannot stop after N occurrences
+# must not show the option: `project.task.recurrence` and `maintenance.request`
+# have no counter to stop on. `planning.recurrency` and `mixin.recurrence.rrule`
+# both `selection_add` this one pair rather than each inventing a word for it --
+# it used to be `x_times` on one and `count` on the other.
+REPEAT_TYPE_COUNT = ("count", "Number of Repetitions")
+
 
 class MixinRecurrenceRule(models.AbstractModel):
     _name = "mixin.recurrence.rule"

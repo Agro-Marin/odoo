@@ -410,7 +410,7 @@
                                         options="{'no_quick_create': True}"
                                         readonly="not user_can_edit" />
                                     <field name="recurrence_id" invisible="1" />
-                                    <field name="rrule_type" invisible="1" />
+                                    <field name="repeat_unit" invisible="1" />
                                     <label for="recurrency" string="Recurrent" />
                                     <div class="d-flex align-items-baseline gap-1">
                                         <field
@@ -421,31 +421,31 @@
                                             readonly="not user_can_edit" />
                                         <span invisible="not recurrency" class="mx-1">Repeat:</span>
                                         <field
-                                            name="rrule_type_ui"
+                                            name="repeat_unit_ui"
                                             class="w-auto o_input"
                                             invisible="not recurrency"
                                             required="recurrency"
                                             readonly="not user_can_edit" />
                                     </div>
                                     <label
-                                        for="interval"
+                                        for="repeat_interval"
                                         class="fw-bold text-900"
-                                        invisible="not recurrency or rrule_type_ui != 'custom'" />
+                                        invisible="not recurrency or repeat_unit_ui != 'custom'" />
                                     <div
                                         class="d-flex gap-1"
-                                        invisible="not recurrency or rrule_type_ui != 'custom'">
+                                        invisible="not recurrency or repeat_unit_ui != 'custom'">
                                         <field
-                                            name="interval"
+                                            name="repeat_interval"
                                             string="Repeat every"
                                             class="oe_inline w-auto o_input_5ch" />
                                         <field
-                                            name="rrule_type"
+                                            name="repeat_unit"
                                             nolabel="1"
                                             class="oe_inline"
-                                            required="rrule_type_ui == 'custom'" />
+                                            required="repeat_unit_ui == 'custom'" />
                                     </div>
-                                    <span class="fw-bold text-nowrap" invisible="rrule_type_ui not in ['weekly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'weekly')">Repeat on</span>
-                                    <div invisible="rrule_type_ui not in ['weekly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'weekly')"><widget name="calendar_week_days" readonly="not user_can_edit" /></div>
+                                    <span class="fw-bold text-nowrap" invisible="repeat_unit_ui not in ['week', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit != 'week')">Repeat on</span>
+                                    <div invisible="repeat_unit_ui not in ['week', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit != 'week')"><widget name="calendar_week_days" readonly="not user_can_edit" /></div>
                                     <field name="recurrence_id" invisible="1" />
 
                                     <label
@@ -453,63 +453,63 @@
                                         for="month_by"
                                         class="fw-bold text-900"
                                         style="width: fit-content;"
-                                        invisible="rrule_type_ui not in ['monthly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'monthly')" />
+                                        invisible="repeat_unit_ui not in ['month', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit != 'month')" />
                                     <div
                                         class="d-flex gap-2"
-                                        invisible="rrule_type_ui not in ['monthly', 'custom'] or (rrule_type_ui == 'custom' and rrule_type != 'monthly')">
+                                        invisible="repeat_unit_ui not in ['month', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit != 'month')">
                                         <field
                                             name="month_by"
                                             nolabel="1"
                                             class="oe_inline w-auto"
-                                            required="rrule_type_ui == 'monthly' or rrule_type == 'monthly'" />
+                                            required="repeat_unit_ui == 'month' or repeat_unit == 'month'" />
                                         <field
                                             name="day"
                                             nolabel="1"
                                             class="oe_inline w-auto"
-                                            required="(rrule_type_ui == 'monthly' or rrule_type == 'monthly') and month_by == 'date'"
+                                            required="(repeat_unit_ui == 'month' or repeat_unit == 'month') and month_by == 'date'"
                                             invisible="month_by != 'date'" />
                                         <field
                                             name="byday"
                                             string="The"
                                             class="oe_inline w-auto"
                                             nolabel="1"
-                                            required="(rrule_type_ui == 'monthly' or rrule_type == 'monthly') and month_by == 'day'"
+                                            required="(repeat_unit_ui == 'month' or repeat_unit == 'month') and month_by == 'day'"
                                             invisible="month_by != 'day'" />
                                         <field
                                             name="weekday"
                                             nolabel="1"
                                             class="oe_inline w-auto"
-                                            required="(rrule_type_ui == 'monthly' or rrule_type == 'monthly') and month_by == 'day'"
+                                            required="(repeat_unit_ui == 'month' or repeat_unit == 'month') and month_by == 'day'"
                                             invisible="month_by != 'day'" />
                                     </div>
                                     <label
                                         string="Until"
-                                        for="end_type"
+                                        for="repeat_type"
                                         class="fw-bold text-900"
                                         invisible="not recurrency" />
                                     <div
                                         class="d-flex gap-2"
                                         invisible="not recurrency">
                                         <field
-                                            name="end_type"
+                                            name="repeat_type"
                                             class="oe_inline w-auto"
                                             nolabel="1"
                                             required="recurrency"
                                             readonly="not user_can_edit" />
                                         <field
-                                            name="count"
+                                            name="repeat_number"
                                             class="oe_inline w-auto"
                                             nolabel="1"
-                                            invisible="end_type != 'count'"
+                                            invisible="repeat_type != 'count'"
                                             required="recurrency"
                                             readonly="not user_can_edit" />
                                         <field
-                                            name="until"
+                                            name="repeat_until"
                                             class="oe_inline w-auto"
                                             nolabel="1"
-                                            invisible="end_type != 'end_date'"
+                                            invisible="repeat_type != 'until'"
                                             readonly="not user_can_edit"
-                                            required="recurrency and end_type == 'end_date'"
+                                            required="recurrency and repeat_type == 'until'"
                                             placeholder="e.g: 12/31/2023" />
                                     </div>
                                     <field

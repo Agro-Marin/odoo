@@ -8,7 +8,7 @@ from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.intervals import Intervals
 from odoo.tools import SQL
-from odoo.tools.date_utils import localized, get_intervals_hours
+from odoo.tools.date_utils import get_intervals_hours, localized
 
 from .utils import peak_capacity
 

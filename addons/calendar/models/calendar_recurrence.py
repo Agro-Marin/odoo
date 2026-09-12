@@ -224,14 +224,16 @@ class CalendarRecurrence(models.Model):
         [values] = self.copy_data()
         detached_events = self._stop_at(event)
 
-        count = recurrence_values.get("count", 0) or len(detached_events)
+        repeat_number = recurrence_values.get("repeat_number", 0) or len(
+            detached_events
+        )
         return self.create(
             {
                 **values,
                 **recurrence_values,
                 "base_event_id": event.id,
                 "calendar_event_ids": [(6, 0, detached_events.ids)],
-                "count": max(count, 1),
+                "repeat_number": max(repeat_number, 1),
             }
         )
 
@@ -258,8 +260,8 @@ class CalendarRecurrence(models.Model):
             until = until_timezoned.date()
         self.write(
             {
-                "end_type": "end_date",
-                "until": until - relativedelta(days=1),
+                "repeat_type": "until",
+                "repeat_until": until - relativedelta(days=1),
             }
         )
         return detached_events

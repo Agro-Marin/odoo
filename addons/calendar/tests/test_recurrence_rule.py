@@ -7,9 +7,9 @@ class TestRecurrenceRule(TransactionCase):
     def test_daily_count(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "daily",
-                "interval": 2,
-                "count": 3,
+                "repeat_unit": "day",
+                "repeat_interval": 2,
+                "repeat_number": 3,
                 "event_tz": "UTC",
             }
         )
@@ -18,10 +18,10 @@ class TestRecurrenceRule(TransactionCase):
     def test_daily_until(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "daily",
-                "interval": 2,
-                "end_type": "end_date",
-                "until": datetime(2024, 11, 15),
+                "repeat_unit": "day",
+                "repeat_interval": 2,
+                "repeat_type": "until",
+                "repeat_until": datetime(2024, 11, 15),
                 "event_tz": "UTC",
             }
         )
@@ -30,9 +30,9 @@ class TestRecurrenceRule(TransactionCase):
     def test_daily_none(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "daily",
-                "interval": 2,
-                "end_type": "",
+                "repeat_unit": "day",
+                "repeat_interval": 2,
+                "repeat_type": "",
                 "event_tz": "UTC",
             }
         )
@@ -42,11 +42,11 @@ class TestRecurrenceRule(TransactionCase):
         """Every week, on Tuesdays, for 3 occurences"""
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "weekly",
+                "repeat_unit": "week",
                 "tue": True,
                 "wed": True,
-                "interval": 2,
-                "count": 3,
+                "repeat_interval": 2,
+                "repeat_number": 3,
                 "event_tz": "UTC",
             }
         )
@@ -58,12 +58,12 @@ class TestRecurrenceRule(TransactionCase):
         """Every week, on Tuesdays, for 3 occurences"""
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "weekly",
+                "repeat_unit": "week",
                 "tue": True,
                 "wed": True,
-                "interval": 2,
-                "end_type": "end_date",
-                "until": datetime(2024, 11, 15),
+                "repeat_interval": 2,
+                "repeat_type": "until",
+                "repeat_until": datetime(2024, 11, 15),
                 "event_tz": "UTC",
             }
         )
@@ -75,11 +75,11 @@ class TestRecurrenceRule(TransactionCase):
         """Every week, on Tuesdays, for 3 occurences"""
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "weekly",
+                "repeat_unit": "week",
                 "tue": True,
                 "wed": True,
-                "interval": 2,
-                "end_type": "",
+                "repeat_interval": 2,
+                "repeat_type": "",
                 "event_tz": "UTC",
             }
         )
@@ -88,13 +88,13 @@ class TestRecurrenceRule(TransactionCase):
     def test_monthly_count_by_day(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "monthly",
-                "interval": 2,
+                "repeat_unit": "month",
+                "repeat_interval": 2,
                 "month_by": "day",
                 "byday": "1",
                 "weekday": "MON",
-                "end_type": "count",
-                "count": 3,
+                "repeat_type": "count",
+                "repeat_number": 3,
                 "event_tz": "UTC",
             }
         )
@@ -105,13 +105,13 @@ class TestRecurrenceRule(TransactionCase):
     def test_monthly_until_by_day(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "monthly",
-                "interval": 2,
+                "repeat_unit": "month",
+                "repeat_interval": 2,
                 "month_by": "day",
                 "byday": "1",
                 "weekday": "MON",
-                "end_type": "end_date",
-                "until": datetime(2024, 11, 15),
+                "repeat_type": "until",
+                "repeat_until": datetime(2024, 11, 15),
                 "event_tz": "UTC",
             }
         )
@@ -122,12 +122,12 @@ class TestRecurrenceRule(TransactionCase):
     def test_monthly_none_by_day(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "monthly",
-                "interval": 2,
+                "repeat_unit": "month",
+                "repeat_interval": 2,
                 "month_by": "day",
                 "byday": "1",
                 "weekday": "MON",
-                "end_type": "",
+                "repeat_type": "",
                 "event_tz": "UTC",
             }
         )
@@ -136,13 +136,13 @@ class TestRecurrenceRule(TransactionCase):
     def test_monthly_count_by_date(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "monthly",
-                "interval": 2,
+                "repeat_unit": "month",
+                "repeat_interval": 2,
                 "month_by": "date",
                 "day": 27,
                 "weekday": "MON",
-                "end_type": "count",
-                "count": 3,
+                "repeat_type": "count",
+                "repeat_number": 3,
                 "event_tz": "UTC",
             }
         )
@@ -151,13 +151,13 @@ class TestRecurrenceRule(TransactionCase):
     def test_monthly_until_by_date(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "monthly",
-                "interval": 2,
+                "repeat_unit": "month",
+                "repeat_interval": 2,
                 "month_by": "date",
                 "day": 27,
                 "weekday": "MON",
-                "end_type": "end_date",
-                "until": datetime(2024, 11, 15),
+                "repeat_type": "until",
+                "repeat_until": datetime(2024, 11, 15),
                 "event_tz": "UTC",
             }
         )
@@ -166,12 +166,12 @@ class TestRecurrenceRule(TransactionCase):
     def test_monthly_none_by_date(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "monthly",
-                "interval": 2,
+                "repeat_unit": "month",
+                "repeat_interval": 2,
                 "month_by": "date",
                 "day": 27,
                 "weekday": "MON",
-                "end_type": "",
+                "repeat_type": "",
                 "event_tz": "UTC",
             }
         )
@@ -180,9 +180,9 @@ class TestRecurrenceRule(TransactionCase):
     def test_yearly_count(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "yearly",
-                "interval": 2,
-                "count": 3,
+                "repeat_unit": "year",
+                "repeat_interval": 2,
+                "repeat_number": 3,
                 "event_tz": "UTC",
             }
         )
@@ -191,10 +191,10 @@ class TestRecurrenceRule(TransactionCase):
     def test_yearly_until(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "yearly",
-                "interval": 2,
-                "end_type": "end_date",
-                "until": datetime(2024, 11, 15),
+                "repeat_unit": "year",
+                "repeat_interval": 2,
+                "repeat_type": "until",
+                "repeat_until": datetime(2024, 11, 15),
                 "event_tz": "UTC",
             }
         )
@@ -203,9 +203,9 @@ class TestRecurrenceRule(TransactionCase):
     def test_yearly_none(self):
         recurrence = self.env["calendar.recurrence"].create(
             {
-                "rrule_type": "yearly",
-                "interval": 2,
-                "end_type": "",
+                "repeat_unit": "year",
+                "repeat_interval": 2,
+                "repeat_type": "",
                 "event_tz": "UTC",
             }
         )

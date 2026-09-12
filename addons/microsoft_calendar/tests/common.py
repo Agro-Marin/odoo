@@ -122,10 +122,10 @@ class TestCommon(EncryptionKeyCase, HttpCase):
             "stop": self.end_date.strftime("%Y-%m-%d %H:%M:%S"),
             "event_tz": "Europe/London",
             "recurrence_update": "this",
-            "rrule_type": "daily",
-            "interval": self.recurrent_event_interval,
-            "count": self.recurrent_events_count,
-            "end_type": "count",
+            "repeat_unit": "day",
+            "repeat_interval": self.recurrent_event_interval,
+            "repeat_number": self.recurrent_events_count,
+            "repeat_type": "count",
             "duration": 1,
             "byday": "-1",
             "day": 22,
@@ -314,7 +314,7 @@ class TestCommon(EncryptionKeyCase, HttpCase):
         self.expected_odoo_recurrency_from_outlook = {
             "active": True,
             "byday": "1",
-            "count": 0,
+            "repeat_number": 0,
             "day": 0,
             "display_name": "Every %s Days until %s"
             % (
@@ -322,10 +322,10 @@ class TestCommon(EncryptionKeyCase, HttpCase):
                 self.recurrence_end_date.strftime("%Y-%m-%d"),
             ),
             "dtstart": self.start_date,
-            "end_type": "end_date",
+            "repeat_type": "until",
             "event_tz": False,
             "fri": False,
-            "interval": self.recurrent_event_interval,
+            "repeat_interval": self.recurrent_event_interval,
             "month_by": "date",
             "microsoft_id": "REC123",
             "ms_universal_event_id": "REC456",
@@ -344,8 +344,8 @@ class TestCommon(EncryptionKeyCase, HttpCase):
                 self.recurrent_event_interval,
                 self.recurrence_end_date.strftime("%Y%m%dT235959"),
             ),
-            "rrule_type": "daily",
-            "until": self.recurrence_end_date.date(),
+            "repeat_unit": "day",
+            "repeat_until": self.recurrence_end_date.date(),
             "weekday": False,
         }
 
@@ -514,7 +514,7 @@ class TestCommon(EncryptionKeyCase, HttpCase):
                 + timedelta(days=i * self.recurrent_event_interval),
                 "stop": self.end_date
                 + timedelta(days=i * self.recurrent_event_interval),
-                "until": self.recurrence_end_date.date(),
+                "repeat_until": self.recurrence_end_date.date(),
                 "microsoft_recurrence_master_id": "REC123",
                 "microsoft_id": f"REC123_EVENT_{i + 1}",
                 "ms_universal_event_id": f"REC456_EVENT_{i + 1}",

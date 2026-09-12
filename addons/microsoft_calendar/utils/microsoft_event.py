@@ -195,16 +195,18 @@ class MicrosoftEvent(abc.Set):
             return {}
         pattern = self.recurrence["pattern"]
         range = self.recurrence["range"]
-        end_type_dict = {
-            "endDate": "end_date",
+        repeat_type_dict = {
+            "endDate": "until",
             "noEnd": "forever",
             "numbered": "count",
         }
-        type_dict = {
-            "absoluteMonthly": "monthly",
-            "relativeMonthly": "monthly",
-            "absoluteYearly": "yearly",
-            "relativeYearly": "yearly",
+        repeat_unit_dict = {
+            "daily": "day",
+            "weekly": "week",
+            "absoluteMonthly": "month",
+            "relativeMonthly": "month",
+            "absoluteYearly": "year",
+            "relativeYearly": "year",
         }
         index_dict = {
             "first": "1",
@@ -213,16 +215,16 @@ class MicrosoftEvent(abc.Set):
             "fourth": "4",
             "last": "-1",
         }
-        rrule_type = type_dict.get(pattern["type"], pattern["type"])
+        repeat_unit = repeat_unit_dict.get(pattern["type"], pattern["type"])
         interval = pattern["interval"]
         result = {
-            "rrule_type": rrule_type,
-            "end_type": end_type_dict.get(range["type"], False),
-            "interval": interval,
-            "count": range["numberOfOccurrences"],
+            "repeat_unit": repeat_unit,
+            "repeat_type": repeat_type_dict.get(range["type"], False),
+            "repeat_interval": interval,
+            "repeat_number": range["numberOfOccurrences"],
             "day": pattern["dayOfMonth"],
             "byday": index_dict.get(pattern["index"], False),
-            "until": range["type"] == "endDate" and range["endDate"],
+            "repeat_until": range["type"] == "endDate" and range["endDate"],
         }
 
         month_by_dict = {

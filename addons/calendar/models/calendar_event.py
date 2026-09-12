@@ -26,11 +26,13 @@ from odoo.addons.calendar.models.utils import (
 )
 from odoo.addons.resource.models.mixin_recurrence_rrule import (
     BYDAY_SELECTION,
-    END_TYPE_SELECTION,
     MONTH_BY_SELECTION,
-    RRULE_TYPE_SELECTION,
+    REPEAT_TYPE_SELECTION_RRULE,
     WEEKDAY_SELECTION,
     weekday_to_field,
+)
+from odoo.addons.resource.models.mixin_recurrence_rule import (
+    REPEAT_UNIT_SELECTION,
 )
 
 _logger = logging.getLogger(__name__)
@@ -43,11 +45,14 @@ except ImportError:
     )
     vobject = None
 
-RRULE_TYPE_SELECTION_UI = [
-    ("daily", "Daily"),
-    ("weekly", "Weekly"),
-    ("monthly", "Monthly"),
-    ("yearly", "Yearly"),
+# The quick picker above the custom rule. Its four real values are the shared
+# `repeat_unit` ones, so `_compute_recurrence` can hand one straight to the
+# recurrence instead of translating between two spellings of "weekly".
+REPEAT_UNIT_SELECTION_UI = [
+    ("day", "Daily"),
+    ("week", "Weekly"),
+    ("month", "Monthly"),
+    ("year", "Yearly"),
     ("custom", "Custom"),
 ]
 
@@ -387,15 +392,15 @@ class CalendarEvent(models.Model):
     # If some of these fields are set and recurrence_id does not exists,
     # a `calendar.recurrence.rule` will be dynamically created.
     rrule = fields.Char("Recurrent Rule", compute="_compute_recurrence", readonly=False)
-    rrule_type_ui = fields.Selection(
-        RRULE_TYPE_SELECTION_UI,
+    repeat_unit_ui = fields.Selection(
+        REPEAT_UNIT_SELECTION_UI,
         string="Repeat",
-        compute="_compute_rrule_type_ui",
+        compute="_compute_repeat_unit_ui",
         readonly=False,
         help="Let the event automatically repeat at that interval",
     )
-    rrule_type = fields.Selection(
-        RRULE_TYPE_SELECTION,
+    repeat_unit = fields.Selection(
+        REPEAT_UNIT_SELECTION,
         string="Recurrence",
         help="Let the event automatically repeat at that interval",
         compute="_compute_recurrence",
@@ -407,19 +412,19 @@ class CalendarEvent(models.Model):
         compute="_compute_recurrence",
         readonly=False,
     )
-    end_type = fields.Selection(
-        END_TYPE_SELECTION,
+    repeat_type = fields.Selection(
+        REPEAT_TYPE_SELECTION_RRULE,
         string="Recurrence Termination",
         compute="_compute_recurrence",
         readonly=False,
     )
-    interval = fields.Integer(
+    repeat_interval = fields.Integer(
         string="Repeat On",
         compute="_compute_recurrence",
         readonly=False,
         help="Repeat every (Days/Week/Month/Year)",
     )
-    count = fields.Integer(
+    repeat_number = fields.Integer(
         string="Number of Repetitions",
         help="Repeat x times",
         compute="_compute_recurrence",
@@ -445,7 +450,7 @@ class CalendarEvent(models.Model):
     byday = fields.Selection(
         BYDAY_SELECTION, string="By day", compute="_compute_recurrence", readonly=False
     )
-    until = fields.Date(compute="_compute_recurrence", readonly=False)
+    repeat_until = fields.Date(compute="_compute_recurrence", readonly=False)
     # UI Fields.
     display_description = fields.Boolean(compute="_compute_display_description")
     attendees_count = fields.Integer(compute="_compute_attendees_count")
@@ -725,22 +730,22 @@ class CalendarEvent(models.Model):
         return [True] * len(vals_list)
 
     @api.depends("recurrence_id", "recurrency")
-    def _compute_rrule_type_ui(self):
+    def _compute_repeat_unit_ui(self):
         defaults = self.env["calendar.recurrence"].default_get(
-            ["interval", "rrule_type"]
+            ["repeat_interval", "repeat_unit"]
         )
         for event in self:
             if event.recurrency:
                 if event.recurrence_id:
-                    event.rrule_type_ui = (
+                    event.repeat_unit_ui = (
                         "custom"
-                        if event.recurrence_id.interval != 1
-                        else (event.recurrence_id.rrule_type)
+                        if event.recurrence_id.repeat_interval != 1
+                        else (event.recurrence_id.repeat_unit)
                     )
                 else:
-                    event.rrule_type_ui = defaults["rrule_type"]
+                    event.repeat_unit_ui = defaults["repeat_unit"]
 
-    @api.depends("recurrence_id", "recurrency", "rrule_type_ui")
+    @api.depends("recurrence_id", "recurrency", "repeat_unit_ui")
     def _compute_recurrence(self):
         recurrence_fields = self._get_fields_recurrent()
         false_values = dict.fromkeys(
@@ -751,9 +756,9 @@ class CalendarEvent(models.Model):
         for event in self:
             if event.recurrency:
                 current_rrule = (
-                    event.rrule_type
-                    if event.rrule_type_ui == "custom"
-                    else event.rrule_type_ui
+                    event.repeat_unit
+                    if event.repeat_unit_ui == "custom"
+                    else event.repeat_unit_ui
                 )
                 event.update(
                     defaults
@@ -765,10 +770,10 @@ class CalendarEvent(models.Model):
                     if event.recurrence_id[field]
                 }
                 rrule_values = rrule_values or default_rrule_values
-                rrule_values["rrule_type"] = (
+                rrule_values["repeat_unit"] = (
                     current_rrule
-                    or rrule_values.get("rrule_type")
-                    or defaults["rrule_type"]
+                    or rrule_values.get("repeat_unit")
+                    or defaults["repeat_unit"]
                 )
                 event.update(
                     {**false_values, **defaults, **event_values, **rrule_values}
@@ -1294,9 +1299,12 @@ class CalendarEvent(models.Model):
     def _get_scheduled_partners(self):
         """Partners whose attendance occupies their personal schedule."""
         self.check_singleton()
-        return self.partner_ids - self.attendee_ids.filtered(
-            lambda attendee: attendee.state == "declined"
-        ).partner_id
+        return (
+            self.partner_ids
+            - self.attendee_ids.filtered(
+                lambda attendee: attendee.state == "declined"
+            ).partner_id
+        )
 
     def _get_attendee_intervals(self, partner, *, resources=None):
         """Return UTC occupancy for an attendee, excluding a declined invitation.
@@ -1370,9 +1378,7 @@ class CalendarEvent(models.Model):
         if setting and not self.recurrence_id:
             setting = None
         update = bool(
-            setting in ("all", "subsequent")
-            and len(self) == 1
-            and self.recurrence_id
+            setting in ("all", "subsequent") and len(self) == 1 and self.recurrence_id
         )
         if any(fname in self._get_fields_recurrent() for fname in values) and not (
             update or values.get("recurrency")
@@ -1394,9 +1400,7 @@ class CalendarEvent(models.Model):
             detached from their recurrence by the rewrite.
         """
         if policy.breaking:
-            return self, self._break_recurrence(
-                future=policy.setting == "subsequent"
-            )
+            return self, self._break_recurrence(future=policy.setting == "subsequent")
         time_values = {
             field: values.pop(field)
             for field in self._get_fields_time()
@@ -2592,7 +2596,8 @@ class CalendarEvent(models.Model):
             **previous_recurrence_values,
             **self._get_recurrence_params_by_date(start_date),
             **recurrence_values,
-            "count": recurrence_values.get("count", 0) or len(detached_events_split),
+            "repeat_number": recurrence_values.get("repeat_number", 0)
+            or len(detached_events_split),
         }
         new_values.pop("rrule", None)
 
@@ -3010,14 +3015,14 @@ class CalendarEvent(models.Model):
     def _get_fields_recurrent(self):
         return {
             "byday",
-            "until",
-            "rrule_type",
+            "repeat_until",
+            "repeat_unit",
             "month_by",
             "event_tz",
             "rrule",
-            "interval",
-            "count",
-            "end_type",
+            "repeat_interval",
+            "repeat_number",
+            "repeat_type",
             "mon",
             "tue",
             "wed",
@@ -3065,9 +3070,9 @@ class CalendarEvent(models.Model):
                 "allday",
                 "duration",
                 "user_id",
-                "interval",
+                "repeat_interval",
                 "partner_id",
-                "count",
+                "repeat_number",
                 "rrule",
                 "recurrence_id",
                 "show_as",
