@@ -128,7 +128,7 @@ export class PivotRenderer extends Component {
      * @returns {number}
      */
     getPadding(cell) {
-        return 5 + cell.indent * 30;
+        return 5 + cell.indent * (this.env.isSmall ? 5 : 30);
     }
     /**
      * @private

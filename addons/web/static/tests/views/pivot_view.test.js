@@ -4172,6 +4172,25 @@ test("scroll position is restored when coming back to pivot view", async () => {
 });
 
 test.tags("mobile");
+test("a small screen indents headers by 5px per level and carries no tooltips", async () => {
+    await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch: `
+            <pivot>
+                <field name="product_id" type="row"/>
+                <field name="foo" type="measure"/>
+            </pivot>`,
+    });
+    expect(".o_pivot [data-tooltip]").toHaveCount(0);
+    expect(".o_pivot [data-tooltip-position]").toHaveCount(0);
+    expect("tbody .o_pivot_header_cell_opened").toHaveStyle({ paddingLeft: "5px" });
+    expect("tbody .o_pivot_header_cell_closed:first").toHaveStyle({
+        paddingLeft: "10px",
+    });
+});
+
+test.tags("mobile");
 test("scroll position is restored when coming back to pivot view (mobile)", async () => {
     Partner._views = {
         kanban: `
