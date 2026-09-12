@@ -13,7 +13,6 @@ const INTERNAL = [
     "_actionExecutors",
     "_doAction",
     "_preprocessAction",
-    "getCurrentAction",
     "dialogService",
     "_pendingDispatch",
     "_dispatchDepth",

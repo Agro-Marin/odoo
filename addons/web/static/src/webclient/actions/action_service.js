@@ -8,7 +8,6 @@ import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { actionLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
 import { Deferred, SupersededError } from "@web/core/utils/concurrency";
 import { View, ViewNotFoundError } from "@web/views/view";
@@ -313,26 +312,24 @@ export class ActionManager {
     /** @returns {Promise<any>} */
     async getCurrentAction() {
         const currentController = this.currentController;
-        let action = null;
-        if (currentController) {
-            if (currentController.virtual) {
-                try {
-                    action = await this.fetchAction(currentController.action.id);
-                } catch (error) {
-                    if (
-                        error.exceptionName ===
-                        "odoo.addons.web.controllers.action.MissingActionError"
-                    ) {
-                        action = null;
-                    } else {
-                        throw error;
-                    }
-                }
-            } else {
-                action = JSON.parse(currentController.action._originalAction || "null");
-            }
+        if (!currentController) {
+            return null;
         }
-        return action;
+        const { action } = currentController;
+        if (!currentController.virtual) {
+            return JSON.parse(action._originalAction || "null");
+        }
+        try {
+            return await this.fetchAction(action.path || action.id || action.tag);
+        } catch (error) {
+            if (
+                error.exceptionName ===
+                "odoo.addons.web.controllers.action.MissingActionError"
+            ) {
+                return null;
+            }
+            throw error;
+        }
     }
 
     /** @returns {number} */
@@ -768,7 +765,6 @@ export class ActionManager {
      * @returns {Promise<number | undefined | void>}
      */
     async _doAction(actionRequest, options = {}) {
-        actionLog("doAction", actionRequest, options);
         log.logic("doAction", () => ({ request: actionRequest, options }));
         options = { ...options };
         const endFetch = log.perf("fetchAction");
@@ -790,7 +786,6 @@ export class ActionManager {
                         `the "action_handlers" entry registered for it will never run.`,
                 );
             }
-            actionLog("dispatch", action.type, action.id || action.tag || "");
             log.pipeline("dispatch", () => ({
                 type: action.type,
                 target: action.target,
@@ -799,7 +794,6 @@ export class ActionManager {
         }
         const handler = actionHandlersRegistry.get(action.type, undefined);
         if (handler !== undefined) {
-            actionLog("handler", action.type);
             log.pipeline("handler", () => ({ type: action.type }));
             return handler({ env: this.env, action, options });
         }

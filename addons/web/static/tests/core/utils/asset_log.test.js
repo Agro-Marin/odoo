@@ -2,11 +2,9 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import {
-    actionLog,
     assetLog,
     componentLog,
     fieldLog,
-    makeActionLog,
     makeAssetLog,
     makeComponentLog,
     makeModelLog,
@@ -56,19 +54,15 @@ function captureConsoleDebug(body) {
 }
 
 describe("enabled()", () => {
-    test("all four loggers expose an .enabled() function", () => {
+    test("the loggers expose an .enabled() function", () => {
         expect(typeof assetLog.enabled).toBe("function");
         expect(typeof rpcLog.enabled).toBe("function");
-        expect(typeof actionLog.enabled).toBe("function");
         expect(typeof modelLog.enabled).toBe("function");
     });
 
     test("disabled by default (no localStorage flag, no debug substring)", () => {
         if (!globalThis.localStorage.getItem("debug.rpc")) {
             expect(rpcLog.enabled()).toBe(false);
-        }
-        if (!globalThis.localStorage.getItem("debug.action")) {
-            expect(actionLog.enabled()).toBe(false);
         }
         if (!globalThis.localStorage.getItem("debug.model")) {
             expect(modelLog.enabled()).toBe(false);
@@ -79,9 +73,6 @@ describe("enabled()", () => {
         withLocalStorage("debug.rpc", "1", () => {
             expect(rpcLog.enabled()).toBe(true);
         });
-        withLocalStorage("debug.action", "1", () => {
-            expect(actionLog.enabled()).toBe(true);
-        });
         withLocalStorage("debug.model", "1", () => {
             expect(modelLog.enabled()).toBe(true);
         });
@@ -89,7 +80,6 @@ describe("enabled()", () => {
 
     test("localStorage flag for one namespace does NOT activate another", () => {
         withLocalStorage("debug.rpc", "1", () => {
-            expect(actionLog.enabled()).toBe(false);
             expect(modelLog.enabled()).toBe(false);
         });
     });
@@ -117,7 +107,6 @@ describe("log emission", () => {
     test("short-circuits to no-op when disabled", () => {
         const calls = captureConsoleDebug(() => {
             withLocalStorage("debug.rpc", "", () => rpcLog("test", "x"));
-            withLocalStorage("debug.action", "", () => actionLog("test", "x"));
             withLocalStorage("debug.model", "", () => modelLog("test", "x"));
         });
         expect(calls.length).toBe(0);
@@ -159,18 +148,16 @@ describe("makeXxxLog factory", () => {
         expect(calls[0][1]).toBe("hello");
     });
 
-    test("all four make* factories produce category-bound loggers", () => {
+    test("the make* factories produce category-bound loggers", () => {
         const calls = captureConsoleDebug(() => {
             withLocalStorage("debug.assets", "1", () => makeAssetLog("a")("payload"));
             withLocalStorage("debug.rpc", "1", () => makeRpcLog("b")("payload"));
-            withLocalStorage("debug.action", "1", () => makeActionLog("c")("payload"));
             withLocalStorage("debug.model", "1", () => makeModelLog("d")("payload"));
         });
-        expect(calls.length).toBe(4);
+        expect(calls.length).toBe(3);
         expect(calls[0][0]).toBe("[asset.a]");
         expect(calls[1][0]).toBe("[rpc.b]");
-        expect(calls[2][0]).toBe("[action.c]");
-        expect(calls[3][0]).toBe("[model.d]");
+        expect(calls[2][0]).toBe("[model.d]");
     });
 });
 
@@ -340,7 +327,6 @@ describe("active() — the guard a call site must use", () => {
         for (const log of [
             assetLog,
             rpcLog,
-            actionLog,
             modelLog,
             componentLog,
             serviceLog,

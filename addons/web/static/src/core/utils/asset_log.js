@@ -56,8 +56,6 @@ export const assetLog = _makeNamespacedLog("asset", "assets", "__ODOO_ASSET_TRAC
 
 export const rpcLog = _makeNamespacedLog("rpc", "rpc");
 
-export const actionLog = _makeNamespacedLog("action", "action");
-
 export const modelLog = _makeNamespacedLog("model", "model");
 
 export const l10nLog = _makeNamespacedLog("l10n", "l10n");
@@ -90,7 +88,6 @@ function _categoryBinder(namespaced) {
 
 export const makeAssetLog = _categoryBinder(assetLog);
 export const makeRpcLog = _categoryBinder(rpcLog);
-export const makeActionLog = _categoryBinder(actionLog);
 export const makeModelLog = _categoryBinder(modelLog);
 export const makeComponentLog = _categoryBinder(componentLog);
 export const makeServiceLog = _categoryBinder(serviceLog);

@@ -108,7 +108,7 @@ zero is a claim about the probe until the guard has been checked.
 
 ## The namespaces
 
-10 namespaces, each with its own flag. There are 7 category factories
+9 namespaces, each with its own flag. There are 6 category factories
 (`make<Name>Log(category)`) for callers that bind a category once; the other
 loggers accept the category directly. The livechat logger is private and
 exposed through its category factory.
@@ -117,7 +117,6 @@ exposed through its category factory.
 |---|---|---|---|
 | `asset` | `assets` | `env.js`, `boot/start.js`, `core/templates.js`, `core/assets.js`, `core/registry.js`, `session.js` | What loaded, in what order |
 | `rpc` | `rpc` | `core/network/rpc.js` | Every request and its outcome |
-| `action` | `action` | `webclient/actions/action_service.js` | `doAction` dispatch and handler choice |
 | `model` | `model` | `model/relational_model/` — load, save, archive, delete, duplicate | Record lifecycle |
 | `l10n` | `l10n` | `core/l10n/localization_service.js` | Translation fetch and cache |
 | `component` | `component` | `env.js` (`mountComponent`) | Every `App` this fork mounts |

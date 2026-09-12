@@ -130,6 +130,9 @@ export const menuUsage = {
         } catch {}
         sync.cancel?.();
         user.updateUserSettings?.("homemenu_usage", null);
+        return Promise.resolve(user.setUserSettings?.("homemenu_usage", null)).catch(
+            () => {},
+        );
     },
 
     /**
