@@ -131,8 +131,9 @@ class FSWatcherBase:
         )
         for db_name in databases:
             try:
-                with odoo_db.db_connect(db_name).cursor() as cr:
-                    cr.execute("INSERT INTO orm_signaling_assets DEFAULT VALUES")
+                with _debug.perf("watcher.assets_invalidated", db=db_name):
+                    with odoo_db.db_connect(db_name).cursor() as cr:
+                        cr.execute("INSERT INTO orm_signaling_assets DEFAULT VALUES")
             except Exception:
                 _logger.warning(
                     "assets watch: could not invalidate %s for %s",
@@ -151,6 +152,8 @@ class FSWatcherBase:
         if leading:
             _debug.logic("watcher.burst_started", path=path)
             self._flush_asset_invalidation()
+        else:
+            _debug.logic("watcher.burst_joined", path=path)
         self._arm_burst_flush()
 
     def _flush_asset_invalidation(self) -> None:
@@ -158,6 +161,7 @@ class FSWatcherBase:
             if not self._assets_dirty:
                 return
             self._assets_dirty = False
+        _debug.pipeline("watcher.burst_flushed")
         self._signal_asset_change(ASSET_BURST_PATH)
 
     def _end_burst(self) -> None:
@@ -165,6 +169,7 @@ class FSWatcherBase:
         self._flush_asset_invalidation()
         with self._burst_lock:
             self._burst_active = False
+        _debug.lifecycle("watcher.burst_ended")
 
     def _arm_burst_flush(self) -> None:
         if not self._needs_burst_timer:
@@ -197,7 +202,12 @@ class FSWatcherBase:
             _debug.logic("watcher.change_ignored", path=path, reason="reload_pending")
             return None
         if "reload" not in current().dev_mode:
+            _debug.logic("watcher.change_ignored", path=path, reason="reload_off")
             return None
+        if _debug.logic.enabled and (
+            not path.endswith(".py") or Path(path).name.startswith(".~")
+        ):
+            _debug.logic("watcher.change_ignored", path=path, reason="not_python")
         if path.endswith(".py") and not Path(path).name.startswith(".~"):
             try:
                 source = Path(path).read_bytes() + b"\n"
@@ -215,6 +225,12 @@ class FSWatcherBase:
                 )
                 _debug.logic("watcher.python_syntax_error", path=path)
             else:
+                if _debug.logic.enabled and not (
+                    self._reload_in_place or not _process_state.server_phoenix
+                ):
+                    _debug.logic(
+                        "watcher.change_ignored", path=path, reason="phoenix_pending"
+                    )
                 if self._reload_in_place or not _process_state.server_phoenix:
                     self._reload_triggered = not self._reload_in_place
                     _logger.info(
@@ -244,6 +260,12 @@ class FSWatcherWatchdog(FSWatcherBase):
         if isinstance(event, (FileCreatedEvent, FileModifiedEvent, FileMovedEvent)):
             if not event.is_directory:
                 path = getattr(event, "dest_path", "") or event.src_path
+                _debug.pipeline(
+                    "watcher.event",
+                    backend="watchdog",
+                    kind=type(event).__name__,
+                    path=path,
+                )
                 self.on_file_changed(path)
 
     def start(self) -> None:
@@ -409,6 +431,7 @@ class FSWatcherInotify(FSWatcherBase):
         try:
             internals = self.internals
             if internals is None:
+                _debug.logic("watcher.watch_skipped", path=path, reason="released")
                 return
             if internals.add_watch(path) is not None:
                 return
@@ -431,6 +454,12 @@ class FSWatcherInotify(FSWatcherBase):
         try:
             self._run()
         finally:
+            _debug.lifecycle(
+                "watcher.loop_exited",
+                backend="inotify",
+                reload_triggered=self._reload_triggered,
+                stopped=not self.started,
+            )
             self.started = False
             self._release_watcher()
 
@@ -448,6 +477,12 @@ class FSWatcherInotify(FSWatcherBase):
                     if "IN_ISDIR" not in type_names:
                         if "IN_DELETE" not in type_names:
                             full_path = str(Path(path, filename))
+                            _debug.pipeline(
+                                "watcher.event",
+                                backend="inotify",
+                                kind=",".join(type_names),
+                                path=full_path,
+                            )
                             if self.on_file_changed(full_path):
                                 return
                     elif dir_creation_events.intersection(type_names):
@@ -473,6 +508,11 @@ class FSWatcherInotify(FSWatcherBase):
             target=self.run, name="odoo.service.autoreload.watcher"
         )
         self.thread.daemon = True
+        _debug.lifecycle(
+            "watcher.thread_starting",
+            backend="inotify",
+            thread=getattr(self.thread, "name", None),
+        )
         try:
             self.thread.start()
         except BaseException:

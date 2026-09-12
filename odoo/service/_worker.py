@@ -99,6 +99,12 @@ class Worker:
         setproctitle(f"odoo: {self.__class__.__name__} {self.pid} {title}")
 
     def close(self) -> None:
+        _debug.lifecycle(
+            "worker.closed",
+            kind=self.__class__.__name__,
+            pid=getattr(self, "pid", None),
+            requests=getattr(self, "request_count", None),
+        )
         for fd in (
             self.watchdog_pipe[0],
             self.watchdog_pipe[1],
@@ -310,9 +316,16 @@ class WorkerHTTP(Worker):
             name, port = client.getsockname()[:2]
             identity = ServerIdentity(name, port, False, True, False)
             with contextlib.suppress(BrokenPipeError):
-                serve_prefork_connection(
-                    client, addr, self.multi.app, identity, self.limits
-                )
+                with _debug.perf(
+                    "worker.http.request",
+                    pid=getattr(self, "pid", None),
+                    peer=addr[0] if isinstance(addr, tuple) else None,
+                    request=getattr(self, "request_count", 0) + 1,
+                    request_max=getattr(self, "request_max", None),
+                ):
+                    serve_prefork_connection(
+                        client, addr, self.multi.app, identity, self.limits
+                    )
         finally:
             with contextlib.suppress(OSError):
                 client.close()
@@ -326,7 +339,18 @@ class WorkerHTTP(Worker):
             self.process_request(client, addr)
         except OSError as e:
             if e.errno not in (errno.EAGAIN, errno.ECONNABORTED):
+                _debug.logic(
+                    "worker.http.accept_failed",
+                    pid=getattr(self, "pid", None),
+                    errno=e.errno,
+                    error=type(e).__name__,
+                )
                 raise
+            _debug.logic(
+                "worker.http.accept_lost",
+                pid=getattr(self, "pid", None),
+                reason="raced" if e.errno == errno.EAGAIN else "aborted",
+            )
 
     def start(self) -> None:
         Worker.start(self)
@@ -357,6 +381,13 @@ class WorkerCron(Worker):
     def _sleep_with_watchdog(self, total_seconds: float) -> None:
         tick = max(self.multi.beat / 2, 0.5)
         remaining = total_seconds
+        _debug.logic(
+            "worker.cron.sleeping_with_watchdog",
+            kind=self.__class__.__name__,
+            pid=self.pid,
+            seconds=total_seconds,
+            tick=tick,
+        )
         while remaining > 0 and self.alive:
             self.multi.ping_pipe(self.watchdog_pipe)
             chunk = min(tick, remaining)
@@ -371,6 +402,12 @@ class WorkerCron(Worker):
     def sleep(self) -> None:
         if not self.db_queue:
             if self.listener.backing_off:
+                _debug.logic(
+                    "worker.cron.sleep_skipped",
+                    kind=self.__class__.__name__,
+                    pid=self.pid,
+                    reason="backing_off",
+                )
                 return
 
             interval: float = CRON_POLL_INTERVAL_S + os.getpid() % 10
@@ -379,6 +416,14 @@ class WorkerCron(Worker):
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))
 
+            _debug.logic(
+                "worker.cron.waiting",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                interval_s=interval,
+                polling_delay_s=self.schedule.polling_delay,
+                watchdog_timeout=self.watchdog_timeout,
+            )
             self.listener.wait(interval)
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             empty_pipe(self.wakeup_fd_r)
@@ -422,6 +467,13 @@ class WorkerCron(Worker):
                 return
             self.db_queue.extend(self.schedule.get_due_databases(notified))
             self.db_count = len(self.db_queue)
+            _debug.pipeline(
+                "worker.cron.queue_filled",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                notified=len(notified),
+                queued=self.db_count,
+            )
             if not self.db_count:
                 return
 
@@ -462,6 +514,14 @@ class WorkerCron(Worker):
                 "by the `limit_request` configuration variable: %s more.",
                 self.db_count - self.request_max,
             )
+            _debug.logic(
+                "worker.cron.limit_request_short",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                request_max=self.request_max,
+                db_count=self.db_count,
+                unswept=self.db_count - self.request_max,
+            )
 
     def start(self) -> None:
         os.nice(10)
@@ -476,6 +536,15 @@ class WorkerCron(Worker):
         if registries_size > 0:
             Registry.registries.count = registries_size
             _debug.lifecycle("worker.cron.registry_lru", size=registries_size)
+        _debug.lifecycle(
+            "worker.cron.started",
+            kind=self.__class__.__name__,
+            pid=self.pid,
+            channel=self.listen_channel,
+            max_age=self.get_max_age(),
+            watchdog_timeout=self.watchdog_timeout,
+            socket_closed=self.multi.socket is not None,
+        )
 
         while self.alive:
             if self.listener.reconnect_after_failure(
@@ -492,6 +561,13 @@ class WorkerCron(Worker):
     def stop(self) -> None:
         super().stop()
         self.listener.close()
+        _debug.lifecycle(
+            "worker.cron.stopped",
+            kind=self.__class__.__name__,
+            pid=getattr(self, "pid", None),
+            swept=getattr(self, "request_count", None),
+            queued=len(getattr(self, "db_queue", ())),
+        )
 
 
 class WorkerJob(WorkerCron):

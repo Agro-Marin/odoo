@@ -61,6 +61,7 @@ def invalidate_catalog_caches() -> None:
 
 
 def check_db_exposed(db_name: str) -> None:
+    _debug.pipeline("database.exposure_checked", db=db_name)
     if db_name not in list_dbs(True):
         _logger.warning(
             "DB management op on %s rejected, not in the list of exposed databases",
@@ -75,6 +76,7 @@ def exp_db_exist(db_name: str) -> bool:
     try:
         db = odoo.db.db_connect(db_name)
         with db.cursor():
+            _debug.logic("database.exist_probe", db=db_name, exists=True)
             return True
     except psycopg.errors.InvalidCatalogName:
         _logger.debug("exp_db_exist(%r): database does not exist", db_name)
@@ -108,6 +110,7 @@ def _rpc_db_exist(db_name: str) -> bool:
         return False
     if _is_db_list_configured():
         return exp_db_exist(db_name)
+    _debug.logic("database.exist_rpc_answered", db=db_name, source="catalog")
     return True
 
 
@@ -220,12 +223,22 @@ def _get_catalog_cached(cr: Any = None) -> list[str]:
     with _catalog_lock:
         cached = _catalog_cache
         if cached is not None and now - cached[0] < ttl:
+            _debug.perf.count(
+                "database.catalog_cache_hit",
+                age=now - cached[0],
+                databases=len(cached[1]),
+            )
             return list(cached[1])
     if cached is None or not _catalog_refresh_lock.acquire(blocking=False):
         with _catalog_lock:
             if cached is not None and _catalog_cache is cached:
                 _debug.logic("database.catalog_stale_served", age=now - cached[0])
                 return list(cached[1])
+        _debug.logic(
+            "database.catalog_refresh_waiting",
+            cold=cached is None,
+            cursor=cr is not None,
+        )
         _catalog_refresh_lock.acquire()
     try:
         return _refresh_catalog(ttl, cr)
@@ -240,6 +253,7 @@ def _refresh_catalog(ttl: float, cr: Any = None) -> list[str]:
     with _catalog_lock:
         current = _catalog_cache
         if current is not None and now - current[0] < ttl:
+            _debug.logic("database.catalog_refreshed_by_peer", age=now - current[0])
             return list(current[1])
         generation = _catalog_generation
     with _debug.perf("database.catalog_listed", ttl=ttl) as span:
@@ -323,24 +337,34 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
             )
             _debug.logic("database.incompatible", db=database_name, reason="error")
             incompatible_databases.append(database_name)
+    closed = 0  # debuglog
     for database_name in databases:
         if database_name in incompatible_databases or database_name not in preexisting:
             odoo.db.close_db(database_name)
+            closed += 1  # debuglog
     _debug.pipeline(
         "database.compatibility_checked",
         databases=len(databases),
         incompatible=len(incompatible_databases),
         server_version=server_version,
+        pools_closed=closed,
+        preexisting=len(preexisting),
     )
     return incompatible_databases
 
 
 def exp_list(document: bool = False) -> list[str]:
-    return list_dbs()
+    with _debug.perf("database.list_rpc") as span:
+        names = list_dbs()
+        span.set(databases=len(names))
+    return names
 
 
 def exp_list_lang() -> list:
-    return odoo.tools.misc.get_languages()
+    with _debug.perf("database.list_lang_rpc") as span:
+        languages = odoo.tools.misc.get_languages()
+        span.set(languages=len(languages))
+    return languages
 
 
 @functools.cache

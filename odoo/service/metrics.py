@@ -131,6 +131,7 @@ class _Exposition:
     ) -> None:
         owner = self._owner.get(name)
         if owner is None:
+            _debug.logic("metrics.untyped_sample", name=name)
             self.declare(name, "untyped")
             owner = name
         self._families[owner].samples.append(
@@ -166,7 +167,9 @@ def get_service_metrics() -> dict[str, Any]:
         _debug.logic("metrics.no_server", registries=out["registries"])
         return out
     out["flavor"] = server.flavor
-    out.update(server.get_metrics())
+    with _debug.perf("metrics.service_collected", flavor=server.flavor) as span:
+        out.update(server.get_metrics())
+        span.set(keys=len(out))
     return out
 
 
@@ -382,6 +385,12 @@ def render_prometheus_exposition() -> str:
     for mode, health in (pools or {}).items():
         if health:
             _add_pool_family(exp, mode, health)
+            _debug.pipeline(
+                "metrics.pool_family_added",
+                pool=mode,
+                stats=len(health.get("pool") or {}),
+                databases=len(health.get("per_database") or {}),
+            )
 
     with _debug.perf("metrics.rendered", families=len(exp._families)) as span:
         text: str = exp.render()

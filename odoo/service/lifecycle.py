@@ -41,7 +41,8 @@ def load_server_wide_modules() -> None:
 def _load_server_wide_modules() -> None:
     for m in current().server_wide_modules:
         try:
-            load_odoo_module(m)
+            with _debug.perf("service.server_wide_module_loaded", module=m):
+                load_odoo_module(m)
         except Exception:
             _debug.logic("service.server_wide_module_failed", module=m)
             msg = ""
@@ -59,6 +60,7 @@ def _reexec_server(updated_modules: list[str] | None = None) -> None:
             shell=True,
         )
         if rc == 0:
+            _debug.lifecycle("service.nt_service_restarted", service=nt_service_name)
             return
         _logger.warning(
             "Service restart via the SCM failed (exit %s); "
@@ -86,8 +88,12 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
     from odoo.tests import loader
 
     try:
-        with registry.cursor() as cr:
-            updated = update_planner_stats(cr)
+        with _debug.perf(
+            "service.planner_stats_updated", db=getattr(registry, "db_name", None)
+        ) as span:
+            with registry.cursor() as cr:
+                updated = update_planner_stats(cr)
+            span.set(tables=updated)
         if updated:
             _logger.info("Set planner statistics for %d zero-stat tables", updated)
     except Exception:
@@ -140,18 +146,23 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
         queries=db.sql_counter - t0_sql,
     )
     report.log_stats()
+    if _debug.logic.enabled and prepared and not result.testsRun:
+        _debug.logic("service.post_install_tests.none_ran", prepared=prepared)
     return prepared if prepared and not result.testsRun else 0
 
 
 def _get_narrowing_test_spec() -> str:
     tags = current().test_tags.strip()
-    return "" if tags in {"", "+standard"} else tags
+    spec = "" if tags in {"", "+standard"} else tags
+    _debug.logic("service.test_spec", tags=tags, narrowing=bool(spec))
+    return spec
 
 
 def _limit_resident_registries(dbnames: list[str]) -> None:
     registries_size = get_env_int(
         "ODOO_REGISTRY_LRU_SIZE", 0, minimum=0, logger=_logger
     )
+    source = "env"  # debuglog
     if not registries_size:
         if _IS_POSIX:
             avgsz = 15 * 1024 * 1024
@@ -162,10 +173,13 @@ def _limit_resident_registries(dbnames: list[str]) -> None:
                 else (2048 * 1024 * 1024)
             )
             registries_size = (limit_memory_soft // avgsz) or 1
+            source = "memory_soft"  # debuglog
         if len(dbnames) > max(registries_size, Registry.registries.count):
             registries_size = len(dbnames)
+            source = "preload_count"  # debuglog
     if registries_size:
         Registry.registries.count = registries_size
+        _debug.logic("service.registry_lru_sized", size=registries_size, source=source)
 
     idle_timeout = get_env_int(
         "ODOO_REGISTRY_MAX_IDLE_TIMEOUT", 0, minimum=0, logger=_logger
@@ -248,8 +262,12 @@ def preload_registries(dbnames: list[str] | None) -> int:
                     successful=report is None or report.wasSuccessful(),
                 )
                 if report and not report.wasSuccessful():
+                    _debug.logic("service.preload_rc", db=dbname, reason="tests_failed")
                     rc += 1
                 elif unrun:
+                    _debug.logic(
+                        "service.preload_rc", db=dbname, reason="unrun", unrun=unrun
+                    )
                     _logger.error(
                         "post_install prepared %d tests for database %r and ran "
                         "none of them: every class was skipped before its first "
@@ -264,6 +282,9 @@ def preload_registries(dbnames: list[str] | None) -> int:
                     and not report.testsRun
                     and (spec := _get_narrowing_test_spec())
                 ):
+                    _debug.logic(
+                        "service.preload_rc", db=dbname, reason="no_test_matched"
+                    )
                     _logger.error(
                         "--test-tags %r matched no test at all: nothing ran, "
                         "yet the run would otherwise have reported success.",
@@ -286,6 +307,12 @@ def _limit_malloc_arenas() -> None:
         and sys.maxsize > 2**32
         and "MALLOC_ARENA_MAX" not in os.environ
     ):
+        _debug.logic(
+            "service.malloc_arenas_skipped",
+            gil_disabled=gil_disabled,
+            env_set="MALLOC_ARENA_MAX" in os.environ,
+            system=platform.system(),
+        )
         return
     try:
         import ctypes
@@ -344,6 +371,11 @@ def _warn_on_connection_budget() -> None:
         server_port=server_port,
     )
     if server_port and configured_port and int(configured_port) != int(server_port):
+        _debug.logic(
+            "service.connection_budget_pooler",
+            configured_port=configured_port,
+            server_port=server_port,
+        )
         _logger.info(
             "Connection budget not checked: connected to port %s but the server "
             "reports port %s, so a connection pooler is in between and its "
@@ -359,6 +391,13 @@ def _warn_on_connection_budget() -> None:
     headroom = server_max - reserved
     if demand <= headroom:
         return
+    _debug.logic(
+        "service.connection_budget_exceeded",
+        demand=demand,
+        headroom=headroom,
+        processes=processes,
+        suggested_maxconn=max(headroom // processes, 1),
+    )
     _logger.warning(
         "Connection budget exceeds the primary: %d process(es) x db_maxconn may "
         "check out %d connections, but PostgreSQL allows %d (max_connections=%d "
@@ -388,6 +427,7 @@ def restart() -> None:
         _logger.warning(
             "restart() called before server.start() assigned the server; ignoring"
         )
+        _debug.logic("service.restart_ignored", reason="no_server")
         return
     _debug.lifecycle("service.restart_requested", pid=server.pid, windows=_IS_WINDOWS)
     if _IS_WINDOWS:

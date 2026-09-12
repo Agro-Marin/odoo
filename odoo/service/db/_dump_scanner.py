@@ -400,6 +400,11 @@ def _check_dump_sql_safe(sql_path: str) -> None:
             while chunk := fh.readline(max_line + 1):
                 if len(chunk) > max_line and not chunk.endswith("\n"):
                     if scanner.in_copy_data:
+                        _debug.logic(
+                            "database.restore.copy_line_drained",
+                            lineno=scanner.lineno,
+                            max_line=max_line,
+                        )
                         _drain_physical_line(fh, max_line + 1)
                         scanner.lineno += 1
                         continue

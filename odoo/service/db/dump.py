@@ -171,6 +171,9 @@ def _reap_pg_dump(proc: subprocess.Popen) -> None:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             _logger.error("pg_dump still alive; sending SIGKILL")
+            _debug.logic(
+                "database.dump.sigkill", pid=getattr(proc, "pid", None), after="reap"
+            )
             proc.kill()
             proc.wait()
 
@@ -220,6 +223,11 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
                 "pg_dump stderr drain still running after %.0fs; leaving the "
                 "pipe to the interpreter",
                 _STDERR_DRAIN_JOIN_S,
+            )
+            _debug.logic(
+                "database.dump.stderr_drain_stuck",
+                pid=getattr(proc, "pid", None),
+                join_s=_STDERR_DRAIN_JOIN_S,
             )
         else:
             stderr.close()
@@ -279,7 +287,8 @@ def _write_zip_dump(
     ) as zipf:
         db = odoo.db.db_connect(db_name)
         with db.cursor() as cr:
-            manifest = dump_db_manifest(cr)
+            with _debug.perf("database.dump.manifest_built", cr=cr, db=db_name):
+                manifest = dump_db_manifest(cr)
         zipf.writestr("manifest.json", json.dumps(manifest, indent=4))
         _debug.pipeline("database.dump.zip.manifest_written", db=db_name)
         with zipf.open("dump.sql", "w", force_zip64=True) as sql_member:

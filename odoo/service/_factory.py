@@ -41,6 +41,7 @@ __all__ = (
 
 def _wrap_app_in_debugger(app: Any, settings: ServerSettings) -> Any:
     if "werkzeug" not in settings.dev_mode:
+        _debug.logic("server.debugger_skipped", dev_mode=list(settings.dev_mode))
         return app
 
     from werkzeug.debug import DebuggedApplication
@@ -84,6 +85,7 @@ def _prepare_server(app: Any, settings: ServerSettings) -> CommonServer:
 
 
 def start(preload: list[str] | None = None, stop: bool = False) -> int:
+    _debug.pipeline("server.start", preload=len(preload or ()), stop=stop)
     return _run_configured_server(current(), preload, stop)
 
 
@@ -128,7 +130,12 @@ def _run_configured_server(
                     kind=type(watcher).__name__,
                     dev_mode=list(settings.dev_mode),
                 )
-            except Exception:
+            except Exception as exc:
+                _debug.logic(
+                    "server.watcher_start_failed",
+                    kind="inotify" if inotify else "watchdog",
+                    error=type(exc).__name__,
+                )
                 if watcher is not None:
                     _stop_watcher(watcher)
                 watcher = None
@@ -160,6 +167,13 @@ def _run_configured_server(
                 ),
             )
 
+    _debug.pipeline(
+        "server.running",
+        flavor=server.flavor,
+        watcher=type(watcher).__name__ if watcher is not None else None,
+        preload=len(preload or ()),
+        stop=stop,
+    )
     try:
         rc = server.run(preload, stop)
     finally:

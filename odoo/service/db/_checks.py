@@ -55,6 +55,7 @@ def check_db_management_enabled(func: Callable, /) -> Callable:
 
 def check_super(passwd: str) -> Literal[True]:
     if passwd and odoo.tools.config.is_valid_admin_password(passwd):
+        _debug.pipeline("database.master_password_accepted")
         return True
     _debug.logic("database.master_password_rejected", empty=not passwd)
     raise odoo.exceptions.AccessDenied

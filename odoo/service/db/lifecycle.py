@@ -43,7 +43,7 @@ def get_database_identifier(cr: BaseCursor, name: str) -> SQL:
 
 def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
     try:
-        with _debug.perf("database.backends_terminated", db=db_name):
+        with _debug.perf("database.backends_terminated", db=db_name) as span:
             cr.execute(
                 """SELECT pg_terminate_backend(pid)
                           FROM pg_stat_activity
@@ -51,6 +51,7 @@ def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
                                 pid != pg_backend_pid()""",
                 (db_name,),
             )
+            span.set(backends=getattr(cr, "rowcount", None))
     except Exception:
         _logger.debug("pg_terminate_backend failed for %r", db_name, exc_info=True)
         _debug.logic("database.backends_terminate_failed", db=db_name)
@@ -176,11 +177,22 @@ def _create_empty_database(
             cr.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
             if force_unaccent or odoo.tools.config["unaccent"]:
                 cr.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
-                if odoo.db.get_unaccent_status(cr) != odoo.db.FunctionStatus.INDEXABLE:
+                unaccent_status = odoo.db.get_unaccent_status(cr)
+                _debug.logic(
+                    "database.unaccent_status",
+                    db=name,
+                    status=getattr(unaccent_status, "name", unaccent_status),
+                )
+                if unaccent_status != odoo.db.FunctionStatus.INDEXABLE:
                     cr.execute(
                         "ALTER FUNCTION unaccent(text) IMMUTABLE",
                         log_exceptions=False,
                     )
+        _debug.pipeline(
+            "database.extensions_created",
+            db=name,
+            unaccent=bool(force_unaccent or odoo.tools.config["unaccent"]),
+        )
     except psycopg.Error as e:
         _debug.logic("database.extensions_failed", db=name, error=type(e).__name__)
         _logger.error(
@@ -199,6 +211,7 @@ def _create_empty_database(
             cr.execute("GRANT CREATE ON SCHEMA PUBLIC TO PUBLIC")
     except psycopg.Error as e:
         _logger.warning("Unable to make public schema public-accessible: %s", e)
+        _debug.logic("database.public_grant_failed", db=name, error=type(e).__name__)
 
     invalidate_catalog_caches()
 
@@ -210,7 +223,8 @@ def _rollback_new_database(db_name: str, what: str) -> None:
     _logger.info("%s: rolling back database %r after failure", what, db_name)
     _debug.lifecycle("database.rollback", db=db_name, what=what)
     try:
-        _drop_database(db_name)
+        dropped = _drop_database(db_name)
+        _debug.lifecycle("database.rolled_back", db=db_name, what=what, dropped=dropped)
     except Exception:
         _logger.exception(
             "%s: could not remove database %r after failure; manual cleanup required",
@@ -312,12 +326,14 @@ def _duplicate_database(
             )
 
     try:
-        registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
+        with _debug.perf("database.duplicate.registry_loaded", db=db_name):
+            registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
         with registry.cursor() as cr:
             env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
             env["ir.config_parameter"].init(force=True)  # type: ignore[call-arg]
             if neutralize_database:
-                odoo.modules.neutralize.neutralize_database(cr)
+                with _debug.perf("database.duplicate.neutralized", cr=cr, db=db_name):
+                    odoo.modules.neutralize.neutralize_database(cr)
 
         from_fs = odoo.tools.config.filestore(db_original_name)
         if Path(from_fs).exists():
@@ -377,6 +393,12 @@ def _retry_on_object_in_use(
             if attempt < _DROP_DATABASE_MAX_RETRIES:
                 time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
         else:
+            if _debug.logic.enabled and attempt > 1:
+                _debug.logic(
+                    "database.ddl.succeeded_after_retry",
+                    operation=op_label,
+                    attempt=attempt,
+                )
             return
     _debug.logic(
         "database.ddl.retries_exhausted",
@@ -515,7 +537,8 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     f"move (race).  Database rename rolled back."
                 )
             try:
-                shutil.move(old_fs, new_fs)
+                with _debug.perf("database.rename.filestore_moved", db=new_name):
+                    shutil.move(old_fs, new_fs)
             except Exception as fs_err:
                 _logger.error(
                     "RENAME DB: filestore move %r -> %r failed (%s); "

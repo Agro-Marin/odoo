@@ -124,12 +124,16 @@ class ThreadedServer(CommonServer):
         memory_over_limit = self.get_memory_over_soft_limit() is not None
 
         now = time.monotonic()
+        watched = 0  # debuglog
+        longest_s = 0.0  # debuglog
         for thread in threading.enumerate():
             thread_type = getattr(thread, "type", None)
             if thread_type in _TIME_LIMITED_THREAD_TYPES:
                 start_time = getattr(thread, "start_time", None)
                 if start_time:
                     thread_execution_time = now - start_time
+                    watched += 1  # debuglog
+                    longest_s = max(longest_s, thread_execution_time)  # debuglog
                     if thread_type == "job":
                         thread_limit_time_real = get_job_real_time_budget()
                     elif thread_type == "cron":
@@ -162,6 +166,20 @@ class ThreadedServer(CommonServer):
             if not thread.is_alive() or self._overrun_request_finished(thread):
                 self.limits_reached_threads.remove(thread)
                 self._overrun_start_times.pop(thread, None)
+                _debug.lifecycle(
+                    "server.thread_overrun_cleared",
+                    thread=thread.name,
+                    alive=thread.is_alive(),
+                    pending=len(self.limits_reached_threads),
+                )
+        if _debug.perf.enabled and watched:
+            _debug.perf.count(
+                "server.threads_sampled",
+                watched=watched,
+                longest_s=longest_s,
+                over_limit=len(self.limits_reached_threads),
+                memory_over_limit=memory_over_limit,
+            )
         if self.limits_reached_threads or memory_over_limit:
             _debug.logic(
                 "server.limits_reached",
@@ -209,6 +227,12 @@ class ThreadedServer(CommonServer):
         cron_logger: logging.Logger,
     ) -> None:
         release = len(db_names) > 1
+        _debug.pipeline(
+            "server.jobs_sweep",
+            databases=len(db_names),
+            release=release,
+            kind=getattr(process_jobs, "__qualname__", None),
+        )
         for db_name in db_names:
             thread = current_worker_thread()
             thread.start_time = time.monotonic()
@@ -240,19 +264,35 @@ class ThreadedServer(CommonServer):
         schedule = CronSchedule()
         alive_time = time.monotonic()
         first_pass = True
+        _debug.lifecycle(
+            "server.cron.polling",
+            number=number,
+            max_age=max_age,
+            poll_interval_s=CRON_POLL_INTERVAL_S + number,
+        )
         while max_age <= 0 or (time.monotonic() - alive_time) <= max_age:
             listener.wait(0 if first_pass else CRON_POLL_INTERVAL_S + number)
             first_pass = False
             time.sleep(random.uniform(0, CRON_NOTIFY_JITTER_MAX_S))
             try:
                 notified = listener.drain()
-            except Exception:
+            except Exception as exc:
                 if listener.connection_lost:
                     _debug.logic("server.cron.connection_lost", number=number)
                     return _RECYCLE_CONN_LOST
+                _debug.logic(
+                    "server.cron.drain_failed", number=number, error=type(exc).__name__
+                )
                 raise
 
             db_names = schedule.get_due_databases(notified)
+            if _debug.pipeline.enabled and notified:
+                _debug.pipeline(
+                    "server.cron.notified",
+                    number=number,
+                    notified=len(notified),
+                    due=len(db_names),
+                )
             if not db_names:
                 continue
 
@@ -276,6 +316,14 @@ class ThreadedServer(CommonServer):
 
         cron_logger = self.logger.getChild(f"{label}{number}")
         cron_logger.info("Alive")
+        _debug.lifecycle(
+            "server.cron.thread_started",
+            label=label,
+            number=number,
+            channel=channel,
+            max_age=max_age,
+            thread=threading.current_thread().name,
+        )
 
         backoff = ReconnectBackoff(cron_logger)
         listener = CronListener(channel, cron_logger)
@@ -450,6 +498,12 @@ class ThreadedServer(CommonServer):
                     self.logger.debug("join and sleep")
                     thread.join(0.05)
                     time.sleep(0.05)
+                _debug.lifecycle(
+                    "server.threaded.thread_joined",
+                    thread=thread.name,
+                    type=getattr(thread, "type", None),
+                    alive=thread.is_alive(),
+                )
         _debug.pipeline(
             "server.threaded.threads_joined",
             seconds=time.monotonic() - stop_time,
@@ -501,6 +555,12 @@ class ThreadedServer(CommonServer):
                                 )
                             )
                             log("%s when loading database %r", report, db_name)
+                            _debug.pipeline(
+                                "server.threaded.test_report",
+                                db=db_name,
+                                tests_run=getattr(report, "testsRun", None),
+                                successful=report.wasSuccessful(),
+                            )
                 return rc
 
             if rc:
@@ -536,12 +596,25 @@ class ThreadedServer(CommonServer):
                         )
                         self.reload()
                     else:
+                        _debug.logic(
+                            "server.threaded.reload_deferred",
+                            since_s=time.monotonic() - self.limit_reached_time,
+                            grace_s=LIMIT_GRACE_PERIOD_S,
+                            threads=len(self.limits_reached_threads),
+                        )
                         time.sleep(1)
                 else:
                     time.sleep(LIMIT_MONITOR_INTERVAL_S)
         except KeyboardInterrupt:
             pass
         finally:
+            _debug.lifecycle(
+                "server.threaded.run_finished",
+                rc=rc,
+                stop=stop,
+                quit_signals=self.quit_signals_received,
+                phoenix=_process_state.server_phoenix,
+            )
             self.stop()
         return rc if stop else None
 
@@ -576,27 +649,31 @@ class EventServer(CommonServer):
         if self.ppid != new_ppid:
             self.logger.warning("Parent changed: %s -> %s", self.ppid, new_ppid)
             should_restart = True
-        if self.get_memory_over_soft_limit() is not None:
+        memory_over_limit = self.get_memory_over_soft_limit() is not None
+        if memory_over_limit:
             should_restart = True
         if should_restart:
             _debug.lifecycle(
                 "server.evented.restart_requested",
                 pid=self.pid,
                 parent_changed=self.ppid != new_ppid,
+                memory_over_limit=memory_over_limit,
             )
             os.kill(self.pid, signal.SIGTERM)
 
     def run_watchdog(self, beat: int = 4) -> None:
         self.ppid = os.getppid()
+        _debug.lifecycle("server.evented.watchdog_started", ppid=self.ppid, beat=beat)
         while True:
             try:
                 self.check_limits()
-            except Exception:
+            except Exception as exc:
                 self.logger.warning(
                     "Evented watchdog check failed; retrying in %ss",
                     beat,
                     exc_info=True,
                 )
+                _debug.logic("server.evented.watchdog_failed", error=type(exc).__name__)
             time.sleep(beat)
 
     def _quit_signal_handler(self, sig: int, frame: Any) -> None:
@@ -634,8 +711,10 @@ class EventServer(CommonServer):
             pass
         except BaseException as exc:
             self.logger.critical("Uncaught error in main loop", exc_info=True)
+            _debug.logic("server.evented.main_loop_failed", error=type(exc).__name__)
             raise SystemExit(1) from exc
         self.logger.info("Evented/WebSocket service stopped")
+        _debug.lifecycle("server.evented.stopped", pid=self.pid)
 
     def stop(self) -> None:
         _debug.lifecycle("server.evented.stop", httpd=self.httpd is not None)
@@ -644,6 +723,9 @@ class EventServer(CommonServer):
         super().stop()
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
+        _debug.pipeline(
+            "server.evented.run", preload=len(preload or ()), stop=stop, pid=self.pid
+        )
         if preload:
             self.logger.warning(
                 "Ignoring --init/--update/database preload (%s): the evented "

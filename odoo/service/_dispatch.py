@@ -99,16 +99,24 @@ def dispatch_through_table(
     )
     if method in credentialed:
         if not args:
+            _debug.logic("rpc.credential_missing", method=method)
             raise TypeError(
                 f"{method} requires a master password as its first positional "
                 f"argument; got 0 arguments."
             )
         if check_credential is None:
+            _debug.logic("rpc.credential_unverifiable", method=method)
             raise RuntimeError(
                 f"{method!r} is listed as credentialed but the dispatch table "
                 f"passed no check_credential; refusing to call it unverified"
             )
         credential, *args = args
         check_credential(credential)
+        _debug.pipeline("rpc.credential_checked", method=method)
     _check_arity(method, handler, len(args))
-    return handler(*args)
+    with _debug.perf(
+        "rpc.table_handled",
+        method=method,
+        handler=getattr(handler, "__qualname__", None),
+    ):
+        return handler(*args)

@@ -53,12 +53,15 @@ def exp_authenticate(
     user_agent_env: dict | None = None,
 ) -> int | bool:
     if not isinstance(db, str) or not db:
+        _debug.logic("rpc.authenticate.rejected", reason="db_type")
         return False
     if not isinstance(login, str) or not isinstance(password, str):
+        _debug.logic("rpc.authenticate.rejected", reason="credential_type", db=db)
         return False
     if user_agent_env is None:
         user_agent_env = {}
     elif not isinstance(user_agent_env, dict):
+        _debug.logic("rpc.authenticate.rejected", reason="user_agent_env_type", db=db)
         return False
     if not is_db_rpc_exposed(db):
         _debug.logic("rpc.authenticate.db_not_exposed", db=db)
@@ -110,6 +113,7 @@ def exp_authenticate(
 
 
 def exp_version() -> dict[str, Any]:
+    _debug.pipeline("rpc.version", version=odoo.release.version)
     return _get_rpc_version_1()
 
 

@@ -137,6 +137,7 @@ class PreforkServer(CommonServer):
         if path is not None:
             with contextlib.suppress(OSError):
                 path.unlink()
+            _debug.lifecycle("prefork.census_discarded", path=str(path))
 
     def _remove_stale_censuses(self) -> None:
         path = self._get_census_path()
@@ -252,6 +253,12 @@ class PreforkServer(CommonServer):
         if self._ready_fd is not None:
             os.close(int(self._ready_fd))
             self._ready_fd = None
+        _debug.lifecycle(
+            "prefork.child_fds_closed",
+            kind=new_worker.__class__.__name__,
+            pid=os.getpid(),
+            siblings=len(self.workers),
+        )
 
     def _record_spawn_failure(self) -> None:
         self._consecutive_fast_deaths += 1
@@ -279,12 +286,19 @@ class PreforkServer(CommonServer):
         try:
             worker = klass(self)
             pid = os.fork()
-        except OSError:
+        except OSError as exc:
             if worker is not None:
                 worker.close()
             self.logger.debug(
                 "worker spawn failed (pipe/fork); skipping, will retry",
                 exc_info=True,
+            )
+            _debug.logic(
+                "prefork.fork_failed",
+                kind=getattr(klass, "__name__", None),
+                stage="fork" if worker is not None else "pipe",
+                errno=exc.errno,
+                workers=len(self.workers),
             )
             self._record_spawn_failure()
             return None
@@ -362,11 +376,18 @@ class PreforkServer(CommonServer):
         self.long_polling_popen = None
         if popen is not None and popen.returncode is None:
             popen.returncode = returncode if returncode is not None else -signal.SIGKILL
+            _debug.lifecycle(
+                "prefork.long_polling_reconciled",
+                pid=popen.pid,
+                returncode=popen.returncode,
+                assumed_killed=returncode is None,
+            )
 
     def remove_worker(self, pid: int) -> None:
         self._retiring_workers.discard(pid)
         if pid == self.long_polling_pid:
             self.long_polling_pid = None
+            _debug.lifecycle("prefork.long_polling_unregistered", pid=pid)
         if pid in self.workers:
             self.logger.debug("worker (%s) unregistered", pid)
             _debug.lifecycle(
@@ -439,17 +460,22 @@ class PreforkServer(CommonServer):
                 )
 
     def reap_exited_workers(self) -> None:
+        reaped = 0  # debuglog
         while True:
             try:
                 wpid, status = os.waitpid(-1, os.WNOHANG)
                 if not wpid:
                     break
+                reaped += 1  # debuglog
                 self._record_worker_exit(wpid, status)
                 self.remove_worker(wpid)
             except OSError as e:
                 if e.errno == errno.ECHILD:
                     break
+                _debug.logic("prefork.reap_failed", errno=e.errno, reaped=reaped)
                 raise
+        if _debug.pipeline.enabled and reaped:
+            _debug.pipeline("prefork.reaped", exited=reaped, workers=len(self.workers))
 
     def _record_worker_exit(self, pid: int, status: int) -> None:
         for process in (self._candidate, self._replacement):
@@ -469,6 +495,7 @@ class PreforkServer(CommonServer):
         else:
             worker = self.workers.get(pid) or self._killed_workers.pop(pid, None)
             if worker is None:
+                _debug.logic("prefork.unknown_child_exited", pid=pid, status=status)
                 return
             name = worker.__class__.__name__
             lifetime = time.monotonic() - getattr(worker, "spawn_time", 0.0)
@@ -480,12 +507,27 @@ class PreforkServer(CommonServer):
             status=status,
         )
         if lifetime >= WORKER_MIN_HEALTHY_LIFETIME_S:
+            if _debug.logic.enabled and self._consecutive_fast_deaths:
+                _debug.logic(
+                    "prefork.fast_death_backoff_cleared",
+                    kind=name,
+                    pid=pid,
+                    fast_deaths=self._consecutive_fast_deaths,
+                )
             self._consecutive_fast_deaths = 0
             self._respawn_not_before = 0.0
             return
         exited_nonzero = os.WIFEXITED(status) and os.WEXITSTATUS(status) != 0
         crashed_by_signal = (
             os.WIFSIGNALED(status) and os.WTERMSIG(status) != signal.SIGTERM
+        )
+        _debug.logic(
+            "prefork.early_exit",
+            kind=name,
+            pid=pid,
+            lifetime_s=lifetime,
+            exited_nonzero=exited_nonzero,
+            crashed_by_signal=crashed_by_signal,
         )
         if exited_nonzero or crashed_by_signal:
             self._consecutive_fast_deaths += 1
@@ -545,6 +587,24 @@ class PreforkServer(CommonServer):
             return
         registries = Registry.registries.snapshot
         checked = False
+        if _debug.pipeline.enabled and (
+            len(self.workers_http) - len(self._retiring_workers) < self.population
+            or len(self.workers_cron) < self.settings.max_cron_threads
+            or len(self.workers_job) < self.settings.job_workers
+            or (self.settings.http_enable and not self.long_polling_pid)
+        ):
+            _debug.pipeline(
+                "prefork.spawn_cycle",
+                http=len(self.workers_http),
+                retiring=len(self._retiring_workers),
+                population=self.population,
+                cron=len(self.workers_cron),
+                max_cron_threads=self.settings.max_cron_threads,
+                job=len(self.workers_job),
+                job_workers=self.settings.job_workers,
+                long_polling=self.long_polling_pid is not None,
+                http_enable=self.settings.http_enable,
+            )
 
         def check_registries():
             nonlocal checked
@@ -615,10 +675,13 @@ class PreforkServer(CommonServer):
             sel = self._selector = selectors.DefaultSelector()
             self._watched = {}
         watched = self._watched
+        unregistered = 0  # debuglog
+        registered = 0  # debuglog
         for fd, owner in list(watched.items()):
             if fds.get(fd) is owner:
                 continue
             del watched[fd]
+            unregistered += 1  # debuglog
             with contextlib.suppress(KeyError, ValueError, OSError):
                 sel.unregister(fd)
         for fd, owner in fds.items():
@@ -627,9 +690,17 @@ class PreforkServer(CommonServer):
             with contextlib.suppress(KeyError, ValueError, OSError):
                 sel.register(fd, selectors.EVENT_READ)
                 watched[fd] = owner
+                registered += 1  # debuglog
         if self.pipe[0] not in sel.get_map():
             with contextlib.suppress(KeyError, ValueError, OSError):
                 sel.register(self.pipe[0], selectors.EVENT_READ)
+        if _debug.lifecycle.enabled and (registered or unregistered):
+            _debug.lifecycle(
+                "prefork.watchdog_rewatched",
+                registered=registered,
+                unregistered=unregistered,
+                watched=len(watched),
+            )
         return sel, fds
 
     def sleep(self, timeout: float | None = None) -> None:
@@ -650,6 +721,14 @@ class PreforkServer(CommonServer):
     def start(self) -> None:
         self.pipe = self.open_pipe()
         self._remove_stale_censuses()
+        _debug.lifecycle(
+            "prefork.start",
+            pid=self.pid,
+            population=self.population,
+            http_enable=self.settings.http_enable,
+            max_cron_threads=self.settings.max_cron_threads,
+            job_workers=self.settings.job_workers,
+        )
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)
@@ -746,6 +825,11 @@ class PreforkServer(CommonServer):
                     if any(
                         sig in (signal.SIGINT, signal.SIGTERM) for sig in self.queue
                     ):
+                        _debug.logic(
+                            "prefork.reload.aborted",
+                            reason="shutdown_requested",
+                            pid=self._candidate.pid,
+                        )
                         return False
                     if self._replacement is None:
                         # The first generation still depends on this master
@@ -758,6 +842,12 @@ class PreforkServer(CommonServer):
                         self._publish_census()
                     if selector.select(min(0.1, max(0, deadline - time.monotonic()))):
                         promoted = os.read(read_fd, 1) == b"1"
+                        _debug.pipeline(
+                            "prefork.reload.candidate_answered",
+                            pid=self._candidate.pid,
+                            promoted=promoted,
+                            waited_s=timeout - (deadline - time.monotonic()),
+                        )
                         break
                     if self._candidate.poll() is not None:
                         break
@@ -767,8 +857,12 @@ class PreforkServer(CommonServer):
                 )
                 _debug.logic(
                     "prefork.reload.aborted",
+                    reason="candidate_exited"
+                    if self._candidate.poll() is not None
+                    else "timed_out",
                     promoted=promoted,
                     returncode=self._candidate.returncode,
+                    timeout=timeout,
                 )
                 return False
             self.logger.info("New server has started")
@@ -791,6 +885,9 @@ class PreforkServer(CommonServer):
             if write_fd >= 0:
                 os.close(write_fd)
             if self._candidate is not None:
+                _debug.logic(
+                    "prefork.reload.candidate_discarded", pid=self._candidate.pid
+                )
                 self._stop_generation(self._candidate, graceful=False)
                 self._candidate = None
 
@@ -834,6 +931,16 @@ class PreforkServer(CommonServer):
     def _notify_reload_ready(self) -> None:
         if self._ready_fd is None:
             return
+        if _debug.logic.enabled:
+            _debug.logic(
+                "prefork.reload_readiness",
+                http=len(self.workers_http),
+                population=self.population,
+                cron=len(self.workers_cron),
+                job=len(self.workers_job),
+                ready=sum(1 for worker in self.workers.values() if worker.ready),
+                workers=len(self.workers),
+            )
         if len(self.workers_http) < self.population and self.settings.http_enable:
             return
         if len(self.workers_cron) < self.settings.max_cron_threads:
@@ -861,6 +968,7 @@ class PreforkServer(CommonServer):
         try:
             proc = psutil.Process(pid)
         except psutil.NoSuchProcess:
+            _debug.logic("prefork.long_polling_already_gone", pid=pid)
             self._reconcile_long_polling_popen(None)
             return
         timeout_s = get_env_float(
@@ -869,6 +977,7 @@ class PreforkServer(CommonServer):
             minimum=0.0,
             logger=self.logger,
         )
+        _debug.lifecycle("prefork.long_polling_signalled", pid=pid, timeout=timeout_s)
         with contextlib.suppress(ProcessLookupError):
             os.kill(pid, signal.SIGTERM)
         code: int | None = None
@@ -881,6 +990,7 @@ class PreforkServer(CommonServer):
                 pid,
                 timeout_s,
             )
+            _debug.logic("prefork.long_polling_kill_escalated", pid=pid)
             with contextlib.suppress(ProcessLookupError):
                 os.kill(pid, signal.SIGKILL)
             with contextlib.suppress(psutil.TimeoutExpired):
@@ -915,6 +1025,7 @@ class PreforkServer(CommonServer):
                 self.apply_pending_signals(draining=True)
             except KeyboardInterrupt:
                 self.logger.info("Forced shutdown.")
+                _debug.logic("prefork.stop.forced", workers=len(self.workers))
                 break
 
             self.reap_exited_workers()
@@ -959,8 +1070,9 @@ class PreforkServer(CommonServer):
             self.socket.close()
         try:
             super().stop()
-        except Exception:
+        except Exception as exc:
             self.logger.warning("Exception while running stop hooks", exc_info=True)
+            _debug.logic("prefork.stop_hooks_failed", error=type(exc).__name__)
         if graceful:
             self.stop_workers_gracefully()
         else:
@@ -975,12 +1087,19 @@ class PreforkServer(CommonServer):
                 os.close(fd)
         if hasattr(self, "pipe"):
             del self.pipe
+        _debug.lifecycle(
+            "prefork.stopped",
+            graceful=graceful,
+            workers=len(self.workers),
+            phoenix=_process_state.server_phoenix,
+        )
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
         try:
             self.start()
             rc = preload_registries(preload)
-        except BaseException:
+        except BaseException as exc:
+            _debug.logic("prefork.start_failed", error=type(exc).__name__)
             self.stop(False)
             raise
 
@@ -1022,9 +1141,12 @@ class PreforkServer(CommonServer):
                     else:
                         try:
                             self.reload()
-                        except Exception:
+                        except Exception as exc:
                             self.logger.exception(
                                 "Reload failed; keeping current generation"
+                            )
+                            _debug.logic(
+                                "prefork.reload.failed", error=type(exc).__name__
                             )
                     continue
                 self.logger.debug("clean stop")

@@ -77,11 +77,15 @@ def _extract_members_bounded(
 
 def _get_source_size(dump_file: str | os.PathLike | IO[bytes]) -> int:
     if isinstance(dump_file, (str, os.PathLike)):
-        return Path(dump_file).stat().st_size
+        size = Path(dump_file).stat().st_size
+        _debug.logic("database.restore.source_sized", source="path", bytes=size)
+        return size
     pos = dump_file.tell()
     try:
         dump_file.seek(0, os.SEEK_END)
-        return dump_file.tell()
+        size = dump_file.tell()
+        _debug.logic("database.restore.source_sized", source="stream", bytes=size)
+        return size
     finally:
         dump_file.seek(pos)
 
@@ -184,6 +188,7 @@ def _get_restore_command(
         return "psql", pg_args, filestore_path
 
     if not isinstance(dump_file, (str, os.PathLike)):
+        _debug.logic("database.restore.refused", reason="raw_stream")
         raise TypeError(
             "a raw (non-zip) restore needs a file path, not an open file object"
         )
@@ -247,6 +252,9 @@ def _finalize_restored_db(
         if filestore_path:
             filestore_dest = env["ir.attachment"]._get_filestore()
             if Path(filestore_dest).exists():
+                _debug.logic(
+                    "database.restore.filestore_race", db=db, dest=filestore_dest
+                )
                 raise RuntimeError(
                     f"Filestore {filestore_dest!r} appeared between "
                     f"pre-flight and move (race)."

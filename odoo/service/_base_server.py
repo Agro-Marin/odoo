@@ -55,7 +55,10 @@ def run_on_stop_hooks(logger: logging.Logger) -> None:
     for func in _on_stop_hooks:
         try:
             logger.debug("on_close call %s", func)
-            func()
+            with _debug.perf(
+                "server.stop_hook.ran", hook=getattr(func, "__qualname__", None)
+            ):
+                func()
         except Exception:
             name = getattr(func, "__name__", repr(func))
             logger.warning("Exception in %s", name, exc_info=True)
@@ -123,4 +126,7 @@ class CommonServer:
         register_on_stop_hook(func)
 
     def stop(self) -> None:
+        _debug.lifecycle(
+            "server.stopping", flavor=self.flavor, pid=getattr(self, "pid", None)
+        )
         run_on_stop_hooks(self.logger)

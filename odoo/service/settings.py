@@ -35,11 +35,20 @@ def _get_first_owned_limit(*limits: int) -> int:
 
 
 def _is_socket_activated(config: OptionSource) -> bool:
-    return bool(
+    activated = bool(
         config["http_enable"]
         and os.getenv("LISTEN_FDS") == "1"
         and os.getenv("LISTEN_PID") == str(os.getpid())
     )
+    if _debug.logic.enabled and os.getenv("LISTEN_FDS"):
+        _debug.logic(
+            "settings.socket_activation",
+            activated=activated,
+            http_enable=bool(config["http_enable"]),
+            listen_fds=os.getenv("LISTEN_FDS"),
+            pid_matches=os.getenv("LISTEN_PID") == str(os.getpid()),
+        )
+    return activated
 
 
 @dataclass(frozen=True, slots=True)

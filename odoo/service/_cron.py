@@ -80,11 +80,18 @@ def arm_cron_listen(
 def drain_cron_notifies(
     connection: typing.Any, *, channel: str = CRON_TRIGGER_CHANNEL
 ) -> OrderedSet:
-    return OrderedSet(
-        notif.payload
-        for notif in connection.notifies(timeout=0)
-        if notif.channel == channel
+    notifies = list(connection.notifies(timeout=0))
+    payloads = OrderedSet(
+        notif.payload for notif in notifies if notif.channel == channel
     )
+    if _debug.pipeline.enabled and notifies:
+        _debug.pipeline(
+            "cron.notifies_drained",
+            channel=channel,
+            received=len(notifies),
+            distinct=len(payloads),
+        )
+    return payloads
 
 
 def order_notified_first(notified: Iterable[str], all_dbs: Iterable[str]) -> list[str]:
@@ -103,6 +110,12 @@ def order_notified_first(notified: Iterable[str], all_dbs: Iterable[str]) -> lis
         if name not in notified_set and name not in emitted:
             emitted.add(name)
             result.append(name)
+    _debug.logic(
+        "cron.order_resolved",
+        notified=len(notified_set),
+        unknown=len(notified_set - all_set),
+        total=len(result),
+    )
     return result
 
 
@@ -150,18 +163,24 @@ def get_cron_databases() -> list[str]:
         return list(configured)
     names = [name for name in list_dbs(True) if not is_maintenance_db(name)]
     dbfilter = _resolve_static_dbfilter()
+    if dbfilter is None:
+        _debug.logic(
+            "cron.databases", source="catalog", databases=len(names), filtered=False
+        )
+        return names
+    matched = [name for name in names if dbfilter.match(name)]
     _debug.logic(
         "cron.databases",
         source="catalog",
-        databases=len(names),
-        filtered=dbfilter is not None,
+        databases=len(matched),
+        filtered=True,
+        excluded=len(names) - len(matched),
     )
-    if dbfilter is None:
-        return names
-    return [name for name in names if dbfilter.match(name)]
+    return matched
 
 
 def drain_swept_database(db_name: str) -> None:
+    _debug.lifecycle("cron.database_drained", db=db_name)
     db.drain_db(db_name)
 
 
@@ -265,7 +284,12 @@ class CronListener:
             if self._extra_read_fd is not None:
                 selector.register(self._extra_read_fd, selectors.EVENT_READ)
             selector.register(cursor.connection, selectors.EVENT_READ)
-        except BaseException:
+        except BaseException as exc:
+            _debug.logic(
+                "cron.listener.selector_failed",
+                channel=self._channel,
+                error=type(exc).__name__,
+            )
             if selector is not None:
                 with contextlib.suppress(Exception):
                     selector.close()
@@ -299,10 +323,15 @@ class CronListener:
 
     def wait(self, timeout: float) -> None:
         if self._selector is not None:
-            self._selector.select(timeout=timeout)
+            with _debug.perf(
+                "cron.listener.waited", channel=self._channel, timeout=timeout
+            ) as span:
+                ready = self._selector.select(timeout=timeout)
+                span.set(woken=bool(ready))
 
     def drain(self) -> OrderedSet:
         if self._cursor is None:
+            _debug.logic("cron.listener.drain_before_connect", channel=self._channel)
             raise RuntimeError("CronListener.drain() before connect()")
         return drain_cron_notifies(self._cursor.connection, channel=self._channel)
 
@@ -344,13 +373,20 @@ class CronSchedule:
         return max(0.0, self._listed_at + self._refresh_interval - self._clock())
 
     def reset_known_databases(self) -> OrderedSet[str]:
+        previous = self._known
         self._known = OrderedSet(self._list_databases())
         self._listed_at = self._clock()
-        _debug.logic("cron.schedule.databases_listed", databases=len(self._known))
+        _debug.logic(
+            "cron.schedule.databases_listed",
+            databases=len(self._known),
+            added=len(set(self._known) - set(previous)),
+            removed=len(set(previous) - set(self._known)),
+        )
         return self._known
 
     def get_due_databases(self, notified: Iterable[str]) -> list[str]:
-        if self._is_stale():
+        stale = self._is_stale()
+        if stale:
             due = order_notified_first(notified, self.reset_known_databases())
         else:
             due = [name for name in notified if name in self._known]
@@ -359,5 +395,6 @@ class CronSchedule:
             due=len(due),
             notified=len(list(notified)),
             known=len(self._known),
+            swept_all=stale,
         )
         return due

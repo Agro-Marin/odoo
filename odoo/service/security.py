@@ -15,7 +15,8 @@ _debug = DebugLog(__name__)
 
 def get_session_token(session: Session, env: Environment) -> str | bool:
     user = env["res.users"].browse(session.uid)
-    return user._get_session_token(session.sid)
+    with _debug.perf("session.token_computed", cr=env.cr, uid=session.uid):
+        return user._get_session_token(session.sid)
 
 
 def is_session_valid(
@@ -46,4 +47,5 @@ def is_session_valid(
                 exc_info=True,
             )
             _debug.logic("session.device_log_failed", uid=session.uid)
+    _debug.logic("session.valid", uid=session.uid, device_logged=bool(request))
     return True

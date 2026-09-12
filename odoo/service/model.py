@@ -105,6 +105,9 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     else:
         cached = per_class.get(name)
         if cached is not None and cached[0] is method and cached[1] is descriptor:
+            _debug.perf.count(
+                "rpc.public_method_cached", model=model._name, method=name
+            )
             return cached[0]
 
     if not callable(method):
@@ -183,7 +186,21 @@ def call_kw(model: BaseModel, name: str, args: Sequence, kwargs: Mapping) -> typ
 
     if name == "create":
         result = result.id if isinstance(create_vals, Mapping) else result.ids
+        _debug.pipeline(
+            "rpc.call_kw.result",
+            model=recs._name,
+            method=name,
+            kind="id" if isinstance(create_vals, Mapping) else "ids",
+        )
     elif isinstance(result, BaseModel):
+        _debug.pipeline(
+            "rpc.call_kw.result",
+            model=recs._name,
+            method=name,
+            kind="ids",
+            result_model=result._name,
+            records=len(result),
+        )
         result = result.ids
 
     return result
@@ -191,16 +208,27 @@ def call_kw(model: BaseModel, name: str, args: Sequence, kwargs: Mapping) -> typ
 
 def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
     if dispatch_method not in ("execute", "execute_kw"):
+        _debug.logic(
+            "rpc.dispatch.refused", reason="unknown_method", method=dispatch_method
+        )
         raise AttributeError(f"Method not found: {dispatch_method}")
     if len(params) < 5:
+        _debug.logic(
+            "rpc.dispatch.refused",
+            reason="arity",
+            method=dispatch_method,
+            params=len(params),
+        )
         raise TypeError(
             f"{dispatch_method} requires at least 5 positional arguments "
             f"(db, uid, passwd, model, method); got {len(params)}."
         )
     db, uid, passwd, model, model_method, *args = params
     if not isinstance(uid, int) or isinstance(uid, bool):
+        _debug.logic("rpc.dispatch.refused", reason="uid_type", db=db)
         raise TypeError(f"uid must be an integer (got {uid!r})")
     if not passwd:
+        _debug.logic("rpc.dispatch.refused", reason="empty_password", db=db, uid=uid)
         raise AccessDenied
     if not is_db_rpc_exposed(db):
         _logger.warning(
@@ -235,6 +263,13 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
             if len(args) == 1:
                 args += ({},)
             elif len(args) != 2:
+                _debug.logic(
+                    "rpc.dispatch.refused",
+                    reason="execute_kw_shape",
+                    db=db,
+                    model=model,
+                    extra_args=len(args),
+                )
                 raise TypeError(
                     f"execute_kw requires (args, [kw]) after the credentials "
                     f"and model.method; got {len(args)} extra arguments."
@@ -243,9 +278,10 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
             if kw is None:
                 kw = {}
         with registry.cursor() as cr:
-            api.Environment(cr, api.SUPERUSER_ID, {})["res.users"]._check_uid_passwd(
-                uid, passwd
-            )
+            with _debug.perf("rpc.dispatch.password_checked", cr=cr, db=db, uid=uid):
+                api.Environment(cr, api.SUPERUSER_ID, {})[
+                    "res.users"
+                ]._check_uid_passwd(uid, passwd)
             res = execute_cr(cr, uid, model, model_method, args, kw)
     except Exception:
         _debug.logic("rpc.dispatch.failed", db=db, model=model, method=model_method)
@@ -269,6 +305,7 @@ def execute_cr(
     env.transaction.default_env = env
     recs = env.get(obj)
     if recs is None:
+        _debug.logic("rpc.execute_cr.model_missing", model=obj, method=method)
         raise UserError(  # noqa: E8505  the RPC named a model that does not exist
             f"Object {obj} doesn't exist"
         )
@@ -288,9 +325,14 @@ def execute_cr(
 
 
 def _force_lazy_values(result: typing.Any) -> typing.Any:
+    memo = {}
     try:
-        return _force_lazy_in_value(result, {}, set())
+        with _debug.perf("rpc.lazy_values_forced") as span:
+            forced = _force_lazy_in_value(result, memo, set())
+            span.set(nodes=len(memo))
+        return forced
     except RecursionError as exc:
+        _debug.logic("rpc.result_rejected", reason="recursion", nodes=len(memo))
         raise ValueError("RPC result is cyclic or nested too deeply") from exc
 
 
@@ -355,6 +397,7 @@ def _force_lazy_in_value(
     if cached is not None:
         return cached[1]
     if marker in active:
+        _debug.logic("rpc.result_rejected", reason="cyclic", type=type(val).__name__)
         raise ValueError("RPC result is cyclic")
     active.add(marker)
     try:
