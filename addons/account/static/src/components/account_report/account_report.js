@@ -1,20 +1,7 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
-import { ControlPanel } from "@web/search/control_panel/control_panel";
-
-import {
-    Component,
-    onWillDestroy,
-    onWillStart,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
-
-import { AccountReportController } from "@account/components/account_report/controller";
 import { AccountReportButtonsBar } from "@account/components/account_report/buttons_bar/buttons_bar";
 import { AccountReportCogMenu } from "@account/components/account_report/cog_menu/cog_menu";
+import { AccountReportController } from "@account/components/account_report/controller";
 import { AccountReportEllipsis } from "@account/components/account_report/ellipsis/ellipsis";
 import { AccountReportFilters } from "@account/components/account_report/filters/filters";
 import { AccountReportHeader } from "@account/components/account_report/header/header";
@@ -23,8 +10,23 @@ import { AccountReportLineCell } from "@account/components/account_report/line_c
 import { AccountReportLineName } from "@account/components/account_report/line_name/line_name";
 import { AccountReportSearchBar } from "@account/components/account_report/search_bar/search_bar";
 import { AccountReportChatter } from "@account/components/mail/chatter";
-import { standardActionServiceProps } from "@web/webclient/actions";
+import {
+    Component,
+    onWillDestroy,
+    onWillStart,
+    useRef,
+    useState,
+    useSubEnv,
+} from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { standardActionServiceProps } from "@web/webclient/actions";
+
+const log = makeLogger("account.report.ui");
 
 export class AccountReport extends Component {
     static template = "account.AccountReport";
@@ -48,14 +50,13 @@ export class AccountReport extends Component {
     static defaultComponentsMap = [];
 
     setup() {
+        useLifecycleLog(log);
         this.rootRef = useRef("root");
         useSetupAction({
             rootRef: this.rootRef,
-            getLocalState: () => {
-                return {
-                    keep_journal_groups_options: true, // used when using the breadcrumb
-                };
-            },
+            getLocalState: () => ({
+                keep_journal_groups_options: true, // used when using the breadcrumb
+            }),
         });
         if (this.props?.state?.keep_journal_groups_options !== undefined) {
             this.props.action.keep_journal_groups_options = true;
@@ -70,9 +71,10 @@ export class AccountReport extends Component {
         this.controller = useState(new AccountReportController(this.props.action));
         this.initialQuery = this.props.action.context.default_filter_accounts || "";
 
-        for (const customizableComponent of AccountReport.customizableComponents)
+        for (const customizableComponent of AccountReport.customizableComponents) {
             AccountReport.defaultComponentsMap[customizableComponent.name] =
                 customizableComponent;
+        }
 
         onWillStart(async () => {
             await this.controller.load(this.env);
@@ -107,10 +109,11 @@ export class AccountReport extends Component {
         const customComponents =
             this.controller.options.custom_display_config.components;
 
-        if (customComponents && customComponents[name])
+        if (customComponents && customComponents[name]) {
             return registry
                 .category("account_reports_custom_components")
                 .get(customComponents[name]);
+        }
 
         return AccountReport.defaultComponentsMap[name];
     }
@@ -118,7 +121,9 @@ export class AccountReport extends Component {
     getTemplate(name) {
         const customTemplates = this.controller.options.custom_display_config.templates;
 
-        if (customTemplates && customTemplates[name]) return customTemplates[name];
+        if (customTemplates && customTemplates[name]) {
+            return customTemplates[name];
+        }
 
         return `account.${name}Customizable`;
     }
@@ -133,7 +138,9 @@ export class AccountReport extends Component {
             classes += " striped";
         }
 
-        if (this.controller.options["horizontal_split"]) classes += " w-50 mx-2";
+        if (this.controller.options["horizontal_split"]) {
+            classes += " w-50 mx-2";
+        }
 
         return classes;
     }

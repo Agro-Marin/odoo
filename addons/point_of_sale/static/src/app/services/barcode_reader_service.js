@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BarcodeParser } from "@barcodes/js/barcode_parser";
 import { GS1BarcodeError } from "@barcodes_gs1_nomenclature/js/barcode_parser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
@@ -8,6 +9,8 @@ import { session } from "@web/session";
 import { AlertDialog } from "@web/ui/dialog";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
+
+const log = makeLogger("pos.barcode");
 
 export class BarcodeReader {
     static serviceDependencies = [
@@ -54,6 +57,7 @@ export class BarcodeReader {
         return this.mutex.exec(() => this._scan(code));
     }
     async _scan(code) {
+        log.pipeline("scan", () => ({ code, callbacks: this.cbMaps?.size }));
         if (!code) {
             return;
         }

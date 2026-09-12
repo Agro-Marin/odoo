@@ -14,6 +14,8 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { Notebook } from "@web/components/notebook/notebook";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { AppEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -31,6 +33,8 @@ import { FormCompiler } from "./form_compiler.js";
 import { FormLabel } from "./form_label.js";
 import { Setting } from "./setting/setting.js";
 import { StatusBarButtons } from "./status_bar_buttons/status_bar_buttons.js";
+
+const log = makeLogger("web.view.form");
 
 export class FormRenderer extends Component {
     static template = xml`<t t-call="{{ templates.FormRenderer }}" t-call-context="{ __comp__: Object.assign(Object.create(this), { this: this }) }" />`;
@@ -69,6 +73,7 @@ export class FormRenderer extends Component {
 
     setup() {
         useRenderCounter("form.FormRenderer");
+        useLifecycleLog(log);
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         const { archInfo, Compiler, record } = this.props;
         const templates = { FormRenderer: archInfo.xmlDoc };

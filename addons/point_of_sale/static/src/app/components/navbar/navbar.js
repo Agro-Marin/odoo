@@ -17,9 +17,13 @@ import { getDeviceUuid } from "@point_of_sale/utils";
 import { isBarcodeScannerSupported } from "@web/components/barcode";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { AlertDialog } from "@web/ui/dialog";
+const log = makeLogger("pos.navbar");
+
 export class Navbar extends Component {
     static template = "point_of_sale.Navbar";
     static components = {
@@ -34,6 +38,7 @@ export class Navbar extends Component {
     };
     static props = {};
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
         this.state = useState({ searchBarOpen: false });

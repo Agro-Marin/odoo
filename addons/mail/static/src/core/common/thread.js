@@ -19,6 +19,8 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Transition } from "@web/core/transition";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -26,6 +28,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { NotificationMessage } from "./notification_message.js";
 
 export const PRESENT_VIEWPORT_THRESHOLD = 1;
+const log = makeLogger("mail.thread.ui");
+
 /**
  * @typedef {Object} Props
  * @property {number} [autofocus]
@@ -265,6 +269,7 @@ export class Thread extends Component {
         );
     }
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this._setupServicesAndRefs();
         this._setupScrollTracking();

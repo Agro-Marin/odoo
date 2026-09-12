@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -42,6 +43,8 @@ function rainbowMan(env, params = {}, options = {}) {
 }
 effectRegistry.add("rainbow_man", rainbowMan);
 
+const log = makeLogger("web.ui.effect");
+
 class EffectService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -60,6 +63,11 @@ class EffectService {
     add(params = {}, options = {}) {
         warnUnknownOptions("effect", options, EFFECT_OPTIONS);
         const type = params.type || "rainbow_man";
+        log.lifecycle("add", () => ({
+            type,
+            known: effectRegistry.contains(type),
+            message: params.message,
+        }));
         if (!effectRegistry.contains(type)) {
             console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
             return () => {};

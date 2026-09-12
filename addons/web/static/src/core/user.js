@@ -5,6 +5,7 @@ import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
 import { readJSONStorage, writeJSONStorage } from "@web/core/browser/storage_json";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { UserEvent } from "@web/core/events";
 import { pyToJsLocale } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network/rpc";
@@ -51,6 +52,8 @@ import { session } from "@web/session";
  * @property {(companyIds: number[], options?: {includeChildCompanies?: boolean, reload?: boolean}) => Promise<void>} activateCompanies
  * @property {() => void} _onActiveCompaniesChanged
  */
+
+const log = makeLogger("web.user");
 
 export const userBus = new EventBus();
 
@@ -196,6 +199,7 @@ function makeGroupCache(userId, groups, flags) {
             if (!userId) {
                 return Promise.resolve(false);
             }
+            log.logic("hasGroup miss", () => ({ group }));
             return rpc("/web/dataset/call_kw/res.users/has_group", {
                 model: "res.users",
                 method: "has_group",
@@ -247,13 +251,15 @@ function makeAccessRightCache() {
         /** @type {string} */ operation,
         /** @type {number[]} */ ids,
         /** @type {object} */ context,
-    ) =>
-        rpc(`/web/dataset/call_kw/${model}/has_access`, {
+    ) => {
+        log.logic("hasAccess miss", () => ({ model, operation, ids }));
+        return rpc(`/web/dataset/call_kw/${model}/has_access`, {
             model,
             method: "has_access",
             args: [ids, operation],
             kwargs: { context },
         });
+    };
 
     const cache = new Cache(fetch, (model, operation, ids) =>
         JSON.stringify([
@@ -328,6 +334,7 @@ function companyFacet(companies) {
             /** @type {number[]} */ companyIds,
             /** @type {Record<string, any>} */ options = {},
         ) {
+            log.logic("activateCompanies", () => ({ companyIds, options }));
             companies.activate(companyIds, options);
             if (options.reload ?? true) {
                 browser.location.reload();
@@ -399,6 +406,7 @@ export function _makeUser(session) {
             return { ...settings };
         },
         updateContext(/** @type {Record<string, any>} */ update) {
+            log.logic("updateContext", () => ({ keys: Object.keys(update) }));
             Object.assign(context, update);
         },
         hasGroup(/** @type {string} */ group) {

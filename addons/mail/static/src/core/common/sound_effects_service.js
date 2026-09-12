@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { url } from "@web/core/utils/urls";
+const log = makeLogger("mail.sound");
+
 export class SoundEffects {
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
@@ -59,6 +62,7 @@ export class SoundEffects {
      * @param {number} [param1.volume]
      */
     play(soundEffectName, { loop = false, volume } = {}) {
+        log.logic("play", () => ({ soundEffectName, loop, volume }));
         if (typeof browser.Audio === "undefined") {
             return;
         }

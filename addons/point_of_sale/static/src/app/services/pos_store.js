@@ -28,6 +28,7 @@ import {
     uuidv4,
 } from "@point_of_sale/utils";
 import { router as webRouter } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
@@ -108,6 +109,7 @@ import {
 const { DateTime } = luxon;
 export const CONSOLE_COLOR = "#F5B427";
 const MAX_LAST_PRINTS = 10;
+const log = makeLogger("pos.store");
 
 export class PosStore extends WithLazyGetterTrap {
     loadingSkipButtonIsShown = false;
@@ -229,6 +231,11 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     navigate(routeName, routeParams = {}) {
+        log.lifecycle("navigate", () => ({
+            routeName,
+            routeParams,
+            from: this.router?.state?.current,
+        }));
         return navigate(this, routeName, routeParams);
     }
 
@@ -271,6 +278,7 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async reloadData(fullReload = false) {
+        log.lifecycle("reloadData", () => ({ fullReload }));
         const orders = this.models["pos.order"].getAll();
         this.device.saveUnusedNumber(orders);
         await this.data.resetIndexedDB();
@@ -317,7 +325,9 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async initServerData() {
+        const endInit = log.perf("initServerData");
         await this.processServerData();
+        endInit({ models: Object.keys(this.models).length });
 
         let searchWasActive = false;
         effect(
@@ -469,6 +479,7 @@ export class PosStore extends WithLazyGetterTrap {
         return makeAwaitable(this.dialog, CashMovePopup);
     }
     async closeSession() {
+        log.logic("closeSession", () => ({ session: this.session?.id }));
         await this.pushOrdersWithClosingPopup();
         const info = await this.getClosePosInfo();
 
@@ -903,6 +914,12 @@ export class PosStore extends WithLazyGetterTrap {
 
     async addLineToOrder(vals, order, opts = {}, configure = true) {
         let merge = true;
+        log.logic("addLineToOrder", () => ({
+            order: order.uuid,
+            product: vals.product_id?.id,
+            qty: vals.qty,
+            configure,
+        }));
         order.assertEditable();
 
         this.numberBuffer?.capture();
@@ -1297,6 +1314,12 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     removeOrder(order, removeFromServer = true) {
+        log.lifecycle("removeOrder", () => ({
+            order: order.uuid,
+            id: order.id,
+            removeFromServer,
+            synced: order.isSynced,
+        }));
         if (this.config.isShareable || removeFromServer) {
             if (order.isSynced && !order.finalized) {
                 this.addPendingOrder([order.id], true);
@@ -1334,6 +1357,10 @@ export class PosStore extends WithLazyGetterTrap {
         return Boolean(this.config.cash_control && this.config._has_cash_move_perm);
     }
     createNewOrder(data = {}) {
+        log.lifecycle("createNewOrder", () => ({
+            keys: Object.keys(data),
+            orders: this.models["pos.order"].length,
+        }));
         const fiscalPosition = this.models["account.fiscal.position"].find(
             (fp) => fp.id === this.config.default_fiscal_position_id?.id,
         );
@@ -1497,12 +1524,19 @@ export class PosStore extends WithLazyGetterTrap {
                 !this.syncingOrders.has(order.uuid) &&
                 (order.isDirty() || options.force),
         );
+        log.pipeline("syncAllOrders", () => ({
+            toSync: orders.map((o) => o.uuid),
+            toDelete: orderIdsToDelete,
+            force: Boolean(options.force),
+        }));
+        const endSync = log.perf("syncAllOrders");
 
         if (orderIdsToDelete.length > 0) {
             try {
                 await this.removeOrders([], orderIdsToDelete);
             } catch (error) {
                 if (error instanceof ConnectionLostError) {
+                    endSync({ connectionLost: true });
                     if (options.throw) {
                         throw error;
                     }
@@ -1522,6 +1556,7 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (orders.length === 0) {
+            endSync({ orders: 0 });
             return;
         }
 
@@ -1664,6 +1699,12 @@ export class PosStore extends WithLazyGetterTrap {
                 .filter((order) => order.state === "draft")
                 .forEach((order) => (order.session_id = this.session));
         }
+        endSync({
+            orders: orders.length,
+            synced: syncedOrders.length,
+            errorOccurred,
+            newSession,
+        });
 
         return syncedOrders;
     }
@@ -1675,6 +1716,11 @@ export class PosStore extends WithLazyGetterTrap {
     async pay() {
         this.numberBuffer.capture();
         const currentOrder = this.getOrder();
+        log.logic("pay", () => ({
+            order: currentOrder?.uuid,
+            canPay: currentOrder?.canPay(),
+            lines: currentOrder?.lines?.length,
+        }));
 
         if (!currentOrder?.canPay()) {
             return;
@@ -1814,6 +1860,10 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     setOrder(order) {
+        log.lifecycle("setOrder", () => ({
+            from: this.selectedOrderUuid,
+            to: order?.uuid,
+        }));
         if (this.getOrder()) {
             this.getOrder().updateSavedQuantity();
         }
@@ -2020,6 +2070,12 @@ export class PosStore extends WithLazyGetterTrap {
     async sendOrderInPreparation(order, opts = {}) {
         let isPrinted = false;
         let changeSetFailed = false;
+        const endPrep = log.perf("sendOrderInPreparation");
+        log.pipeline("sendOrderInPreparation", () => ({
+            order: order.uuid,
+            opts,
+            printers: this.config.printerCategories.size,
+        }));
 
         if (this.config.printerCategories.size && !opts.byPassPrint) {
             try {
@@ -2081,6 +2137,7 @@ export class PosStore extends WithLazyGetterTrap {
         if (isPrinted && !this.models["pos.prep.display"]?.length) {
             await this.syncAllOrders({ orders: [order] });
         }
+        endPrep({ order: order.uuid, isPrinted, changeSetFailed });
     }
     /**
      * @param {import("@point_of_sale/app/models/pos_order").PosOrder} order
@@ -2287,6 +2344,7 @@ export class PosStore extends WithLazyGetterTrap {
         this.dialog.add(FormViewDialog, this.orderDetailsProps(order));
     }
     async closePos() {
+        log.lifecycle("closePos", () => ({ session: this.session?.id }));
         webRouter.dropEphemerals();
         this._resetConnectedCashier();
         if (!this.session) {
@@ -2346,6 +2404,7 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
     async selectPreset(preset = false, order = this.getOrder()) {
+        log.logic("selectPreset", () => ({ preset: preset?.id, order: order?.uuid }));
         if (!preset) {
             const selectionList = this.models["pos.preset"].map((preset) => ({
                 id: preset.id,
@@ -2413,6 +2472,10 @@ export class PosStore extends WithLazyGetterTrap {
         this.getOrder()?.setPartner(partner);
     }
     async selectPartner(currentOrder = this.getOrder()) {
+        log.logic("selectPartner", () => ({
+            order: currentOrder?.uuid,
+            partner: currentOrder?.partner_id?.id,
+        }));
         if (!currentOrder) {
             return false;
         }

@@ -22,6 +22,8 @@ import {
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -42,6 +44,8 @@ import { isHTTPSorNakedDomainRedirection } from "./utils.js";
 import { WebsiteSystrayItem } from "./website_systray_item.js";
 
 const websiteSystrayRegistry = registry.category("website_systray");
+
+const log = makeLogger("website.builder");
 
 export class WebsiteBuilderClientAction extends Component {
     static template = "website.WebsiteBuilderClientAction";
@@ -70,6 +74,7 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         this.target = null;
         this.orm = useService("orm");
         this.notification = useService("notification");
@@ -331,6 +336,10 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     async onEditPage() {
+        log.logic("onEditPage", () => ({
+            iframe: Boolean(this.websiteContent.el),
+            editing: this.state.isEditing,
+        }));
         if (!this.websiteContent.el) {
             await this.iframeLoaded;
         }
@@ -360,11 +369,13 @@ export class WebsiteBuilderClientAction extends Component {
      * @param {Boolean} isEditing
      */
     async loadIframeAndBundles(isEditing) {
+        const endLoad = log.perf("loadIframeAndBundles");
         await this.iframeLoaded;
         if (isEditing) {
             await this.publicRootReady;
             await this.loadAssetsEditBundle();
         }
+        endLoad({ isEditing });
     }
 
     async loadAssetsEditBundle() {
@@ -421,6 +432,9 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     onIframeLoad(ev) {
+        log.lifecycle("onIframeLoad", () => ({
+            url: this.websiteContent.el?.contentWindow?.location?.href,
+        }));
         // FIX Chrome-only. If you have the backend in a language A but the
         // website in English only, you can 1) modify a record's (event,
         // product...) name in language A (say "New Name").
@@ -603,6 +617,11 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     async reloadEditor(param = {}) {
+        log.logic("reloadEditor", () => ({
+            initialTab: param.initialTab,
+            url: param.url,
+            target: Boolean(param.target),
+        }));
         this.initialTab = param.initialTab;
         this.target = param.target || null;
         await this.reloadIframe(this.state.isEditing, param.url);
@@ -620,6 +639,7 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     async reloadIframe(isEditing = true, url) {
+        log.pipeline("reloadIframe", () => ({ isEditing, url }));
         this.ui.block();
         this.preparePublicRootReady();
         this.setIframeLoaded();

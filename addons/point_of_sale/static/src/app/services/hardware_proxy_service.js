@@ -3,11 +3,14 @@ import { EventBus, reactive } from "@odoo/owl";
 import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import { deduceUrl } from "@point_of_sale/utils";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { effect } from "@web/core/utils/reactive";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
+const log = makeLogger("pos.hardware_proxy");
+
 export class HardwareProxy extends EventBus {
     static serviceDependencies = [];
     constructor() {
@@ -45,6 +48,10 @@ export class HardwareProxy extends EventBus {
     }
 
     async connect() {
+        log.lifecycle("connect", () => ({
+            host: this.host,
+            status: this.connectionInfo.status,
+        }));
         if (this.pos.config.iface_print_via_proxy) {
             this.connectToPrinter();
         }
@@ -128,6 +135,11 @@ export class HardwareProxy extends EventBus {
      */
     message(name, params) {
         this.dispatchEvent(new CustomEvent(`send_message:${name}`));
+        log.pipeline("message", () => ({
+            name,
+            params,
+            status: this.connectionInfo.status,
+        }));
         if (this.connectionInfo.status === "disconnected") {
             return Promise.reject();
         }

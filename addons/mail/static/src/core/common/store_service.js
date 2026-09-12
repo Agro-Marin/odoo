@@ -12,6 +12,7 @@ import { loader } from "@web/components/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { colorScheme } from "@web/core/color_scheme";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -22,6 +23,7 @@ import { debounce } from "@web/core/utils/timing";
 import { session } from "@web/session";
 
 const log = makeModelLog("store");
+const debugLog = makeLogger("mail.store");
 
 /** @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention */
 const pyToJsModels = {
@@ -211,9 +213,16 @@ export class Store extends BaseStore {
         try {
             return await mutex.exec(async () => {
                 let res;
+                const endPost = debugLog.perf("message post");
+                debugLog.logic("doMessagePost", () => ({
+                    mutexKey,
+                    tmp: tmpMessage?.id,
+                }));
                 try {
                     res = await rpc("/mail/message/post", params, { silent: true });
+                    endPost({ thread: mutexKey });
                 } catch (err) {
+                    endPost({ thread: mutexKey, failed: true });
                     if (!tmpMessage) {
                         throw err;
                     }
@@ -281,6 +290,7 @@ export class Store extends BaseStore {
             return this._initializePromise;
         }
         log("initialize:first-call");
+        const endInit = debugLog.perf("initialize");
         this._initializePromise = (async () => {
             for (;;) {
                 try {
@@ -300,6 +310,7 @@ export class Store extends BaseStore {
                 }
             }
             this.isReady.resolve();
+            endInit({ fetched: this._getInitialFetchNames() });
         })();
         return this._initializePromise;
     }
@@ -367,6 +378,13 @@ export class Store extends BaseStore {
 
     _fetchStoreDataDebounced() {
         const fetchParams = this.fetchParams;
+        const endFetch = debugLog.perf(
+            this.fetchReadonly ? "/mail/data" : "/mail/action",
+        );
+        debugLog.pipeline("fetchStoreData", () => ({
+            names: fetchParams.map(([name]) => name),
+            readonly: this.fetchReadonly,
+        }));
         if (log.active()) {
             log(
                 "fetchStoreData:batch",
@@ -389,6 +407,10 @@ export class Store extends BaseStore {
         ).then(
             (data) => {
                 let insertError;
+                endFetch({
+                    requests: fetchParams.length,
+                    models: Object.keys(data || {}),
+                });
                 try {
                     this.insert(data);
                 } catch (error) {
@@ -417,6 +439,7 @@ export class Store extends BaseStore {
                 }
             },
             (error) => {
+                endFetch({ requests: fetchParams.length, failed: true });
                 for (const [, , dataRequest] of fetchParams) {
                     dataRequest._resultDef.reject(error);
                     if (dataRequest.exists()) {
@@ -602,6 +625,7 @@ export class Store extends BaseStore {
      * @returns {Promise<import("models").Thread>}
      */
     async joinChat(id, forceOpen = false) {
+        debugLog.logic("joinChat", () => ({ partnerId: id, forceOpen }));
         const { channel } = await this.fetchStoreData(
             "/discuss/get_or_create_chat",
             { partners_to: [id] },
@@ -648,6 +672,7 @@ export class Store extends BaseStore {
      * @param {true|false|undefined} is_notification
      */
     async searchMessagesInThread(searchTerm, thread, before, is_notification) {
+        const endSearch = debugLog.perf("searchMessagesInThread");
         const { count, count_is_capped, data, messages } = await rpc(
             thread.getFetchRoute(),
             {
@@ -659,6 +684,7 @@ export class Store extends BaseStore {
                 },
             },
         );
+        endSearch({ thread: thread.localId, count, results: messages.length });
         this.insert(data);
         return {
             count,

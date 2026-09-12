@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component, onWillRender, xml } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -155,6 +156,8 @@ const FIELD_OWN_PROPS = Object.freeze([
 
 /** @type {Set<string>} */
 const warnedWidgetMisses = new Set();
+
+const log = makeLogger("web.field");
 
 export function resetWidgetMissWarnings() {
     warnedWidgetMisses.clear();
@@ -362,6 +365,12 @@ export class Field extends Component {
             const fieldType = this.props.record.fields[this.props.name].type;
             this.field = getFieldFromRegistry(fieldType, this.props.type);
         }
+        log.lifecycle("setup", () => ({
+            name: this.props.name,
+            widget: this.props.type,
+            component: this.field?.component?.name,
+            resModel: this.props.record.resModel,
+        }));
         this.dynamicDomain = (record = this.props.record) => {
             const { fieldInfo } = this.props;
             if (fieldInfo?.domain) {

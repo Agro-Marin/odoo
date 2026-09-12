@@ -3,10 +3,14 @@
 
 import { Component } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useReactiveModel } from "@web/model/model";
 
 import { CalendarCommonRenderer } from "./calendar_common/calendar_common_renderer.js";
 import { CalendarYearRenderer } from "./calendar_year/calendar_year_renderer.js";
+const log = makeLogger("web.view.calendar");
+
 export class CalendarRenderer extends Component {
     static template = "web.CalendarRenderer";
     static components = {
@@ -29,6 +33,7 @@ export class CalendarRenderer extends Component {
     };
     setup() {
         this.model = useReactiveModel(this.props.model);
+        useLifecycleLog(log);
     }
 
     get concreteRenderer() {

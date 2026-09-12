@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation, UPDATE_METHODS } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
@@ -60,6 +61,8 @@ const GET_VIEWS_MODELS = [
     "ir.model.fields",
 ];
 
+const log = makeLogger("web.view");
+
 class ViewService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -117,6 +120,7 @@ class ViewService {
             ),
         );
 
+        const endViews = log.perf(`get_views ${resModel}`);
         const result = await this.orm
             .cache({ type: "disk" })
             .retry(1)
@@ -125,6 +129,11 @@ class ViewService {
                 views,
                 options: loadViewsOptions,
             });
+        endViews({
+            views,
+            models: Object.keys(result.models).length,
+            options: loadViewsOptions,
+        });
         /** @type {any} */
         const viewDescriptions = {
             fields: result.models[resModel].fields,

@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { onMounted, onWillStart, useEffect, useSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
@@ -15,6 +16,8 @@ import {
     computeModelOptions,
     prepareStaticActionMenuItems,
 } from "@web/views/view_utils";
+
+const log = makeLogger("web.view.multi_record");
 
 export class MultiRecordController extends ViewController {
     /**
@@ -206,6 +209,11 @@ export class MultiRecordController extends ViewController {
     }
 
     async onSelectionChanged() {
+        log.logic("onSelectionChanged", () => ({
+            selected: this.model.root.selection?.length,
+            domainSelected: this.model.root.isDomainSelected,
+            forwarded: Boolean(this.props.onSelectionChanged),
+        }));
         if (!this.props.onSelectionChanged) {
             return;
         }
@@ -237,6 +245,12 @@ export class MultiRecordController extends ViewController {
                 limit,
                 total: count,
                 onUpdate: async ({ offset, limit }, hasNavigated) => {
+                    log.logic("pager", () => ({
+                        offset,
+                        limit,
+                        hasNavigated,
+                        total: root.count,
+                    }));
                     if (!(await this.beforePagerUpdate())) {
                         return;
                     }

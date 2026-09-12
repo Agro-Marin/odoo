@@ -52,6 +52,8 @@ import {
     isIOS,
     isMobileOS,
 } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
@@ -63,6 +65,8 @@ const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
     SAVE: "save",
 };
+
+const log = makeLogger("mail.composer");
 
 /**
  * @typedef {Object} Props
@@ -290,6 +294,7 @@ export class Composer extends Component {
         void composerProxy.composerHtml;
     }
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this._setupServices();
         this._setupSelection();
@@ -597,6 +602,12 @@ export class Composer extends Component {
 
     /** @param {(value: ReturnType<markup>|string) => Promise<void>} cb */
     async processMessage(cb) {
+        log.logic("processMessage", () => ({
+            thread: this.props.composer.thread?.localId,
+            canProcess: this.canProcessMessage,
+            active: this.state.active,
+            attachments: this.props.composer.attachments.length,
+        }));
         if (this.props.composer.attachments.some(({ uploading }) => uploading)) {
             this.env.services.notification.add(
                 _t("Please wait while the file is uploading."),
@@ -632,6 +643,11 @@ export class Composer extends Component {
 
     async sendMessage() {
         const composer = toRaw(this.props.composer);
+        log.logic("sendMessage", () => ({
+            thread: composer.thread?.localId,
+            type: this.props.type,
+            editing: Boolean(composer.message),
+        }));
         this.composerActions.activePicker?.close?.();
         if (composer.message) {
             this.editMessage();

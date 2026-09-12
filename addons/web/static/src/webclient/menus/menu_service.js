@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
@@ -140,6 +141,8 @@ class MenuTree {
     }
 }
 
+const log = makeLogger("web.menu");
+
 class MenuService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -170,6 +173,10 @@ class MenuService {
     }
 
     async load() {
+        log.pipeline("load", () => ({
+            cached: Boolean(this.cachedMenus),
+            hash: this.storedHash,
+        }));
         if (this.cachedMenus) {
             const generation = ++this.fetchGeneration;
             fetchMenus(false, this.storedHash)
@@ -184,6 +191,7 @@ class MenuService {
                         res.hash && this.storedHash
                             ? res.hash !== this.storedHash
                             : JSON.stringify(res.menus) !== this.storedRaw;
+                    log.logic("revalidate", () => ({ changed, hash: res.hash }));
                     if (changed) {
                         this._persist(res.menus, res.hash);
                         this.tree.setData(res.menus);
@@ -242,6 +250,11 @@ class MenuService {
     setCurrentMenu(menu) {
         menu = typeof menu === "number" ? this.tree.getMenu(menu) : menu;
         if (menu && menu.appID !== this.tree.currentAppId) {
+            log.logic("setCurrentMenu", () => ({
+                menuId: menu.id,
+                appID: menu.appID,
+                from: this.tree.currentAppId,
+            }));
             this.tree.currentAppId = menu.appID;
             menuStorage.writeCurrentApp(menu.appID);
             this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
@@ -251,6 +264,11 @@ class MenuService {
     /** @param {Object|number} menu */
     async selectMenu(menu) {
         menu = typeof menu === "number" ? this.tree.getMenu(menu) : menu;
+        log.logic("selectMenu", () => ({
+            menuId: menu?.id,
+            actionID: menu?.actionID,
+            xmlid: menu?.xmlid,
+        }));
         if (!menu || !menu.actionID) {
             return;
         }

@@ -20,6 +20,8 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { AppEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
@@ -147,6 +149,8 @@ const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) =>
  * }} ListRowApi
  */
 
+const log = makeLogger("web.view.list");
+
 export class ListRenderer extends Component {
     static template = "web.ListRenderer";
     static rowsTemplate = "web.ListRenderer.Rows";
@@ -242,6 +246,7 @@ export class ListRenderer extends Component {
 
     setup() {
         this.setupServices();
+        useLifecycleLog(log);
         this.setupSharedContexts();
         this.setupRowInteractions();
         this.setupLayoutAndFocus();

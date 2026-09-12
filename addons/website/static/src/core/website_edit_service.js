@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { patch } from "@web/core/utils/patch";
@@ -85,6 +86,8 @@ export function buildEditableInteractions(builders) {
     return result;
 }
 
+const log = makeLogger("website.edit");
+
 export const websiteEditService = {
     dependencies: ["public.interactions"],
     start(env, { ["public.interactions"]: publicInteractions }) {
@@ -95,6 +98,11 @@ export const websiteEditService = {
         const shared = {};
 
         const update = (target, mode) => {
+            log.pipeline("update", () => ({
+                mode,
+                target: target?.tagName,
+                refreshing: publicInteractions.isRefreshing,
+            }));
             // editMode = true;
             // const currentEditMode = this.website_edit.mode === "edit";
 
@@ -134,6 +142,7 @@ export const websiteEditService = {
         };
 
         const stop = (target) => {
+            log.lifecycle("stop", () => ({ target: target?.tagName }));
             publicInteractions.stopInteractions(target);
         };
 
@@ -294,12 +303,18 @@ export const websiteEditService = {
             delete window[EDIT_HOOKS_KEY];
         };
         const applyAction = (actionId, spec) => {
+            log.logic("applyAction", () => ({ actionId, spec }));
             shared.builderActions.applyAction(actionId, spec);
         };
         const callShared = (pluginName, methodName, args = []) => {
             if (!Array.isArray(args)) {
                 args = [args];
             }
+            log.logic("callShared", () => ({
+                pluginName,
+                methodName,
+                known: Boolean(shared[pluginName]?.[methodName]),
+            }));
             if (shared[pluginName]) {
                 if (shared[pluginName][methodName]) {
                     return shared[pluginName][methodName](...args);

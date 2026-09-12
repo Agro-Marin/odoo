@@ -27,6 +27,8 @@ import {
 import { ActionSwiper } from "@web/components/action_swiper";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { createElementWithContent } from "@web/core/utils/dom/html";
@@ -46,6 +48,8 @@ class MessageDropdown extends Dropdown {
         return hasTouch() && this.props.bottomSheet;
     }
 }
+
+const log = makeLogger("mail.message.ui");
 
 /**
  * @typedef {Object} Props
@@ -202,6 +206,7 @@ export class Message extends Component {
         );
     }
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this._setupServicesAndRefs();
         this._setupMessageEffects();

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { waitImages } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { SignalStore } from "@web/core/utils/reactive";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
@@ -9,6 +10,8 @@ export const printerService = {
         return new PrinterService(env, { renderer });
     },
 };
+const log = makeLogger("pos.printer");
+
 export class PrinterService extends SignalStore {
     constructor(...args) {
         super(...args);
@@ -57,6 +60,12 @@ export class PrinterService extends SignalStore {
             return;
         }
         this.state.isPrinting = true;
+        const endPrint = log.perf(`print ${component.name}`);
+        log.pipeline("print", () => ({
+            component: component.name,
+            device: Boolean(this.device),
+            options,
+        }));
         try {
             const el = await this.renderer.toHtml(component, props);
             try {
@@ -73,6 +82,7 @@ export class PrinterService extends SignalStore {
             return await this.printHtml(el, options);
         } finally {
             this.state.isPrinting = false;
+            endPrint();
         }
     }
     is = () => Boolean(this.device?.printReceipt);

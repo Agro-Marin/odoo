@@ -3,6 +3,7 @@
 
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { strftimeToLuxonFormat } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { Settings } from "@web/core/l10n/luxon";
@@ -132,6 +133,8 @@ function updateTranslations(result) {
     });
 }
 
+const log = makeLogger("web.l10n");
+
 /**
  * @param {TranslationSource} source
  * @param {string | undefined} hash
@@ -142,6 +145,7 @@ async function fetchTranslations(source, hash) {
     queryString = queryString.length ? `?${queryString}` : queryString;
     const url = `${source.url}${queryString}`;
     const preload = /** @type {any} */ (odoo);
+    const endFetch = log.perf(`fetchTranslations ${lang}`);
     let responsePromise;
     if (
         !hash &&
@@ -170,9 +174,15 @@ async function fetchTranslations(source, hash) {
         `ok=${response.ok}`,
     );
     if (!response.ok) {
+        endFetch({ status: response.status });
         throw new Error("Error while fetching translations");
     }
     const result = await response.json();
+    endFetch({
+        status: response.status,
+        hash: Boolean(hash),
+        modules: Object.keys(result.modules || {}).length,
+    });
     if (result.hash !== hash) {
         updateTranslations(result);
         db.write(source.url, JSON.stringify({ lang }), result).then(

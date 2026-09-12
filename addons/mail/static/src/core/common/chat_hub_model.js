@@ -1,11 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 
 import { fields, Record } from "./record.js";
 export const CHAT_HUB_KEY = "mail.ChatHub";
 export const CHAT_HUB_COMPACT_LS = "mail.user_setting.chathub_compact";
+
+const log = makeLogger("mail.chat_hub");
 
 export class ChatHub extends Record {
     BUBBLE = 56;
@@ -75,6 +78,10 @@ export class ChatHub extends Record {
     loadMutex = new Mutex();
 
     async closeAll() {
+        log.logic("closeAll", () => ({
+            opened: this.opened.length,
+            folded: this.folded.length,
+        }));
         await this.initPromise;
         const promises = [];
         for (const cw of [...this.opened, ...this.folded]) {
@@ -108,6 +115,7 @@ export class ChatHub extends Record {
     async _load(str) {
         /** @type {{ opened?: Object[], folded?: Object[] }} */
         let parsed;
+        log.lifecycle("load", () => ({ raw: str }));
         try {
             parsed = str && str !== "undefined" ? JSON.parse(str) : {};
         } catch {
@@ -172,6 +180,10 @@ export class ChatHub extends Record {
     }
 
     save() {
+        log.lifecycle("save", () => ({
+            opened: this.opened.length,
+            folded: this.folded.length,
+        }));
         browser.localStorage.setItem(
             CHAT_HUB_KEY,
             JSON.stringify({

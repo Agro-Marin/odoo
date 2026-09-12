@@ -13,6 +13,7 @@ import {
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ModelEvent } from "@web/core/events";
 import { featureFlag } from "@web/core/feature_flags";
 import { RPCError } from "@web/core/network/rpc";
@@ -23,6 +24,8 @@ import { SignalStore } from "@web/core/utils/reactive";
 import { SampleDataCoordinator } from "./sample_data_coordinator.js";
 import { makeSampleORM } from "./sample_server.js";
 import { getSearchParamsIssues } from "./search_params_schema.js";
+
+const log = makeLogger("web.model");
 
 /** @import { OdooEnv } from "@web/env" */
 /** @import { SearchParams } from "@web/model/types" */
@@ -177,6 +180,10 @@ function useModelServices(ModelClass) {
  * @returns {Promise<any> | any}
  */
 function reloadFromProps(model, props) {
+    log.lifecycle("reloadFromProps", () => ({
+        model: model.constructor.name,
+        params: getSearchParams(props),
+    }));
     const load = () => model.load(getSearchParams(props));
     const settling = model.settleBeforeReload();
     return settling ? settling.then(load) : load();
@@ -199,6 +206,11 @@ function makeModel(ModelClass, buildParams) {
         services,
     );
     model.isAlive = isAlive;
+    log.lifecycle("makeModel", () => ({
+        model: ModelClass.name,
+        component: component.constructor.name,
+        services: Object.keys(services),
+    }));
     return { component, model };
 }
 

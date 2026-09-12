@@ -13,6 +13,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -40,6 +42,8 @@ const getBoundingClientRect = Element.prototype.getBoundingClientRect;
 const MORE_MENU_FALLBACK_WIDTH = 46;
 
 const QUICK_LAUNCHER_DELAY = 400;
+
+const log = makeLogger("web.webclient.navbar");
 
 export class NavBar extends Component {
     static template = "web.NavBar";
@@ -84,6 +88,7 @@ export class NavBar extends Component {
     quickLauncher;
 
     setup() {
+        useLifecycleLog(log);
         this.currentAppSectionsExtra = [];
         this.failedSystrayKeys = new Set();
         this.actionService = useService("action");

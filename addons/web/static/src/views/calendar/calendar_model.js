@@ -3,6 +3,7 @@
 
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { getFieldCodec } from "@web/core/field_codec";
 import { isX2Many } from "@web/core/field_types";
 import {
@@ -110,6 +111,8 @@ async function fetchDynamicFilterColors(
     return shouldFetchColor ? records : [];
 }
 
+const log = makeLogger("web.view.calendar");
+
 export class CalendarModel extends Model {
     static DEBOUNCED_LOAD_DELAY = 600;
     static services = ["notification"];
@@ -182,15 +185,25 @@ export class CalendarModel extends Model {
             this.meta.scale = this.meta.scales[0];
         }
         const data = { ...this.data };
+        log.pipeline("load", () => ({
+            resModel: this.meta.resModel,
+            scale: this.meta.scale,
+            date: this.meta.date?.toISODate(),
+            params: Object.keys(params),
+        }));
+        const endLoad = log.perf(`updateData ${this.meta.resModel}`);
         try {
             await this.keepLast.add(this.updateData(data));
         } catch (error) {
             if (error instanceof SupersededError) {
+                endLoad({ superseded: true });
                 return;
             }
             Object.assign(this.meta, previousMeta);
+            endLoad({ failed: true });
             throw error;
         }
+        endLoad({ records: Object.keys(data.records || {}).length });
         browser.localStorage.setItem(this.storageKey, this.meta.scale);
         this.data = data;
         this.notify();
@@ -339,6 +352,7 @@ export class CalendarModel extends Model {
         await this.load();
     }
     async createRecord(record) {
+        log.logic("createRecord", () => ({ resModel: this.meta.resModel, record }));
         const rawRecord = this.buildRawRecord(record);
         const context = this.makeContextDefaults(rawRecord);
         await this.orm.create(this.meta.resModel, [rawRecord], { context });
@@ -427,6 +441,7 @@ export class CalendarModel extends Model {
         }
     }
     async unlinkRecord(recordId) {
+        log.logic("unlinkRecord", () => ({ resModel: this.meta.resModel, recordId }));
         await this.orm.unlink(this.meta.resModel, [recordId]);
         this.invalidateUnusualDays();
         await this.load();

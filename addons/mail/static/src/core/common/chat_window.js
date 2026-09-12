@@ -20,10 +20,14 @@ import {
 import { Dropdown } from "@web/components/dropdown";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("mail.chat_window");
+
 /**
  * @typedef {Object} Props
  * @property {import("models").ChatWindow} chatWindow
@@ -45,6 +49,7 @@ export class ChatWindow extends Component {
     static template = "mail.ChatWindow";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         useSubEnv({ inChatWindow: true });
         this.store = useService("mail.store");

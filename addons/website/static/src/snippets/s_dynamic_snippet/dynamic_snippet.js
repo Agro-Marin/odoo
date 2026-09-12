@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
@@ -10,6 +11,8 @@ import { verifyHttpsUrl } from "@website/utils/misc";
 
 const DEFAULT_NUMBER_OF_ELEMENTS = 4;
 const DEFAULT_NUMBER_OF_ELEMENTS_SM = 1;
+
+const log = makeLogger("website.dynamic_snippet");
 
 export class DynamicSnippet extends Interaction {
     static selector = ".s_dynamic_snippet";
@@ -106,6 +109,7 @@ export class DynamicSnippet extends Interaction {
     async fetchData() {
         if (this.isConfigComplete()) {
             const nodeData = this.el.dataset;
+            const endFetch = log.perf(`fetch filter ${nodeData.filterId}`);
             const filterFragments = await this.waitFor(
                 rpc(
                     "/website/snippet/filters",
@@ -122,8 +126,16 @@ export class DynamicSnippet extends Interaction {
                     ),
                 ),
             );
+            endFetch({
+                template: nodeData.templateKey,
+                fragments: filterFragments.length,
+            });
             this.data = filterFragments.map(markup);
         } else {
+            log.logic("fetchData", () => ({
+                complete: false,
+                dataset: { ...this.el.dataset },
+            }));
             this.data = [];
         }
     }
@@ -167,6 +179,10 @@ export class DynamicSnippet extends Interaction {
     }
 
     render() {
+        log.pipeline("render", () => ({
+            items: this.data.length,
+            withSample: this.withSample,
+        }));
         if (this.data.length > 0 || this.withSample) {
             this.toggleVisibility(true);
             this.prepareContent();

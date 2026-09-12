@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { modelLog } from "@web/core/utils/asset_log";
@@ -214,6 +215,8 @@ async function applySaveResult(
     healSubtreeReplayFailures(record);
 }
 
+const log = makeLogger("web.model.record");
+
 /**
  * @template {(e: Error, actions: { discard: () => void, retry: () => Promise<unknown> }) => unknown} [OnError=() => never]
  * @overload
@@ -228,6 +231,7 @@ async function applySaveResult(
  */
 export async function save(record, { reload = true, onError, nextId } = {}) {
     modelLog("save", record.resModel, record.resId || "(new)");
+    log.logic("save", () => ({ resModel: record.resModel, resId: record.resId }));
     record.model.closeUrgentSaveNotification();
     const creation = !record.resId;
     if (nextId) {
@@ -243,6 +247,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     const changes = record.getChangesLocked();
     record.saveState.clearBeacon();
     const concurrencyBaseline = getConcurrencyBaseline(record, Object.keys(changes));
+    log.pipeline("save changes", () => ({ creation, fields: Object.keys(changes) }));
     if (!creation && !Object.keys(changes).length) {
         return settleWithoutSaving(record, nextId);
     }
@@ -274,6 +279,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         });
         /** @type {Record<string, any>[]} */
         let records;
+        const endSave = log.perf(`webSave ${record.resModel}`);
         try {
             records = await record.model.orm.webSave(
                 record.resModel,
@@ -281,7 +287,9 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 changes,
                 kwargs,
             );
+            endSave({ creation, id: records[0]?.id });
         } catch (e) {
+            endSave({ failed: true });
             if (onError && !(e instanceof RequestEntityTooLargeError)) {
                 return onError(e, {
                     discard: () => record.discardLocked(),

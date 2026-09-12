@@ -3,6 +3,7 @@
 
 import { App, Component, EventBus } from "@odoo/owl";
 import { isCtrlOrCmdKey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -36,8 +37,11 @@ const log = makeAssetLog("env");
  * }} OdooEnv
  */
 
+const debugLog = makeLogger("web.env");
+
 /** @returns {OdooEnv} */
 export function makeEnv() {
+    debugLog.lifecycle("makeEnv", () => ({ debug: odoo.debug }));
     log("makeEnv: creating OdooEnv — debug=", odoo.debug || "(empty)");
     const bus = new EventBus();
     const prom = new Promise((resolve) => {
@@ -235,6 +239,7 @@ async function _startServices(env, toStart) {
             ]);
             const dependencies = Object.fromEntries(entries);
             let value;
+            const endStart = debugLog.perf(`service ${name}`);
             try {
                 value = service.start(env, dependencies);
             } catch (error) {
@@ -251,6 +256,7 @@ async function _startServices(env, toStart) {
                 Promise.resolve(value).then(
                     (val) => {
                         services[name] = val ?? null;
+                        endStart({ dependencies: service.dependencies || [] });
                         serviceLog("started", name);
                         resolver.propagate(name);
                     },
@@ -259,12 +265,17 @@ async function _startServices(env, toStart) {
                             `[env] service "${name}" failed to start (async):`,
                             error,
                         );
+                        endStart({ failed: true });
                         _reportServiceFailure(name, "async", error);
                     },
                 ),
             );
         }
         if (waveStarted.length) {
+            debugLog.pipeline("services wave", () => ({
+                wave: _wave + 1,
+                started: waveStarted,
+            }));
             log(
                 `services wave ${++_wave} started (${waveStarted.length}):`,
                 waveStarted,
@@ -439,6 +450,7 @@ export async function mountComponent(component, target, appConfig = {}) {
         env = makeEnv();
         await startServices(/** @type {OdooEnv} */ (env));
     }
+    const endMount = debugLog.perf(`mount ${component.name || "anon"}`);
     const app = new App(
         component,
         makeAppConfig(env, { name: component.name, ...owlConfig }),
@@ -449,6 +461,7 @@ export async function mountComponent(component, target, appConfig = {}) {
     await beforeMount?.(/** @type {OdooEnv} */ (app.env));
     componentLog("mount", component.name || "anon", "isRoot=", isRoot);
     const root = await app.mount(target);
+    endMount({ isRoot });
     if (isRoot) {
         /** @type {any} */ (odoo).__WOWL_DEBUG__ = { root };
     }

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatDate, serializeDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
@@ -10,6 +11,8 @@ import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { computeComboItems } from "./utils/compute_combo_items.js";
 import { parseNoteEntries } from "./utils/note_entries.js";
 const { DateTime } = luxon;
+
+const log = makeLogger("pos.order");
 
 export class PosOrder extends PosOrderAccounting {
     static pythonModel = "pos.order";
@@ -311,6 +314,10 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     setPricelist(pricelist) {
+        log.logic("setPricelist", () => ({
+            order: this.uuid,
+            pricelist: pricelist?.id,
+        }));
         this.pricelist_id = pricelist ? pricelist : false;
 
         const lines_to_recompute = this.getLinesToCompute();
@@ -420,6 +427,11 @@ export class PosOrder extends PosOrderAccounting {
      */
     removeOrderline(line) {
         const linesToRemove = line.getAllLinesInCombo();
+        log.logic("removeOrderline", () => ({
+            order: this.uuid,
+            line: line.uuid,
+            combo: linesToRemove.length,
+        }));
         for (const lineToRemove of linesToRemove) {
             const refunded = lineToRemove.refunded_orderline_id;
             const refundMap = refunded?.order_id?.uiState?.lineToRefund;
@@ -470,6 +482,11 @@ export class PosOrder extends PosOrderAccounting {
 
     addPaymentline(payment_method) {
         this.assertEditable();
+        log.logic("addPaymentline", () => ({
+            order: this.uuid,
+            method: payment_method.id,
+            inProgress: this.electronicPaymentInProgress(),
+        }));
 
         if (this.electronicPaymentInProgress()) {
             return {
@@ -504,6 +521,7 @@ export class PosOrder extends PosOrderAccounting {
 
     removePaymentline(line) {
         this.assertEditable();
+        log.logic("removePaymentline", () => ({ order: this.uuid, line: line.uuid }));
 
         if (this.getSelectedPaymentline() === line) {
             this.selectPaymentline(undefined);
@@ -612,6 +630,7 @@ export class PosOrder extends PosOrderAccounting {
 
     setPartner(partner) {
         this.assertEditable();
+        log.logic("setPartner", () => ({ order: this.uuid, partner: partner?.id }));
         this.partner_id = partner;
         this.updatePricelistAndFiscalPosition(partner);
         if (partner.is_company) {
@@ -729,6 +748,11 @@ export class PosOrder extends PosOrderAccounting {
 
     serializeForORM(opts = {}) {
         const data = super.serializeForORM(opts);
+        log.pipeline("serializeForORM", () => ({
+            order: this.uuid,
+            keys: Object.keys(data).length,
+            opts,
+        }));
         if (
             data.last_order_preparation_change &&
             typeof data.last_order_preparation_change === "object"

@@ -4,6 +4,7 @@
 import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
@@ -60,6 +61,8 @@ const QUICK_CREATE_FIELD_TYPES = [
     "selection",
     "many2many",
 ];
+
+const log = makeLogger("web.view.kanban");
 
 export class KanbanController extends MultiRecordController {
     static template = `web.KanbanView`;
@@ -346,6 +349,11 @@ export class KanbanController extends MultiRecordController {
     }
 
     async openRecord(record, /** @type {any} */ { newWindow } = {}) {
+        log.logic("openRecord", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            newWindow,
+        }));
         const activeIds = this.model.root.records.map((datapoint) => datapoint.resId);
         this.props.selectRecord(record.resId, { activeIds, newWindow });
     }
@@ -353,6 +361,11 @@ export class KanbanController extends MultiRecordController {
     async createRecord() {
         const { onCreate } = this.props.archInfo;
         const { root } = this.model;
+        log.logic("createRecord", () => ({
+            onCreate,
+            quickCreate: this.canQuickCreate,
+            grouped: root.isGrouped,
+        }));
         if (this.canQuickCreate && onCreate === "quick_create") {
             const firstGroup =
                 root.groups.find((group) => !group.isFolded) || root.groups[0];
@@ -379,6 +392,11 @@ export class KanbanController extends MultiRecordController {
 
     /** @param {Object} record */
     onRecordSaved(record) {
+        log.lifecycle("onRecordSaved", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            grouped: this.model.root.isGrouped,
+        }));
         if (this.model.root.isGrouped) {
             const group = this.model.root.groups.find((l) =>
                 l.records.find((r) => r.id === record.id),

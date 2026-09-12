@@ -14,7 +14,11 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("mail.discuss");
+
 export class Discuss extends Component {
     static components = {
         DiscussContent,
@@ -29,6 +33,7 @@ export class Discuss extends Component {
     static template = "mail.Discuss";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.store = useService("mail.store");
         this.messageHighlight = useMessageScrolling();

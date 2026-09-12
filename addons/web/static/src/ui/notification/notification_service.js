@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { registry } from "@web/core/registry";
 import { mainComponentEntry } from "@web/ui/main_components_container";
@@ -26,6 +27,8 @@ import { NotificationContainer } from "./notification_container.js";
 const SERVICE_OPTIONS = new Set(["onClose"]);
 
 const SERVICE_OWNED_PROPS = new Set(["close", "message"]);
+
+const log = makeLogger("web.ui.notification");
 
 class NotificationService {
     /**
@@ -62,6 +65,13 @@ class NotificationService {
      */
     add(message, options = {}) {
         const id = ++this.notifId;
+        log.lifecycle("add", () => ({
+            id,
+            type: options.type,
+            sticky: Boolean(options.sticky),
+            title: options.title,
+            message,
+        }));
         const closeFn = () => this._close(id);
         const props = /** @type {Record<string, any>} */ ({
             message,
@@ -98,6 +108,7 @@ class NotificationService {
 
     /** @param {number} id */
     _close(id) {
+        log.lifecycle("close", () => ({ id, known: Boolean(this.notifications[id]) }));
         if (this.notifications[id]) {
             const notification = this.notifications[id];
             try {

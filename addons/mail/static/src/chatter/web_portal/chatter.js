@@ -10,6 +10,8 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -28,6 +30,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {boolean} disabled
  * @property {boolean} [isTopStickyPinned]
  */
+const log = makeLogger("mail.chatter");
+
 /**
  * @template {Props} [P=Props]
  * @template {State} [S=State]
@@ -40,6 +44,7 @@ export class Chatter extends Component {
     static defaultProps = { composer: true, threadId: false, twoColumns: false };
 
     setup() {
+        useLifecycleLog(log);
         this.store = useService("mail.store");
         /** @type {S} */
         this.state = /** @type {S} */ (

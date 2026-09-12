@@ -3,6 +3,7 @@
 
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { RpcEvent } from "@web/core/events";
 import { getKey, stableStringify } from "@web/core/network/rpc_dedup";
 import { rpcLog } from "@web/core/utils/asset_log";
@@ -76,6 +77,8 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  * dedupCallbackSeq: number,
  * }} RpcState
  */
+
+const log = makeLogger("web.rpc");
 
 /** @type {RpcState} */
 const _rpcState = globalSingleton(
@@ -501,6 +504,7 @@ rpc._rpc = function (url, params, settings) {
 function _rpcDeduped(url, params, settings) {
     const key = `${getKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
     let entry = inflightDedup.get(key);
+    log.logic("dedup", () => ({ url, joined: Boolean(entry), key }));
     if (!entry) {
         const shared = /** @type {any} */ (
             rpc._rpc(url, params, omit(settings, "dedup", "signal"))
@@ -575,6 +579,7 @@ function _rpcCached(url, params, settings, rpcCache) {
     const cacheKey = getKey(url, params);
     const requestKey = `${cacheTable}/${cacheKey}`;
     const cacheProm = rpcCache.read(cacheTable, cacheKey, fallback, cacheSettings);
+    log.logic("cache", () => ({ requestKey, issuedOwnRequest }));
     const onDetach = () => {
         callerAborted = true;
     };
@@ -698,8 +703,10 @@ function _rpcOnce(url, params, settings) {
         settled = true;
         reject(error);
     };
+    const endSpan = log.perf(`${params?.model || url}.${params?.method || ""}`);
     /** @param {Error} error */
     const fail = (error) => {
+        endSpan({ id: data.id, error: error.name });
         rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings: busSettings, error });
         settleReject(error);
     };
@@ -713,6 +720,12 @@ function _rpcOnce(url, params, settings) {
             : new InvalidResponseError(url, response.status);
 
     rpcBus.trigger(RpcEvent.REQUEST, { data, url, settings: busSettings });
+    log.pipeline("request", () => ({
+        id: data.id,
+        url,
+        model: params?.model,
+        method: params?.method,
+    }));
 
     browser
         .fetch(url, init)
@@ -755,6 +768,7 @@ function _rpcOnce(url, params, settings) {
             }
             if (!parsed.error) {
                 const result = stampVersion(parsed);
+                endSpan({ id: data.id, status: response.status });
                 rpcBus.trigger(RpcEvent.RESPONSE, {
                     data,
                     url,
@@ -781,6 +795,7 @@ function _rpcOnce(url, params, settings) {
         }
         aborted = true;
         controller.abort();
+        endSpan({ id: data.id, aborted: true });
         const error = new ConnectionAbortedError("fetch abort");
         rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings: busSettings, error });
         if (rejectError) {
@@ -840,6 +855,12 @@ function _rpcWithRetry(url, params, settings) {
                     return;
                 }
                 if (isRetryable(err) && attempt <= config.retries) {
+                    log.logic("retry", () => ({
+                        url,
+                        attempt,
+                        retries: config.retries,
+                        error: err,
+                    }));
                     backoffTimer = browser.setTimeout(
                         tryOnce,
                         backoffDelay(attempt, config, err),

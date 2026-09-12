@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { reactive, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import { IS_DELETED_SYM, isRelation, modelRegistry, STORE_SYM } from "./misc.js";
 import { Record } from "./record.js";
@@ -54,6 +55,8 @@ export function observeKey(target, key, callback) {
         subscription.callback = undefined;
     };
 }
+const log = makeLogger("mail.model");
+
 export class Store extends Record {
     /** @type {StoreModels} */
     Models;
@@ -313,6 +316,7 @@ export class Store extends Record {
         const deletingRecordsByLocalId = new Map();
         this._.UPDATE++;
         let flushIterations = 0;
+        const endFlush = log.perf("flushQueues");
         try {
             while (this._hasQueuedWork()) {
                 if (++flushIterations > 1000) {
@@ -325,6 +329,10 @@ export class Store extends Record {
             }
         } finally {
             this._.UPDATE--;
+            endFlush({
+                iterations: flushIterations,
+                deleted: deletingRecordsByLocalId.size,
+            });
         }
     }
     _throwFirstQueuedError() {
@@ -376,6 +384,15 @@ export class Store extends Record {
         const store = this;
         const rawStore = toRaw(this)._raw;
         const ctx = store._makeInsertContext();
+        const endInsert = log.perf("insert");
+        log.pipeline("insert", () =>
+            Object.fromEntries(
+                Object.entries(dataByModelName).map(([name, data]) => [
+                    name,
+                    Array.isArray(data) ? data.length : 1,
+                ]),
+            ),
+        );
         rawStore.MAKE_UPDATE(function storeInsert() {
             /** @type {Map<string|number, [string, RecordData]>} */
             const recordsDataToDelete = new Map();
@@ -426,6 +443,7 @@ export class Store extends Record {
                     ?.delete();
             }
         });
+        endInsert({ models: Object.keys(dataByModelName).length });
     }
     /**
      * @param {Record} record

@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 export const AWAY_DELAY = 30 * 60 * 1000;
+
+const log = makeLogger("mail.im_status");
 
 export class ImStatusService {
     /**
@@ -22,9 +25,10 @@ export class ImStatusService {
         this.busService.addEventListener("BUS:RECONNECT", () =>
             this.updateBusPresence(),
         );
-        this.busService.subscribe("bus.bus/im_status_updated", (payload) =>
-            this.onImStatusUpdated(payload),
-        );
+        this.busService.subscribe("bus.bus/im_status_updated", (payload) => {
+            log.pipeline("bus.bus/im_status_updated", () => payload);
+            this.onImStatusUpdated(payload);
+        });
         this.presence.bus.addEventListener("presence", () => {
             if (
                 this.lastSentInactivity === undefined ||
@@ -38,6 +42,7 @@ export class ImStatusService {
 
     updateBusPresence() {
         this.lastSentInactivity = this.presence.getInactivityPeriod();
+        log.logic("updateBusPresence", () => ({ inactivity: this.lastSentInactivity }));
         this.startAwayTimeout();
         this.busService.send("update_presence", {
             inactivity_period: this.lastSentInactivity,

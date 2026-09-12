@@ -2,14 +2,19 @@
 import { Component } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { useTime } from "@point_of_sale/app/hooks/time_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("pos.screen.login");
+
 export class LoginScreen extends Component {
     static template = "point_of_sale.LoginScreen";
     static props = {};
     static storeOnOrder = false;
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.dialog = useService("dialog");
         this.ui = useService("ui");

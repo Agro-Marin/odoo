@@ -5,6 +5,7 @@ import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { assignDefined, makeSequential } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -17,6 +18,8 @@ import { Deferred } from "@web/core/utils/concurrency";
  * @property {string} [lang]
  * @property {number | false} [partner_id]
  */
+
+const log = makeLogger("mail.thread");
 
 export class Thread extends Record {
     static id = AND("model", "id");
@@ -515,23 +518,32 @@ export class Thread extends Record {
     /** @param {{after?: number, around?: number | string, before?: number}} [param0] */
     async fetchMessages({ after, around, before } = {}) {
         this.status = "loading";
+        log.pipeline("fetchMessages", () => ({
+            thread: this.localId,
+            after,
+            around,
+            before,
+        }));
         if (!this.canFetchMessages) {
             this.isLoaded = true;
             this.status = "ready";
             return [];
         }
         let res;
+        const endFetch = log.perf("fetchMessages");
         try {
             res = await this.fetchMessagesData({ after, around, before });
             this.hasLoadingFailedError = undefined;
             this.hasLoadingFailed = false;
         } catch (e) {
+            endFetch({ thread: this.localId, failed: true });
             this.hasLoadingFailed = true;
             this.hasLoadingFailedError = e;
             this.isLoaded = true;
             this.status = "ready";
             throw e;
         }
+        endFetch({ thread: this.localId, messages: res.messages.length });
         this.store.insert(res.data);
         const msgs = this.store["mail.message"].insert(res.messages.reverse());
         this.isLoaded = true;
@@ -786,6 +798,11 @@ export class Thread extends Record {
     /** @param {Object} [options] */
     markAsRead(options) {
         const newestPersistentMessage = this.newestPersistentOfAllMessage;
+        log.logic("markAsRead", () => ({
+            thread: this.localId,
+            needaction: this.message_needaction_counter,
+            loaded: this.isLoaded,
+        }));
         if (!newestPersistentMessage && !this.isLoaded) {
             this.isLoadedDeferred
                 .then(() => new Promise((resolve) => browser.setTimeout(resolve)))
@@ -805,6 +822,7 @@ export class Thread extends Record {
      * @return {boolean}
      */
     open(options) {
+        log.logic("open", () => ({ thread: this.localId, options }));
         return this.openChatUI(options) || this.openWebClientUI(options);
     }
 
@@ -903,6 +921,11 @@ export class Thread extends Record {
      * @returns {Promise<import("models").Message|undefined>}
      */
     async post(body, postData = {}, extraData = {}) {
+        log.logic("post", () => ({
+            thread: this.localId,
+            attachments: postData.attachments?.length,
+            parentId: postData.parentId,
+        }));
         postData.attachments = postData.attachments ? [...postData.attachments] : [];
         const { parentId } = postData;
         const params = await getMessagePostParams(this.store, {

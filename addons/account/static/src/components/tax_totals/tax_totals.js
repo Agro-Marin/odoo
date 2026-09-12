@@ -8,6 +8,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatMonetary } from "@web/core/formatters";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
@@ -84,6 +85,8 @@ class TaxGroupComponent extends Component {
     }
 }
 
+const log = makeLogger("account.tax_totals");
+
 export class TaxTotalsComponent extends Component {
     static template = "account.TaxTotalsField";
     static components = { TaxGroupComponent };
@@ -108,6 +111,12 @@ export class TaxTotalsComponent extends Component {
     /** @param {{subtotal: Object, taxGroup: Object, amount: number}} change */
     onTaxGroupAmountChanged({ subtotal, taxGroup, amount }) {
         const delta = amount - taxGroup.tax_amount_currency;
+        log.logic("onTaxGroupAmountChanged", () => ({
+            subtotal: subtotal?.name,
+            taxGroup: taxGroup?.name,
+            amount,
+            delta,
+        }));
         if (!delta) {
             return;
         }

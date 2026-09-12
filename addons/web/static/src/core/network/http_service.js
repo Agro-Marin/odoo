@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     ConnectionLostError,
     InvalidResponseError,
@@ -39,6 +40,8 @@ function checkResponseStatus(response, readMethod, { rejectHtml = false } = {}) 
     throw new NetworkError(`HTTP ${status} response at "${url}"`);
 }
 
+const log = makeLogger("web.http");
+
 class HttpService {
     /**
      * @param {string} route
@@ -47,7 +50,9 @@ class HttpService {
      * @returns {Promise<any>}
      */
     async get(route, readMethod = "json", options = {}) {
+        const endGet = log.perf(`GET ${route}`);
         const response = await browser.fetch(route, { method: "GET" });
+        endGet({ status: response.status, readMethod });
         checkResponseStatus(response, readMethod, options);
         return /** @type {any} */ (response)[readMethod]();
     }
@@ -73,10 +78,12 @@ class HttpService {
                 }
             }
         }
+        const endPost = log.perf(`POST ${route}`);
         const response = await browser.fetch(route, {
             body: /** @type {any} */ (formData),
             method: "POST",
         });
+        endPost({ status: response.status, readMethod });
         checkResponseStatus(response, readMethod, options);
         return /** @type {any} */ (response)[readMethod]();
     }

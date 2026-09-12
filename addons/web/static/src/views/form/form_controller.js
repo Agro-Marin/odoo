@@ -13,6 +13,7 @@ import {
 import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { useDebugCategory } from "@web/core/debug/debug_context";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { AppEvent, ModelEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
@@ -57,6 +58,8 @@ import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
 
 /** @type {WeakMap<object, { footerArchInfo: object, strippedArchInfo: object }>} */
 const footerArchInfoCache = new WeakMap();
+
+const log = makeLogger("web.view.form");
 
 export class FormController extends ViewController {
     static template = `web.FormView`;
@@ -371,6 +374,11 @@ export class FormController extends ViewController {
 
     /** @param {any} record */
     async onRecordSaved(record, changes) {
+        log.lifecycle("onRecordSaved", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            fields: Object.keys(changes),
+        }));
         if (this.duplicateId === record.id) {
             const translationChanges = {};
             for (const fieldName of Object.keys(changes)) {
@@ -433,6 +441,7 @@ export class FormController extends ViewController {
     /** @param {{ offset: number, resIds: number[] }} params */
     async onPagerUpdate({ offset, resIds }) {
         const nextId = resIds[offset];
+        log.logic("onPagerUpdate", () => ({ offset, nextId, total: resIds.length }));
         try {
             const isDirty = await this.model.root.isDirty();
             if (isDirty) {
@@ -482,6 +491,10 @@ export class FormController extends ViewController {
 
     /** @param {{ forceLeave?: boolean }} [options] */
     async beforeLeave({ forceLeave } = {}) {
+        log.logic("beforeLeave", () => ({
+            forceLeave: Boolean(forceLeave),
+            resId: this.model.root.resId,
+        }));
         if (forceLeave) {
             return;
         }
@@ -591,6 +604,13 @@ export class FormController extends ViewController {
 
     async beforeExecuteActionButton(clickParams) {
         const record = this.model.root;
+        log.logic("beforeExecuteActionButton", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            name: clickParams.name,
+            type: clickParams.type,
+            special: clickParams.special,
+        }));
         if (clickParams.special !== "cancel") {
             let saved;
             if (clickParams.special === "save" && this.props.saveRecord) {
@@ -616,6 +636,7 @@ export class FormController extends ViewController {
     async afterExecuteActionButton(clickParams) {}
 
     async create() {
+        log.logic("create", () => ({ resModel: this.model.root.resModel }));
         const canProceed = await this.saveCoordinator.requestSave({
             checkDirty: true,
         });
@@ -633,6 +654,11 @@ export class FormController extends ViewController {
      */
     async save(params) {
         const record = this.model.root;
+        log.logic("save", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            params,
+        }));
         const saved = await this.saveCoordinator.requestSave({
             saveOverride: this.props.saveRecord,
             errorMode: "rethrow",
@@ -651,6 +677,10 @@ export class FormController extends ViewController {
     }
 
     async discard() {
+        log.logic("discard", () => ({
+            resModel: this.model.root.resModel,
+            resId: this.model.root.resId,
+        }));
         if (this.props.discardRecord) {
             this.props.discardRecord(this.model.root);
             return;

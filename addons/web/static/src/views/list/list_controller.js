@@ -4,6 +4,7 @@
 import { status, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { useModelWithSampleData } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
@@ -25,6 +26,8 @@ import {
 
 import { ListCogMenu } from "./list_cog_menu.js";
 import { ListConfirmationDialog } from "./list_confirmation_dialog.js";
+
+const log = makeLogger("web.view.list");
 
 export class ListController extends MultiRecordController {
     static template = `web.ListView`;
@@ -238,6 +241,11 @@ export class ListController extends MultiRecordController {
 
     /** @param {{ group?: any }} [options] */
     async createRecord({ group } = /** @type {any} */ ({})) {
+        log.logic("createRecord", () => ({
+            editable: this.editable,
+            group: group?.value,
+            ready: this.model.isReady,
+        }));
         if (!this.model.isReady && !this.model.config.groupBy.length && this.editable) {
             await this.model.whenReady;
         }
@@ -268,6 +276,14 @@ export class ListController extends MultiRecordController {
     async openRecord(record, options = {}) {
         const { force = false, newWindow } = options;
         const dirty = await record.isDirty();
+        log.logic("openRecord", () => ({
+            resModel: record.resModel,
+            resId: record.resId,
+            dirty,
+            force,
+            newWindow,
+            openAction: Boolean(this.archInfo.openAction),
+        }));
         if (dirty && !(await record.save())) {
             return;
         }
@@ -408,6 +424,10 @@ export class ListController extends MultiRecordController {
      * @returns {boolean}
      */
     onWillSaveMulti(editedRecord, changes) {
+        log.logic("onWillSaveMulti", () => ({
+            fields: Object.keys(changes),
+            deferred: this.hasMousedownDiscard,
+        }));
         if (this.hasMousedownDiscard) {
             this.nextActionsAfterMouseup.push(() =>
                 this.model.root.multiSave(editedRecord, changes),

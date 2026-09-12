@@ -41,7 +41,6 @@ const DIRECT_JUMP_HOTKEYS = 9;
 
 /** @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp */
 
-/** @extends {Component<any, import("@web/env").OdooEnv>} */
 const APPS_CONFIG_SHAPE = { order: Array, pinned: Array, hidden: Array };
 
 const APP_PROP = {
@@ -80,6 +79,7 @@ const APP_PROP = {
     },
 };
 
+/** @extends {Component<any, import("@web/env").OdooEnv>} */
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
     static appTemplate = "web.HomeMenu.App";

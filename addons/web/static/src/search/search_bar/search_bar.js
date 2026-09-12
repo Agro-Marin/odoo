@@ -6,6 +6,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Domain } from "@web/core/domain";
 import { SearchModelEvent } from "@web/core/events";
 import { getFieldCodec } from "@web/core/field_codec";
@@ -48,6 +50,8 @@ const FOLDABLE_TYPES = ["properties", "many2one", "many2many"];
 
 let nextItemId = 1;
 const SUB_ITEMS_DEFAULT_LIMIT = 8;
+
+const log = makeLogger("web.search.bar");
 
 export class SearchBar extends Component {
     static template = "web.SearchBar";
@@ -113,6 +117,7 @@ export class SearchBar extends Component {
     inputRef;
 
     setup() {
+        useLifecycleLog(log);
         this.root = useRef("root");
         this.ui = useService("ui");
 

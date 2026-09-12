@@ -8,9 +8,13 @@ import { Thread } from "@mail/core/common/thread";
 import { useThreadActions } from "@mail/core/common/thread_actions";
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+const log = makeLogger("mail.discuss");
+
 export class DiscussContent extends Component {
     static components = {
         ActionList,
@@ -25,6 +29,7 @@ export class DiscussContent extends Component {
     static template = "mail.DiscussContent";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.store = useService("mail.store");
         this.ui = useService("ui");

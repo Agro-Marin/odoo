@@ -2,9 +2,12 @@
 /** @odoo-module native */
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 const PREVIEW_MSG_MAX_SIZE = 350;
+
+const log = makeLogger("mail.out_of_focus");
 
 export class OutOfFocusService {
     /**
@@ -35,6 +38,7 @@ export class OutOfFocusService {
      * @param {import("models").Thread} [thread]
      */
     async notify(message, thread) {
+        log.logic("notify", () => ({ message: message.id, thread: thread?.localId }));
         const modelsHandleByPush = ["mixin.mail.thread", "discuss.channel"];
         if (
             modelsHandleByPush.includes(message.thread?.model) &&
@@ -86,6 +90,12 @@ export class OutOfFocusService {
      * @param {string} [param0.icon]
      */
     async sendNotification({ message, sound = true, title, type, icon }) {
+        log.logic("sendNotification", () => ({
+            type,
+            title,
+            sound,
+            native: this.canSendNativeNotification,
+        }));
         if (!this.canSendNativeNotification || !(await this.multiTab.isOnMainTab())) {
             if (sound) {
                 this._playSound();

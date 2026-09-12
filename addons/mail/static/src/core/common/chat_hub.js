@@ -9,11 +9,15 @@ import { Component, useEffect, useExternalListener, useRef, useState } from "@od
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 
 import { ChatBubble } from "./chat_bubble.js";
+const log = makeLogger("mail.chat_hub");
+
 export class ChatHub extends Component {
     static components = { ActionList, ChatBubble, ChatWindow, Dropdown };
     static props = [];
@@ -24,6 +28,7 @@ export class ChatHub extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.store = useService("mail.store");
         this.ui = useService("ui");

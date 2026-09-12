@@ -3,6 +3,7 @@
 
 import { reactive } from "@odoo/owl";
 import { router as _router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -219,6 +220,8 @@ function chainOnClose(own, stolen) {
         }
     };
 }
+
+const log = makeLogger("web.action");
 
 export class ActionManager {
     /**
@@ -482,6 +485,11 @@ export class ActionManager {
         const index = this._computeStackIndex(options, baseStack);
         const spliceAt = index < 0 ? baseStack.length : index;
         const nextStack = [...baseStack.slice(0, spliceAt), controller];
+        log.pipeline("updateUI", () => ({
+            jsId: controller.jsId,
+            index,
+            size: nextStack.length,
+        }));
         if (action.target !== "new" && options.newWindow) {
             return this._openActionInNewWindow(action, makeActionState(nextStack));
         }
@@ -502,9 +510,11 @@ export class ActionManager {
         if (baseStack !== this.controllerStack) {
             this._pendingDispatch = dispatch;
         }
+        const endDispatch = log.perf(`dispatch ${controller.jsId}`);
         try {
             return await this._dispatchInline(dispatch, options);
         } finally {
+            endDispatch({ type: action.type, view: controller.view?.type });
             this.settlePendingDispatch(dispatch);
         }
     }
@@ -755,9 +765,12 @@ export class ActionManager {
      */
     async _doAction(actionRequest, options = {}) {
         actionLog("doAction", actionRequest, options);
+        log.logic("doAction", () => ({ request: actionRequest, options }));
         options = { ...options };
+        const endFetch = log.perf("fetchAction");
         const actionProm = this.fetchAction(actionRequest, options.additionalContext);
         let action = await this.navigation.guard(actionProm);
+        endFetch({ type: action.type, id: action.id, tag: action.tag });
         action = this._preprocessAction(action, options.additionalContext);
         options.clearBreadcrumbs = action.target === "main" || options.clearBreadcrumbs;
 
@@ -769,11 +782,16 @@ export class ActionManager {
                 );
             }
             actionLog("dispatch", action.type, action.id || action.tag || "");
+            log.pipeline("dispatch", () => ({
+                type: action.type,
+                target: action.target,
+            }));
             return this._actionExecutors[action.type](action, options);
         }
         const handler = actionHandlersRegistry.get(action.type, undefined);
         if (handler !== undefined) {
             actionLog("handler", action.type);
+            log.pipeline("handler", () => ({ type: action.type }));
             return handler({ env: this.env, action, options });
         }
         throw new Error(
@@ -799,6 +817,11 @@ export class ActionManager {
      * @returns {Promise<any>}
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
+        log.logic("switchView", () => ({
+            viewType,
+            newWindow,
+            dialog: Boolean(this.dialog),
+        }));
         if (this.dialog || this._pendingDispatch) {
             return;
         }
@@ -851,6 +874,7 @@ export class ActionManager {
 
     /** @param {string} [jsId] */
     async restore(jsId) {
+        log.logic("restore", () => ({ jsId, stackSize: this.controllerStack.length }));
         let index;
         if (!jsId) {
             index = this.controllerStack.length - 2;
@@ -905,11 +929,13 @@ export class ActionManager {
     }
 
     destroy() {
+        log.lifecycle("destroy");
         this.uninstallActionCacheInvalidation();
         this.uninstallActionCacheInvalidation = () => {};
     }
 
     async loadState(/** @type {any} */ state = undefined) {
+        log.lifecycle("loadState", () => state);
         return loadState(this, state);
     }
 
@@ -927,6 +953,7 @@ export class ActionManager {
         }
 
         const newState = makeActionState(cStack);
+        log.logic("pushState", () => ({ state: newState, options }));
         actionStorage.setCurrentState(newState);
 
         cStack.at(-1).state = newState;

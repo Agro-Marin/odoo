@@ -24,6 +24,8 @@ import {
 } from "@point_of_sale/app/screens/product_screen/control_buttons/control_buttons";
 import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
 import { BarcodeVideoScanner } from "@web/components/barcode";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -31,6 +33,8 @@ import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { AlertDialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
+
+const log = makeLogger("pos.screen.product");
 
 export class ProductScreen extends Component {
     static template = "point_of_sale.ProductScreen";
@@ -50,6 +54,7 @@ export class ProductScreen extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.pos = usePos();
         this.ui = useService("ui");

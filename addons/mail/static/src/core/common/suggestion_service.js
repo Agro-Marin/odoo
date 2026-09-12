@@ -4,6 +4,7 @@ import { partnerCompareRegistry } from "@mail/core/common/partner_compare";
 import { cleanTerm } from "@mail/utils/common/format";
 import { toRaw } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { fuzzyLookup } from "@web/core/utils/search";
 
@@ -29,6 +30,8 @@ function byPrefixThenAlphaThenId(cleanedKeyFn, cleanedSearchTerm) {
 }
 
 /** @typedef {import("@web/components/emoji_picker/emoji_picker").Emoji} Emoji */
+const log = makeLogger("mail.suggestion");
+
 /** @typedef {import("@mail/core/common/suggestion_hook").Suggestion} Suggestion */
 export class SuggestionService {
     /**
@@ -62,6 +65,11 @@ export class SuggestionService {
      */
     async fetchSuggestions({ delimiter, term }, { thread, abortSignal } = {}) {
         const cleanedSearchTerm = cleanTerm(term);
+        log.pipeline("fetchSuggestions", () => ({
+            delimiter,
+            term: cleanedSearchTerm,
+            thread: thread?.localId,
+        }));
         switch (delimiter) {
             case "@":
                 await this.fetchPartnersRoles(cleanedSearchTerm, thread, {
@@ -202,6 +210,11 @@ export class SuggestionService {
     searchSuggestions({ delimiter, term }, { thread } = {}) {
         thread = toRaw(thread);
         const cleanedSearchTerm = cleanTerm(term);
+        log.logic("searchSuggestions", () => ({
+            delimiter,
+            term: cleanedSearchTerm,
+            thread: thread?.localId,
+        }));
         switch (delimiter) {
             case "@": {
                 const partners = this.searchPartnerSuggestions(

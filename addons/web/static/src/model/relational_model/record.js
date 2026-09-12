@@ -2,12 +2,15 @@
 /** @odoo-module native */
 
 import { markRaw, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ModelEvent } from "@web/core/events";
 import { isX2Many } from "@web/core/field_types";
 import { omit } from "@web/core/utils/collections/objects";
 import { Operation } from "@web/core/utils/operation";
 
 import { DataPoint } from "./datapoint.js";
+
+const log = makeLogger("web.model.record");
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
 import { sameMany2OneValue } from "./field_values.js";
 import { RecordEditState } from "./record_edit_state.js";
@@ -278,6 +281,11 @@ export class RelationalRecord extends DataPoint {
     }
 
     async discard() {
+        log.logic("discard", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            dirty: this.dirty,
+        }));
         this.model.closeUrgentSaveNotification();
         await this.model.askChanges();
         return this.model.mutex.exec(() => this.discardLocked());
@@ -349,6 +357,13 @@ export class RelationalRecord extends DataPoint {
      * @param {{ save?: boolean, withoutParentUpdate?: boolean }} [options]
      */
     async update(changes, { save, withoutParentUpdate } = {}) {
+        log.logic("update", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            fields: Object.keys(changes),
+            save: Boolean(save),
+            urgent: this.model.urgentSave.isActive,
+        }));
         if (this.model.urgentSave.isActive) {
             const envelope = await this.updateLocked(changes, { withoutParentUpdate });
             return openMultiEditEnvelope(envelope).result;
@@ -505,6 +520,13 @@ export class RelationalRecord extends DataPoint {
 
     /** @param {any} changes */
     applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
+        log.pipeline("applyChanges", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            changes: Object.keys(changes),
+            serverChanges: Object.keys(serverChanges),
+            undoable,
+        }));
         let undoChanges = NO_UNDO;
         if (undoable) {
             const initialTextValues = { ...this._textValues };
@@ -842,6 +864,12 @@ export class RelationalRecord extends DataPoint {
 
     /** @param {Mode} mode */
     switchModeLocked(mode) {
+        log.lifecycle("switchMode", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            from: this.config.mode,
+            to: mode,
+        }));
         this.model.patchConfig(this.config, { mode });
         if (mode === "readonly") {
             this._noUpdateParent = false;
@@ -883,6 +911,11 @@ export class RelationalRecord extends DataPoint {
         if (!onChangeFields.length) {
             return /** @type {Record<string, any>} */ ({});
         }
+        log.pipeline("onchange", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            fields: onChangeFields,
+        }));
 
         const localChanges = this.getChangesLocked(
             { ...this.changes, ...changes },

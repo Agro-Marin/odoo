@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { applyCounterAbsolute, applyCounterDelta } from "@mail/utils/common/counters";
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+const log = makeLogger("mail.bus");
+
 export class MailCoreWeb {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -25,6 +28,7 @@ export class MailCoreWeb {
              * @param {{id: number}} metadata
              */
             (payload, { id: notifId }) => {
+                log.pipeline("mail.activity/updated", () => payload);
                 if (notifId <= this.store.activity_counter_bus_id) {
                     return;
                 }
@@ -76,6 +80,7 @@ export class MailCoreWeb {
              * @param {{id: number}} metadata
              */
             (payload, { id: notifId }) => {
+                log.pipeline("mail.message/inbox", () => payload);
                 const { message_id: messageId, store_data } = payload;
                 this.store.insert(store_data);
                 /** @type {import("models").Message} */
@@ -106,6 +111,7 @@ export class MailCoreWeb {
              * @param {{id: number}} metadata
              */
             (payload, { id: notifId }) => {
+                log.pipeline("mail.message/mark_as_read", () => payload);
                 const { message_ids: messageIds, needaction_inbox_counter } = payload;
                 const inbox = this.store.inbox;
                 for (const messageId of messageIds) {

@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { isX2Many } from "@web/core/field_types";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
@@ -35,6 +36,8 @@ function isSameStoredValue(field, value, current) {
         formatServerValue(field.type, value) === formatServerValue(field.type, current)
     );
 }
+
+const log = makeLogger("web.model.list");
 
 export class DynamicList extends EditableListDataPoint {
     /** @type {DataPoint["setup"]} */
@@ -177,6 +180,11 @@ export class DynamicList extends EditableListDataPoint {
     }
 
     async enterEditMode(record) {
+        log.logic("enterEditMode", () => ({
+            resModel: this.resModel,
+            resId: record.resId,
+            already: this.editedRecord === record,
+        }));
         if (this.editedRecord === record) {
             return true;
         }
@@ -381,6 +389,13 @@ export class DynamicList extends EditableListDataPoint {
         const offset = params.offset === undefined ? this.offset : params.offset;
         const orderBy = params.orderBy === undefined ? this.orderBy : params.orderBy;
         const domain = params.domain === undefined ? this.domain : params.domain;
+        log.pipeline("load", () => ({
+            resModel: this.resModel,
+            offset,
+            limit,
+            orderBy,
+            domain,
+        }));
         return this.model.mutex.exec(() =>
             this.loadLocked(offset, limit, orderBy, domain),
         );
@@ -396,6 +411,11 @@ export class DynamicList extends EditableListDataPoint {
 
     /** @param {string} fieldName */
     sortBy(fieldName) {
+        log.logic("sortBy", () => ({
+            resModel: this.resModel,
+            fieldName,
+            orderBy: this.orderBy,
+        }));
         return this.model.mutex.exec(() => {
             const orderBy = computeNextOrderBy(fieldName, this.orderBy, false, {
                 resetOrderBy: [],
@@ -500,6 +520,11 @@ export class DynamicList extends EditableListDataPoint {
      */
     async _leaveEditMode({ discard } = {}) {
         let editedRecord = this.editedRecord;
+        log.logic("leaveEditMode", () => ({
+            resModel: this.resModel,
+            resId: editedRecord?.resId,
+            discard: Boolean(discard),
+        }));
         if (!editedRecord) {
             return true;
         }
@@ -566,6 +591,11 @@ export class DynamicList extends EditableListDataPoint {
 
     async multiSaveLocked(editedRecord, changes) {
         changes = this._dropUnchangedMultiEditValues(editedRecord, changes);
+        log.logic("multiSave", () => ({
+            resModel: this.resModel,
+            fields: Object.keys(changes),
+            selected: this.selection?.length,
+        }));
         if (!Object.keys(changes).length || editedRecord === this._recordToDiscard) {
             return;
         }
@@ -646,6 +676,12 @@ export class DynamicList extends EditableListDataPoint {
     }
 
     async resequenceLocked(originalList, resModel, movedId, targetId) {
+        log.logic("resequence", () => ({
+            resModel,
+            movedId,
+            targetId,
+            can: this.canResequence(),
+        }));
         if (this.resModel === resModel && !this.canResequence()) {
             return;
         }

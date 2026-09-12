@@ -5,6 +5,8 @@ import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { useOwnDebugContext } from "@web/core/debug/debug_context";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent, RouterEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -16,6 +18,8 @@ import { DebugMenu } from "@web/webclient/debug/debug_menu";
 import { ActionContainer } from "./actions/action_container.js";
 import { menuStorage } from "./menus/menu_storage.js";
 import { NavBar } from "./navbar/navbar.js";
+
+const log = makeLogger("web.webclient");
 
 export class WebClient extends Component {
     static template = "web.WebClient";
@@ -36,6 +40,7 @@ export class WebClient extends Component {
     hm;
 
     setup() {
+        useLifecycleLog(log);
         this.menuService = useService("menu");
         this.actionService = useService("action");
         this.hm = useService("home_menu");
@@ -98,6 +103,12 @@ export class WebClient extends Component {
     async loadRouterState() {
         const storedMenuId = menuStorage.readCurrentApp();
         let menuId = this._resolveMenuFromUrl(storedMenuId);
+        const endRoute = log.perf("loadRouterState");
+        log.pipeline("loadRouterState", () => ({
+            storedMenuId,
+            menuId,
+            route: router.current,
+        }));
         if (menuId) {
             this.menuService.setCurrentMenu(menuId);
         }
@@ -144,6 +155,7 @@ export class WebClient extends Component {
         } else {
             await this._loadDefaultApp();
         }
+        endRoute({ stateLoaded: Boolean(stateLoaded), menuId });
     }
 
     _loadDefaultApp() {

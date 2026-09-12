@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { isX2Many } from "@web/core/field_types";
 import { x2ManyCommands } from "@web/core/network/commands";
@@ -59,6 +60,8 @@ const RESTORABLE_STATE = {
 };
 
 const RESTORABLE_CONFIG_KEYS = ["limit", "offset"];
+
+const log = makeLogger("web.model.x2many");
 
 export class StaticList extends EditableListDataPoint {
     static type = "StaticList";
@@ -243,6 +246,11 @@ export class StaticList extends EditableListDataPoint {
      * @returns {Promise<void>}
      */
     applyCommands(commands, options = {}) {
+        log.pipeline("applyCommands", () => ({
+            resModel: this.resModel,
+            commands: commands.map((c) => c[0]),
+            sort: Boolean(options.sort),
+        }));
         return this.model.mutex.exec(async () => {
             await this.applyCommandsLocked(commands, omit(options, "sort"));
             if (options.sort) {
@@ -460,6 +468,13 @@ export class StaticList extends EditableListDataPoint {
 
     /** @param {{ limit?: number, offset?: number, orderBy?: object[] }} [options] */
     async load({ limit, offset, orderBy } = {}) {
+        log.pipeline("load", () => ({
+            resModel: this.resModel,
+            limit,
+            offset,
+            orderBy,
+            count: this.count,
+        }));
         if (this.editedRecord) {
             await this.model.askChanges();
         }
@@ -481,6 +496,7 @@ export class StaticList extends EditableListDataPoint {
 
     /** @param {{ add?: number[], remove?: number[] }} [options] */
     async addAndRemove({ add, remove } = {}) {
+        log.logic("addAndRemove", () => ({ resModel: this.resModel, add, remove }));
         return this.model.mutex.exec(async () => {
             const commands = [
                 ...(add || []).map((id) => x2ManyCommands.link(id)),
@@ -492,6 +508,7 @@ export class StaticList extends EditableListDataPoint {
     }
 
     async resequence(movedId, targetId) {
+        log.logic("resequence", () => ({ resModel: this.resModel, movedId, targetId }));
         return this.model.mutex.exec(() =>
             resequenceStaticList(this, movedId, targetId),
         );

@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { EventBus } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { CommandPaletteEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
@@ -67,6 +68,8 @@ commandSetupRegistry.addValidation({
     "*": true,
 });
 
+const log = makeLogger("web.command");
+
 class CommandService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -112,6 +115,10 @@ class CommandService {
      */
     openMainPalette(config = {}, onClose) {
         const providers = commandProviderRegistry.getAll();
+        log.logic("openMainPalette", () => ({
+            providers: providers.length,
+            searchValue: config.searchValue,
+        }));
         this._configByNamespace ??= this._buildConfigByNamespace(providers);
         const mainConfig = {
             configByNamespace: this._configByNamespace,
@@ -216,6 +223,12 @@ class CommandService {
         if (!command.name || !command.action || typeof command.action !== "function") {
             throw new Error("A Command must have a name and an action function.");
         }
+        log.lifecycle("registerCommand", () => ({
+            name: command.name,
+            category: options?.category,
+            hotkey: options?.hotkey,
+            global: options?.global,
+        }));
         /** @type {CommandRegistration} */
         const registration = /** @type {any} */ ({
             ...command,

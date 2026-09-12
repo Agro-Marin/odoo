@@ -4,6 +4,7 @@
 import { whenReady } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { warnUnknownOptions } from "@web/ui/overlay/presenter";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
@@ -91,6 +92,8 @@ class TrackedTooltip {
     }
 }
 
+const log = makeLogger("web.ui.tooltip");
+
 class TooltipService {
     /** @param {{ popover: any }} services */
     constructor({ popover }) {
@@ -159,6 +162,13 @@ class TooltipService {
      * @param {number} [param1.delay]
      */
     openTooltip(el, { tooltip = "", template, info, position, delay = OPEN_DELAY }) {
+        log.lifecycle("open", () => ({
+            tag: el.tagName,
+            tooltip,
+            template,
+            position,
+            delay,
+        }));
         this.cleanup();
         if (!tooltip && !template) {
             return;

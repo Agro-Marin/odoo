@@ -2,6 +2,8 @@
 /** @odoo-module native */
 
 import { Component, useRef } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
@@ -17,6 +19,8 @@ export function extractLayoutComponents(params) {
     return layoutComponents;
 }
 
+const log = makeLogger("web.search.layout");
+
 export class Layout extends Component {
     static template = "web.Layout";
     static props = {
@@ -28,6 +32,7 @@ export class Layout extends Component {
         display: {},
     };
     setup() {
+        useLifecycleLog(log);
         this.components = extractLayoutComponents(this.env.config);
         this.contentRef = useRef("content");
     }

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatMonetary } from "@web/core/formatters";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
@@ -10,6 +11,8 @@ import { useBankReconciliation } from "../bank_reconciliation_service.js";
 import { BankRecButtonList } from "../button_list/button_list.js";
 import { BankRecLineToReconcile } from "../line_to_reconcile/line_to_reconcile.js";
 import { BankRecReconciledLineName } from "../reconciled_line_name/reconciled_line_name.js";
+
+const log = makeLogger("account.bank_rec.line");
 
 export class BankRecStatementLine extends KanbanRecord {
     static template = "account.BankRecStatementLine";
@@ -91,6 +94,7 @@ export class BankRecStatementLine extends KanbanRecord {
     }
 
     async undoReconciliation() {
+        log.logic("undoReconciliation", () => ({ resId: this.props.record.resId }));
         await this.orm.call(
             "account.bank.statement.line",
             "action_undo_reconciliation",

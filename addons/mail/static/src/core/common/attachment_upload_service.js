@@ -1,10 +1,13 @@
 // @ts-check
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 
 /** @typedef {{data: FormData, xhr: XMLHttpRequest, type: string, title: string, res_model: string}} Upload */
+
+const log = makeLogger("mail.attachment_upload");
 
 export class AttachmentUploadService {
     /**
@@ -59,6 +62,11 @@ export class AttachmentUploadService {
      */
     _onUploadAdded(upload, tmpId) {
         const { thread, composer } = this.targetsByTmpId.get(tmpId);
+        log.pipeline("upload added", () => ({
+            tmpId,
+            thread: thread?.localId,
+            composer: Boolean(composer),
+        }));
         const tmpUrl = /** @type {string} */ (upload.data.get("tmp_url"));
         this.abortByAttachmentId.set(tmpId, upload.xhr.abort.bind(upload.xhr));
         const attachment = this.store["ir.attachment"].insert(
@@ -78,6 +86,7 @@ export class AttachmentUploadService {
      */
     _onUploadLoaded(upload, tmpId) {
         const response = this._parseUploadResponse(upload, tmpId);
+        log.pipeline("upload loaded", () => ({ tmpId, ok: Boolean(response) }));
         if (!response) {
             return;
         }
@@ -96,6 +105,7 @@ export class AttachmentUploadService {
      * @param {number} tmpId
      */
     _onUploadError(upload, tmpId) {
+        log.pipeline("upload error", () => ({ tmpId }));
         this.deferredByAttachmentId.get(tmpId).resolve();
         this._cleanupUploading(tmpId);
     }
@@ -204,6 +214,13 @@ export class AttachmentUploadService {
     async upload(thread, composer, file, options) {
         const tmpId = this.nextId--;
         const tmpURL = URL.createObjectURL(file);
+        log.logic("upload", () => ({
+            tmpId,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            thread: thread?.localId,
+        }));
         return this._upload(thread, composer, file, options, tmpId, tmpURL);
     }
 

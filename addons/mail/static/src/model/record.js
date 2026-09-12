@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { markup, toRaw } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 
 import {
@@ -46,6 +47,8 @@ function idValueOfCommand(command) {
             return data;
     }
 }
+
+const log = makeLogger("mail.model.record");
 
 export class Record {
     /** @type {import("./model_internal").ModelInternal} */
@@ -230,6 +233,7 @@ export class Record {
             Object.assign(record._, { localId: Model.localId(ids) });
             Object.assign(recordProxy, { ...ids });
             Model.records[record.localId] = recordProxy;
+            log.lifecycle("new", () => ({ localId: record.localId }));
             if (record.Model.getName() === "Store") {
                 Object.assign(record, {
                     env: Model._rawStore.env,
@@ -351,6 +355,7 @@ export class Record {
     delete() {
         const record = toRaw(this)._raw;
         const store = record._rawStore;
+        log.lifecycle("delete", () => ({ localId: record.localId }));
         return store.MAKE_UPDATE(function recordDelete() {
             store._.ADD_QUEUE("delete", record);
         });

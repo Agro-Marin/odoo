@@ -19,11 +19,15 @@ import {
     isIOS,
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { DiscussContent } from "./discuss_content.js";
+
+const log = makeLogger("mail.messaging_menu");
 
 export class MessagingMenu extends Component {
     static components = {
@@ -37,6 +41,7 @@ export class MessagingMenu extends Component {
     static template = "mail.MessagingMenu";
 
     setup() {
+        useLifecycleLog(log);
         super.setup();
         this.isIosPwa = isIOS() && isDisplayStandalone();
         this.store = useService("mail.store");

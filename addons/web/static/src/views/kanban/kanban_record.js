@@ -7,6 +7,8 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { luxon } from "@web/core/l10n/luxon";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -171,6 +173,8 @@ function isBinSize(value) {
     return /^\d+(\.\d*)? [^0-9]+$/.test(value);
 }
 
+const log = makeLogger("web.view.kanban.record");
+
 export class KanbanRecord extends Component {
     static components = {
         Dropdown,
@@ -219,6 +223,7 @@ export class KanbanRecord extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         useRenderCounter("kanban.KanbanRecord");
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         this.action = useAction();

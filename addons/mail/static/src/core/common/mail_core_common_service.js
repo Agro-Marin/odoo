@@ -1,7 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+const log = makeLogger("mail.bus");
+
 export class MailCoreCommon {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -17,6 +20,7 @@ export class MailCoreCommon {
         this.busService.subscribe(
             "ir.attachment/delete",
             /** @param {{id: number, message?: Object}} payload */ (payload) => {
+                log.pipeline("ir.attachment/delete", () => payload);
                 const { id: attachmentId, message: messageData } = payload;
                 if (messageData) {
                     this.store["mail.message"].insert(messageData);
@@ -32,6 +36,7 @@ export class MailCoreCommon {
              * @param {{id: number}} metadata
              */
             (payload, { id: notifId }) => {
+                log.pipeline("mail.message/delete", () => payload);
                 for (const messageId of payload.message_ids) {
                     this.store.deletedMessageIds.add(messageId);
                     const message = this.store["mail.message"].get(messageId);
@@ -49,12 +54,15 @@ export class MailCoreCommon {
              * @param {{message_ids: number[], starred: boolean}} payload
              * @param {Object} metadata
              */
-            (payload, metadata) =>
-                this._handleNotificationToggleStar(payload, metadata),
+            (payload, metadata) => {
+                log.pipeline("mail.message/toggle_star", () => payload);
+                this._handleNotificationToggleStar(payload, metadata);
+            },
         );
         this.busService.subscribe(
             "res.users.settings",
             /** @param {Object|undefined} payload */ (payload) => {
+                log.pipeline("res.users.settings", () => payload);
                 if (payload) {
                     this.store.settings.update(payload);
                 }
@@ -63,6 +71,7 @@ export class MailCoreCommon {
         this.busService.subscribe(
             "mail.record/insert",
             /** @param {Object} payload */ (payload) => {
+                log.pipeline("mail.record/insert", () => payload);
                 this.store.insert(payload);
             },
         );

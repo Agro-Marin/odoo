@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { EventBus, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { jsToPyLocale } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -24,6 +25,8 @@ export const unslugHtmlDataObject = (repr) => {
 };
 
 const ANONYMOUS_PROCESS_ID = "ANONYMOUS_PROCESS_ID";
+
+const log = makeLogger("website.service");
 
 export const websiteService = {
     dependencies: ["orm", "action", "hotkey"],
@@ -107,6 +110,10 @@ export const websiteService = {
 
         return {
             set currentWebsiteId(id) {
+                log.lifecycle("currentWebsiteId", () => ({
+                    from: currentWebsiteId,
+                    to: id,
+                }));
                 if (id === null) {
                     removeWebsiteId();
                     return;
@@ -144,6 +151,9 @@ export const websiteService = {
                 return bus;
             },
             set pageDocument(document) {
+                log.lifecycle("pageDocument", () => ({
+                    url: document?.location?.href,
+                }));
                 pageDocument = document;
                 if (!document) {
                     currentMetadata = {};
@@ -273,6 +283,13 @@ export const websiteService = {
             },
 
             goToWebsite({ websiteId, path, edition, translation, lang } = {}) {
+                log.logic("goToWebsite", () => ({
+                    websiteId,
+                    path,
+                    edition,
+                    translation,
+                    lang,
+                }));
                 this.websitePublicEnv = undefined;
                 if (lang) {
                     invalidateSnippetCache = true;
@@ -302,6 +319,7 @@ export const websiteService = {
                 ]);
             },
             async fetchWebsites() {
+                const endFetch = log.perf("fetchWebsites");
                 websites = (
                     await orm.webSearchRead("website", [], {
                         specification: {
@@ -314,14 +332,24 @@ export const websiteService = {
                         },
                     })
                 ).records;
+                endFetch({ websites: websites.length });
             },
             blockPreview(showLoader, processId) {
+                log.logic("blockPreview", () => ({
+                    showLoader,
+                    processId,
+                    blocking: blockingProcesses.length,
+                }));
                 if (!blockingProcesses.length) {
                     bus.trigger("BLOCK", { showLoader });
                 }
                 blockingProcesses.push(processId || ANONYMOUS_PROCESS_ID);
             },
             unblockPreview(processId) {
+                log.logic("unblockPreview", () => ({
+                    processId,
+                    blocking: blockingProcesses.length,
+                }));
                 const processIndex = blockingProcesses.indexOf(
                     processId || ANONYMOUS_PROCESS_ID,
                 );

@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
@@ -13,6 +14,8 @@ const MAX_DELAY = 60_000;
  * @property {() => (() => void)} lost
  * @property {() => void} restored
  */
+
+const log = makeLogger("web.connection");
 
 class ConnectionRecoveryService {
     constructor() {
@@ -50,6 +53,7 @@ class ConnectionRecoveryService {
 
     /** @param {ConnectionAnnouncer} announce */
     reportLost(announce) {
+        log.logic("reportLost", () => ({ alreadyLost: Boolean(this.notifRemove) }));
         if (this.notifRemove) {
             return;
         }
@@ -65,6 +69,7 @@ class ConnectionRecoveryService {
 
     /** @param {number} delay */
     poll(delay) {
+        log.logic("poll", () => ({ delay }));
         this.retryTimer = browser.setTimeout(() => {
             this.retryTimer = null;
             if (this.destroyed) {

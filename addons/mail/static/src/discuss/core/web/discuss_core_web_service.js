@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+const log = makeLogger("mail.bus");
+
 export class DiscussCoreWeb {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -22,6 +25,7 @@ export class DiscussCoreWeb {
             "res.users/connection",
             /** @param {{partnerId: number, username: string}} payload */
             async ({ partnerId, username }) => {
+                log.pipeline("res.users/connection", () => ({ partnerId, username }));
                 const notification = _t(
                     "%(user)s just connected for the first time. Wish them luck!",
                     {

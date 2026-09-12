@@ -1,10 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
+
 import { findGroupByGroupId } from "./search_group_by.js";
 import { fireAndForgetNotify } from "./search_notification.js";
 import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
+
+const log = makeLogger("web.search");
 
 /**
  * @template {new (...args: any[]) => any} T
@@ -67,6 +71,12 @@ export const SearchQueryMixin = (Base) =>
          */
         async addAutoCompletionValues(searchItemId, autocompleteValue) {
             const searchItem = this.searchItems[searchItemId];
+            log.logic("addAutoCompletionValues", () => ({
+                searchItemId,
+                type: searchItem.type,
+                fieldName: searchItem.fieldName,
+                label: autocompleteValue.label,
+            }));
             if (!["field", "field_property"].includes(searchItem.type)) {
                 return;
             }
@@ -87,6 +97,7 @@ export const SearchQueryMixin = (Base) =>
         }
 
         async clearQuery() {
+            log.logic("clearQuery", () => ({ query: this.query.length }));
             this.query = /** @type {any[]} */ ([]);
             this.orderByCount = /** @type {string|false} */ (false);
             return this._notify();
@@ -176,6 +187,7 @@ export const SearchQueryMixin = (Base) =>
 
         /** @param {number|symbol} groupId */
         async deactivateGroup(groupId) {
+            log.logic("deactivateGroup", () => ({ groupId }));
             if (groupId === SPECIAL) {
                 delete this.defaultGroupBy;
                 this.defaultGroupByRemoved = true;
@@ -193,6 +205,12 @@ export const SearchQueryMixin = (Base) =>
         /** @param {number} searchItemId */
         async toggleSearchItem(searchItemId) {
             const searchItem = this.searchItems[searchItemId];
+            log.logic("toggleSearchItem", () => ({
+                searchItemId,
+                type: searchItem.type,
+                description: searchItem.description,
+                invalid: searchItem.isInvalid,
+            }));
             if (searchItem.isInvalid) {
                 return;
             }
@@ -277,6 +295,11 @@ export const SearchQueryMixin = (Base) =>
          */
         async toggleDateFilter(searchItemId, generatorId) {
             const searchItem = this.searchItems[searchItemId];
+            log.logic("toggleDateFilter", () => ({
+                searchItemId,
+                generatorId,
+                description: searchItem.description,
+            }));
             if (searchItem.type !== "dateFilter") {
                 return;
             }
@@ -343,6 +366,11 @@ export const SearchQueryMixin = (Base) =>
          */
         async toggleDateGroupBy(searchItemId, intervalId) {
             const searchItem = this.searchItems[searchItemId];
+            log.logic("toggleDateGroupBy", () => ({
+                searchItemId,
+                intervalId,
+                fieldName: searchItem.fieldName,
+            }));
             if (searchItem.type !== "dateGroupBy") {
                 return;
             }

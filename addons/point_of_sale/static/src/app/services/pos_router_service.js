@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { zip } from "@web/core/utils/collections/arrays";
 import { escapeRegExp } from "@web/core/utils/format/strings";
@@ -18,6 +19,8 @@ const parseParams = (matches, paramSpecs) =>
             }
         }),
     );
+
+const log = makeLogger("pos.router");
 
 export class PosRouter extends SignalStore {
     static serviceDependencies = [];
@@ -133,6 +136,12 @@ export class PosRouter extends SignalStore {
     navigate(routeName, routeParams = {}) {
         const route = this.getRoute(routeName);
         const url = new URL(browser.location.href);
+        log.lifecycle("navigate", () => ({
+            routeName,
+            routeParams,
+            route,
+            from: this.path,
+        }));
 
         url.pathname = route.replace(
             /\{\w+:(\w+)\}/g,

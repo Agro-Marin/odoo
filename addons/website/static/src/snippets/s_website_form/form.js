@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { ReCaptcha } from "@google_recaptcha/js/recaptcha";
 import { scrollTo } from "@html_builder/utils/scrolling";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     formatDate,
     formatDateTime,
@@ -22,6 +23,8 @@ import { session } from "@web/session";
 import wUtils from "@website/js/utils";
 
 const { DateTime } = luxon;
+
+const log = makeLogger("website.form");
 
 export class Form extends Interaction {
     static selector = ".s_website_form form, form.s_website_form"; // !compatibility
@@ -355,6 +358,10 @@ export class Form extends Interaction {
     }
 
     async send() {
+        log.logic("send", () => ({
+            action: this.el.dataset.model_name,
+            fields: this.el.querySelectorAll(".s_website_form_field").length,
+        }));
         this.el
             .querySelector("#s_website_form_result, #o_website_form_result")
             ?.replaceChildren(); // !compatibility

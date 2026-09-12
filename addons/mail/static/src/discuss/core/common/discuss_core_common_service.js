@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { applyCounterDelta } from "@mail/utils/common/counters";
 import { markup, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+const log = makeLogger("mail.bus");
+
 export class DiscussCoreCommon {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -22,6 +25,7 @@ export class DiscussCoreCommon {
              * @param {{id: number}} metadata
              */
             (payload, metadata) => {
+                log.pipeline("discuss.channel/delete", () => payload);
                 const thread = this.store.Thread.insert({
                     id: payload.id,
                     model: "discuss.channel",
@@ -36,6 +40,7 @@ export class DiscussCoreCommon {
              * @param {{id: number}} metadata
              */
             (payload, metadata) => {
+                log.pipeline("discuss.channel/new_message", () => payload);
                 this.store.insert(payload.data);
                 this._handleNotificationNewMessage(payload, metadata);
             },
@@ -43,6 +48,7 @@ export class DiscussCoreCommon {
         this.busService.subscribe(
             "discuss.channel/transient_message",
             /** @param {{body: string, channel_id: number}} payload */ (payload) => {
+                log.pipeline("discuss.channel/transient_message", () => payload);
                 const { body, channel_id } = payload;
                 const message = this.store["mail.message"].insert({
                     author_id: this.store.odoobot,
@@ -66,6 +72,7 @@ export class DiscussCoreCommon {
              * @param {number} payload.partner_id
              */
             (payload) => {
+                log.pipeline("discuss.channel.member/fetched", () => payload);
                 const { channel_id, id, last_message_id, partner_id } = payload;
                 this.store["discuss.channel.member"].insert({
                     id,

@@ -11,6 +11,8 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { useDebugCategory } from "@web/core/debug/debug_context";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { viewLog } from "@web/core/utils/asset_log";
@@ -173,6 +175,8 @@ export function getDefaultConfig() {
         views: [],
     };
 }
+
+const log = makeLogger("web.view");
 
 export class ViewNotFoundError extends Error {}
 
@@ -411,6 +415,7 @@ export class View extends Component {
 
         this.handleActionLinks = useActionLinks({ resModel });
 
+        useLifecycleLog(log);
         onWillStart(() => this.loadView(this.props));
         onWillUpdateProps((nextProps) => this.onWillUpdateProps(nextProps));
 
@@ -422,6 +427,13 @@ export class View extends Component {
         const loadId = ++this.loadViewId;
         const { resModel, type } = props;
         viewLog("load", type, resModel || "");
+        const endLoad = log.perf(`loadView ${type} ${resModel || ""}`);
+        log.pipeline("loadView", () => ({
+            loadId,
+            type,
+            resModel,
+            viewId: props.viewId,
+        }));
         const config = /** @type {ViewConfig & Record<string, any>} */ (
             this.env.config
         );
@@ -432,6 +444,7 @@ export class View extends Component {
         const selection = resolveViewSelection(props, config.views);
         const loaded = await this.loadViewDescriptions(props, selection, config);
         if (loadId !== this.loadViewId) {
+            endLoad({ loadId, superseded: true });
             return;
         }
         config.views = selection.views;
@@ -441,6 +454,11 @@ export class View extends Component {
             ? /** @type {string} */ (archXmlDoc.getAttribute("js_class"))
             : props.jsClass || type;
         const descr = /** @type {any} */ (viewRegistry.get(jsClass));
+        log.logic("resolve", () => ({
+            loadId,
+            jsClass,
+            controller: descr.Controller?.name,
+        }));
 
         Object.assign(config, {
             rawArch: loaded.arch,
@@ -466,6 +484,7 @@ export class View extends Component {
             descr,
             searchMenuTypes,
         });
+        endLoad({ loadId, jsClass });
     }
 
     /**
@@ -639,6 +658,11 @@ export class View extends Component {
             nextProps.views ?? [],
             shallowEqual,
         );
+        log.logic("onWillUpdateProps", () => ({
+            reselected,
+            viewsChanged,
+            type: nextProps.type,
+        }));
         if (reselected || viewsChanged) {
             return this.loadView(nextProps);
         }

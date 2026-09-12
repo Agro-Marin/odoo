@@ -2,7 +2,11 @@
 /** @odoo-module native */
 
 import { Component, onWillDestroy, xml } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { AppEvent } from "@web/core/events";
+
+const log = makeLogger("web.action.container");
 
 export class ActionContainer extends Component {
     static props = {};
@@ -17,7 +21,13 @@ export class ActionContainer extends Component {
         /** @type {Record<string, any>} */
         this.info = {};
         /** @param {CustomEvent} event */
+        useLifecycleLog(log);
         this.onActionManagerUpdate = ({ detail: info }) => {
+            log.pipeline("update", () => ({
+                id: info.id,
+                component: info.Component?.name,
+                jsId: info.componentProps?.jsId,
+            }));
             this.info = info;
             this.render();
         };

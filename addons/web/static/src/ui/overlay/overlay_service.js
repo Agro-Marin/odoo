@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { markRaw, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { mainComponentEntry } from "@web/ui/main_components_container";
 import {
@@ -20,6 +21,8 @@ const services = registry.category("services");
  * rootId?: string;
  * }} OverlayServiceAddOptions
  */
+
+const log = makeLogger("web.ui.overlay");
 
 class OverlayService {
     constructor() {
@@ -54,6 +57,12 @@ class OverlayService {
      * @returns {Promise<void>}
      */
     _remove(id, onRemove = () => {}, removeParams) {
+        log.lifecycle("remove", () => ({
+            id,
+            component: this.overlays[id]?.component?.name,
+            known: id in this.overlays,
+            inFlight: this.removing.has(id),
+        }));
         if (!(id in this.overlays)) {
             return Promise.resolve();
         }
@@ -104,6 +113,13 @@ class OverlayService {
             sequence: options.sequence ?? DEFAULT_OVERLAY_SEQUENCE,
             rootId: options.rootId,
         };
+        log.lifecycle("add", () => ({
+            id,
+            component: component.name,
+            sequence: this.overlays[id].sequence,
+            rootId: options.rootId,
+            open: Object.keys(this.overlays).length,
+        }));
         return removeCurrentOverlay;
     }
 

@@ -3,12 +3,16 @@ import { Component, useEffect, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { normalize } from "@web/core/l10n/utils";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog";
+const log = makeLogger("pos.screen.partner_list");
+
 export class PartnerList extends Component {
     static components = { PartnerLine, Dialog, Input };
     static template = "point_of_sale.PartnerList";
@@ -22,6 +26,7 @@ export class PartnerList extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
         this.notification = useService("notification");

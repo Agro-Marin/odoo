@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { TrapDisabler } from "@point_of_sale/proxy_trap";
 import { uuidv4 } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import { BackLinkIndex } from "./backlink_index.js";
 import { Base } from "./base.js";
@@ -24,6 +25,7 @@ import {
 } from "./utils.js";
 
 const AVAILABLE_EVENT = ["create", "update", "delete"];
+const log = makeLogger("pos.models");
 
 export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
     const database = opts.databaseTable || {};
@@ -726,6 +728,14 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         _loadData(rawData, modelsToLoad = [], opts = {}) {
             this._loadingData = true;
             const deferredEvents = [];
+            const endLoad = log.perf("loadData");
+            log.pipeline("loadData", () => ({
+                models: Object.fromEntries(
+                    Object.entries(rawData).map(([m, rows]) => [m, rows?.length]),
+                ),
+                modelsToLoad,
+                opts,
+            }));
             try {
                 const results = {};
                 const { serverData = true, connectRecords = true } = opts;
@@ -827,6 +837,10 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 for (const [target, type, payload] of deferredEvents) {
                     target.triggerEvents(type, payload);
                 }
+                endLoad({
+                    models: Object.keys(rawData).length,
+                    events: deferredEvents.length,
+                });
             }
         }
 

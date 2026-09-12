@@ -242,6 +242,8 @@ class TestEveryToolAgrees:
         ("trace", "stamp"): "ROOT",
         ("patchorder", "patchorder"): "ROOT",
         ("lint", "migration_version_guard"): "ROOT",
+        ("debuglog", "debuglog"): "REPO",
+        ("debuglog", "debuglog_js"): "REPO",
         ("lint", "py_lint"): "REPO",
         ("testbaseline", "testbaseline"): "REPO_ROOT",
     }

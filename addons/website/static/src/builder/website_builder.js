@@ -27,6 +27,8 @@ import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component, onMounted, onWillStart } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -95,6 +97,8 @@ const TRANSLATION_PLUGINS = [
     },
 ];
 
+const log = makeLogger("website.builder.editor");
+
 export class WebsiteBuilder extends Component {
     static template = "website.WebsiteBuilder";
     static components = { Builder };
@@ -104,6 +108,7 @@ export class WebsiteBuilder extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.websiteService = useService("website");
         this.dialog = useService("dialog");
         useSetupAction({
@@ -126,6 +131,7 @@ export class WebsiteBuilder extends Component {
     }
 
     async discard() {
+        log.logic("discard", () => ({ canUndo: this.editor.shared.history.canUndo() }));
         await revertPreview(this.editor);
         if (this.editor.shared.history.canUndo()) {
             this.dialog.add(ConfirmationDialog, {
@@ -185,6 +191,9 @@ export class WebsiteBuilder extends Component {
     }
 
     async save() {
+        log.logic("save", () => ({
+            timedOut: this.editor.shared.operation.hasTimedOut(),
+        }));
         if (this.editor.shared.operation.hasTimedOut()) {
             const shouldContinue = await new Promise((resolve) => {
                 this.dialog.add(ConfirmationDialog, {
@@ -205,6 +214,7 @@ export class WebsiteBuilder extends Component {
         }
 
         // TODO: handle the urgent save and the fail of the save operation
+        const endSave = log.perf("save");
         await this.editor.shared.operation.next(
             async () => {
                 await this.editor.shared.savePlugin.save();
@@ -212,6 +222,7 @@ export class WebsiteBuilder extends Component {
             },
             { withLoadingEffect: false, canTimeout: false },
         );
+        endSave();
         this.reloadAfterTimeout();
     }
 

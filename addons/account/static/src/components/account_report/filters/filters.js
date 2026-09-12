@@ -1,16 +1,15 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { status, Component, useState } from "@odoo/owl";
-
-import { useService } from "@web/core/utils/hooks";
-import { WarningDialog } from "@web/components/errors";
-
+import { Component, status, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { WarningDialog } from "@web/components/errors";
 import { MultiRecordSelector } from "@web/components/record_selectors";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { formatDate, parseDate } from "@web/core/l10n/dates";
-
+import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
 
 import { DateTime } from "luxon";
 function findNearestDropdownItem(navigator) {
@@ -20,6 +19,8 @@ function findNearestDropdownItem(navigator) {
         }
     }
 }
+
+const log = makeLogger("account.report.filters");
 
 export class AccountReportFilters extends Component {
     static template = "account.AccountReportFilters";
@@ -32,6 +33,7 @@ export class AccountReportFilters extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.dialog = useService("dialog");
         this.orm = useService("orm");
         this.notification = useService("notification");
@@ -109,12 +111,9 @@ export class AccountReportFilters extends Component {
 
     get isHorizontalGroupSelected() {
         return this.controller.cachedFilterOptions.available_horizontal_groups.some(
-            (group) => {
-                return (
-                    group.id ===
-                    this.controller.cachedFilterOptions.selected_horizontal_group_id
-                );
-            },
+            (group) =>
+                group.id ===
+                this.controller.cachedFilterOptions.selected_horizontal_group_id,
         );
     }
 
@@ -139,9 +138,14 @@ export class AccountReportFilters extends Component {
     }
 
     get selectedSectionName() {
-        for (const section of this.controller.cachedFilterOptions.sections)
-            if (section.id === this.controller.cachedFilterOptions.selected_section_id)
+        for (const section of this.controller.cachedFilterOptions.sections) {
+            if (
+                section.id === this.controller.cachedFilterOptions.selected_section_id
+            ) {
                 return section.name;
+            }
+        }
+        return undefined;
     }
 
     get selectedAccountType() {
@@ -357,7 +361,7 @@ export class AccountReportFilters extends Component {
     }
 
     isExtraOptionFilterShown(option) {
-        let data = this.filterExtraOptionsData[option];
+        const data = this.filterExtraOptionsData[option];
         return (
             option in this.controller.cachedFilterOptions &&
             option in this.filterExtraOptionsData &&
@@ -379,9 +383,9 @@ export class AccountReportFilters extends Component {
     }
 
     get isBudgetSelected() {
-        return this.controller.cachedFilterOptions.budgets?.some((budget) => {
-            return budget.selected;
-        });
+        return this.controller.cachedFilterOptions.budgets?.some(
+            (budget) => budget.selected,
+        );
     }
 
     dateFrom(optionKey) {
@@ -643,8 +647,9 @@ export class AccountReportFilters extends Component {
         if (
             periodType === "return_period" &&
             !this.controller.cachedFilterOptions.return_periodicity
-        )
+        ) {
             periodType = "month";
+        }
 
         switch (periodType) {
             case "month":
@@ -731,7 +736,7 @@ export class AccountReportFilters extends Component {
             periodNumber = Math.floor((12 + monthOffset) / monthsPerPeriod) + 1;
         }
 
-        let deltaMonth = periodNumber * monthsPerPeriod;
+        const deltaMonth = periodNumber * monthsPerPeriod;
 
         const endDate = DateTime.utc(year, startMonth, 1).plus({
             months: deltaMonth,
@@ -749,14 +754,15 @@ export class AccountReportFilters extends Component {
     setNumberPeriods(ev) {
         const numberPeriods = ev.target.value;
 
-        if (numberPeriods >= 1)
+        if (numberPeriods >= 1) {
             this.controller.cachedFilterOptions.comparison.number_period =
                 parseInt(numberPeriods);
-        else
+        } else {
             this.dialog.add(WarningDialog, {
                 title: _t("Odoo Warning"),
                 message: _t("Number of periods cannot be smaller than 1"),
             });
+        }
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -810,11 +816,12 @@ export class AccountReportFilters extends Component {
         this.controller.incrementCallNumber();
 
         this.timeout = setTimeout(async () => {
-            if (status(this) !== "destroyed")
+            if (status(this) !== "destroyed") {
                 await this.controller.reload(
                     optionKey,
                     this.controller.cachedFilterOptions,
                 );
+            }
         }, delay);
     }
 

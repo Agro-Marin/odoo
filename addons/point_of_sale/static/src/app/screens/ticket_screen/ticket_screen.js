@@ -20,6 +20,8 @@ import { InvoiceButton } from "@point_of_sale/app/screens/ticket_screen/invoice_
 import { SearchBar } from "@point_of_sale/app/screens/ticket_screen/search_bar/search_bar";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { BarcodeVideoScanner } from "@web/components/barcode";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { ConnectionLostError } from "@web/core/network";
@@ -31,6 +33,8 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { AlertDialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
 const NBR_BY_PAGE = 30;
+
+const log = makeLogger("pos.screen.ticket");
 
 export class TicketScreen extends Component {
     static storeOnOrder = false;
@@ -55,6 +59,7 @@ export class TicketScreen extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
         this.dialog = useService("dialog");

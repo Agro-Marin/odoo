@@ -3,6 +3,7 @@
 
 import { Component, markRaw, reactive, useChildSubEnv, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { warnUnknownOptions } from "@web/ui/overlay/presenter";
 
@@ -45,6 +46,8 @@ class DialogWrapper extends Component {
  * }} DialogServiceInterface
  */
 
+const log = makeLogger("web.ui.dialog");
+
 export class DialogService {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -75,6 +78,11 @@ export class DialogService {
     add(dialogClass, props, options = {}) {
         warnUnknownOptions("dialog", options, DIALOG_OPTIONS);
         const id = this.nextId++;
+        log.lifecycle("add", () => ({
+            id,
+            dialog: dialogClass.name,
+            options: Object.keys(options),
+        }));
         const close = (/** @type {any} */ params) => {
             subEnv.isClosing = true;
             return remove(params);

@@ -41,6 +41,8 @@
 @web/core/context  odoo enterprise
 @web/core/currency  odoo
 @web/core/debug/debug_context  odoo enterprise
+@web/core/debug/debug_logger  odoo enterprise agromarin
+@web/core/debug/logger_hooks  odoo enterprise agromarin
 @web/core/domain  odoo enterprise agromarin
 @web/core/errors/error_service  odoo
 @web/core/events  odoo

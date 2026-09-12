@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { EventBus, reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { publishEnclosingScopeResolver } from "@web/core/utils/active_element_scope";
@@ -14,6 +15,8 @@ export {
     getFirstAndLastTabableElements,
     useActiveElement,
 } from "@web/ui/active_element";
+
+const log = makeLogger("web.ui");
 
 class UiService {
     /** @param {import("@web/env").OdooEnv} env */
@@ -66,6 +69,7 @@ class UiService {
         }
         this.size = size;
         this.isSmall = size <= SIZES.SM;
+        log.logic("resize", () => ({ size, isSmall: this.isSmall }));
         this.bus.trigger(AppEvent.RESIZE);
     }
 
@@ -73,6 +77,10 @@ class UiService {
     block(data) {
         this.blockCount++;
         this.isBlocked = true;
+        log.logic("block", () => ({
+            blockCount: this.blockCount,
+            message: data?.message,
+        }));
         if (this.blockCount === 1) {
             this.bus.trigger(AppEvent.BLOCK, {
                 message: data?.message,
@@ -83,6 +91,7 @@ class UiService {
 
     unblock() {
         this.blockCount--;
+        log.logic("unblock", () => ({ blockCount: this.blockCount }));
         if (this.blockCount < 0) {
             console.warn(
                 "Unblock ui was called more times than block, you should only unblock the UI if you have previously blocked it.",

@@ -5,6 +5,7 @@ import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
+import { makeLogger } from "./debug/debug_logger.js";
 import {
     getBridgeModuleSource,
     isLoaderBridgeUrl,
@@ -17,6 +18,7 @@ import { runInBundleTransaction } from "./utils/bundle_transaction.js";
 import { globalSingleton } from "./utils/global_singleton.js";
 
 const log = makeAssetLog("js");
+const debugLog = makeLogger("web.assets");
 
 /**
  * @typedef {{
@@ -703,6 +705,11 @@ export const assets = {
         const cacheMap = globalBundleCache;
         const page = pageBundleOf(targetDoc);
         const cacheKey = page ? `${bundleName}|${page}` : bundleName;
+        debugLog.logic("getBundle", () => ({
+            bundleName,
+            page,
+            cached: cacheMap.has(cacheKey),
+        }));
         if (cacheMap.has(cacheKey)) {
             log("getBundle:cache-hit", bundleName);
             return /** @type {Promise<BundleFileNames>} */ (cacheMap.get(cacheKey));
@@ -772,6 +779,7 @@ export const assets = {
             "crossDoc=",
             targetDoc !== document,
         );
+        const endLoad = debugLog.perf(`loadBundle ${bundleName}`);
         const { cssLibs, jsLibs, esmUrl, esmSpecifiers, esmImportMap } =
             await getBundle(bundleName, { targetDoc });
         const promises = [];
@@ -794,6 +802,11 @@ export const assets = {
             promises.push(...jsLibs.map((url) => assets.loadJS(url, { targetDoc })));
         }
         const result = await Promise.all(promises);
+        endLoad({
+            css: cssLibs?.length || 0,
+            js: jsLibs?.length || 0,
+            esm: Boolean(esmUrl || esmSpecifiers),
+        });
         log("loadBundle:done", bundleName, "promises=", promises.length);
         return result;
     },
