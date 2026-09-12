@@ -99,10 +99,12 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         if sid is None:
             sid = self.httprequest.session_id
-        if not sid or not root.session_store.is_valid_key(sid):
-            session = root.session_store.new()
-        else:
-            session = root.session_store.get(sid)
+        with _debug.perf("http.session.load", has_cookie=bool(sid)) as span:
+            if not sid or not root.session_store.is_valid_key(sid):
+                session = root.session_store.new()
+            else:
+                session = root.session_store.get(sid)
+            span.set(found=not session.is_new)
 
         for key, val in prepare_default_session().items():
             session.setdefault(key, val)

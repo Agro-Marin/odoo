@@ -237,7 +237,8 @@ class _RequestServeMixin(RequestState):
 
     def _select_serve_target_and_mode(self, registry: Registry) -> tuple[Any, bool]:
         try:
-            rule, args = get_ir_http(registry)._match(self.httprequest.path)
+            with _debug.perf("http.route.match", db=registry.db_name):
+                rule, args = get_ir_http(registry)._match(self.httprequest.path)
         except NotFound as not_found_exc:
             _debug.logic(
                 "http.route.unmatched", path=self.httprequest.path, db=registry.db_name
@@ -379,13 +380,14 @@ class _RequestServeMixin(RequestState):
         env = self.env
         if env is None:
             raise RuntimeError("a database-bound request has an environment")
-        if cr.readonly:
-            _debug.lifecycle("http.serve.cursor_replaced", db=env.registry.db_name)
-            cr.close()
-            cr = env.registry.cursor()
-        else:
-            cr.rollback()
-            _debug.lifecycle("http.serve.cursor_reused", db=env.registry.db_name)
+        with _debug.perf("http.serve.cursor_ready", replaced=cr.readonly):
+            if cr.readonly:
+                _debug.lifecycle("http.serve.cursor_replaced", db=env.registry.db_name)
+                cr.close()
+                cr = env.registry.cursor()
+            else:
+                cr.rollback()
+                _debug.lifecycle("http.serve.cursor_reused", db=env.registry.db_name)
         if cr.readonly:
             _debug.logic("http.serve.cursor_still_readonly", db=env.registry.db_name)
             e = (
@@ -520,7 +522,12 @@ class _RequestServeMixin(RequestState):
 
     def _serve_ir_http(self, rule: Any, args: dict[str, Any]) -> Response:
         registry = self._get_bound_registry()
-        get_ir_http(registry)._authenticate(rule.endpoint)
+        with _debug.perf(
+            "http.serve.authenticate",
+            cr=getattr(self.env, "cr", None),
+            auth=rule.endpoint.routing.get("auth"),
+        ):
+            get_ir_http(registry)._authenticate(rule.endpoint)
         _debug.pipeline(
             "http.serve.authenticated",
             endpoint=getattr(rule.endpoint, "__qualname__", None),
