@@ -15,10 +15,11 @@ from odoo.addons.microsoft_calendar.utils.microsoft_calendar import (
     MicrosoftCalendarService,
 )
 from odoo.addons.microsoft_calendar.utils.microsoft_event import MicrosoftEvent
+from odoo.addons.resource.models.mixin_recurrence_rrule import (
+    MAX_RECURRENT_OCCURRENCES,
+)
 
 _logger = logging.getLogger(__name__)
-
-MAX_RECURRENT_EVENT = 720
 
 
 # API requests are sent to Microsoft Calendar after the current transaction ends.
@@ -218,7 +219,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
             )
             to_create_values = []
             if new_calendar_recurrence.get("end_type", False) in ["count", "forever"]:
-                to_create = list(to_create)[:MAX_RECURRENT_EVENT]
+                to_create = list(to_create)[:MAX_RECURRENT_OCCURRENCES]
             for recurrent_event in to_create:
                 if recurrent_event.type == "occurrence":
                     value = self.env[
@@ -301,7 +302,7 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
             lambda e: e.seriesMasterId == self.microsoft_id
         )
         if self.end_type in ["count", "forever"]:
-            events_to_update = list(events_to_update)[:MAX_RECURRENT_EVENT]
+            events_to_update = list(events_to_update)[:MAX_RECURRENT_OCCURRENCES]
 
         # ... and update them
         rec_values = {}

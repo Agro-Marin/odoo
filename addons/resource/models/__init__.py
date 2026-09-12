@@ -1,4 +1,5 @@
 from . import mixin_recurrence_rule
+from . import mixin_recurrence_rrule
 from . import res_company
 from . import res_users
 from . import resource_calendar

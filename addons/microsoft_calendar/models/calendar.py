@@ -11,6 +11,10 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.tools import email_normalize
 
+from odoo.addons.resource.models.mixin_recurrence_rrule import (
+    MAX_RECURRENT_OCCURRENCES,
+)
+
 ATTENDEE_CONVERTER_O2M = {
     "needsAction": "notresponded",
     "tentative": "tentativelyaccepted",
@@ -26,7 +30,6 @@ ATTENDEE_CONVERTER_M2O = {
     "organizer": "accepted",
 }
 VIDEOCALL_URL_PATTERNS = (r"https://teams.microsoft.com",)
-MAX_RECURRENT_EVENT = 720
 
 _logger = logging.getLogger(__name__)
 
@@ -839,11 +842,11 @@ class CalendarEvent(models.Model):
 
             if recurrence.end_type == "count":  # e.g. stop after X occurence
                 rule_range["numberOfOccurrences"] = min(
-                    recurrence.count, MAX_RECURRENT_EVENT
+                    recurrence.count, MAX_RECURRENT_OCCURRENCES
                 )
                 rule_range["type"] = "numbered"
             elif recurrence.end_type == "forever":
-                rule_range["numberOfOccurrences"] = MAX_RECURRENT_EVENT
+                rule_range["numberOfOccurrences"] = MAX_RECURRENT_OCCURRENCES
                 rule_range["type"] = "numbered"
             elif recurrence.end_type == "end_date":  # e.g. stop after 12/10/2020
                 rule_range["endDate"] = recurrence.until.isoformat()

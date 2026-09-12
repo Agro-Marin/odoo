@@ -21,16 +21,16 @@ from odoo.tools.translate import _
 
 from odoo.addons.base.models.res_partner import _selection_timezones
 from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
-from odoo.addons.calendar.models.calendar_recurrence import (
+from odoo.addons.calendar.models.utils import (
+    generate_calendar_token,
+)
+from odoo.addons.resource.models.mixin_recurrence_rrule import (
     BYDAY_SELECTION,
     END_TYPE_SELECTION,
     MONTH_BY_SELECTION,
     RRULE_TYPE_SELECTION,
     WEEKDAY_SELECTION,
     weekday_to_field,
-)
-from odoo.addons.calendar.models.utils import (
-    generate_calendar_token,
 )
 
 _logger = logging.getLogger(__name__)

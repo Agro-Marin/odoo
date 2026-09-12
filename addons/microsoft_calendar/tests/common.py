@@ -335,9 +335,12 @@ class TestCommon(EncryptionKeyCase, HttpCase):
                 self.recurrence_end_date.strftime("%Y-%m-%d"),
             ),
             "need_sync_m": False,
-            "rrule": "DTSTART:%s\nRRULE:FREQ=DAILY;INTERVAL=%s;UNTIL=%s"
+            # The stored rule is the RRULE payload alone: `_rrule_value` drops the
+            # DTSTART line dateutil renders, because `_rrule_serialize` builds the
+            # rule with no dtstart and that line therefore carried the moment the
+            # field was last computed rather than the start of the series.
+            "rrule": "FREQ=DAILY;INTERVAL=%s;UNTIL=%s"
             % (
-                self.start_date.strftime("%Y%m%dT%H%M%S"),
                 self.recurrent_event_interval,
                 self.recurrence_end_date.strftime("%Y%m%dT235959"),
             ),

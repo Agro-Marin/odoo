@@ -1668,3 +1668,126 @@ msgstr ""
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid "this week"
 msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rule.py:0
+msgid "The interval should be greater than 0"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Days"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Weeks on %(days)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Years"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Days for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Days until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Weeks on %(days)s for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Weeks on %(days)s until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months on the %(position)s %(weekday)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months day %(day)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Years for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Years until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid ""
+"Every %(interval)s Months on the %(position)s %(weekday)s for %(count)s "
+"events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid ""
+"Every %(interval)s Months on the %(position)s %(weekday)s until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months day %(day)s for %(count)s events"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "Every %(interval)s Months day %(day)s until %(until)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "The interval cannot be negative."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "The number of repetitions cannot be negative."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "A recurrence cannot repeat more than %(maximum)s times."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/mixin_recurrence_rrule.py:0
+msgid "You have to choose at least one day in the week"
+msgstr ""

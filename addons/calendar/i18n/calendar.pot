@@ -1380,12 +1380,6 @@ msgid ""
 msgstr ""
 
 #. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "A recurrence cannot repeat more than %(maximum)s times."
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.constraint,message:calendar.constraint_calendar_filters_user_id_partner_id_unique
 msgid "A user cannot have the same contact twice."
 msgstr ""
@@ -3185,99 +3179,6 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_form
 msgid "Every"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Days"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Days for %(count)s events"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Days until %(until)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Months day %(day)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Months day %(day)s for %(count)s events"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Months day %(day)s until %(until)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Months on the %(position)s %(weekday)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid ""
-"Every %(interval)s Months on the %(position)s %(weekday)s for %(count)s "
-"events"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid ""
-"Every %(interval)s Months on the %(position)s %(weekday)s until %(until)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Weeks on %(days)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Weeks on %(days)s for %(count)s events"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Weeks on %(days)s until %(until)s"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Years"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Years for %(count)s events"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "Every %(interval)s Years until %(until)s"
 msgstr ""
 
 #. module: calendar
@@ -5719,12 +5620,6 @@ msgid "The following question(s) do not have any selectable answers : %s"
 msgstr ""
 
 #. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "The interval cannot be negative."
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields,help:calendar.field_appointment_type__max_bookings
 msgid ""
 "The maximum amount of bookings per slot the appointment can handle (e.g. Allow 6 bookings for the given user/resource).\n"
@@ -5736,12 +5631,6 @@ msgstr ""
 msgid ""
 "The maximum amount of capacity a user can handle when manage capacity is "
 "enabled."
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "The number of repetitions cannot be negative."
 msgstr ""
 
 #. module: calendar
@@ -6310,12 +6199,6 @@ msgstr ""
 #: code:addons/calendar/static/src/booking/interactions/appointment_form.js:0
 #: code:addons/calendar/static/src/booking/interactions/appointment_validation.js:0
 msgid "You cannot invite more than 10 people"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/calendar_recurrence.py:0
-msgid "You have to choose at least one day in the week"
 msgstr ""
 
 #. module: calendar
