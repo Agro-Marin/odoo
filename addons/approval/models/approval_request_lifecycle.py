@@ -93,6 +93,7 @@ class ApprovalRequestLifecycle(models.Model):
                     message_type="notification",
                 )
 
+        trace.annotate(work=len(self))
         trace.LIFECYCLE.note(
             "bulk_done",
             action=action_label,
@@ -735,6 +736,7 @@ class ApprovalRequestLifecycle(models.Model):
                 rows = ordered[:1]
             to_open |= rows
 
+        trace.annotate(work=len(to_open) + len(to_wait))
         trace.LIFECYCLE.event(
             "round_opened",
             requests=self.ids,

@@ -441,12 +441,14 @@ class ApprovalRequestRouting(models.Model):
                 minimum_updates[request.id] = effective_minimum
 
         plan = self._prepare_sync_plan(rows_to_delete, rows_to_create, rows_to_update)
+        updates = sum(len(ids) for ids in rows_to_update.values())
+        trace.annotate(work=len(rows_to_delete) + len(rows_to_create) + updates)
         trace.ROUTING.event(
             "sync_plan",
             requests=self.ids,
             delete=len(rows_to_delete),
             create=len(rows_to_create),
-            update=sum(len(ids) for ids in rows_to_update.values()),
+            update=updates,
             minimums=len(minimum_updates),
         )
         if _logger.isEnabledFor(logging.DEBUG):
@@ -562,6 +564,7 @@ class ApprovalRequestRouting(models.Model):
                 key=lambda item: (item[1]["sequence"], item[0]),
             )
         ]
+        trace.annotate(work=len(rows))
         trace.ROUTING.note(
             "live_rows",
             request=self.id,

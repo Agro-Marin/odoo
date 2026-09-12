@@ -664,17 +664,85 @@ Mechanics worth knowing before adding a site:
   `approver_model.js`, `activity_patch.js` and `approvals_category_kanban_view.js` are
   declarations and registrations.
 
+### The performance switch, which is not one of the printing ones
+
+A run with every target at DEBUG is not the run whose timings anybody wants: writing
+102,333 lines dominates what it measures. So measurement has its own switch, and it
+works with the targets shut:
+
+```bash
+# the whole performance run: two variables and ONE handler
+APPROVAL_TRACE_SLOW_MS=25 APPROVAL_TRACE_NPLUSONE=1 \
+    odoo-bin -c p314o19m.conf -d <db> --log-handler odoo.approval.perf:INFO ...
+```
+
+| Variable | Effect |
+|----------|--------|
+| `APPROVAL_TRACE_SLOW_MS=N` | time every wrapped entry point; report the calls at or over N ms as `slow` |
+| `APPROVAL_TRACE_NPLUSONE=1` | report any call whose query count reached its row count as `n_plus_one` (implied by `SLOW_MS`) |
+
+Both land on `odoo.approval.perf` at INFO and nothing else speaks, so the output of
+such a run is the finding rather than a log to grep. Setting either also fills the
+ledger. `trace.accounting()` is the predicate the wrappers and `span` consult, and it
+is deliberately separate from `Target.on()`: **a test that asserts silence with
+`assertNoLogs` on `odoo.approval` sets that logger to DEBUG and so makes the span it
+was checking for print.** Ask `Target.on()` instead; `tests/test_campaign_instrumentation.py`
+says so where it would otherwise be rediscovered.
+
+What one such run says, on the sixteen-flow corpus behind the null control:
+
+```
+n_plus_one call=approval.category.create n=4  sql=19 per_row=4.75 ms=18.5
+slow       call=approval.request.action_confirm  ms=60.3 n=1 sql=43
+slow       call=approval.request.cron_consent_approval ms=26.6 n=1 sql=95
+ledger call=approval.approver._create_activity calls=37 total_ms=222 worst_ms=56.9
+       rows=22 sql=373 sql_per_call=10.1 sql_per_row=16.95
+```
+
+Read `n_plus_one` as a CANDIDATE list, not a verdict: a `create` legitimately issues
+several statements per record, so the flags worth working are on read paths, and
+`sql_per_row` is the column that separates them. A parent span's `sql` also includes
+its children's, so compare siblings rather than summing the column.
+
+### `annotate`: the batch is not always the work
+
+A wrapped entry point knows `n`, its batch size, and nothing else -- and `_sync_approvers`
+is called with ONE request and writes a plan of forty rows. The query count has to be
+read against the forty, so a method that knows its own work unit says so:
+
+```python
+trace.annotate(work=len(rows_to_delete) + len(rows_to_create) + updates)
+```
+
+`work=` is reserved: the ledger and the N+1 check prefer it over `n`. Eleven sites use
+it -- the sync plan, the live rows, an opening round, the three crons, the reminder
+fan-out, the activity fan-out and the prediction corpus. Outside a span it is a no-op,
+and it costs one thread-local read when nothing is measuring.
+
 ### The perf ledger
 
-Every span accumulates calls / total ms / slowest ms per event while its target is
-at DEBUG. From a shell:
+Every span accumulates calls, total and worst ms, rows and queries per event whenever
+the performance switch is set or `perf` is at DEBUG. From a shell:
 
 ```python
 from odoo.addons.approval.models import approval_trace as trace
 ...exercise the flow...
-trace.dump_perf_ledger()          # logs the table to odoo.approval.perf at INFO
-trace.perf_ledger()               # or read it as rows
+trace.dump_perf_ledger(top=14)    # logs the table to odoo.approval.perf at INFO
+trace.perf_ledger()               # or read it as LedgerRow tuples
+trace.forget_perf_ledger()        # measure one flow rather than the process
 ```
+
+`LedgerRow` carries `ms_per_call`, `sql_per_call` and `sql_per_row` derived, because
+those are the three numbers a reader actually ranks by.
+
+### The wrapped layer does not exist during at-install tests
+
+Odoo calls `register_model_hooks()` -- and so `base._register_hook`, and so
+`approval_trace.instrument` -- only after every module has loaded, which is after the
+at-install phase has run. **An at-install test sees the hand-placed events and no spans
+at all.** The two campaign test classes that depend on wrapping are therefore
+`@tagged("post_install", "-at_install")`, and a measurement that reports no spans may
+be reporting the phase rather than the code.
 
 ### Adding a call site
 
@@ -714,8 +782,8 @@ with every target at DEBUG it is a few percent plus the cost of writing the line
 The debt it does add is length, measured with the gates' own runners:
 
 ```
-py_class_length.py    --addon approval --count   4423 -> 5628  (+1205)
-py_function_length.py --addon approval --count    159 ->  265   (+106)
+py_class_length.py    --addon approval --count   4423 -> 5648  (+1225)
+py_function_length.py --addon approval --count    159 ->  267   (+108)
 ```
 
 Neither floor was moved: `pyclasslen_addons` and `pyfunclen_addons` are already

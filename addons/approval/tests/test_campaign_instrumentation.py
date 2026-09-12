@@ -10,11 +10,23 @@ drifts into a ranked work list that sends a session after noise:
   and not a biased sample of the sites somebody remembered;
 * every method `CALL_TRACES` names still exists, so a rename cannot silently unwrap
   an entry point and leave a target printing nothing.
+
+THE WRAPPED LAYER DOES NOT EXIST DURING AT-INSTALL TESTS. Odoo calls
+`register_model_hooks()` -- and so `base._register_hook`, and so
+`approval_trace.instrument` -- after every module has loaded, which is after the
+at-install phase has run. An at-install test therefore sees the hand-placed events
+and no spans at all, which is why the two classes that depend on wrapping are
+`post_install`. It is also worth knowing when reading a measurement: a suite run
+that reports no spans may be reporting the phase, not the code.
 """
 
 import ast
+import logging
 import re
 from pathlib import Path
+from unittest.mock import patch
+
+from odoo.tests import tagged
 
 from .common import ApprovalCommon
 from odoo.addons.approval.models import approval_trace as trace
@@ -158,6 +170,144 @@ class TestCampaignSwallowedFailures(ApprovalCommon):
         self.assertEqual(offenders, [], "\n".join(offenders))
 
 
+@tagged("post_install", "-at_install")
+class TestCampaignMeasurement(ApprovalCommon):
+    """The performance switch, which is deliberately NOT one of the printing ones.
+
+    A run with every target at DEBUG is not the run whose timings anybody wants:
+    the logging dominates. So `APPROVAL_TRACE_SLOW_MS` and `APPROVAL_TRACE_NPLUSONE`
+    turn measurement on while the targets stay quiet, and these tests pin that the
+    two switches are independent in both directions.
+    """
+
+    def setUp(self):
+        super().setUp()
+        trace.forget_perf_ledger()
+        self.addCleanup(trace.forget_perf_ledger)
+
+    def _shut_printing(self, target):
+        """Pin one target's level to WARNING for this test, whatever the run asked for.
+
+        Two of these tests are about what happens while nothing is printing, and the
+        suite is MEANT to be runnable under `--log-handler odoo.approval:DEBUG` --
+        that is how the formatting of every call site gets exercised. A test whose
+        premise is a log level has to set that level itself, or it fails on the
+        operator's flag rather than on the code.
+        """
+        logger = logging.getLogger(f"{trace.LOG_ROOT}.{target.name}")
+        before = logger.level
+        logger.setLevel(logging.WARNING)
+        self.addCleanup(logger.setLevel, before)
+
+    def test_a_span_is_timed_while_every_target_is_silent(self):
+        """NOT written with `assertNoLogs`, and that is the point.
+
+        `assertNoLogs("odoo.approval", "DEBUG")` sets that logger to DEBUG for the
+        duration, which is the very switch under test: it makes the span print and
+        then fails on the line it caused. A test that asserts silence on the logger
+        whose level controls the behaviour has changed the behaviour. The printing
+        switch is `Target.on()`, so ask it.
+        """
+        self._shut_printing(trace.LIFECYCLE)
+        self.assertFalse(trace.LIFECYCLE.on(), "the printing switch starts shut")
+        with patch.object(trace, "_WATCH_NPLUSONE", True):
+            with trace.LIFECYCLE.span("measured_but_not_printed", n=3) as span:
+                span["sql"] = 1
+            self.assertFalse(trace.LIFECYCLE.on(), "and stays shut while measuring")
+        ledger = {row.call: row for row in trace.perf_ledger()}
+        self.assertIn("measured_but_not_printed", ledger)
+        self.assertEqual(ledger["measured_but_not_printed"].rows, 3)
+        self.assertEqual(ledger["measured_but_not_printed"].sql, 1)
+
+    def test_nothing_is_timed_when_neither_switch_is_open(self):
+        # `accounting()` has THREE inputs -- the two variables and `perf` at DEBUG --
+        # and a run under `--log-handler odoo.approval:DEBUG` opens the third by
+        # inheritance. All three have to be shut to test the closed case.
+        self._shut_printing(trace.LIFECYCLE)
+        self._shut_printing(trace.PERF)
+        with (
+            patch.object(trace, "_WATCH_NPLUSONE", False),
+            patch.object(trace, "_SLOW_MS", None),
+        ):
+            with trace.LIFECYCLE.span("not_measured_at_all", n=3):
+                pass
+        self.assertEqual(trace.perf_ledger(), [])
+
+    def test_a_query_per_record_is_named_on_the_perf_target(self):
+        with (
+            patch.object(trace, "_WATCH_NPLUSONE", True),
+            self.assertLogs("odoo.approval.perf", level="INFO") as captured,
+        ):
+            with trace.ROUTING.span("one_query_each", n=10) as span:
+                span["sql"] = 20
+        self.assertTrue(
+            any(
+                "n_plus_one" in line and "per_row=2" in line for line in captured.output
+            ),
+            captured.output,
+        )
+
+    def test_a_batch_too_small_to_show_growth_is_not_named(self):
+        with patch.object(trace, "_WATCH_NPLUSONE", True):
+            with self.assertNoLogs("odoo.approval.perf", level="INFO"):
+                with trace.ROUTING.span("two_rows", n=2) as span:
+                    span["sql"] = 9
+
+    def test_a_slow_call_is_named_and_a_fast_one_is_not(self):
+        with patch.object(trace, "_SLOW_MS", 0.0):
+            with self.assertLogs("odoo.approval.perf", level="INFO") as captured:
+                with trace.LIFECYCLE.span("always_slow", n=1) as span:
+                    span["sql"] = 0
+        self.assertTrue(
+            any("slow" in line for line in captured.output), captured.output
+        )
+        with patch.object(trace, "_SLOW_MS", 60_000.0):
+            with self.assertNoLogs("odoo.approval.perf", level="INFO"):
+                with trace.LIFECYCLE.span("never_slow", n=1) as span:
+                    span["sql"] = 0
+
+    def test_annotate_reports_the_work_the_batch_size_hides(self):
+        """`_sync_approvers` is called with one request and writes forty rows; the
+        query count has to be read against the forty."""
+        with patch.object(trace, "_WATCH_NPLUSONE", True):
+            with self.assertLogs("odoo.approval.perf", level="INFO") as captured:
+                with trace.ROUTING.span("one_request_many_rows", n=1) as span:
+                    trace.annotate(work=40)
+                    span["sql"] = 40
+        row = {r.call: r for r in trace.perf_ledger()}["one_request_many_rows"]
+        self.assertEqual(row.rows, 40)
+        self.assertEqual(row.sql_per_row, 1)
+        self.assertTrue(any("n_plus_one" in line for line in captured.output))
+
+    def test_annotate_outside_a_span_is_a_no_op(self):
+        trace.annotate(work=7)
+        self.assertEqual(trace.perf_ledger(), [])
+
+    def test_the_ledger_reports_the_rates_a_reader_needs(self):
+        with patch.object(trace, "_WATCH_NPLUSONE", True):
+            for sql in (2, 4):
+                with trace.STEPS.span("summed", n=5) as span:
+                    span["sql"] = sql
+        row = {r.call: r for r in trace.perf_ledger()}["summed"]
+        self.assertEqual((row.calls, row.rows, row.sql), (2, 10, 6))
+        self.assertEqual(row.sql_per_call, 3)
+        self.assertEqual(row.sql_per_row, 0.6)
+        self.assertGreater(row.total_ms, 0)
+        self.assertLessEqual(row.worst_ms, row.total_ms)
+
+    def test_a_wrapped_entry_point_is_timed_with_the_targets_quiet(self):
+        """The wrapper short-circuits on `target.on()`; the switch has to reopen it."""
+        category = self._make_category(
+            name="Measured Confirm", approvers=[self.approver_1]
+        )
+        with patch.object(trace, "_WATCH_NPLUSONE", True):
+            self._prepare_request(category)
+        calls = {row.call for row in trace.perf_ledger()}
+        self.assertIn("approval.request.action_confirm", calls)
+        self.assertIn("approval.request._sync_approvers", calls)
+
+
+@tagged("post_install", "-at_install")
 class TestCampaignCallTraces(ApprovalCommon):
     def test_every_wrapped_method_exists(self):
         missing = [

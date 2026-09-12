@@ -374,7 +374,14 @@ maintainability / performance / lifecycle campaign, and it comes out when that
 campaign ends. Two things make it invisible until asked for: the `odoo.approval`
 logger root is levelled to `WARNING` at import unless the operator named it, and
 the wrapped entry points (`CALL_TRACES`, applied by `models.py`'s `_register_hook`)
-return the wrapped method's own result. Read conventions.md, "Campaign
+return the wrapped method's own result.
+
+**The performance half has its own switch**, because a run with every target at DEBUG
+is not a run whose timings mean anything: `APPROVAL_TRACE_SLOW_MS=25
+APPROVAL_TRACE_NPLUSONE=1` with `--log-handler odoo.approval.perf:INFO` measures every
+wrapped entry point and prints only the slow calls and the ones whose query count
+reached their row count. Note that the wrapped layer does not exist during at-install
+tests -- Odoo registers model hooks after that phase. Read conventions.md, "Campaign
 Instrumentation", before extending or removing it -- it carries the target table,
 the level discipline, the two switches and the removal recipe. **Do not treat it
 as permanent architecture.**

@@ -317,6 +317,7 @@ class ApprovalRequestEscalation(models.Model):
                     }
                 )
 
+        trace.annotate(work=reminders_sent)
         trace.CRON.note("escalation_done", reminded=reminders_sent)
         if reminders_sent:
             _logger.info("Smart escalation: Sent %s reminders", reminders_sent)
@@ -428,6 +429,7 @@ class ApprovalRequestEscalation(models.Model):
                     request.id,
                 )
 
+        trace.annotate(work=len(expired_requests))
         trace.CRON.note(
             "auto_expire_done",
             eligible=len(expired_requests),
@@ -499,6 +501,7 @@ class ApprovalRequestEscalation(models.Model):
                     request.id,
                 )
 
+        trace.annotate(work=len(eligible))
         trace.CRON.note("consent_done", eligible=len(eligible), approved=consent_count)
         if consent_count:
             _logger.info(
@@ -738,6 +741,7 @@ class ApprovalRequestEscalation(models.Model):
                 )
             reminded += 1
 
+        trace.annotate(work=len(pending_approvers))
         trace.ESCALATION.event(
             "reminded",
             request=self.id,

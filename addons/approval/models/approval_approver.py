@@ -422,6 +422,7 @@ class ApprovalApprover(models.Model):
                     **approver._get_source_activity_values(target),
                 },
             )
+        trace.annotate(work=len(create_vals_list))
         trace.ACTIVITY.event(
             "create_plan",
             rows=self.ids,

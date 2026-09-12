@@ -7,7 +7,7 @@ removed when it ends. ``machine_doc_v1/conventions.md`` ("Campaign
 instrumentation") is the reference: the target table, the level discipline, the
 switches and the removal recipe.
 
-Two switches, and both must be open for a line to reach a log:
+Three switches. Two decide what is PRINTED:
 
 1. The target's level. Every logger here is ``odoo.approval.<target>``, kept
    QUIET BY DEFAULT (``WARNING``) so an ordinary server or test run prints
@@ -20,6 +20,17 @@ Two switches, and both must be open for a line to reach a log:
    parent at DEBUG enables too; silence one with
    ``--log-handler odoo.approval.routing.items:INFO``.
 
+The third decides what is MEASURED, and it is independent on purpose: the useful
+performance questions -- which calls are slow, and which ask a query per record --
+have to be answerable on a run that is otherwise silent, because a run with every
+target at DEBUG is not the run whose timings you want.
+
+3. ``APPROVAL_TRACE_SLOW_MS=50`` times every wrapped entry point and reports only
+   the calls over 50 ms; ``APPROVAL_TRACE_NPLUSONE=1`` reports any call whose query
+   count grows with its batch. Both land on ``odoo.approval.perf`` at INFO, so
+   ``--log-handler odoo.approval.perf:INFO`` and nothing else is a clean
+   performance run. Either variable also fills the ledger (``dump_perf_ledger()``).
+
 Nothing here may change behaviour. Rendering never touches a field and degrades
 to a marker instead of raising, the wrappers return what they wrapped, and no
 target emits above INFO -- a real warning belongs on the module logger of the
@@ -29,12 +40,13 @@ file that found it, not on a campaign target that a future session deletes.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any
+from typing import Any, NamedTuple
 
 from odoo import models
 
@@ -46,8 +58,43 @@ _MAX_IDS = 10
 _MAX_ITEMS = 50
 _MAX_CHARS = 200
 
+#: A batch smaller than this says nothing about growth, so it is never flagged.
+_NPLUSONE_MIN_ROWS = 4
+SLOW_MS_VAR = "APPROVAL_TRACE_SLOW_MS"
+NPLUSONE_VAR = "APPROVAL_TRACE_NPLUSONE"
+
+#: the open spans of the running thread, innermost last, for `annotate`
+_open = threading.local()
 _depth = threading.local()
+
+#: event -> [calls, total_ms, worst_ms, rows, sql]
 _perf: dict[str, list[float]] = {}
+
+
+def _env_float(name: str) -> float | None:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        logging.getLogger(f"{LOG_ROOT}.perf").warning(
+            "Ignoring %s=%r: not a number of milliseconds.", name, raw
+        )
+        return None
+
+
+def _env_flag(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() not in (
+        "",
+        "0",
+        "false",
+        "no",
+    )
+
+
+_SLOW_MS = _env_float(SLOW_MS_VAR)
+_WATCH_NPLUSONE = _env_flag(NPLUSONE_VAR) or _SLOW_MS is not None
 
 
 # -- rendering -----------------------------------------------------------------
@@ -166,14 +213,20 @@ class Target:
         """Time a block and log it once, whether it returns or raises.
 
         Yields the field mapping so the body can add what it learns
-        (``span["rows"] = len(rows)``).
+        (``span["rows"] = len(rows)``). Runs whenever the target is printing OR
+        the performance switch is set, which are separate questions.
         """
-        if not self._logger.isEnabledFor(logging.DEBUG):
+        printing = self._logger.isEnabledFor(logging.DEBUG)
+        if not (printing or accounting()):
             yield _OFF_SPAN
             return
         depth = getattr(_depth, "value", 0)
         _depth.value = depth + 1
         spanned: dict[str, Any] = dict(fields)
+        open_spans = getattr(_open, "stack", None)
+        if open_spans is None:
+            open_spans = _open.stack = []
+        open_spans.append(spanned)
         outcome = "ok"
         started = time.perf_counter()
         try:
@@ -184,10 +237,15 @@ class Target:
         finally:
             elapsed_ms = (time.perf_counter() - started) * 1000
             _depth.value = depth
-            _account(event, elapsed_ms)
-            self._logger.debug(
-                _line(event, {**spanned, "ms": elapsed_ms, "d": depth, "r": outcome}),
-            )
+            open_spans.pop()
+            _account(event, elapsed_ms, spanned)
+            if printing:
+                self._logger.debug(
+                    _line(
+                        event, {**spanned, "ms": elapsed_ms, "d": depth, "r": outcome}
+                    ),
+                )
+            _report_outliers(event, elapsed_ms, spanned)
 
 
 # -- the targets ---------------------------------------------------------------
@@ -283,45 +341,137 @@ _quiet_by_default()
 # -- the perf ledger -----------------------------------------------------------
 
 
-def _account(event: str, elapsed_ms: float) -> None:
+def accounting() -> bool:
+    """Whether a span is worth timing even when nothing is printing it."""
+    return _SLOW_MS is not None or _WATCH_NPLUSONE or PERF.on()
+
+
+def annotate(**fields: Any) -> None:
+    """Add what this call actually did to the span that is timing it.
+
+    A wrapped entry point knows its batch size (``n``) and nothing else, and the
+    batch is often not the work: ``_sync_approvers`` is called with one request and
+    writes a plan of forty rows, and it is the forty that the query count should be
+    read against. A method that knows its own work unit says so here, and it costs
+    one thread-local read when nothing is measuring.
+
+    ``work=`` is the reserved name: `_report_outliers` prefers it over ``n`` when
+    deciding whether the queries grew with the work.
+    """
+    open_spans = getattr(_open, "stack", None)
+    if open_spans:
+        open_spans[-1].update(fields)
+
+
+def _account(event: str, elapsed_ms: float, measured: Mapping[str, Any]) -> None:
+    rows = measured.get("work") or measured.get("n") or 0
+    sql = measured.get("sql") or 0
     entry = _perf.get(event)
     if entry is None:
-        _perf[event] = [1, elapsed_ms, elapsed_ms]
+        _perf[event] = [1, elapsed_ms, elapsed_ms, rows, sql]
         return
     entry[0] += 1
     entry[1] += elapsed_ms
     entry[2] = max(entry[2], elapsed_ms)
+    entry[3] += rows
+    entry[4] += sql
 
 
-def perf_ledger() -> list[tuple[str, int, float, float]]:
-    """Every span seen so far: event, calls, total ms, slowest ms."""
+def _report_outliers(
+    event: str, elapsed_ms: float, measured: Mapping[str, Any]
+) -> None:
+    """The two performance questions worth interrupting a silent run for."""
+    rows = measured.get("work") or measured.get("n") or 0
+    sql = measured.get("sql") or 0
+    if _SLOW_MS is not None and elapsed_ms >= _SLOW_MS:
+        PERF.note("slow", call=event, ms=elapsed_ms, n=rows, sql=sql)
+    if _WATCH_NPLUSONE and rows >= _NPLUSONE_MIN_ROWS and sql >= rows:
+        PERF.note(
+            "n_plus_one",
+            call=event,
+            n=rows,
+            sql=sql,
+            per_row=sql / rows,
+            ms=elapsed_ms,
+        )
+
+
+class LedgerRow(NamedTuple):
+    """One wrapped entry point's cost, summed over a run.
+
+    ``sql`` and ``rows`` are sums over calls, and a parent span's ``sql`` INCLUDES
+    its children's -- so compare siblings, or read the deepest events first, rather
+    than adding the column up.
+    """
+
+    call: str
+    calls: int
+    total_ms: float
+    worst_ms: float
+    rows: int
+    sql: int
+
+    @property
+    def ms_per_call(self) -> float:
+        return self.total_ms / self.calls
+
+    @property
+    def sql_per_call(self) -> float:
+        return self.sql / self.calls
+
+    @property
+    def sql_per_row(self) -> float | None:
+        """Queries per record, the number an N+1 shows up in. None when no rows."""
+        return self.sql / self.rows if self.rows else None
+
+
+def perf_ledger() -> list[LedgerRow]:
+    """Every span seen so far, costliest first."""
     return sorted(
         (
-            (event, int(calls), total, worst)
-            for event, (calls, total, worst) in _perf.items()
+            LedgerRow(event, int(calls), total, worst, int(rows), int(sql))
+            for event, (calls, total, worst, rows, sql) in _perf.items()
         ),
-        key=lambda row: row[2],
+        key=lambda row: row.total_ms,
         reverse=True,
     )
 
 
-def dump_perf_ledger(reset: bool = True) -> None:
+def dump_perf_ledger(reset: bool = True, top: int | None = None) -> None:
     """Log the ledger to ``odoo.approval.perf`` at INFO, then clear it.
 
     Meant to be called from a shell after exercising a flow, or at the end of a
-    batch that is itself the thing being measured.
+    batch that is itself the thing being measured. ``top`` keeps the costliest N.
     """
-    for event, calls, total, worst in perf_ledger():
+    rows = perf_ledger()
+    PERF.note(
+        "ledger_begin",
+        calls=sum(row.calls for row in rows),
+        events=len(rows),
+        total_ms=sum(row.total_ms for row in rows),
+        slow_ms=_SLOW_MS,
+        nplusone=_WATCH_NPLUSONE,
+    )
+    for row in rows[:top] if top else rows:
         PERF.note(
             "ledger",
-            call=event,
-            calls=calls,
-            total_ms=total,
-            worst_ms=worst,
-            avg_ms=total / calls,
+            call=row.call,
+            calls=row.calls,
+            total_ms=row.total_ms,
+            worst_ms=row.worst_ms,
+            avg_ms=row.ms_per_call,
+            rows=row.rows,
+            sql=row.sql,
+            sql_per_call=row.sql_per_call,
+            sql_per_row=row.sql_per_row,
         )
     if reset:
         _perf.clear()
+
+
+def forget_perf_ledger() -> None:
+    """Drop what has been accounted so far. For tests, and for measuring one flow."""
+    _perf.clear()
 
 
 # -- the wrapped entry points --------------------------------------------------
@@ -385,6 +535,17 @@ CALL_TRACES: dict[str, dict[str, str]] = {
         "_compute_is_pending_my_review": "compute",
         "_compute_user_ids": "compute",
         "_compute_count_attachment": "compute",
+        "_compute_sla_elapsed_hours": "compute",
+        "_compute_sla_remaining_hours": "compute",
+        "_compute_approval_deadline": "compute",
+        "_compute_is_overdue": "compute",
+        "_compute_user_approver_state": "compute",
+        "_get_step_counts": "steps",
+        "_get_blocking_unmet_steps": "steps",
+        "_get_open_steps": "steps",
+        "_recent_approved_by_category": "crud",
+        "_smart_clone_defaults": "crud",
+        "_get_domain_pending_review": "search",
         "_search_is_pending_my_review": "search",
         "_search_is_overdue": "search",
         "_search_sla_status": "search",
@@ -408,6 +569,10 @@ CALL_TRACES: dict[str, dict[str, str]] = {
         "_create_activity": "activity",
         "_approve_for_every_step": "decision",
         "_compute_is_delegated": "delegation",
+        "_delegation_date_buckets": "delegation",
+        "_search_is_delegated": "search",
+        "_is_notifiable": "activity",
+        "_get_source_activity_values": "activity",
         "_get_effective_approver": "delegation",
         "_check_access_create": "access",
         "_check_access_write": "access",
@@ -416,6 +581,8 @@ CALL_TRACES: dict[str, dict[str, str]] = {
     "approval.category": {
         "create": "crud",
         "write": "crud",
+        "_compute_rule_count": "compute",
+        "_compute_template_count": "compute",
         "create_request": "lifecycle",
         "_compute_kanban_dashboard": "compute",
         "_compute_count_request_to_validate": "compute",
@@ -443,6 +610,11 @@ CALL_TRACES: dict[str, dict[str, str]] = {
         "_reset_coverage": "binding",
         "_sync_reset_automation": "binding",
         "_approve_on_invoke": "binding",
+        "_get_binding_ids": "binding",
+        "_get_action_binding_ids": "binding",
+        "_get_names_of_gated_models": "button",
+        "_get_covered_ids": "binding",
+        "_get_snapshot": "binding",
         "get_button_approvals": "button",
         "check_button_approval": "button",
         "action_decide_approval": "button",
@@ -452,6 +624,25 @@ CALL_TRACES: dict[str, dict[str, str]] = {
     },
     "approval.template": {
         "action_create_request": "template",
+        "_compute_usage_count": "compute",
+    },
+    "approval.refusal.reason": {
+        "_compute_usage_count": "compute",
+    },
+    "approval.binding.observation": {
+        "create": "crud",
+    },
+    "approval.metrics": {
+        "_query": "report",
+        "_read_group": "report",
+        "search_read": "report",
+        "search_fetch": "report",
+    },
+    "approver.performance": {
+        "_query": "report",
+        "_read_group": "report",
+        "search_read": "report",
+        "search_fetch": "report",
     },
     "approval.decision.wizard": {
         "action_confirm_refuse": "wizard",
@@ -472,13 +663,16 @@ CALL_TRACES: dict[str, dict[str, str]] = {
         "_compute_velocity_metrics": "report",
     },
     "ir.attachment": {
+        "_approval_terminal_parent_ids": "attachment",
         "_unlink_approved_approval_request": "attachment",
         "_check_approval_requirement_belongs_to_the_request": "attachment",
     },
     "mail.activity": {
         "_get_answering_approvers": "activity",
+        "_compute_approval_request_id": "compute",
     },
     "res.users": {
+        "_is_approval_manager": "access",
         "_approval_handover_on_archive": "crud",
     },
 }
@@ -487,7 +681,7 @@ CALL_TRACES: dict[str, dict[str, str]] = {
 def _traced(target: Target, event: str, origin: Any, on_vals: bool = False) -> Any:
     @wraps(origin)
     def traced(self, *args: Any, **kwargs: Any) -> Any:
-        if not target.on():
+        if not (target.on() or accounting()):
             return origin(self, *args, **kwargs)
         # `create` is called on an empty recordset, so its batch size is the
         # vals_list it was handed, not `self`.

@@ -108,13 +108,18 @@ done < <(grep -hoP '`\K(approval_\w+|approver_\w+|ir_attachment|mail_activity\w*
 # that is merely incomplete is the drift a reader cannot detect, the same
 # argument the file listing above makes, one level down.
 #
+# `fields\.[A-Z]` and not `fields\.`: every Odoo field type is capitalised, and a
+# local `rows = fields.get(...)` in a helper whose PARAMETER is called `fields` is not
+# a field declaration. The scan reported one, and the answer was to stop shadowing the
+# name AND to stop the pattern matching a lowercase attribute.
+#
 # Forward only. The reverse -- a documented field that no model declares --
 # needs the field bound to its model to be decidable, and the docs name fields
 # in prose as often as in tables, so it would report the prose as a defect.
 while read -r field; do
     [ -z "$field" ] && continue
     assert_doc_cites "\`$field\`" "field $field"
-done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.)' \
+done < <(grep -hoP '^    \K[a-z_][a-z0-9_]*(?= = fields\.[A-Z])' \
     "$MOD"/models/*.py "$MOD"/wizards/*.py "$MOD"/reports/*.py | sort -u)
 
 # ------------------------------------------------------------------- models --

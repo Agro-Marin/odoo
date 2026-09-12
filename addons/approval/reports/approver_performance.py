@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..models import approval_trace as trace
+
 
 class ApproverPerformance(models.Model):
     _name = "approver.performance"
@@ -48,7 +50,7 @@ class ApproverPerformance(models.Model):
     )
 
     def _get_fields_select(self) -> dict:
-        return {
+        columns = {
             "id": "MIN(a.id)",
             "user_id": "COALESCE(a.decided_by_user_id, a.user_id)",
             "company_id": "ar.company_id",
@@ -100,6 +102,15 @@ class ApproverPerformance(models.Model):
                     2
                 )""",
         }
+        trace.REPORT.event(
+            "view_shape",
+            model=self._name,
+            columns=len(columns),
+            tables=len(self._get_from_tables()),
+            group_by=len(self._get_fields_group_by()),
+            where=len(self._get_where_conditions()),
+        )
+        return columns
 
     def _get_from_tables(self) -> list:
         return [
