@@ -29,6 +29,9 @@ class IdlePoolReaper:
         self.ttl = ttl
         self.check_interval = max(1.0, ttl / 4) if ttl > 0 else 0.0
         self._last_check = 0.0
+        _debug.lifecycle(
+            "pool.reaper_created", ttl=ttl, check_interval=self.check_interval
+        )
 
     @property
     def enabled(self) -> bool:
@@ -61,6 +64,12 @@ class IdlePoolReaper:
             if now - getattr(pool, _LAST_BORROW_ATTR, now) <= self.ttl:
                 continue
             if get_checked_out_count(pool) > 0:
+                _debug.logic(
+                    "pool.reap_deferred",
+                    reason="checked_out",
+                    idle_s=now - getattr(pool, _LAST_BORROW_ATTR, now),
+                    checked_out=get_checked_out_count(pool),
+                )
                 continue
             reapable.append(key)
         _debug.pipeline(

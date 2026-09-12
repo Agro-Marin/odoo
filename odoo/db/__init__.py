@@ -73,19 +73,23 @@ def get_pool_health() -> dict:
 
 
 def close_db(db_name: str) -> None:
-    registry.close_db(db_name)
+    with _debug.perf("db.close_db", db=db_name):
+        registry.close_db(db_name)
 
 
 def close_all() -> None:
-    registry.close_all()
+    with _debug.perf("db.close_all"):
+        registry.close_all()
 
 
 def drain_db(db_name: str) -> None:
-    registry.drain_db(db_name)
+    with _debug.perf("db.drain_db", db=db_name):
+        registry.drain_db(db_name)
 
 
 def drain_all() -> None:
-    registry.drain_all()
+    with _debug.perf("db.drain_all"):
+        registry.drain_all()
 
 
 atexit.register(close_all)

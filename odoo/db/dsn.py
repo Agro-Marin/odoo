@@ -69,4 +69,12 @@ def _get_dsn_key(dsn: dict | str) -> frozenset:
         for k, v in dsn.items()
         if k != "password" and v is not None
     )
-    return frozenset((*items, ("password_fp", pw_fp)))
+    key = frozenset((*items, ("password_fp", pw_fp)))
+    _debug.logic(
+        "dsn.key_built",
+        db=dsn.get("dbname") or dsn.get("database"),
+        host=dsn.get("host"),
+        keys=len(key) - 1,
+        password=bool(password),
+    )
+    return key

@@ -5,9 +5,12 @@ from typing import Any
 
 import psycopg
 
+from odoo.libs.debug_log import DebugLog
+
 CURSOR_LOGGER_NAME = "odoo.db.cursor"
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
+_debug = DebugLog(__name__)
 
 
 PG_RETRY_EXCEPTIONS = (
@@ -39,6 +42,7 @@ def has_reached_server(exc: BaseException) -> bool:
 
 
 def mark_stale_cached_plan(exc: Exception) -> None:
+    _debug.lifecycle("errors.stale_plan_marked", error=type(exc).__name__)
     setattr(exc, _STALE_PLAN_ATTR, True)
 
 
@@ -55,6 +59,24 @@ def is_handled_by_seam(exc: BaseException) -> bool:
 
 
 def _log_sql_error(exc: Exception, query: Any, *, label: str = "query") -> None:
+    if _debug.logic.enabled:
+        if is_stale_cached_plan(exc):
+            klass = "stale_plan"  # debuglog
+        elif isinstance(exc, PG_RECOVERABLE_EXCEPTIONS):
+            klass = "recoverable"  # debuglog
+        elif isinstance(exc, PG_USER_FAULT_EXCEPTIONS):
+            klass = "user_fault"  # debuglog
+        else:
+            klass = "bad_statement"  # debuglog
+        _debug.logic(
+            "errors.sql_error_classified",
+            label=label,
+            error=type(exc).__name__,
+            sqlstate=getattr(exc, "sqlstate", None),
+            klass=klass,
+            retryable=isinstance(exc, PG_RETRY_EXCEPTIONS),
+            constraint=getattr(getattr(exc, "diag", None), "constraint_name", None),
+        )
     if is_stale_cached_plan(exc):
         _logger.warning(
             "stale cached plan discarded (caller may retry): %s: %s",

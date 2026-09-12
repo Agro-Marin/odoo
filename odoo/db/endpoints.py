@@ -34,6 +34,13 @@ def get_endpoint_key(
     expanded = _expand_conninfo(info)
     host = expanded.get("host") or settings.host or None
     port = expanded.get("port") or settings.port
+    _debug.logic(
+        "endpoints.key_from_uri",
+        host=host,
+        port=_coerce_port(port),
+        host_from_uri="host" in expanded,
+        port_from_uri="port" in expanded,
+    )
     return (host, _coerce_port(port))
 
 
@@ -146,7 +153,10 @@ class EndpointRegistry:
             return list(self._pools.values())
 
     def is_pooled(self, db_name: str) -> bool:
-        return any(pool.has_database(db_name) for pool in self.get_all_pools())
+        pools = self.get_all_pools()
+        pooled = any(pool.has_database(db_name) for pool in pools)
+        _debug.logic("endpoints.is_pooled", db=db_name, pooled=pooled, pools=len(pools))
+        return pooled
 
     def get_health(self, settings: PoolSettings | None = None) -> dict:
         settings = _get_settings(settings)

@@ -51,6 +51,12 @@ class ReachabilityProbe:
 
     def mark_proven(self, key: frozenset) -> None:
         with self._lock:
+            if _debug.lifecycle.enabled and key not in self._proven:
+                _debug.lifecycle(
+                    "pool.reachability_proven",
+                    db=dict(key).get("database"),
+                    proven=len(self._proven) + 1,
+                )
             self._proven.add(key)
 
     def clear_key(self, key: frozenset) -> None:
@@ -127,6 +133,11 @@ class ReachabilityProbe:
                 with self._lock:
                     del self._inflight[key]
                     probe.done.set()
+                _debug.pipeline(
+                    "pool.probe.leader_done",
+                    db=dict(key).get("database"),
+                    failed=probe.exc is not None,
+                )
         else:
             wait_timeout = (
                 None if deadline is None else max(0.0, deadline - monotonic())
@@ -146,6 +157,7 @@ class ReachabilityProbe:
     ) -> None:
         probe_timeout = get_libpq_connect_timeout(deadline, PROBE_CONNECT_TIMEOUT)
         if not probe_timeout:
+            _debug.logic("pool.probe.skipped_deadline", db=kwargs.get("dbname"))
             return
         self._stats.record_probe_started()
         probe_kwargs = {**kwargs, "autocommit": True}
@@ -187,6 +199,11 @@ class ReachabilityProbe:
                 exc_info=True,
             )
         else:
+            _debug.lifecycle(
+                "pool.probe.ok",
+                db=kwargs.get("dbname"),
+                backend_pid=getattr(getattr(conn, "info", None), "backend_pid", None),
+            )
             with contextlib.suppress(Exception):
                 conn.close()
 
@@ -198,12 +215,20 @@ class ReachabilityProbe:
         )
         db_name = kwargs.get("dbname") or maint.get("dbname")
         if not db_name or db_name == "postgres":
+            _debug.logic(
+                "pool.probe.absence_check_skipped",
+                db=db_name,
+                reason="maintenance_db" if db_name else "no_db_name",
+            )
             return False
         maint.pop("options", None)
         maint["dbname"] = "postgres"
         maint["autocommit"] = True
         probe_timeout = get_libpq_connect_timeout(deadline, PROBE_CONNECT_TIMEOUT)
         if not probe_timeout:
+            _debug.logic(
+                "pool.probe.absence_check_skipped", db=db_name, reason="deadline"
+            )
             return False
         maint["connect_timeout"] = probe_timeout
         try:

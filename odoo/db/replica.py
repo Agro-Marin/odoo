@@ -48,6 +48,14 @@ class ReplicaRouter:
             else CircuitBreaker(max_cooldown=REPLICA_RETRY_TIME)
         )
         self.lag = lag if lag is not None else ReplicaLagGate(max_lag)
+        _debug.lifecycle(
+            "replica.router_created",
+            db=getattr(primary, "dbname", None),
+            replica=readonly is not None,
+            max_lag=max_lag,
+            own_breaker=breaker is None,
+            own_lag_gate=lag is None,
+        )
 
     def get_health(self) -> dict:
         return {
@@ -127,6 +135,13 @@ class ReplicaRouter:
             measured = None
         was_allowed = self.lag.is_replica_usable()
         self.lag.record(measured)
+        if was_allowed != self.lag.is_replica_usable():
+            _debug.lifecycle(
+                "replica.lag_state_changed",
+                usable=self.lag.is_replica_usable(),
+                lag=self.lag.last_lag,
+                max_lag=self.lag.max_lag,
+            )
         if was_allowed and not self.lag.is_replica_usable():
             _logger.warning(
                 "Replica %.1fs behind (db_replica_max_lag=%.1fs); serving "

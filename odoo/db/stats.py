@@ -3,6 +3,10 @@ from __future__ import annotations
 import threading
 from time import monotonic
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 _WAIT_BUCKETS: tuple[float, ...] = (0.001, 0.01, 0.1, 1.0, 5.0, 30.0)
 
 _PROBE_OUTCOMES: dict[str, str] = {
@@ -66,6 +70,11 @@ class PoolStats:
     def record_borrow_failed(self) -> None:
         with self._lock:
             self.borrows_failed += 1
+            _debug.lifecycle(
+                "stats.borrow_failed",
+                failed=self.borrows_failed,
+                borrows=self.borrows,
+            )
 
     def record_direct_borrow(self) -> None:
         with self._lock:
@@ -170,4 +179,16 @@ class PoolStats:
             out["budget_available"] = budget.available
             out["budget_in_use"] = budget.in_use
             out["budget_exhausted"] = budget.exhausted_count
+        _debug.perf.count(
+            "stats.snapshot",
+            borrows=borrows,
+            failed=borrows_failed,
+            direct=borrows_direct,
+            wait_max_ms=wait_max * 1000.0,
+            pools=pools,
+            direct_out=direct_out,
+            probes=probe_run,
+            checked_out=out.get("checked_out"),
+            budget_in_use=out.get("budget_in_use"),
+        )
         return out

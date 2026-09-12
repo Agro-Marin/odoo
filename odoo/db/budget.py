@@ -18,6 +18,7 @@ class ConnectionBudget:
         self._cond = threading.Condition(threading.Lock())
         self._in_use = 0
         self._exhausted = 0
+        _debug.lifecycle("budget.created", maxconn=maxconn)
 
     def acquire(self, timeout: float) -> bool:
         endtime = None
@@ -43,6 +44,8 @@ class ConnectionBudget:
                     )
                     return False
             self._in_use += 1
+            if _debug.logic.enabled and self._in_use == self.maxconn:
+                _debug.logic("budget.saturated", maxconn=self.maxconn)
             if _debug.perf.enabled and waited_since:
                 _debug.perf.count(
                     "budget.waited",

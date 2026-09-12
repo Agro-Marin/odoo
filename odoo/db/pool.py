@@ -92,6 +92,12 @@ def _prepare_session_gucs(base_options: str, configured: str) -> str:
         name, value = name.strip(), value.strip()
         if name and value and name not in already_set:
             gucs.append(f"-c {name}={value}")
+    _debug.logic(
+        "pool.session_gucs_prepared",
+        added=len(gucs),
+        already_set=len(already_set),
+        configured=configured,
+    )
     return " ".join(gucs)
 
 
@@ -164,6 +170,18 @@ class ConnectionPool:
         self._budget = budget if budget is not None else ConnectionBudget(maxconn)
         self._direct_out = 0
         self._probe = ReachabilityProbe(self.stats)
+        _debug.lifecycle(
+            "pool.manager_created",
+            readonly=readonly,
+            maxconn=maxconn,
+            minconn=minconn,
+            borrow_timeout=borrow_timeout,
+            max_lifetime=max_lifetime,
+            max_idle=max_idle,
+            reap_idle_ttl=reap_idle_ttl,
+            own_budget=budget is None,
+            workers=pool_workers,
+        )
 
     def __repr__(self) -> str:
         pools = list(self._pools.values())
@@ -209,24 +227,35 @@ class ConnectionPool:
         with self._lock:
             pool = self._pools.get(key)
             if pool is not None and not pool.closed:
+                _debug.logic(
+                    "pool.create_raced", db=dict(key).get("database"), won=False
+                )
                 mark_active(pool)
                 return pool
 
-            pool = _PsycopgPool(
-                conninfo,
-                connection_class=psycopg.Connection,
-                kwargs=kwargs,
-                min_size=self._minconn,
-                max_size=self._maxconn,
-                max_lifetime=self._max_lifetime,
-                max_idle=self._max_idle,
-                reconnect_timeout=15,
-                configure=_configure_connection,
-                reset=self._reset_connection,
-                check=self._check_connection,
-                num_workers=self._pool_workers,
-                open=True,
-            )
+            with _debug.perf(
+                "pool.open",
+                db=dict(key).get("database"),
+                readonly=self._readonly,
+                min=self._minconn,
+                idle_session_ms=idle_session_ms,
+                rebuilt=pool is not None,
+            ):
+                pool = _PsycopgPool(
+                    conninfo,
+                    connection_class=psycopg.Connection,
+                    kwargs=kwargs,
+                    min_size=self._minconn,
+                    max_size=self._maxconn,
+                    max_lifetime=self._max_lifetime,
+                    max_idle=self._max_idle,
+                    reconnect_timeout=15,
+                    configure=_configure_connection,
+                    reset=self._reset_connection,
+                    check=self._check_connection,
+                    num_workers=self._pool_workers,
+                    open=True,
+                )
             mark_active(pool)
             self._pools[key] = pool
             self.stats.record_pool_created()
@@ -281,6 +310,7 @@ class ConnectionPool:
             return
         with self._lock:
             if not self._reaper.acquire_check_interval():
+                _debug.logic("pool.reap_skipped", reason="interval_taken")
                 return
             reap_keys = self._reaper.get_keys_reapable(self._pools)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
@@ -318,6 +348,7 @@ class ConnectionPool:
             key = _get_dsn_key(connection_info)
         dbname = connection_info.get("dbname") or dict(key).get("database", "")
         if is_maintenance_db(dbname, self._settings):
+            _debug.logic("pool.borrow_routed", db=dbname, route="direct")
             return self._borrow_directly(connection_info, deadline)
         try:
             pool = self._get_or_create_pool(key, connection_info, deadline)
@@ -354,12 +385,19 @@ class ConnectionPool:
             self._warn_about_leaks()
             self.stats.record_borrow(started)
             if _debug.perf.enabled:
+                pool_stats = pool.get_stats()  # debuglog
                 _debug.perf.count(
                     "pool.borrow",
                     db=dbname,
                     wait_ms=(monotonic() - started) * 1000.0,
-                    pool_size=pool.get_stats().get("pool_size", 0),
-                    available=pool.get_stats().get("pool_available", 0),
+                    pool_size=pool_stats.get("pool_size", 0),
+                    available=pool_stats.get("pool_available", 0),
+                    waiting=pool_stats.get("requests_waiting", 0),
+                    checked_out=len(self._checkouts),
+                    backend_pid=getattr(
+                        getattr(conn, "info", None), "backend_pid", None
+                    ),
+                    thread=threading.current_thread().name,
                 )
             return conn
         except BaseException as exc:
@@ -387,6 +425,11 @@ class ConnectionPool:
         )
 
     def _unwind_failed_borrow(self, conn: psycopg.Connection | None) -> None:
+        _debug.lifecycle(
+            "pool.borrow_unwound",
+            marked=conn is not None and "_odoo_pool" in conn.__dict__,
+            closed=None if conn is None else getattr(conn, "closed", None),
+        )
         if conn is not None and "_odoo_pool" in conn.__dict__:
             self.give_back(conn, keep_in_pool=False)
         else:
@@ -437,6 +480,13 @@ class ConnectionPool:
         )
         if not self._budget.acquire(_get_seconds_remaining(deadline)):
             self.stats.record_borrow_failed()
+            _debug.logic(
+                "pool.budget_exhausted",
+                db=kwargs.get("dbname"),
+                stage="direct",
+                budget=self._budget.maxconn,
+                direct=self._direct_out,
+            )
             raise self._prepare_budget_exhausted_error()
         conn = None
         try:
@@ -445,6 +495,11 @@ class ConnectionPool:
                     deadline, int(kwargs.get("connect_timeout", PROBE_CONNECT_TIMEOUT))
                 )
                 if not connect_timeout:
+                    _debug.logic(
+                        "pool.direct_deadline_passed",
+                        db=kwargs.get("dbname"),
+                        borrow_timeout=self._borrow_timeout,
+                    )
                     raise PoolError(
                         f"Could not acquire connection to maintenance database "
                         f"within the {self._borrow_timeout}s borrow budget"
@@ -535,6 +590,9 @@ class ConnectionPool:
                         if self._pools.get(key) is pool:
                             del self._pools[key]
                     self._close_pool_safely(pool)
+                    _debug.lifecycle(
+                        "pool.closed_after_timeout", db=dict(key).get("database")
+                    )
                 self._probe.clear_key(key)
                 _logger.info("Connection to the database failed: %s", e)
                 raise PoolError(str(e)) from e
@@ -559,7 +617,12 @@ class ConnectionPool:
             if _logger_conn.isEnabledFor(logging.DEBUG):
                 self._debug("Borrow connection backend PID %d", conn.info.backend_pid)
             conn._odoo_pool = pool
-        except BaseException:
+        except BaseException as exc:
+            _debug.logic(
+                "pool.borrowed_connection_rejected",
+                error=type(exc).__name__,
+                closed=getattr(conn, "closed", None),
+            )
             with contextlib.suppress(Exception):
                 pool.putconn(conn)
             raise
@@ -572,7 +635,7 @@ class ConnectionPool:
                 self._debug("Give back connection to %r", connection.info.dsn)
             else:
                 self._debug("Give back dead connection %r", connection)
-        self._checkouts.release(connection)
+        held_s = self._checkouts.release(connection)
         pool = connection.__dict__.pop("_odoo_pool", None)
         if pool is None:
             _debug.logic("pool.give_back_unmarked", closed=connection.closed)
@@ -585,9 +648,23 @@ class ConnectionPool:
             with self._lock:
                 self._direct_out -= 1
             self._budget.release()
+            _debug.pipeline(
+                "pool.give_back",
+                route="direct",
+                held_s=held_s,
+                direct_out=self._direct_out,
+            )
             self._reap_idle_pools_safely()
             return
 
+        _debug.pipeline(
+            "pool.give_back",
+            route="pooled",
+            held_s=held_s,
+            keep_in_pool=keep_in_pool,
+            closed=connection.closed,
+            outstanding=len(self._checkouts),
+        )
         mark_active(pool)
         try:
             if not keep_in_pool:
@@ -760,4 +837,10 @@ class Connection:
 
         if _logger.isEnabledFor(logging.DEBUG):
             _logger.debug("create cursor to %r", self.dsn)
+        _debug.pipeline(
+            "pool.cursor_requested",
+            db=self.__dbname,
+            readonly=self.__pool.readonly,
+            thread=threading.current_thread().name,
+        )
         return Cursor(self.__pool, self.__dbname, self.__dsn, key=self.__key)

@@ -105,12 +105,22 @@ class PoolSettings:
 
     def connection_keywords(self, readonly: bool = False) -> dict[str, Any]:
         keywords: dict[str, Any] = {}
+        overrides = 0  # debuglog
         for name, replica_name in REPLICA_OVERRIDABLE:
             value = getattr(self, name)
             if readonly:
-                value = getattr(self, replica_name) or value
+                replica_value = getattr(self, replica_name)  # debuglog
+                overrides += bool(replica_value)  # debuglog
+                value = replica_value or value
             if value:
                 keywords[name] = value
+        _debug.logic(
+            "settings.connection_keywords",
+            readonly=readonly,
+            keywords=len(keywords),
+            replica_overrides=overrides,
+            host=keywords.get("host"),
+        )
         return keywords
 
 

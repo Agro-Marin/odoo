@@ -55,9 +55,15 @@ class Savepoint:
 
     def rollback(self) -> None:
         if self.closed:
+            _debug.logic("savepoint.rollback_refused", name=self.name, reason="closed")
             raise RuntimeError(
                 f'Savepoint "{self.name}" is already closed; cannot roll back'
             )
+        _debug.lifecycle(
+            "savepoint.rolled_back",
+            name=self.name,
+            depth=getattr(self._cr, "_savepoint_depth", None),
+        )
         self._cr.execute(f'ROLLBACK TO SAVEPOINT "{self.name}"')
 
     def _close(self, rollback: bool) -> None:
@@ -99,13 +105,17 @@ class _FlushingSavepoint(Savepoint):
         cr = self._cr
         super().rollback()
         if cr.transaction is not None:
-            self._restore_orm_state(cr)
+            with _debug.perf("savepoint.orm_state_restored", cr=cr, name=self.name):
+                self._restore_orm_state(cr)
 
     def _close(self, rollback: bool) -> None:
         cr = self._cr
         try:
             if not rollback:
-                cr.flush()
+                with _debug.perf(
+                    "savepoint.flush_before_release", cr=cr, name=self.name
+                ):
+                    cr.flush()
         except Exception as e:
             rollback = True
             _debug.logic(

@@ -93,6 +93,7 @@ def get_connection_info_for_database(
     settings = settings if settings is not None else current()
     app_name = settings.app_name
     if "ODOO_PGAPPNAME" in os.environ:
+        _debug.logic("db.pgappname_deprecated", warned=_ODOO_PGAPPNAME_WARNED)
         if not _ODOO_PGAPPNAME_WARNED:
             warnings.warn(
                 "Since 19.0, use PGAPPNAME instead of ODOO_PGAPPNAME",
@@ -135,6 +136,13 @@ def get_connection_info_for_database(
     connection_info.update(settings.connection_keywords(readonly))
 
     connection_info.update(_HEALTH_PARAMS)
+    _debug.logic(
+        "db.connection_info",
+        db=db_or_uri,
+        readonly=readonly,
+        app_name=app_name,
+        keys=len(connection_info),
+    )
     return db_or_uri, connection_info
 
 

@@ -138,18 +138,29 @@ def _check_copy_args(
     on_error: str | None,
 ) -> None:
     if not columns:
+        _debug.logic("bulk.copy.args_refused", table=table, reason="no_columns")
         raise ValueError("copy_from: columns must be a non-empty list")
     if on_error is not None and on_error not in ("ignore", "stop"):
+        _debug.logic(
+            "bulk.copy.args_refused",
+            table=table,
+            reason="on_error_value",
+            on_error=on_error,
+        )
         raise ValueError(
             f"copy_from: invalid on_error {on_error!r}; "
             f"allowed values: 'ignore', 'stop'."
         )
     if on_error and binary:
+        _debug.logic("bulk.copy.args_refused", table=table, reason="on_error_binary")
         raise ValueError(
             "copy_from: on_error is not supported with binary=True; "
             "binary COPY has no ON_ERROR clause."
         )
     if on_error == "ignore" and returning_ids:
+        _debug.logic(
+            "bulk.copy.args_refused", table=table, reason="ignore_with_returning_ids"
+        )
         raise ValueError(
             "copy_from: on_error='ignore' is incompatible with "
             "returning_ids=True — pre-allocated sequence IDs cannot be "
@@ -158,12 +169,16 @@ def _check_copy_args(
             "inserts that need IDs."
         )
     if returning_ids and "id" in columns:
+        _debug.logic(
+            "bulk.copy.args_refused", table=table, reason="id_column_with_returning_ids"
+        )
         raise ValueError(
             "copy_from: columns must not already include 'id' when "
             "returning_ids=True — the id column is added automatically "
             "for the pre-allocated sequence values."
         )
     if cursor.in_pipeline:
+        _debug.logic("bulk.copy.args_refused", table=table, reason="in_pipeline")
         raise _errors.NotSupportedError(
             f"copy_from({table!r}) cannot run inside pipeline mode; "
             f"use execute_values, or move the COPY out of the enclosing "
@@ -205,6 +220,12 @@ def _add_binary_types_note(exc: Exception, table: str, columns: list) -> None:
 def _coerce_rows(rows: Iterable[Any], col_types: list[int]) -> Iterator[Any]:
     numeric_idxs = tuple(i for i, oid in enumerate(col_types) if oid == _NUMERIC_OID)
     json_idxs = tuple(i for i, oid in enumerate(col_types) if oid in _JSON_OIDS)
+    _debug.logic(
+        "bulk.copy.coercion",
+        columns=len(col_types),
+        numeric=len(numeric_idxs),
+        json=len(json_idxs),
+    )
     if not (numeric_idxs or json_idxs):
         yield from rows
         return
@@ -232,15 +253,26 @@ class _BulkAccessMixin:
         if isinstance(query, _sql.Composable):
             query = query.as_string(self._obj)
         if page_size <= 0:
+            _debug.logic(
+                "bulk.execute_values_refused", reason="page_size", page_size=page_size
+            )
             raise ValueError(f"execute_values page_size must be >= 1, got {page_size}")
         markers = get_value_marker_positions(query)
         if len(markers) != 1:
+            _debug.logic(
+                "bulk.execute_values_refused", reason="markers", markers=len(markers)
+            )
             raise ValueError(
                 f"execute_values requires exactly one '%s' marker in the "
                 f"query (for the VALUES list); got {len(markers)}."
             )
         marker_pos = markers[0]
         if not argslist:
+            _debug.logic(
+                "bulk.execute_values_empty",
+                db=getattr(self, "dbname", None),
+                fetch=fetch,
+            )
             return [] if fetch else None
         self._before_statement()
         results = []
@@ -259,8 +291,10 @@ class _BulkAccessMixin:
             db=getattr(self, "dbname", None),
             rows=len(argslist),
             page_size=page_size,
+            batches=len(batches),
             pipelined=use_pipeline,
             fetch=fetch,
+            template=template is not None,
         ) as span:
             try:
                 with ctx:
@@ -309,12 +343,12 @@ class _BulkAccessMixin:
 
         prepared = self._prepare_copy_rows(table, columns, rows, returning_ids)
         if prepared is None:
+            _debug.logic("bulk.copy.empty", table=table, returning_ids=returning_ids)
             return [] if returning_ids else None
         columns, rows, ids = prepared
 
         col_types = self._get_column_type_oids(table, columns) if binary else None
         if col_types is not None and not self._is_binary_copy_worthwhile(col_types):
-            _debug.logic("bulk.copy.binary_not_worthwhile", table=table)
             binary = False
             col_types = None
         _debug.logic(
@@ -443,6 +477,7 @@ class _BulkAccessMixin:
         cache = self._schema_cache
         seq_name = cache.get_id_sequence(table)
         if seq_name is not None:
+            _debug.perf.count("bulk.id_sequence_cached", table=table, sequence=seq_name)
             return seq_name
         ident = _get_table_identifier(table).as_string(self._cnx)
         self.execute(SQL("SELECT pg_get_serial_sequence(%s, 'id')", ident))
@@ -469,6 +504,7 @@ class _BulkAccessMixin:
             )
             row = self.fetchone()
             if not row or not row[0]:
+                _debug.logic("bulk.id_sequence_missing", table=table)
                 raise ValueError(f"No serial sequence found for {table}.id")
             seq_name = row[0]
             via = "pg_depend"  # debuglog
@@ -480,9 +516,21 @@ class _BulkAccessMixin:
 
     def _is_binary_copy_worthwhile(self: _CursorInternals, oids: list[int]) -> bool:
         if not self._can_dump_binary(oids):
+            _debug.logic(
+                "bulk.copy.binary_refused", reason="no_dumper", columns=len(oids)
+            )
             return False
         numeric = sum(1 for oid in oids if oid == _NUMERIC_OID)
-        return numeric <= len(oids) * _BINARY_NUMERIC_MAX_FRACTION
+        worthwhile = numeric <= len(oids) * _BINARY_NUMERIC_MAX_FRACTION
+        if not worthwhile:
+            _debug.logic(
+                "bulk.copy.binary_refused",
+                reason="numeric_fraction",
+                numeric=numeric,
+                columns=len(oids),
+                max_fraction=_BINARY_NUMERIC_MAX_FRACTION,
+            )
+        return worthwhile
 
     def _can_dump_binary(self: _CursorInternals, oids: list[int]) -> bool:
         try:
@@ -501,6 +549,10 @@ class _BulkAccessMixin:
     ) -> list[int]:
         cache = self._schema_cache
         types = cache.get_column_types(table, columns)
+        if types is not None:
+            _debug.perf.count(
+                "bulk.column_types_cached", table=table, columns=len(columns)
+            )
         if types is None:
             self._lock_table_for_bulk(table)
             self.execute(
@@ -532,6 +584,12 @@ class _BulkAccessMixin:
             type_map = dict(self.fetchall())
             missing = [col for col in columns if col not in type_map]
             if missing:
+                _debug.logic(
+                    "bulk.copy.columns_missing",
+                    table=table,
+                    missing=len(missing),
+                    columns=len(columns),
+                )
                 raise ValueError(
                     f"copy_from: column(s) {missing} not found in table "
                     f"{table!r} (current_schema)"

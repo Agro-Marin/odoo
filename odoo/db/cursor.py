@@ -22,7 +22,9 @@ from odoo.libs.sql import SQL
 from .bulk import _BulkAccessMixin
 from .ddl import _has_schema_changing_statement, _inline_ddl_params, classify_statement
 from .errors import (
+    PG_RECOVERABLE_EXCEPTIONS,
     PG_STALE_PLAN_EXCEPTIONS,
+    PG_USER_FAULT_EXCEPTIONS,
     _log_sql_error,
     has_reached_server,
     is_handled_by_seam,
@@ -94,6 +96,12 @@ class BaseCursor:
                         passes=passes + 1,
                     )
                 return
+            _debug.pipeline(
+                "cursor.flush_pass",
+                db=vars(self).get("dbname"),
+                pass_=passes + 1,
+                precommit=len(self.precommit),
+            )
             self.precommit.run()
             passes += 1  # debuglog
         if self.transaction is not None:
@@ -112,11 +120,22 @@ class BaseCursor:
             )
 
     def clear(self) -> None:
+        _debug.lifecycle(
+            "cursor.cleared",
+            db=vars(self).get("dbname"),
+            transaction=self.transaction is not None,
+            precommit_dropped=len(self.precommit),
+        )
         if self.transaction is not None:
             self.transaction.clear()
         self.precommit.clear()
 
     def reset(self) -> None:
+        _debug.lifecycle(
+            "cursor.reset",
+            db=vars(self).get("dbname"),
+            transaction=self.transaction is not None,
+        )
         if self.transaction is not None:
             self.transaction.reset()
 
@@ -176,6 +195,12 @@ class BaseCursor:
 
     def savepoint(self, flush: bool = True) -> Savepoint:
         if getattr(self, "in_pipeline", False):
+            _debug.logic(
+                "cursor.savepoint_refused",
+                db=vars(self).get("dbname"),
+                reason="in_pipeline",
+                depth=self._savepoint_depth,
+            )
             raise RuntimeError(
                 "cannot open a savepoint inside cr.pipeline(): PostgreSQL "
                 "discards every queued statement after an error, so the "
@@ -183,9 +208,22 @@ class BaseCursor:
                 "stays aborted. Take the savepoint around the pipeline block, "
                 "not inside it."
             )
+        _debug.logic(
+            "cursor.savepoint_requested",
+            db=vars(self).get("dbname"),
+            flush=flush,
+            depth=self._savepoint_depth,
+            transaction=self.transaction is not None,
+        )
         if flush:
             cls = self._flushing_savepoint_cls
             if self.transaction is not None and not cls._restores_orm_state:
+                _debug.logic(
+                    "cursor.savepoint_refused",
+                    db=vars(self).get("dbname"),
+                    reason="no_orm_seam",
+                    savepoint_cls=cls.__name__,
+                )
                 raise RuntimeError(
                     f"cursor has an ORM transaction but {cls.__name__} does not "
                     "restore ORM state on rollback; the odoo.orm.runtime savepoint "
@@ -203,6 +241,12 @@ class BaseCursor:
         exc_value: BaseException | None,
         traceback: object,
     ) -> None:
+        _debug.lifecycle(
+            "cursor.context_exit",
+            db=vars(self).get("dbname"),
+            commit=exc_type is None and not self._closed,
+            error=None if exc_type is None else exc_type.__name__,
+        )
         try:
             if exc_type is None and not self._closed:
                 self.commit()
@@ -285,6 +329,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 os.getenv("ODOO_FAKETIME_TEST_MODE")
                 and self.dbname in current_pool_settings().db_names
             ):
+                _debug.logic("cursor.search_path_pinned", db=dbname)
                 self.execute("SET search_path = public, pg_catalog;")
                 self._cnx.commit()
 
@@ -328,12 +373,16 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if size <= 0:
             return []
         rows = self._obj.fetchmany(size)
+        _debug.perf.count(
+            "cursor.fetch", shape="dictfetchmany", rows=len(rows), size=size
+        )
         if not rows:
             return []
         return self._rows_to_dict_list(rows)
 
     def dictfetchall(self) -> list[dict[str, Any]]:
         rows = self._obj.fetchall()
+        _debug.perf.count("cursor.fetch", shape="dictfetchall", rows=len(rows))
         if not rows:
             return []
         return self._rows_to_dict_list(rows)
@@ -342,10 +391,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         return self._obj.fetchone()
 
     def fetchall(self) -> list[tuple[Any, ...]]:
-        return self._obj.fetchall()
+        rows = self._obj.fetchall()
+        _debug.perf.count("cursor.fetch", shape="fetchall", rows=len(rows))
+        return rows
 
     def fetchmany(self, size: int = 0) -> list[tuple[Any, ...]]:
-        return self._obj.fetchmany(size)
+        rows = self._obj.fetchmany(size)
+        _debug.perf.count("cursor.fetch", shape="fetchmany", rows=len(rows), size=size)
+        return rows
 
     @property
     def description(self) -> list[Any] | None:
@@ -371,6 +424,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         start = real_time() if hooks else 0.0
         t0 = monotonic()
         counts = False
+        _debug.pipeline(
+            "cursor.copy_opened",
+            db=self.dbname,
+            custom_writer=writer is not None,
+            in_pipeline=self._pipeline_entered,
+        )
         try:
             with self._obj.copy(statement, params, writer=writer) as copy:
                 yield copy
@@ -432,6 +491,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         prepared: bool = True,
     ) -> bool:
         if is_handled_by_seam(exc):
+            _debug.logic(
+                "cursor.statement_seam_short_circuit",
+                db=vars(self).get("dbname"),
+                label=label,
+                error=type(exc).__name__,
+            )
             return has_reached_server(exc)
         mark_handled_by_seam(exc)
         if prepared:
@@ -445,7 +510,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             error=type(exc).__name__,
             sqlstate=getattr(exc, "sqlstate", None),
             reached_server=has_reached_server(exc),
+            recoverable=isinstance(exc, PG_RECOVERABLE_EXCEPTIONS),
+            user_fault=isinstance(exc, PG_USER_FAULT_EXCEPTIONS),
+            logged=log_exceptions,
             in_pipeline=vars(self).get("_pipeline_entered"),
+            savepoint_depth=vars(self).get("_savepoint_depth"),
         )
         return has_reached_server(exc)
 
@@ -470,6 +539,22 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 label,
                 rows,
                 self._format_statement(_render_query(query), params),
+            )
+        if _debug.perf.enabled:
+            qs = _get_statement_text(_render_query(query))  # debuglog
+            query_type, table = classify_query(qs)  # debuglog
+            words = qs.split(None, 1)  # debuglog
+            _debug.perf.count(
+                "cursor.statement",
+                db=vars(self).get("dbname"),
+                label=label,
+                head=words[0][:12].upper() if words else "",
+                kind=query_type,
+                table=table,
+                ms=delay * 1000.0,
+                rows=count,
+                ok=counts,
+                in_pipeline=vars(self).get("_pipeline_entered"),
             )
         if counts:
             self._record_metrics(
@@ -562,16 +647,21 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         qs = _get_statement_text(query)
         ddl_kw, rollback_to = classify_statement(qs)
         if ddl_kw is not None:
+            inlined = bool(params)  # debuglog
             if params:
                 query = _inline_ddl_params(qs, params, self._cnx)
                 params = None
-                _debug.logic(
-                    "cursor.ddl_params_inlined",
-                    db=vars(self).get("dbname"),
-                    keyword=ddl_kw,
-                )
             if prepare is None:
                 prepare = False
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "cursor.ddl_classified",
+                    db=vars(self).get("dbname"),
+                    keyword=ddl_kw,
+                    params_inlined=inlined,
+                    prepare=prepare,
+                    schema_changing=_has_schema_changing_statement(qs, ddl_kw),
+                )
         return query, params, prepare, qs, ddl_kw, rollback_to
 
     def invalidate_cached_plans(self) -> None:
@@ -585,6 +675,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._cnx.prepare_threshold = None
             self.execute("DEALLOCATE ALL")
             _debug.logic("cursor.prepared_cache_fallback", db=vars(self).get("dbname"))
+        else:
+            _debug.lifecycle(
+                "cursor.prepared_cache_cleared", db=vars(self).get("dbname")
+            )
         self._schema_cache.invalidate_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
@@ -604,6 +698,12 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             return False
         prepared = getattr(self._cnx, "_prepared", None)
         if prepared is None or not getattr(prepared, "_names", None):
+            _debug.logic(
+                "cursor.stale_plan_ignored",
+                db=vars(self).get("dbname"),
+                error=type(exc).__name__,
+                reason="no_prepared_statements",
+            )
             return False
         clear_prepared_cache(self._cnx)
         self._schema_cache.invalidate_catalog_facts()
@@ -618,7 +718,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     def _drain_sibling_connections(self) -> None:
         from . import drain_db
 
-        drain_db(self.dbname)
+        with _debug.perf("cursor.drain_siblings", db=self.dbname):
+            drain_db(self.dbname)
 
     def _invalidate_caches_after_ddl(self) -> None:
         _debug.logic("cursor.ddl_detected", db=vars(self).get("dbname"))
@@ -651,9 +752,16 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             params_seq if isinstance(params_seq, Collection) else list(params_seq)
         )
         if not rows:
+            _debug.logic("cursor.executemany_empty", db=self.dbname)
             return
 
         if ddl_kw is not None and any(rows):
+            _debug.logic(
+                "cursor.executemany_refused",
+                db=self.dbname,
+                reason="parameterised_ddl",
+                keyword=ddl_kw,
+            )
             raise ValueError(
                 f"executemany() cannot run parameterised DDL ({ddl_kw}); "
                 f"DDL takes no bound parameters. Issue it once with "
@@ -710,6 +818,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     ) -> Generator[None]:
         if self._pipeline_depth:
             self._pipeline_depth += 1
+            _debug.lifecycle(
+                "cursor.pipeline_nested", db=self.dbname, depth=self._pipeline_depth
+            )
             try:
                 yield
             finally:
@@ -720,11 +831,19 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._pipeline_statements = 0
         self._pipeline_statement_time = 0.0
         t0 = monotonic()
+        failed = None  # debuglog
+        _debug.pipeline(
+            "cursor.pipeline_opened",
+            db=self.dbname,
+            savepoint_depth=self._savepoint_depth,
+            query_given=query is not None,
+        )
         try:
             with ExitStack() as stack:
                 self._pipeline_stack = stack
                 yield
         except Exception as e:
+            failed = type(e).__name__  # debuglog
             if has_reached_server(e):
                 self._statement_failed(
                     e,
@@ -746,6 +865,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 entered=self._pipeline_entered,
                 statement_ms=self._pipeline_statement_time * 1000.0,
                 sync_ms=max(sync_cost, 0.0) * 1000.0,
+                error=failed,
             )
             self._pipeline_stack = None
             self._pipeline_depth = 0
@@ -807,12 +927,28 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     def commit(self) -> None:
         if self._closed:
+            _debug.logic(
+                "cursor.commit_refused", db=vars(self).get("dbname"), reason="closed"
+            )
             raise psycopg.InterfaceError("Cursor already closed")
         if self._savepoint_depth:
+            _debug.logic(
+                "cursor.commit_refused",
+                db=self.dbname,
+                reason="in_savepoint",
+                depth=self._savepoint_depth,
+            )
             raise RuntimeError(
                 "Cannot commit inside a savepoint! "
                 "This would corrupt the savepoint's rollback state."
             )
+        _debug.pipeline(
+            "cursor.commit_started",
+            db=self.dbname,
+            precommit=len(self.precommit),
+            postcommit=len(self.postcommit),
+            in_pipeline=self._pipeline_entered,
+        )
         with _debug.perf("cursor.commit.flush", cr=self, db=self.dbname):
             self.flush()
         with _debug.perf("cursor.commit.sync", db=self.dbname):
@@ -843,8 +979,19 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
 
     def rollback(self) -> None:
         if self._closed:
+            _debug.logic(
+                "cursor.rollback_refused",
+                db=vars(self).get("dbname"),
+                reason="closed",
+            )
             raise psycopg.InterfaceError("Cursor already closed")
         if self._savepoint_depth:
+            _debug.logic(
+                "cursor.rollback_refused",
+                db=self.dbname,
+                reason="in_savepoint",
+                depth=self._savepoint_depth,
+            )
             raise RuntimeError(
                 "Cannot rollback inside a savepoint! "
                 "Use cr.savepoint() for nested transaction control."
@@ -869,15 +1016,32 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             ):
                 self.prerollback.run()
         finally:
-            self._cnx.rollback()
+            with _debug.perf(
+                "cursor.rollback.sync",
+                db=self.dbname,
+                schema_changed_dropped=self._schema_changed,
+            ):
+                self._cnx.rollback()
             self._schema_changed = False
             self._schema_cache.clear()
         self._now = None
-        self.postrollback.run()
+        with _debug.perf(
+            "cursor.rollback.postrollback",
+            cr=self,
+            db=self.dbname,
+            hooks=len(self.postrollback),
+        ):
+            self.postrollback.run()
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("__") and name.endswith("__"):
             raise AttributeError(name)
+        _debug.logic(
+            "cursor.attribute_refused",
+            db=vars(self).get("dbname"),
+            name=name,
+            closed=self._closed,
+        )
         if self._closed:
             msg = "Cursor already closed"
             raise psycopg.InterfaceError(msg)

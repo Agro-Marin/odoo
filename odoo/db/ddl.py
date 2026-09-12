@@ -3,7 +3,11 @@ from typing import Any
 
 from psycopg import sql as _sql
 
+from odoo.libs.debug_log import DebugLog
+
 from .utils import get_value_marker_positions, iter_sql_code_ranges
+
+_debug = DebugLog(__name__)
 
 _DDL_KEYWORDS: tuple[str, ...] = (
     "CREATE",
@@ -75,10 +79,17 @@ def _has_schema_changing_statement(qs: str, leading: str | None) -> bool:
         return True
     if ";" not in qs:
         return False
-    return any(
-        _is_schema_changing_statement(part, _get_ddl_keyword(part))
-        for part in qs.split(";")[1:]
+    parts = qs.split(";")[1:]
+    later = any(
+        _is_schema_changing_statement(part, _get_ddl_keyword(part)) for part in parts
     )
+    _debug.logic(
+        "ddl.multi_statement_scanned",
+        leading=leading,
+        statements=len(parts) + 1,
+        schema_changing_later=later,
+    )
+    return later
 
 
 _DICT_MARKER_RE = _re.compile(r"%(?:%|\(([^)]+)\)s)")
@@ -99,6 +110,12 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
         }
         missing = referenced - params.keys()
         if missing:
+            _debug.logic(
+                "ddl.params_refused",
+                mode="named",
+                referenced=len(referenced),
+                missing=len(missing),
+            )
             raise ValueError(
                 "DDL parameter mismatch: marker(s) "
                 + ", ".join(f"%({n})s" for n in sorted(missing))
@@ -113,9 +130,16 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
                 return m.group(0)
             return _sql.quote(params[name], ctx)
 
+        _debug.logic("ddl.params_inlined", mode="named", referenced=len(referenced))
         return _DICT_MARKER_RE.sub(_replace_named_marker, qs)
     markers = get_value_marker_positions(qs)
     if len(markers) != len(params):
+        _debug.logic(
+            "ddl.params_refused",
+            mode="positional",
+            markers=len(markers),
+            params=len(params),
+        )
         raise ValueError(
             f"DDL parameter count mismatch: {len(markers)} '%s' "
             f"marker(s) but {len(params)} param(s)"
@@ -126,4 +150,5 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
         out.append(_sql.quote(value, ctx))
         prev = pos + 2
     out.append(qs[prev:].replace("%%", "%"))
+    _debug.logic("ddl.params_inlined", mode="positional", markers=len(markers))
     return "".join(out)

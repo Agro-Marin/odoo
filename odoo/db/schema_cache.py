@@ -31,6 +31,13 @@ class TransactionSchemaCache:
         return table in self._locked_tables
 
     def mark_locked(self, table: str, depth: int) -> None:
+        if _debug.lifecycle.enabled and table not in self._locked_tables:
+            _debug.lifecycle(
+                "schema_cache.table_locked",
+                table=table,
+                depth=depth,
+                locked=len(self._locked_tables) + 1,
+            )
         self._locked_tables.setdefault(table, depth)
 
     def release_locks_since_depth(self, depth: int) -> None:
@@ -81,4 +88,8 @@ class TransactionSchemaCache:
 
     def clear(self) -> None:
         self.invalidate_catalog_facts()
+        if _debug.lifecycle.enabled and self._locked_tables:
+            _debug.lifecycle(
+                "schema_cache.locks_cleared", tables=len(self._locked_tables)
+            )
         self._locked_tables.clear()

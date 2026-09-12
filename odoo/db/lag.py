@@ -64,6 +64,12 @@ class ReplicaLagGate:
         self._last_sample = 0.0
         self._lagging = False
         self.last_lag = 0.0
+        _debug.lifecycle(
+            "replica.lag_gate_created",
+            max_lag=max_lag,
+            sample_interval=self.sample_interval,
+            enabled=max_lag > 0,
+        )
 
     @property
     def enabled(self) -> bool:

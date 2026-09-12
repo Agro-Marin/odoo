@@ -4,6 +4,10 @@ import threading
 from time import monotonic
 from typing import NamedTuple
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 
 class Checkout(NamedTuple):
     since: float
@@ -50,12 +54,25 @@ class CheckoutTracker:
         now = monotonic()
         with self._report_lock:
             if now - self._last_report < interval:
+                _debug.logic(
+                    "leaks.report_throttled",
+                    interval=interval,
+                    since_last_s=now - self._last_report,
+                    outstanding=len(self._out),
+                )
                 return False
             self._last_report = now
             return True
 
     def describe(self, limit: int = 3, older_than: float = 0.0) -> str:
         held = self.get_checkouts_outstanding(older_than)
+        _debug.logic(
+            "leaks.described",
+            older_than=older_than,
+            held=len(held),
+            outstanding=len(self._out),
+            oldest_s=held[0].get_age() if held else 0.0,
+        )
         if not held:
             return ""
         shown = "; ".join(c.describe() for c in held[:limit])

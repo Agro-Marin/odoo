@@ -41,6 +41,11 @@ class CircuitBreaker:
         self._probing_since = 0.0
         self.failures = 0
         self.trips = 0
+        _debug.lifecycle(
+            "breaker.created",
+            initial_cooldown=initial_cooldown,
+            max_cooldown=max_cooldown,
+        )
 
     @property
     def closed(self) -> bool:

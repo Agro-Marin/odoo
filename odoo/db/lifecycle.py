@@ -53,6 +53,7 @@ def clear_prepared_cache(conn: psycopg.Connection) -> bool:
             error=type(e).__name__,
         )
         return False
+    _debug.lifecycle("connection.prepared_cache_cleared")
     return True
 
 
@@ -97,6 +98,11 @@ def _reset_connection(conn: psycopg.Connection, *, discard: bool | None = None) 
     conn.prepare_threshold = _PREPARE_THRESHOLD
     conn.prepared_max = _PREPARED_MAX
     setattr(conn, _IDLE_SINCE_ATTR, monotonic())
+    _debug.lifecycle(
+        "connection.returned_idle",
+        discard=discard,
+        backend_pid=getattr(getattr(conn, "info", None), "backend_pid", None),
+    )
 
 
 def _check_connection(conn: psycopg.Connection, *, grace: float | None = None) -> None:

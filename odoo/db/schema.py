@@ -54,6 +54,7 @@ _CONFDELTYPES = {
 
 
 def get_tables_existing(cr: BaseCursor, tablenames: Iterable[str]) -> list[str]:
+    asked = list(tablenames)
     cr.execute(
         SQL(
             """
@@ -63,11 +64,13 @@ def get_tables_existing(cr: BaseCursor, tablenames: Iterable[str]) -> list[str]:
            AND c.relkind = ANY(%s)
            AND c.relnamespace = current_schema::regnamespace
     """,
-            list(tablenames),
+            asked,
             ["r", "v", "m", "p", "f"],
         )
     )
-    return [row[0] for row in cr.fetchall()]
+    found = [row[0] for row in cr.fetchall()]
+    _debug.logic("schema.tables_existing", asked=len(asked), found=len(found))
+    return found
 
 
 class FunctionStatus(enum.IntEnum):
@@ -86,8 +89,13 @@ def get_unaccent_status(cr: BaseCursor) -> FunctionStatus:
     """)
     result = cr.fetchone()
     if not result:
-        return FunctionStatus.MISSING
-    return FunctionStatus.INDEXABLE if result[0] == "i" else FunctionStatus.PRESENT
+        status = FunctionStatus.MISSING
+    elif result[0] == "i":
+        status = FunctionStatus.INDEXABLE
+    else:
+        status = FunctionStatus.PRESENT
+    _debug.logic("schema.unaccent_status", status=status.name)
+    return status
 
 
 def has_trigram(cr: BaseCursor) -> bool:
@@ -96,11 +104,15 @@ def has_trigram(cr: BaseCursor) -> bool:
         WHERE proname = 'word_similarity'
           AND pronamespace = current_schema::regnamespace
     """)
-    return bool(cr.fetchone())
+    available = bool(cr.fetchone())
+    _debug.logic("schema.trigram_status", available=available)
+    return available
 
 
 def table_exists(cr: BaseCursor, tablename: str) -> bool:
-    return len(get_tables_existing(cr, {tablename})) == 1
+    exists = len(get_tables_existing(cr, {tablename})) == 1
+    _debug.logic("schema.table_exists", table=tablename, exists=exists)
+    return exists
 
 
 class TableKind(enum.Enum):
@@ -127,16 +139,25 @@ def get_table_kind(cr: BaseCursor, tablename: str) -> TableKind | None:
     )
     row = cr.fetchone()
     if row is None:
+        _debug.logic("schema.table_kind", table=tablename, kind=None)
         return None
 
     kind, persistence = row
     if kind == "r":
-        return TableKind.Temporary if persistence == "t" else TableKind.Regular
-
-    try:
-        return TableKind(kind)
-    except ValueError:
-        return TableKind.Other
+        result = TableKind.Temporary if persistence == "t" else TableKind.Regular
+    else:
+        try:
+            result = TableKind(kind)
+        except ValueError:
+            result = TableKind.Other
+    _debug.logic(
+        "schema.table_kind",
+        table=tablename,
+        kind=kind,
+        persistence=persistence,
+        result=result.name,
+    )
+    return result
 
 
 SQL_ORDER_BY_TYPE = defaultdict(
@@ -160,6 +181,9 @@ def create_model_table(
 ) -> None:
     for _, coltype, _ in columns:
         if not _SQL_TYPE_TOKEN.fullmatch(coltype):
+            _debug.logic(
+                "schema.ddl_refused", table=tablename, kind="column type", value=coltype
+            )
             raise ValueError(_get_invalid_name_message("column type", coltype))
     colspecs = [
         SQL("id SERIAL NOT NULL"),
@@ -194,7 +218,11 @@ def create_model_table(
                 )
             )
     with _debug.perf(
-        "schema.create_table", cr=cr, table=tablename, columns=len(columns)
+        "schema.create_table",
+        cr=cr,
+        table=tablename,
+        columns=len(columns),
+        comments=len(queries) - 1,
     ):
         cr.execute(SQL("; ").join(queries))
 
@@ -202,9 +230,10 @@ def create_model_table(
 
 
 def get_table_columns(cr: BaseCursor, tablename: str) -> dict[str, dict]:
-    cr.execute(
-        SQL(
-            """
+    with _debug.perf("schema.table_columns", cr=cr, table=tablename) as span:
+        cr.execute(
+            SQL(
+                """
             SELECT a.attname AS column_name,
                    t.typname AS udt_name,
                    CASE WHEN a.atttypmod > 0 AND t.typname IN ('varchar', 'bpchar')
@@ -220,10 +249,12 @@ def get_table_columns(cr: BaseCursor, tablename: str) -> dict[str, dict]:
                AND a.attnum > 0
                AND NOT a.attisdropped
             """,
-            tablename,
+                tablename,
+            )
         )
-    )
-    return {row["column_name"]: row for row in cr.dictfetchall()}
+        columns = {row["column_name"]: row for row in cr.dictfetchall()}
+        span.set(columns=len(columns))
+    return columns
 
 
 def column_exists(cr: RowCountReader, tablename: str, columnname: str) -> bool:
@@ -243,7 +274,11 @@ def column_exists(cr: RowCountReader, tablename: str, columnname: str) -> bool:
             columnname,
         )
     )
-    return bool(cr.rowcount)
+    exists = bool(cr.rowcount)
+    _debug.logic(
+        "schema.column_exists", table=tablename, column=columnname, exists=exists
+    )
+    return exists
 
 
 def create_column(
@@ -254,6 +289,13 @@ def create_column(
     comment: str | None = None,
 ) -> None:
     if not _SQL_TYPE_TOKEN.fullmatch(columntype):
+        _debug.logic(
+            "schema.ddl_refused",
+            table=tablename,
+            column=columnname,
+            kind="column type",
+            value=columntype,
+        )
         raise ValueError(_get_invalid_name_message("column type", columntype))
     sql = SQL(
         "ALTER TABLE %s ADD COLUMN %s %s %s",
@@ -278,6 +320,8 @@ def create_column(
         table=tablename,
         column=columnname,
         type=columntype,
+        default_false=columntype.upper() == "BOOLEAN",
+        comment=bool(comment),
     ):
         cr.execute(sql)
     _schema.debug(
@@ -292,6 +336,13 @@ def convert_column(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
     if not _SQL_TYPE_TOKEN.fullmatch(columntype):
+        _debug.logic(
+            "schema.ddl_refused",
+            table=tablename,
+            column=columnname,
+            kind="column type",
+            value=columntype,
+        )
         raise ValueError(_get_invalid_name_message("column type", columntype))
     using = SQL("%s::%s", SQL.identifier(columnname), SQL(columntype))
     _convert_column(cr, tablename, columnname, columntype, using)
@@ -300,6 +351,13 @@ def convert_column(
 def convert_column_translatable(
     cr: BaseCursor, tablename: str, columnname: str, columntype: str
 ) -> None:
+    _debug.pipeline(
+        "schema.translatable_conversion",
+        table=tablename,
+        column=columnname,
+        direction="to_jsonb" if columntype == "jsonb" else "from_jsonb",
+        type=columntype,
+    )
     drop_index(cr, get_index_name(tablename, columnname), tablename)
     if columntype == "jsonb":
         using = SQL(
@@ -335,8 +393,14 @@ def _convert_column(
         try:
             with cr.savepoint(flush=False):
                 cr.execute(query, log_exceptions=False)
-        except psycopg.NotSupportedError:
+        except psycopg.NotSupportedError as exc:
             span.set(views_dropped=True)
+            _debug.logic(
+                "schema.convert_column_blocked_by_views",
+                table=tablename,
+                column=columnname,
+                sqlstate=getattr(exc, "sqlstate", None),
+            )
             drop_views_depending_on_table(cr, tablename, columnname)
             cr.execute(query)
     _schema.debug(
@@ -353,13 +417,14 @@ def drop_views_depending_on_table(cr: BaseCursor, table: str, column: str) -> No
         "schema.dependent_views_dropped", table=table, column=column, count=len(views)
     )
     for v, k in views:
-        cr.execute(
-            SQL(
-                "DROP %s IF EXISTS %s CASCADE",
-                SQL("MATERIALIZED VIEW" if k == "m" else "VIEW"),
-                SQL.identifier(v),
+        with _debug.perf("schema.drop_view", cr=cr, view=v, materialized=k == "m"):
+            cr.execute(
+                SQL(
+                    "DROP %s IF EXISTS %s CASCADE",
+                    SQL("MATERIALIZED VIEW" if k == "m" else "VIEW"),
+                    SQL.identifier(v),
+                )
             )
-        )
         _schema.debug("Drop view %r", v)
 
 
@@ -405,36 +470,51 @@ def rename_column(
     Renaming both is what makes the two paths arrive at the same schema, which
     is the property a migration exists to keep.
     """
-    cr.execute(
-        SQL(
-            "ALTER TABLE %s RENAME COLUMN %s TO %s",
-            SQL.identifier(tablename),
-            SQL.identifier(columnname),
-            SQL.identifier(newname),
-        )
-    )
-    old_constraint = f"{tablename}_{columnname}_not_null"
-    cr.execute(
-        SQL(
-            """
-            SELECT 1
-              FROM pg_constraint
-             WHERE conrelid = %s::regclass
-               AND conname = %s
-            """,
-            tablename,
-            old_constraint,
-        )
-    )
-    if cr.fetchone():
+    with _debug.perf(
+        "schema.rename_column",
+        cr=cr,
+        table=tablename,
+        column=columnname,
+        new=newname,
+    ) as span:
         cr.execute(
             SQL(
-                "ALTER TABLE %s RENAME CONSTRAINT %s TO %s",
+                "ALTER TABLE %s RENAME COLUMN %s TO %s",
                 SQL.identifier(tablename),
-                SQL.identifier(old_constraint),
-                SQL.identifier(f"{tablename}_{newname}_not_null"),
+                SQL.identifier(columnname),
+                SQL.identifier(newname),
             )
         )
+        old_constraint = f"{tablename}_{columnname}_not_null"
+        cr.execute(
+            SQL(
+                """
+                SELECT 1
+                  FROM pg_constraint
+                 WHERE conrelid = %s::regclass
+                   AND conname = %s
+                """,
+                tablename,
+                old_constraint,
+            )
+        )
+        has_not_null = bool(cr.fetchone())
+        span.set(not_null_renamed=has_not_null)
+        _debug.logic(
+            "schema.not_null_constraint_follows_rename",
+            table=tablename,
+            column=columnname,
+            found=has_not_null,
+        )
+        if has_not_null:
+            cr.execute(
+                SQL(
+                    "ALTER TABLE %s RENAME CONSTRAINT %s TO %s",
+                    SQL.identifier(tablename),
+                    SQL.identifier(old_constraint),
+                    SQL.identifier(f"{tablename}_{newname}_not_null"),
+                )
+            )
     _schema.debug("Table %r: renamed column %r to %r", tablename, columnname, newname)
 
 
@@ -452,13 +532,14 @@ def set_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
 
 
 def drop_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
-    cr.execute(
-        SQL(
-            "ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL",
-            SQL.identifier(tablename),
-            SQL.identifier(columnname),
+    with _debug.perf("schema.drop_not_null", cr=cr, table=tablename, column=columnname):
+        cr.execute(
+            SQL(
+                "ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL",
+                SQL.identifier(tablename),
+                SQL.identifier(columnname),
+            )
         )
-    )
     _schema.debug(
         "Table %r: column %r: dropped constraint NOT NULL",
         tablename,
@@ -467,14 +548,21 @@ def drop_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
 
 
 def set_default(cr: BaseCursor, tablename: str, columnname: str, value: object) -> None:
-    cr.execute(
-        SQL(
-            "ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
-            SQL.identifier(tablename),
-            SQL.identifier(columnname),
-            value,
+    with _debug.perf(
+        "schema.set_default",
+        cr=cr,
+        table=tablename,
+        column=columnname,
+        value_type=type(value).__name__,
+    ):
+        cr.execute(
+            SQL(
+                "ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
+                SQL.identifier(tablename),
+                SQL.identifier(columnname),
+                value,
+            )
         )
-    )
     _schema.debug(
         "Table %r: column %r: set default to %r", tablename, columnname, value
     )
@@ -498,6 +586,12 @@ def get_constraint_definition(
         )
     )
     row = cr.fetchone()
+    _debug.logic(
+        "schema.constraint_definition",
+        table=tablename,
+        constraint=constraintname,
+        found=row is not None,
+    )
     return row[0] if row else None
 
 
@@ -517,7 +611,11 @@ def add_constraint(
         definition,
     )
     with _debug.perf(
-        "schema.add_constraint", cr=cr, table=tablename, constraint=constraintname
+        "schema.add_constraint",
+        cr=cr,
+        table=tablename,
+        constraint=constraintname,
+        kind=definition.split(None, 1)[0].upper() if definition.strip() else "",
     ):
         cr.execute(query1, log_exceptions=False)
     cr.execute(query2, log_exceptions=False)
@@ -530,13 +628,16 @@ def add_constraint(
 
 
 def drop_constraint(cr: BaseCursor, tablename: str, constraintname: str) -> None:
-    cr.execute(
-        SQL(
-            "ALTER TABLE %s DROP CONSTRAINT %s",
-            SQL.identifier(tablename),
-            SQL.identifier(constraintname),
+    with _debug.perf(
+        "schema.drop_constraint", cr=cr, table=tablename, constraint=constraintname
+    ):
+        cr.execute(
+            SQL(
+                "ALTER TABLE %s DROP CONSTRAINT %s",
+                SQL.identifier(tablename),
+                SQL.identifier(constraintname),
+            )
         )
-    )
     _schema.debug("Table %r: dropped constraint %r", tablename, constraintname)
 
 
@@ -549,6 +650,13 @@ def add_foreign_key(
     ondelete: str,
 ) -> None:
     if ondelete.upper() not in _CONFDELTYPES:
+        _debug.logic(
+            "schema.ddl_refused",
+            table=tablename1,
+            column=columnname1,
+            kind="ondelete",
+            value=ondelete,
+        )
         raise ValueError(
             f"Invalid ON DELETE policy {ondelete!r} for "
             f"{tablename1}.{columnname1}; expected one of "
@@ -606,21 +714,29 @@ def _get_fk_constraints(
             columnname,
         )
     )
-    return cr.fetchall()
+    rows = cr.fetchall()
+    _debug.logic(
+        "schema.fk_constraints", table=tablename, column=columnname, found=len(rows)
+    )
+    return rows
 
 
 def get_fk_constraints_batch(
     cr: BaseCursor, tablenames: Iterable[str]
 ) -> list[tuple[str, str, str, str, str, str]]:
-    cr.execute(
-        SQL(
-            "SELECT fk.conname, c1.relname, a1.attname, c2.relname, a2.attname, fk.confdeltype"
-            + _FK_BASE_QUERY
-            + "AND c1.relname = ANY(%s)",
-            list(tablenames),
+    asked = list(tablenames)
+    with _debug.perf("schema.fk_constraints_batch", cr=cr, tables=len(asked)) as span:
+        cr.execute(
+            SQL(
+                "SELECT fk.conname, c1.relname, a1.attname, c2.relname, a2.attname, fk.confdeltype"
+                + _FK_BASE_QUERY
+                + "AND c1.relname = ANY(%s)",
+                asked,
+            )
         )
-    )
-    return cr.fetchall()
+        rows = cr.fetchall()
+        span.set(found=len(rows))
+    return rows
 
 
 def get_fk_constraint_names(
@@ -632,11 +748,20 @@ def get_fk_constraint_names(
     ondelete: str,
 ) -> list[str]:
     deltype = _CONFDELTYPES.get(ondelete.upper(), "a")
-    return [
-        row[0]
-        for row in _get_fk_constraints(cr, tablename1, columnname1)
-        if row[1:] == (tablename2, columnname2, deltype)
+    candidates = _get_fk_constraints(cr, tablename1, columnname1)
+    names = [
+        row[0] for row in candidates if row[1:] == (tablename2, columnname2, deltype)
     ]
+    _debug.logic(
+        "schema.fk_constraint_names",
+        table=tablename1,
+        column=columnname1,
+        references=tablename2,
+        ondelete=ondelete,
+        candidates=len(candidates),
+        matching=len(names),
+    )
+    return names
 
 
 def index_exists(cr: RowCountReader, indexname: str) -> bool:
@@ -652,7 +777,9 @@ def index_exists(cr: RowCountReader, indexname: str) -> bool:
             indexname,
         )
     )
-    return bool(cr.rowcount)
+    exists = bool(cr.rowcount)
+    _debug.logic("schema.index_exists", index=indexname, exists=exists)
+    return exists
 
 
 def get_index_definition(
@@ -673,6 +800,12 @@ def get_index_definition(
         )
     )
     row = cr.fetchone()
+    _debug.logic(
+        "schema.index_definition",
+        index=indexname,
+        found=row is not None,
+        commented=bool(row and row[1]),
+    )
     return (row[0], row[1]) if row else (None, None)
 
 
@@ -690,6 +823,11 @@ def get_index_constraint(cr: BaseCursor, indexname: str) -> str | None:
         )
     )
     row = cr.fetchone()
+    _debug.logic(
+        "schema.index_constraint",
+        index=indexname,
+        constraint=row[0] if row else None,
+    )
     return row[0] if row else None
 
 
@@ -706,11 +844,32 @@ def create_index(
     check_exists: bool = True,
 ) -> None:
     if not expressions:
+        _debug.logic(
+            "schema.ddl_refused", table=tablename, kind="index expressions", value=None
+        )
         raise ValueError("Missing expressions")
     if not _SQL_NAME_TOKEN.fullmatch(method):
+        _debug.logic(
+            "schema.ddl_refused", table=tablename, kind="index method", value=method
+        )
         raise ValueError(_get_invalid_name_message("index method", method))
+    _debug.pipeline(
+        "schema.create_index_requested",
+        index=indexname,
+        table=tablename,
+        method=method,
+        expressions=len(expressions),
+        partial=bool(where),
+        unique=unique,
+        check_exists=check_exists,
+    )
     if check_exists and index_exists(cr, indexname):
-        _debug.logic("schema.index_exists", index=indexname, table=tablename)
+        _debug.logic(
+            "schema.index_create_skipped",
+            index=indexname,
+            table=tablename,
+            reason="exists",
+        )
         return
     definition = SQL(
         "USING %s (%s)%s",
@@ -751,7 +910,12 @@ def add_index(
         else None
     )
     with _debug.perf(
-        "schema.create_index", cr=cr, table=tablename, index=indexname, unique=unique
+        "schema.create_index",
+        cr=cr,
+        table=tablename,
+        index=indexname,
+        unique=unique,
+        comment=query_comment is not None,
     ):
         cr.execute(query, log_exceptions=False)
     if query_comment:
@@ -762,7 +926,8 @@ def add_index(
 
 
 def drop_index(cr: BaseCursor, indexname: str, tablename: str) -> None:
-    cr.execute(SQL("DROP INDEX IF EXISTS %s", SQL.identifier(indexname)))
+    with _debug.perf("schema.drop_index", cr=cr, table=tablename, index=indexname):
+        cr.execute(SQL("DROP INDEX IF EXISTS %s", SQL.identifier(indexname)))
     _schema.debug("Table %r: dropped index %r", tablename, indexname)
 
 
@@ -784,8 +949,22 @@ def get_column_names_in_constraint(
     check_registry: bool = False,
 ) -> list[str]:
     if column := diagnostics.column_name:
+        _debug.logic(
+            "schema.constraint_columns_resolved",
+            constraint=diagnostics.constraint_name,
+            table=diagnostics.table_name,
+            columns=1,
+            via="diagnostic",
+        )
         return [column]
     if not check_registry:
+        _debug.logic(
+            "schema.constraint_columns_resolved",
+            constraint=diagnostics.constraint_name,
+            table=diagnostics.table_name,
+            columns=0,
+            via="skipped",
+        )
         return []
     cr.execute(
         SQL(
@@ -812,5 +991,6 @@ def get_column_names_in_constraint(
         constraint=diagnostics.constraint_name,
         table=diagnostics.table_name,
         columns=len(columns[0]) if columns else 0,
+        via="catalog",
     )
     return columns[0] if columns else []
