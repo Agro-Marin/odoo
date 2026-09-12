@@ -664,7 +664,7 @@
         <field name="name">Print Labels</field>
         <field name="model_id" ref="product.model_product_template" />
         <field name="binding_model_id" ref="product.model_product_template" />
-        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
@@ -675,7 +675,9 @@
         <field name="name">Pricelist Report</field>
         <field name="model_id" ref="product.model_product_template" />
         <field name="binding_model_id" ref="product.model_product_template" />
-        <field name="group_ids" eval="[(4, ref('product.group_product_pricelist'))]" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('product.group_product_pricelist'))]" />
         <field name="state">code</field>
         <field
             name="code">action = {

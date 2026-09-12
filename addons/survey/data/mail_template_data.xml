@@ -59,7 +59,7 @@
         <field name="use_default_to" eval="True" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('survey.certification_report'))]" />
+            eval="[Command.link(ref('survey.certification_report'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div

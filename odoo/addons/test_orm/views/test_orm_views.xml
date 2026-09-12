@@ -156,7 +156,7 @@
             <field name="res_model">test_orm.discussion</field>
             <field
                 name="view_ids"
-                eval="[Command.clear(),                           (0,0,{'view_mode':'list'}),                           (0,0,{'view_mode':'form', 'view_id': ref('discussion_form_2')})]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list'}), Command.create({'view_mode': 'form', 'view_id': ref('discussion_form_2')})]" />
         </record>
         <menuitem
             id="menu_discussions_2"
@@ -194,7 +194,7 @@
             <field name="res_model">test_orm.discussion</field>
             <field
                 name="view_ids"
-                eval="[Command.clear(),                           (0,0,{'view_mode':'list'}),                           (0,0,{'view_mode':'form', 'view_id': ref('discussion_form_3')})]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list'}), Command.create({'view_mode': 'form', 'view_id': ref('discussion_form_3')})]" />
         </record>
         <menuitem
             id="menu_discussions_3"

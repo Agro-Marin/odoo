@@ -15,7 +15,7 @@
                 name="email"
                 eval="obj().env.ref('base.user_admin').email"
                 model="res.users" />
-            <field name="list_ids" eval="[(5, 0, 0)]" />
+            <field name="list_ids" eval="[Command.clear()]" />
         </record>
     </data>
 

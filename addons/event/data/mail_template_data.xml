@@ -16,7 +16,7 @@
                 name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
             <field
                 name="report_template_ids"
-                eval="[(4, ref('event.action_report_event_registration_badge'))]" />
+                eval="[Command.link(ref('event.action_report_event_registration_badge'))]" />
             <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" cellspacing="0" style="padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
@@ -387,7 +387,7 @@
                 name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
             <field
                 name="report_template_ids"
-                eval="[(4, ref('event.action_report_event_registration_full_page_ticket'))]" />
+                eval="[Command.link(ref('event.action_report_event_registration_full_page_ticket'))]" />
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" cellspacing="0" style="padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
                 <t

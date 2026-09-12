@@ -10,7 +10,9 @@
             ref="project.act_project_project_2_project_task_all" />
         <field name="python_method">action_view_project_purchase_orders</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('purchase.group_purchase_user'))]" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('purchase.group_purchase_user'))]" />
     </record>
 
     <record
@@ -22,7 +24,9 @@
         <field name="parent_action_id" ref="project.project_update_all_action" />
         <field name="python_method">action_view_project_purchase_orders</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('purchase.group_purchase_user'))]" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('purchase.group_purchase_user'))]" />
     </record>
 
 </odoo>

@@ -728,7 +728,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('document.document_view_kanban')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('document.documents_view_list')}),             (0, 0, {'view_mode': 'activity', 'view_id': ref('document.documents_view_activity')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('document.document_view_kanban')}), Command.create({'view_mode': 'list', 'view_id': ref('document.documents_view_list')}), Command.create({'view_mode': 'activity', 'view_id': ref('document.documents_view_activity')})]" />
     </record>
 
     <record id="documents_view_kanban_portal" model="ir.ui.view">
@@ -768,7 +768,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('document.documents_view_kanban_portal')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('document.documents_view_list_portal')}),         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('document.documents_view_kanban_portal')}), Command.create({'view_mode': 'list', 'view_id': ref('document.documents_view_list_portal')})]" />
     </record>
 
 </odoo>

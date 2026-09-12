@@ -501,7 +501,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('hr.view_hr_job_tree')}),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('hr.hr_job_view_kanban')}),             (0, 0, {'view_mode': 'form', 'view_id': ref('hr.view_hr_job_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('hr.view_hr_job_tree')}), Command.create({'view_mode': 'kanban', 'view_id': ref('hr.hr_job_view_kanban')}), Command.create({'view_mode': 'form', 'view_id': ref('hr.view_hr_job_form')})]" />
     </record>
 
     <record id="hr_job_search_view" model="ir.ui.view">
@@ -588,7 +588,7 @@
         <field name="context">{}</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('hr_recruitment.view_hr_job_kanban')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('hr_recruitment.hr_job_view_tree_inherit')}),             (0, 0, {'view_mode': 'form', 'view_id': ref('hr.view_hr_job_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('hr_recruitment.view_hr_job_kanban')}), Command.create({'view_mode': 'list', 'view_id': ref('hr_recruitment.hr_job_view_tree_inherit')}), Command.create({'view_mode': 'form', 'view_id': ref('hr.view_hr_job_form')})]" />
     </record>
 
     <record id="action_hr_job_interviewer" model="ir.actions.act_window">

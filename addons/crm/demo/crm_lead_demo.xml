@@ -18,7 +18,9 @@
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor6')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -58,7 +60,9 @@
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor2')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor2')])]" />
             <field name="priority">1</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -97,7 +101,7 @@
                 eval="[Command.create({'number': '+1 555 754 3010', 'type': 'landline'})]" />
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor5')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor5')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -120,7 +124,9 @@
             <field name="city">Manchester</field>
             <field name="zip">03101</field>
             <field name="street">United Street 68</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor5')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor5')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -147,7 +153,9 @@
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+1 813 494 5005', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -191,7 +199,7 @@ Contact: +1 813 494 5005&lt;/p&gt;</field>
             <field name="zip">00118</field>
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor3'), ref('sales_team.categ_oppor4')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor3'), ref('sales_team.categ_oppor4')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -217,7 +225,9 @@ Contact: +1 813 494 5005&lt;/p&gt;</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+11 55 21 5555 5555', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor4')])]" />
             <field name="priority">0</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -242,7 +252,7 @@ Contact: +1 813 494 5005&lt;/p&gt;</field>
             <field name="zip">E1AB</field>
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor8')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor8')])]" />
             <field name="priority">1</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -282,7 +292,7 @@ ESM Expert&lt;br /&gt;</field>
             <field name="zip">OX1 1RQ</field>
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor7')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor7')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.crm_team_1" />
             <field name="user_id" ref="base.user_demo" />
@@ -305,7 +315,9 @@ ESM Expert&lt;br /&gt;</field>
             <field name="country_id" ref="base.es" />
             <field name="city">Madrid</field>
             <field name="zip">28001</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.crm_team_1" />
             <field name="user_id" ref="base.user_demo" />
@@ -343,7 +355,9 @@ Andrew&lt;/p&gt;</field>
             <field name="country_id" ref="base.be" />
             <field name="city">Wavre</field>
             <field name="zip">1300</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor7')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor7')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -365,7 +379,9 @@ Andrew&lt;/p&gt;</field>
             <field name="partner_id" ref="base.res_partner_1" />
             <field name="country_id" ref="base.cn" />
             <field name="city">Shenzhen</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -393,7 +409,9 @@ Andrew&lt;/p&gt;</field>
             <field name="country_id" ref="base.au" />
             <field name="city">Melbourne</field>
             <field name="street">Kensington Road 189</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -417,7 +435,9 @@ Andrew&lt;/p&gt;</field>
             <field name="probability">10.0</field>
             <field name="email_from">info@agrolait.com</field>
             <field name="partner_id" ref="base.res_partner_2" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor2')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor2')])]" />
             <field name="priority">2</field>
             <field
                 name="date_deadline"
@@ -440,7 +460,9 @@ Andrew&lt;/p&gt;</field>
             <field name="probability">30.0</field>
             <field name="partner_id" ref="base.res_partner_2" />
             <field name="email_from">virginie@agrolait.com</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -488,7 +510,9 @@ Andrew&lt;/p&gt;</field>
             <field name="parent_id" ref="msg_case15_1" />
             <field name="message_type">comment</field>
             <field name="subtype_id" ref="mail.mt_comment" />
-            <field name="attachment_ids" eval="[(6, 0, [ref('msg_case15_attach1')])]" />
+            <field
+                name="attachment_ids"
+                eval="[Command.set([ref('msg_case15_attach1')])]" />
         </record>
         <record id="msg_case15_3" model="mail.message">
             <field name="subject">Re: Plan to buy RedHat servers</field>
@@ -536,7 +560,9 @@ Andrew&lt;/p&gt;</field>
             <field name="city">Liverpool</field>
             <field name="zip">L25 4RL</field>
             <field name="street">Union Road</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor5')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor5')])]" />
             <field name="priority">2</field>
             <field
                 name="date_deadline"
@@ -569,7 +595,7 @@ Andrew&lt;/p&gt;</field>
             <field name="street">Rue des Palais 51, bte 33</field>
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor3'),ref('sales_team.categ_oppor4')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor3'), ref('sales_team.categ_oppor4')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -609,7 +635,7 @@ Andrew&lt;/p&gt;</field>
             <field name="partner_id" ref="base.res_partner_4" />
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor4'),ref('sales_team.categ_oppor6')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -668,7 +694,9 @@ Andrew&lt;/p&gt;</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+58 212 681 0538', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -700,7 +728,7 @@ Andrew&lt;/p&gt;</field>
                 eval="[Command.create({'number': '+1 312 349 2324', 'type': 'landline'})]" />
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor4'),ref('sales_team.categ_oppor8')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor8')])]" />
             <field name="priority">2</field>
             <field
                 name="date_deadline"
@@ -725,7 +753,9 @@ Andrew&lt;/p&gt;</field>
             <field name="city">Birmingham</field>
             <field name="zip">B46 3AG</field>
             <field name="street">Cannon Hill Park</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor7')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor7')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -749,7 +779,9 @@ Andrew&lt;/p&gt;</field>
             <field name="contact_name">Benjamin Flores</field>
             <field name="partner_name">Nebula Business</field>
             <field name="partner_id" ref="base.res_partner_12" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor3')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor3')])]" />
             <field name="priority">1</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
@@ -769,7 +801,9 @@ Andrew&lt;/p&gt;</field>
             <field name="probability">80.0</field>
             <field name="partner_id" ref="base.res_partner_18" />
             <field name="priority">0</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor3')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor3')])]" />
             <field
                 name="date_deadline"
                 eval="DateTime.today().strftime('%Y-%m-%d %H:%M')" />
@@ -796,7 +830,9 @@ Andrew&lt;/p&gt;</field>
             <field
                 name="date_deadline"
                 eval="(DateTime.today() + relativedelta(months=2)).strftime('%Y-%m-%d %H:%M')" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor7')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor7')])]" />
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
             <field
@@ -822,7 +858,9 @@ Andrew&lt;/p&gt;</field>
             <field name="street">Palermo, Capital Federal</field>
             <field name="street2">C1414CMS Capital Federal</field>
             <field name="priority">2</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor4')])]" />
             <field name="team_id" ref="sales_team.team_sales_department" />
             <field name="user_id" ref="base.user_admin" />
             <field
@@ -842,7 +880,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">info@agrolait.com</field>
             <field name="partner_id" ref="base.res_partner_2" />
             <field name="priority">2</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor2')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor2')])]" />
             <field name="team_id" ref="sales_team.crm_team_1" />
             <field name="user_id" ref="base.user_demo" />
             <field
@@ -862,7 +902,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">info@agrolait.com</field>
             <field name="partner_id" ref="base.res_partner_2" />
             <field name="priority">2</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor2')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor2')])]" />
             <field
                 name="date_deadline"
                 eval="DateTime.today().strftime('%Y-%m-%d %H:%M')" />
@@ -884,7 +926,7 @@ Andrew&lt;/p&gt;</field>
             <field name="priority">0</field>
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('sales_team.categ_oppor1'), ref('sales_team.categ_oppor5')])]" />
+                eval="[Command.set([ref('sales_team.categ_oppor1'), ref('sales_team.categ_oppor5')])]" />
             <field
                 name="date_deadline"
                 eval="DateTime.today() + relativedelta(days=12)" />
@@ -907,7 +949,9 @@ Andrew&lt;/p&gt;</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor6')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field name="date_open" eval="False" />
             <field name="team_id" eval="False" />
@@ -932,7 +976,9 @@ Andrew&lt;/p&gt;</field>
             <field
                 name="phone_ids"
                 eval="[Command.create({'number': '+32 22 33 54 07', 'type': 'landline'})]" />
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor6')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field name="date_open" eval="False" />
             <field name="team_id" eval="False" />
@@ -951,7 +997,9 @@ Andrew&lt;/p&gt;</field>
             <field name="probability">10.0</field>
             <field name="contact_name">Erik N. French</field>
             <field name="email_from">ErikNFrench@armyspy.com</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -976,7 +1024,9 @@ Andrew&lt;/p&gt;</field>
             </field>
             <field name="incoming_email_cc">openwood.cc@example.com</field>
             <field name="incoming_email_to">openwood.to@exampel.com</field>
-            <field name="partner_ids" eval="[(4, ref('base.res_partner_4'))]" />
+            <field
+                name="partner_ids"
+                eval="[Command.link(ref('base.res_partner_4'))]" />
             <field name="message_type">email</field>
             <field name="model">crm.lead</field>
             <field name="res_id" ref="crm_case_31" />
@@ -992,7 +1042,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">openwood.josianne@example.com</field>
             <field name="incoming_email_cc">openwood.cc@example.com</field>
             <field name="incoming_email_to">openwood.to@exampel.com</field>
-            <field name="partner_ids" eval="[(4, ref('base.res_partner_4'))]" />
+            <field
+                name="partner_ids"
+                eval="[Command.link(ref('base.res_partner_4'))]" />
             <field name="message_type">email</field>
             <field name="model">crm.lead</field>
             <field name="res_id" ref="crm_case_31" />
@@ -1009,7 +1061,9 @@ Andrew&lt;/p&gt;</field>
             <field name="country_id" ref="base.au" />
             <field name="city">Chevy Chase</field>
             <field name="street">1920 Del Dew Drive</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1031,7 +1085,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">max123@itconsult.com</field>
             <field name="country_id" ref="base.it" />
             <field name="city">Milan</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1054,7 +1110,9 @@ Andrew&lt;/p&gt;</field>
             <field name="country_id" ref="base.gr" />
             <field name="city">London</field>
             <field name="street">1 Russel square</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1077,7 +1135,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">roxshott9@trellian.com</field>
             <field name="country_id" ref="base.br" />
             <field name="city">Canguaretama</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1099,7 +1159,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">mlimprecht8@fastcompany.com</field>
             <field name="country_id" ref="base.pt" />
             <field name="city">Valejas</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1122,7 +1184,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">akalinovich7@tinypic.com</field>
             <field name="country_id" ref="base.id" />
             <field name="city">Boafeo</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1145,7 +1209,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">jjobbins6@simplemachines.org</field>
             <field name="country_id" ref="base.ru" />
             <field name="city">Gvardeysk</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1168,7 +1234,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">eespinazo5@reuters.com</field>
             <field name="country_id" ref="base.nl" />
             <field name="city">Amsterdam</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor3')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor3')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1191,7 +1259,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">credford4@salon.com</field>
             <field name="country_id" ref="base.ru" />
             <field name="city">Odoyev</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1214,7 +1284,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">ikirvell3@gnu.org</field>
             <field name="country_id" ref="base.id" />
             <field name="city">Dahu Satu</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1237,7 +1309,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">ngrabert2@dailymail.co.uk</field>
             <field name="country_id" ref="base.jp" />
             <field name="city">Tokyo</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1260,7 +1334,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">fseiller1@theglobeandmail.com</field>
             <field name="country_id" ref="base.id" />
             <field name="city">Wurigelebur</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"
@@ -1283,7 +1359,9 @@ Andrew&lt;/p&gt;</field>
             <field name="email_from">tbrockhouse0@google.pl</field>
             <field name="country_id" ref="base.be" />
             <field name="city">Brussels</field>
-            <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
                 name="date_deadline"

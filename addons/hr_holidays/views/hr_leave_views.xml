@@ -1114,7 +1114,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('hr_leave_view_kanban_my')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('hr_leave_view_kanban_my')})]" />
     </record>
 
     <record id="hr_leave_action_my_view_tree" model="ir.actions.act_window.view">

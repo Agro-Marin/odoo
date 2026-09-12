@@ -41,7 +41,7 @@
         <field name="target">new</field>
         <field
             name="view_ids"
-            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'form', 'view_id': ref('product_label_layout_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'form', 'view_id': ref('product_label_layout_form')})]" />
     </record>
 
 </odoo>

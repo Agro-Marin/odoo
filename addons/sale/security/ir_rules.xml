@@ -24,7 +24,7 @@
         <field name="model_id" ref="model_sale_order" />
         <field
             name="domain_force">[('partner_id', 'child_of', [user.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
@@ -36,7 +36,7 @@
         <field name="model_id" ref="model_sale_order_line" />
         <field
             name="domain_force">[('partner_id', 'child_of', [user.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
@@ -47,7 +47,9 @@
         <field name="name">Personal Orders</field>
         <field name="model_id" ref="model_sale_order" />
         <field name="domain_force">[('user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="sale_order_team_rule" model="ir.rule">
@@ -55,7 +57,9 @@
         <field name="model_id" ref="model_sale_order" />
         <field
             name="domain_force">['|', ('user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="sale_order_see_all_rule" model="ir.rule">
@@ -64,14 +68,16 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="sale_order_line_personal_rule" model="ir.rule">
         <field name="name">Personal Order Lines</field>
         <field name="model_id" ref="model_sale_order_line" />
         <field name="domain_force">[('user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="sale_order_line_team_rule" model="ir.rule">
@@ -79,7 +85,9 @@
         <field name="model_id" ref="model_sale_order_line" />
         <field
             name="domain_force">['|', ('user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="sale_order_line_see_all" model="ir.rule">
@@ -88,14 +96,16 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="sale_order_report_personal_rule" model="ir.rule">
         <field name="name">Personal Orders Analysis</field>
         <field name="model_id" ref="model_sale_report" />
         <field name="domain_force">[('user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="sale_order_report_team_rule" model="ir.rule">
@@ -103,7 +113,9 @@
         <field name="model_id" ref="model_sale_report" />
         <field
             name="domain_force">['|', ('user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="sale_order_report_see_all" model="ir.rule">
@@ -112,7 +124,7 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="account_invoice_report_rule_see_personal" model="ir.rule">
@@ -120,7 +132,9 @@
         <field name="model_id" ref="account.model_account_invoice_report" />
         <field
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund')), ('invoice_user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="account_invoice_report_rule_see_team" model="ir.rule">
@@ -128,7 +142,9 @@
         <field name="model_id" ref="account.model_account_invoice_report" />
         <field
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund')), '|', ('invoice_user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('invoice_user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="account_invoice_report_rule_see_all" model="ir.rule">
@@ -138,21 +154,25 @@
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund'))]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="payment_transaction_salesman_rule" model="ir.rule">
         <field name="name">Access every payment transaction</field>
         <field name="model_id" ref="payment.model_payment_transaction" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="payment_token_salesman_rule" model="ir.rule">
         <field name="name">Access every payment token</field>
         <field name="model_id" ref="payment.model_payment_token" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="account_invoice_rule_see_personal" model="ir.rule">
@@ -160,7 +180,9 @@
         <field name="model_id" ref="account.model_account_move" />
         <field
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund')), ('invoice_user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="account_invoice_rule_see_team" model="ir.rule">
@@ -168,7 +190,9 @@
         <field name="model_id" ref="account.model_account_move" />
         <field
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund')), '|', ('invoice_user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('invoice_user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="account_invoice_rule_see_all" model="ir.rule">
@@ -178,7 +202,7 @@
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund'))]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="account_invoice_line_rule_see_personal" model="ir.rule">
@@ -186,7 +210,9 @@
         <field name="model_id" ref="account.model_account_move_line" />
         <field
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund')), ('move_id.invoice_user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="account_invoice_line_rule_see_team" model="ir.rule">
@@ -194,7 +220,9 @@
         <field name="model_id" ref="account.model_account_move_line" />
         <field
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund')), '|', ('move_id.invoice_user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('move_id.invoice_user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="account_invoice_line_rule_see_all" model="ir.rule">
@@ -204,7 +232,7 @@
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund'))]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="sale_advance_payment_inv_rule" model="ir.rule">
@@ -238,7 +266,9 @@
         <field name="model_id" ref="account.model_account_move_send_wizard" />
         <field
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund')), ('move_id.invoice_user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="account_invoice_send_single_rule_see_team" model="ir.rule">
@@ -246,7 +276,9 @@
         <field name="model_id" ref="account.model_account_move_send_wizard" />
         <field
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund')), '|', ('move_id.invoice_user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('move_id.invoice_user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="account_invoice_send_single_rule_see_all" model="ir.rule">
@@ -256,7 +288,7 @@
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund'))]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="account_invoice_send_batch_rule_see_personal" model="ir.rule">
@@ -264,7 +296,9 @@
         <field name="model_id" ref="account.model_account_move_send_batch_wizard" />
         <field
             name="domain_force">[('move_ids.move_type', 'in', ('out_invoice', 'out_refund')), ('move_ids.invoice_user_id', 'in', (user.id, False))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="account_invoice_send_batch_rule_see_team" model="ir.rule">
@@ -272,7 +306,9 @@
         <field name="model_id" ref="account.model_account_move_send_batch_wizard" />
         <field
             name="domain_force">[('move_ids.move_type', 'in', ('out_invoice', 'out_refund')), '|', ('move_ids.invoice_user_id.crm_team_ids', 'in', user.crm_team_ids.ids), ('move_ids.invoice_user_id', '=', False)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman_team'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_salesman_team'))]" />
     </record>
 
     <record id="account_invoice_send_batch_rule_see_all" model="ir.rule">
@@ -282,14 +318,16 @@
             name="domain_force">[('move_ids.move_type', 'in', ('out_invoice', 'out_refund'))]</field>
         <field
             name="groups"
-            eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]" />
+            eval="[Command.link(ref('sales_team.group_sale_salesman_all_leads'))]" />
     </record>
 
     <record id="mail_plan_rule_group_sale_manager" model="ir.rule">
         <field name="name">Manager can manage sale order plans</field>
         <field name="model_id" ref="mail.model_mail_activity_plan" />
         <field name="domain_force">[('res_model', '=', 'sale.order')]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_manager'))]" />
         <field name="perm_read" eval="False" />
     </record>
 
@@ -297,7 +335,9 @@
         <field name="name">Manager can manage sale order plan templates</field>
         <field name="model_id" ref="mail.model_mail_activity_plan_template" />
         <field name="domain_force">[('plan_id.res_model', '=', 'sale.order')]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_manager'))]" />
         <field name="perm_read" eval="False" />
     </record>
 
@@ -305,7 +345,9 @@
         <field name="name">Read-only: all sales orders</field>
         <field name="model_id" ref="model_sale_order" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_readonly'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -315,7 +357,9 @@
         <field name="name">Read-only: all sales order lines</field>
         <field name="model_id" ref="model_sale_order_line" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_readonly'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -325,7 +369,9 @@
         <field name="name">Read-only: all sales analysis</field>
         <field name="model_id" ref="model_sale_report" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_readonly'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -336,7 +382,9 @@
         <field name="model_id" ref="account.model_account_move" />
         <field
             name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund'))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_readonly'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -347,7 +395,9 @@
         <field name="model_id" ref="account.model_account_move_line" />
         <field
             name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund'))]</field>
-        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('sales_team.group_sale_readonly'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />

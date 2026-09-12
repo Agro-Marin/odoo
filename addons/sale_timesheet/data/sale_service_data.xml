@@ -20,7 +20,7 @@
 
     <data>
         <record id="base.group_user" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('uom.group_uom'))]" />
+            <field name="implied_ids" eval="[Command.link(ref('uom.group_uom'))]" />
         </record>
         <record
             id="account_analytic_line_export_template_line_so_line"

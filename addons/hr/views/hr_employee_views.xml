@@ -1313,7 +1313,7 @@
                 name="context">{'chat_icon': True, 'searchpanel_default_company_id': allowed_company_ids[0]}</field>
             <field
                 name="view_ids"
-                eval="[(5, 0, 0),                           (0, 0, {'view_mode': 'list', 'view_id': ref('hr_employee_list_activites_view')})]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('hr_employee_list_activites_view')})]" />
         </record>
         <record
             id="action_hr_employee_create_users_confirmation"

@@ -53,7 +53,7 @@
         <field name="model_year">2020</field>
         <field name="fuel_type">diesel</field>
         <field name="manager_id" ref="base.user_admin" />
-        <field name="tag_ids" eval="[(6,0,[ref('vehicle_tag_transport')])]" />
+        <field name="tag_ids" eval="[Command.set([ref('vehicle_tag_transport')])]" />
     </record>
 
 </odoo>

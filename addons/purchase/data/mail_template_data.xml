@@ -11,7 +11,7 @@
         <field name="use_default_to" eval="True" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('purchase.report_purchase_quotation'))]" />
+            eval="[Command.link(ref('purchase.report_purchase_quotation'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">
@@ -44,7 +44,7 @@
         <field name="use_default_to" eval="True" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('purchase.action_report_purchase_order'))]" />
+            eval="[Command.link(ref('purchase.action_report_purchase_order'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">
@@ -91,7 +91,7 @@
         <field name="use_default_to" eval="True" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('purchase.action_report_purchase_order'))]" />
+            eval="[Command.link(ref('purchase.action_report_purchase_order'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">

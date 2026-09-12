@@ -49,7 +49,7 @@
             <field name="channel_id" ref="livechat_channel_chatbot_session_2_demo" />
             <field
                 name="livechat_member_history_ids"
-                eval="[(4, ref('livechat_channel_chatbot_session_2_history_guest_demo'))]" />
+                eval="[Command.link(ref('livechat_channel_chatbot_session_2_history_guest_demo'))]" />
         </record>
         <record
             id="livechat_channel_chatbot_session_2_message_1_demo"

@@ -19,10 +19,10 @@
         <field name="privilege_id" ref="res_groups_privilege_lunch" />
         <field
             name="comment">Be able to create new products, cashmoves and to confirm or cancel orders.</field>
-        <field name="implied_ids" eval="[(4, ref('group_lunch_user'))]" />
+        <field name="implied_ids" eval="[Command.link(ref('group_lunch_user'))]" />
         <field
             name="user_ids"
-            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
+            eval="[Command.link(ref('base.user_root')), Command.link(ref('base.user_admin'))]" />
     </record>
 
     <data noupdate="1">
@@ -31,20 +31,20 @@
                 name="name">lunch.cashmove: do not see other people's cashmove</field>
             <field name="model_id" ref="model_lunch_cashmove" />
             <field name="domain_force">[('user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('group_lunch_user'))]" />
+            <field name="groups" eval="[Command.link(ref('group_lunch_user'))]" />
         </record>
         <record id="lunch_mind_other_food_money" model="ir.rule">
             <field name="name">lunch.cashmove: do see other people's cashmove</field>
             <field name="model_id" ref="model_lunch_cashmove" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('group_lunch_manager'))]" />
+            <field name="groups" eval="[Command.link(ref('group_lunch_manager'))]" />
         </record>
         <record id="lunch_order_rule_delete" model="ir.rule">
             <field
                 name="name">lunch.order: Only new and cancelled order lines deleted.</field>
             <field name="model_id" ref="lunch.model_lunch_order" />
             <field name="domain_force">[('state', 'in', ('new', 'cancelled'))]</field>
-            <field name="groups" eval="[(4,ref('lunch.group_lunch_user'))]" />
+            <field name="groups" eval="[Command.link(ref('lunch.group_lunch_user'))]" />
             <field name="perm_read" eval="0" />
             <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
@@ -55,7 +55,7 @@
             <field name="model_id" ref="lunch.model_lunch_order" />
             <field
                 name="domain_force">[('state', '!=', 'confirmed'), ('user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('base.group_user'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
             <field name="perm_read" eval="0" />
             <field name="perm_create" eval="0" />
             <field name="perm_unlink" eval="0" />
@@ -64,7 +64,9 @@
             <field name="name">manager can do whatever</field>
             <field name="model_id" ref="lunch.model_lunch_order" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('lunch.group_lunch_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('lunch.group_lunch_manager'))]" />
             <field name="perm_read" eval="0" />
             <field name="perm_create" eval="0" />
             <field name="perm_unlink" eval="0" />

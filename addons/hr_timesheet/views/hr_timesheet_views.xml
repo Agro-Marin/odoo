@@ -726,7 +726,7 @@
             <field name="context">{'from_embedded_action': true}</field>
             <field
                 name="group_ids"
-                eval="[(4, ref('hr_timesheet.group_hr_timesheet_user'))]" />
+                eval="[Command.link(ref('hr_timesheet.group_hr_timesheet_user'))]" />
         </record>
         <record
             id="project_embedded_action_timesheets_dashboard"
@@ -741,7 +741,7 @@
             <field name="context">{'from_embedded_action': true}</field>
             <field
                 name="group_ids"
-                eval="[(4, ref('hr_timesheet.group_hr_timesheet_user'))]" />
+                eval="[Command.link(ref('hr_timesheet.group_hr_timesheet_user'))]" />
         </record>
         <record
             id="act_hr_timesheet_line_by_project_view_tree"

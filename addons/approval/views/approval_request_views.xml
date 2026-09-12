@@ -761,7 +761,7 @@
         <field name="model_id" ref="model_approval_request" />
         <field name="binding_model_id" ref="model_approval_request" />
         <field name="binding_view_types">list</field>
-        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
+        <field name="group_ids" eval="[Command.link(ref('group_approval_approver'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
@@ -773,7 +773,7 @@
         <field name="model_id" ref="model_approval_request" />
         <field name="binding_model_id" ref="model_approval_request" />
         <field name="binding_view_types">list</field>
-        <field name="group_ids" eval="[(4, ref('group_approval_approver'))]" />
+        <field name="group_ids" eval="[Command.link(ref('group_approval_approver'))]" />
         <field name="state">code</field>
         <field name="code">if records:
     action = records.action_refuse_bulk()</field>

@@ -15,7 +15,7 @@
             <field name="use_default_to" eval="True" />
             <field
                 name="report_template_ids"
-                eval="[(4, ref('sale.action_report_saleorder'))]" />
+                eval="[Command.link(ref('sale.action_report_saleorder'))]" />
             <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
@@ -75,7 +75,7 @@
             <field name="use_default_to" eval="True" />
             <field
                 name="report_template_ids"
-                eval="[(4, ref('sale.action_report_pro_forma_invoice'))]" />
+                eval="[Command.link(ref('sale.action_report_pro_forma_invoice'))]" />
             <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
@@ -111,7 +111,7 @@
             <field name="use_default_to" eval="True" />
             <field
                 name="report_template_ids"
-                eval="[(4, ref('sale.action_report_saleorder'))]" />
+                eval="[Command.link(ref('sale.action_report_saleorder'))]" />
             <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
@@ -415,7 +415,7 @@
             <field name="use_default_to" eval="True" />
             <field
                 name="report_template_ids"
-                eval="[(4, ref('sale.action_report_saleorder'))]" />
+                eval="[Command.link(ref('sale.action_report_saleorder'))]" />
             <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">

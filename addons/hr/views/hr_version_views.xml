@@ -151,7 +151,7 @@
         <field name="domain">[('employee_id', '!=', False)]</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('hr.hr_version_list_view')}),             (0, 0, {'view_mode': 'kanban'}),             (0, 0, {'view_mode': 'pivot'})         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('hr.hr_version_list_view')}), Command.create({'view_mode': 'kanban'}), Command.create({'view_mode': 'pivot'})]" />
     </record>
 
 </odoo>

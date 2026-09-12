@@ -10,7 +10,7 @@
         <field name="schedule_based_on">users</field>
         <field
             name="staff_user_ids"
-            eval="[(6, 0, [ref('base.user_admin'), ref('base.user_demo')])]" />
+            eval="[Command.set([ref('base.user_admin'), ref('base.user_demo')])]" />
         <field name="show_avatars">True</field>
         <field name="event_videocall_source" eval="False" />
         <field
@@ -25,7 +25,7 @@
     <record id="appointment_type_dental_care_question_1" model="survey.question">
         <field
             name="appointment_type_ids"
-            eval="[(6, 0, [ref('appointment_type_dental_care')])]" />
+            eval="[Command.set([ref('appointment_type_dental_care')])]" />
         <field name="is_reusable">False</field>
         <field name="title">Symptoms</field>
         <field name="question_type">char_box</field>

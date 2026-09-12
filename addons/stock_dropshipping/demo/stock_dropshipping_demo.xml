@@ -2,7 +2,7 @@
 <odoo noupdate="1">
 
     <record id="product.product_product_6" model="product.product">
-        <field name="route_ids" eval="[(4, ref('route_drop_shipping'))]" />
+        <field name="route_ids" eval="[Command.link(ref('route_drop_shipping'))]" />
     </record>
 
     <record id="sale_order_purchase" model="sale.order">

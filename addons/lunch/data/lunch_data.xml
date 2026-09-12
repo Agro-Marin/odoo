@@ -27,7 +27,7 @@
             <field name="partner_id" ref="partner_hungry_dog" />
             <field
                 name="available_location_ids"
-                eval="[             (6, 0, [ref('lunch_location_main')]),             ]" />
+                eval="[Command.set([ref('lunch_location_main')])]" />
         </record>
     </data>
 

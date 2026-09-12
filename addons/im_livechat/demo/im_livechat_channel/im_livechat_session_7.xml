@@ -39,7 +39,7 @@
                 eval="DateTime.today() + relativedelta(months=-1)" />
             <field
                 name="livechat_member_history_ids"
-                eval="[(4, ref('im_livechat.livechat_channel_session_7_history_member_admin'))]" />
+                eval="[Command.link(ref('im_livechat.livechat_channel_session_7_history_member_admin'))]" />
         </record>
         <record
             id="im_livechat.livechat_channel_session_7_history_member_portal"
@@ -58,7 +58,7 @@
             <field name="channel_id" ref="im_livechat.livechat_channel_session_7" />
             <field
                 name="livechat_member_history_ids"
-                eval="[(4, ref('im_livechat.livechat_channel_session_7_history_member_portal'))]" />
+                eval="[Command.link(ref('im_livechat.livechat_channel_session_7_history_member_portal'))]" />
         </record>
         <record id="livechat_channel_session_7_message_2" model="mail.message">
             <field name="model">discuss.channel</field>

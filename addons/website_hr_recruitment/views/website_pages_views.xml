@@ -51,7 +51,7 @@
         <field name="context">{'create_action': '/jobs/add'}</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),         (0, 0, {'view_mode': 'list', 'view_id': ref('job_pages_tree_view')}),         (0, 0, {'view_mode': 'kanban', 'view_id': ref('job_pages_kanban_view')}),     ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('job_pages_tree_view')}), Command.create({'view_mode': 'kanban', 'view_id': ref('job_pages_kanban_view')})]" />
     </record>
 
     <menuitem

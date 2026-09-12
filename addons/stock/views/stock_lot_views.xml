@@ -231,7 +231,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}), Command.create({'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}), Command.create({'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
     </record>
 
     <record id="action_stock_lot_form_2" model="ir.actions.act_window">
@@ -254,7 +254,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}),                 (0, 0, {'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('view_stock_lot_kanban')}), Command.create({'view_mode': 'list', 'view_id': ref('view_stock_lot_list')}), Command.create({'view_mode': 'form', 'view_id': ref('view_stock_lot_form')})]" />
     </record>
 
 </odoo>

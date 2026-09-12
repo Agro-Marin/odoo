@@ -6,7 +6,7 @@
         <field name="model_id" ref="model_mrp_production" />
         <field
             name="domain_force">[('subcontractor_id', '=', user.partner_id.commercial_partner_id.id)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="bom_subcontractor_rule" model="ir.rule">
@@ -14,7 +14,7 @@
         <field name="model_id" ref="mrp.model_mrp_bom" />
         <field
             name="domain_force">[('id', 'in', user.partner_id.commercial_partner_id.bom_ids.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="bom_line_subcontractor_rule" model="ir.rule">
@@ -22,7 +22,7 @@
         <field name="model_id" ref="mrp.model_mrp_bom_line" />
         <field
             name="domain_force">[('id', 'in', user.partner_id.commercial_partner_id.bom_ids.bom_line_ids.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="consumption_warning_subcontractor_rule" model="ir.rule">
@@ -30,7 +30,7 @@
         <field name="model_id" ref="mrp.model_mrp_consumption_warning" />
         <field
             name="domain_force">[('mrp_production_ids', 'in', user.partner_id.commercial_partner_id.production_ids.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="consumption_warning_line_subcontractor_rule" model="ir.rule">
@@ -38,7 +38,7 @@
         <field name="model_id" ref="mrp.model_mrp_consumption_warning_line" />
         <field
             name="domain_force">[('mrp_production_id', 'in', user.partner_id.commercial_partner_id.production_ids.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="stock_move_subcontractor_rule" model="ir.rule">
@@ -52,7 +52,7 @@
                 ('move_orig_ids.production_id.subcontractor_id', 'in', user.partner_id.commercial_partner_id.ids),
             ('raw_material_production_id.subcontractor_id', 'in', user.partner_id.commercial_partner_id.ids)
         ]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="stock_move_line_subcontractor_rule" model="ir.rule">
@@ -66,7 +66,7 @@
                 ('move_id.move_orig_ids.production_id.subcontractor_id', 'in', user.partner_id.commercial_partner_id.ids),
             ('move_id.raw_material_production_id.subcontractor_id', 'in', user.partner_id.commercial_partner_id.ids),
         ]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="picking_subcontractor_rule" model="ir.rule">
@@ -74,7 +74,7 @@
         <field name="model_id" ref="model_stock_picking" />
         <field
             name="domain_force">[('partner_id.commercial_partner_id', '=', user.partner_id.commercial_partner_id.id)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="picking_type_subcontractor_rule" model="ir.rule">
@@ -82,7 +82,7 @@
         <field name="model_id" ref="stock.model_stock_picking_type" />
         <field
             name="domain_force">['|', ('id', 'in', user.partner_id.commercial_partner_id.picking_ids.picking_type_id.ids), ('id', 'in', user.partner_id.commercial_partner_id.production_ids.picking_type_id.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="stock_location_subcontractor_rule" model="ir.rule">
@@ -104,7 +104,7 @@
                         ('id', 'in', user.partner_id.commercial_partner_id.production_ids.production_location_id.ids),
                 ('id', 'in', user.partner_id.commercial_partner_id.production_ids.move_finished_ids.move_dest_ids.location_id.ids),
         ]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="stock_warehouse_subcontractor_rule" model="ir.rule">
@@ -112,7 +112,7 @@
         <field name="model_id" ref="stock.model_stock_warehouse" />
         <field
             name="domain_force">[('id', 'in', user.partner_id.commercial_partner_id.picking_ids.picking_type_id.warehouse_id.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="stock_lot_subcontracting_rule" model="ir.rule">
@@ -126,7 +126,7 @@
                 ('product_id', 'in', user.partner_id.commercial_partner_id.bom_ids.product_tmpl_id.product_variant_ids.ids),
             ('product_id', 'in', user.partner_id.commercial_partner_id.bom_ids.bom_line_ids.product_id.ids),
             ]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
     <record id="product_template_subcontracting_rule" model="ir.rule">
@@ -140,7 +140,7 @@
                 ('id', 'in', user.partner_id.commercial_partner_id.bom_ids.product_tmpl_id.ids),
             ('id', 'in', user.partner_id.commercial_partner_id.bom_ids.bom_line_ids.product_id.product_tmpl_id.ids),
             ]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
     </record>
 
 </odoo>

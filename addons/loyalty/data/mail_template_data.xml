@@ -10,7 +10,7 @@
         <field name="use_default_to" eval="True" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('loyalty.report_gift_card'))]" />
+            eval="[Command.link(ref('loyalty.report_gift_card'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div style="background: #ffffff">
@@ -64,7 +64,7 @@
         <field name="use_default_to" eval="True" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('loyalty.report_loyalty_card'))]" />
+            eval="[Command.link(ref('loyalty.report_loyalty_card'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <table border="0" cellpadding="0" cellspacing="0" style="width:100%; margin:0px auto; background:#ffffff; color:#333333;"><tbody>

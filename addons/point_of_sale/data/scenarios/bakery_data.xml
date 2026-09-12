@@ -19,7 +19,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_flour" model="product.product">
             <field name="name">Flour</field>
@@ -38,7 +40,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_tiger_white_loaf" model="product.product">
             <field name="name">Tiger white loaf</field>
@@ -57,7 +61,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_butter_croissant" model="product.product">
             <field name="name">Butter Croissant</field>
@@ -78,7 +84,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_apple_pie" model="product.product">
             <field name="name">Apple Pie</field>
@@ -99,7 +105,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_cherry_pie" model="product.product">
             <field name="name">Cherry Pie</field>
@@ -120,7 +126,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_sourdough_loaf" model="product.product">
             <field name="name">Sourdough Loaf</field>
@@ -139,7 +145,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_multigrain_bread" model="product.product">
             <field name="name">Multigrain Bread</field>
@@ -158,7 +166,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_rye_bread" model="product.product">
             <field name="name">Rye Bread</field>
@@ -177,7 +187,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_cinnamon_roll" model="product.product">
             <field name="name">Cinnamon Roll</field>
@@ -198,7 +210,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_pain_au_chocolat" model="product.product">
             <field name="name">Pain au Chocolat</field>
@@ -219,7 +231,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_blueberry_muffin" model="product.product">
             <field name="name">Blueberry Muffin</field>
@@ -240,7 +252,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_bagel" model="product.product">
             <field name="name">Bagel</field>
@@ -259,7 +271,9 @@
             <field
                 name="categ_id"
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
-            <field name="pos_categ_ids" eval="[(6, 0, [ref('pos_category_breads')])]" />
+            <field
+                name="pos_categ_ids"
+                eval="[Command.set([ref('pos_category_breads')])]" />
         </record>
         <record id="product_cheese_croissant" model="product.product">
             <field name="name">Cheese Croissant</field>
@@ -280,7 +294,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
         <record id="product_pecan_pie" model="product.product">
             <field name="name">Pecan Pie</field>
@@ -301,7 +315,7 @@
                 eval="ref('point_of_sale.product_category_food', raise_if_not_found=False)" />
             <field
                 name="pos_categ_ids"
-                eval="[(6, 0, [ref('pos_category_pastries')])]" />
+                eval="[Command.set([ref('pos_category_pastries')])]" />
         </record>
     </data>
 

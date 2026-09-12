@@ -7,7 +7,7 @@
         <field name="model_id" ref="website_forum.model_forum_forum" />
         <field
             name="domain_force">[('slide_channel_ids.website_published', '=', True), ('slide_channel_ids.visibility', '=', 'public')]</field>
-        <field name="groups" eval="[(4, ref('base.group_public'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_public'))]" />
     </record>
 
     <record id="website_slides_forum_signed_in_user" model="ir.rule">
@@ -24,7 +24,7 @@
             ]</field>
         <field
             name="groups"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="website_slides_forum_website_slides_officer" model="ir.rule">
@@ -34,7 +34,7 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
-            eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+            eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
     </record>
 
     <record id="website_slides_forum_public_post" model="ir.rule">
@@ -43,7 +43,7 @@
         <field name="model_id" ref="website_forum.model_forum_post" />
         <field
             name="domain_force">[('forum_id.slide_channel_ids.website_published', '=', True), ('forum_id.slide_channel_ids.visibility', '=', 'public')]</field>
-        <field name="groups" eval="[(4, ref('base.group_public'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_public'))]" />
     </record>
 
     <record id="website_slides_forum_post_signed_in_user" model="ir.rule">
@@ -60,7 +60,7 @@
             ]</field>
         <field
             name="groups"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="website_slides_forum_website_slides_officer_post" model="ir.rule">
@@ -70,7 +70,7 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
-            eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+            eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
     </record>
 
     <record id="website_slides_forum_public_tag" model="ir.rule">
@@ -79,7 +79,7 @@
         <field name="model_id" ref="website_forum.model_forum_tag" />
         <field
             name="domain_force">[('forum_id.slide_channel_ids.website_published', '=', True), ('forum_id.slide_channel_ids.visibility', '=', 'public')]</field>
-        <field name="groups" eval="[(4, ref('base.group_public'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_public'))]" />
     </record>
 
     <record id="website_slides_forum_tag_signed_in_user" model="ir.rule">
@@ -96,7 +96,7 @@
             ]</field>
         <field
             name="groups"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="website_slides_forum_website_slides_officer_tag" model="ir.rule">
@@ -106,7 +106,7 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
-            eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+            eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
     </record>
 
 </odoo>

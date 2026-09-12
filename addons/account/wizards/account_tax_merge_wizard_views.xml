@@ -62,7 +62,7 @@
         <field name="binding_view_types">list</field>
         <field
             name="group_ids"
-            eval="[(6, 0, [ref('account.group_account_manager')])]" />
+            eval="[Command.set([ref('account.group_account_manager')])]" />
     </record>
 
     <record id="action_unmerge_taxes" model="ir.actions.server">

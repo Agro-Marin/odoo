@@ -388,7 +388,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[             (5, 0, 0),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_lunch_product_kanban_order')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('lunch_product_view_tree_order')})         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('view_lunch_product_kanban_order')}), Command.create({'view_mode': 'list', 'view_id': ref('lunch_product_view_tree_order')})]" />
     </record>
 
     <record id="lunch_product_category_action" model="ir.actions.act_window">

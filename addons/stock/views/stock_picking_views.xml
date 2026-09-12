@@ -985,7 +985,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('stock.view_stock_move_line_list_detailed')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('stock.view_stock_move_line_list_detailed')})]" />
     </record>
 
     <record id="action_picking_form" model="ir.actions.act_window">

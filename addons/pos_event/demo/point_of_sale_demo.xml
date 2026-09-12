@@ -5,7 +5,7 @@
         <record id="point_of_sale.pos_config_main" model="pos.config">
             <field
                 name="iface_available_categ_ids"
-                eval="[(4, ref('pos_event.pos_category_event'))]" />
+                eval="[Command.link(ref('pos_event.pos_category_event'))]" />
         </record>
     </data>
 

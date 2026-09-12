@@ -57,7 +57,7 @@
             <field name="target">new</field>
             <field name="binding_model_id" ref="account.model_account_move" />
             <field name="binding_view_types">list,kanban</field>
-            <field name="group_ids" eval="[(6, 0, [ref('base.group_no_one')])]" />
+            <field name="group_ids" eval="[Command.set([ref('base.group_no_one')])]" />
         </record>
     </data>
 

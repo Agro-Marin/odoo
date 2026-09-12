@@ -7,7 +7,7 @@
         <field name="priority">999</field>
         <field
             name="group_ids"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <form>
                 <group>
@@ -26,7 +26,7 @@
         <field name="priority">999</field>
         <field
             name="group_ids"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <kanban
                 default_order="priority desc, sequence, state, date_end asc, id desc"
@@ -159,7 +159,7 @@
         <field name="priority">999</field>
         <field
             name="group_ids"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <form string="Project Sharing: Task" class="o_form_project_tasks">
                 <header>

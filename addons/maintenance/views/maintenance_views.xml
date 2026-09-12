@@ -1287,7 +1287,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('maintenance_team_view_tree')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('maintenance_team_view_kanban')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('maintenance_team_view_tree')}), Command.create({'view_mode': 'kanban', 'view_id': ref('maintenance_team_view_kanban')})]" />
     </record>
 
     <record id="maintenance_dashboard_action" model="ir.actions.act_window">

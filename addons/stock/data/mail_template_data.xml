@@ -13,7 +13,7 @@
         <field name="use_default_to" eval="False" />
         <field
             name="report_template_ids"
-            eval="[(4, ref('stock.action_report_delivery'))]" />
+            eval="[Command.link(ref('stock.action_report_delivery'))]" />
         <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">

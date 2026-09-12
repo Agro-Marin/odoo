@@ -438,7 +438,7 @@
             }</field>
         <field
             name="group_ids"
-            eval="[(4, ref('hr_attendance.group_hr_attendance_officer'))]" />
+            eval="[Command.link(ref('hr_attendance.group_hr_attendance_officer'))]" />
         <field name="help" />
     </record>
 
@@ -600,7 +600,7 @@
         <field name="binding_model_id" ref="hr_attendance.model_res_company" />
         <field
             name="group_ids"
-            eval="[(4, ref('hr_attendance.group_hr_attendance_user'))]" />
+            eval="[Command.link(ref('hr_attendance.group_hr_attendance_user'))]" />
         <field name="state">code</field>
         <field name="code">action = model._action_view_kiosk_mode()</field>
         <field name="path">attendance-kiosk</field>

@@ -10,7 +10,7 @@
             ref="project.act_project_project_2_project_task_all" />
         <field name="python_method">action_view_mrp_bom</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('mrp.group_mrp_user'))]" />
+        <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
     </record>
 
     <record
@@ -22,7 +22,7 @@
         <field name="parent_action_id" ref="project.project_update_all_action" />
         <field name="python_method">action_view_mrp_bom</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('mrp.group_mrp_user'))]" />
+        <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
     </record>
 
     <record
@@ -36,7 +36,7 @@
             ref="project.act_project_project_2_project_task_all" />
         <field name="python_method">action_view_mrp_production</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('mrp.group_mrp_user'))]" />
+        <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
     </record>
 
     <record
@@ -48,7 +48,7 @@
         <field name="parent_action_id" ref="project.project_update_all_action" />
         <field name="python_method">action_view_mrp_production</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('mrp.group_mrp_user'))]" />
+        <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
     </record>
 
 </odoo>

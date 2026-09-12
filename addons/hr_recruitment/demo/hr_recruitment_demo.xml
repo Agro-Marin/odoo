@@ -4,13 +4,13 @@
     <record id="base.user_demo" model="res.users">
         <field
             name="group_ids"
-            eval="[             (3, ref('hr_recruitment.group_hr_recruitment_interviewer')),             (3, ref('hr_recruitment.group_hr_recruitment_user')),             (3, ref('hr_recruitment.group_hr_recruitment_manager')),         ]" />
+            eval="[Command.unlink(ref('hr_recruitment.group_hr_recruitment_interviewer')), Command.unlink(ref('hr_recruitment.group_hr_recruitment_user')), Command.unlink(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
     </record>
 
     <record id="base.default_user_group" model="res.groups">
         <field
             name="implied_ids"
-            eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]" />
+            eval="[Command.link(ref('hr_recruitment.group_hr_recruitment_manager'))]" />
     </record>
 
     <record id="hr.job_developer" model="hr.job">
@@ -82,7 +82,7 @@
             eval="[Command.create({'number': '9963214587', 'type': 'mobile'})]" />
         <field name="partner_name">Enrique Jones</field>
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_sales')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + relativedelta(months=3)).strftime('%Y-%m-%d')" />
@@ -105,7 +105,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '998655451', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_sales')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + relativedelta(months=3)).strftime('%Y-%m-%d')" />
@@ -177,7 +177,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '8955545', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + timedelta(days=15)).strftime('%Y-%m-%d')" />
@@ -196,7 +196,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '879895515', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
         <field name="user_id" ref="base.user_admin" />
@@ -211,7 +211,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '98765411', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
         <field name="medium_id" ref="utm.utm_medium_email" />
@@ -227,7 +227,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '654687987654', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
         <field name="user_id" ref="base.user_admin" />
@@ -241,7 +241,7 @@
         <field name="partner_name">Marie Justine</field>
         <field name="email_from">justinemarie@outlook.example.com</field>
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + timedelta(days=15)).strftime('%Y-%m-%d')" />
@@ -290,7 +290,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '999666735', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_bachelor" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_administration" />
         <field name="user_id" ref="base.user_demo" />
@@ -353,7 +353,7 @@
         <field name="partner_name">Yin Lee</field>
         <field name="email_from">yin.lee@wechat.example.com</field>
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field name="job_id" ref="hr.job_marketing" />
         <field name="department_id" ref="hr.dep_sales" />
         <field name="user_id" ref="base.user_admin" />
@@ -364,7 +364,7 @@
         <field name="partner_name">Hubert Blank</field>
         <field name="email_from">st-hubertus@gmail.example.com</field>
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + timedelta(days=15)).strftime('%Y-%m-%d')" />
@@ -413,7 +413,7 @@
         <field name="partner_name">John Bruno</field>
         <field name="email_from">johnnyboy@gmail.example.com</field>
         <field name="degree_id" ref="degree_graduate" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field name="job_id" ref="hr.job_marketing" />
         <field name="department_id" ref="hr.dep_sales" />
         <field name="user_id" ref="base.user_admin" />
@@ -428,7 +428,7 @@
         <field name="partner_name">Sandra Elvis</field>
         <field name="email_from">sandra.elvis.the.king25@gmail.example.com</field>
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_reserve')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
         <field name="user_id" ref="base.user_demo" />
@@ -443,7 +443,7 @@
         <field name="partner_name">David Armstrong</field>
         <field name="email_from">david.strongarm@gmail.example.com</field>
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_reserve')])]" />
         <field
             name="phone_ids"
             eval="[Command.create({'number': '33968745', 'type': 'mobile'})]" />
@@ -461,7 +461,7 @@
         <field name="partner_name">Joren Jacob</field>
         <field name="email_from">joren.jacob@outlook.example.com</field>
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_reserve')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + timedelta(days=15)).strftime('%Y-%m-%d')" />
@@ -539,7 +539,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '9898745745', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_sales')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_rd" />
         <field name="stage_id" ref="stage_job4" />
@@ -593,7 +593,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '9812398524', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + relativedelta(months=3)).strftime('%Y-%m-%d')" />
@@ -615,7 +615,7 @@
             name="phone_ids"
             eval="[Command.create({'number': '9988774455', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_licenced" />
-        <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
+        <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field
             name="availability"
             eval="(DateTime.today() + relativedelta(months=3)).strftime('%Y-%m-%d')" />

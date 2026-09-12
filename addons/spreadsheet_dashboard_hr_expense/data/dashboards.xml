@@ -9,7 +9,7 @@
             file="spreadsheet_dashboard_hr_expense/data/files/expense_dashboard.json" />
         <field
             name="main_data_model_ids"
-            eval="[(4, ref('hr_expense.model_hr_expense'))]" />
+            eval="[Command.link(ref('hr_expense.model_hr_expense'))]" />
         <field
             name="sample_dashboard_file_path">spreadsheet_dashboard_hr_expense/data/files/expense_sample_dashboard.json</field>
         <field

@@ -325,7 +325,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),                           (0, 0, {'view_mode': 'graph', 'view_id': ref('crm_opportunity_report_view_graph')}),                           (0, 0, {'view_mode': 'pivot', 'view_id': ref('crm_opportunity_report_view_pivot')}),                           (0, 0, {'view_mode': 'list', 'view_id': ref('crm_lead_view_tree_opportunity_reporting')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'graph', 'view_id': ref('crm_opportunity_report_view_graph')}), Command.create({'view_mode': 'pivot', 'view_id': ref('crm_opportunity_report_view_pivot')}), Command.create({'view_mode': 'list', 'view_id': ref('crm_lead_view_tree_opportunity_reporting')})]" />
     </record>
 
     <record id="crm_opportunity_report_action_lead" model="ir.actions.act_window">
@@ -348,7 +348,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),                           (0, 0, {'view_mode': 'graph', 'view_id': ref('crm_opportunity_report_view_graph_lead')}),                           (0, 0, {'view_mode': 'pivot', 'view_id': ref('crm_opportunity_report_view_pivot_lead')}),                           (0, 0, {'view_mode': 'form', 'view_id': ref('crm_lead_view_form')}),                           (0, 0, {'view_mode': 'list', 'view_id': ref('crm_lead_view_tree_reporting')}),                          ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'graph', 'view_id': ref('crm_opportunity_report_view_graph_lead')}), Command.create({'view_mode': 'pivot', 'view_id': ref('crm_opportunity_report_view_pivot_lead')}), Command.create({'view_mode': 'form', 'view_id': ref('crm_lead_view_form')}), Command.create({'view_mode': 'list', 'view_id': ref('crm_lead_view_tree_reporting')})]" />
     </record>
 
 </odoo>

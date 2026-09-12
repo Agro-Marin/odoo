@@ -26,7 +26,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),                           (0, 0, {'view_mode': 'list', 'view_id': ref('crm_case_tree_view_leads')}),                           (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_crm_lead_kanban')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('crm_case_tree_view_leads')}), Command.create({'view_mode': 'kanban', 'view_id': ref('view_crm_lead_kanban')})]" />
     </record>
 
     <!-- CRM opportunity search by Salesteams -->

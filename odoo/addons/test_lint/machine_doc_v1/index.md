@@ -114,7 +114,7 @@ negative for every rule, so no rule can go vacuous unnoticed.
 | `kanban-box` | `t-name="kanban-box"`, the pre-17.0 card name. |
 | `search-item-name` | a `<filter>` without `name`, or a search `<group>` with `string`/`expand`. |
 | `deprecated-output-directive` | `t-esc` / `t-raw`; `ir.qweb` logs a deprecation per compile. **Floored.** |
-| `legacy-x2many-command` | an `eval` list holding `(6, 0, ...)`-style tuples; `Command` is in the eval context. **Floored.** |
+| `legacy-x2many-command` | an `eval` list holding `(6, 0, ...)`-style tuples; `Command` is in the eval context. Fixer: `_modernize_commands.py`. |
 | `menuitem-placement` | a `<menuitem>` in a file whose name does not say `menu`. **Floored.** |
 | `data-root` | a root element other than `<odoo>`. |
 | `orphan-data-file` | a data file no manifest lists and no Python of its module names by path. `addons/marketing_card/data/utm_source_data.xml` was one: the record it declares never existed, and two `env.ref(..., raise_if_not_found=False)` degraded silently around it. |
@@ -152,6 +152,7 @@ model with `_inherits` also declares `<xmlid>_<parent_model>`, every manifest
 | `_pretty_xml.py` | `_xml_identity.is_faithful` | order-**preserving**: it only reindents |
 | `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job. Inside a model-backed view arch it also orders the attributes of every view-semantic element (`ARCH_TAGS`, HTML left alone) by `ARCH_ATTRIB_ORDER`: what it is (`name`, `for`, `expr`, `position`, `special`, `type`), what it says (`string`, `placeholder`, `help`, `confirm`), how it renders (`widget`, `icon`, `col`, `nolabel`, `optional`, ...), what data it takes (`domain`, `context`, `options`, `default_order`, `editable`, ...), when it applies (`groups`, `invisible`, `column_invisible`, `readonly`, `required`), then `class`/`style`, then the rest alphabetically -- so the conditions a reviewer scans for sit together. Core had no such order (26,384 of 26,848 arch fields put `name` first and agreed on nothing else); the sweep moved 17,394 lines in 1,272 files. `FIELD_ORDER` is one list per technical model (22, `ir.ui.view` to `mail.message.subtype`), every name pinned to the registry by `test_fixers.py` -- the canon carried four fields a rename had deleted (`groups_id` three times, `print_wizard`, `filter`, `mobile_view_filter`) and sorted nothing for them. A comment travels with the field it precedes; any other child keeps its place after the fields, so the sorter settles every record `test_xml_records.py` reports. |
 | `_sort_manifests.py` | `normalize` then a round-trip: the rendered dict must equal `normalize(data)` | value-**normalising**: see below |
+| `_modernize_commands.py` | `is_equivalent`: both the original and the rewrite are mapped to `(code, id, values)` tuples and compared as `ast.dump` | value-**rewriting**: `(6, 0, ids)` becomes `Command.set(ids)` inside an `eval` list, and the sub-commands inside a `create`/`update` dict with it. No evaluation, so it runs without odoo-bin; a refusal is a rewrite the round-trip would not reproduce. Swept 2026-09-12: 312 files, `legacy-x2many-command` 1,408 -> 0. |
 
 `_xml_sweep.py` runs a fixer over every data file **once**; the gates read the
 result rather than each making their own pass.

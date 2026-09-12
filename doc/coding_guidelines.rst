@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.40
+:Version: 6.41
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -5881,7 +5881,9 @@ ratchet each, zero unless ``floors.json`` says otherwise:
   keeps the last and the earlier one is dead.
 * ``eval=`` parses as Python and is never empty (``eval-syntax``); an x2many
   ``eval`` writes ``Command.set/link/create/...``, not the ``(6, 0, ...)``
-  tuples ``[ratchet lint_xml_legacy_x2many_command]``.
+  tuples (``legacy-x2many-command``) ``[fixer _modernize_commands]`` -- run
+  ``odoo/addons/test_lint/tests/_modernize_commands.py <dir>``, then the sorter
+  and the formatter.
 * Every ``model`` a record, view or action names has a ``_name`` in the tree
   (``unknown-model``).
 * Every reference the loader resolves at install resolves statically
@@ -8113,6 +8115,10 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.41
+     - 2026-09-12
+     - §3.1: the x2many command tuples are fixer-owned
+       (``_modernize_commands.py``) and the rule is a hard zero.
    * - 6.40
      - 2026-09-12
      - §3.1: the record field-order canon covers 22 technical models and is

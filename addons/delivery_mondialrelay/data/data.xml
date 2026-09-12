@@ -19,7 +19,7 @@
             <field name="integration_level">rate</field>
             <field
                 name="country_ids"
-                eval="[(6, 0, [ref('base.be'), ref('base.lu')])]" />
+                eval="[Command.set([ref('base.be'), ref('base.lu')])]" />
             <field
                 name="product_id"
                 ref="delivery_mondialrelay.product_product_delivery_mondialrelay" />
@@ -42,7 +42,7 @@
             <field name="integration_level">rate</field>
             <field
                 name="country_ids"
-                eval="[(6, 0, [ref('base.fr'), ref('base.nl')])]" />
+                eval="[Command.set([ref('base.fr'), ref('base.nl')])]" />
             <field
                 name="product_id"
                 ref="delivery_mondialrelay.product_product_delivery_mondialrelay" />
@@ -68,7 +68,7 @@
             <field name="sequence">32</field>
             <field name="delivery_type">base_on_rule</field>
             <field name="integration_level">rate</field>
-            <field name="country_ids" eval="[(6, 0, [ref('base.es')])]" />
+            <field name="country_ids" eval="[Command.set([ref('base.es')])]" />
             <field
                 name="product_id"
                 ref="delivery_mondialrelay.product_product_delivery_mondialrelay" />

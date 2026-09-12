@@ -7,7 +7,7 @@
         <field name="sequence">1</field>
         <field
             name="identifier_type_ids"
-            eval="[(6, 0, [ref('identifier_type_plate'), ref('identifier_type_vin')])]" />
+            eval="[Command.set([ref('identifier_type_plate'), ref('identifier_type_vin')])]" />
     </record>
 
     <record id="kind_machinery" model="resource.asset.kind">
@@ -17,7 +17,7 @@
         <field name="scheduled" eval="True" />
         <field
             name="identifier_type_ids"
-            eval="[(6, 0, [ref('identifier_type_serial')])]" />
+            eval="[Command.set([ref('identifier_type_serial')])]" />
     </record>
 
     <record id="kind_equipment" model="resource.asset.kind">
@@ -26,7 +26,7 @@
         <field name="sequence">3</field>
         <field
             name="identifier_type_ids"
-            eval="[(6, 0, [ref('identifier_type_serial')])]" />
+            eval="[Command.set([ref('identifier_type_serial')])]" />
     </record>
 
     <record id="kind_tool" model="resource.asset.kind">
@@ -41,7 +41,7 @@
         <field name="sequence">5</field>
         <field
             name="identifier_type_ids"
-            eval="[(6, 0, [ref('identifier_type_serial')])]" />
+            eval="[Command.set([ref('identifier_type_serial')])]" />
     </record>
 
     <record id="kind_property" model="resource.asset.kind">
@@ -50,7 +50,7 @@
         <field name="sequence">6</field>
         <field
             name="identifier_type_ids"
-            eval="[(6, 0, [ref('identifier_type_cadastral')])]" />
+            eval="[Command.set([ref('identifier_type_cadastral')])]" />
     </record>
 
     <record id="kind_device" model="resource.asset.kind">
@@ -59,7 +59,7 @@
         <field name="sequence">7</field>
         <field
             name="identifier_type_ids"
-            eval="[(6, 0, [ref('identifier_type_imei')])]" />
+            eval="[Command.set([ref('identifier_type_imei')])]" />
     </record>
 
 </odoo>

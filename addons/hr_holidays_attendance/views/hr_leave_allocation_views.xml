@@ -63,7 +63,7 @@
         <field name="target">new</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0), (0, 0, {'view_mode': 'form', 'view_id': ref('hr_leave_allocation_overtime_manager_view_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'form', 'view_id': ref('hr_leave_allocation_overtime_manager_view_form')})]" />
     </record>
 
 </odoo>

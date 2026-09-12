@@ -412,7 +412,7 @@
         <field name="type">ir.actions.act_window</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'calendar', 'view_id': ref('calendar.calendar_event_view_calendar_booking_resource')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('calendar.calendar_event_view_tree_booking')}),         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'calendar', 'view_id': ref('calendar.calendar_event_view_calendar_booking_resource')}), Command.create({'view_mode': 'list', 'view_id': ref('calendar.calendar_event_view_tree_booking')})]" />
     </record>
 
     <record
@@ -435,7 +435,7 @@
         <field name="type">ir.actions.act_window</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'calendar', 'view_id': ref('calendar.calendar_event_view_calendar')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('calendar.calendar_event_view_tree_booking')}),         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'calendar', 'view_id': ref('calendar.calendar_event_view_calendar')}), Command.create({'view_mode': 'list', 'view_id': ref('calendar.calendar_event_view_tree_booking')})]" />
     </record>
 
     <record id="calendar_event_action_all_resources_bookings" model="ir.actions.server">

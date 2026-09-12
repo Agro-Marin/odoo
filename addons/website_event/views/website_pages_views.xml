@@ -80,7 +80,7 @@
             name="context">{'create_action': 'website_event.event_event_action_add'}</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),         (0, 0, {'view_mode': 'list', 'view_id': ref('event_pages_tree_view')}),         (0, 0, {'view_mode': 'kanban', 'view_id': ref('event_pages_kanban_view')}),     ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('event_pages_tree_view')}), Command.create({'view_mode': 'kanban', 'view_id': ref('event_pages_kanban_view')})]" />
     </record>
 
     <menuitem

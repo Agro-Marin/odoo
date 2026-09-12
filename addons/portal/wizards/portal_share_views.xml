@@ -55,7 +55,9 @@
             contextual action is hidden from users who would only hit an
             AccessError when opening the wizard.
         -->
-        <field name="group_ids" eval="[(4, ref('base.group_partner_manager'))]" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('base.group_partner_manager'))]" />
     </record>
 
 </odoo>

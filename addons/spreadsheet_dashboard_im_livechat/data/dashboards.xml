@@ -9,7 +9,7 @@
             file="spreadsheet_dashboard_im_livechat/data/files/livechat_dashboard.json" />
         <field
             name="main_data_model_ids"
-            eval="[(4, ref('im_livechat.model_im_livechat_report_channel'))]" />
+            eval="[Command.link(ref('im_livechat.model_im_livechat_report_channel'))]" />
         <field
             name="sample_dashboard_file_path">spreadsheet_dashboard_im_livechat/data/files/livechat_sample_dashboard.json</field>
         <field
@@ -30,7 +30,7 @@
             file="spreadsheet_dashboard_im_livechat/data/files/livechat_ongoing_dashboard.json" />
         <field
             name="main_data_model_ids"
-            eval="[(4, ref('im_livechat.model_im_livechat_report_channel'))]" />
+            eval="[Command.link(ref('im_livechat.model_im_livechat_report_channel'))]" />
         <field
             name="sample_dashboard_file_path">spreadsheet_dashboard_im_livechat/data/files/livechat_sample_ongoing_dashboard.json</field>
         <field

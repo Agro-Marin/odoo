@@ -68,14 +68,14 @@
             <field name="company_id" ref="base.main_company" />
             <field
                 name="picking_ids"
-                eval="[(6, 0, [ref('stock_picking_batch.Picking_C'), ref('stock_picking_batch.Picking_D')])]" />
+                eval="[Command.set([ref('stock_picking_batch.Picking_C'), ref('stock_picking_batch.Picking_D')])]" />
         </record>
         <record id="stock_picking_batch_2" model="stock.picking.batch">
             <field name="picking_type_id" ref="stock.picking_type_out" />
             <field name="company_id" ref="base.main_company" />
             <field
                 name="picking_ids"
-                eval="[(6, 0, [ref('stock_picking_batch.Picking_A'), ref('stock_picking_batch.Picking_B')])]" />
+                eval="[Command.set([ref('stock_picking_batch.Picking_A'), ref('stock_picking_batch.Picking_B')])]" />
         </record>
         <record id="stock_move1" model="stock.move">
             <field name="picking_type_id" ref="stock.picking_type_out" />

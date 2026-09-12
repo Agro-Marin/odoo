@@ -6,7 +6,7 @@
             <field name="alias_name">newsletter</field>
             <field name="description">Receive news about "My Company"</field>
             <field name="moderation" eval="True" />
-            <field name="moderator_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field name="moderator_ids" eval="[Command.link(ref('base.user_admin'))]" />
             <field name="access_mode">groups</field>
             <field name="access_group_id" ref="base.group_user" />
         </record>
@@ -39,7 +39,7 @@
             <field name="mail_group_id" ref="mail_group_1" />
             <field
                 name="attachment_ids"
-                eval="[(4, ref('ir_attachment_mail_group_message_1'))]" />
+                eval="[Command.link(ref('ir_attachment_mail_group_message_1'))]" />
         </record>
         <record id="mail_group_message_1_1" model="mail.group.message">
             <field name="subject">Re: Important Announce</field>
@@ -143,7 +143,7 @@
             <field name="mail_group_id" ref="mail_group_1" />
             <field
                 name="attachment_ids"
-                eval="[(4, ref('ir_attachment_mail_group_message_2'))]" />
+                eval="[Command.link(ref('ir_attachment_mail_group_message_2'))]" />
         </record>
         <record id="mail_group_2" model="mail.group">
             <field name="name">Public Mailing List</field>
@@ -151,7 +151,7 @@
             <field
                 name="description">Get the patch notes of our amazing product.</field>
             <field name="moderation" eval="True" />
-            <field name="moderator_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field name="moderator_ids" eval="[Command.link(ref('base.user_admin'))]" />
         </record>
         <record id="mail_group_message_5" model="mail.group.message">
             <field name="subject">Best patch ever</field>

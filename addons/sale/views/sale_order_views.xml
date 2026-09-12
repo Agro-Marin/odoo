@@ -1291,7 +1291,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('sale.view_sale_order_list_upload')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('sale.view_sale_order_kanban_upload')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('sale.view_sale_order_form')}),                 (0, 0, {'view_mode': 'calendar', 'view_id': ref('sale.view_sale_order_calendar')}),                 (0, 0, {'view_mode': 'pivot', 'view_id': ref('sale.view_sale_order_pivot')}),                 (0, 0, {'view_mode': 'graph', 'view_id': ref('sale.view_sale_order_graph')}),             ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('sale.view_sale_order_list_upload')}), Command.create({'view_mode': 'kanban', 'view_id': ref('sale.view_sale_order_kanban_upload')}), Command.create({'view_mode': 'form', 'view_id': ref('sale.view_sale_order_form')}), Command.create({'view_mode': 'calendar', 'view_id': ref('sale.view_sale_order_calendar')}), Command.create({'view_mode': 'pivot', 'view_id': ref('sale.view_sale_order_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('sale.view_sale_order_graph')})]" />
     </record>
 
     <record id="action_quotations_with_onboarding" model="ir.actions.act_window">
@@ -1364,7 +1364,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[                 (5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('sale.view_sale_order_list_quotation')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('sale.view_sale_order_kanban')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('sale.view_sale_order_form')}),                 (0, 0, {'view_mode': 'calendar', 'view_id': ref('sale.view_sale_order_calendar')}),                 (0, 0, {'view_mode': 'pivot', 'view_id': ref('sale.view_sale_order_pivot')}),                 (0, 0, {'view_mode': 'graph', 'view_id': ref('sale.view_sale_order_graph')}),             ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('sale.view_sale_order_list_quotation')}), Command.create({'view_mode': 'kanban', 'view_id': ref('sale.view_sale_order_kanban')}), Command.create({'view_mode': 'form', 'view_id': ref('sale.view_sale_order_form')}), Command.create({'view_mode': 'calendar', 'view_id': ref('sale.view_sale_order_calendar')}), Command.create({'view_mode': 'pivot', 'view_id': ref('sale.view_sale_order_pivot')}), Command.create({'view_mode': 'graph', 'view_id': ref('sale.view_sale_order_graph')})]" />
     </record>
 
     <record id="action_orders_to_invoice" model="ir.actions.act_window">

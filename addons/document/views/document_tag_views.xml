@@ -57,7 +57,7 @@
         <field name="context">{'simple_name': True}</field>
         <field
             name="view_ids"
-            eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('document.tag_view_list')}),             (0, 0, {'view_mode': 'form', 'view_id': ref('document.tag_view_form')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('document.tag_view_list')}), Command.create({'view_mode': 'form', 'view_id': ref('document.tag_view_form')})]" />
     </record>
 
 </odoo>

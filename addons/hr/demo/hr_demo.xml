@@ -5,12 +5,12 @@
         <record id="base.user_demo" model="res.users">
             <field
                 name="group_ids"
-                eval="[                 (3, ref('hr.group_hr_user')),                 (3, ref('hr.group_hr_manager'))]" />
+                eval="[Command.unlink(ref('hr.group_hr_user')), Command.unlink(ref('hr.group_hr_manager'))]" />
         </record>
         <record id="base.default_user_group" model="res.groups">
             <field
                 name="implied_ids"
-                eval="[                 (4, ref('hr.group_hr_manager'))]" />
+                eval="[Command.link(ref('hr.group_hr_manager'))]" />
         </record>
         <record id="resource_calendar_std_20h" model="resource.calendar">
             <field name="name">Standard 20 hours/week</field>
@@ -18,7 +18,7 @@
             <field name="hours_per_day">4.0</field>
             <field
                 name="attendance_ids"
-                eval="[(5, 0, 0),                     (0, 0, {'name': 'Monday Morning', 'dayofweek': '0', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}),                     (0, 0, {'name': 'Tuesday Morning', 'dayofweek': '1', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}),                     (0, 0, {'name': 'Wednesday Morning', 'dayofweek': '2', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}),                     (0, 0, {'name': 'Thursday Morning', 'dayofweek': '3', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}),                     (0, 0, {'name': 'Friday Morning', 'dayofweek': '4', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'})                 ]" />
+                eval="[Command.clear(), Command.create({'name': 'Monday Morning', 'dayofweek': '0', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}), Command.create({'name': 'Tuesday Morning', 'dayofweek': '1', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}), Command.create({'name': 'Wednesday Morning', 'dayofweek': '2', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}), Command.create({'name': 'Thursday Morning', 'dayofweek': '3', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'}), Command.create({'name': 'Friday Morning', 'dayofweek': '4', 'hour_from': 8, 'hour_to': 12, 'day_period': 'morning'})]" />
             <field name="full_time_required_hours">40</field>
         </record>
         <record id="dep_management" model="hr.department">

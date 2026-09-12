@@ -815,7 +815,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[             (5, 0, 0),             (0, 0, {'view_mode': 'list'}),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('hr_kanban_view_applicant_talent_pool')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list'}), Command.create({'view_mode': 'kanban', 'view_id': ref('hr_kanban_view_applicant_talent_pool')})]" />
     </record>
 
     <record id="action_hr_applicant_new" model="ir.actions.act_window">
@@ -1010,7 +1010,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[             (5, 0, 0),             (0, 0, {'view_mode': 'graph', 'view_id': ref('hr_applicant_view_graph')}),             (0, 0, {'view_mode': 'pivot', 'view_id': ref('hr_applicant_view_pivot')})]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'graph', 'view_id': ref('hr_applicant_view_graph')}), Command.create({'view_mode': 'pivot', 'view_id': ref('hr_applicant_view_pivot')})]" />
     </record>
 
     <record

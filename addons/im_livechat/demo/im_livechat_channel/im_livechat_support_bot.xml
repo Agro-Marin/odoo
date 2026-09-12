@@ -30,13 +30,13 @@
             id="chatbot_script_expertise_discuss_demo"
             model="im_livechat.expertise">
             <field name="name">Discuss</field>
-            <field name="user_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]" />
         </record>
         <record
             id="chatbot_script_expertise_livechat_demo"
             model="im_livechat.expertise">
             <field name="name">Livechat</field>
-            <field name="user_ids" eval="[(4, ref('base.user_admin'))]" />
+            <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]" />
         </record>
         <record id="chatbot_script_initial_step_demo" model="chatbot.script.step">
             <field
@@ -66,7 +66,7 @@
             <field name="chatbot_script_id" ref="chatbot_script_support_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_answer_troubleshooting_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_answer_troubleshooting_demo'))]" />
         </record>
         <record
             id="chatbot_script_troubleshooting_answer_chrome_demo"
@@ -135,10 +135,10 @@
             <field name="chatbot_script_id" ref="chatbot_script_support_bot_demo" />
             <field
                 name="operator_expertise_ids"
-                eval="[(4, ref('chatbot_script_expertise_discuss_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_expertise_discuss_demo'))]" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_answer_discuss_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_answer_discuss_demo'))]" />
         </record>
         <record
             id="chatbot_script_module_info_livechat_forward_operator_step_demo"
@@ -148,10 +148,10 @@
             <field name="chatbot_script_id" ref="chatbot_script_support_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_answer_livechat_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_answer_livechat_demo'))]" />
             <field
                 name="operator_expertise_ids"
-                eval="[(4, ref('chatbot_script_expertise_livechat_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_expertise_livechat_demo'))]" />
         </record>
         <record
             id="chatbot_script_module_info_discuss_and_livechat_forward_operator_step_demo"
@@ -161,10 +161,10 @@
             <field name="chatbot_script_id" ref="chatbot_script_support_bot_demo" />
             <field
                 name="triggering_answer_ids"
-                eval="[(4, ref('chatbot_script_answer_discuss_livechat_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_answer_discuss_livechat_demo'))]" />
             <field
                 name="operator_expertise_ids"
-                eval="[(4, ref('chatbot_script_expertise_discuss_demo')), (4, ref('chatbot_script_expertise_livechat_demo'))]" />
+                eval="[Command.link(ref('chatbot_script_expertise_discuss_demo')), Command.link(ref('chatbot_script_expertise_livechat_demo'))]" />
         </record>
     </data>
 

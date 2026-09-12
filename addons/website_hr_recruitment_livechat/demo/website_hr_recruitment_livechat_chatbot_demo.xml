@@ -62,7 +62,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_department_sales')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_department_sales'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_sales_chat_hr"
@@ -76,7 +76,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_department_sales')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_department_sales'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_sales_chat_hr_yes"
@@ -98,7 +98,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_sales_noon_available"
@@ -112,7 +112,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_sales_mail"
@@ -126,7 +126,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_sales_thanks"
@@ -140,7 +140,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_sales_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_sales_chat_hr_no"
@@ -163,7 +163,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_sales_chat_hr_no')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_sales_chat_hr_no'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_department_services"
@@ -186,7 +186,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_department_services')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_department_services'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_answser_social_media"
@@ -209,7 +209,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_answser_social_media')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_answser_social_media'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_service_community_chat_hr"
@@ -223,7 +223,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_answser_social_media')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_answser_social_media'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_community_chat_hr_yes"
@@ -245,7 +245,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_community_noon_available"
@@ -259,7 +259,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_community_mail"
@@ -273,7 +273,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_community_thanks"
@@ -287,7 +287,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_community_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_service_community_chat_hr_no"
@@ -310,7 +310,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_service_community_chat_hr_no')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_service_community_chat_hr_no'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_answser_master_product"
@@ -333,7 +333,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_answser_master_product')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_answser_master_product'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_consultant_chat_hr"
@@ -347,7 +347,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_answser_master_product')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_answser_master_product'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes"
@@ -369,7 +369,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_consultant_noon_available"
@@ -383,7 +383,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_consultant_mail"
@@ -397,7 +397,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_consultant_thanks"
@@ -411,7 +411,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_services_consultant_chat_hr_no"
@@ -434,7 +434,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_no')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_services_consultant_chat_hr_no'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_department_rd"
@@ -457,7 +457,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_department_rd')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_department_rd'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_rd_chat_hr"
@@ -471,7 +471,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_department_rd')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_department_rd'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_rd_chat_hr_yes"
@@ -493,7 +493,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_rd_noon_available"
@@ -507,7 +507,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_rd_mail"
@@ -521,7 +521,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_rd_thanks"
@@ -535,7 +535,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_rd_chat_hr_yes'))]" />
         </record>
         <record
             id="chatbot_script_website_hr_recruitment_rd_chat_hr_no"
@@ -558,7 +558,7 @@
                 ref="chatbot_script_website_hr_recruitment" />
             <field
                 name="triggering_answer_ids"
-                eval="[                 (4, ref('chatbot_script_website_hr_recruitment_rd_chat_hr_no')),             ]" />
+                eval="[Command.link(ref('chatbot_script_website_hr_recruitment_rd_chat_hr_no'))]" />
         </record>
     </data>
 

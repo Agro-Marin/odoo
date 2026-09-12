@@ -13,7 +13,7 @@
     </record>
 
     <record id="base.menu_management" model="ir.ui.menu">
-        <field name="group_ids" eval="[(5, 0, 0)]" />
+        <field name="group_ids" eval="[Command.clear()]" />
     </record>
 
 </odoo>

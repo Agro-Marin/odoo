@@ -17,7 +17,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 642.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 642.0, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to Servicios Globales with vat 21, 27 and 10,5 -->
@@ -34,7 +34,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-05'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}), Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}), Command.create({'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2})]" />
     </record>
 
     <!-- Invoice to ADHOC with vat cero and 21 -->
@@ -51,7 +51,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),             (0, 0, {'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}), Command.create({'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to ADHOC with vat exempt and 21 -->
@@ -68,7 +68,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.1234, 'quantity': 5}),             (0, 0, {'product_id': ref('product_product_exento'), 'price_unit': 100.5678, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.1234, 'quantity': 5}), Command.create({'product_id': ref('product_product_exento'), 'price_unit': 100.5678, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to ADHOC with all type of taxes -->
@@ -85,7 +85,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}),             (0, 0, {'product_id': ref('product_product_no_gravado'), 'price_unit': 50.0, 'quantity': 10}),             (0, 0, {'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product_product_exento'), 'price_unit': 100.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}), Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}), Command.create({'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}), Command.create({'product_id': ref('product_product_no_gravado'), 'price_unit': 50.0, 'quantity': 10}), Command.create({'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}), Command.create({'product_id': ref('product_product_exento'), 'price_unit': 100.0, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to Montana Sur fiscal position changes taxes to exempt -->
@@ -104,7 +104,7 @@
         <field name="invoice_incoterm_id" ref="account.incoterm_EXW" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}),             (0, 0, {'product_id': ref('product_product_no_gravado'), 'price_unit': 50.0, 'quantity': 10}),             (0, 0, {'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product_product_exento'), 'price_unit': 100.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}), Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}), Command.create({'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}), Command.create({'product_id': ref('product_product_no_gravado'), 'price_unit': 50.0, 'quantity': 10}), Command.create({'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}), Command.create({'product_id': ref('product_product_exento'), 'price_unit': 100.0, 'quantity': 1})]" />
     </record>
 
     <!-- Export invoice to Barcelona food, fiscal position changes tax to exempt (type 4 because it have services) -->
@@ -123,7 +123,7 @@
         <field name="invoice_incoterm_id" ref="account.incoterm_EXW" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}),             (0, 0, {'product_id': ref('product_product_no_gravado'), 'price_unit': 50.0, 'quantity': 10}),             (0, 0, {'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product_product_exento'), 'price_unit': 100.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}), Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}), Command.create({'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 2}), Command.create({'product_id': ref('product_product_no_gravado'), 'price_unit': 50.0, 'quantity': 10}), Command.create({'product_id': ref('product_product_cero'), 'price_unit': 200.0, 'quantity': 1}), Command.create({'product_id': ref('product_product_exento'), 'price_unit': 100.0, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to consumidor final -->
@@ -140,7 +140,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 642.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 642.0, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to ADHOC in USD and vat 21 -->
@@ -161,7 +161,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 1000.0, 'quantity': 5}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 1000.0, 'quantity': 5})]" />
         <field name="currency_id" ref="base.USD" />
     </record>
 
@@ -179,7 +179,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 1'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 2'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 3'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 4'}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 1'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 2'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 3'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 1.12, 'quantity': 1, 'name': 'Support Services 4'})]" />
     </record>
 
     <!-- Invoice to ADHOC with many lines in order to test rounding error, it is required to use a 4 decimal precision in prodct in order to the error occur -->
@@ -196,7 +196,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 15.7076, 'quantity': 1, 'name': 'Support Services 1'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 5.3076, 'quantity': 2, 'name': 'Support Services 2'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 3.5384, 'quantity': 2, 'name': 'Support Services 3'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 1.6376, 'quantity': 2, 'name': 'Support Services 4'}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 15.7076, 'quantity': 1, 'name': 'Support Services 1'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 5.3076, 'quantity': 2, 'name': 'Support Services 2'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 3.5384, 'quantity': 2, 'name': 'Support Services 3'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 1.6376, 'quantity': 2, 'name': 'Support Services 4'})]" />
     </record>
 
     <!-- Invoice to ADHOC with many lines in order to test zero amount invoices y rounding error. it is required to set the product decimal precision to 4 and change 260.59 for 260.60 in order to reproduce the error -->
@@ -213,7 +213,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 1'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 260.59, 'quantity': -1, 'name': 'Support Services 2'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 48.72, 'quantity': 1, 'name': 'Support Services 3'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 13.666, 'quantity': 1, 'name': 'Support Services 4'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 11.329, 'quantity': 2, 'name': 'Support Services 5'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 68.9408, 'quantity': 1, 'name': 'Support Services 6'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 4.7881, 'quantity': 2, 'name': 'Support Services 7'}),             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 12.0625, 'quantity': 2, 'name': 'Support Services 8'}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 1'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 260.59, 'quantity': -1, 'name': 'Support Services 2'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 48.72, 'quantity': 1, 'name': 'Support Services 3'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 13.666, 'quantity': 1, 'name': 'Support Services 4'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 11.329, 'quantity': 2, 'name': 'Support Services 5'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 68.9408, 'quantity': 1, 'name': 'Support Services 6'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 4.7881, 'quantity': 2, 'name': 'Support Services 7'}), Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 12.0625, 'quantity': 2, 'name': 'Support Services 8'})]" />
     </record>
 
     <!-- Export invoice to Barcelona food, fiscal position changes tax to exempt (type 1 because only products) -->
@@ -232,7 +232,7 @@
         <field name="invoice_incoterm_id" ref="account.incoterm_EXW" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5})]" />
     </record>
 
     <!-- Export invoice to Barcelona food, fiscal position changes tax to exempt (type 2 because only service) -->
@@ -251,7 +251,7 @@
         <field name="invoice_incoterm_id" ref="account.incoterm_EXW" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1})]" />
     </record>
 
     <!-- Export invoice to Barcelona food, fiscal position changes tax to exempt (type 1 because it have products only, used to test refund of expo) -->
@@ -270,7 +270,7 @@
         <field name="invoice_incoterm_id" ref="account.incoterm_EXW" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_27'), 'price_unit': 642.0, 'quantity': 5})]" />
     </record>
 
     <!-- Invoice to ADHOC with 100% of discount -->
@@ -287,7 +287,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 8', 'discount': 100}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 8', 'discount': 100})]" />
     </record>
 
     <!-- Invoice to ADHOC with 100% of discount and with different VAT aliquots -->
@@ -304,7 +304,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 8', 'discount': 100}),             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1, 'discount': 100}),             (0, 0, {'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 8', 'discount': 100}), Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1, 'discount': 100}), Command.create({'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 1})]" />
     </record>
 
     <!-- Invoice to ADHOC with multiple taxes and perceptions -->
@@ -321,7 +321,7 @@
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
             name="invoice_line_ids"
-            eval="[             (0, 0, {'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 8'}),             (0, 0, {'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}),             (0, 0, {'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 1}),         ]" />
+            eval="[Command.create({'product_id': ref('product.product_product_2'), 'price_unit': 24.3, 'quantity': 3, 'name': 'Support Services 8'}), Command.create({'product_id': ref('product_product_telefonia'), 'price_unit': 250.0, 'quantity': 1}), Command.create({'product_id': ref('product.product_product_25'), 'price_unit': 3245.0, 'quantity': 1})]" />
     </record>
 
     <function model="account.move" name="action_post">

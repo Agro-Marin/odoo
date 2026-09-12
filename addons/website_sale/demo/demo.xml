@@ -166,7 +166,7 @@
         <field name="is_published" eval="True" />
         <field
             name="accessory_product_ids"
-            eval="[(6, 0, [ref('product.product_product_7')])]" />
+            eval="[Command.set([ref('product.product_product_7')])]" />
     </record>
 
     <record id="public_category_desks" model="product.public.category">
@@ -543,13 +543,13 @@
     <record id="product.product_product_1_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_services')])]" />
+            eval="[Command.set([ref('public_category_services')])]" />
     </record>
 
     <record id="product.product_product_2_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_services')])]" />
+            eval="[Command.set([ref('public_category_services')])]" />
     </record>
 
     <record id="public_category_furnitures_chairs" model="product.public.category">
@@ -567,90 +567,104 @@
     <record id="product.product_product_1_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_services')])]" />
+            eval="[Command.set([ref('public_category_services')])]" />
     </record>
 
     <record id="product.product_product_2_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_services')])]" />
+            eval="[Command.set([ref('public_category_services')])]" />
     </record>
 
     <record id="product.product_product_3_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_desks_components')])]" />
+            eval="[Command.set([ref('public_category_desks_components')])]" />
     </record>
 
     <record id="product.consu_delivery_03_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.product_product_4_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.product_product_5_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.product_product_6_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_cabinets')])]" />
+            eval="[Command.set([ref('public_category_cabinets')])]" />
     </record>
 
     <record id="product.product_product_7_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_boxes')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_boxes')])]" />
     </record>
 
     <record id="product.product_product_8_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.product_product_9_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_bins')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_bins')])]" />
     </record>
 
     <record id="product.product_product_10_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_cabinets')])]" />
+            eval="[Command.set([ref('public_category_cabinets')])]" />
     </record>
 
     <record id="product.product_product_11_product_template" model="product.template">
         <field name="website_sequence">9990</field>
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_furnitures_chairs')])]" />
+            eval="[Command.set([ref('public_category_furnitures_chairs')])]" />
     </record>
 
     <record id="product.product_product_12_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_furnitures_chairs')])]" />
+            eval="[Command.set([ref('public_category_furnitures_chairs')])]" />
     </record>
 
     <record id="product.product_product_13_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.product_product_16_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_drawers')])]" />
+            eval="[Command.set([ref('public_category_drawers')])]" />
     </record>
 
     <record id="product.product_product_20_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_desks_components')])]" />
+            eval="[Command.set([ref('public_category_desks_components')])]" />
     </record>
 
     <record id="product.product_product_22_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_desks_components')])]" />
+            eval="[Command.set([ref('public_category_desks_components')])]" />
     </record>
 
     <record
@@ -658,63 +672,69 @@
         model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_desks_components')])]" />
+            eval="[Command.set([ref('public_category_desks_components')])]" />
     </record>
 
     <record id="product.product_product_27_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_drawers')])]" />
+            eval="[Command.set([ref('public_category_drawers')])]" />
     </record>
 
     <record id="product.product_order_01_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_multimedia')])]" />
+            eval="[Command.set([ref('public_category_multimedia')])]" />
     </record>
 
     <record id="product.consu_delivery_01_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_furnitures_couches')])]" />
+            eval="[Command.set([ref('public_category_furnitures_couches')])]" />
     </record>
 
     <record id="product.consu_delivery_02_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.consu_delivery_03_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_desks')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_desks')])]" />
     </record>
 
     <record id="product.product_delivery_01_product_template" model="product.template">
         <field
             name="public_categ_ids"
-            eval="[(6,0,[ref('public_category_furnitures_chairs')])]" />
+            eval="[Command.set([ref('public_category_furnitures_chairs')])]" />
     </record>
 
     <record id="product.product_delivery_02_product_template" model="product.template">
-        <field name="public_categ_ids" eval="[(6,0,[ref('public_category_lamps')])]" />
+        <field
+            name="public_categ_ids"
+            eval="[Command.set([ref('public_category_lamps')])]" />
     </record>
 
     <record id="benelux" model="res.country.group">
         <field name="name">BeNeLux</field>
         <field
             name="country_ids"
-            eval="[(6,0,[                 ref('base.be'),ref('base.lu'),ref('base.nl')])]" />
+            eval="[Command.set([ref('base.be'), ref('base.lu'), ref('base.nl')])]" />
     </record>
 
     <record id="base.group_user" model="res.groups">
         <field
             name="implied_ids"
-            eval="[(4, ref('product.group_product_pricelist'))]" />
+            eval="[Command.link(ref('product.group_product_pricelist'))]" />
     </record>
 
     <record id="list_christmas" model="product.pricelist">
         <field name="name">Christmas</field>
         <field name="selectable" eval="False" />
         <field name="website_id" ref="website.default_website" />
-        <field name="country_group_ids" eval="[(6,0,[ref('base.europe')])]" />
+        <field name="country_group_ids" eval="[Command.set([ref('base.europe')])]" />
         <field name="sequence">20</field>
     </record>
 
@@ -729,7 +749,7 @@
         <field name="name">Benelux</field>
         <field name="selectable" eval="False" />
         <field name="website_id" ref="website.default_website" />
-        <field name="country_group_ids" eval="[(6,0,[ref('benelux')])]" />
+        <field name="country_group_ids" eval="[Command.set([ref('benelux')])]" />
         <field name="sequence">2</field>
     </record>
 
@@ -745,7 +765,7 @@
         <field name="name">EUR</field>
         <field name="selectable" eval="True" />
         <field name="website_id" ref="website.default_website" />
-        <field name="country_group_ids" eval="[(6,0,[ref('base.europe')])]" />
+        <field name="country_group_ids" eval="[Command.set([ref('base.europe')])]" />
         <field name="sequence">3</field>
         <field name="currency_id" ref="base.EUR" />
     </record>
@@ -804,7 +824,7 @@
         <field
             name="date_order"
             eval="(datetime.now()-relativedelta(days=5)).strftime('%Y-%m-%d %H:%M:%S')" />
-        <field name="tag_ids" eval="[(4, ref('sales_team.categ_oppor2'))]" />
+        <field name="tag_ids" eval="[Command.link(ref('sales_team.categ_oppor2'))]" />
         <field name="state">done</field>
     </record>
 
@@ -900,7 +920,7 @@
         <field name="website_id" ref="website.default_website" />
         <field name="team_id" ref="sales_team.salesteam_website_sales" />
         <field name="date_order" eval="datetime.now()" />
-        <field name="tag_ids" eval="[(4, ref('sales_team.categ_oppor1'))]" />
+        <field name="tag_ids" eval="[Command.link(ref('sales_team.categ_oppor1'))]" />
         <field name="state">done</field>
     </record>
 
@@ -942,7 +962,7 @@
         <field name="website_id" ref="website.default_website" />
         <field name="team_id" ref="sales_team.salesteam_website_sales" />
         <field name="date_order" eval="datetime.now()" />
-        <field name="tag_ids" eval="[(4, ref('sales_team.categ_oppor5'))]" />
+        <field name="tag_ids" eval="[Command.link(ref('sales_team.categ_oppor5'))]" />
     </record>
 
     <record id="website_sale_order_line_11" model="sale.order.line">
@@ -1084,7 +1104,7 @@
         <field name="invoice_policy">transferred</field>
         <field
             name="public_categ_ids"
-            eval="[(6, 0, [ref('website_sale.public_category_services')])]" />
+            eval="[Command.set([ref('website_sale.public_category_services')])]" />
         <field
             name="image_1920"
             type="base64"

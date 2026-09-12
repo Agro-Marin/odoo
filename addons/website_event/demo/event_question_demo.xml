@@ -8,7 +8,7 @@
             <field name="once_per_order" eval="False" />
             <field
                 name="event_type_ids"
-                eval="[(5, 0, 0), (4, ref('event.event_type_2'))]" />
+                eval="[Command.clear(), Command.link(ref('event.event_type_2'))]" />
             <field name="is_reusable">False</field>
         </record>
         <record id="event_question_about_0_answer_0" model="event.question.answer">
@@ -30,7 +30,9 @@
             <field name="title">How did you learn about this event?</field>
             <field name="question_type">simple_choice</field>
             <field name="once_per_order" eval="True" />
-            <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_0'))]" />
+            <field
+                name="event_ids"
+                eval="[Command.clear(), Command.link(ref('event.event_0'))]" />
             <field name="is_reusable">False</field>
         </record>
         <record id="event_question_about_1_answer_0" model="event.question.answer">
@@ -54,7 +56,7 @@
             <field name="once_per_order" eval="True" />
             <field
                 name="event_ids"
-                eval="[(5, 0, 0), (4, ref('event.event_1')), (4, ref('event.event_5'))]" />
+                eval="[Command.clear(), Command.link(ref('event.event_1')), Command.link(ref('event.event_5'))]" />
             <field name="is_reusable">True</field>
         </record>
         <record id="event_question_about_2_answer_0" model="event.question.answer">
@@ -76,7 +78,9 @@
             <field name="title">How did you hear about us?</field>
             <field name="question_type">text_box</field>
             <field name="once_per_order" eval="True" />
-            <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_7'))]" />
+            <field
+                name="event_ids"
+                eval="[Command.clear(), Command.link(ref('event.event_7'))]" />
             <field name="is_reusable">False</field>
         </record>
         <record id="event_question_meal_type" model="event.question">
@@ -85,7 +89,7 @@
             <field name="once_per_order" eval="False" />
             <field
                 name="event_ids"
-                eval="[(5, 0, 0), (4, ref('event.event_0')), (4, ref('event.event_7'))]" />
+                eval="[Command.clear(), Command.link(ref('event.event_0')), Command.link(ref('event.event_7'))]" />
             <field name="is_reusable">True</field>
         </record>
         <record id="event_question_meal_type_answer_0" model="event.question.answer">
@@ -107,14 +111,18 @@
             <field name="title">Allergies</field>
             <field name="question_type">text_box</field>
             <field name="once_per_order" eval="False" />
-            <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_0'))]" />
+            <field
+                name="event_ids"
+                eval="[Command.clear(), Command.link(ref('event.event_0'))]" />
             <field name="is_reusable">False</field>
         </record>
         <record id="event_question_working_field" model="event.question">
             <field name="title">Which field are you working in?</field>
             <field name="question_type">simple_choice</field>
             <field name="once_per_order" eval="False" />
-            <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_7'))]" />
+            <field
+                name="event_ids"
+                eval="[Command.clear(), Command.link(ref('event.event_7'))]" />
             <field name="is_reusable">False</field>
         </record>
         <record
@@ -148,7 +156,9 @@
             <field name="title">What's your Hockey level?</field>
             <field name="question_type">text_box</field>
             <field name="once_per_order" eval="False" />
-            <field name="event_ids" eval="[(5, 0, 0), (4, ref('event.event_5'))]" />
+            <field
+                name="event_ids"
+                eval="[Command.clear(), Command.link(ref('event.event_5'))]" />
             <field name="is_reusable">False</field>
         </record>
     </data>

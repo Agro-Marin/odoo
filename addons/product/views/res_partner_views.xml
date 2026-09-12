@@ -143,7 +143,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[             (5, 0, 0),             (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_partner_manufacturer_kanban')}),             (0, 0, {'view_mode': 'list', 'view_id': ref('view_partner_manufacturer_list')}),             (0, 0, {'view_mode': 'form', 'view_id': ref('view_partner_manufacturer_form')}),         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('view_partner_manufacturer_kanban')}), Command.create({'view_mode': 'list', 'view_id': ref('view_partner_manufacturer_list')}), Command.create({'view_mode': 'form', 'view_id': ref('view_partner_manufacturer_form')})]" />
     </record>
 
 </odoo>

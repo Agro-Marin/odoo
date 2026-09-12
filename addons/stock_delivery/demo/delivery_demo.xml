@@ -13,7 +13,7 @@
             <field name="location_dest_id" ref="stock.stock_location_customers" />
             <field
                 name="move_ids"
-                eval="[(0, 0, {                 'product_id': ref('product.product_product_6'),                 'product_uom_id': ref('uom.product_uom_unit'),                 'product_uom_qty': 1.0,                 'picking_type_id': ref('stock.picking_type_out'),                 'location_id': ref('stock.stock_location_stock'),                 'location_dest_id': ref('stock.stock_location_customers'),             })]"
+                eval="[Command.create({'product_id': ref('product.product_product_6'), 'product_uom_id': ref('uom.product_uom_unit'), 'product_uom_qty': 1.0, 'picking_type_id': ref('stock.picking_type_out'), 'location_id': ref('stock.stock_location_stock'), 'location_dest_id': ref('stock.stock_location_customers')})]"
                 model="stock.move" />
         </record>
         <record id="outgoing_shipment_with_carrier_assigned" model="stock.picking">
@@ -27,7 +27,7 @@
             <field name="location_dest_id" ref="stock.stock_location_customers" />
             <field
                 name="move_ids"
-                eval="[(0, 0, {                 'product_id': ref('product.product_product_6'),                 'product_uom_id': ref('uom.product_uom_unit'),                 'product_uom_qty': 1.0,                 'picking_type_id': ref('stock.picking_type_out'),                 'location_id': ref('stock.stock_location_stock'),                 'location_dest_id': ref('stock.stock_location_customers'),             })]"
+                eval="[Command.create({'product_id': ref('product.product_product_6'), 'product_uom_id': ref('uom.product_uom_unit'), 'product_uom_qty': 1.0, 'picking_type_id': ref('stock.picking_type_out'), 'location_id': ref('stock.stock_location_stock'), 'location_dest_id': ref('stock.stock_location_customers')})]"
                 model="stock.move" />
         </record>
         <record id="outgoing_shipment_with_carrier_done" model="stock.picking">
@@ -41,7 +41,7 @@
             <field name="location_dest_id" ref="stock.stock_location_customers" />
             <field
                 name="move_ids"
-                eval="[(0, 0, {                 'product_id': ref('product.product_product_6'),                 'product_uom_id': ref('uom.product_uom_unit'),                 'product_uom_qty': 1.0,                 'picking_type_id': ref('stock.picking_type_out'),                 'location_id': ref('stock.stock_location_stock'),                 'location_dest_id': ref('stock.stock_location_customers'),             })]"
+                eval="[Command.create({'product_id': ref('product.product_product_6'), 'product_uom_id': ref('uom.product_uom_unit'), 'product_uom_qty': 1.0, 'picking_type_id': ref('stock.picking_type_out'), 'location_id': ref('stock.stock_location_stock'), 'location_dest_id': ref('stock.stock_location_customers')})]"
                 model="stock.move" />
         </record>
         <function model="stock.picking" name="action_confirm">

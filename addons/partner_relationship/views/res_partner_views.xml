@@ -125,7 +125,7 @@
         </field>
         <field
             name="view_ids"
-            eval="[             (5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('view_res_partner_list_network')}),             (0, 0, {'view_mode': 'form', 'view_id': ref('view_res_partner_form_network')}),         ]" />
+            eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('view_res_partner_list_network')}), Command.create({'view_mode': 'form', 'view_id': ref('view_res_partner_form_network')})]" />
     </record>
 
 </odoo>

@@ -10,7 +10,7 @@
         <field name="custom_mode">on_site</field>
         <field
             name="payment_method_ids"
-            eval="[(6, 0, [                          ref('website_sale_collect.payment_method_pay_on_site'),                      ])]" />
+            eval="[Command.set([ref('website_sale_collect.payment_method_pay_on_site')])]" />
         <field
             name="image_128"
             type="base64"

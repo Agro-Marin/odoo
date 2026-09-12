@@ -31,7 +31,7 @@
             model="product.template">
             <field
                 name="optional_product_ids"
-                eval="[             (6, 0, [ref('test_website_slides_full.product_course_channel_1_option_0_product_template'),                     ref('test_website_slides_full.product_course_channel_1_option_1_product_template')]         )]" />
+                eval="[Command.set([ref('test_website_slides_full.product_course_channel_1_option_0_product_template'), ref('test_website_slides_full.product_course_channel_1_option_1_product_template')])]" />
         </record>
     </data>
 

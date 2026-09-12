@@ -11,6 +11,7 @@ from odoo.modules import Manifest
 from odoo.tests.common import BaseCase, no_retry, tagged
 
 from . import (
+    _modernize_commands,
     _pretty_xml,
     _sort_manifests,
     _sort_xml_records,
@@ -500,6 +501,104 @@ class TestFixersOverTheRepository(LintCase):
             )
 
 
+@no_retry
+class TestModernizeCommands(BaseCase):
+    maxDiff = None
+
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_every_command_shape_is_rewritten(self):
+        for expression, expected in (
+            ("[(6, 0, [ref('a'), ref('b')])]", "[Command.set([ref('a'), ref('b')])]"),
+            ("[(4, ref('a'))]", "[Command.link(ref('a'))]"),
+            ("[(4, ref('a'), 0)]", "[Command.link(ref('a'))]"),
+            (
+                "[(3, ref('a')), (2, ref('b'))]",
+                "[Command.unlink(ref('a')), Command.delete(ref('b'))]",
+            ),
+            ("[(5, 0, 0)]", "[Command.clear()]"),
+            ("[(5,)]", "[Command.clear()]"),
+            ("[(5, 0)]", "[Command.clear()]"),
+            ("[(0, 0, {'name': 'x'})]", "[Command.create({'name': 'x'})]"),
+            (
+                "[(1, ref('a'), {'name': 'x'})]",
+                "[Command.update(ref('a'), {'name': 'x'})]",
+            ),
+            (
+                "[Command.clear(), (0, 0, {'a': 1})]",
+                "[Command.clear(), Command.create({'a': 1})]",
+            ),
+            (
+                "[(0, 0, {'line_ids': [(0, 0, {'n': 1}), (6, 0, [1])]})]",
+                "[Command.create({'line_ids': [Command.create({'n': 1}), Command.set([1])]})]",
+            ),
+        ):
+            with self.subTest(expression=expression):
+                rewritten = _modernize_commands.modernize(expression)
+                self.assertEqual(rewritten, expected)
+                self.assertTrue(
+                    _modernize_commands.is_equivalent(expression, rewritten)
+                )
+
+    def test_what_is_not_a_command_is_left_alone(self):
+        for expression in (
+            "[Command.set([ref('a')])]",
+            "[(1, 2), (3, 4)]",
+            "(6, 0, [1])",
+            "{'a': [(4, ref('x'))]}",
+            "[ref('a'), ref('b')]",
+            "[(4, 5)]",
+        ):
+            with self.subTest(expression=expression):
+                self.assertIsNone(_modernize_commands.modernize(expression))
+
+    def test_the_round_trip_proof_catches_a_wrong_rewrite(self):
+        self.assertFalse(
+            _modernize_commands.is_equivalent(
+                "[(4, ref('a'))]", "[Command.unlink(ref('a'))]"
+            )
+        )
+        self.assertFalse(
+            _modernize_commands.is_equivalent("[(6, 0, [1, 2])]", "[Command.set([1])]")
+        )
+
+    def test_a_file_is_rewritten_once_and_then_settles(self):
+        path = Path(self.tmpdir) / "case.xml"
+        path.write_bytes(
+            b'<?xml version="1.0" encoding="utf-8"?>\n<odoo>\n'
+            b'    <record id="r" model="m">\n'
+            b'        <field name="a" eval="[(6, 0, [ref(\'x\')])]"/>\n'
+            b'        <field name="b" eval="[(4, ref(\'y\'))]"/>\n'
+            b'        <field name="c">keep</field>\n'
+            b"    </record>\n</odoo>\n"
+        )
+        self.assertIs(_modernize_commands.modernize_xml_file(path), True)
+        text = path.read_text()
+        self.assertIn("Command.set([ref('x')])", text)
+        self.assertIn("Command.link(ref('y'))", text)
+        self.assertIn("keep", text)
+        self.assertIs(_modernize_commands.modernize_xml_file(path), False)
+
+    def test_an_unfaithful_rewrite_is_refused_rather_than_written(self):
+        path = Path(self.tmpdir) / "case.xml"
+        path.write_bytes(
+            b'<odoo><record id="r" model="m">'
+            b'<field name="a" eval="[(4, ref(\'y\'))]"/></record></odoo>\n'
+        )
+        original = path.read_bytes()
+        real = _modernize_commands.modernize
+        try:
+            _modernize_commands.modernize = lambda expression: "[Command.clear()]"
+            self.assertIsNone(_modernize_commands.modernize_xml_file(path))
+        finally:
+            _modernize_commands.modernize = real
+        self.assertEqual(path.read_bytes(), original, "the file must be untouched")
+
+
 @tagged("post_install", "-at_install")
 @no_retry
 class TestFieldOrderVocabulary(LintCase):
@@ -833,7 +932,12 @@ class TestFixerScope(LintCase):
             )
 
     def test_neither_fixer_names_a_sibling_checkout_by_directory(self):
-        for module in (_pretty_xml, _sort_xml_records, _sort_manifests):
+        for module in (
+            _pretty_xml,
+            _sort_xml_records,
+            _sort_manifests,
+            _modernize_commands,
+        ):
             with self.subTest(fixer=module.__name__):
                 defaults = [
                     action.default

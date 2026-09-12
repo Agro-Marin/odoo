@@ -44,7 +44,7 @@
             <field name="published_date" eval="time.strftime('%Y-%m-%d %H:%M:%S')" />
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('blog_tag_1'), ref('blog_tag_2')])]" />
+                eval="[Command.set([ref('blog_tag_1'), ref('blog_tag_2')])]" />
             <field
                 name="cover_properties">{"background-image": "url('/website_blog/static/src/img/cover_1.jpg')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0"}</field>
             <field
@@ -80,7 +80,7 @@
             <field
                 name="published_date"
                 eval="(datetime.now()-relativedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S')" />
-            <field name="tag_ids" eval="[(6, 0, [ref('blog_tag_2')])]" />
+            <field name="tag_ids" eval="[Command.set([ref('blog_tag_2')])]" />
             <field name="visits">246</field>
             <field
                 name="cover_properties">{"background-image": "url('/website_blog/static/src/img/cover_2.jpg')", "resize_class": "o_record_has_cover o_half_screen_height", "opacity": "0.4"}</field>
@@ -125,7 +125,7 @@ People who live on the island have never even seen this remarkable scenery unles
             <field name="subtitle">Facts you should bear in mind.</field>
             <field name="blog_id" ref="blog_blog_1" />
             <field name="author_id" ref="base.partner_demo" />
-            <field name="tag_ids" eval="[(6, 0, [ref('blog_tag_1')])]" />
+            <field name="tag_ids" eval="[Command.set([ref('blog_tag_1')])]" />
             <field name="visits">467</field>
             <field name="is_published" eval="True" />
             <field
@@ -178,7 +178,7 @@ People who live on the island have never even seen this remarkable scenery unles
             <field name="subtitle">Be aware of this thing called “astronomy”</field>
             <field name="blog_id" ref="blog_blog_2" />
             <field name="author_id" ref="base.partner_admin" />
-            <field name="tag_ids" eval="[(6, 0, [ref('blog_tag_5')])]" />
+            <field name="tag_ids" eval="[Command.set([ref('blog_tag_5')])]" />
             <field name="visits">453</field>
             <field name="is_published" eval="True" />
             <field
@@ -223,7 +223,7 @@ People who live on the island have never even seen this remarkable scenery unles
             <field name="author_id" ref="base.partner_admin" />
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('blog_tag_4'), ref('blog_tag_5')])]" />
+                eval="[Command.set([ref('blog_tag_4'), ref('blog_tag_5')])]" />
             <field name="is_published" eval="True" />
             <field
                 name="published_date"
@@ -269,7 +269,7 @@ People who live on the island have never even seen this remarkable scenery unles
             <field name="author_id" ref="base.partner_admin" />
             <field
                 name="tag_ids"
-                eval="[(6, 0, [ref('blog_tag_3'), ref('blog_tag_4')])]" />
+                eval="[Command.set([ref('blog_tag_3'), ref('blog_tag_4')])]" />
             <field name="is_published" eval="True" />
             <field
                 name="published_date"
@@ -312,7 +312,7 @@ People who live on the island have never even seen this remarkable scenery unles
                 name="subtitle">Becoming part of the society of devoted amateur astronomers.</field>
             <field name="blog_id" ref="blog_blog_2" />
             <field name="author_id" ref="base.partner_admin" />
-            <field name="tag_ids" eval="[(6, 0, [ref('blog_tag_5')])]" />
+            <field name="tag_ids" eval="[Command.set([ref('blog_tag_5')])]" />
             <field name="is_published" eval="True" />
             <field
                 name="published_date"

@@ -20,7 +20,7 @@
             ]</field>
         <field
             name="groups"
-            eval="[(4, ref('base.group_user')), (4, ref('base.group_portal')), (4, ref('base.group_public'))]" />
+            eval="[Command.link(ref('base.group_user')), Command.link(ref('base.group_portal')), Command.link(ref('base.group_public'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
@@ -32,7 +32,7 @@
             name="name">Mail Group: Moderator have write access on their group</field>
         <field name="model_id" ref="model_mail_group" />
         <field name="domain_force">[('moderator_ids', 'in', user.id)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="False" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="False" />
@@ -44,7 +44,9 @@
             name="name">Mail Group: Administrator have access to all mail group</field>
         <field name="model_id" ref="model_mail_group" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('mail_group.group_mail_group_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('mail_group.group_mail_group_manager'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -73,7 +75,7 @@
             ]</field>
         <field
             name="groups"
-            eval="[(4, ref('base.group_public')), (4, ref('base.group_portal'))]" />
+            eval="[Command.link(ref('base.group_public')), Command.link(ref('base.group_portal'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -102,7 +104,7 @@
                             ('mail_group_id.access_mode', '=', 'members'),
                             ('mail_group_id.member_partner_ids', 'in', [user.partner_id.id]),
             ]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -114,7 +116,9 @@
             name="name">Mail Group Message: Administrator have access to all messages</field>
         <field name="model_id" ref="model_mail_group_message" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('mail_group.group_mail_group_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('mail_group.group_mail_group_manager'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -127,7 +131,7 @@
         <field name="model_id" ref="model_mail_group_member" />
         <field
             name="domain_force">[('mail_group_id.moderator_ids', 'in', user.id)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -139,7 +143,9 @@
             name="name">Mail Group Member: Administrator have access to all members</field>
         <field name="model_id" ref="model_mail_group_member" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('mail_group.group_mail_group_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('mail_group.group_mail_group_manager'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -152,7 +158,7 @@
         <field name="model_id" ref="model_mail_group_moderation" />
         <field
             name="domain_force">[('mail_group_id.moderator_ids', 'in', user.id)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
@@ -164,7 +170,9 @@
             name="name">Mail Group Moderation: Administrator have access to all moderation rules</field>
         <field name="model_id" ref="model_mail_group_moderation" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('mail_group.group_mail_group_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('mail_group.group_mail_group_manager'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />

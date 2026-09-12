@@ -5,7 +5,7 @@
         <field name="name">Resume: employee: read all</field>
         <field name="model_id" ref="model_hr_resume_line" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -15,14 +15,14 @@
         <field name="name">Resume: HR user: all</field>
         <field name="model_id" ref="model_hr_resume_line" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('hr.group_hr_user'))]" />
+        <field name="groups" eval="[Command.link(ref('hr.group_hr_user'))]" />
     </record>
 
     <record id="hr_skills_rule_employee_update" model="ir.rule">
         <field name="name">Resume: employee: create/write/unlink own</field>
         <field name="model_id" ref="model_hr_resume_line" />
         <field name="domain_force">[('employee_id.user_id','=',user.id)]</field>
-        <field name="groups" eval="[(4,ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="False" />
     </record>
 
@@ -30,7 +30,7 @@
         <field name="name">Employee skill: employee: read all</field>
         <field name="model_id" ref="model_hr_employee_skill" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
@@ -40,14 +40,14 @@
         <field name="name">Employee skill: HR user: read all</field>
         <field name="model_id" ref="model_hr_employee_skill" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('hr.group_hr_user'))]" />
+        <field name="groups" eval="[Command.link(ref('hr.group_hr_user'))]" />
     </record>
 
     <record id="hr_skill_rule_employee_update" model="ir.rule">
         <field name="name">Employee skill: employee: create/write/unlink own</field>
         <field name="model_id" ref="model_hr_employee_skill" />
         <field name="domain_force">[('employee_id.user_id','=',user.id)]</field>
-        <field name="groups" eval="[(4,ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         <field name="perm_read" eval="False" />
     </record>
 
@@ -55,7 +55,7 @@
         <field name="name">Employee Skill Report: HR user</field>
         <field name="model_id" ref="model_hr_employee_skill_report" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('hr.group_hr_user'))]" />
+        <field name="groups" eval="[Command.link(ref('hr.group_hr_user'))]" />
     </record>
 
     <record id="hr_employee_skill_report_manager" model="ir.rule">
@@ -63,14 +63,14 @@
         <field name="model_id" ref="model_hr_employee_skill_report" />
         <field
             name="domain_force">[('has_department_manager_access', '=', True)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="hr_employee_skill_history_report_hr_user" model="ir.rule">
         <field name="name">Employee Skill History Report: HR user</field>
         <field name="model_id" ref="model_hr_employee_skill_history_report" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('hr.group_hr_user'))]" />
+        <field name="groups" eval="[Command.link(ref('hr.group_hr_user'))]" />
     </record>
 
     <record id="hr_employee_skill_history_report_manager" model="ir.rule">
@@ -78,14 +78,14 @@
         <field name="model_id" ref="model_hr_employee_skill_history_report" />
         <field
             name="domain_force">[('employee_id', 'child_of', user.employee_ids.ids)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="hr_employee_certification_report_hr_user" model="ir.rule">
         <field name="name">Employee Certification Report: HR user</field>
         <field name="model_id" ref="model_hr_employee_certification_report" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('hr.group_hr_user'))]" />
+        <field name="groups" eval="[Command.link(ref('hr.group_hr_user'))]" />
     </record>
 
     <record id="hr_employee_certification_report_manager" model="ir.rule">
@@ -93,7 +93,7 @@
         <field name="model_id" ref="model_hr_employee_certification_report" />
         <field
             name="domain_force">[('has_department_manager_access', '=', True)]</field>
-        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="hr_employee_certification_report_multicompany" model="ir.rule">

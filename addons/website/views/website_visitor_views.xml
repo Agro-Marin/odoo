@@ -74,7 +74,7 @@
             </field>
             <field
                 name="view_ids"
-                eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('website_visitor_page_view_tree')}),             (0, 0, {'view_mode': 'graph', 'view_id': ref('website_visitor_page_view_graph')}),         ]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('website_visitor_page_view_tree')}), Command.create({'view_mode': 'graph', 'view_id': ref('website_visitor_page_view_graph')})]" />
         </record>
         <record id="website.visitor_partner_action" model="ir.actions.act_window">
             <field name="name">Partners</field>
@@ -434,7 +434,7 @@
             </field>
             <field
                 name="view_ids"
-                eval="[(5, 0, 0),             (0, 0, {'view_mode': 'list', 'view_id': ref('website_visitor_track_view_tree')}),             (0, 0, {'view_mode': 'graph', 'view_id': ref('website_visitor_track_view_graph')}),         ]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('website_visitor_track_view_tree')}), Command.create({'view_mode': 'graph', 'view_id': ref('website_visitor_track_view_graph')})]" />
         </record>
         <menuitem
             id="website_visitor_menu"

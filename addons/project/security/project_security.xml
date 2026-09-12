@@ -13,7 +13,7 @@
         <field name="privilege_id" ref="res_groups_privilege_project" />
         <field
             name="comment">User: Can manage tasks in projects shared with them.</field>
-        <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="group_project_manager" model="res.groups">
@@ -24,10 +24,10 @@
             name="comment">Administrator: Can manage projects and stages, with access to reporting and configuration.</field>
         <field
             name="implied_ids"
-            eval="[(4, ref('project.group_project_user')), (4, ref('mail.group_mail_canned_response_admin'))]" />
+            eval="[Command.link(ref('project.group_project_user')), Command.link(ref('mail.group_mail_canned_response_admin'))]" />
         <field
             name="user_ids"
-            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
+            eval="[Command.link(ref('base.user_root')), Command.link(ref('base.user_admin'))]" />
     </record>
 
     <record id="group_project_stages" model="res.groups">
@@ -63,7 +63,9 @@
             <field name="name">Project: project manager: see all</field>
             <field name="model_id" ref="model_project_project" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="project_public_members_rule" model="ir.rule">
             <field
@@ -74,7 +76,7 @@
                                         ('privacy_visibility', 'in', ['employees', 'portal']),
                                         ('message_partner_ids', 'in', [user.partner_id.id])
                                     ]</field>
-            <field name="groups" eval="[(4, ref('base.group_user'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         </record>
         <record id="task_comp_rule" model="ir.rule">
             <field name="name">Project/Task: multi-company</field>
@@ -99,7 +101,7 @@
                     # to subscribe check access to the record, follower is not enough at creation
                     ('user_ids', 'in', user.id)
         ]</field>
-            <field name="groups" eval="[(4,ref('base.group_user'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
             <field name="perm_unlink" eval="False" />
@@ -113,13 +115,17 @@
             '|', ('project_id', '!=', False),
                  ('user_ids', 'in', user.id),
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="workflow_step_manager_rule" model="ir.rule">
             <field name="name">Workflow Step: manager sees all</field>
             <field name="model_id" ref="model_project_workflow_step" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="workflow_step_comp_rule" model="ir.rule">
             <field name="name">Project/project.workflow.step: multi-company</field>
@@ -138,7 +144,9 @@
                 '|', ('project_ids.message_partner_ids', 'in', [user.partner_id.id]),
                      ('project_ids.user_id', '=', user.id)
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
         </record>
         <record id="workflow_step_rule_portal_project_sharing" model="ir.rule">
             <field
@@ -146,7 +154,7 @@
             <field name="model_id" ref="model_project_workflow_step" />
             <field
                 name="domain_force">[('project_ids.collaborator_ids.partner_id', 'in', [user.partner_id.id])]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         </record>
         <record id="triage_visibility_rule" model="ir.rule">
             <field name="name">Triage: see own buckets</field>
@@ -181,7 +189,9 @@
                     # to subscribe check access to the record, follower is not enough at creation
                     ('user_ids', 'in', user.id)
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
             <field name="perm_read" eval="False" />
         </record>
         <record id="ir_rule_private_task" model="ir.rule">
@@ -194,7 +204,9 @@
                       ('parent_id', '!=', False),
                  ('user_ids', 'in', user.id),
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
         </record>
         <record id="project_project_rule_portal" model="ir.rule">
             <field name="name">Project: portal users: portal and following</field>
@@ -205,7 +217,7 @@
                 ('privacy_visibility', 'in', ['invited_users', 'portal']),
                 ('message_partner_ids', 'child_of', [user.partner_id.commercial_partner_id.id]),
         ]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         </record>
         <record id="project_collaborator_rule_portal" model="ir.rule">
             <field
@@ -216,7 +228,7 @@
             ('project_id.privacy_visibility', 'in', ['invited_users', 'portal']),
             ('partner_id', '=', user.partner_id.id),
         ]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         </record>
         <record id="collaborator_comp_rule" model="ir.rule">
             <field name="name">Project/project.collaborator: multi-company</field>
@@ -233,13 +245,17 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
         </record>
         <record id="collaborator_manager_rule" model="ir.rule">
             <field name="name">Project/project.collaborator: manager full access</field>
             <field name="model_id" ref="project.model_project_collaborator" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="project_task_rule_portal" model="ir.rule">
             <field
@@ -256,7 +272,7 @@
                     ('limited_access', '=', False),
                 ]),
         ]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
             <field name="perm_read" eval="True" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
@@ -280,7 +296,7 @@
                     ('limited_access', '=', False),
                 ]),
         ]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
             <field name="perm_read" eval="False" />
             <field name="perm_write" eval="True" />
             <field name="perm_create" eval="True" />
@@ -306,7 +322,7 @@
                     ('user_id', '=', user.id),
                     ('project_id.user_id', '=', user.id)
         ]</field>
-            <field name="groups" eval="[(4,ref('base.group_user'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         </record>
         <record id="report_project_task_user_rule" model="ir.rule">
             <field name="name">Tasks Analysis: project visibility User</field>
@@ -321,20 +337,26 @@
                     ('task_id.message_partner_ids', 'in', [user.partner_id.id]),
                     ('user_ids', 'in', user.id),
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
         </record>
         <record id="report_project_task_manager_rule" model="ir.rule">
             <field name="name">Tasks Analysis: project visibility Manager</field>
             <field name="model_id" ref="model_report_project_task_user" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="update_visibility_project_admin" model="ir.rule">
             <field
                 name="name">Project updates : Project user can see all project updates</field>
             <field name="model_id" ref="project.model_project_update" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="burndown_chart_project_user_rule" model="ir.rule">
             <field name="name">Burndown chart: project visibility User</field>
@@ -347,13 +369,17 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('user_ids', 'in', user.id),
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
         </record>
         <record id="burndown_chart_project_manager_rule" model="ir.rule">
             <field name="name">Burndown chart: project visibility User</field>
             <field name="model_id" ref="model_project_task_burndown_chart_report" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="cfd_report_project_user_rule" model="ir.rule">
             <field name="name">Cumulative Flow Diagram: project visibility User</field>
@@ -366,14 +392,18 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('user_ids', 'in', user.id),
         ]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_user'))]" />
         </record>
         <record id="cfd_report_project_manager_rule" model="ir.rule">
             <field
                 name="name">Cumulative Flow Diagram: project visibility Manager</field>
             <field name="model_id" ref="model_project_cfd_report" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="milestone_comp_rule" model="ir.rule">
             <field name="name">Project/Milestone: multi-company</field>
@@ -393,14 +423,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id),
         ]</field>
-            <field name="groups" eval="[(4, ref('base.group_user'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
         </record>
         <record id="milestone_visibility_project_admin" model="ir.rule">
             <field
                 name="name">Project/Milestone: Project manager can see all project milestones</field>
             <field name="model_id" ref="project.model_project_milestone" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('project.group_project_manager'))]" />
+            <field
+                name="groups"
+                eval="[Command.link(ref('project.group_project_manager'))]" />
         </record>
         <record id="project_milestone_rule_portal_project_sharing" model="ir.rule">
             <field
@@ -411,14 +443,14 @@
             ('project_id.privacy_visibility', 'in', ['invited_users', 'portal']),
             ('project_id.collaborator_ids.partner_id', 'in', [user.partner_id.id]),
         ]</field>
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         </record>
         <record id="mail_plan_rule_group_project_manager_task" model="ir.rule">
             <field name="name">Manager can manage project/task plans</field>
             <field name="model_id" ref="mail.model_mail_activity_plan" />
             <field
                 name="domain_force">[('res_model', 'in', ('project.project', 'project.task'))]</field>
-            <field name="groups" eval="[(4, ref('group_project_manager'))]" />
+            <field name="groups" eval="[Command.link(ref('group_project_manager'))]" />
             <field name="perm_read" eval="False" />
         </record>
         <record
@@ -428,7 +460,7 @@
             <field name="model_id" ref="mail.model_mail_activity_plan_template" />
             <field
                 name="domain_force">[('plan_id.res_model', 'in', ('project.project', 'project.task'))]</field>
-            <field name="groups" eval="[(4, ref('group_project_manager'))]" />
+            <field name="groups" eval="[Command.link(ref('group_project_manager'))]" />
             <field name="perm_read" eval="False" />
         </record>
     </data>
@@ -451,14 +483,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="risk_manager_rule" model="ir.rule">
         <field name="name">Project/project.risk: manager full access</field>
         <field name="model_id" ref="model_project_risk" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="gate_comp_rule" model="ir.rule">
@@ -479,14 +513,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="gate_manager_rule" model="ir.rule">
         <field name="name">Project/project.gate: manager full access</field>
         <field name="model_id" ref="model_project_gate" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="gate_criterion_comp_rule" model="ir.rule">
@@ -507,14 +543,16 @@
                 ('gate_id.project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('gate_id.project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="gate_criterion_manager_rule" model="ir.rule">
         <field name="name">Project/project.gate.criterion: manager full access</field>
         <field name="model_id" ref="model_project_gate_criterion" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="benefit_comp_rule" model="ir.rule">
@@ -535,14 +573,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="benefit_manager_rule" model="ir.rule">
         <field name="name">Project/project.benefit: manager full access</field>
         <field name="model_id" ref="model_project_benefit" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="baseline_comp_rule" model="ir.rule">
@@ -563,14 +603,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="baseline_manager_rule" model="ir.rule">
         <field name="name">Project/project.baseline: manager full access</field>
         <field name="model_id" ref="model_project_baseline" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="baseline_line_comp_rule" model="ir.rule">
@@ -591,14 +633,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="baseline_line_manager_rule" model="ir.rule">
         <field name="name">Project/project.baseline.line: manager full access</field>
         <field name="model_id" ref="model_project_baseline_line" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="history_comp_rule" model="ir.rule">
@@ -619,14 +663,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="history_manager_rule" model="ir.rule">
         <field name="name">Project/project.history: manager full access</field>
         <field name="model_id" ref="model_project_history" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="retrospective_comp_rule" model="ir.rule">
@@ -647,14 +693,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="retrospective_manager_rule" model="ir.rule">
         <field name="name">Project/project.retrospective: manager full access</field>
         <field name="model_id" ref="model_project_retrospective" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="retrospective_action_comp_rule" model="ir.rule">
@@ -675,7 +723,7 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="retrospective_action_manager_rule" model="ir.rule">
@@ -683,7 +731,9 @@
             name="name">Project/project.retrospective.action: manager full access</field>
         <field name="model_id" ref="model_project_retrospective_action" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="sprint_comp_rule" model="ir.rule">
@@ -704,14 +754,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="sprint_manager_rule" model="ir.rule">
         <field name="name">Project/project.sprint: manager full access</field>
         <field name="model_id" ref="model_project_sprint" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="task_dependency_comp_rule" model="ir.rule">
@@ -732,14 +784,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="task_dependency_manager_rule" model="ir.rule">
         <field name="name">Project/project.task.dependency: manager full access</field>
         <field name="model_id" ref="model_project_task_dependency" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
     <record id="resource_report_comp_rule" model="ir.rule">
@@ -760,14 +814,16 @@
                 ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
                 ('project_id.user_id', '=', user.id)
         ]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
+        <field name="groups" eval="[Command.link(ref('project.group_project_user'))]" />
     </record>
 
     <record id="resource_report_manager_rule" model="ir.rule">
         <field name="name">Project/project.resource.report: manager sees all</field>
         <field name="model_id" ref="model_project_resource_report" />
         <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
+        <field
+            name="groups"
+            eval="[Command.link(ref('project.group_project_manager'))]" />
     </record>
 
 </odoo>

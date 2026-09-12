@@ -6,12 +6,12 @@
         <record id="base.group_user" model="res.groups">
             <field
                 name="implied_ids"
-                eval="[(4, ref('product.group_product_variant'))]" />
+                eval="[Command.link(ref('product.group_product_variant'))]" />
         </record>
         <record id="base.default_user_group" model="res.groups">
             <field
                 name="implied_ids"
-                eval="[(4, ref('product.group_product_manager'))]" />
+                eval="[Command.link(ref('product.group_product_manager'))]" />
         </record>
         <!-- Expensable products -->
         <record id="expense_product" model="product.product">
@@ -393,7 +393,7 @@
                 ref="product.product_product_4_product_template" />
             <field
                 name="value_ids"
-                eval="[(6, 0, [ref('product.product_4_attribute_2_value_2')])]" />
+                eval="[Command.set([ref('product.product_4_attribute_2_value_2')])]" />
         </record>
         <record
             id="product_template_attribute_exclusion_2"
@@ -403,7 +403,7 @@
                 ref="product.product_product_11_product_template" />
             <field
                 name="value_ids"
-                eval="[(6, 0, [ref('product.product_11_attribute_1_value_1')])]" />
+                eval="[Command.set([ref('product.product_11_attribute_1_value_1')])]" />
         </record>
         <record
             id="product_template_attribute_exclusion_3"
@@ -413,7 +413,7 @@
                 ref="product.product_product_11_product_template" />
             <field
                 name="value_ids"
-                eval="[(6, 0, [ref('product.product_11_attribute_1_value_2')])]" />
+                eval="[Command.set([ref('product.product_11_attribute_1_value_2')])]" />
         </record>
         <!--
             The "Customizable Desk's Aluminium" attribute value will excude:
@@ -425,7 +425,7 @@
             model="product.template.attribute.value">
             <field
                 name="exclude_for"
-                eval="[(6, 0, [ref('product.product_template_attribute_exclusion_1'), ref('product.product_template_attribute_exclusion_2')])]" />
+                eval="[Command.set([ref('product.product_template_attribute_exclusion_1'), ref('product.product_template_attribute_exclusion_2')])]" />
         </record>
         <!--
             The "Customizable Desk's Steel" attribute value will excude:
@@ -436,7 +436,7 @@
             model="product.template.attribute.value">
             <field
                 name="exclude_for"
-                eval="[(6, 0, [ref('product.product_template_attribute_exclusion_3')])]" />
+                eval="[Command.set([ref('product.product_template_attribute_exclusion_3')])]" />
         </record>
         <!-- MRP Demo Data-->
         <record id="product_product_12" model="product.product">
@@ -783,7 +783,7 @@
                 file="product/static/img/office_combo.jpg" />
             <field
                 name="combo_ids"
-                eval="[(6, 0, [                     ref('desks_combo'),                     ref('chairs_combo'),                     ref('desk_accessories_combo'),                 ])]" />
+                eval="[Command.set([ref('desks_combo'), ref('chairs_combo'), ref('desk_accessories_combo')])]" />
         </record>
         <function model="product.template" name="_demo_configure_variants" />
     </data>

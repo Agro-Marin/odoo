@@ -6,7 +6,7 @@
         <field name="name">ADHOC SA</field>
         <field
             name="tag_ids"
-            eval="[(6, 0, [ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" />
+            eval="[Command.set([ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" />
         <field name="is_company">1</field>
         <field name="city">Rosario</field>
         <field name="zip">2000</field>
@@ -29,7 +29,7 @@
         <field name="name">Gritti Agrimensura</field>
         <field
             name="tag_ids"
-            eval="[(6, 0, [ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" />
+            eval="[Command.set([ref('base.res_partner_category_8'), ref('base.res_partner_category_11')])]" />
         <field name="is_company">1</field>
         <field name="city">Rosario</field>
         <field name="zip">2000</field>
@@ -135,7 +135,7 @@
         <field name="name">Foreign Inc</field>
         <field
             name="tag_ids"
-            eval="[(6, 0, [ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" />
+            eval="[Command.set([ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" />
         <field name="is_company">1</field>
         <field name="street">7841 Red Road</field>
         <field name="city">San Francisco</field>
@@ -157,7 +157,7 @@
         <field name="name">Trenes Argentinos (Mipyme)</field>
         <field
             name="tag_ids"
-            eval="[(6, 0, [ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" />
+            eval="[Command.set([ref('base.res_partner_category_14'), ref('base.res_partner_category_12')])]" />
         <field name="is_company">1</field>
         <field name="street">Santa Cruz 4636</field>
         <field name="city">Buenos Aires</field>

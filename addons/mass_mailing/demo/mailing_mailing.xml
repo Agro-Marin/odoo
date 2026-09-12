@@ -156,7 +156,9 @@
                     </div>
                 </div>
             </field>
-            <field name="attachment_ids" eval="[(4, ref('mass_mail_attach_1'))]" />
+            <field
+                name="attachment_ids"
+                eval="[Command.link(ref('mass_mail_attach_1'))]" />
         </record>
         <!-- Generate link tracker information from it -->
         <function

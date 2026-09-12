@@ -12,7 +12,7 @@
             '|', ('survey_id.restrict_user_ids', '=', False), ('survey_id.restrict_user_ids', 'in', user.id)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+                eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
             <field name="perm_read" eval="1" />
             <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
@@ -28,7 +28,7 @@
             '|', ('survey_id.restrict_user_ids', '=', False), ('survey_id.restrict_user_ids', 'in', user.id)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+                eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
             <field name="perm_read" eval="1" />
             <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
@@ -50,7 +50,7 @@
         ]</field>
             <field
                 name="groups"
-                eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+                eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
             <field name="perm_read" eval="1" />
             <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
@@ -66,7 +66,7 @@
             '|', ('survey_id.restrict_user_ids', '=', False),('survey_id.restrict_user_ids', 'in', user.id)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+                eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
             <field name="perm_read" eval="1" />
             <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
@@ -82,7 +82,7 @@
             '|', ('restrict_user_ids', '=', False),('restrict_user_ids', 'in', user.id)]</field>
             <field
                 name="groups"
-                eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
+                eval="[Command.link(ref('website_slides.group_website_slides_officer'))]" />
             <field name="perm_read" eval="1" />
             <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />

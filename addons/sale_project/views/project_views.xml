@@ -42,7 +42,7 @@
         <field name="context">{"from_embedded_action": true}</field>
         <field
             name="group_ids"
-            eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]" />
+            eval="[Command.link(ref('account.group_account_invoice')), Command.link(ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
     </record>
 
@@ -55,7 +55,9 @@
             ref="project.act_project_project_2_project_task_all" />
         <field name="python_method">action_view_sos</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
     </record>
 
@@ -68,7 +70,7 @@
         <field name="context">{"from_embedded_action": true}</field>
         <field
             name="group_ids"
-            eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]" />
+            eval="[Command.link(ref('account.group_account_invoice')), Command.link(ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
     </record>
 
@@ -81,7 +83,9 @@
         <field name="parent_action_id" ref="project.project_update_all_action" />
         <field name="python_method">action_view_sos</field>
         <field name="context">{"from_embedded_action": true}</field>
-        <field name="group_ids" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
     </record>
 
@@ -96,7 +100,7 @@
         <field name="context">{"from_embedded_action": true}</field>
         <field
             name="group_ids"
-            eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]" />
+            eval="[Command.link(ref('account.group_account_invoice')), Command.link(ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
     </record>
 
@@ -111,7 +115,7 @@
         <field name="context">{"from_embedded_action": true}</field>
         <field
             name="group_ids"
-            eval="[(4, ref('account.group_account_invoice')), (4, ref('sales_team.group_sale_salesman'))]" />
+            eval="[Command.link(ref('account.group_account_invoice')), Command.link(ref('sales_team.group_sale_salesman'))]" />
         <field name="domain">[('allow_billable', '=', True)]</field>
     </record>
 

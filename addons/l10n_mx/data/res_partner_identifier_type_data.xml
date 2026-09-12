@@ -6,7 +6,7 @@
             <field name="name">RFC</field>
             <field name="code">MX_RFC</field>
             <field name="sequence">10</field>
-            <field name="country_ids" eval="[(6, 0, [ref('base.mx')])]" />
+            <field name="country_ids" eval="[Command.set([ref('base.mx')])]" />
             <field name="pattern">[A-ZÑ&amp;]{3,4}[0-9]{6}[A-Z0-9]{3}</field>
             <field name="synced_with_commercial" eval="True" />
         </record>
@@ -14,7 +14,7 @@
             <field name="name">CURP</field>
             <field name="code">MX_CURP</field>
             <field name="sequence">20</field>
-            <field name="country_ids" eval="[(6, 0, [ref('base.mx')])]" />
+            <field name="country_ids" eval="[Command.set([ref('base.mx')])]" />
             <field
                 name="pattern">[A-Z][AEIOUX][A-Z]{2}[0-9]{6}[HM][A-Z]{5}[A-Z0-9][0-9]</field>
             <field name="synced_with_commercial" eval="False" />
@@ -23,7 +23,7 @@
             <field name="name">NSS</field>
             <field name="code">MX_NSS</field>
             <field name="sequence">30</field>
-            <field name="country_ids" eval="[(6, 0, [ref('base.mx')])]" />
+            <field name="country_ids" eval="[Command.set([ref('base.mx')])]" />
             <!--
                 Eleven digits. The NSS also carries a Luhn check digit, which
                 this pattern deliberately does NOT verify: `pattern` is a

@@ -11,7 +11,7 @@
             <field name="write_uid" ref="base.user_admin" />
             <field
                 name="tag_ids"
-                eval="[(4,ref('website_forum.tags_0')), (4,ref('website_forum.tags_1'))]" />
+                eval="[Command.link(ref('website_forum.tags_0')), Command.link(ref('website_forum.tags_1'))]" />
         </record>
         <record id="question_1" model="forum.post">
             <field name="name">CMS replacement for ERP and eCommerce</field>
@@ -25,7 +25,7 @@
 Can I use Odoo as a replacement CMS of Wordpress + eCommerce plugin?
 
 In simple words does Odoo became CMS+ERP platform?&lt;/p&gt;</field>
-            <field name="tag_ids" eval="[(4,ref('website_forum.tags_2'))]" />
+            <field name="tag_ids" eval="[Command.link(ref('website_forum.tags_2'))]" />
         </record>
         <record id="answer_0" model="forum.post">
             <field name="create_uid" ref="base.user_admin" />

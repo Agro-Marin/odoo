@@ -29,7 +29,9 @@
             <field name="name">Jessica Johnson</field>
             <field name="parent_id" ref="hr.employee_al" />
             <field name="job_id" ref="sale_timesheet.job_engineer" />
-            <field name="tag_ids" eval="[(6, 0, [ref('hr.employee_category_4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('hr.employee_category_4')])]" />
             <field
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
@@ -57,7 +59,9 @@
             <field name="name">Amy Watson</field>
             <field name="parent_id" ref="sale_timesheet.employee_jjo" />
             <field name="job_id" ref="sale_timesheet.job_interior_designer" />
-            <field name="tag_ids" eval="[(6, 0, [ref('hr.employee_category_4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('hr.employee_category_4')])]" />
             <field name="work_location_id" ref="hr.work_location_1" />
             <field
                 name="phone_ids"
@@ -82,7 +86,9 @@
             <field name="name">Justin Smith</field>
             <field name="parent_id" ref="sale_timesheet.employee_jjo" />
             <field name="job_id" ref="sale_timesheet.job_labour" />
-            <field name="tag_ids" eval="[(6, 0, [ref('hr.employee_category_4')])]" />
+            <field
+                name="tag_ids"
+                eval="[Command.set([ref('hr.employee_category_4')])]" />
             <field name="work_location_id" ref="hr.work_location_1" />
             <field
                 name="phone_ids"

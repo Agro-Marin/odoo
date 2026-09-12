@@ -5,13 +5,17 @@
         <record id="base.user_demo" model="res.users">
             <field
                 name="group_ids"
-                eval="[(3, ref('group_mrp_manager')), (4, ref('group_mrp_user'))]" />
+                eval="[Command.unlink(ref('group_mrp_manager')), Command.link(ref('group_mrp_user'))]" />
         </record>
         <record id="base.default_user_group" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('mrp.group_mrp_manager'))]" />
+            <field
+                name="implied_ids"
+                eval="[Command.link(ref('mrp.group_mrp_manager'))]" />
         </record>
         <record id="base.group_user" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('mrp.group_mrp_routings'))]" />
+            <field
+                name="implied_ids"
+                eval="[Command.link(ref('mrp.group_mrp_routings'))]" />
         </record>
         <record id="mrp_workcenter_3" model="mrp.workcenter">
             <field name="name">Assembly 1</field>
@@ -30,7 +34,7 @@
             model="product.template">
             <field
                 name="route_ids"
-                eval="[(6, 0, [ref('stock.route_warehouse0_mto'), ref('mrp.route_warehouse0_manufacture')])]" />
+                eval="[Command.set([ref('stock.route_warehouse0_mto'), ref('mrp.route_warehouse0_manufacture')])]" />
         </record>
         <record id="mrp_bom_manufacture" model="mrp.bom">
             <field
@@ -272,7 +276,7 @@
             model="product.template">
             <field
                 name="route_ids"
-                eval="[(6, 0, [ref('stock.route_warehouse0_mto'), ref('mrp.route_warehouse0_manufacture')])]" />
+                eval="[Command.set([ref('stock.route_warehouse0_mto'), ref('mrp.route_warehouse0_manufacture')])]" />
         </record>
         <record id="mrp_bom_desk" model="mrp.bom">
             <field
@@ -441,7 +445,7 @@
             model="product.template">
             <field
                 name="route_ids"
-                eval="[(6, 0, [ref('mrp.route_warehouse0_manufacture')])]" />
+                eval="[Command.set([ref('mrp.route_warehouse0_manufacture')])]" />
         </record>
         <record id="mrp_bom_kit" model="mrp.bom">
             <field

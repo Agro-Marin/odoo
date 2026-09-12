@@ -522,7 +522,7 @@
             </field>
             <field
                 name="view_ids"
-                eval="[(5, 0, 0),                 (0, 0, {'view_mode': 'list', 'view_id': ref('mrp_workcenter_tree_view')}),                 (0, 0, {'view_mode': 'kanban', 'view_id': ref('mrp_workcenter_view_kanban')}),                 (0, 0, {'view_mode': 'form', 'view_id': ref('mrp_workcenter_view')})]" />
+                eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('mrp_workcenter_tree_view')}), Command.create({'view_mode': 'kanban', 'view_id': ref('mrp_workcenter_view_kanban')}), Command.create({'view_mode': 'form', 'view_id': ref('mrp_workcenter_view')})]" />
         </record>
         <record id="mrp_workcenter_kanban_action" model="ir.actions.act_window">
             <field name="name">Work Centers Overview</field>
