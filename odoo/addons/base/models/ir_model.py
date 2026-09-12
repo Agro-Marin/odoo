@@ -255,8 +255,7 @@ class IrModel(models.Model):
 
     @tools.ormcache("name", cache="stable")
     def _get_id(self, name: str) -> int | None:
-        self.env.cr.execute("SELECT id FROM ir_model WHERE model=%s", (name,))
-        return result[0] if (result := self.env.cr.fetchone()) else None
+        return self.sudo().search([("model", "=", name)], limit=1).id or None
 
     def _drop_table(self) -> None:
         for model in self:

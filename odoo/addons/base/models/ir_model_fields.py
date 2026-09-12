@@ -620,9 +620,8 @@ class IrModelFields(models.Model):
 
     @tools.ormcache("model_name", cache="stable")
     def _get_ids_by_name(self, model_name: str) -> dict[str, int]:
-        cr = self.env.cr
-        cr.execute("SELECT name, id FROM ir_model_fields WHERE model=%s", [model_name])
-        return dict(cr.fetchall())
+        fields_ = self.sudo().search_fetch([("model", "=", model_name)], ["name"])
+        return {field.name: field.id for field in fields_}
 
     def _drop_columns(self) -> bool:
         cr = self.env.cr
@@ -1214,6 +1213,9 @@ class IrModelFields(models.Model):
                 else:
                     by_label[field.string] = field
 
+        ids_cache_generation = self._get_ids_by_name.__cache__.get_cache_generation(
+            self
+        )
         rows = []
         for model_name in model_names:
             model_id = self.env["ir.model"]._get_id(model_name)
@@ -1245,6 +1247,20 @@ class IrModelFields(models.Model):
             for row, id_ in zip(rows, ids, strict=True):
                 field_ids[row[:2]] = id_
             self.pool.post_init(mark_modified, self.browse(ids), cols[2:])
+
+        # a lookup cached before this reflection would still answer with the old
+        # field set; seed it with what the table holds now, as _reflect_models does
+        ids_by_model: dict[str, dict[str, int]] = {name: {} for name in model_names}
+        for (field_model, field_name), field_id in field_ids.items():
+            ids_by_model[field_model][field_name] = field_id
+        add_value = self._get_ids_by_name.__cache__.add_value
+        for model_name, ids_by_name in ids_by_model.items():
+            add_value(
+                self,
+                model_name,
+                cache_value=ids_by_name,
+                generation=ids_cache_generation,
+            )
 
         module = self.env.context.get("module")
         if not module:

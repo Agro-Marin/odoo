@@ -125,13 +125,9 @@ class IrConfig_Parameter(models.Model):
     @api.model
     @ormcache("key", cache="stable")
     def _get_param(self, key: str) -> str | None:
-        self.flush_model(["key", "value"])
-        self.env.cr.execute(
-            "SELECT value FROM ir_config_parameter WHERE key = %s", [key]
-        )
-        result = self.env.cr.fetchone()
-        _debug.perf.count("param_read", key=key, found=bool(result))
-        return result and result[0]
+        param = self.sudo().search_fetch([("key", "=", key)], ["value"], limit=1)
+        _debug.perf.count("param_read", key=key, found=bool(param))
+        return param.value if param else None
 
     @api.model
     def set_param(self, key: str, value: Any) -> str | bool:

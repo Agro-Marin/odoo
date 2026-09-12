@@ -107,20 +107,17 @@ class PropertiesBaseDefinition(models.Model):
         field_id = field_ids.get(field_name)
 
         if field_id:
-            cr = self.env.cr
-            cr.execute(
-                "SELECT id FROM properties_base_definition WHERE properties_field_id = %s LIMIT 1",
-                [field_id],
+            definition = self.sudo().search(
+                [("properties_field_id", "=", field_id)], limit=1
             )
-            row = cr.fetchone()
             _debug.perf.count(
                 "definition_looked_up",
                 model=model_name,
                 field=field_name,
-                found=bool(row),
+                found=bool(definition),
             )
-            if row:
-                return row[0]
+            if definition:
+                return definition.id
 
         msg = f"No properties.base.definition for {model_name}.{field_name}"
         raise ValueError(msg)

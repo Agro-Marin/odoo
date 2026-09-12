@@ -32,23 +32,21 @@ class DecimalPrecision(models.Model):
     @api.model
     @tools.ormcache("application", cache="stable")
     def get_precision(self, application: str) -> int:
-        self.flush_model(["name", "digits"])
-        self.env.cr.execute(
-            "select digits from decimal_precision where name=%s", (application,)
+        precision = self.sudo().search_fetch(
+            [("name", "=", application)], ["digits"], limit=1
         )
-        res = self.env.cr.fetchone()
         _debug.perf.count(
             "precision_computed",
             application=application,
-            digits=res[0] if res else None,
+            digits=precision.digits if precision else None,
         )
-        if not res:
+        if not precision:
             _logger.warning(
                 "Decimal precision '%s' is not defined, using the default of 2 digits",
                 application,
             )
             return 2
-        return res[0]
+        return precision.digits
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

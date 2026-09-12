@@ -263,36 +263,32 @@ class IrDefault(models.Model):
     def _get_model_defaults(
         self, model_name: str, condition: str | bool = False
     ) -> dict[str, Any]:
-        cr = self.env.cr
-        self.flush_model()
         company_id = self.env.company.id or None
-        condition_clause = (
-            tools.SQL("d.condition = %s", condition)
-            if condition
-            else tools.SQL("d.condition IS NULL")
+        field_ids = self.env["ir.model.fields"]._get_ids_by_name(model_name)
+        name_by_field_id = {field_id: name for name, field_id in field_ids.items()}
+        defaults = self.sudo().search_fetch(
+            Domain("field_id", "in", list(field_ids.values()))
+            & Domain.OR(
+                [Domain("user_id", "=", False), Domain("user_id", "=", self.env.uid)]
+            )
+            & Domain.OR(
+                [
+                    Domain("company_id", "=", False),
+                    Domain("company_id", "=", company_id),
+                ]
+            )
+            & Domain("condition", "=", condition or False),
+            ["field_id", "user_id", "company_id", "json_value"],
         )
-        query = tools.SQL(
-            """ SELECT f.name, d.json_value
-                FROM ir_default d
-                JOIN ir_model_fields f ON d.field_id=f.id
-                WHERE f.model = %s
-                    AND (d.user_id IS NULL OR d.user_id = %s)
-                    AND (d.company_id IS NULL OR d.company_id = %s)
-                    AND %s
-                ORDER BY (d.user_id IS NOT NULL) DESC,
-                         (d.company_id IS NOT NULL) DESC,
-                         d.id
-            """,
-            model_name,
-            self.env.uid,
-            company_id,
-            condition_clause,
+        # the most specific default wins: user-bound before company-bound before global
+        defaults = defaults.sorted(
+            key=lambda d: (not d.user_id, not d.company_id, d.id)
         )
-        cr.execute(query)
         result = {}
-        for row in cr.fetchall():
-            if row[0] not in result:
-                result[row[0]] = json.loads(row[1])
+        for default in defaults:
+            name = name_by_field_id[default.field_id.id]
+            if name not in result:
+                result[name] = json.loads(default.json_value)
         _debug.perf.count(
             "model_defaults_computed",
             model=model_name,
