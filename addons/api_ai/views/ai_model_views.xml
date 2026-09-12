@@ -70,10 +70,15 @@
                             </group>
                         </page>
                         <page name="fallback" string="Fallback">
-                            <field
-                                name="fallback_model_ids"
-                                widget="many2many_tags"
-                                options="{'no_create': True}" />
+                            <field name="fallback_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle" />
+                                    <field
+                                        name="fallback_id"
+                                        domain="[('id', '!=', parent.id)]"
+                                        options="{'no_create': True}" />
+                                </list>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>

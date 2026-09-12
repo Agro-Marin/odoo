@@ -8,3 +8,6 @@ access_ai_model_system,ai.model system,model_ai_model,base.group_system,1,1,1,1
 access_ai_use_case_tag_user,ai.use.case.tag user,model_ai_use_case_tag,group_ai_user,1,0,0,0
 access_ai_use_case_tag_admin,ai.use.case.tag admin,model_ai_use_case_tag,group_ai_admin,1,1,1,1
 access_ai_use_case_tag_system,ai.use.case.tag system,model_ai_use_case_tag,base.group_system,1,1,1,1
+access_ai_model_fallback_user,ai.model.fallback user,model_ai_model_fallback,group_ai_user,1,0,0,0
+access_ai_model_fallback_admin,ai.model.fallback admin,model_ai_model_fallback,group_ai_admin,1,1,1,1
+access_ai_model_fallback_system,ai.model.fallback system,model_ai_model_fallback,base.group_system,1,1,1,1

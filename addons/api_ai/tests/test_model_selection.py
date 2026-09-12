@@ -81,6 +81,16 @@ class TestSelectModel(_SelectionCase):
             self.orch.select_model(kind="audio", optimize_for="cost"), cheap
         )
 
+    def test_the_output_price_counts_toward_cost(self):
+        provider = self._provider("sel_blend")
+        self._model(
+            provider, "sel-a-cheap-in", cost_per_1m_input=1.0, cost_per_1m_output=20.0
+        )
+        balanced = self._model(
+            provider, "sel-z-even", cost_per_1m_input=2.0, cost_per_1m_output=2.0
+        )
+        self.assertEqual(self.orch.select_model("chat", optimize_for="cost"), balanced)
+
     def test_an_expired_credential_makes_a_provider_unusable(self):
         provider = self._provider("sel_expired")
         self._model(provider, "sel-expired-m")
@@ -226,6 +236,10 @@ class TestModelIntegrity(_SelectionCase):
         theirs = self._model(self._provider("int_theirs"), "int-theirs-m")
         with self.assertRaises(ValidationError):
             mine.default_model_id = theirs
+
+    def test_a_vision_model_must_read_images(self):
+        with self.assertRaises(ValidationError):
+            self._model(self._provider("int_blind"), "int-blind", kind="vision")
 
     def test_a_model_cannot_fall_back_to_itself(self):
         model = self._model(self._provider("int_self"), "int-self-m")

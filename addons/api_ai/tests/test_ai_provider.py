@@ -174,15 +174,19 @@ class TestSeededDefaultsMatchTheCatalog(TransactionCase):
         self.assertEqual(client._resolve_model(), "gpt-4o-mini")
 
     def test_a_client_on_a_wire_the_catalog_does_not_describe_keeps_its_own(self):
-        from odoo.addons.api_ai.tools.ai_clients import DeepgramClient, GeminiClient
+        from odoo.addons.api_ai.tools.ai_clients import DeepgramClient
 
-        for cls, expected in (
-            (GeminiClient, "gemini-2.0-flash-exp"),
-            (DeepgramClient, "nova-3"),
-        ):
-            with self.subTest(client=cls.__name__):
-                client = cls.__new__(cls)
-                client.env = self.env
-                client._default_model = ""
-                self.assertIsNone(client._catalog_default_model())
-                self.assertEqual(client._resolve_model(), expected)
+        client = DeepgramClient.__new__(DeepgramClient)
+        client.env = self.env
+        client._default_model = ""
+        self.assertIsNone(client._catalog_default_model())
+        self.assertEqual(client._resolve_model(), "nova-3")
+
+    def test_gemini_resolves_the_catalogs_model_whichever_wire_it_speaks(self):
+        from odoo.addons.api_ai.tools.ai_clients import GeminiClient
+        from odoo.addons.api_ai.tools.vendor_catalog import PROVIDERS
+
+        client = GeminiClient.__new__(GeminiClient)
+        client.env = self.env
+        client._default_model = ""
+        self.assertEqual(client._resolve_model(), PROVIDERS["gemini"]["chat_model"])

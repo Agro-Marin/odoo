@@ -78,6 +78,14 @@ class TestOpenAICompatibleTranscribe(EncryptionKeyCase, TransactionCase):
             sent["files"]["file"][2], "audio/ogg", "the mime type is sniffed"
         )
 
+    def test_without_a_language_the_vendor_detects_it(self):
+        client = self._client()
+        with patch.object(
+            client._client, "post", return_value={"status_code": 200, "body": "hi"}
+        ) as post:
+            client.transcribe(b"AUDIO", "note.ogg")
+        self.assertNotIn("language", post.call_args.kwargs["data"])
+
     def test_an_unusable_response_raises_rather_than_returning_none(self):
         client = self._client()
         with patch.object(

@@ -109,7 +109,7 @@ class OpenAICompatibleClient(BaseAIClient):
             )
         return content
 
-    def transcribe(self, audio_bytes, filename, language="es", prompt=None, model=None):
+    def transcribe(self, audio_bytes, filename, language=None, prompt=None, model=None):
         body = self._post_whisper(
             audio_bytes, filename, None, language, prompt, model, "text"
         )

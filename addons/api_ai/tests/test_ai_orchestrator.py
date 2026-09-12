@@ -226,6 +226,7 @@ class TestOptimizeModelSelection(TransactionCase):
             self.models[2],
         )
         self.models.provider_id.write({"has_free_tier": False})
+        self.models.write({"cost_per_1m_output": 0.0})
         self.cheap.write(
             {"cost_per_1m_input": 0.10, "accuracy_rating": "2", "speed_rating": "2"}
         )
@@ -239,13 +240,14 @@ class TestOptimizeModelSelection(TransactionCase):
     def test_cost_picks_the_cheapest(self):
         self.assertEqual(self.orch._rank(self.models, "cost")[0], self.cheap)
 
-    def test_cost_prefers_a_free_tier(self):
+    def test_a_free_tier_does_not_outrank_a_cheaper_model(self):
         self.accurate.provider_id.has_free_tier = True
-        try:
-            chosen = self.orch._rank(self.models, "cost")[0]
-            self.assertEqual(chosen, self.accurate)
-        finally:
-            self.accurate.provider_id.has_free_tier = False
+        self.assertEqual(self.orch._rank(self.models, "cost")[0], self.cheap)
+
+    def test_a_free_tier_breaks_a_tie_on_price(self):
+        self.accurate.write({"cost_per_1m_input": 0.10})
+        self.accurate.provider_id.has_free_tier = True
+        self.assertEqual(self.orch._rank(self.models, "cost")[0], self.accurate)
 
     def test_accuracy_picks_the_highest_rated(self):
         self.assertEqual(

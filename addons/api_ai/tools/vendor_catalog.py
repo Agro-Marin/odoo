@@ -162,7 +162,7 @@ def read_anthropic_content(payload):
     return text, None
 
 
-def get_whisper_form(audio_model, language="es", prompt=None, response_format="text"):
+def get_whisper_form(audio_model, language=None, prompt=None, response_format="text"):
     form = {
         "response_format": response_format,
         "model": audio_model,

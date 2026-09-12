@@ -1,6 +1,6 @@
 {
     "name": "API AI",
-    "version": "19.0.1.17.0",
+    "version": "19.0.1.18.0",
     "category": "Hidden",
     "sequence": 10,
     "summary": "AI provider registry, orchestration and vendor clients",
@@ -15,6 +15,7 @@ Models
 * ``ai.provider`` -- delegates to ``api.endpoint.outbound``; holds what the API
   key decides: reliability, free tier, fallback chain, and ``has_vision`` /
   ``has_audio`` rolled up from its models
+* ``ai.model.fallback`` -- one ordered hop of a model's fallback chain
 * ``ai.model`` -- holds what the model name decides: cost per token, context
   window, output cap, vision, function calling, accuracy and speed. A provider
   names one of its own as ``default_model_id``, and that is the model
@@ -41,14 +42,19 @@ Orchestration
   caller will call -- a kind is a method, so it is required -- by cost, accuracy,
   speed or balanced score, filtered by the model's own capability and by an
   unexpired credential for the current company. Cost is read in the unit the
-  kind is priced in, and an unpriced model is scored at the candidates' median
-  price rather than as free.
-* ``execute_with_fallback`` walks ``ai.model.fallback_model_ids``. A hop may stay
-  on one vendor -- a smaller model on a key already held -- or cross to another.
-  Hops of another kind, archived, or without a usable credential are skipped, and
-  a non-retryable failure is re-raised as itself. Nothing seeds a chain:
-  acceptable degradation is a deployment's to state. The chain is of models, not
-  of vendors, so every hop names what will run.
+  kind is priced in -- per minute for audio, a three-to-one blend of input and
+  output for text -- and an unpriced model is scored at the candidates' median
+  price rather than as free. A free tier breaks a tie on price; it does not
+  outrank a cheaper model.
+* ``execute_with_fallback`` walks ``ai.model.fallback_ids`` in their sequence --
+  ``ai.model.fallback`` rows, so the order is an administrator's, not the model
+  list's. A hop may stay on one vendor -- a smaller model on a key already held --
+  or cross to another; a hop that cannot answer for the model (an audio model
+  behind a chat model) is refused when configured, and archived or keyless hops
+  are skipped when run. A non-retryable failure is re-raised as itself. Nothing
+  seeds a chain: acceptable degradation is a deployment's to state.
+* The ``ai.model`` rows are the catalogue a client checks a model name and an
+  output cap against; class constants only add to them.
 
 Clients
 -------

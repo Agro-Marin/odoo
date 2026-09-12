@@ -18,15 +18,17 @@ def migrate(cr, version):
 
     cr.execute(
         """
-        INSERT INTO ai_model_fallback_rel (model_id, fallback_id)
-        SELECT p.default_model_id, f.default_model_id
+        INSERT INTO ai_model_fallback
+               (model_id, fallback_id, sequence, create_date, write_date)
+        SELECT p.default_model_id, f.default_model_id, 10,
+               now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC'
           FROM ai_provider_fallback_rel r
           JOIN ai_provider p ON p.id = r.provider_id
           JOIN ai_provider f ON f.id = r.fallback_id
          WHERE p.default_model_id IS NOT NULL
            AND f.default_model_id IS NOT NULL
            AND p.default_model_id <> f.default_model_id
-        ON CONFLICT DO NOTHING
+        ON CONFLICT (model_id, fallback_id) DO NOTHING
         """
     )
     carried = cr.rowcount

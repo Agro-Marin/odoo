@@ -13,8 +13,6 @@ _TRUNCATED = ("MAX_TOKENS",)
 class GeminiClient(BaseAIClient):
     ENDPOINT_CODE = "gemini"
 
-    FALLBACK_MODEL = "gemini-2.0-flash-exp"
-
     MAX_TEMPERATURE = 2.0
 
     def generate_content(

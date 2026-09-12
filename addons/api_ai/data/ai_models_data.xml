@@ -46,20 +46,15 @@
         <field name="speed_rating">4</field>
     </record>
 
-    <record id="ai_model_gemini_2_0_flash_exp" model="ai.model">
+    <record id="ai_model_gemini_3_5_flash_lite" model="ai.model">
         <field name="provider_id" ref="ai_provider_google" />
-        <field name="name">Gemini 2.0 Flash (experimental)</field>
-        <field name="code">gemini-2.0-flash-exp</field>
+        <field name="name">Gemini 3.5 Flash-Lite</field>
+        <field name="code">gemini-3.5-flash-lite</field>
         <field name="kind">chat</field>
         <field name="sequence" eval="10" />
         <field name="has_vision" eval="True" />
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
-        <field name="max_context_window">1048576</field>
-        <field name="max_output_tokens">8192</field>
-        <field name="cost_per_1m_input">0.075</field>
-        <field name="cost_per_1m_output">0.30</field>
-        <field name="cost_per_1m_image">0.001315</field>
         <field name="accuracy_rating">4</field>
         <field name="speed_rating">5</field>
     </record>
@@ -155,7 +150,7 @@
     </record>
 
     <record id="ai_provider_google" model="ai.provider">
-        <field name="default_model_id" ref="ai_model_gemini_2_0_flash_exp" />
+        <field name="default_model_id" ref="ai_model_gemini_3_5_flash_lite" />
     </record>
 
     <record id="ai_provider_deepseek" model="ai.provider">

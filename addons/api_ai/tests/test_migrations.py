@@ -50,3 +50,85 @@ class TestSeedPriceCorrection(TransactionCase):
         self.mini.write(self.SEEDED)
         self._migrate(version=None)
         self.assertEqual(self.mini.cost_per_1m_input, 2.50)
+
+
+@tagged("post_install", "-at_install")
+class TestFallbackRelationCarried(TransactionCase):
+    def test_the_old_relation_becomes_ordered_hops(self):
+        claude = self.env.ref("api_ai.ai_model_claude_sonnet_5")
+        later_provider = self.env["ai.provider"].search([("code", "=", "moonshot")])
+        earlier_provider = self.env["ai.provider"].search([("code", "=", "deepseek")])
+        self.assertLess(earlier_provider.sequence, later_provider.sequence)
+        created_first = self.env["ai.model"].create(
+            {"provider_id": later_provider.id, "name": "Kimi hop", "code": "kimi-hop"}
+        )
+        created_second = self.env["ai.model"].create(
+            {"provider_id": earlier_provider.id, "name": "DS hop", "code": "ds-hop"}
+        )
+        self.env.flush_all()
+        cr = self.env.cr
+        cr.execute("CREATE TABLE ai_model_fallback_rel (model_id int, fallback_id int)")
+        cr.execute(
+            "INSERT INTO ai_model_fallback_rel VALUES (%s, %s), (%s, %s), (%s, %s)",
+            (
+                claude.id,
+                created_first.id,
+                claude.id,
+                created_second.id,
+                claude.id,
+                claude.id,
+            ),
+        )
+        _load("1.18.0").migrate(cr, "19.0.1.17.0")
+        self.env.invalidate_all()
+
+        self.assertEqual(
+            claude.fallback_model_ids.ids,
+            [created_second.id, created_first.id],
+            "hops run in provider order, which here is the reverse of creation "
+            "order, and a self-hop is not carried",
+        )
+        cr.execute("SELECT to_regclass('ai_model_fallback_rel')")
+        self.assertIsNone(cr.fetchone()[0])
+
+    def test_a_database_without_the_relation_is_left_alone(self):
+        _load("1.18.0").migrate(self.env.cr, "19.0.1.17.0")
+
+
+@tagged("post_install", "-at_install")
+class TestExperimentalGeminiRetired(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.google = self.env["ai.provider"].search([("code", "=", "gemini")])
+        self.current = self.env.ref("api_ai.ai_model_gemini_3_5_flash_lite")
+        self.experimental = self.env["ai.model"].create(
+            {
+                "provider_id": self.google.id,
+                "name": "Gemini 2.0 Flash (experimental)",
+                "code": "gemini-2.0-flash-exp",
+                "has_vision": True,
+            }
+        )
+        self.env["ir.model.data"].create(
+            {
+                "module": "api_ai",
+                "name": "ai_model_gemini_2_0_flash_exp",
+                "model": "ai.model",
+                "res_id": self.experimental.id,
+                "noupdate": True,
+            }
+        )
+
+    def test_a_provider_still_on_the_seed_moves_and_the_seed_is_archived(self):
+        self.google.default_model_id = self.experimental
+        _load("1.18.0").migrate(self.env.cr, "19.0.1.17.0")
+        self.assertEqual(self.google.default_model_id, self.current)
+        self.assertFalse(self.experimental.active)
+
+    def test_an_administrators_default_is_kept(self):
+        chosen = self.env["ai.model"].create(
+            {"provider_id": self.google.id, "name": "Pro", "code": "gemini-pro-x"}
+        )
+        self.google.default_model_id = chosen
+        _load("1.18.0").migrate(self.env.cr, "19.0.1.17.0")
+        self.assertEqual(self.google.default_model_id, chosen)

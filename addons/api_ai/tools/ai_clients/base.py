@@ -19,6 +19,8 @@ class BaseAIClient:
 
     _default_model = None
 
+    _model_rows = None
+
     MIN_TEMPERATURE = 0.0
     MAX_TEMPERATURE = 1.0
     MAX_TOKENS_LIMIT = 8192
@@ -57,10 +59,7 @@ class BaseAIClient:
         return spec.get("chat_model") if spec else None
 
     def _catalog_spec(self):
-        for spec in PROVIDERS.values():
-            if spec.get("chat_service") == self.ENDPOINT_CODE:
-                return spec
-        return None
+        return PROVIDERS.get(self.ENDPOINT_CODE)
 
     def _provider_default_model(self):
         if self._default_model is None:
@@ -108,14 +107,25 @@ class BaseAIClient:
                     error,
                 )
 
+    def _get_model_rows(self):
+        if self._model_rows is None:
+            rows = (
+                self.env["ai.model"]
+                .sudo()
+                .search([("provider_id.endpoint_id.code", "=", self.ENDPOINT_CODE)])
+            )
+            self._model_rows = {row.code: row for row in rows}
+        return self._model_rows
+
     def _check_params(self, model=None, temperature=None, max_tokens=None):
-        if model is not None and self.VALID_MODELS and model not in self.VALID_MODELS:
+        rows = self._get_model_rows()
+        known = set(rows) | set(self.VALID_MODELS)
+        if model is not None and known and model not in known:
             _logger.warning(
-                "Model %r is not in %s's known models %s. Sending it anyway; "
-                "the API will reject it if it does not exist.",
+                "Model %r is described by no ai.model row of %s. Sending it "
+                "anyway; the API will reject it if it does not exist.",
                 model,
-                type(self).__name__,
-                list(self.VALID_MODELS),
+                self.ENDPOINT_CODE,
             )
 
         if temperature is not None:
@@ -140,11 +150,14 @@ class BaseAIClient:
                 raise ValueError(
                     f"max_tokens must be a positive integer, got {max_tokens!r}",
                 )
-            if max_tokens > self.MAX_TOKENS_LIMIT:
+            limit = (
+                rows[model].max_output_tokens if model in rows else 0
+            ) or self.MAX_TOKENS_LIMIT
+            if max_tokens > limit:
                 _logger.warning(
-                    "max_tokens (%s) exceeds %s's recommended limit (%s). This may "
-                    "cause API errors or high costs.",
+                    "max_tokens (%s) exceeds the %s output cap of %s (%s)",
                     max_tokens,
-                    type(self).__name__,
-                    self.MAX_TOKENS_LIMIT,
+                    model or self.ENDPOINT_CODE,
+                    limit,
+                    "its ai.model row" if model in rows else "the client default",
                 )

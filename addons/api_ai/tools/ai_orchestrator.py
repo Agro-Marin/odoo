@@ -197,8 +197,8 @@ class AIOrchestrator:
         if strategy == "cost":
             return ai_models.sorted(
                 lambda m: (
-                    not m.provider_id.has_free_tier,
                     m._get_unit_cost() or float("inf"),
+                    not m.provider_id.has_free_tier,
                 )
             )
         if strategy == "accuracy":

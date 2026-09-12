@@ -2,6 +2,8 @@ import base64
 import json
 import logging
 
+from odoo.exceptions import UserError
+
 from .json_payload import strip_json_fence
 from .vendor_catalog import (
     CHAT_TIMEOUT,
@@ -86,38 +88,42 @@ class CatalogAIClient:
         return list(images)
 
     def _chat_openai(self, system, user, max_tokens, temperature, images=()):
-        body = {
-            "model": self.vision_model if images else self._model,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": get_openai_content(user, images)},
-            ],
-            "max_tokens": self._token_budget(max_tokens),
-            "temperature": temperature,
-            "response_format": {"type": "json_object"},
-        }
-        body.update(self._spec.get("extra") or {})
-        payload = self._post_json(
-            self._spec["chat_service"],
-            self._spec["chat_path"],
-            body,
-            timeout=self._chat_timeout,
+        return self._chat(
+            {
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": get_openai_content(user, images)},
+                ],
+                "response_format": {"type": "json_object"},
+            },
+            max_tokens,
+            temperature,
+            images,
+            read_openai_content,
         )
-        if payload is None:
-            return None
-        return self._usable_text(read_openai_content(payload))
 
     def _chat_anthropic(self, system, user, max_tokens, temperature, images=()):
+        return self._chat(
+            {
+                "system": system,
+                "messages": [
+                    {"role": "user", "content": get_anthropic_content(user, images)}
+                ],
+            },
+            max_tokens,
+            temperature,
+            images,
+            read_anthropic_content,
+        )
+
+    def _chat(self, wire_body, max_tokens, temperature, images, reader):
         body = {
             "model": self.vision_model if images else self._model,
-            "system": system,
-            "messages": [
-                {"role": "user", "content": get_anthropic_content(user, images)}
-            ],
+            **wire_body,
             "max_tokens": self._token_budget(max_tokens),
             "temperature": temperature,
+            **(self._spec.get("extra") or {}),
         }
-        body.update(self._spec.get("extra") or {})
         payload = self._post_json(
             self._spec["chat_service"],
             self._spec["chat_path"],
@@ -126,7 +132,7 @@ class CatalogAIClient:
         )
         if payload is None:
             return None
-        return self._usable_text(read_anthropic_content(payload))
+        return self._usable_text(reader(payload))
 
     def _usable_text(self, read_result):
         text, problem = read_result
@@ -141,7 +147,7 @@ class CatalogAIClient:
             return None
         return strip_json_fence(text)
 
-    def transcribe(self, audio_bytes, filename, language="es", prompt=None):
+    def transcribe(self, audio_bytes, filename, language=None, prompt=None):
         if not self.configured or not self.supports_audio or not audio_bytes:
             return None
         if self._spec["audio"] == "gemini_inline":
@@ -166,8 +172,9 @@ class CatalogAIClient:
 
     def _transcribe_gemini(self, audio_bytes, filename, language, prompt):
         instruction = (
-            f"Transcribe literalmente el audio en idioma '{language}'. "
-            "Responde SOLO con la transcripción, sin comillas ni comentarios."
+            "Transcribe literalmente el audio"
+            + (f" en idioma '{language}'" if language else "")
+            + ". Responde SOLO con la transcripción, sin comillas ni comentarios."
         )
         if prompt:
             instruction += f" Contexto de vocabulario: {prompt}"
@@ -242,7 +249,7 @@ class CatalogAIClient:
                 skip_cache=True,
                 **kwargs,
             )
-        except CommError:
+        except CommError, UserError:
             _logger.exception("%s call failed", self.label)
             return None
 

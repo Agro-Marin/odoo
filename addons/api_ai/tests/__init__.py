@@ -2,10 +2,12 @@ from . import test_ai_orchestrator
 from . import test_ai_provider
 from . import test_base_client
 from . import test_catalog_client
+from . import test_claude_client
 from . import test_claude_sdk
 from . import test_deepgram_params
 from . import test_deepgram_speech
 from . import test_deepseek_client
+from . import test_fallback_order
 from . import test_json_payload
 from . import test_migrations
 from . import test_model_selection

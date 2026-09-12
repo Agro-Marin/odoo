@@ -10,8 +10,6 @@ _logger = logging.getLogger(__name__)
 class DeepSeekClient(OpenAICompatibleClient):
     ENDPOINT_CODE = "deepseek"
 
-    VALID_MODELS = ["deepseek-chat", "deepseek-reasoner"]
-
     REASONING_MODEL = "deepseek-reasoner"
 
     def structured_output(

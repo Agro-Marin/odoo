@@ -133,6 +133,20 @@ class TestCatalogAIClient(TransactionCase):
             )
         self.assertEqual(transcript, "Compra de tres llantas, doce mil pesos.")
 
+    def test_gemini_names_no_language_it_was_not_given(self):
+        with patch(_CLIENT_FACTORY) as factory:
+            factory.return_value.post.return_value = {
+                "status_code": 200,
+                "body": {"candidates": [{"content": {"parts": [{"text": "hola"}]}}]},
+                "text": "",
+            }
+            CatalogAIClient("gemini", "key", env=self.env).transcribe(b"a", "v.ogg")
+        instruction = factory.return_value.post.call_args.kwargs["json"]["contents"][0][
+            "parts"
+        ][0]["text"]
+        self.assertNotIn("None", instruction)
+        self.assertNotIn("idioma", instruction)
+
     def test_audio_timeout_per_vendor(self):
         self.assertEqual(
             CatalogAIClient("gemini", "key", env=self.env)._audio_timeout, 90
@@ -283,6 +297,13 @@ class TestCatalogAIClient(TransactionCase):
             result = CatalogAIClient("groq", "key", env=self.env).chat_json(
                 "sys", "user", 600, 0.1
             )
+        self.assertIsNone(result)
+
+    def test_an_archived_endpoint_fails_soft_like_any_transport_error(self):
+        self.env["api.endpoint.outbound"].search([("code", "=", "groq")]).active = False
+        result = CatalogAIClient("groq", "key", env=self.env).chat_json(
+            "sys", "user", 600, 0.1
+        )
         self.assertIsNone(result)
 
     def test_the_bot_credential_is_handed_to_the_transport(self):

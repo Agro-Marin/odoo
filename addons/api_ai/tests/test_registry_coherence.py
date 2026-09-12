@@ -89,8 +89,6 @@ class TestRegistryCoherence(TransactionCase):
             spec = PROVIDERS.get(provider.code)
             if not spec or not spec.get("chat_model"):
                 continue
-            if spec.get("chat_service") != provider.code:
-                continue
             with self.subTest(provider=provider.code):
                 self.assertEqual(
                     provider.default_model_id.code,

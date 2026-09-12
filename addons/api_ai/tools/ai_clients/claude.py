@@ -1,3 +1,4 @@
+import json
 import logging
 
 from ..vendor_catalog import get_anthropic_content, read_anthropic_content
@@ -27,6 +28,39 @@ CLAUDE_MODEL_ALIASES = (
 
 _SAMPLING_PARAMS = ("temperature", "top_p", "top_k")
 
+_FORCED_TOOL_CHOICES = ("any", "tool")
+
+_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+    }
+)
+
+
+def get_json_output_config(schema):
+    return {"format": {"type": "json_schema", "schema": _close_schema(schema)}}
+
+
+def _close_schema(node):
+    if isinstance(node, list):
+        return [_close_schema(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    closed = {
+        key: _close_schema(value)
+        for key, value in node.items()
+        if key not in _UNSUPPORTED_SCHEMA_KEYWORDS
+    }
+    if closed.get("type") == "object" or "properties" in closed:
+        closed.setdefault("additionalProperties", False)
+    return closed
+
 
 class ClaudeClient(BaseAIClient):
     ENDPOINT_CODE = "claude"
@@ -44,7 +78,11 @@ class ClaudeClient(BaseAIClient):
         }
     )
 
+    NO_FORCED_TOOL_CHOICE = frozenset({"claude-fable-5-1"})
+
     MAX_TOKENS_LIMIT = 128000
+
+    DEFAULT_MAX_TOKENS = 16000
 
     def _extract_text_from_response(self, result):
         text, problem = read_anthropic_content(result)
@@ -73,7 +111,7 @@ class ClaudeClient(BaseAIClient):
         self,
         messages,
         model=None,
-        max_tokens=4096,
+        max_tokens=DEFAULT_MAX_TOKENS,
         temperature=1.0,
         system=None,
         thinking=None,
@@ -81,6 +119,12 @@ class ClaudeClient(BaseAIClient):
     ):
         model = self._resolve_model(model)
         self._check_params(model=model, temperature=temperature, max_tokens=max_tokens)
+        forced = (kwargs.get("tool_choice") or {}).get("type") in _FORCED_TOOL_CHOICES
+        if forced and model in self.NO_FORCED_TOOL_CHOICE:
+            raise ValueError(
+                f"{model} rejects a forced tool_choice; ask for "
+                f"output_config=get_json_output_config(schema) instead",
+            )
         payload = self._prepare_payload(
             model,
             messages,
@@ -191,6 +235,9 @@ class ClaudeClient(BaseAIClient):
     def _get_forced_tool_input(
         self, messages, tool_name, tool_description, schema, model, **kwargs
     ):
+        model = self._resolve_model(model)
+        if model in self.NO_FORCED_TOOL_CHOICE:
+            return self._get_json_output(messages, schema, model, **kwargs)
         response = self.create_message(
             messages=messages,
             tools=[
@@ -211,6 +258,18 @@ class ClaudeClient(BaseAIClient):
             f"Claude answered without calling {tool_name!r} "
             f"(stop_reason={response.get('stop_reason')})",
         )
+
+    def _get_json_output(self, messages, schema, model, **kwargs):
+        text = self._complete(
+            messages, model, output_config=get_json_output_config(schema), **kwargs
+        )
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as error:
+            raise CommError(
+                f"{model} answered a JSON schema request with text that is not "
+                f"JSON: {error}",
+            ) from error
 
     @staticmethod
     def _prepare_pdf_messages(prompt, pdf_data, cache=False):
