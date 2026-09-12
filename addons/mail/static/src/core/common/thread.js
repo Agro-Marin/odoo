@@ -9,6 +9,7 @@ import {
     Component,
     markRaw,
     onMounted,
+    onPatched,
     onWillUnmount,
     onWillUpdateProps,
     reactive,
@@ -91,6 +92,11 @@ export class Thread extends Component {
         this.scrollingToHighlight = false;
         /** @type {HTMLElement|null|undefined} */
         this._viewportEl = undefined;
+        // a patch of this component can grow the scrollable past the window, and the
+        // ResizeObserver that also drops the cache is attached only once loaded and
+        // fires after the next render already read it: reset before the effects run
+        onMounted(() => (this._viewportEl = undefined));
+        onPatched(() => (this._viewportEl = undefined));
         this.refByMessageId = reactive(new Map(), () => {
             this.scrollToHighlighted();
         });
@@ -355,7 +361,8 @@ export class Thread extends Component {
     /**
      * The scrollable element, or its first ancestor that fits the window. Walking up
      * reads `clientHeight` on every step, each a forced layout right after a patch, and
-     * the template asks on every render; the answer is cached until the next resize.
+     * the template asks on every render; the answer is cached until this component
+     * patches or the scrollable resizes.
      */
     get viewportEl() {
         if (this._viewportEl?.isConnected) {

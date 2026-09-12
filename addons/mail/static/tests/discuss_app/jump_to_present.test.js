@@ -162,6 +162,42 @@ test("Basic jump to present when scrolling to outdated messages (DESC, chatter n
     await contains(".o_content", { scroll: 0 });
 });
 
+test("the present threshold a chatter renders never exceeds its window once the messages have loaded (DESC, chatter non-aside)", async () => {
+    patchUiSize({ size: SIZES.MD });
+    const pyEnv = await startServer();
+    const partnerId = pyEnv["res.partner"].create({ name: "Demo User" });
+    for (let i = 0; i < 20; i++) {
+        pyEnv["mail.message"].create({
+            body: "Non Empty Body ".repeat(100),
+            message_type: "comment",
+            model: "res.partner",
+            res_id: partnerId,
+        });
+    }
+    /** @type {number[]} */
+    const rendered = [];
+    patchWithCleanup(Thread.prototype, {
+        get PRESENT_THRESHOLD() {
+            const threshold = super.PRESENT_THRESHOLD;
+            rendered.push(threshold);
+            return threshold;
+        },
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await contains(".o-mail-Message", { count: 20 });
+    await animationFrame();
+    await animationFrame();
+    const chatter = document.querySelector(".o-mail-Chatter");
+    expect(chatter.clientHeight).toBeGreaterThan(window.innerHeight, {
+        message: "the chatter must have outgrown the window for the walk to matter",
+    });
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(Math.max(...rendered)).toBeLessThan(window.innerHeight + 1, {
+        message: `a render read the threshold from the chatter instead of the window: ${rendered.join(", ")}`,
+    });
+});
+
 test("Jump to old reply should prompt jump to present", async () => {
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "General" });
