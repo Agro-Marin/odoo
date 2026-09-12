@@ -70,18 +70,24 @@ def _resolve_webhook_candidates(
 
     if not candidates:
         return hostname, [], f"host {hostname!r} resolved to no address"
-    for ip in candidates:
-        if not ip.is_global or ip.is_reserved or ip.is_multicast:
-            return (
-                hostname,
-                candidates,
-                f"blocked address {ip} (not a globally routable range)",
-            )
     return hostname, candidates, None
 
 
-def _get_webhook_blocked_reason(url: str) -> str | None:
-    return _resolve_webhook_candidates(url)[2]
+# The one address policy. The action checks it before it queues the request and
+# the delivery checks it again against the addresses it is about to pin, so a
+# name that resolves elsewhere by then is caught -- and a test, or a deployment,
+# that relaxes the policy relaxes it at both points instead of only the first.
+def _get_webhook_blocked_reason(
+    url: str, candidates: list[IPAddress] | None = None
+) -> str | None:
+    if candidates is None:
+        _hostname, candidates, error = _resolve_webhook_candidates(url)
+        if error:
+            return error
+    for ip in candidates:
+        if not ip.is_global or ip.is_reserved or ip.is_multicast:
+            return f"blocked address {ip} (not a globally routable range)"
+    return None
 
 
 def _get_webhook_log_target(url: str) -> str:
@@ -1151,7 +1157,15 @@ class IrActionsServer(models.Model):
                     name=self.name,
                 )
             )
-        if blocked := _get_webhook_blocked_reason(url):
+        blocked = _get_webhook_blocked_reason(url)
+        _debug.logic(
+            "webhook_guard",
+            phase="action",
+            action=self.id,
+            target=_get_webhook_log_target(url),
+            blocked=blocked,
+        )
+        if blocked:
             raise UserError(
                 _(
                     "The webhook action '%(name)s' targets a forbidden address "
@@ -1206,6 +1220,14 @@ class IrActionsServer(models.Model):
         _logger.debug("Webhook %s to %s - start", action_label, target)
 
         _hostname, candidates, blocked = _resolve_webhook_candidates(url)
+        blocked = blocked or _get_webhook_blocked_reason(url, candidates)
+        _debug.logic(
+            "webhook_guard",
+            phase="delivery",
+            target=target,
+            candidates=len(candidates),
+            blocked=blocked,
+        )
         if blocked:
             _logger.error(
                 "Webhook %s to %s was NOT sent: %s. The address was allowed when "

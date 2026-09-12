@@ -333,6 +333,17 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
             with self.subTest(host=host):
                 self.assertIsNotNone(_get_webhook_blocked_reason(f"http://{host}/h"))
 
+    def test_one_policy_decides_at_the_action_and_at_delivery(self):
+        action = self._webhook()
+        action.webhook_url = "http://127.0.0.1:8069/hook"
+        with (
+            patch(f"{_MODULE}._get_webhook_blocked_reason", return_value=None),
+            patch.object(requests.Session, "post") as post,
+        ):
+            action.with_context(**self._ctx(self._partners(1))).run()
+            self.env.cr.postcommit.run()
+        post.assert_called_once()
+
     def test_the_request_does_not_follow_redirects(self):
         action = self._webhook()
         with patch.object(requests.Session, "post") as post:
@@ -372,7 +383,7 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
                 f"{_MODULE}._resolve_webhook_candidates",
                 return_value=(
                     "example.com",
-                    [ipaddress.ip_address("203.0.113.10")],
+                    [ipaddress.ip_address("93.184.216.34")],
                     None,
                 ),
             ),
@@ -384,7 +395,7 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
 
         adapter = mounted_adapters.get("https://")
         self.assertIsInstance(adapter, ir_actions_server._PinnedIPAdapter)
-        self.assertEqual(adapter._pinned_ip, "203.0.113.10")
+        self.assertEqual(adapter._pinned_ip, "93.184.216.34")
 
     def test_pinned_adapter_targets_the_ip_not_the_hostname(self):
         adapter = ir_actions_server._PinnedIPAdapter("203.0.113.10")
