@@ -959,3 +959,37 @@ test("app navigation keeps Home alive until all layout edits finish saving", asy
     expect(home.layout.config.pinned).toEqual(["app.first", "app.second", "app.third"]);
     expect(home.layout.unsaved).toBe(false);
 });
+
+test("a layout save the server refuses does not keep the user on Home", async () => {
+    patchWithCleanup(user, { settings: { id: 1 } });
+    /** @type {HomeMenu | undefined} */
+    let home;
+    patchWithCleanup(HomeMenu.prototype, {
+        setup() {
+            super.setup(...arguments);
+            home = this;
+        },
+    });
+    let writes = 0;
+    onRpc("res.users.settings", "update_homemenu_config", () => {
+        writes++;
+        throw new Error("access denied");
+    });
+    await mountWebClient();
+    await getService("action").doAction("menu");
+    if (!home) {
+        throw new Error("Home did not mount");
+    }
+    const pin = Promise.resolve(home.layout.togglePinned({ xmlid: "app.first" })).catch(
+        (error) => error.message,
+    );
+    await animationFrame();
+    expect(await pin).toBe("access denied");
+    expect(home.layout.state.status).toBe("error");
+    expect(".o_home_menu_save_status .text-danger").toHaveCount(1);
+    await getService("action").doAction(1);
+    await animationFrame();
+    expect(writes).toBe(2, { message: "leaving retried the save once more" });
+    expect(".o_home_menu").toHaveCount(0);
+    expect(".o_kanban_view").toHaveCount(1);
+});

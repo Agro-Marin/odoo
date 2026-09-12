@@ -6,7 +6,7 @@ import { App, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent, RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
-import { getPopoverForTarget } from "@web/ui/popover/popover";
+import { getPopoverForTarget } from "@web/ui/popover";
 import {
     clickbotHomeMenuSelectors,
     clickbotSkippedMenus,

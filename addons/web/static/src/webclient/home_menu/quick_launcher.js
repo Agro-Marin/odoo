@@ -45,15 +45,11 @@ export class QuickLauncher extends Component {
         this.badgeRequest = 0;
         this.composing = false;
         const refresh = () => {
-            const { apps, config } = computeHomeMenuLayout(this.menus);
-            this.catalog = apps;
-            this.apps = this._pickApps(apps, config);
+            this._loadCatalog();
             this.loadBadges();
             this.render();
         };
-        const { apps, config } = computeHomeMenuLayout(this.menus);
-        this.catalog = apps;
-        this.apps = this._pickApps(apps, config);
+        this._loadCatalog();
         useHomeMenuLayoutSync(refresh);
         useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, refresh);
         useHomeMenuBadgeUpdates(this.env, () => this.loadBadges());
@@ -61,6 +57,12 @@ export class QuickLauncher extends Component {
             this.badgeRequest++;
         });
         onMounted(() => this.loadBadges());
+    }
+
+    _loadCatalog() {
+        const { apps, config } = computeHomeMenuLayout(this.menus);
+        this.catalog = apps;
+        this.apps = this._pickApps(apps, config);
     }
 
     async loadBadges() {

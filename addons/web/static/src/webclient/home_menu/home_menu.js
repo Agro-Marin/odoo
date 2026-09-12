@@ -175,7 +175,7 @@ export class HomeMenu extends Component {
         });
         this.layout.state = useState(this.layout.state);
         useSetupAction({
-            beforeLeave: () => this.layout.flush(),
+            beforeLeave: () => this.layout.flushBeforeLeave(),
             beforeUnload: (/** @type {BeforeUnloadEvent} */ event) => {
                 if (this.layout.unsaved) {
                     event.preventDefault();

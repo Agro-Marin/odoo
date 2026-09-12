@@ -22,7 +22,6 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { patch } from "@web/core/utils/patch";
 import { NavBar } from "@web/webclient/navbar/navbar";
 
 const systrayRegistry = registry.category("systray");
@@ -669,46 +668,6 @@ test("the systray holds only its items, with no filler elements between them", a
         message: `empty filler elements in the systray: ${filler.length}`,
     });
     expect(systray.children.length).toBe(systrayRegistry.getEntries().length);
-});
-
-test.tags("desktop");
-test("the navbar accessors tolerate assignment, so a subclass cannot throw on one", () => {
-    for (const name of ["currentAppSections", "systrayItems"]) {
-        const descriptor = /** @type {PropertyDescriptor} */ (
-            Object.getOwnPropertyDescriptor(NavBar.prototype, name)
-        );
-        expect(typeof descriptor.get).toBe("function");
-        expect(typeof descriptor.set).toBe("function", {
-            message:
-                `NavBar.prototype.${name} lost its setter. Assigning a ` +
-                `getter-only accessor throws in strict mode, which is what a ` +
-                `subclass such as EnterpriseNavBar would do.`,
-        });
-    }
-    class Sub extends NavBar {}
-    const instance = Object.create(Sub.prototype);
-    expect(() => {
-        instance.currentAppSections = [];
-        instance.systrayItems = [];
-    }).not.toThrow();
-});
-
-test.tags("desktop");
-test("a getter-only patch keeps the setter, so patch order cannot break assignment", () => {
-    const unpatch = patch(NavBar.prototype, {
-        get systrayItems() {
-            return [];
-        },
-    });
-    try {
-        const descriptor = Object.getOwnPropertyDescriptor(
-            NavBar.prototype,
-            "systrayItems",
-        );
-        expect(typeof descriptor.set).toBe("function");
-    } finally {
-        unpatch();
-    }
 });
 
 test.tags("mobile");

@@ -510,11 +510,15 @@ export class ActionManager {
         if (baseStack !== this.controllerStack) {
             this._pendingDispatch = dispatch;
         }
-        const endDispatch = log.perf(`dispatch ${controller.jsId}`);
+        const endDispatch = log.perf("dispatch");
         try {
             return await this._dispatchInline(dispatch, options);
         } finally {
-            endDispatch({ type: action.type, view: controller.view?.type });
+            endDispatch({
+                jsId: controller.jsId,
+                type: action.type,
+                view: controller.view?.type,
+            });
             this.settlePendingDispatch(dispatch);
         }
     }
@@ -574,7 +578,7 @@ export class ActionManager {
         const { controller, action, removeDialogRef } = dispatch;
         const actionDialogProps = {
             ActionComponent: this.ControllerComponent,
-            actionProps: { ...controller.props, _context: dispatch },
+            actionProps: { ...controller.props, dispatch },
             actionType: action.type,
         };
         if (action.name) {
@@ -722,7 +726,7 @@ export class ActionManager {
         controller.__info__ = {
             id: this.nextId(),
             Component: this.ControllerComponent,
-            componentProps: { ...controller.props, _context: dispatch },
+            componentProps: { ...controller.props, dispatch },
         };
         // not awaited: web_studio's editor depends on the update firing first
         this.dialogService.closeAll({ noReload: true }).catch(reportUncaught);
@@ -768,9 +772,14 @@ export class ActionManager {
         log.logic("doAction", () => ({ request: actionRequest, options }));
         options = { ...options };
         const endFetch = log.perf("fetchAction");
-        const actionProm = this.fetchAction(actionRequest, options.additionalContext);
-        let action = await this.navigation.guard(actionProm);
-        endFetch({ type: action.type, id: action.id, tag: action.tag });
+        let action;
+        try {
+            action = await this.navigation.guard(
+                this.fetchAction(actionRequest, options.additionalContext),
+            );
+        } finally {
+            endFetch({ type: action?.type, id: action?.id, tag: action?.tag });
+        }
         action = this._preprocessAction(action, options.additionalContext);
         options.clearBreadcrumbs = action.target === "main" || options.clearBreadcrumbs;
 

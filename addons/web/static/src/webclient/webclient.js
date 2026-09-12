@@ -102,7 +102,7 @@ export class WebClient extends Component {
 
     async loadRouterState() {
         const storedMenuId = menuStorage.readCurrentApp();
-        let menuId = this._resolveMenuFromUrl(storedMenuId);
+        const menuId = this._resolveMenuFromUrl(storedMenuId);
         const endRoute = log.perf("loadRouterState");
         log.pipeline("loadRouterState", () => ({
             storedMenuId,
@@ -112,6 +112,20 @@ export class WebClient extends Component {
         if (menuId) {
             this.menuService.setCurrentMenu(menuId);
         }
+        let stateLoaded;
+        try {
+            stateLoaded = await this._restoreRoute(menuId, storedMenuId);
+        } finally {
+            endRoute({ stateLoaded: Boolean(stateLoaded), menuId });
+        }
+    }
+
+    /**
+     * @param {number} menuId
+     * @param {number} storedMenuId
+     * @returns {Promise<boolean | undefined>}
+     */
+    async _restoreRoute(menuId, storedMenuId) {
         const { navigation } = this.actionService;
         const epoch = navigation.epoch;
         let stateLoaded;
@@ -155,7 +169,7 @@ export class WebClient extends Component {
         } else {
             await this._loadDefaultApp();
         }
-        endRoute({ stateLoaded: Boolean(stateLoaded), menuId });
+        return stateLoaded;
     }
 
     _loadDefaultApp() {

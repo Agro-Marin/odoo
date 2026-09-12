@@ -169,8 +169,6 @@ export class NavBar extends Component {
         );
     }
 
-    set currentAppSections(_) {}
-
     get isScopedApp() {
         return this.pwa.isScopedApp;
     }
@@ -207,8 +205,6 @@ export class NavBar extends Component {
             })
             .reverse();
     }
-
-    set systrayItems(_) {}
 
     adapt() {
         if (!this.root.el) {

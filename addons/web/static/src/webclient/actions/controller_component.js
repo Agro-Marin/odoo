@@ -50,13 +50,13 @@ export function makeControllerComponent(am) {
     return class ControllerComponent extends Component {
         static template = ControllerComponentTemplate;
         static props = {
-            _context: { type: Object },
+            dispatch: { type: Object },
             updateActionState: { type: Function, optional: true },
             "*": true,
         };
 
         setup() {
-            const { controller, action, nextStack } = this.props._context;
+            const { controller, action, nextStack } = this.props.dispatch;
             this.Component = controller.Component;
             useDebugCategory("action", { action });
             useChildSubEnv({
@@ -89,7 +89,7 @@ export function makeControllerComponent(am) {
         }
 
         onMounted() {
-            this.props._context.commit({
+            this.props.dispatch.commit({
                 getGlobalState: this._makeStateExporter(this.__getGlobalState__),
                 getLocalState: this._makeStateExporter(this.__getLocalState__),
             });
@@ -97,20 +97,20 @@ export function makeControllerComponent(am) {
 
         /** @param {any} error */
         onError(error) {
-            return this.props._context.fail(error, { componentStatus: status(this) });
+            return this.props.dispatch.fail(error, { componentStatus: status(this) });
         }
 
         onWillDestroy() {
-            this.props._context.discard({ componentStatus: status(this) });
+            this.props.dispatch.discard({ componentStatus: status(this) });
         }
 
         onWillUnmount() {
-            this.props._context.controller.isMounted = false;
+            this.props.dispatch.controller.isMounted = false;
         }
 
         get componentProps() {
-            const { _context, ...componentProps } = this.props;
-            const { controller } = _context;
+            const { dispatch, ...componentProps } = this.props;
+            const { controller } = dispatch;
             const updateActionState = componentProps.updateActionState;
             if (updateActionState) {
                 componentProps.updateActionState = (/** @type {any} */ newState) =>

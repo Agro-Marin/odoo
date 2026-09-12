@@ -163,15 +163,6 @@ class MenuService {
         this.tree = new MenuTree(cachedMenus || EMPTY_MENUS);
     }
 
-    /**
-     * @param {Object} menus
-     * @param {string} [hash]
-     */
-    _persist(menus, hash) {
-        this.storedRaw = menuStorage.write(menus, hash);
-        this.storedHash = hash;
-    }
-
     async load() {
         log.pipeline("load", () => ({
             cached: Boolean(this.cachedMenus),
@@ -193,7 +184,7 @@ class MenuService {
                             : JSON.stringify(res.menus) !== this.storedRaw;
                     log.logic("revalidate", () => ({ changed, hash: res.hash }));
                     if (changed) {
-                        this._persist(res.menus, res.hash);
+                        menuStorage.write(res.menus, res.hash);
                         this.tree.setData(res.menus);
                         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                     }
@@ -209,7 +200,7 @@ class MenuService {
         }
         if (res?.menus) {
             this.tree.setData(res.menus);
-            this._persist(res.menus, res.hash);
+            menuStorage.write(res.menus, res.hash);
         } else if (this.storedRaw) {
             this.tree.setData(menuStorage.parse(this.storedRaw) || EMPTY_MENUS);
         }
@@ -289,7 +280,7 @@ class MenuService {
         }
         if (res?.menus) {
             this.tree.setData(res.menus);
-            this._persist(res.menus, res.hash);
+            menuStorage.write(res.menus, res.hash);
         }
         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
     }
