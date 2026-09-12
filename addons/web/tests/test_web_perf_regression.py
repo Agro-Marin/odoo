@@ -7,6 +7,7 @@ class TestWebPerfRegression(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.only_web_installed = cls._only_web_and_its_dependencies_installed()
 
         cls.company = cls.env["res.company"].create({"name": "PerfTest Company"})
         cls.user = cls.env["res.users"].create(
@@ -201,8 +202,32 @@ class TestWebPerfRegression(TransactionCase):
                 enable_counters=True,
             )
 
+    @classmethod
+    def _only_web_and_its_dependencies_installed(cls) -> bool:
+        # `-i base` brings base and every auto-installed module; anything else was
+        # asked for by name and may extend res.partner
+        return not (
+            cls.env["ir.module.module"]
+            .sudo()
+            .search_count(
+                [
+                    ("state", "=", "installed"),
+                    ("auto_install", "=", False),
+                    ("name", "!=", "base"),
+                ]
+            )
+        )
+
+    def _skip_unless_only_web(self):
+        if not self.only_web_installed:
+            self.skipTest(
+                "query pin calibrated for base+web; other modules extend "
+                "res.partner's name search and per-write dependents"
+            )
+
     @warmup
     def test_web_name_search(self):
+        self._skip_unless_only_web()
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -214,15 +239,7 @@ class TestWebPerfRegression(TransactionCase):
 
     @warmup
     def test_web_save_multi(self):
-        if (
-            self.env["ir.module.module"]
-            .sudo()
-            .search_count([("name", "=like", r"test\_%"), ("state", "=", "installed")])
-        ):
-            self.skipTest(
-                "query pin calibrated for base+web; framework test modules "
-                "add res.partner dependents that widen per-write searches"
-            )
+        self._skip_unless_only_web()
         partners = (
             self.partners[:10].with_user(self.user).with_context(tracking_disable=True)
         )
