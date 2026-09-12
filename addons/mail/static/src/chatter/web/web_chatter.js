@@ -218,7 +218,17 @@ export class WebChatter extends Chatter {
         if (!record) {
             return;
         }
-        Object.keys(record.data).forEach((field) => record.data[field]);
+        // subscribe the record observer: to every field until the thread tells which
+        // fields matter for recipients, then to those only
+        const watchedFields = [
+            ...this.mailImpactingFields.recordFields,
+            ...this.mailImpactingFields.emailFields,
+        ];
+        for (const field of watchedFields.length
+            ? watchedFields
+            : Object.keys(record.data)) {
+            void record.data[field];
+        }
         const partnerIds = [];
         let email;
         this.mailImpactingFields.recordFields.forEach((field) => {
