@@ -1,0 +1,86 @@
+import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
+import {
+    contains,
+    defineModels,
+    fields,
+    models,
+    mountView,
+    mountWithCleanup,
+    patchWithCleanup,
+    toggleKanbanColumnActions,
+    webModels,
+} from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
+import { PromoteStudioSystrayItem } from "@web/webclient/promote_studio/promote_studio_systray_item";
+
+class Partner extends models.Model {
+    foo = fields.Char();
+    bar = fields.Boolean();
+    _records = [
+        { id: 1, foo: "a", bar: true },
+        { id: 2, foo: "b", bar: false },
+    ];
+}
+defineModels({ ...webModels, Partner });
+
+describe.current.tags("desktop");
+
+test("the studio systray item is a system-user affordance that opens the upsell dialog", async () => {
+    const item = registry.category("systray").get("PromoteStudioSystrayItem");
+    patchWithCleanup(user, { isSystem: false });
+    expect(item.isDisplayed()).toBe(false);
+    patchWithCleanup(user, { isSystem: true });
+    expect(item.isDisplayed()).toBe(true);
+
+    await mountWithCleanup(PromoteStudioSystrayItem);
+    await contains('button[title="Odoo Studio"]').click();
+    expect(".o_dialog .modal-title").toHaveText(
+        "Odoo Studio - Add new fields to any view",
+    );
+});
+
+test("a kanban column offers Automations to an admin, and it upsells Studio when nothing installs it", async () => {
+    patchWithCleanup(user, { isAdmin: true });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        groupBy: ["bar"],
+    });
+    await toggleKanbanColumnActions(0);
+    expect(".o-dropdown--menu .o_column_automations").toHaveCount(1);
+    await contains(".o-dropdown--menu .o_column_automations").click();
+    await animationFrame();
+    expect(".o_dialog .modal-title").toHaveText(
+        "Odoo Studio - Customize workflows in minutes",
+    );
+});
+
+test("a kanban column does not offer Automations to a non-admin", async () => {
+    patchWithCleanup(user, { isAdmin: false });
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="foo"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        groupBy: ["bar"],
+    });
+    await toggleKanbanColumnActions(0);
+    expect(".o-dropdown--menu").toHaveCount(1);
+    expect(".o-dropdown--menu .o_column_automations").toHaveCount(0);
+});
