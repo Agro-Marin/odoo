@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from . import approval_trace as trace
+
 GATED_CONTEXT_KEY = "approval_report_gated"
 
 
@@ -24,6 +26,13 @@ class IrActionsReport(models.Model):
         if not bindings:
             return
         ids = [res_ids] if isinstance(res_ids, int) else list(res_ids)
+        trace.BINDING.event(
+            "report_render",
+            report=report.id,
+            model=report.model,
+            records=ids,
+            bindings=bindings.ids,
+        )
         Binding._gate(
             self.env[report.model].browse(ids),
             bindings,

@@ -4,6 +4,8 @@ import math
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from . import approval_trace as trace
+
 _logger = logging.getLogger(__name__)
 
 _FLOAT_EQ_ABS_TOL = 1e-6
@@ -482,14 +484,31 @@ class ApprovalRule(models.Model):
         self.check_singleton()
         match self.condition_type:
             case "domain":
-                return self._evaluate_domain(request)
+                matches = self._evaluate_domain(request)
+                measured = None
             case "field_selection":
-                return self._evaluate_field_selection(request)
+                matches = self._evaluate_field_selection(request)
+                measured = None
             case _:
-                value = self._get_field_value(request)
-                if value is None:
-                    return False
-                return self._compare(value, self.threshold)
+                measured = self._get_field_value(request)
+                matches = (
+                    False
+                    if measured is None
+                    else self._compare(measured, self.threshold)
+                )
+        trace.RULES.event(
+            "evaluated",
+            rule=self.id,
+            request=request.id,
+            kind=self.condition_type,
+            field=self.condition_field,
+            operator=self.operator,
+            value=measured,
+            threshold=self.threshold,
+            threshold_max=self.threshold_max or None,
+            matches=matches,
+        )
+        return matches
 
     def _get_subject(self, request):
         self.check_singleton()
@@ -497,6 +516,13 @@ class ApprovalRule(models.Model):
             return False
         document = request.get_source_document()
         if not document or document._name != self.subject_model_id.model:
+            trace.RULES.event(
+                "subject_mismatch",
+                rule=self.id,
+                request=request.id,
+                wanted=self.subject_model_id.model,
+                got=document._name if document else None,
+            )
             return False
         return document.exists()
 
@@ -563,6 +589,7 @@ class ApprovalRule(models.Model):
             if value < threshold:
                 return False
             return not (self.threshold_max and value >= self.threshold_max)
+        trace.REFUSAL.event("unknown_operator", rule=self.id, operator=op)
         raise ValidationError(
             self.env._(
                 "Unknown operator '%(op)s' on approval rule '%(name)s'.",

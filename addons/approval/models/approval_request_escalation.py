@@ -7,6 +7,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from . import approval_trace as trace
 from .approval_utils import boolean_search_domain
 
 _logger = logging.getLogger(__name__)
@@ -276,6 +277,14 @@ class ApprovalRequestEscalation(models.Model):
                 limit=CRON_BATCH_LIMIT,
             )
 
+            trace.CRON.event(
+                "escalation_batch",
+                priority=priority,
+                first_reminder_h=rules["first_reminder"],
+                escalation_h=rules["escalation"],
+                requests=requests_to_remind.ids,
+                limit=CRON_BATCH_LIMIT,
+            )
             acknowledged_by_count: dict[int, list[int]] = {}
 
             for request in requests_to_remind:
@@ -308,6 +317,7 @@ class ApprovalRequestEscalation(models.Model):
                     }
                 )
 
+        trace.CRON.note("escalation_done", reminded=reminders_sent)
         if reminders_sent:
             _logger.info("Smart escalation: Sent %s reminders", reminders_sent)
 
@@ -326,6 +336,15 @@ class ApprovalRequestEscalation(models.Model):
         # request. Reset to draft clears the flag and re-opens escalation.
         needs_escalation = not request.escalated_to_manager and (
             has_stalled_approver or request.date_confirmed < escalation_threshold
+        )
+        trace.ESCALATION.event(
+            "triage",
+            request=request.id,
+            stalled_approver=has_stalled_approver,
+            already_escalated=request.escalated_to_manager,
+            confirmed=request.date_confirmed,
+            escalates=needs_escalation,
+            reminders=request.reminder_count,
         )
         if not needs_escalation:
             return request._send_reminder()
@@ -358,6 +377,14 @@ class ApprovalRequestEscalation(models.Model):
             )
             if not stale:
                 continue
+            trace.ESCALATION.event(
+                "delegation_activities",
+                approver=approver.id,
+                request=request.id,
+                effective=effective.id,
+                correct=correct.ids,
+                stale=stale.ids,
+            )
             try:
                 with self.env.cr.savepoint():
                     if correct:
@@ -401,6 +428,11 @@ class ApprovalRequestEscalation(models.Model):
                     request.id,
                 )
 
+        trace.CRON.note(
+            "auto_expire_done",
+            eligible=len(expired_requests),
+            cancelled=expired_count,
+        )
         if expired_count:
             _logger.info("Auto-expire: Cancelled %d expired requests", expired_count)
 
@@ -439,6 +471,13 @@ class ApprovalRequestEscalation(models.Model):
             order="date_confirmed asc",
             limit=CRON_BATCH_LIMIT,
         )
+        trace.CRON.event(
+            "eligible_by_window",
+            window=hours_field,
+            categories=len(categories),
+            requests=requests.ids,
+            capped=len(requests) == CRON_BATCH_LIMIT,
+        )
         return requests, hours_by_category
 
     @api.model
@@ -460,6 +499,7 @@ class ApprovalRequestEscalation(models.Model):
                     request.id,
                 )
 
+        trace.CRON.note("consent_done", eligible=len(eligible), approved=consent_count)
         if consent_count:
             _logger.info(
                 "Consent approval: Auto-approved %d requests",
@@ -479,6 +519,12 @@ class ApprovalRequestEscalation(models.Model):
             return False
 
         old_state = request.state
+        trace.ESCALATION.note(
+            "consent_approve",
+            request=request.id,
+            rows=pending.ids,
+            hours=category.consent_approval_hours,
+        )
         pending.sudo()._approve_for_every_step()
         request._cancel_activities()
         request._notify_if_terminal_transition(old_state)
@@ -546,6 +592,12 @@ class ApprovalRequestEscalation(models.Model):
                 by_manager[manager] |= approver
             else:
                 unescalated |= approver
+        trace.ESCALATION.event(
+            "targets",
+            request=self.id,
+            managers=[manager.id for manager in by_manager],
+            unescalated=unescalated.ids,
+        )
         return by_manager, unescalated
 
     def _escalate_to_manager(self) -> int:
@@ -586,6 +638,12 @@ class ApprovalRequestEscalation(models.Model):
                 subtype_xmlid="mail.mt_note",
             )
 
+        trace.ESCALATION.note(
+            "escalated",
+            request=self.id,
+            managers=[manager.id for manager in by_manager],
+            reminders=self.reminder_count,
+        )
         self.sudo().escalated_to_manager = True
         return len(by_manager)
 
@@ -638,6 +696,13 @@ class ApprovalRequestEscalation(models.Model):
             effective_user = approver._get_effective_approver()
 
             if not effective_user.active:
+                trace.ESCALATION.event(
+                    "reminder_skipped",
+                    request=self.id,
+                    approver=approver.id,
+                    user=effective_user.id,
+                    reason="inactive_user",
+                )
                 continue
 
             existing_activity = self._get_approval_activities(user=effective_user)
@@ -673,4 +738,11 @@ class ApprovalRequestEscalation(models.Model):
                 )
             reminded += 1
 
+        trace.ESCALATION.event(
+            "reminded",
+            request=self.id,
+            asked=pending_approvers.ids,
+            reminded=reminded,
+            count=self.reminder_count,
+        )
         return reminded

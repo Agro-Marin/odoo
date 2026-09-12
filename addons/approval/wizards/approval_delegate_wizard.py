@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
+from ..models import approval_trace as trace
 from ..models.approval_utils import is_approval_manager
 
 
@@ -138,6 +139,11 @@ class ApprovalDelegateWizard(models.TransientModel):
 
         is_manager = is_approval_manager(self.env)
         if self.user_id != self.env.user and not is_manager:
+            trace.REFUSAL.event(
+                "delegate_for_other_user",
+                uid=self.env.uid,
+                principal=self.user_id.id,
+            )
             raise AccessError(
                 self.env._(
                     "You can only delegate your own approvals.\n\nAttempted to delegate approvals for: %(user)s",
@@ -180,6 +186,15 @@ class ApprovalDelegateWizard(models.TransientModel):
                 },
             }
 
+        trace.DELEGATION.note(
+            "delegate",
+            principal=self.user_id.id,
+            delegate=self.delegate_id.id,
+            rows=approvers.ids,
+            skipped=skipped.ids,
+            start=self.start_date,
+            end=self.end_date,
+        )
         previous_effective_by_id = {
             approver.id: approver._get_effective_approver() for approver in approvers
         }
@@ -224,6 +239,12 @@ class ApprovalDelegateWizard(models.TransientModel):
             return
 
         actionable = approvers.filtered(lambda a: a.state == "pending")
+        trace.DELEGATION.event(
+            "notify_delegate",
+            delegate=self.delegate_id.id,
+            rows=approvers.ids,
+            actionable=actionable.ids,
+        )
         if not actionable:
             return
 

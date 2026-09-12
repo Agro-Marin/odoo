@@ -2,6 +2,7 @@ from typing import Any
 
 from odoo import fields, models
 
+from . import approval_trace as trace
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
@@ -112,6 +113,12 @@ class ApprovalTemplate(models.Model):
         if self.category_id.has_reference != "no" and self.default_reference:
             context["default_reference"] = self.default_reference
 
+        trace.TEMPLATE.note(
+            "request_defaults",
+            template=self.id,
+            category=self.category_id.id,
+            defaults=sorted(context),
+        )
         return {
             "name": self.env._("New Request from: %s", self.name),
             "type": "ir.actions.act_window",

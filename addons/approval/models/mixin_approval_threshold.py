@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from . import approval_trace as trace
+
 
 class MixinApprovalThreshold(models.AbstractModel):
     _name = "mixin.approval.threshold"
@@ -50,12 +52,23 @@ class MixinApprovalThreshold(models.AbstractModel):
         rate_date = (
             rate_datetime.date() if rate_datetime else fields.Date.context_today(self)
         )
-        return from_currency._convert(
+        converted = from_currency._convert(
             request.amount,
             to_currency,
             request.company_id or self.company_id or self.env.company,
             rate_date,
         )
+        trace.RULES.event(
+            "amount_converted",
+            record=self.id,
+            request=request.id,
+            amount=request.amount,
+            converted=converted,
+            from_currency=from_currency.id,
+            to_currency=to_currency.id,
+            rate_date=rate_date,
+        )
+        return converted
 
     @staticmethod
     def _intervals_overlap(bounds_a, bounds_b) -> bool:

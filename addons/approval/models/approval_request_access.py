@@ -2,6 +2,7 @@ from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 
+from . import approval_trace as trace
 from .approval_utils import is_approval_manager
 
 
@@ -35,6 +36,12 @@ class ApprovalRequestAccess(models.Model):
             if owner in category.allowed_group_ids.all_user_ids:
                 continue
 
+            trace.REFUSAL.event(
+                "category_not_allowed",
+                request=request.id,
+                category=category.id,
+                owner=owner.id,
+            )
             raise ValidationError(
                 self.env._(
                     "You are not allowed to create requests for category '%(category)s'.\n\n"
@@ -45,6 +52,12 @@ class ApprovalRequestAccess(models.Model):
             )
 
     def _raise_category_change_blocked(self, previous_category) -> None:
+        trace.REFUSAL.event(
+            "category_change_after_confirm",
+            request=self.id,
+            was=previous_category.id,
+            state=self.state,
+        )
         raise ValidationError(
             self.env._(
                 "Cannot change approval category after the request has been confirmed.\n\n"
@@ -66,6 +79,12 @@ class ApprovalRequestAccess(models.Model):
             is_owner = request.request_owner_id == self.env.user
 
             if not is_owner:
+                trace.REFUSAL.event(
+                    "unlink_not_owner",
+                    request=request.id,
+                    uid=self.env.uid,
+                    owner=request.request_owner_id.id,
+                )
                 raise AccessError(
                     self.env._(
                         "You can only delete your own approval requests.\n\nRequest: %(name)s\nOwner: %(owner)s",
@@ -89,6 +108,11 @@ class ApprovalRequestAccess(models.Model):
             if is_approver and request.state != "new":
                 continue
             if is_approver:
+                trace.REFUSAL.event(
+                    "write_draft_by_approver",
+                    request=request.id,
+                    uid=current_user.id,
+                )
                 raise AccessError(
                     self.env._(
                         "You cannot modify this request while it is still a "
@@ -100,6 +124,12 @@ class ApprovalRequestAccess(models.Model):
                         owner=request.request_owner_id.name,
                     ),
                 )
+            trace.REFUSAL.event(
+                "write_not_owner_nor_approver",
+                request=request.id,
+                uid=current_user.id,
+                state=request.state,
+            )
             raise AccessError(
                 self.env._(
                     "You can only modify approval requests where you "
@@ -121,6 +151,12 @@ class ApprovalRequestAccess(models.Model):
         for request in self:
             if request.state == "new" or request.request_owner_id == self.env.user:
                 continue
+            trace.REFUSAL.event(
+                "routing_field_after_submit",
+                request=request.id,
+                uid=self.env.uid,
+                fields=sorted(touched),
+            )
             raise AccessError(
                 self.env._(
                     "Only the request owner or an approval manager can change "
@@ -146,6 +182,12 @@ class ApprovalRequestAccess(models.Model):
                     continue
 
                 if request.state != "new":
+                    trace.REFUSAL.event(
+                        "approver_list_after_submit",
+                        request=request.id,
+                        state=request.state,
+                        command=cmd_type,
+                    )
                     raise ValidationError(
                         self.env._(
                             "Cannot modify approver list after request is submitted.\n\n"
@@ -223,6 +265,12 @@ class ApprovalRequestAccess(models.Model):
     def _check_no_forged_computed_fields(self, vals: dict) -> None:
         forged = set(vals) & self._COMPUTE_ONLY_FIELDS
         if forged:
+            trace.REFUSAL.event(
+                "forged_computed_fields",
+                requests=self.ids,
+                uid=self.env.uid,
+                fields=sorted(forged),
+            )
             raise ValidationError(
                 self.env._(
                     "%(fields)s cannot be set directly — these are "
@@ -252,6 +300,14 @@ class ApprovalRequestAccess(models.Model):
             )
             blocked = locked_touched - editable
             if blocked:
+                trace.REFUSAL.event(
+                    "locked_fields",
+                    request=request.id,
+                    uid=self.env.uid,
+                    state=request.state,
+                    blocked=sorted(blocked),
+                    editable=sorted(editable),
+                )
                 raise ValidationError(
                     self.env._(
                         "Cannot modify %(fields)s after the request has "
@@ -270,6 +326,9 @@ class ApprovalRequestAccess(models.Model):
     def _check_business_rules_unlink(self) -> None:
         for request in self:
             if request.state != "new":
+                trace.REFUSAL.event(
+                    "unlink_not_draft", request=request.id, state=request.state
+                )
                 raise ValidationError(
                     self.env._(
                         "Cannot delete requests in %(state)s state.\n\n"
@@ -303,6 +362,7 @@ class ApprovalRequestAccess(models.Model):
         self.check_singleton()
         if self.env.su or self._can_reopen_refusal(self.env.user):
             return
+        trace.REFUSAL.event("refusal_stands", request=self.id, uid=self.env.uid)
         raise AccessError(
             self.env._(
                 "A refusal on %(name)s stands until whoever refused it, an approval "
@@ -326,6 +386,13 @@ class ApprovalRequestAccess(models.Model):
         self.check_singleton()
         if self.env.su or self._can_withdraw_approver(approver, self.env.user, steps):
             return
+        trace.REFUSAL.event(
+            "withdraw_actor",
+            request=self.id,
+            uid=self.env.uid,
+            approver=approver.id,
+            steps=steps.ids if steps else None,
+        )
         raise AccessError(
             self.env._(
                 "Only %(approver)s, an approval manager, or a member of a later step "
@@ -352,9 +419,18 @@ class ApprovalRequestAccess(models.Model):
                 and user in (a._get_effective_approver() | a.decided_by_user_id)
             )
         ).decided_step_ids
-        return step not in decided and not (
+        can = step not in decided and not (
             decided and (step.exclusive or any(decided.mapped("exclusive")))
         )
+        trace.ACCESS.event(
+            "can_decide_step",
+            request=self.id,
+            step=step.id,
+            user=user.id,
+            decided=decided.ids,
+            can=can,
+        )
+        return can
 
     def _get_rows_decidable_by(self, user):
         """The user's rows an approval naming no step decides.
@@ -388,17 +464,31 @@ class ApprovalRequestAccess(models.Model):
             return False
         last = max(own_steps.mapped("sequence"))
         document = self.get_source_document()
-        return any(
+        is_member = any(
             user.id in step._get_pool_user_ids(document, self.company_id)
             for step in self.approver_ids.step_ids
             if step.sequence > last
         )
+        trace.ACCESS.event(
+            "later_step_member",
+            request=self.id,
+            user=user.id,
+            after=last,
+            member=is_member,
+        )
+        return is_member
 
     def _check_owner_or_manager(self, action_label: str) -> None:
         if self.env.su or is_approval_manager(self.env):
             return
         for request in self:
             if request.request_owner_id != self.env.user:
+                trace.REFUSAL.event(
+                    "not_owner_nor_manager",
+                    request=request.id,
+                    uid=self.env.uid,
+                    action=action_label,
+                )
                 raise AccessError(
                     self.env._(
                         "Only the request owner or an approval manager "
@@ -418,6 +508,12 @@ class ApprovalRequestAccess(models.Model):
             lambda a: a._get_effective_approver() != current_user,
         )
         if impersonated:
+            trace.REFUSAL.event(
+                "decision_actor",
+                request=self.id,
+                uid=current_user.id,
+                rows=impersonated.ids,
+            )
             raise AccessError(
                 self.env._(
                     "You are not the assigned approver for this decision.\n\n"

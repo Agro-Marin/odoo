@@ -6,6 +6,7 @@ from odoo.exceptions import AccessError, MissingError, UserError, ValidationErro
 from odoo.fields import Command
 from odoo.libs.text import nl2br
 
+from . import approval_trace as trace
 from .approval_utils import is_approval_manager
 
 _logger = logging.getLogger(__name__)
@@ -51,6 +52,12 @@ class ApprovalRequestLifecycle(models.Model):
                     getattr(request.with_context(skip_wizard=True), action_method)()
                 success_count += 1
             except (UserError, ValidationError) as e:
+                trace.LIFECYCLE.event(
+                    "bulk_refused",
+                    request=request.id,
+                    action=action_label,
+                    error=type(e).__name__,
+                )
                 failed_requests.append((request.name, str(e)))
                 request.message_post(
                     body=self.env._(
@@ -78,6 +85,13 @@ class ApprovalRequestLifecycle(models.Model):
                     message_type="notification",
                 )
 
+        trace.LIFECYCLE.note(
+            "bulk_done",
+            action=action_label,
+            asked=len(self),
+            ok=success_count,
+            failed=len(failed_requests),
+        )
         if failed_requests:
             failure_details = "\n".join(
                 [f"• {name}: {error}" for name, error in failed_requests],
@@ -175,6 +189,15 @@ class ApprovalRequestLifecycle(models.Model):
             self._raise_not_assigned_approver()
         self._check_steps_decidable(approver, steps)
         acting_user = approver[:1]._get_effective_approver()
+        trace.DECISION.event(
+            "actor",
+            request=self.id,
+            decision=decision,
+            rows=approver.ids,
+            acting=acting_user.id,
+            asked_steps=steps.ids if steps else None,
+            sequential=self.approve_sequentially,
+        )
         now = fields.Datetime.now()
         for row in approver.sudo():
             if steps:
@@ -277,6 +300,15 @@ class ApprovalRequestLifecycle(models.Model):
             and set(self._get_blocking_unmet_steps().ids) < unmet_before
         ):
             self._notify_source_document_progress()
+        trace.DECISION.note(
+            "decided",
+            request=self.id,
+            decision=decision,
+            actor=acting_user.id,
+            was=old_state,
+            state=self.state,
+            rows=len(approver),
+        )
         self._log_cycle("decide", decision=decision, actor=acting_user.login)
         if decision == "refuse" and self.state == "refused":
             self._refuse_approval_request()
@@ -317,6 +349,12 @@ class ApprovalRequestLifecycle(models.Model):
             if not decided:
                 continue
             if steps and steps & decided:
+                trace.REFUSAL.event(
+                    "step_decided_twice",
+                    request=self.id,
+                    approver=approver.id,
+                    steps=(steps & decided).ids,
+                )
                 raise UserError(
                     self.env._(
                         "%(user)s has already decided %(steps)s on %(name)s.",
@@ -327,6 +365,13 @@ class ApprovalRequestLifecycle(models.Model):
                 )
             wanted = steps or approver.step_ids - decided
             if any((decided | wanted).mapped("exclusive")):
+                trace.REFUSAL.event(
+                    "step_exclusive",
+                    request=self.id,
+                    approver=approver.id,
+                    decided=decided.ids,
+                    wanted=wanted.ids,
+                )
                 raise UserError(
                     self.env._(
                         "This approval or the one you already submitted limits you "
@@ -371,6 +416,9 @@ class ApprovalRequestLifecycle(models.Model):
         if self.state in self._TERMINAL_STATES or self.state == "new":
             return False
         target_state = self._get_parent_cancel_state()
+        trace.LIFECYCLE.event(
+            "cascade", request=self.id, was=self.state, target=target_state
+        )
         if target_state == "refused":
             self._force_terminal(
                 "refused",
@@ -471,6 +519,12 @@ class ApprovalRequestLifecycle(models.Model):
                 ),
             )
         self.sudo().write({"pending_change_field": requested_field})
+        trace.LIFECYCLE.note(
+            "change_requested",
+            request=self.id,
+            field=requested_field,
+            approver=approver.id,
+        )
         self._schedule_change_request_activity(
             requested_field,
             self.env.context.get("requested_change_note") or "",
@@ -578,6 +632,12 @@ class ApprovalRequestLifecycle(models.Model):
 
             auto_action = request._check_auto_action_rules()
             if auto_action:
+                trace.RULES.note(
+                    "auto_action",
+                    request=request.id,
+                    was=old_state,
+                    state=request.state,
+                )
                 request._notify_if_terminal_transition(old_state)
                 continue
 
@@ -587,6 +647,14 @@ class ApprovalRequestLifecycle(models.Model):
         self._open_approval_round(to_open)
 
         for request in confirmed:
+            trace.LIFECYCLE.note(
+                "confirmed",
+                request=request.id,
+                category=request.category_id.id,
+                approvers=len(request.approver_ids),
+                minimum=request.approval_minimum,
+                sequential=request.approve_sequentially,
+            )
             request._log_cycle("confirm", sequential=request.approve_sequentially)
 
     def _open_approval_round(self, approvers: models.BaseModel) -> None:
@@ -607,6 +675,24 @@ class ApprovalRequestLifecycle(models.Model):
                 rows = ordered[:1]
             to_open |= rows
 
+        trace.LIFECYCLE.event(
+            "round_opened",
+            requests=self.ids,
+            opened=len(to_open),
+            waiting=len(to_wait),
+        )
+        trace.LIFECYCLE.items(
+            "round_row",
+            lambda: [
+                {
+                    "request": row.request_id.id,
+                    "user": row.user_id.id,
+                    "seq": row.sequence,
+                    "opened": row in to_open,
+                }
+                for row in (to_open | to_wait)
+            ],
+        )
         if to_wait:
             to_wait.sudo().write({"state": "waiting"})
         to_open._create_activity()
@@ -649,6 +735,11 @@ class ApprovalRequestLifecycle(models.Model):
                 )
             if request.state == "approved":
                 if not (self.env.su or is_approval_manager(self.env)):
+                    trace.REFUSAL.event(
+                        "reset_approved_not_manager",
+                        request=request.id,
+                        uid=self.env.uid,
+                    )
                     raise AccessError(
                         self.env._(
                             "Only an approval manager can reset an approved "
@@ -705,6 +796,7 @@ class ApprovalRequestLifecycle(models.Model):
             request.with_context(
                 approval_reset_from=previous_state
             )._notify_source_document_state_change("new")
+        trace.LIFECYCLE.note("reset", request=request.id, was=previous_state)
         request._log_cycle("reset", was=previous_state)
         request.message_post(
             body=self.env._(
@@ -808,6 +900,11 @@ class ApprovalRequestLifecycle(models.Model):
                 )
 
             if not req_approver:
+                trace.REFUSAL.event(
+                    "withdraw_not_approver",
+                    request=request.id,
+                    uid=current_user.id,
+                )
                 raise UserError(
                     self.env._(
                         "You cannot withdraw this approval.\n\n"
@@ -866,6 +963,14 @@ class ApprovalRequestLifecycle(models.Model):
                 message_type="notification",
             )
 
+            trace.DECISION.note(
+                "withdrawn",
+                request=request.id,
+                actor=acting_user.id,
+                rows=req_approver.ids,
+                was=old_state,
+                reopened=not still_approved,
+            )
             request._log_cycle(
                 "withdraw",
                 actor=acting_user.login,
@@ -894,6 +999,12 @@ class ApprovalRequestLifecycle(models.Model):
             self._check_steps_can_be_met(steps)
             return
         if len(self.approver_ids) < self.approval_minimum:
+            trace.REFUSAL.event(
+                "too_few_approvers",
+                request=self.id,
+                rows=len(self.approver_ids),
+                minimum=self.approval_minimum,
+            )
             raise UserError(
                 self.env._(
                     "You have to add at least %(count)d approver(s) to "
@@ -908,6 +1019,13 @@ class ApprovalRequestLifecycle(models.Model):
         for step in steps.filtered(lambda step: not step.advisory):
             pool = step._get_pool_user_ids(document, self.company_id)
             if len(pool) < step.minimum:
+                trace.REFUSAL.event(
+                    "step_unmeetable",
+                    request=self.id,
+                    step=step.id,
+                    pool=len(pool),
+                    minimum=step.minimum,
+                )
                 raise UserError(
                     self.env._(
                         "Step '%(step)s' needs %(minimum)d approval(s) but only "
@@ -921,6 +1039,7 @@ class ApprovalRequestLifecycle(models.Model):
 
     def _check_has_document_has_attachment(self) -> None:
         if self.has_document == "required" and not self.count_attachment:
+            trace.REFUSAL.event("no_attachment", request=self.id)
             raise UserError(self.env._("You have to attach at least one document."))
 
         if self.has_document != "required":
@@ -932,6 +1051,12 @@ class ApprovalRequestLifecycle(models.Model):
         satisfied = self.attachment_ids.approval_requirement_id
         missing = requirements - satisfied
         if missing:
+            trace.REFUSAL.event(
+                "missing_documents",
+                request=self.id,
+                required=len(requirements),
+                missing=missing.ids,
+            )
             raise UserError(
                 self.env._(
                     "Missing required documents: %(missing)s\n\n"
@@ -959,6 +1084,12 @@ class ApprovalRequestLifecycle(models.Model):
             missing_fields.append(self.env._("Period End Date"))
 
         if missing_fields:
+            trace.REFUSAL.event(
+                "missing_required_fields",
+                request=self.id,
+                category=self.category_id.id,
+                fields=len(missing_fields),
+            )
             raise UserError(
                 self.env._(
                     "The following required fields are empty:\n\n%(fields)s\n\n"
@@ -1046,6 +1177,14 @@ class ApprovalRequestLifecycle(models.Model):
             author_id=acting_user.partner_id.id,
             message_type="notification",
         )
+        trace.DECISION.note(
+            "withdrawn_steps",
+            request=self.id,
+            approver=approver.id,
+            steps=steps.ids,
+            was=old_state,
+            state=self.state,
+        )
         self._log_cycle(
             "withdraw",
             actor=acting_user.login,
@@ -1062,6 +1201,11 @@ class ApprovalRequestLifecycle(models.Model):
             if model is not None and getattr(
                 model, "_approval_request_follows_document", False
             ):
+                trace.REFUSAL.event(
+                    "moved_from_document",
+                    request=request.id,
+                    model=request.res_model,
+                )
                 raise UserError(
                     self.env._(
                         "%(request)s follows its document: approve or refuse it here, "
@@ -1081,6 +1225,13 @@ class ApprovalRequestLifecycle(models.Model):
             return
         linked_request_id = getattr(source_doc, "approval_request_id", None)
         if linked_request_id is not None and linked_request_id.id != self.id:
+            trace.REFUSAL.event(
+                "reset_document_relinked",
+                request=self.id,
+                model=self.res_model,
+                res_id=self.res_id,
+                links=linked_request_id.id,
+            )
             raise UserError(
                 self.env._(
                     "This request cannot be reset: the source document "
@@ -1093,6 +1244,12 @@ class ApprovalRequestLifecycle(models.Model):
     def _raise_withdraw_blocked(self, active_descendants, doc_label):
         if not active_descendants:
             return
+        trace.REFUSAL.event(
+            "withdraw_has_descendants",
+            request=self.id,
+            label=doc_label,
+            descendants=len(active_descendants),
+        )
         raise UserError(
             self.env._(
                 "You cannot withdraw this approval because it has "
@@ -1116,6 +1273,7 @@ class ApprovalRequestLifecycle(models.Model):
                 and not activity.approver_id._is_notifiable()
             )
         )
+        trace.ACTIVITY.event("retire_unasked", request=self.id, stale=len(stale))
         stale.sudo().unlink()
 
     def _get_approval_activities(self, user: Any = None) -> Any:
@@ -1126,7 +1284,9 @@ class ApprovalRequestLifecycle(models.Model):
         return self.env["mail.activity"].sudo().search(domain)
 
     def _cancel_activities(self) -> None:
-        self._get_approval_activities().unlink()
+        activities = self._get_approval_activities()
+        trace.ACTIVITY.event("cancel", requests=self.ids, activities=len(activities))
+        activities.unlink()
 
     def _get_request_activities(self, activity_xmlid: str, user: Any = None) -> Any:
         domain = [
@@ -1169,9 +1329,13 @@ class ApprovalRequestLifecycle(models.Model):
     def _flip_unsettled_approvers(self, new_state: str) -> None:
         self.check_singleton()
         settled = self.approver_ids._SETTLED_STATES
-        self.approver_ids.sudo().filtered(
+        unsettled = self.approver_ids.sudo().filtered(
             lambda a: a.state not in settled,
-        ).write({"state": new_state})
+        )
+        trace.DECISION.event(
+            "flip_unsettled", request=self.id, to=new_state, rows=unsettled.ids
+        )
+        unsettled.write({"state": new_state})
 
     def _stamp_refusal_metadata(
         self,
@@ -1210,6 +1374,13 @@ class ApprovalRequestLifecycle(models.Model):
             request._cancel_activities()
             request._close_pending_change()
             request._notify_if_terminal_transition(old_state)
+            trace.LIFECYCLE.note(
+                "forced_terminal",
+                request=request.id,
+                was=old_state,
+                now=new_state,
+                reason=refusal_reason.id if refusal_reason else None,
+            )
             request._log_cycle("terminal", was=old_state, forced=new_state)
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
@@ -1252,6 +1423,9 @@ class ApprovalRequestLifecycle(models.Model):
             request._stamp_refusal_metadata(refusal_reason, refusal_note)
             request._cancel_activities()
             request._notify_if_terminal_transition("approved")
+            trace.LIFECYCLE.note(
+                "revoked", request=request.id, into=new_state, actor=self.env.uid
+            )
             request._log_cycle("revoke", forced=new_state)
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
@@ -1281,6 +1455,9 @@ class ApprovalRequestLifecycle(models.Model):
             request._cancel_activities()
             request._close_pending_change()
             request._notify_if_terminal_transition("pending")
+            trace.LIFECYCLE.note(
+                "granted_without_decision", request=request.id, actor=self.env.uid
+            )
             request._log_cycle("grant", actor=self.env.user.login)
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
@@ -1318,7 +1495,16 @@ class ApprovalRequestLifecycle(models.Model):
             or not request.res_id
             or self.env.context.get("approval_binding_invoking")
         ):
+            trace.BINDING.event(
+                "replay_skipped",
+                request=request.id,
+                binding=request.binding_id.id,
+                run_on_approval=request.binding_id.run_on_approval,
+                replayed=bool(request.date_binding_replayed),
+                invoking=bool(self.env.context.get("approval_binding_invoking")),
+            )
             return
+        trace.BINDING.note("replay", request=request.id, binding=request.binding_id.id)
         request.binding_id._replay(request)
 
     def _get_notifiable_source_document(self):
@@ -1366,7 +1552,22 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         source_doc = self._get_notifiable_source_document()
         if source_doc is None:
+            trace.SYNC.event(
+                "no_notifiable_source",
+                request=self.id,
+                model=self.res_model,
+                res_id=self.res_id,
+                state=new_state,
+            )
             return
+        trace.SYNC.note(
+            "notify_state",
+            request=self.id,
+            model=self.res_model,
+            res_id=self.res_id,
+            state=new_state,
+            subject=self.subject_key or None,
+        )
         try:
             if self._is_subject_source(source_doc):
                 source_doc._on_approval_subject_state_changed(self, new_state)
@@ -1384,6 +1585,12 @@ class ApprovalRequestLifecycle(models.Model):
         source_doc = self._get_notifiable_source_document()
         if source_doc is None:
             return
+        trace.SYNC.event(
+            "notify_progress",
+            request=self.id,
+            model=self.res_model,
+            res_id=self.res_id,
+        )
         try:
             if self._is_subject_source(source_doc):
                 source_doc._on_approval_subject_progress(self)

@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..models import approval_trace as trace
+
 
 class ApprovalDecisionWizard(models.TransientModel):
     _name = "approval.decision.wizard"
@@ -101,6 +103,12 @@ class ApprovalDecisionWizard(models.TransientModel):
         self.check_singleton()
         reason = self.refusal_reason_id
         if reason.category_ids and request.category_id not in reason.category_ids:
+            trace.REFUSAL.event(
+                "reason_wrong_category",
+                request=request.id,
+                reason=reason.id,
+                category=request.category_id.id,
+            )
             raise UserError(
                 self.env._(
                     "The reason '%(reason)s' is not available for the "
@@ -110,6 +118,12 @@ class ApprovalDecisionWizard(models.TransientModel):
                 ),
             )
         if reason.company_id and reason.company_id != request.company_id:
+            trace.REFUSAL.event(
+                "reason_wrong_company",
+                request=request.id,
+                reason=reason.id,
+                company=request.company_id.id,
+            )
             raise UserError(
                 self.env._(
                     "The reason '%(reason)s' is restricted to another "
@@ -133,6 +147,13 @@ class ApprovalDecisionWizard(models.TransientModel):
             )
         if not self.approver_id:
             raise UserError(self.env._("There is no approval to refuse."))
+        trace.WIZARD.note(
+            "refuse",
+            request=self.request_id.id,
+            approver=self.approver_id.id,
+            reason=self.refusal_reason_id.id,
+            noted=bool(self.note),
+        )
         self._stamp_refusal(self.request_id, self.approver_id)
         self.approver_id.with_context(skip_wizard=True).action_refuse()
         return {"type": "ir.actions.act_window_close"}
@@ -171,6 +192,12 @@ class ApprovalDecisionWizard(models.TransientModel):
                 ),
             )
 
+        trace.WIZARD.note(
+            "request_change",
+            request=self.request_id.id,
+            approver=self.approver_id.id,
+            field=self.change_field,
+        )
         self.request_id.with_context(
             skip_wizard=True,
             requested_change_field=self.change_field,

@@ -5,6 +5,7 @@ from odoo import api, fields, models, tools
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+from . import approval_trace as trace
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 CATEGORY_SELECTION = [
@@ -403,6 +404,12 @@ class ApprovalCategory(models.Model):
             if category.approval_minimum < len(
                 category.approver_ids.filtered("required"),
             ):
+                trace.REFUSAL.event(
+                    "minimum_below_required",
+                    category=category.id,
+                    minimum=category.approval_minimum,
+                    required=len(category.approver_ids.filtered("required")),
+                )
                 raise ValidationError(
                     self.env._(
                         "Minimum Approval must be equal or superior to the sum of required Approvers.",
@@ -425,6 +432,7 @@ class ApprovalCategory(models.Model):
                 category._raise_steps_with_approver_sequence()
 
     def _raise_steps_with_approver_sequence(self) -> None:
+        trace.REFUSAL.event("steps_with_approver_sequence", categories=self.ids)
         raise ValidationError(
             self.env._(
                 "A category with steps orders them itself, so it cannot also use "
@@ -452,6 +460,13 @@ class ApprovalCategory(models.Model):
                 continue
             member_count = len(category.approver_group_id.all_user_ids)
             if category.approval_minimum > member_count:
+                trace.REFUSAL.event(
+                    "minimum_above_group",
+                    category=category.id,
+                    minimum=category.approval_minimum,
+                    group=category.approver_group_id.id,
+                    members=member_count,
+                )
                 raise ValidationError(
                     self.env._(
                         "Minimum Approval (%(minimum)d) exceeds the number "
@@ -543,6 +558,12 @@ class ApprovalCategory(models.Model):
                     )
                 )
                 vals["sequence_id"] = sequence.id
+                trace.CRUD.event(
+                    "category_sequence",
+                    code=code,
+                    sequence=sequence.id,
+                    company=vals.get("company_id"),
+                )
         return super().create(vals_list)
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -708,6 +729,14 @@ class ApprovalCategory(models.Model):
                 "rule_count": category.rule_count,
                 "template_count": category.template_count,
             }
+            trace.COMPUTE.event(
+                "kanban_dashboard",
+                category=category.id,
+                total=total,
+                late=late_count,
+                to_review=dashboard_data["to_review_count"],
+                mine=dashboard_data["my_requests_count"],
+            )
             category.kanban_dashboard = dashboard_data
 
     @api.depends_context("lang")
@@ -744,7 +773,15 @@ class ApprovalCategory(models.Model):
                 )
 
             category.invalid_minimum = category.approval_minimum > total_approvers
-
+            trace.COMPUTE.event(
+                "minimum_validity",
+                category=category.id,
+                minimum=category.approval_minimum,
+                approvers=total_approvers,
+                managers=manager_count,
+                replacements=replacements.ids,
+                invalid=category.invalid_minimum,
+            )
             if category.invalid_minimum:
                 if manager_count:
                     category.invalid_minimum_warning = self.env._(

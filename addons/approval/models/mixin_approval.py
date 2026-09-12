@@ -9,6 +9,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from . import approval_trace as trace
+
 if TYPE_CHECKING:
     from odoo.addons.approval.models.approval_category import ApprovalCategory
 
@@ -134,6 +136,11 @@ class MixinApproval(models.AbstractModel):
             )
 
         if not self.can_request_approval:
+            trace.REFUSAL.event(
+                "cannot_request_approval",
+                record=self,
+                required=self._get_fields_approval_required(),
+            )
             raise UserError(
                 self.env._(
                     "Approval cannot be requested for this document right now.",
@@ -175,6 +182,12 @@ class MixinApproval(models.AbstractModel):
 
         vals = self._prepare_approval_request_values(category)
         approval = self.env["approval.request"].create(vals)
+        trace.MIXIN.note(
+            "request_raised",
+            record=self,
+            category=category.id,
+            request=approval.id,
+        )
         self.write({"approval_request_id": approval.id})
 
         self._before_approval_request_submit(approval)
@@ -276,12 +289,32 @@ class MixinApproval(models.AbstractModel):
                 )
 
         if count >= max_count:
+            trace.MIXIN.note(
+                "rate_limit_count",
+                record=self,
+                user=policed_user.id,
+                hours=hours,
+                count=count,
+                max_count=max_count,
+            )
             return True
 
         own_amount = self.currency_id._convert(
             self.amount_total, company_currency, company, rate_date
         )
-        return cumulative + own_amount >= max_amount
+        exceeded = cumulative + own_amount >= max_amount
+        trace.MIXIN.event(
+            "rate_limit_amount",
+            record=self,
+            user=policed_user.id,
+            hours=hours,
+            count=count,
+            cumulative=cumulative,
+            own=own_amount,
+            max_amount=max_amount,
+            exceeded=exceeded,
+        )
+        return exceeded
 
     def _get_fields_approval_protected(self) -> list[str]:
         return []
@@ -293,6 +326,11 @@ class MixinApproval(models.AbstractModel):
             if touched:
                 blocked = self.filtered(lambda r: r.approval_state == "pending")
                 if blocked:
+                    trace.REFUSAL.event(
+                        "protected_while_pending",
+                        records=blocked,
+                        fields=sorted(touched),
+                    )
                     raise UserError(
                         self.env._(
                             "Cannot modify %(fields)s while approval is "
@@ -340,6 +378,12 @@ class MixinApproval(models.AbstractModel):
                 "cancelled",
             ):
                 approval_name = record.approval_request_id.name
+                trace.MIXIN.note(
+                    "link_cleared",
+                    record=record,
+                    request=record.approval_request_id.id,
+                    state=record.approval_state,
+                )
                 record.approval_request_id = False
                 record.message_post(
                     body=record.env._(
@@ -372,7 +416,18 @@ class MixinApproval(models.AbstractModel):
         categories = self._get_candidate_approval_categories()
         for category in categories:
             if category._is_applicable_for(self):
+                trace.MIXIN.event(
+                    "category_matched",
+                    record=self,
+                    category=category.id,
+                    candidates=categories.ids,
+                )
                 return category
+        trace.MIXIN.event(
+            "category_unmatched",
+            record=self,
+            candidates=categories.ids,
+        )
         return self._get_approval_category_fallback(categories)
 
     def _get_approval_category(self) -> "ApprovalCategory | bool":  # noqa: UP037 — see _get_candidate_approval_categories.
@@ -458,6 +513,12 @@ class MixinApproval(models.AbstractModel):
         return vals
 
     def _on_approval_state_changed(self, new_state: str) -> None:
+        trace.MIXIN.note(
+            "told_state",
+            record=self,
+            state=new_state,
+            request=self.approval_request_id.id,
+        )
         if new_state == "approved":
             self._on_approval_approved()
         elif new_state == "refused":
@@ -486,6 +547,11 @@ class MixinApproval(models.AbstractModel):
             with self.env.cr.savepoint():
                 yield
         except (UserError, ValidationError) as error:
+            trace.MIXIN.note(
+                "side_effect_failed",
+                record=self,
+                error=type(error).__name__,
+            )
             self.message_post(
                 body=failure_note % {"error": str(error)},
                 message_type="notification",

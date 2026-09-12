@@ -24,6 +24,7 @@ from . import (
     approval_request_routing,
     approval_rule,
     approval_template,
+    approval_trace,
     approval_utils,
     ir_actions_report,
     ir_actions_server,

@@ -5,6 +5,8 @@ from odoo import api, fields, models
 from odoo.libs.datetime import timezone
 from odoo.tools import SQL
 
+from ..models import approval_trace as trace
+
 
 class ApprovalDashboard(models.TransientModel):
     _name = "approval.dashboard"
@@ -360,6 +362,12 @@ class ApprovalDashboard(models.TransientModel):
             None,
         )
 
+        trace.REPORT.event(
+            "bottlenecks",
+            slowest_category=slowest_category[0]["id"] if slowest_category else None,
+            slowest_approver=slowest_approver["id"] if slowest_approver else None,
+            most_pending=most_pending["id"] if most_pending else None,
+        )
         for dashboard in self:
             if slowest_category:
                 row = slowest_category[0]
@@ -612,7 +620,11 @@ class ApprovalDashboard(models.TransientModel):
         )
 
         result = self.env.cr.fetchone()
-        return round(result[0], 2) if result and result[0] else 0.0
+        hours = round(result[0], 2) if result and result[0] else 0.0
+        trace.REPORT.event(
+            "avg_response_window", start=start_date, end=end_date, hours=hours
+        )
+        return hours
 
     def _get_avg_response_time_today_sql(
         self,
@@ -655,7 +667,11 @@ class ApprovalDashboard(models.TransientModel):
         )
 
         result = self.env.cr.fetchone()
-        return round(result[0], 2) if result and result[0] else 0.0
+        hours = round(result[0], 2) if result and result[0] else 0.0
+        trace.REPORT.event(
+            "avg_response_today", start=today_start, end=today_end, hours=hours
+        )
+        return hours
 
     def action_refresh(self) -> dict[str, Any]:
         self.invalidate_recordset()

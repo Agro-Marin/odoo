@@ -2,6 +2,8 @@ import logging
 
 from odoo import models
 
+from . import approval_trace as trace
+
 _logger = logging.getLogger(__name__)
 
 
@@ -38,6 +40,7 @@ class ResUsers(models.Model):
             )
         )
         admin_user = self.env.user
+        trace.CRUD.note("archive_handover", users=self.ids, rows=rows.ids)
         for row in rows:
             request = row.request_id
             departed = row.user_id
@@ -65,6 +68,14 @@ class ResUsers(models.Model):
                 user=departed,
             ).unlink()
 
+            trace.DELEGATION.note(
+                "handover",
+                request=request.id,
+                approver=row.id,
+                departed=departed.id,
+                successor=successor.id if successor else None,
+                reassigned=bool(reassignable),
+            )
             if reassignable:
                 row.sudo().write(
                     {

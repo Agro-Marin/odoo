@@ -2,6 +2,8 @@ from typing import Any
 
 from odoo import api, models
 
+from . import approval_trace as trace
+
 
 class ApprovalBinding(models.Model):
     _inherit = "approval.binding"
@@ -30,6 +32,14 @@ class ApprovalBinding(models.Model):
         )
         if not category.notify_sequentially:
             category.notify_sequentially = True
+        trace.EDITOR.note(
+            "step_created",
+            binding=binding.id,
+            category=category.id,
+            step=step.id,
+            sequence=sequence,
+            existing=len(steps),
+        )
         return step.id
 
     def action_open_button_steps(
@@ -67,6 +77,9 @@ class ApprovalBinding(models.Model):
 
     @api.model
     def _create_binding_for_button(self, model: str, method, action_id):
+        trace.EDITOR.note(
+            "binding_created", model=model, method=method or None, action=action_id
+        )
         ir_model = self.env["ir.model"]._get(model)
         action = False if method else self._parse_button_action(action_id)
         operation = method or self.env["ir.actions.actions"].browse(action).name

@@ -5,6 +5,8 @@ from typing import Any
 from odoo import api, models
 from odoo.fields import Command
 
+from . import approval_trace as trace
+
 _logger = logging.getLogger(__name__)
 
 
@@ -88,6 +90,17 @@ class ApprovalRequestRouting(models.Model):
                 for a in self.approver_ids
             ],
         }
+        trace.SNAPSHOT.event(
+            "prepared",
+            request=self.id,
+            category=cat.id,
+            approvers=len(snapshot["approvers"]),
+            rules=len(snapshot["rules"]),
+            steps=len(snapshot["steps"]),
+            effective=len(snapshot["effective_approvers"]),
+            minimum=snapshot["effective_approval_minimum"],
+            replacement=replacement.id if replacement else None,
+        )
         if replacement:
             snapshot["replacement_rule"] = {
                 "id": replacement.id,
@@ -102,21 +115,35 @@ class ApprovalRequestRouting(models.Model):
 
     def _matched_add_approver_rules(self):
         self.check_singleton()
-        return self.category_id.rule_ids.filtered(
+        candidates = self.category_id.rule_ids.filtered(
             lambda r: (
                 r.active
                 and r.action_type == "add_approver"
                 and self._rule_applies_to_company(r)
-                and r._evaluate(self)
             ),
         )
+        matched = candidates.filtered(lambda r: r._evaluate(self))
+        trace.RULES.event(
+            "add_approver_rules",
+            request=self.id,
+            candidates=candidates.ids,
+            matched=matched.ids,
+        )
+        return matched
 
     def _get_applicable_steps(self):
         """The category's steps whose condition this request meets, in order."""
         self.check_singleton()
-        return self.category_id.step_ids.filtered(
+        applicable = self.category_id.step_ids.filtered(
             lambda step: step._is_applicable_to_request(self),
         ).sorted(lambda step: (step.sequence, step.id))
+        trace.STEPS.event(
+            "applicable",
+            request=self.id,
+            declared=len(self.category_id.step_ids),
+            applicable=applicable.ids,
+        )
+        return applicable
 
     def _get_additional_approvers(self) -> list[tuple[int, bool, int]]:
         self.check_singleton()
@@ -177,6 +204,13 @@ class ApprovalRequestRouting(models.Model):
         negative_fields = set()
         for rule in candidates.sorted(lambda r: (r.sequence, r.id)):
             if rule._evaluate(self):
+                trace.RULES.event(
+                    "replacement_matched",
+                    request=self.id,
+                    rule=rule.id,
+                    field=rule.condition_field,
+                    minimum=rule.approval_minimum,
+                )
                 return rule
             if rule.condition_type != "threshold":
                 continue
@@ -184,6 +218,12 @@ class ApprovalRequestRouting(models.Model):
             if value is not None and value < 0:
                 negative_fields.add(rule.condition_field)
 
+        trace.RULES.event(
+            "replacement_unmatched",
+            request=self.id,
+            candidates=candidates.ids,
+            negative=sorted(negative_fields),
+        )
         if negative_fields:
             _logger.warning(
                 "Request %s: no approver-replacing rule matched (negative "
@@ -204,10 +244,22 @@ class ApprovalRequestRouting(models.Model):
             ),
         )
         matching = rules.filtered(lambda r: r._evaluate(self))
+        trace.RULES.event(
+            "auto_action_rules",
+            request=self.id,
+            candidates=rules.ids,
+            matched=matching.ids,
+        )
         if not matching:
             return False
         rule = self._resolve_auto_action(matching)
         if rule:
+            trace.RULES.note(
+                "auto_action_applied",
+                request=self.id,
+                rule=rule.id,
+                action=rule.action_type,
+            )
             if rule.action_type == "auto_approve":
                 self.approver_ids.sudo()._approve_for_every_step()
                 self.message_post(
@@ -373,10 +425,30 @@ class ApprovalRequestRouting(models.Model):
                 effective_minimum = replacement.approval_minimum
             else:
                 effective_minimum = request.category_id.approval_minimum
+            trace.ROUTING.event(
+                "desired",
+                request=request.id,
+                staged=len(approver_staging),
+                existing=len(desired.existing_by_user),
+                duplicates=len(desired.duplicates),
+                replacement=replacement.id if replacement else None,
+                rules=desired.matched_rules.ids,
+                steps=applicable_steps.ids,
+                minimum=effective_minimum,
+                was_minimum=request.approval_minimum,
+            )
             if request.approval_minimum != effective_minimum:
                 minimum_updates[request.id] = effective_minimum
 
         plan = self._prepare_sync_plan(rows_to_delete, rows_to_create, rows_to_update)
+        trace.ROUTING.event(
+            "sync_plan",
+            requests=self.ids,
+            delete=len(rows_to_delete),
+            create=len(rows_to_create),
+            update=sum(len(ids) for ids in rows_to_update.values()),
+            minimums=len(minimum_updates),
+        )
         if _logger.isEnabledFor(logging.DEBUG):
             self._log_sync_plan(plan)
         self._execute_sync_plan(plan)
@@ -490,6 +562,13 @@ class ApprovalRequestRouting(models.Model):
                 key=lambda item: (item[1]["sequence"], item[0]),
             )
         ]
+        trace.ROUTING.note(
+            "live_rows",
+            request=self.id,
+            users=sorted(missing),
+            sequential=sequential,
+            anchor=anchor_sequence,
+        )
         return (
             self.env["approval.approver"]
             .sudo()
@@ -502,6 +581,13 @@ class ApprovalRequestRouting(models.Model):
         if not replacement:
             return
         if replacement.approval_minimum > self.approval_minimum:
+            trace.ROUTING.note(
+                "minimum_raised_live",
+                request=self.id,
+                rule=replacement.id,
+                was=self.approval_minimum,
+                now=replacement.approval_minimum,
+            )
             self.sudo().write({"approval_minimum": replacement.approval_minimum})
 
     _SYNC_LOG_PREFIX = "approver-sync"
@@ -591,6 +677,13 @@ class ApprovalRequestRouting(models.Model):
         self.check_singleton()
         for row in rows:
             delegate = row.delegate_id
+            trace.DELEGATION.note(
+                "superseded",
+                request=self.id,
+                approver=row.id,
+                principal=row.user_id.id,
+                delegate=delegate.id,
+            )
             row.sudo().write(
                 {
                     "delegate_id": False,
@@ -713,6 +806,21 @@ class ApprovalRequestRouting(models.Model):
                     "source_synced": False,
                 }
 
+        trace.ROUTING.items(
+            "staged_user",
+            lambda: [
+                {
+                    "request": self.id,
+                    "user": user_id,
+                    "seq": vals["sequence"],
+                    "required": vals["required"],
+                    "rule": vals.get("source_rule_id"),
+                    "steps": list(vals.get("step_ids", ())),
+                    "synced": vals.get("source_synced"),
+                }
+                for user_id, vals in sorted(approver_staging.items())
+            ],
+        )
         superseded_delegations = self.approver_ids.filtered(
             lambda a: (
                 a.delegate_id

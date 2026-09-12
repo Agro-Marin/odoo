@@ -4,6 +4,8 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import ormcache
 
+from . import approval_trace as trace
+
 
 class ApprovalBinding(models.Model):
     _inherit = "approval.binding"
@@ -20,6 +22,7 @@ class ApprovalBinding(models.Model):
 
     @api.model
     def get_button_approvals(self, specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        trace.BUTTON.event("batch_asked", specs=len(specs), uid=self.env.uid)
         return [
             self._get_button_approval(
                 spec["model"],
@@ -43,6 +46,15 @@ class ApprovalBinding(models.Model):
             bindings,
             method or bindings[:1].action_id.name,
             lambda runnable: True,
+        )
+        trace.BUTTON.note(
+            "checked",
+            model=model,
+            res_id=res_id,
+            method=method or None,
+            action=action_id or None,
+            bindings=bindings.ids,
+            approved=result is True,
         )
         if result is True:
             return {"approved": True, "request_id": False}
@@ -70,6 +82,13 @@ class ApprovalBinding(models.Model):
         if request.state == "approved" and records.id in binding._get_covered_ids(
             records
         ):
+            trace.REFUSAL.event(
+                "button_already_approved",
+                binding=binding.id,
+                model=model,
+                res_id=res_id,
+                request=request.id,
+            )
             raise UserError(
                 self.env._(
                     "%(record)s is already approved for this.",
@@ -79,6 +98,16 @@ class ApprovalBinding(models.Model):
         if request.state != "pending":
             request = binding._raise_requests_for(records)
         request = request.with_user(self.env.user)
+        trace.BUTTON.note(
+            "decide",
+            binding=binding.id,
+            model=model,
+            res_id=res_id,
+            request=request.id,
+            approve=approve,
+            steps=steps.ids if steps else None,
+            uid=self.env.uid,
+        )
         if approve:
             request.action_approve(steps=steps)
         else:
@@ -106,6 +135,16 @@ class ApprovalBinding(models.Model):
                 ),
             )
         request = request.with_user(self.env.user)
+        trace.BUTTON.note(
+            "withdraw",
+            binding=binding.id,
+            model=model,
+            res_id=res_id,
+            request=request.id,
+            state=request.state,
+            approver=approver_id or None,
+            step=step_id or None,
+        )
         if request.state == "refused":
             request.action_reset_to_draft()
         else:
@@ -132,6 +171,15 @@ class ApprovalBinding(models.Model):
         binding = (waiting or bindings)[:1]
         request = binding._get_button_request(records)
         user = self.env.user
+        trace.BUTTON.event(
+            "state",
+            model=model,
+            res_id=res_id or None,
+            bindings=bindings.ids,
+            waiting=waiting.ids,
+            binding=binding.id,
+            request=request.id,
+        )
         return {
             "gated": True,
             "approved": bool(records) and not waiting,
@@ -178,6 +226,13 @@ class ApprovalBinding(models.Model):
             lambda binding: binding.mode != "advise" and binding._get_selected(records)
         )
         if not records or not bindings:
+            trace.REFUSAL.event(
+                "button_not_gated",
+                model=records._name,
+                res_id=records.id,
+                method=method or None,
+                action=action_id or None,
+            )
             raise UserError(
                 self.env._(
                     "No approval is asked for this on %(record)s.",
@@ -197,6 +252,7 @@ class ApprovalBinding(models.Model):
             lambda step: step.id == int(step_id)
         )
         if not steps:
+            trace.REFUSAL.event("button_step_foreign", binding=self.id, step=step_id)
             raise UserError(self.env._("That step does not gate this button."))
         return steps.sudo(False)
 

@@ -8,6 +8,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tools import ormcache
 
+from . import approval_trace as trace
+
 _logger = logging.getLogger(__name__)
 
 AUTOMATION_CLAIMED_METHODS = frozenset(
@@ -438,12 +440,21 @@ class ApprovalBinding(models.Model):
             records = records.filtered_domain(domain)
         steps = self.category_id.sudo().step_ids if self.mode != "advise" else ()
         if not steps:
+            trace.BINDING.event("selected", binding=self.id, records=records)
             return records
-        return records.filtered(
+        selected = records.filtered(
             lambda record: any(
                 step._is_applicable_to_document(record) for step in steps
             )
         )
+        trace.BINDING.event(
+            "selected",
+            binding=self.id,
+            asked=records,
+            records=selected.ids,
+            steps=steps.ids,
+        )
+        return selected
 
     def _get_covered_ids(self, records) -> set[int]:
         self.check_singleton()
@@ -519,15 +530,33 @@ class ApprovalBinding(models.Model):
         covered = record.id in covered_ids
 
         if self.mode == "advise" or self._passes_on_elevation(elevation):
+            trace.BINDING.event(
+                "observed",
+                binding=self.id,
+                record=record.id,
+                mode=self.mode,
+                elevation=elevation,
+                would_block=not covered,
+            )
             observations.append(
                 self._get_observation_vals(record, elevation, not covered)
             )
             return False
 
         if covered:
+            trace.BINDING.event(
+                "covered", binding=self.id, record=record.id, mode=self.mode
+            )
             return False
 
         if self.mode == "block":
+            trace.REFUSAL.event(
+                "blocked",
+                binding=self.id,
+                record=record.id,
+                method=self.method,
+                elevation=elevation,
+            )
             raise UserError(
                 self.env._(
                     "%(record)s needs an approval before %(method)s can run.\n\n"
@@ -536,6 +565,13 @@ class ApprovalBinding(models.Model):
                     method=self.method,
                 ),
             )
+        trace.BINDING.note(
+            "wants_request",
+            binding=self.id,
+            record=record.id,
+            method=self.method,
+            elevation=elevation,
+        )
         return True
 
     def _raise_requests_for(self, records):
@@ -590,6 +626,12 @@ class ApprovalBinding(models.Model):
                 request.write({"binding_snapshot": self._get_snapshot(record)})
                 request.action_confirm()
             requests |= request
+        trace.BINDING.note(
+            "requests_raised",
+            binding=self.id,
+            records=records,
+            requests=requests.ids,
+        )
         return requests
 
     def _approve_on_invoke(self, requests) -> None:
@@ -598,6 +640,12 @@ class ApprovalBinding(models.Model):
         for request in requests.filtered(lambda r: r.state == "pending"):
             approver = request._get_rows_decidable_by(user)
             if not approver:
+                trace.BINDING.event(
+                    "invoke_not_decidable",
+                    binding=self.id,
+                    request=request.id,
+                    uid=user.id,
+                )
                 continue
             try:
                 with self.env.cr.savepoint():
@@ -683,6 +731,13 @@ class ApprovalBinding(models.Model):
                     getattr(replaying, self.method)()
         except UserError as exc:
             error = str(exc) or type(exc).__name__
+            trace.BINDING.note(
+                "replay_failed",
+                binding=self.id,
+                request=request.id,
+                method=self.method,
+                error=type(exc).__name__,
+            )
             _logger.info(
                 "Approval binding %s: request %s approved, operation %s not run: %s",
                 self.id,
@@ -704,6 +759,13 @@ class ApprovalBinding(models.Model):
                     "date_binding_replayed": fields.Datetime.now(),
                     "binding_replay_error": False,
                 }
+            )
+            trace.BINDING.note(
+                "replay_ran",
+                binding=self.id,
+                request=request.id,
+                method=self.method,
+                owner=owner.id,
             )
             body = self.env._(
                 "The gated operation %(method)s ran as %(user)s.",
@@ -924,7 +986,14 @@ class ApprovalBinding(models.Model):
         approval runs again in the next cycle.
         """
         self.check_singleton()
-        for request in self._get_requests_holding_decisions(records):
+        holding = self._get_requests_holding_decisions(records)
+        trace.BINDING.note(
+            "reset_coverage",
+            binding=self.id,
+            records=records,
+            requests=holding.ids,
+        )
+        for request in holding:
             try:
                 with self.env.cr.savepoint():
                     if request.state == "approved":
@@ -989,12 +1058,24 @@ class ApprovalBinding(models.Model):
             if not binding.method or binding.method in AUTOMATION_CLAIMED_METHODS:
                 continue
             if refusal := self._get_method_refusal(binding.method):
+                trace.REGISTRY.note(
+                    "binding_not_applied",
+                    binding=binding.id,
+                    model=binding.model_name,
+                    method=binding.method,
+                    refusal=refusal,
+                )
                 _logger.warning(
                     "Approval binding %s is not applied: %s", binding.id, refusal
                 )
                 continue
             pairs.setdefault(binding.model_name, set()).add(binding.method)
 
+        trace.REGISTRY.note(
+            "bindings_wrapped",
+            models=len(pairs),
+            methods=sum(len(methods) for methods in pairs.values()),
+        )
         for model_name, methods in pairs.items():
             ModelClass = self.env.registry[model_name]
             for method_name in methods:
@@ -1042,6 +1123,11 @@ class ApprovalBinding(models.Model):
         if not wanting:
             return call(records)
         if records.env.context.get(REPLAY_CONTEXT_KEY):
+            trace.REFUSAL.event(
+                "replay_uncovered",
+                method=label,
+                records=records,
+            )
             raise UserError(
                 records.env._(
                     "%(method)s still needs an approval that does not cover "
@@ -1063,6 +1149,15 @@ class ApprovalBinding(models.Model):
                 waiting |= still
                 shown |= requests
         runnable = records - waiting
+        trace.BINDING.note(
+            "gate",
+            method=label,
+            records=records,
+            wanting=[binding.id for binding in wanting],
+            waiting=waiting.ids,
+            runnable=runnable.ids,
+            shown=shown.ids,
+        )
         result = False
         if runnable:
             result = call(runnable)
@@ -1150,6 +1245,13 @@ class ApprovalBinding(models.Model):
         """
         admitted = self._get_admitted_ids(records, operation)
         pending = records.filtered(lambda record: record.id not in admitted)
+        trace.BINDING.event(
+            "checkpoint",
+            operation=operation,
+            records=records,
+            admitted=sorted(admitted),
+            checked=pending.ids,
+        )
         if not pending:
             return
         elevation = self._elevation()
@@ -1166,6 +1268,12 @@ class ApprovalBinding(models.Model):
         if observations:
             records.env["approval.binding.observation"].sudo().create(observations)
         if refused:
+            trace.REFUSAL.event(
+                "checkpoint_blocked",
+                operation=operation,
+                records=refused,
+                bindings=bindings.ids,
+            )
             raise UserError(
                 self.env._(
                     "%(records)s need an approval before %(operation)s can run, and "

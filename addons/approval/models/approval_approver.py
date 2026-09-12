@@ -4,6 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command, Domain
 
+from . import approval_trace as trace
 from .approval_utils import boolean_search_domain, is_approval_manager
 
 
@@ -336,9 +337,16 @@ class ApprovalApprover(models.Model):
         return boolean_search_domain(operator, value, active, ~active)
 
     def _fan_in_siblings(self) -> Self:
-        return self.request_id._get_current_pending_approver(
+        siblings = self.request_id._get_current_pending_approver(
             self._get_effective_approver(),
         )
+        trace.DECISION.event(
+            "fan_in",
+            request=self.request_id.id,
+            approver=self.id,
+            siblings=siblings.ids,
+        )
+        return siblings
 
     def action_approve(self) -> dict[str, Any] | None:
         self.check_singleton()
@@ -389,6 +397,25 @@ class ApprovalApprover(models.Model):
                     **approver._get_source_activity_values(target),
                 },
             )
+        trace.ACTIVITY.event(
+            "create_plan",
+            rows=self.ids,
+            activities=len(create_vals_list),
+            already_asked=len(taken) - len(create_vals_list),
+        )
+        trace.ACTIVITY.items(
+            "create",
+            lambda: [
+                {
+                    "approver": vals["approver_id"],
+                    "user": vals["user_id"],
+                    "model": vals["res_model_id"],
+                    "res_id": vals["res_id"],
+                    "type": vals["activity_type_id"],
+                }
+                for vals in create_vals_list
+            ],
+        )
         if create_vals_list:
             self.env["mail.activity"].create(create_vals_list)
 
@@ -458,19 +485,44 @@ class ApprovalApprover(models.Model):
             lambda step: self.user_id.id in step._get_member_user_ids(document)
         )
         if not listed:
+            trace.ACTIVITY.event(
+                "not_asked",
+                approver=self.id,
+                request=self.request_id.id,
+                reason="group_only",
+                steps=self.step_ids.ids,
+            )
             return False
         if not self.request_id.category_id.notify_sequentially:
-            return bool(listed & self.request_id._get_unmet_steps())
-        return bool(listed & self.request_id._get_open_steps())
+            wanted = listed & self.request_id._get_unmet_steps()
+        else:
+            wanted = listed & self.request_id._get_open_steps()
+        trace.ACTIVITY.event(
+            "notifiable",
+            approver=self.id,
+            request=self.request_id.id,
+            listed=listed.ids,
+            asked_for=wanted.ids,
+            sequentially=self.request_id.category_id.notify_sequentially,
+        )
+        return bool(wanted)
 
     def _get_effective_approver(self):
         self.check_singleton()
         if self.is_delegated:
+            trace.DELEGATION.event(
+                "effective",
+                approver=self.id,
+                principal=self.user_id.id,
+                delegate=self.delegate_id.id,
+                until=self.delegate_end_date,
+            )
             return self.delegate_id
         return self.user_id
 
     def _approve_for_every_step(self) -> None:
         """Approve rows nobody decided -- consent, an automatic rule -- for all their steps."""
+        trace.DECISION.note("approve_every_step", rows=self.ids)
         for approver in self:
             approver.write(
                 {
@@ -496,6 +548,11 @@ class ApprovalApprover(models.Model):
             )
             if request.exists():
                 request_name = request._label()
+        trace.REFUSAL.event(
+            "approver_create_manual",
+            uid=self.env.uid,
+            rows=len(vals_list),
+        )
         raise AccessError(
             self.env._(
                 "Approvers cannot be added manually.\n\n"
@@ -512,6 +569,12 @@ class ApprovalApprover(models.Model):
 
         approver = self[:1]
         if approver:
+            trace.REFUSAL.event(
+                "approver_unlink_manual",
+                uid=self.env.uid,
+                rows=self.ids,
+                request=approver.request_id.id,
+            )
             raise AccessError(
                 self.env._(
                     "Approvers cannot be removed from requests.\n\n"
@@ -552,6 +615,11 @@ class ApprovalApprover(models.Model):
                 continue
 
             if delegation_only and self.env.user == approver.delegate_id:
+                trace.REFUSAL.event(
+                    "delegation_write_by_delegate",
+                    approver=approver.id,
+                    uid=self.env.uid,
+                )
                 raise AccessError(
                     self.env._(
                         "Only the original approver (%(approver)s) can "
@@ -562,6 +630,12 @@ class ApprovalApprover(models.Model):
                     ),
                 )
             if effective_approver == self.env.user:
+                trace.REFUSAL.event(
+                    "workflow_managed_write",
+                    approver=approver.id,
+                    uid=self.env.uid,
+                    fields=sorted(written),
+                )
                 raise AccessError(
                     self.env._(
                         "These fields are managed by the approval workflow "
@@ -575,6 +649,12 @@ class ApprovalApprover(models.Model):
                     ),
                 )
             if approver.is_delegated:
+                trace.REFUSAL.event(
+                    "write_while_delegated",
+                    approver=approver.id,
+                    uid=self.env.uid,
+                    delegate=approver.delegate_id.id,
+                )
                 raise AccessError(
                     self.env._(
                         "This approval is currently delegated to %(delegate)s.\n\n"
@@ -584,6 +664,12 @@ class ApprovalApprover(models.Model):
                         delegate=approver.delegate_id.name,
                     ),
                 )
+            trace.REFUSAL.event(
+                "write_not_approver",
+                approver=approver.id,
+                uid=self.env.uid,
+                fields=sorted(written),
+            )
             raise AccessError(
                 self.env._(
                     "Only the assigned approver can modify their approval record.\n\n"
@@ -613,6 +699,12 @@ class ApprovalApprover(models.Model):
             return
         forced = set(vals) & self._WORKFLOW_MANAGED_FIELDS
         if forced:
+            trace.REFUSAL.event(
+                "forced_workflow_fields",
+                rows=self.ids,
+                uid=self.env.uid,
+                fields=sorted(forced),
+            )
             raise ValidationError(
                 self.env._(
                     "%(fields)s cannot be modified directly — they are "
@@ -628,6 +720,11 @@ class ApprovalApprover(models.Model):
             terminal = self.env["approval.request"]._TERMINAL_STATES
             frozen = self.filtered(lambda a: a.request_id.state in terminal)
             if frozen:
+                trace.REFUSAL.event(
+                    "decision_metadata_frozen",
+                    rows=frozen.ids,
+                    fields=sorted(decision_metadata),
+                )
                 raise ValidationError(
                     self.env._(
                         "%(fields)s cannot be changed once the request is "
@@ -651,6 +748,11 @@ class ApprovalApprover(models.Model):
                 continue
 
             if request.state != "new":
+                trace.REFUSAL.event(
+                    "approver_create_not_draft",
+                    request=request.id,
+                    state=request.state,
+                )
                 raise ValidationError(
                     self.env._(
                         "Cannot add approvers to requests in %(state)s state.\n\n"
@@ -669,6 +771,12 @@ class ApprovalApprover(models.Model):
 
         for approver in self:
             if approver.request_id.state != "new":
+                trace.REFUSAL.event(
+                    "approver_unlink_not_draft",
+                    approver=approver.id,
+                    request=approver.request_id.id,
+                    state=approver.request_id.state,
+                )
                 raise ValidationError(
                     self.env._(
                         "Cannot remove approvers from submitted requests.\n\n"

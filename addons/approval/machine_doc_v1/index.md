@@ -20,7 +20,7 @@ dashboards.
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
 | Application | Yes |
 | License | LGPL-3 |
-| Python models | 11 own + 5 extensions, across 22 files in `models/`, + 2 wizards + 3 report models |
+| Python models | 11 own + 5 extensions, across 34 files in `models/` (plus `__init__.py`), + 2 wizards + 3 report models. One of the 34 declares no model: `approval_trace.py`, the campaign instrumentation (conventions.md, "Campaign Instrumentation") |
 | Views | 15 XML files (9 `views/` + 4 `reports/` + 2 `wizards/`) |
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
@@ -62,6 +62,7 @@ dashboards.
 | `approval_template.py` | `approval.template` | Request templates with smart defaults |
 | `approval_document_requirement.py` | `approval.document.requirement` | Required document types per category. A LABEL model since 19.0.1.0.23: the confirm-time check reads `ir.attachment.approval_requirement_id`, not the file name |
 | `approval_utils.py` | — (no model) | Module-level helpers shared across the split files: `is_approval_manager(env)` and `boolean_search_domain()` (the `search=` builder behind `is_overdue`, `is_delegated`, `is_pending_my_review`) |
+| `approval_trace.py` | — (no model) | **TEMPORARY campaign instrumentation.** The `odoo.approval.<target>` log targets, the span/ledger helpers and `CALL_TRACES`, the table of entry points wrapped at registry load by `models.py`'s `_register_hook`. Quiet unless a target is named on the command line; removed when the campaign ends. Reference: conventions.md, "Campaign Instrumentation" |
 | `ir_attachment.py` | extends `ir.attachment` | `approval_requirement_id` — which required document a file IS — and blocks deletion of attachments on finalized requests |
 | `mail_activity.py` | extends `mail.activity` | Stores `approver_id`, the approver row an approval activity asks, and derives `approval_request_id` from it; an approval activity marked done by its row's effective approver approves, on the request or on the document |
 | `mail_activity_type.py` | extends `mail.activity.type` | Registers approval activity type metadata |
@@ -218,6 +219,7 @@ approval/
 |   +-- approval_template.py          # Request templates
 |   +-- approval_document_requirement.py # Required documents
 |   +-- approval_utils.py             # Module-level helpers (no model)
+|   +-- approval_trace.py             # Campaign instrumentation (no model, TEMPORARY)
 |   +-- ir_attachment.py              # Attachment protection
 |   +-- mail_activity.py              # Activity extensions
 |   +-- mail_activity_type.py         # Activity type metadata
@@ -244,7 +246,7 @@ approval/
 
 | Metric | Count |
 |--------|-------|
-| Python files (non-test, incl. `__init__`/`__manifest__`) | 37 |
+| Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
 | Python test files | 45 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
@@ -362,6 +364,18 @@ The `name` column stays empty (language-neutral) until `action_confirm()`
 assigns the category sequence consecutive; drafts display a translated
 "New" placeholder via `display_name` only. Discarded drafts never burn
 sequence numbers; reset-then-reconfirmed requests keep their number.
+
+### Campaign Instrumentation (temporary)
+
+`models/approval_trace.py` holds a debug-logging surface added for a code-quality /
+maintainability / performance / lifecycle campaign, and it comes out when that
+campaign ends. Two things make it invisible until asked for: the `odoo.approval`
+logger root is levelled to `WARNING` at import unless the operator named it, and
+the wrapped entry points (`CALL_TRACES`, applied by `models.py`'s `_register_hook`)
+return the wrapped method's own result. Read conventions.md, "Campaign
+Instrumentation", before extending or removing it -- it carries the target table,
+the level discipline, the two switches and the removal recipe. **Do not treat it
+as permanent architecture.**
 
 ### Quick Approve (removed)
 The token/HMAC quick-approve feature was removed in 19.0.1.0.2 (replaced by

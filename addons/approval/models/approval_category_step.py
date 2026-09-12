@@ -2,6 +2,8 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 
+from . import approval_trace as trace
+
 
 class ApprovalCategoryStep(models.Model):
     _name = "approval.category.step"
@@ -111,6 +113,7 @@ class ApprovalCategoryStep(models.Model):
                     ),
                 )
             if not (step.member_ids or step.group_id or step.subject_user_path):
+                trace.REFUSAL.event("step_has_no_pool", step=step.id)
                 raise ValidationError(
                     self.env._(
                         "Step '%(step)s' has nobody who could approve it: give it "
@@ -218,21 +221,41 @@ class ApprovalCategoryStep(models.Model):
         ):
             return set()
         users = document.sudo().exists().mapped(self.subject_user_path)
-        return set(users.filtered("active").ids)
+        named = set(users.filtered("active").ids)
+        trace.STEPS.event(
+            "source_users",
+            step=self.id,
+            path=self.subject_user_path,
+            document=document,
+            users=sorted(named),
+        )
+        return named
 
     def _get_pool_user_ids(self, document=None, company=None) -> set[int]:
         """Who may approve this step today: valid members, the users the document
         names, and the group's users -- of those, the ones who work in `company` and
         whom the document's own policy lets decide it."""
         self.check_singleton()
-        users = self._get_member_user_ids(document, company)
+        members = self._get_member_user_ids(document, company)
+        users = set(members)
         if self.group_id:
             users.update(
                 self._filter_company_user_ids(
                     set(self.group_id.all_user_ids.ids), company
                 )
             )
-        return self._filter_document_user_ids(users, document)
+        pool = self._filter_document_user_ids(users, document)
+        trace.STEPS.event(
+            "pool",
+            step=self.id,
+            minimum=self.minimum,
+            company=company.id if company else None,
+            members=sorted(members),
+            with_group=sorted(users - members),
+            refused_by_document=sorted(users - pool),
+            pool=sorted(pool),
+        )
+        return pool
 
     def _get_candidate_user_ids(self, document=None) -> set[int]:
         """Every user the step names for `document`, before the request's company or
@@ -277,6 +300,7 @@ class ApprovalCategoryStep(models.Model):
             )
         )
         if decided:
+            trace.REFUSAL.event("step_holds_decisions", steps=self.ids)
             raise UserError(
                 self.env._(
                     "A step that holds decisions cannot be deleted. Archive it "
@@ -303,7 +327,14 @@ class ApprovalCategoryStep(models.Model):
         domain = self._parse_domain_or_warn()
         if domain is None:
             return False
-        return bool(document.exists().filtered_domain(domain))
+        applies = bool(document.exists().filtered_domain(domain))
+        trace.STEPS.event(
+            "condition",
+            step=self.id,
+            document=document,
+            applies=applies,
+        )
+        return applies
 
 
 class ApprovalCategoryStepMember(models.Model):

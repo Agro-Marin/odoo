@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from . import approval_trace as trace
+
 
 class ApprovalCategoryApprover(models.Model):
     _name = "approval.category.approver"
@@ -50,6 +52,13 @@ class ApprovalCategoryApprover(models.Model):
         for row in self:
             company = row.category_id.company_id
             if company and company not in row.user_id.company_ids:
+                trace.REFUSAL.event(
+                    "category_approver_other_company",
+                    row=row.id,
+                    category=row.category_id.id,
+                    user=row.user_id.id,
+                    company=company.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(user)s does not belong to company %(company)s, so "

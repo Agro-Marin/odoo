@@ -469,3 +469,193 @@ factories) instead of rebuilding user fixtures.
 | `approval_request_prediction.py` | On-demand outcome prediction | `_predict_*` |
 
 When adding a new method, place it in the file matching its responsibility.
+
+---
+
+## Campaign Instrumentation (TEMPORARY)
+
+`models/approval_trace.py` and every `trace.*` call site in this module are
+**scaffolding for one campaign** -- code quality, maintainability, performance
+and lifecycle work on `approval` -- and are removed when it ends. Nothing in the
+engine's behaviour depends on them: rendering never reads a field, the wrappers
+return what they wrapped, and no target emits above INFO. A real warning belongs
+on the module logger of the file that found it, not on a campaign target that a
+future session deletes.
+
+### The two switches
+
+Every logger is `odoo.approval.<target>`, and the root `odoo.approval` is set to
+`WARNING` at import unless the operator already named it, so **an ordinary server
+or test run prints nothing, `--log-level=debug` included**. Ask for what you want:
+
+```bash
+# everything, at one decision per line
+... odoo-bin -c p314o19m.conf -d <db> --log-handler odoo.approval:DEBUG
+
+# one axis
+... --log-handler odoo.approval.routing:DEBUG --log-handler odoo.approval.steps:DEBUG
+
+# lifecycle only, no per-decision noise
+... --log-handler odoo.approval:INFO
+
+# everything except one target's per-item flood
+... --log-handler odoo.approval:DEBUG --log-handler odoo.approval.routing.items:INFO
+```
+
+The second switch is the `odoo.approval.<target>.items` child, which a parent at
+DEBUG enables too: it carries the per-item lines (one per staged approver, one per
+created activity) that are useful on one request and unreadable over a batch.
+
+### Level discipline
+
+| Level | Call | What belongs there |
+|-------|------|--------------------|
+| INFO | `trace.X.note()` | One line per externally visible event: a request confirmed, decided, forced terminal, granted, reset; a cron's totals; a binding raising a request |
+| DEBUG | `trace.X.event()` | One line per decision this code took, with the inputs that decided it |
+| DEBUG on `<target>.items` | `trace.X.items()` | One line per item of a batch |
+| DEBUG | `trace.X.span()` | Wraps a block: `ms`, `d` (call depth), `r` (`ok` / `raised:<Error>`) |
+
+### Targets
+
+One per concern, so a session enables the axis it is working on. `_BY_NAME` in
+`approval_trace.py` is the authoritative list; this table says what each covers.
+
+| Target | Covers |
+|--------|--------|
+| `access` | The guard questions and their answers: `_can_decide_step`, `_is_later_step_member` |
+| `activity` | Activities created, not created, marked done, retired, cancelled |
+| `attachment` | `ir.attachment` locking on decided requests |
+| `binding` | Gating: selection, coverage, observation, requests raised, replay, coverage reset, checkpoints |
+| `button` | What the approval button asks and does (`approval_binding_client.py`) |
+| `compute` | Compute fields worth a look for cost or correctness (`_compute_state`, the kanban dashboard, minimum validity) |
+| `cron` | The three crons' envelopes: batch contents, caps, totals |
+| `crud` | `create` / `write` / `unlink` on the engine's own models, and which write triggered a re-route |
+| `decision` | The decision funnel: actor resolution, fan-in, what was decided for which step, withdrawals |
+| `delegation` | Effective approver, delegation set, superseded, handover on archive |
+| `document` | Reserved for document requirements (no call site today) |
+| `editor` | Studio's editor calls (`approval_binding_editor.py`) |
+| `escalation` | Reminder/escalation triage, targets, consent approval, delegation activity reconciliation |
+| `lifecycle` | State transitions of `approval.request`, round opening, bulk decisions, cascades |
+| `mixin` | `mixin.approval` adopters: request raised, category matched, rate limits, hooks told |
+| `perf` | The span ledger (`dump_perf_ledger()`), nothing else |
+| `prediction` | `_predict_outcomes` inputs and verdicts |
+| `refusal` | **Only actual refusals**: every `raise` a guard reaches, with the inputs that refused it |
+| `registry` | Load-time wrapping: this campaign's own, and the bindings' |
+| `report` | Dashboard and SQL-report queries |
+| `routing` | `_sync_approvers`: the desired set, the plan, where each staged approver came from |
+| `rules` | `approval.rule` evaluation, replacement bands, auto-approve/refuse, currency conversion |
+| `search` | The search helpers behind the non-stored fields |
+| `snapshot` | The category snapshot taken at confirm |
+| `steps` | Applicability, pools, quorum assignment, open steps |
+| `subjects` | `mixin.approval.subjects` (one request per subject) |
+| `sync` | `mixin.approval.state.sync`: a document's state driving its request, and back |
+| `template` | `approval.template` defaults |
+| `wizard` | The two wizards |
+
+**The `refusal` invariant: a call that succeeds logs zero refusals.** A guard that
+answers a question rather than declining one logs to `access`, not `refusal`. So
+```bash
+grep 'odoo.approval.refusal' run.log | sed 's/.*refusal: //' | cut -d' ' -f1 | sort | uniq -c | sort -rn
+```
+over a corpus is the ranked list of what the engine actually turns away -- and a
+refusal line on a successful flow is a bug in the code or in the instrumentation.
+
+### The wrapped entry points
+
+`approval_trace.CALL_TRACES` maps model -> method -> target, and
+`base._register_hook` (`models/models.py`) wraps each one at registry load, so the
+engine's own files carry **no line** for any of it. One span per call:
+
+```
+odoo.approval.routing: approval.request._sync_approvers n=1 uid=2 sql=7 ms=5.595 d=1 r=ok
+odoo.approval.lifecycle: approval.request.action_confirm n=1 uid=2 sql=2 ms=1.157 d=0 r=raised:UserError
+```
+
+`n` is the batch size (the `vals_list` for `create`, `self` otherwise), `sql` the
+query-count delta, `d` the call depth (so the nesting reconstructs the call tree),
+`r` the outcome. **Only concrete models belong in that table**: an adopter of
+`mixin.approval` inherits the mixin's Python class, not its registry class, so
+wrapping an abstract model reaches nobody -- the mixins are instrumented by hand.
+A method named there and since renamed prints one `stale_call_traces` line on the
+`registry` target at load; nothing else breaks.
+
+### The perf ledger
+
+Every span accumulates calls / total ms / slowest ms per event while its target is
+at DEBUG. From a shell:
+
+```python
+from odoo.addons.approval.models import approval_trace as trace
+...exercise the flow...
+trace.dump_perf_ledger()          # logs the table to odoo.approval.perf at INFO
+trace.perf_ledger()               # or read it as rows
+```
+
+### Adding a call site
+
+- Keyword arguments are evaluated **before** the level check, so pass only cheap
+  values (ids, counts, states). Anything that allocates or queries goes behind
+  `if trace.X.on():`, and a per-item payload goes to `items()` as a lambda.
+- Never `_()` a campaign message: these lines are for maintainers, and a
+  translated log line breaks `grep`.
+- **Pass the record, not its `_name`.** `record=self` renders `approval.request#42`
+  and `records=rows` renders `approval.approver#[7,9]`, which is what you wanted
+  anyway -- and `self._name` is a site the metadata fan-in census counts
+  (`tooling/architecture/mixin_coupling_check.py` greps `self\._name` over
+  `addons/`), so reading it here moves a figure in a CORE docstring that would
+  have to move back when the campaign is removed. Sixteen such reads redden
+  `test_architecture_doc.py::test_metadata_fan_in_figures`; that is how this rule
+  was found.
+- Never log above INFO, and never make behaviour depend on a target being on.
+
+### What it costs
+
+Measured 2026-09-11 on this machine, 200 create -> confirm -> approve cycles per
+sample after 20 warm-up cycles, against a detached worktree at the same base as
+the control:
+
+| Tree | p50 | p90 |
+|------|-----|-----|
+| control (HEAD, no campaign) | 54.8 ms / 30.7 ms | 59.5 ms / 41.1 ms |
+| instrumented, every target quiet | 54.2 ms / 31.1 ms | 59.1 ms / 40.8 ms |
+| instrumented, `odoo.approval:DEBUG` | 41.7 ms / 33.3 ms | 59.0 ms / 41.1 ms |
+
+Two interleaved pairs, because the machine is shared and the absolute figures
+move by 40% between runs: the control/instrumented pairs differ by -1.0% and
++1.3%, i.e. **the cost with the targets quiet is below this machine's noise**, and
+with every target at DEBUG it is a few percent plus the cost of writing the lines
+(102,333 of them over the 819-test suite).
+
+The debt it does add is length, measured with the gates' own runners:
+
+```
+py_class_length.py    --addon approval --count   4423 -> 5306   (+883)
+py_function_length.py --addon approval --count    159 ->  240    (+81)
+```
+
+Neither floor was moved: `pyclasslen_addons` and `pyfunclen_addons` are already
+over their floors at HEAD for reasons that predate this work, and a scaffolding
+campaign is the wrong thing to bank a floor against. **Removing the campaign
+returns both numbers**, which is the point of writing them down here.
+`c901` (approval: 1), the AST lint rules (`py_lint.py`, 0 in approval) and
+`ruff`/`ruff format` are unchanged.
+
+### Removing the campaign
+
+```bash
+grep -rn 'approval_trace\|trace\.[A-Z]' odoo/addons/approval --include='*.py'
+```
+is the whole surface: delete `models/approval_trace.py`, its entry in
+`models/__init__.py`, the two `_register_hook` / `_unregister_hook` overrides in
+`models/models.py`, and every `trace.*` call (some sit in a small restructuring --
+a `matches`/`pool`/`wanted` local introduced so the value could be logged once;
+inline it back or keep it, it reads the same either way).
+
+**What predates the campaign and stays**: the module loggers
+(`_logger = logging.getLogger(__name__)`) in `approval_request.py`,
+`approval_request_routing.py`, `approval_request_lifecycle.py`,
+`approval_request_escalation.py`, `approval_binding.py`, `approval_rule.py`,
+`mixin_approval_domain.py` and `res_users.py`, together with
+`_log_sync_plan` / `_SYNC_LOG_PREFIX`, `_log_cycle` / `_CYCLE_LOG_PREFIX`, and
+every `_logger.warning` / `.info` / `.exception` in the module. Those are the
+engine's own diagnostics and they are not this campaign's to remove.

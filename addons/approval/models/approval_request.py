@@ -5,6 +5,7 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from . import approval_trace as trace
 from .approval_utils import boolean_search_domain, is_approval_manager
 
 _logger = logging.getLogger(__name__)
@@ -482,6 +483,20 @@ class ApprovalRequest(models.Model):
 
         created_requests = super().create(vals_list)
 
+        trace.CRUD.items(
+            "created",
+            lambda: [
+                {
+                    "request": request.id,
+                    "category": request.category_id.id,
+                    "owner": request.request_owner_id.id,
+                    "minimum": request.approval_minimum,
+                    "model": request.res_model or None,
+                    "res_id": request.res_id or None,
+                }
+                for request in created_requests
+            ],
+        )
         created_requests._subscribe_owners()
 
         created_requests._sync_approvers()
@@ -526,7 +541,15 @@ class ApprovalRequest(models.Model):
 
         res = super().write(vals)
 
-        if self._get_fields_approver_sync_trigger() & vals.keys():
+        resync = self._get_fields_approver_sync_trigger() & vals.keys()
+        if trace.CRUD.on():
+            trace.CRUD.event(
+                "write",
+                requests=self.ids,
+                fields=sorted(vals),
+                resync=sorted(resync),
+            )
+        if resync:
             self._sync_approvers()
             self._extend_approvers_live()
 
@@ -615,6 +638,7 @@ class ApprovalRequest(models.Model):
     def unlink(self) -> bool:
         self._check_access_unlink()
         self._check_business_rules_unlink()
+        trace.CRUD.note("unlink", requests=self.ids, uid=self.env.uid)
         return super().unlink()
 
     @api.ondelete(at_uninstall=False)
@@ -840,6 +864,20 @@ class ApprovalRequest(models.Model):
             else:
                 request.state = "pending"
 
+            if trace.COMPUTE.on():
+                trace.COMPUTE.event(
+                    "state",
+                    request=request.id,
+                    state=request.state,
+                    counts=dict(state_counts),
+                    minimum=approval_threshold,
+                    required_ok=required_approved,
+                    refusals=request._get_deciding_refusals().ids,
+                    unmet=request._get_unmet_steps().ids
+                    if request.approver_ids.step_ids
+                    else None,
+                )
+
     def _get_deciding_refusals(self):
         """Refused rows that refuse the request: all but those refused only for
         advisory steps."""
@@ -894,6 +932,12 @@ class ApprovalRequest(models.Model):
                 continue
             for step in own:
                 assigned[step.id] |= approver
+        if trace.STEPS.on():
+            trace.STEPS.event(
+                "assignment",
+                request=self.id,
+                steps={step_id: rows.ids for step_id, rows in assigned.items()},
+            )
         return assigned
 
     def _get_unmet_steps(self):
@@ -918,7 +962,16 @@ class ApprovalRequest(models.Model):
         if not blocking:
             return advisory
         lowest = min(blocking.mapped("sequence"))
-        return blocking.filtered(lambda step: step.sequence == lowest) | advisory
+        open_steps = blocking.filtered(lambda step: step.sequence == lowest) | advisory
+        trace.STEPS.event(
+            "open",
+            request=self.id,
+            unmet=unmet.ids,
+            blocking=blocking.ids,
+            advisory=advisory.ids,
+            open=open_steps.ids,
+        )
+        return open_steps
 
     def _compute_terminal_date_stamp(self, field_name: str, target_state: str) -> None:
         now = fields.Datetime.now()
@@ -967,6 +1020,7 @@ class ApprovalRequest(models.Model):
                 return self.env[self.res_model].browse(self.res_id)
             return self.env[self.res_model]
         except KeyError:
+            trace.SYNC.event("source_model_gone", request=self.id, model=self.res_model)
             _logger.warning(
                 "Source model %s not found for approval request %s",
                 self.res_model,

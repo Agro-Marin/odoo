@@ -2,6 +2,8 @@ from typing import Any
 
 from odoo import SUPERUSER_ID, api, models
 
+from . import approval_trace as trace
+
 SYNC_CONTEXT_KEY = "approval_state_sync"
 
 
@@ -69,6 +71,14 @@ class MixinApprovalStateSync(models.AbstractModel):
                 record.sudo().approval_request_id
                 and record.sudo().approval_request_id.id not in synced
             )
+        )
+        trace.SYNC.event(
+            "document_moved",
+            record=self,
+            field=field,
+            moved=moved.ids,
+            with_request=with_request.ids,
+            already_synced=list(synced),
         )
         with_request._sync_approval_request()
         (
@@ -168,7 +178,15 @@ class MixinApprovalStateSync(models.AbstractModel):
         if self.env.uid == SUPERUSER_ID or self.env.context.get("import_file"):
             return
         for record in self.sudo():
-            if record._is_approval_request_required():
+            needs = record._is_approval_request_required()
+            trace.SYNC.event(
+                "raise_on_create",
+                model=record._name,
+                res_id=record.id,
+                kind=record._get_approval_sync_kind(),
+                raises=needs,
+            )
+            if needs:
                 record.action_create_approval_request()
 
     def _get_synced_approval_request(self):
@@ -192,6 +210,15 @@ class MixinApprovalStateSync(models.AbstractModel):
         for record in self:
             request = record._get_synced_approval_request()
             kind = record._get_approval_sync_kind()
+            trace.SYNC.note(
+                "sync_request",
+                model=record._name,
+                res_id=record.id,
+                request=request.id,
+                kind=kind,
+                request_state=request.state,
+                decides=decides,
+            )
             if kind == "pending":
                 record._restart_approval_request(request)
             elif kind == "draft":
@@ -216,11 +243,25 @@ class MixinApprovalStateSync(models.AbstractModel):
         if kind == "progress":
             steps = request._get_open_steps()
             rows = rows.filtered(lambda row: steps <= row.step_ids)
+            trace.SYNC.event(
+                "sync_progress",
+                request=request.id,
+                steps=steps.ids,
+                rows=rows.ids,
+                user=user.id,
+            )
             if rows:
                 request.action_approve(approver=rows, steps=steps)
             return
         if rows:
             request.action_approve(approver=rows)
+        trace.SYNC.event(
+            "sync_approved",
+            request=request.id,
+            rows=rows.ids,
+            state=request.state,
+            grants=request.state == "pending",
+        )
         if request.state == "pending":
             request._approve_without_decision(
                 self.env._(
@@ -259,6 +300,14 @@ class MixinApprovalStateSync(models.AbstractModel):
             if decides and refused and request.state == "pending"
             else request.approver_ids.browse()
         )
+        trace.SYNC.event(
+            "sync_ending",
+            request=request.id,
+            target=target,
+            state=request.state,
+            rows=rows.ids,
+            noted=bool(note),
+        )
         if rows:
             request.action_refuse(approver=rows)
             if note:
@@ -280,6 +329,13 @@ class MixinApprovalStateSync(models.AbstractModel):
 
     def _apply_approval_outcome(self, kind: str, decided: bool = True) -> None:
         self.check_singleton()
+        trace.SYNC.note(
+            "apply_outcome",
+            record=self,
+            kind=kind,
+            decided=decided,
+            request=self.approval_request_id.id,
+        )
         if decided and self.env.uid != SUPERUSER_ID:
             self.sudo(False)._check_approval_sync_policy(kind)
         synced = self.env.context.get(SYNC_CONTEXT_KEY, ())

@@ -5,6 +5,8 @@ from odoo import api, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+from . import approval_trace as trace
+
 _logger = logging.getLogger(__name__)
 
 
@@ -28,6 +30,11 @@ class MixinApprovalDomain(models.AbstractModel):
         field_name = field_name or self._domain_source_field()
         domain = self._parse_domain(field_name)
         if domain is None:
+            trace.REFUSAL.event(
+                "unparseable_domain",
+                record=self,
+                field=field_name,
+            )
             _logger.warning(
                 "%s %s: unparseable domain %r in %s, treated as no match.",
                 self._name,
@@ -59,6 +66,13 @@ class MixinApprovalDomain(models.AbstractModel):
         for part in field_path.split("."):
             field = current._fields.get(part)
             if field is None:
+                trace.REFUSAL.event(
+                    "unknown_field_path",
+                    record=self,
+                    path=field_path,
+                    on=current._name,
+                    part=part,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s reads %(path)s, but %(model)s has no field %(part)s.",

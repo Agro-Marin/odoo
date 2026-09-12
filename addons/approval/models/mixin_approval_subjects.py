@@ -3,6 +3,8 @@ from typing import Any
 from odoo import fields, models
 from odoo.exceptions import UserError
 
+from . import approval_trace as trace
+
 LIVE_REQUEST_STATES = ("new", "pending")
 
 
@@ -78,6 +80,11 @@ class MixinApprovalSubjects(models.AbstractModel):
         """
         self.check_singleton()
         if self._get_live_approval_request(subject_key):
+            trace.REFUSAL.event(
+                "subject_already_waiting",
+                record=self,
+                subject=subject_key,
+            )
             raise UserError(
                 self.env._(
                     "%(record)s already has an approval request waiting for this.",
@@ -86,6 +93,11 @@ class MixinApprovalSubjects(models.AbstractModel):
             )
         category = self._get_approval_subject_category(subject_key)
         if not category:
+            trace.REFUSAL.event(
+                "subject_no_category",
+                record=self,
+                subject=subject_key,
+            )
             raise UserError(
                 self.env._(
                     "No approval category applies to %(record)s.",
@@ -98,6 +110,13 @@ class MixinApprovalSubjects(models.AbstractModel):
             .create(
                 self._prepare_approval_subject_request_values(subject_key, category)
             )
+        )
+        trace.SUBJECTS.note(
+            "request_raised",
+            record=self,
+            subject=subject_key,
+            category=category.id,
+            request=request.id,
         )
         request.action_confirm()
         return request

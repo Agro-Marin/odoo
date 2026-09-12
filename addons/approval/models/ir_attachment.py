@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from . import approval_trace as trace
+
 _APPROVAL_LOCKED_FIELDS = frozenset(
     {
         "name",
@@ -47,6 +49,12 @@ class IrAttachment(models.Model):
                 )
             request = self.env["approval.request"].sudo().browse(attachment.res_id)
             if attachment.approval_requirement_id.category_id != request.category_id:
+                trace.REFUSAL.event(
+                    "requirement_of_other_category",
+                    attachment=attachment.id,
+                    requirement=attachment.approval_requirement_id.id,
+                    request=request.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "'%(requirement)s' is a document requirement of "
@@ -102,6 +110,11 @@ class IrAttachment(models.Model):
             and vals.get("res_id")
         }
         if self._approval_terminal_parent_ids(candidate_ids):
+            trace.REFUSAL.event(
+                "attach_to_decided_request",
+                requests=sorted(candidate_ids),
+                uid=self.env.uid,
+            )
             raise UserError(
                 self.env._(
                     "You cannot attach a document to an approval request "
@@ -127,6 +140,12 @@ class IrAttachment(models.Model):
                 ):
                     blocked_ids.add(new_id)
         if self._approval_terminal_parent_ids(blocked_ids):
+            trace.REFUSAL.event(
+                "write_attachment_of_decided_request",
+                attachments=self.ids,
+                requests=sorted(blocked_ids),
+                fields=sorted(vals.keys() & _APPROVAL_LOCKED_FIELDS),
+            )
             raise UserError(
                 self.env._(
                     "You cannot modify an attachment linked to an approval "
@@ -139,6 +158,11 @@ class IrAttachment(models.Model):
     def _unlink_approved_approval_request(self):
         targeted = self._approval_attachments_in_self()
         if targeted and self._approval_terminal_parent_ids(targeted.mapped("res_id")):
+            trace.REFUSAL.event(
+                "unlink_attachment_of_decided_request",
+                attachments=targeted.ids,
+                uid=self.env.uid,
+            )
             raise UserError(
                 self.env._(
                     "You cannot unlink an attachment which is linked to an "

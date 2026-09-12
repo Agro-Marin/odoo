@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from . import approval_trace as trace
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -44,6 +45,12 @@ class MailActivity(models.Model):
 
     def _action_done(self, feedback=False, attachment_ids=None):
         approvers = self._get_answering_approvers()
+        trace.ACTIVITY.event(
+            "done",
+            activities=self.ids,
+            uid=self.env.uid,
+            approves=approvers.ids,
+        )
         if not approvers:
             return super()._action_done(
                 feedback=feedback, attachment_ids=attachment_ids

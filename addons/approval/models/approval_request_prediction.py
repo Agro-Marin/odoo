@@ -2,6 +2,8 @@ from typing import Any
 
 from odoo import fields, models
 
+from . import approval_trace as trace
+
 
 class ApprovalRequestPrediction(models.Model):
     _inherit = "approval.request"
@@ -64,11 +66,27 @@ class ApprovalRequestPrediction(models.Model):
             ][:20]
 
             if len(similar) < 3:
+                trace.PREDICTION.event(
+                    "too_few_comparables",
+                    request=request.id,
+                    rows=len(rows),
+                    similar=len(similar),
+                )
                 predictions[request.id] = ("uncertain", 0.0)
                 continue
 
             approved = sum(1 for r in similar if r["state"] == "approved")
             rate = approved / len(similar)
+            trace.PREDICTION.event(
+                "predicted",
+                request=request.id,
+                rows=len(rows),
+                similar=len(similar),
+                approved=approved,
+                rate=rate,
+                amount=request.amount,
+                tolerance=tolerance,
+            )
 
             if rate >= 0.75:
                 predictions[request.id] = ("approve", rate)
