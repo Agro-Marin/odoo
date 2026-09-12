@@ -86,6 +86,8 @@ export class Thread extends Component {
             ? useState(this.env.messageHighlight)
             : null;
         this.scrollingToHighlight = false;
+        /** @type {HTMLElement|null|undefined} */
+        this._viewportEl = undefined;
         this.refByMessageId = reactive(new Map(), () => {
             this.scrollToHighlighted();
         });
@@ -294,12 +296,14 @@ export class Thread extends Component {
     }
 
     computeJumpPresentPosition() {
-        if (!this.viewportEl || !this.jumpPresentRef.el) {
+        this._viewportEl = undefined;
+        const viewportEl = this.viewportEl;
+        if (!viewportEl || !this.jumpPresentRef.el) {
             return;
         }
-        const width = this.viewportEl.clientWidth;
-        const height = this.viewportEl.clientHeight;
-        const computedStyle = window.getComputedStyle(this.viewportEl);
+        const width = viewportEl.clientWidth;
+        const height = viewportEl.clientHeight;
+        const computedStyle = window.getComputedStyle(viewportEl);
         const ps = parseInt(computedStyle.getPropertyValue("padding-left"));
         const pe = parseInt(computedStyle.getPropertyValue("padding-right"));
         const pt = parseInt(computedStyle.getPropertyValue("padding-top"));
@@ -345,11 +349,20 @@ export class Thread extends Component {
         return true;
     }
 
+    /**
+     * The scrollable element, or its first ancestor that fits the window. Walking up
+     * reads `clientHeight` on every step, each a forced layout right after a patch, and
+     * the template asks on every render; the answer is cached until the next resize.
+     */
     get viewportEl() {
+        if (this._viewportEl?.isConnected) {
+            return this._viewportEl;
+        }
         let viewportEl = this.scrollableRef.el;
         while (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
             viewportEl = viewportEl.parentElement;
         }
+        this._viewportEl = viewportEl;
         return viewportEl;
     }
 
