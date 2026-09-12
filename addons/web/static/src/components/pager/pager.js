@@ -5,7 +5,6 @@ import { Component, useEffect, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { PagerEvent } from "@web/core/events";
-import { useClickAway } from "@web/core/utils/dom/click_away";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus } from "@web/core/utils/hooks";
 
@@ -39,10 +38,6 @@ export class Pager extends Component {
             isDisabled: false,
         });
         this.inputRef = useAutofocus();
-        useClickAway(() => this.stopEditing(), {
-            getAnchor: () => this.inputRef.el,
-            getContentEl: () => this.inputRef.el,
-        });
         let firstMount = true;
         useEffect(
             () => {

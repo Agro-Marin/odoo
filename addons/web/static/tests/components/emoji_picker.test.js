@@ -152,6 +152,59 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
     );
 });
 
+test("the picker mounts in two renders: the navbar's first resize notification adds none", async () => {
+    await loadEmoji();
+    let renders = 0;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        }
+    }
+    const picker = await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+    await animationFrame();
+    expect(picker.state.emojiNavbarRepr).not.toBe(undefined);
+    expect(renders).toBe(2);
+});
+
+test("searching and scrolling never build the keyboard grid; the first arrow key does, once", async () => {
+    await loadEmoji();
+    let builds = 0;
+    /** @type {any} */
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+        computeEmojiMatrix() {
+            builds++;
+            return super.computeEmojiMatrix();
+        }
+    }
+    await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+    expect(builds).toBe(0);
+
+    picker.state.searchTerm = "ca";
+    await animationFrame();
+    await animationFrame();
+    picker.state.searchTerm = "";
+    await animationFrame();
+    await animationFrame();
+    picker.state.categoryId = picker.categories[2].sortId;
+    await animationFrame();
+    expect(builds).toBe(0);
+    expect(".o-EmojiPicker input").not.toHaveAttribute("model");
+
+    picker.handleNavigation("ArrowRight");
+    picker.handleNavigation("ArrowDown");
+    await animationFrame();
+    expect(builds).toBe(1);
+    expect(picker.state.activeEmojiIndex).not.toBe(0);
+});
+
 test("adaptNavbar survives a navbar with no emoji rendered", async () => {
     /** @type {EmojiPicker} */
     let picker;

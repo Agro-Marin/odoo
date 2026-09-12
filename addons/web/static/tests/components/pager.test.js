@@ -595,3 +595,27 @@ test("editing survives a pointerdown inside the input, and only that", async () 
         message: "clicking outside still leaves edit mode",
     });
 });
+
+test.tags("desktop");
+test("a pager listens to no pointerdown on the window; leaving the input ends the edit", async () => {
+    const registered = [];
+    const { addEventListener } = window;
+    patchWithCleanup(window, {
+        /** @type {typeof addEventListener} */
+        addEventListener(type, listener, options) {
+            registered.push(type);
+            return addEventListener.call(this, type, listener, options);
+        },
+    });
+    await mountWithCleanup(PagerController, {
+        props: { offset: 0, limit: 4, total: 10, onUpdate() {} },
+    });
+    await animationFrame();
+    expect(registered.filter((type) => type === "pointerdown")).toEqual([]);
+
+    await contains(".o_pager_value").click();
+    expect("input.o_pager_value").toHaveCount(1);
+    queryOne("input.o_pager_value").blur();
+    await animationFrame();
+    expect("input.o_pager_value").toHaveCount(0);
+});
