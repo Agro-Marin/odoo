@@ -29,20 +29,19 @@ export function useLifecycleLog(log, name) {
     const component = /** @type {any} */ (useComponent());
     const tag = name || component.constructor.name;
     const createdAt = performance.now();
-    let renderedAt = 0;
-    let patchedAt = 0;
     let renders = 0;
     let patches = 0;
+    /** @type {import("./debug_logger").PerfEnd} */
+    let endRender = () => 0;
+    /** @type {import("./debug_logger").PerfEnd} */
+    let endPatch = () => 0;
     log.lifecycle(`${tag} setup`, () => component.props);
     onWillRender(() => {
         renders++;
-        renderedAt = performance.now();
+        endRender = log.perf(`${tag} render`, { n: renders });
     });
     onRendered(() => {
-        if (log.isEnabled("perf")) {
-            const ms = performance.now() - renderedAt;
-            log.perf(`${tag} render#${renders}`)({ ms: Number(ms.toFixed(2)) });
-        }
+        endRender();
     });
     onMounted(() => {
         log.lifecycle(`${tag} mounted`, () => ({
@@ -51,13 +50,12 @@ export function useLifecycleLog(log, name) {
     });
     onWillPatch(() => {
         patches++;
-        patchedAt = performance.now();
         log.lifecycle(`${tag} willPatch#${patches}`, () => component.props);
+        endPatch = log.perf(`${tag} patch`, { n: patches });
     });
     onPatched(() => {
-        log.lifecycle(`${tag} patched#${patches}`, () => ({
-            ms: Number((performance.now() - patchedAt).toFixed(2)),
-        }));
+        endPatch();
+        log.lifecycle(`${tag} patched#${patches}`);
     });
     onWillUnmount(() =>
         log.lifecycle(`${tag} willUnmount`, () => ({ renders, patches })),
