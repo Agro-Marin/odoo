@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.tools import ormcache
+from odoo.tools.date_utils import time_unit_selection
 
 CACHE_INVALIDATE_FIELDS = (
     "lock_timeout",
@@ -8,31 +9,23 @@ CACHE_INVALIDATE_FIELDS = (
     "lock_timeout_inactivity_mfa",
 )
 
+MINUTES_PER_UNIT = {"day": 1440, "hour": 60, "minute": 1}
+
 
 def human_readable_delay(minutes):
-    if not minutes:
-        return minutes, "minutes"
-    if minutes % 1440 == 0:
-        return minutes // 1440, "days"
-    elif minutes % 60 == 0:
-        return minutes // 60, "hours"
-    else:
-        return minutes, "minutes"
+    for unit, size in MINUTES_PER_UNIT.items():
+        if minutes and minutes % size == 0:
+            return minutes // size, unit
+    return minutes, "minute"
 
 
 def human_readable_delay_to_minutes(delay, unit):
-    if unit == "days":
-        return delay * 1440
-    elif unit == "hours":
-        return delay * 60
-    else:
-        return delay
+    return delay * MINUTES_PER_UNIT.get(unit, 1)
 
 
 DELAY_UNITS = [
-    ("minutes", "minutes"),
-    ("hours", "hours"),
-    ("days", "days"),
+    (unit, label.lower())
+    for unit, label in time_unit_selection("minute", "hour", "day")
 ]
 
 
