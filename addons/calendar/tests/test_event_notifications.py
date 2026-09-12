@@ -99,8 +99,17 @@ class TestCalendarMail(CalendarMailCommon):
 
     def test_assert_initial_values(self):
         self.assertFalse(self.event.message_partner_ids)
+        # The organizer is on the invitation too. `CalendarMailCommon` creates
+        # the event with no `partner_ids`, so `_default_partner_ids` puts the
+        # creating user's partner there -- and that partner is `base.user_root`'s,
+        # which is archived. This listed only the four added afterwards, and
+        # passed because `partner_ids` applied the comodel's active test and hid
+        # the fifth.
         self.assertEqual(
-            self.event.partner_ids, self.user_employee_2.partner_id + self.customers
+            self.event.partner_ids,
+            self.user_root.partner_id
+            + self.user_employee_2.partner_id
+            + self.customers,
         )
         self.assertEqual(self.event.user_id, self.user_root)
 
@@ -172,7 +181,10 @@ class TestEventNotifications(CalendarMailCommon):
         cls.partner = cls.user.partner_id
 
     def test_assert_initial_values(self):
-        self.assertFalse(self.event.partner_ids)
+        # Not empty: the event is created with no `partner_ids`, so the creating
+        # user's partner is its first attendee. That partner is archived, which
+        # is the only reason this read as empty.
+        self.assertEqual(self.event.partner_ids, self.user_root.partner_id)
 
     def test_message_invite(self):
         self.env["ir.config_parameter"].sudo().set_param(

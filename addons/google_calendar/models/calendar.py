@@ -122,10 +122,7 @@ class CalendarEvent(models.Model):
 
     def write(self, vals):
         recurrence_update_setting = vals.get("recurrence_update")
-        if (
-            recurrence_update_setting in ("all", "subsequent")
-            and len(self) == 1
-        ):
+        if recurrence_update_setting in ("all", "subsequent") and len(self) == 1:
             vals = dict(vals, need_sync=False)
         notify_context = self.env.context.get("dont_notify", False)
         if not notify_context and (
@@ -293,24 +290,23 @@ class CalendarEvent(models.Model):
         attendees_by_emails = {
             tools.email_normalize(a.email): a for a in existing_attendees
         }
-        partners = self._get_sync_partner(emails)
-        for attendee in zip(emails, partners, google_attendees, strict=False):
-            email = attendee[0]
+        partner_by_email = self._get_sync_partner(emails)
+        for email, google_attendee in zip(emails, google_attendees, strict=True):
             if email in attendees_by_emails:
                 # Update existing attendees
                 attendee_commands += [
                     (
                         1,
                         attendees_by_emails[email].id,
-                        {"state": attendee[2].get("responseStatus")},
+                        {"state": google_attendee.get("responseStatus")},
                     )
                 ]
             else:
                 # Create new attendees
-                if attendee[2].get("self"):
+                if google_attendee.get("self"):
                     partner = self.env.user.partner_id
-                elif attendee[1]:
-                    partner = attendee[1]
+                elif partner_by_email.get(email):
+                    partner = partner_by_email[email]
                 else:
                     continue
                 attendee_commands += [
@@ -318,14 +314,14 @@ class CalendarEvent(models.Model):
                         0,
                         0,
                         {
-                            "state": attendee[2].get("responseStatus"),
+                            "state": google_attendee.get("responseStatus"),
                             "partner_id": partner.id,
                         },
                     )
                 ]
                 partner_commands += [(4, partner.id)]
-                if attendee[2].get("displayName") and not partner.name:
-                    partner.name = attendee[2].get("displayName")
+                if google_attendee.get("displayName") and not partner.name:
+                    partner.name = google_attendee.get("displayName")
         for odoo_attendee in attendees_by_emails.values():
             # Remove old attendees but only if it does not correspond to the current user.
             email = tools.email_normalize(odoo_attendee.email)

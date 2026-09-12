@@ -110,21 +110,20 @@ class CalendarRecurrence(models.Model):
         # We update the attendee status for all events in the recurrence
         google_attendees = gevent.attendees or []
         emails = [a.get("email") for a in google_attendees]
-        partners = self._get_sync_partner(emails)
+        partner_by_email = self._get_sync_partner(emails)
         existing_attendees = self.calendar_event_ids.attendee_ids
-        for attendee in zip(emails, partners, google_attendees, strict=False):
-            email = attendee[0]
+        for email, google_attendee in zip(emails, google_attendees, strict=True):
             if email in existing_attendees.mapped("email"):
                 # Update existing attendees
                 existing_attendees.filtered(
                     lambda att, email=email: att.email == email
-                ).write({"state": attendee[2].get("responseStatus")})
+                ).write({"state": google_attendee.get("responseStatus")})
             else:
                 # Create new attendees
-                if attendee[2].get("self"):
+                if google_attendee.get("self"):
                     partner = self.env.user.partner_id
-                elif attendee[1]:
-                    partner = attendee[1]
+                elif partner_by_email.get(email):
+                    partner = partner_by_email[email]
                 else:
                     continue
                 self.calendar_event_ids.write(
@@ -134,15 +133,15 @@ class CalendarRecurrence(models.Model):
                                 0,
                                 0,
                                 {
-                                    "state": attendee[2].get("responseStatus"),
+                                    "state": google_attendee.get("responseStatus"),
                                     "partner_id": partner.id,
                                 },
                             )
                         ]
                     }
                 )
-                if attendee[2].get("displayName") and not partner.name:
-                    partner.name = attendee[2].get("displayName")
+                if google_attendee.get("displayName") and not partner.name:
+                    partner.name = google_attendee.get("displayName")
 
         organizers_partner_ids = [
             event.user_id.partner_id

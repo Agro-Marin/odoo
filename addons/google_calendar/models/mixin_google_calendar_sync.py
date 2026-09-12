@@ -137,7 +137,7 @@ class MixinGoogleCalendarSync(models.AbstractModel):
         # LUL TODO find a way to get rid of this context key
         if self.env.context.get("archive_on_error") and self._active_name:
             synced.write({self._active_name: False})
-            self = self - synced
+            self -= synced
         elif synced:
             # Since we can not delete such an event (see method comment), we archive it.
             # Notice that archiving an event will delete the associated event on Google.
@@ -459,15 +459,34 @@ class MixinGoogleCalendarSync(models.AbstractModel):
 
     @api.model
     def _get_sync_partner(self, emails):
-        normalized_emails = [
-            email_normalize(contact) for contact in emails if email_normalize(contact)
-        ]
+        """Map each address in `emails` to its partner, keyed as Google spelled it.
+
+        This returned a *recordset*, and both callers then walked it with
+        `zip(emails, partners, google_attendees)`. That is only correct when the
+        resolver gives back exactly one partner per address, in the order asked,
+        and it guarantees neither: two attendees sharing an address collapse to
+        one partner, and an address that normalises to nothing contributes none.
+        Either shortens the recordset, and from the first gap onwards every
+        attendee was handed the partner belonging to some other attendee --
+        silently, because the `zip` passed `strict=False` and the sort key
+        (`k.get(p.email_normalized, -1)`) compared a *normalised* address
+        against a dict built from the raw ones, so anything Google spelled with
+        a display name or different case sorted to the front rather than raising.
+
+        A mapping has no positions to misalign. An address with no partner maps
+        to an empty recordset, which is the answer, not a missing row.
+        """
+        normalized = {email: email_normalize(email) for email in emails}
         partners = self.env[
             "mixin.mail.thread"
-        ]._partner_get_or_create_from_emails_single(normalized_emails)
-        # partners needs to be sorted according to the emails order provided by google
-        k = {value: idx for idx, value in enumerate(emails)}
-        return partners.sorted(key=lambda p: k.get(p.email_normalized, -1))
+        ]._partner_get_or_create_from_emails_single(
+            list({norm for norm in normalized.values() if norm})
+        )
+        by_normalized = {partner.email_normalized: partner for partner in partners}
+        empty = self.env["res.partner"]
+        return {
+            email: by_normalized.get(norm, empty) for email, norm in normalized.items()
+        }
 
     @api.model
     def _odoo_values(self, google_event: GoogleEvent, default_reminders=()):

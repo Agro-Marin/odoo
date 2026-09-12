@@ -332,10 +332,21 @@ class CalendarEvent(models.Model):
         string="Attending?", related="current_attendee.state", readonly=False
     )
     should_show_status = fields.Boolean(compute="_compute_should_show_status")
+    # `active_test` off because `partner_ids` and `attendee_ids` are two views of
+    # one set and the model relies on it: `_attendees_values` reads
+    # `self.partner_ids` as the attendees a record currently has, and derives the
+    # create/unlink commands for `calendar.attendee` from the difference against
+    # what the caller asked for. `calendar.attendee` has no `active` column, so
+    # with the comodel's active test left on, an archived partner sat in the
+    # relation table and in `attendee_ids` while reading `partner_ids` back
+    # denied they were there: they could never be removed (never in
+    # `removed_partner_ids`) and were re-added as a second attendee by the next
+    # write that named them (always in `added_partner_ids`).
     partner_ids = fields.Many2many(
         "res.partner",
         "calendar_event_res_partner_rel",
         string="Attendees",
+        context={"active_test": False},
         default=_default_partner_ids,
     )
     invalid_email_partner_ids = fields.Many2many(
@@ -1427,6 +1438,21 @@ class CalendarEvent(models.Model):
         to_sync._sync_reservations()
 
     def write(self, values):
+        # `_attendees_values` derives the `attendee_ids` commands from
+        # `self.partner_ids`, which over a multi-record write is the UNION of
+        # every record's attendees. A partner already on one event then counts
+        # as present on all of them, so the `(0, 0, …)` that would have added
+        # them to the others is never emitted -- and a `Command.SET` that drops
+        # a partner only one event had emits an unlink for all. The derivation
+        # is only sound when the records agree on who is currently invited, so
+        # when they do not, do it one record at a time.
+        if "partner_ids" in values and len(self) > 1:
+            invited = {tuple(sorted(event.partner_ids.ids)) for event in self}
+            if len(invited) > 1:
+                for event in self:
+                    event.write(dict(values))
+                return True
+
         self = self.with_context(skip_attendee_reservation_sync=True)
         # Snapshot before the pops below: the recurrence branches consume the
         # very keys the sync and the notification decisions need, and

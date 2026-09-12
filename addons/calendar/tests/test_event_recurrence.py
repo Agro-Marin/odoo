@@ -1014,6 +1014,18 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
         # Retrieve the recurring event to delete the next event occurrence.
         event = self.events[1]
 
+        # A second attendee, so `close()` takes the branch this test is about.
+        # With only the organizer invited there is nobody to notify and `close()`
+        # deletes straight away, which is its documented behaviour; the wizard's
+        # notify-then-delete view is only reached when somebody else is coming.
+        # This used to be reached by accident: a generated occurrence carried no
+        # attendee at all, because its organizer's partner is archived and
+        # `calendar.event.partner_ids` applied the comodel's active test.
+        guest = self.env["res.partner"].create(
+            {"name": "Wizard Guest", "email": "wizard.guest@example.com"}
+        )
+        self.events.write({"partner_ids": [(4, guest.id)]})
+
         # Step 1: Use the popover delete wizard to delete the next occurrence of the event.
         wizard = (
             self.env["calendar.popover.delete.wizard"]
@@ -1047,6 +1059,18 @@ class TestUpdateRecurrentEvents(TestRecurrentEvents):
         """Test unlinking all recurrences using the delete wizard."""
         # Step 0: Retrieve the recurring event to be deleted.
         event = self.events[1]
+
+        # A second attendee, so `close()` takes the branch this test is about.
+        # With only the organizer invited there is nobody to notify and `close()`
+        # deletes straight away, which is its documented behaviour; the wizard's
+        # notify-then-delete view is only reached when somebody else is coming.
+        # This used to be reached by accident: a generated occurrence carried no
+        # attendee at all, because its organizer's partner is archived and
+        # `calendar.event.partner_ids` applied the comodel's active test.
+        guest = self.env["res.partner"].create(
+            {"name": "Wizard Guest", "email": "wizard.guest@example.com"}
+        )
+        self.events.write({"partner_ids": [(4, guest.id)]})
 
         # Step 1: Use the popover delete wizard to delete all occurrences of the event.
         wizard = (

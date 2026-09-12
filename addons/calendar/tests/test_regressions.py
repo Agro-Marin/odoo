@@ -526,11 +526,14 @@ class TestCalendarAttendeeCounts(TransactionCase):
         self._assert_counts_add_up()
 
     def test_an_archived_contact_is_still_a_guest(self):
-        """A many2many read drops archived records; the attendee row survives.
+        """Archiving a contact does not take them off the invitation.
 
-        Counting the guests from `partner_ids` and the answers from
-        `attendee_ids` therefore disagreed the moment anybody deactivated a
-        contact: the event read "1 guest, 2 answers".
+        A many2many read drops archived records by default and the attendee row
+        survives, so counting the guests from `partner_ids` and the answers from
+        `attendee_ids` disagreed the moment anybody deactivated a contact: the
+        event read "1 guest, 2 answers". `partner_ids` now carries
+        `active_test: False`, so the two halves of the invitation agree again
+        and this asserts that rather than the discrepancy.
         """
         # A plain contact, not a user's partner: a partner backing an active
         # user refuses to be archived at all.
@@ -542,11 +545,14 @@ class TestCalendarAttendeeCounts(TransactionCase):
         contact.action_archive()
         self.event.invalidate_recordset()
         self.assertEqual(
-            len(self.event.partner_ids), 2, "the m2m read drops the archived one"
+            len(self.event.partner_ids),
+            3,
+            "archiving a contact does not uninvite them",
         )
         self.assertEqual(
-            self.event.attendees_count, 3, "but they are still on the invitation"
+            self.event.attendees_count, 3, "and they are still on the invitation"
         )
+        self.assertIn(contact, self.event.partner_ids)
         self._assert_counts_add_up()
 
 
