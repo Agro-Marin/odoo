@@ -283,7 +283,8 @@ class TestReconciliationReport(TestAccountReportsCommon):
         )
 
         # the first is in company currency
-        bank_move_1 = bank_statement.line_ids[0].move_id
+        lines_by_ref = {line.payment_ref: line for line in bank_statement.line_ids}
+        bank_move_1 = lines_by_ref["line_1"].move_id
         bank_move_1_suspense_line = bank_move_1.line_ids.filtered(
             lambda l: l.account_id == suspense_account
         )
@@ -299,7 +300,7 @@ class TestReconciliationReport(TestAccountReportsCommon):
         bank_move_1.action_post()
 
         # the second is in neither company nor journal currency
-        bank_move_2 = bank_statement.line_ids[1].move_id
+        bank_move_2 = lines_by_ref["line_3"].move_id
         bank_move_2_suspense_line = bank_move_2.line_ids.filtered(
             lambda l: l.account_id == suspense_account
         )
