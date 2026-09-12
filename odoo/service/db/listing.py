@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
+from typing import Any
 from xml.etree import ElementTree as ET
 
 import psycopg
@@ -150,6 +151,40 @@ def _invalidate_catalog_cache() -> None:
         _catalog_generation += 1
 
 
+def _get_catalog_on_cursor(cr: Any) -> list[str] | None:
+    # The caller already holds a connection: pg_database is a shared catalog,
+    # so scanning through it avoids borrowing a second one, which is what let
+    # requests exhaust db_maxconn waiting on each other. A standby may lag a
+    # database this process just created, so its answer is not used.
+    if cr is None or getattr(cr, "closed", True):
+        return None
+    templates_list = list({"postgres", odoo.tools.config["db_template"]})
+    try:
+        with cr.savepoint(flush=False):
+            cr.execute(
+                """
+                SELECT pg_is_in_recovery(),
+                       ARRAY(SELECT datname
+                               FROM pg_database
+                              WHERE datdba = (SELECT usesysid FROM pg_user
+                                               WHERE usename = current_user)
+                                AND NOT datistemplate
+                                AND datallowconn
+                                AND datname != ALL(%s)
+                              ORDER BY datname)
+                """,
+                (templates_list,),
+            )
+            in_recovery, names = cr.fetchone()
+    except Exception:
+        _debug.logic("database.catalog_on_cursor_failed")
+        return None
+    if in_recovery:
+        _debug.logic("database.catalog_on_cursor_skipped", reason="standby")
+        return None
+    return list(names)
+
+
 def _get_catalog_uncached() -> list[str] | None:
     chosen_template = odoo.tools.config["db_template"]
     templates_list = tuple({"postgres", chosen_template})
@@ -176,11 +211,11 @@ def _get_catalog_uncached() -> list[str] | None:
             return None
 
 
-def _get_catalog_cached() -> list[str]:
+def _get_catalog_cached(cr: Any = None) -> list[str]:
     ttl = _get_catalog_ttl()
     if ttl <= 0:
         _debug.logic("database.catalog_uncached", ttl=ttl)
-        return _get_catalog_uncached() or []
+        return _get_catalog_on_cursor(cr) or _get_catalog_uncached() or []
     now = time.monotonic()
     with _catalog_lock:
         cached = _catalog_cache
@@ -193,12 +228,12 @@ def _get_catalog_cached() -> list[str]:
                 return list(cached[1])
         _catalog_refresh_lock.acquire()
     try:
-        return _refresh_catalog(ttl)
+        return _refresh_catalog(ttl, cr)
     finally:
         _catalog_refresh_lock.release()
 
 
-def _refresh_catalog(ttl: float) -> list[str]:
+def _refresh_catalog(ttl: float, cr: Any = None) -> list[str]:
     global _catalog_cache  # noqa: PLW0603  one catalogue per process
 
     now = time.monotonic()
@@ -208,7 +243,10 @@ def _refresh_catalog(ttl: float) -> list[str]:
             return list(current[1])
         generation = _catalog_generation
     with _debug.perf("database.catalog_listed", ttl=ttl) as span:
-        names = _get_catalog_uncached()
+        names = _get_catalog_on_cursor(cr)
+        span.set(on_cursor=names is not None)
+        if names is None:
+            names = _get_catalog_uncached()
         span.set(databases=None if names is None else len(names))
     if names is None:
         return []
@@ -228,7 +266,7 @@ def _is_db_list_configured() -> bool:
     return not odoo.tools.config["dbfilter"] and bool(odoo.tools.config["db_name"])
 
 
-def list_dbs(force: bool = False) -> list[str]:
+def list_dbs(force: bool = False, *, cr: Any = None) -> list[str]:
     if not odoo.tools.config["list_db"] and not force:
         _debug.logic("database.list_refused", reason="list_db_disabled")
         raise odoo.exceptions.AccessDenied
@@ -237,7 +275,7 @@ def list_dbs(force: bool = False) -> list[str]:
         _debug.logic("database.list_source", source="db_name")
         return sorted(odoo.tools.config["db_name"])
 
-    return _get_catalog_cached()
+    return _get_catalog_cached(cr)
 
 
 def list_db_incompatible(databases: list[str]) -> list[str]:

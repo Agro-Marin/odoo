@@ -274,3 +274,98 @@ class TestAnExpiryDoesNotStampedePostgres:
         assert seen == [["c"]], (
             "the scan outrun by the invalidation must not be cached; the waiter rescans"
         )
+
+
+class _FakeCursor:
+    def __init__(self, row=None, error=None, closed=False):
+        self.row = row
+        self.error = error
+        self.closed = closed
+        self.savepoints = 0
+        self.statements = []
+
+    def savepoint(self, flush=True):
+        import contextlib
+
+        self.savepoints += 1
+        return contextlib.nullcontext()
+
+    def execute(self, query, params=None):
+        self.statements.append(query)
+        if self.error is not None:
+            raise self.error
+
+    def fetchone(self):
+        return self.row
+
+
+class TestTheScanUsesTheCallersConnection:
+    def test_a_primary_cursor_answers_without_borrowing(self, cfg):
+        cr = _FakeCursor(row=(False, ["a", "b"]))
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(listing, "_get_catalog_uncached") as borrow,
+        ):
+            assert listing.list_dbs(True, cr=cr) == ["a", "b"]
+            assert listing.list_dbs(True) == ["a", "b"], "the answer is cached"
+        borrow.assert_not_called()
+        assert cr.savepoints == 1, (
+            "a failing scan must not abort the caller's transaction"
+        )
+
+    def test_a_standby_is_not_trusted(self, cfg):
+        cr = _FakeCursor(row=(True, ["stale"]))
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(
+                listing, "_get_catalog_uncached", return_value=["fresh"]
+            ) as borrow,
+        ):
+            assert listing.list_dbs(True, cr=cr) == ["fresh"]
+        borrow.assert_called_once_with()
+
+    @pytest.mark.parametrize(
+        "cr",
+        [
+            _FakeCursor(error=RuntimeError("in a pipeline")),
+            _FakeCursor(closed=True),
+            None,
+        ],
+        ids=["failing", "closed", "absent"],
+    )
+    def test_no_usable_cursor_falls_back_to_the_maintenance_scan(self, cfg, cr):
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(
+                listing, "_get_catalog_uncached", return_value=["m"]
+            ) as borrow,
+        ):
+            assert listing.list_dbs(True, cr=cr) == ["m"]
+        borrow.assert_called_once_with()
+
+    def test_a_zero_ttl_still_prefers_the_callers_cursor(self, cfg, monkeypatch):
+        monkeypatch.setenv("ODOO_DB_CATALOGUE_CACHE_TTL", "0")
+        cr = _FakeCursor(row=(False, ["a"]))
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(listing, "_get_catalog_uncached") as borrow,
+        ):
+            assert listing.list_dbs(True, cr=cr) == ["a"]
+        borrow.assert_not_called()
+
+
+def test_get_dbs_served_hands_the_request_cursor_down(monkeypatch):
+    from types import SimpleNamespace
+
+    from odoo.http import helpers
+
+    cr = object()
+    monkeypatch.setattr(helpers, "request", SimpleNamespace(env=SimpleNamespace(cr=cr)))
+    with (
+        patch.object(
+            helpers.odoo.service.db, "list_dbs", return_value=["a"]
+        ) as list_dbs,
+        patch.object(helpers, "filter_dbs_served", side_effect=lambda dbs, host: dbs),
+    ):
+        assert helpers.get_dbs_served(True) == ["a"]
+    list_dbs.assert_called_once_with(True, cr=cr)
