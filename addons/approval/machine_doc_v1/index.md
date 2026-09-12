@@ -26,7 +26,7 @@ dashboards.
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
 | Test files | 46 (+ `common.py` shared fixtures) |
-| JS files | 16 (7 src + 9 tests) |
+| JS files | 26 (14 `static/src` + 12 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
 ## File Inventory
@@ -164,6 +164,7 @@ into `test_approvals.py`).
 
 | File | Purpose |
 |------|---------|
+| `common/approval_trace.js` | **TEMPORARY campaign instrumentation, client half.** The `approval.<target>` console targets, off unless `?approval_trace=` or `localStorage["approval.trace"]` names one. Twin of `models/approval_trace.py`; removed with the campaign |
 | `common/activity_model_patch.js` | Activity model patch for approval data |
 | `common/approver_model.js` | Approver OWL model |
 | `web/activity_patch.js` | Activity component patch for approve/refuse buttons |
@@ -251,7 +252,7 @@ approval/
 | Python test files | 46 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
-| JS files | 16 |
+| JS files | 26 |
 | SCSS files | 4 |
 | ORM models (new) | 18 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 8 (base, ir.actions.report, ir.actions.server, ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |

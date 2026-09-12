@@ -120,6 +120,44 @@ class TestCampaignRefusalCensus(ApprovalCommon):
         self.assertEqual(duplicated, [], f"kinds used twice: {duplicated}")
 
 
+class TestCampaignSwallowedFailures(ApprovalCommon):
+    """The class no refusal census can see: a failure the engine swallows.
+
+    A peer campaign on another repo found fourteen of these -- paths that raise
+    something the reporting macro never covered, two of them reachable on its read
+    path and silent on every target. They are not refusals (nothing was turned away)
+    and not questions (nothing was asked): the engine gave up on something and
+    carried on, which is the shape a session debugging "why did nothing happen?"
+    cannot find. So they are enumerated rather than measured.
+    """
+
+    #: handler line -> why saying nothing is right there
+    ALLOWED_TO_STAY_SILENT = {
+        "approval_trace.py": "the renderer degrades to <unrenderable>, which IS the report",
+    }
+
+    def test_no_handler_swallows_a_failure_without_a_word(self):
+        offenders = []
+        for path in _source_files():
+            source = path.read_text()
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Try):
+                    continue
+                for handler in node.handlers:
+                    segment = ast.get_source_segment(source, handler) or ""
+                    speaks = (
+                        any(isinstance(n, ast.Raise) for n in ast.walk(handler))
+                        or "_logger." in segment
+                        or "trace." in segment
+                    )
+                    if speaks or path.name in self.ALLOWED_TO_STAY_SILENT:
+                        continue
+                    caught = ast.unparse(handler.type) if handler.type else "everything"
+                    offenders.append(f"{path.name}:{handler.lineno} catches {caught}")
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
 class TestCampaignCallTraces(ApprovalCommon):
     def test_every_wrapped_method_exists(self):
         missing = [

@@ -1,5 +1,8 @@
 /** @odoo-module native */
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+
+import { trace } from "../../common/approval_trace.js";
 
 /**
  * Collects the specs asked in one tick and answers them with one call, so a form
@@ -13,14 +16,30 @@ export const approvalButtonService = {
         function flush() {
             const batch = queue;
             queue = [];
+            const started = browser.performance.now();
             orm.silent
                 .call("approval.binding", "get_button_approvals", [
                     batch.map(({ spec }) => spec),
                 ])
                 .then(
-                    (results) =>
-                        batch.forEach(({ resolve }, index) => resolve(results[index])),
-                    (error) => batch.forEach(({ reject }) => reject(error)),
+                    (results) => {
+                        trace.event("service", "flushed", {
+                            specs: batch.length,
+                            ms: browser.performance.now() - started,
+                            results: results.length,
+                        });
+                        batch.forEach(({ resolve }, index) => resolve(results[index]));
+                    },
+                    (error) => {
+                        // Every queued button fails open on this, so it is the one
+                        // place that knows the gates were never actually consulted.
+                        trace.note("service", "flush_rejected", {
+                            specs: batch.length,
+                            ms: browser.performance.now() - started,
+                            error: error?.name || "Error",
+                        });
+                        batch.forEach(({ reject }) => reject(error));
+                    },
                 );
         }
 

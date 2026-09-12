@@ -531,6 +531,7 @@ One per concern, so a session enables the axis it is working on. `_BY_NAME` in
 | `cron` | The three crons' envelopes: batch contents, caps, totals |
 | `crud` | `create` / `write` / `unlink` on the engine's own models, and which write triggered a re-route |
 | `decision` | The decision funnel: actor resolution, fan-in, what was decided for which step, withdrawals |
+| `degraded` | The third class: not a refusal and not a question -- the engine gave up on something and carried on (an unparseable subject domain, a `res_model` that left the registry). INFO, because a session debugging "why did nothing happen?" cannot find these from either of the other two |
 | `delegation` | Effective approver, delegation set, superseded, handover on archive |
 | `document` | Reserved for document requirements (no call site today) |
 | `editor` | Studio's editor calls (`approval_binding_editor.py`) |
@@ -560,8 +561,11 @@ grep 'odoo.approval.refusal' run.log | sed 's/.*refusal: //' | cut -d' ' -f1 | s
 over a corpus is the ranked list of what the engine actually turns away -- and a
 refusal line on a successful flow is a bug in the code or in the instrumentation.
 
-Three things keep that list worth reading, and `tests/test_campaign_instrumentation.py`
-holds each one so it stays true:
+Four things keep that list worth reading, and `tests/test_campaign_instrumentation.py`
+holds each one so it stays true -- and each one was broken on purpose once to check the
+test sees it (a raise with no event, two sites sharing a kind, a silent `except`, a
+refusal emitted on a green path, a `CALL_TRACES` entry naming a method that does not
+exist: five for five read `1 failed`):
 
 1. **The null control.** A green flow -- confirm, two approvals, a withdrawal, a
    re-approval, a reset, a re-confirm -- runs inside `assertNoLogs` on
@@ -582,6 +586,21 @@ holds each one so it stays true:
    (`decision_without_a_row`, `change_request_without_a_row`, `wizard_without_a_row`)
    and the method is named in `REPORTED_BY_ITS_CALLERS` so the completeness check
    knows why it is bare.
+4. **No handler swallows a failure without a word.** This is the class neither of the
+   other three can see, and no refusal census can: an `except` that neither re-raises
+   nor says anything. Three of the addon's twenty handlers were silent when the check
+   was written. Two now report on `degraded`; the third
+   (`approval.binding._get_snapshot`, where an unparseable domain empties the snapshot
+   and thereby stops a binding's coverage from ever being invalidated) got a PERMANENT
+   `_logger.warning` instead, because that one is a defect the campaign happens to have
+   found rather than something to instrument and remove. The exemption list holds one
+   entry: the renderer, whose `<unrenderable>` marker IS its report.
+
+**The two kinds of check are not interchangeable.** The null control has a natural
+oracle -- zero -- so it can be measured. Completeness has none: 62 of 145 sites reading
+41 kinds is a perfectly plausible number with nothing to contradict it, which is why
+these three have to enumerate the tree and name every offending site in the failure
+message rather than compare a total.
 
 ### The wrapped entry points
 
@@ -601,6 +620,49 @@ query-count delta, `d` the call depth (so the nesting reconstructs the call tree
 wrapping an abstract model reaches nobody -- the mixins are instrumented by hand.
 A method named there and since renamed prints one `stale_call_traces` line on the
 `registry` target at load; nothing else breaks.
+
+### The client half
+
+`static/src/common/approval_trace.js` is the same idea for the browser, and the same
+`target event key=value` grammar, so one grep reads a flow across both halves:
+
+```
+approval.service flushed specs=3 ms=41.180 results=3
+approval.button  loaded model=res.partner res_id=7 gated=true approved=false
+```
+
+It is **off unless asked for**, by either switch, because a console line costs a user
+nothing and a reader everything:
+
+```js
+?approval_trace=button,service          // one page load
+localStorage["approval.trace"] = "all"  // until you clear it
+```
+
+`1`, `*`, `all` or `true` mean every target. Four targets: `button` (the widget, the
+hook's load/reload lifecycle, the decide/withdraw calls, the gated-model set a form
+reads), `service` (the batching service -- how many specs one tick coalesced and what
+the round trip cost), `activity` (approve/refuse from an activity) and `popover`
+(reserved, no call site).
+
+Mechanics worth knowing before adding a site:
+- **`browser.console`, never `console`.** `addons/approval` is not in ESLint's
+  `COMMUNITY_MODULES`, so `globals.browser` is not declared for it and a bare `console`
+  is a `no-undef` error -- and ESLint is a repo-wide HARD ZERO. `browser.console.debug`
+  also lets a test patch it, which is how `static/tests/campaign_trace.test.js` asserts
+  the default silence.
+- **The file carries `// @ts-check`.** `js_ts_check.py` counts client files WITHOUT it,
+  so a new untyped file raises that gate by one; typed and clean, it costs nothing.
+  `npx tsc --project tsconfig.json --noEmit` reports no diagnostic in `approval/static`.
+- The switch is memoised on first use; `trace.forget()` drops it, which only the tests
+  need.
+- Two files are deliberately uninstrumented: `approval_button.js` and
+  `view_button_patch.js`. They were being edited outside this session when the client
+  half landed (an ESM `.js`-extension migration), and §12 says not to write into
+  somebody else's held file.
+- Four more carry no line because they hold no decision: `activity_model_patch.js`,
+  `approver_model.js`, `activity_patch.js` and `approvals_category_kanban_view.js` are
+  declarations and registrations.
 
 ### The perf ledger
 
@@ -667,12 +729,23 @@ returns both numbers**, which is the point of writing them down here.
 
 ```bash
 grep -rn 'approval_trace\|trace\.[A-Z]' odoo/addons/approval --include='*.py'
+grep -rn 'approval_trace\|trace\.\(on\|event\|note\|span\)' \
+    odoo/addons/approval --include='*.js'
 ```
-is the whole surface: delete `models/approval_trace.py`, its entry in
-`models/__init__.py`, the two `_register_hook` / `_unregister_hook` overrides in
-`models/models.py`, and every `trace.*` call (some sit in a small restructuring --
-a `matches`/`pool`/`wanted` local introduced so the value could be logged once;
-inline it back or keep it, it reads the same either way).
+is the whole surface (the second line is the client half, plus
+`static/tests/campaign_trace.test.js` and `tests/test_campaign_instrumentation.py`,
+which are tests OF the campaign and go with it).
+
+Delete `models/approval_trace.py` and its entry in `models/__init__.py`, the two
+`_register_hook` / `_unregister_hook` overrides in `models/models.py`,
+`static/src/common/approval_trace.js`, both test files, and every `trace.*` call. Some
+calls sit in a small restructuring -- a `matches` / `pool` / `wanted` local introduced
+so the value could be logged once; inline it back or keep it, it reads the same either
+way. **Two things stay behind on purpose**, because the campaign found defects rather
+than instrumenting them: the `_logger.warning` in `approval.binding._get_snapshot` (an
+unparseable domain empties the snapshot and stops a binding's coverage from ever being
+invalidated) and the `browser.console.warn` in `useApprovalButton`'s `load` (a gate
+that cannot be read shows the button ungated, which used to happen in silence).
 
 **What predates the campaign and stays**: the module loggers
 (`_logger = logging.getLogger(__name__)`) in `approval_request.py`,

@@ -700,6 +700,7 @@ class ApprovalRequest(models.Model):
             try:
                 records = self.env[model].browse(ids).exists()
             except KeyError:
+                trace.DEGRADED.note("res_model_not_in_registry", model=model, ids=ids)
                 names_by_model[model] = None
                 continue
             existing_by_model[model] = set(records.ids)

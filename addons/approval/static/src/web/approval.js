@@ -3,6 +3,8 @@ import { Component } from "@odoo/owl";
 
 import { useService } from "@web/core/utils/hooks";
 
+import { trace } from "../common/approval_trace.js";
+
 /**
  * @typedef {Object} Props
  * @property {import("models").Activity} activity
@@ -21,10 +23,11 @@ export class Approval extends Component {
     }
 
     async onClickApprove() {
+        const approver = this.props.activity.approver_id.id;
         try {
-            await this.orm.call("approval.approver", "action_approve", [
-                this.props.activity.approver_id.id,
-            ]);
+            await trace.span("activity", "approved", { approver }, () =>
+                this.orm.call("approval.approver", "action_approve", [approver]),
+            );
         } catch (error) {
             this.props.onChange();
             throw error;
@@ -34,15 +37,20 @@ export class Approval extends Component {
     }
 
     async onClickRefuse() {
+        const approver = this.props.activity.approver_id.id;
         let result;
         try {
-            result = await this.orm.call("approval.approver", "action_refuse", [
-                this.props.activity.approver_id.id,
-            ]);
+            result = await trace.span("activity", "refused", { approver }, () =>
+                this.orm.call("approval.approver", "action_refuse", [approver]),
+            );
         } catch (error) {
             this.props.onChange();
             throw error;
         }
+        trace.event("activity", "refuse_answered", {
+            approver,
+            opens_wizard: Boolean(result),
+        });
         if (result) {
             await this.action.doAction(result, {
                 onClose: () => this.props.onChange(),

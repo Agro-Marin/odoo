@@ -19,10 +19,14 @@ class MixinApprovalDomain(models.AbstractModel):
 
     def _parse_domain(self, field_name: str | None = None) -> Domain | None:
         self.check_singleton()
-        raw = self[field_name or self._domain_source_field()]
+        field_name = field_name or self._domain_source_field()
+        raw = self[field_name]
         try:
             return Domain(ast.literal_eval(raw or "[]"))
         except ValueError, SyntaxError, TypeError:
+            trace.DEGRADED.note(
+                "domain_unparseable", record=self, field=field_name, raw=raw
+            )
             return None
 
     def _parse_domain_or_warn(self, field_name: str | None = None) -> Domain | None:

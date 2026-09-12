@@ -564,6 +564,15 @@ class ApprovalBinding(models.Model):
             return {}
         domain = self._parse_domain()
         if domain is None:
+            _logger.warning(
+                "Approval binding %s: subject_domain %r does not parse, so the "
+                "snapshot taken for %s#%s is empty and no later change to it can "
+                "move this approval's coverage.",
+                self.id,
+                self.subject_domain,
+                record._name,
+                record.id,
+            )
             return {}
         probe = record.sudo()
         return {

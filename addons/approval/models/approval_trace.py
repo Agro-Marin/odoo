@@ -204,6 +204,7 @@ COMPUTE = Target("compute")
 CRON = Target("cron")
 CRUD = Target("crud")
 DECISION = Target("decision")
+DEGRADED = Target("degraded")
 DELEGATION = Target("delegation")
 DOCUMENT = Target("document")
 EDITOR = Target("editor")
@@ -237,6 +238,7 @@ _BY_NAME: dict[str, Target] = {
         CRON,
         CRUD,
         DECISION,
+        DEGRADED,
         DELEGATION,
         DOCUMENT,
         EDITOR,
