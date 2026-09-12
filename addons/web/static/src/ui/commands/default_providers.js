@@ -1,46 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component } from "@odoo/owl";
-import { isMacOS } from "@web/core/browser/feature_detection";
 import { adoptAccessKeys } from "@web/core/browser/hotkeys";
-import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
 import { capitalize } from "@web/core/utils/format/strings";
 
-import { COMMAND_ITEM_PROPS, DefaultCommandItem } from "./command_palette.js";
+import { DefaultCommandItem, HotkeyCommandItem } from "./command_items.js";
 
 const commandSetupRegistry = registry.category("command_setup");
 commandSetupRegistry.add("default", {
     emptyMessage: _t("No command found"),
     placeholder: _t("Search for a command..."),
 });
-
-export class HotkeyCommandItem extends Component {
-    static template = "web.HotkeyCommandItem";
-    static props = {
-        ...COMMAND_ITEM_PROPS,
-        hotkey: { type: String },
-        hotkeyOptions: { type: Object, optional: true },
-    };
-    setup() {
-        useHotkey(this.props.hotkey, this.props.executeCommand);
-    }
-
-    /** @returns {string[]} */
-    get keysToPress() {
-        /** @type {string[]} */
-        let result = this.props.hotkey.split("+");
-        if (isMacOS()) {
-            result = result
-                .map((x) => x.replace("control", "command"))
-                .map((x) => x.replace("alt", "control"));
-        }
-        return result.map((key) => key.toUpperCase());
-    }
-}
 
 const commandCategoryRegistry = registry.category("command_categories");
 const commandProviderRegistry = registry.category("command_provider");

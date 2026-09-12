@@ -96,7 +96,7 @@ Layered organization under `static/src/`:
 | **Boot** | `boot/` | Backend entry points: `main.js`, `start.js` (`env.js`, `session.js`, `module_loader.js`, `service_worker.js` sit at `src/` root) | 2 JS |
 | **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 190 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 111 JS |
-| **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
+| **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 47 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
 | **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 180 JS |
 | **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 97 JS |

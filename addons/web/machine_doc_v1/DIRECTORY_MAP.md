@@ -184,7 +184,7 @@
 | `ui/bottom_sheet/` | shared | 2 | Mobile slide-up panel with drag-to-dismiss and snap points, and its service |
 | `ui/carousel/` | shared | 1 | Hook wrapping Bootstrap's carousel lifecycle for OWL components |
 | `ui/collapse/` | shared | 1 | Animated expand/collapse panel component |
-| `ui/commands/` | shared | 5 | Command palette (Ctrl+K): the `command` service, palette component, registration hook, categories, default providers |
+| `ui/commands/` | shared | 6 | Command palette (Ctrl+K): the `command` service, palette component, the item and footer components beside their templates, registration hook, categories, default providers |
 | `ui/dialog/` | shared | 4 | `dialog` service, the `Dialog` component, and the standard confirmation dialog |
 | `ui/effects/` | shared | 2 | `effect` service and the rainbow-man effect |
 | `ui/notification/` | shared | 3 | `notification` service, the toast component, and its container |

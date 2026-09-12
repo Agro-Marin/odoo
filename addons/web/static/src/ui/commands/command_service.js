@@ -6,7 +6,8 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { CommandPaletteEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
-import { CommandPalette, DefaultFooter } from "./command_palette.js";
+import { DefaultFooter } from "./command_items.js";
+import { CommandPalette } from "./command_palette.js";
 
 /** @import { CommandPaletteConfig } from "./command_palette.js" */
 

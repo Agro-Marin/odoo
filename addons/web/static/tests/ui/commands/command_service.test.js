@@ -19,8 +19,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { getTabableElements } from "@web/core/utils/dom/ui";
+import { HotkeyCommandItem } from "@web/ui/commands";
 import { useCommand } from "@web/ui/commands/command_hook";
-import { HotkeyCommandItem } from "@web/ui/commands/default_providers";
 import { useActiveElement } from "@web/ui/ui_service";
 
 class TestComponent extends Component {

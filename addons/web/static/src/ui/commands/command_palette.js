@@ -18,7 +18,6 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { CommandPaletteEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
 import { KeepLast, Race } from "@web/core/utils/concurrency";
@@ -29,8 +28,12 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
 
+import { DefaultCommandItem } from "./command_items.js";
+
 /** @import { Command } from "./command_service.js" */
-const commandSetupRegistry = registry.category("command_setup");
+// re-exported until webclient/menus/menu_providers.js imports it through the
+// @web/ui/commands face
+export { DefaultCommandItem };
 
 const log = makeLogger("web.command.palette");
 
@@ -158,37 +161,6 @@ function groupCommandsByCategory(commands, categories) {
         bucket?.push(command);
     }
     return byCategory;
-}
-
-/** @type {Record<string, any>} */
-export const COMMAND_ITEM_PROPS = {
-    slots: { type: Object, optional: true },
-    name: { type: String, optional: true },
-    searchValue: { type: String, optional: true },
-    executeCommand: { type: Function, optional: true },
-};
-
-export class DefaultCommandItem extends Component {
-    static template = "web.DefaultCommandItem";
-    static props = { ...COMMAND_ITEM_PROPS };
-}
-
-export class DefaultFooter extends Component {
-    static template = "web.DefaultFooter";
-    static props = {
-        switchNamespace: { type: Function },
-    };
-    /** @returns {{ namespace: string, name: any }[]} */
-    get elements() {
-        return commandSetupRegistry
-            .getEntries()
-            .map(([namespace, { name }]) => ({ namespace, name }))
-            .filter((el) => el.name);
-    }
-
-    onClick(/** @type {string} */ namespace) {
-        this.props.switchNamespace(namespace);
-    }
 }
 
 export class CommandPalette extends Component {
