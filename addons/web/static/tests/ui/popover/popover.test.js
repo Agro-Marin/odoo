@@ -291,7 +291,7 @@ test("within iframe", async () => {
         { scrollable: false },
     );
     await animationFrame();
-    expect.verifySteps(["bottom", "bottom"]);
+    expect.verifySteps(["bottom"]);
     popoverBox = comp.popoverRef.el.getBoundingClientRect();
     expectedTop -= 100;
     expect(Math.floor(popoverBox.top)).toBe(Math.floor(expectedTop));
@@ -387,12 +387,7 @@ test("popover with arrow and onPositioned", async () => {
         },
     });
 
-    expect.verifySteps([
-        "onPositioned (from override)",
-        "onPositioned (from props)",
-        "onPositioned (from override)",
-        "onPositioned (from props)",
-    ]);
+    expect.verifySteps(["onPositioned (from override)", "onPositioned (from props)"]);
     expect(".o_popover").toHaveClass("o_popover popover mw-100 bs-popover-auto");
     expect(".o_popover").toHaveAttribute("data-popper-placement", "bottom");
     expect(".o_popover > .popover-arrow").toHaveClass("position-absolute z-n1");
@@ -456,7 +451,7 @@ test("popover position is updated when the content dimensions change", async () 
 
     expect(".o_popover").toHaveCount(1);
     await runAllTimers();
-    await expect.waitForSteps(["onPositioned", "onPositioned"]);
+    await expect.waitForSteps(["onPositioned"]);
     await contains("#popover button").click();
     expect("#popover span").toHaveCount(1);
     await expect.waitForSteps(["onPositioned"]);
@@ -688,6 +683,42 @@ test("holdOnHover survives the opening animation finishing", async () => {
 
     queryOne(".o_popover").dispatchEvent(new PointerEvent("pointerleave"));
     expect(unlocks).toBe(1);
+});
+
+test("opening positions once; only a later resize of the content repositions", async () => {
+    /** @type {() => void} */
+    let grow;
+    class GrowingContent extends Component {
+        static props = ["*"];
+        static template = xml`<div id="popover" t-att-style="'height: ' + state.height + 'px'">Popover Content</div>`;
+        setup() {
+            this.state = useState({ height: 30 });
+            grow = () => (this.state.height = 300);
+        }
+    }
+    await mountWithCleanup(
+        `<div class="popover-target" style="width: 50px; height: 50px;" />`,
+    );
+    let positioned = 0;
+    await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: queryOne(".popover-target"),
+            component: GrowingContent,
+            onPositioned: () => positioned++,
+        },
+    });
+    await animationFrame();
+    await animationFrame();
+    expect(positioned).toBe(1, {
+        message: "the observer's first delivery is the mount size, not a resize",
+    });
+
+    // a change the popover itself never renders for: only the observer sees it
+    grow();
+    await animationFrame();
+    await animationFrame();
+    expect(positioned).toBe(2);
 });
 
 test("an unanimated, unheld popover is never locked", async () => {

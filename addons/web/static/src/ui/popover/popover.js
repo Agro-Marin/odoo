@@ -99,7 +99,15 @@ export class Popover extends Component {
             this.animationDone = true;
         }
 
-        const resizeObserver = new ResizeObserver(() => this.onResized());
+        // the observer's first delivery reports the size the popover was just
+        // positioned for; only later deliveries are resizes
+        let observedOnce = false;
+        const resizeObserver = new ResizeObserver(() => {
+            if (observedOnce) {
+                this.onResized();
+            }
+            observedOnce = true;
+        });
 
         onMounted(() => {
             POPOVERS.set(this.props.target, this.popoverRef.el);
