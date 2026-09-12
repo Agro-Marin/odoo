@@ -12,7 +12,7 @@ from markupsafe import Markup
 from odoo import _, api, exceptions, fields, models, tools
 from odoo.db.schema import column_exists
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, parse_contact_from_email
+from odoo.tools import parse_contact_from_email
 from odoo.tools.mail import (
     email_split_and_format,
     email_split_and_format_normalize,
@@ -140,23 +140,14 @@ class Base(models.AbstractModel):
         return result
 
     def _mail_unlink_activities(self, record_ids: list[int]) -> None:
-        Activity = self.env["mail.activity"]
-        Activity.flush_model(["res_model", "res_id"])
-        self.env.cr.execute(
-            SQL(
-                "SELECT EXISTS (SELECT 1 FROM mail_activity "
-                "WHERE res_model = %s AND res_id = ANY(%s))",
-                self._name,
-                record_ids,
-            )
-        )
-        if not self.env.cr.fetchone()[0]:
-            return
         activities = (
-            Activity.with_context(active_test=False)
+            self.env["mail.activity"]
+            .with_context(active_test=False)
             .sudo()
             .search([("res_model", "=", self._name), ("res_id", "in", record_ids)])
         )
+        if not activities:
+            return
         _debug.lifecycle(
             "activities_unlinked_with_records",
             model=self._name,
