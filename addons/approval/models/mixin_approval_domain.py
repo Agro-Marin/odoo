@@ -49,6 +49,7 @@ class MixinApprovalDomain(models.AbstractModel):
         field_name = field_name or self._domain_source_field()
         domain = self._parse_domain(field_name)
         if domain is None:
+            trace.REFUSAL.event("domain_not_a_literal", record=self, field=field_name)
             raise ValidationError(
                 self.env._(
                     "%(name)s has a source domain that is not a valid Python "

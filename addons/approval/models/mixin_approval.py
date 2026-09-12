@@ -108,6 +108,11 @@ class MixinApproval(models.AbstractModel):
     def _check_can_request_approval(self) -> None:
         self.check_singleton()
         if self.approval_request_id:
+            trace.REFUSAL.event(
+                "request_already_exists",
+                record=self,
+                request=self.approval_request_id.id,
+            )
             raise UserError(
                 self.env._("An approval request already exists for this document."),
             )
@@ -119,6 +124,9 @@ class MixinApproval(models.AbstractModel):
             field_names = ", ".join(
                 [self._fields[f].string for f in missing_fields if f in self._fields],
             )
+            trace.REFUSAL.event(
+                "required_fields_empty", record=self, fields=missing_fields
+            )
             raise UserError(
                 self.env._(
                     "Please fill in the following required fields before requesting approval: %s",
@@ -127,6 +135,7 @@ class MixinApproval(models.AbstractModel):
             )
 
         if not self._get_approval_category():
+            trace.REFUSAL.event("no_category_for_document", record=self)
             raise UserError(
                 self.env._(
                     "No approval category found for this document type. "
@@ -172,6 +181,7 @@ class MixinApproval(models.AbstractModel):
 
         category = self._get_approval_category()
         if not category:
+            trace.REFUSAL.event("no_category_at_submit", record=self)
             raise UserError(
                 self.env._(
                     "No approval category found for this document type. "
@@ -347,6 +357,11 @@ class MixinApproval(models.AbstractModel):
     def _unlink_except_pending_approval(self) -> None:
         for record in self:
             if record.approval_state == "pending":
+                trace.REFUSAL.event(
+                    "unlink_with_pending_approval",
+                    record=record,
+                    request=record.approval_request_id.id,
+                )
                 raise UserError(
                     self.env._(
                         "Cannot delete %(name)s: it has a pending approval "

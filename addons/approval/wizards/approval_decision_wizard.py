@@ -135,6 +135,11 @@ class ApprovalDecisionWizard(models.TransientModel):
     def action_confirm_refuse(self):
         self.check_singleton()
         if not self.refusal_reason_id:
+            trace.REFUSAL.event(
+                "refusal_without_reason",
+                request=self.request_id.id,
+                approver=self.approver_id.id,
+            )
             raise UserError(
                 self.env._("Please select a reason for refusing this request.")
             )
@@ -146,6 +151,7 @@ class ApprovalDecisionWizard(models.TransientModel):
                 before=self._stamp_refusal,
             )
         if not self.approver_id:
+            trace.REFUSAL.event("refusal_without_a_row", wizard=self.id)
             raise UserError(self.env._("There is no approval to refuse."))
         trace.WIZARD.note(
             "refuse",
@@ -179,6 +185,9 @@ class ApprovalDecisionWizard(models.TransientModel):
     def action_confirm_change(self):
         self.check_singleton()
         if not self.change_field:
+            trace.REFUSAL.event(
+                "change_request_without_field", request=self.request_id.id
+            )
             raise UserError(
                 self.env._(
                     "Select which field the requester must update "
@@ -186,6 +195,11 @@ class ApprovalDecisionWizard(models.TransientModel):
                 ),
             )
         if not self.note:
+            trace.REFUSAL.event(
+                "change_request_without_note",
+                request=self.request_id.id,
+                field=self.change_field,
+            )
             raise UserError(
                 self.env._(
                     "Explain what the requester should change.",

@@ -18,6 +18,11 @@ class ApprovalRequestLifecycle(models.Model):
     def _check_bulk_decision_allowed(self) -> None:
         for request in self:
             if request.state != "pending":
+                trace.REFUSAL.event(
+                    "bulk_request_not_pending",
+                    request=request.id,
+                    state=request.state,
+                )
                 raise UserError(
                     self.env._(
                         "Request '%(request)s' is not in pending state (current: %(state)s).",
@@ -26,6 +31,9 @@ class ApprovalRequestLifecycle(models.Model):
                     ),
                 )
             if not request._get_current_pending_approver():
+                trace.REFUSAL.event(
+                    "bulk_no_pending_row", request=request.id, uid=self.env.uid
+                )
                 raise UserError(
                     self.env._(
                         "You don't have pending approval rights for request: %s",
@@ -127,6 +135,10 @@ class ApprovalRequestLifecycle(models.Model):
         return self._action_bulk_decision("action_approve", "approval", "approved")
 
     def _raise_not_assigned_approver(self) -> None:
+        # No campaign refusal event here on purpose: three callers reach this one
+        # message for four different reasons, and one event would collapse them.
+        # Each caller reports its own kind before calling (decision_without_a_row,
+        # change_request_without_a_row, wizard_without_a_row).
         raise UserError(
             self.env._(
                 "You are not assigned as an approver for this request, "
@@ -145,6 +157,9 @@ class ApprovalRequestLifecycle(models.Model):
         approver_state = "approved" if decision == "approve" else "refused"
         self._lock_and_reload(with_approvers=True)
         if self.state != "pending":
+            trace.REFUSAL.event(
+                "decision_state", request=self.id, state=self.state, decision=decision
+            )
             raise UserError(
                 self.env._(
                     "This request can no longer be %(decision)s: it is "
@@ -173,6 +188,13 @@ class ApprovalRequestLifecycle(models.Model):
             approver = candidate.filtered(
                 lambda a: a.state in ("pending", "approved") and steps <= a.step_ids
             )
+            trace.DECISION.event(
+                "rows_for_steps",
+                request=self.id,
+                steps=steps.ids,
+                candidates=candidate.ids,
+                rows=approver.ids,
+            )
         else:
             approver = candidate.filtered(
                 lambda a: (
@@ -186,6 +208,13 @@ class ApprovalRequestLifecycle(models.Model):
             )
         self._check_decision_actor(approver)
         if not approver:
+            trace.REFUSAL.event(
+                "decision_without_a_row",
+                request=self.id,
+                decision=decision,
+                uid=self.env.uid,
+                candidates=candidate.ids,
+            )
             self._raise_not_assigned_approver()
         self._check_steps_decidable(approver, steps)
         acting_user = approver[:1]._get_effective_approver()
@@ -443,6 +472,9 @@ class ApprovalRequestLifecycle(models.Model):
 
     def _check_no_pending_change(self, action_verb: str) -> None:
         if any(self.mapped("pending_change_field")):
+            trace.REFUSAL.event(
+                "blocked_by_pending_change", requests=self.ids, action=action_verb
+            )
             raise UserError(
                 self.env._(
                     "You cannot %(verb)s this request while a change is "
@@ -456,6 +488,9 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         self._check_moved_from_source_document()
         if self.state != "pending":
+            trace.REFUSAL.event(
+                "change_request_not_pending", request=self.id, state=self.state
+            )
             raise UserError(
                 self.env._(
                     "A change can only be requested while the approval is "
@@ -464,6 +499,11 @@ class ApprovalRequestLifecycle(models.Model):
                 ),
             )
         if self.pending_change_field:
+            trace.REFUSAL.event(
+                "change_already_pending",
+                request=self.id,
+                field=self.pending_change_field,
+            )
             raise UserError(
                 self.env._(
                     "A change is already pending on this request (field "
@@ -491,6 +531,9 @@ class ApprovalRequestLifecycle(models.Model):
             )
         self._check_decision_actor(approver)
         if not approver:
+            trace.REFUSAL.event(
+                "change_request_without_a_row", request=self.id, uid=self.env.uid
+            )
             self._raise_not_assigned_approver()
 
         self._lock_and_reload()
@@ -498,6 +541,9 @@ class ApprovalRequestLifecycle(models.Model):
 
         requested_field = self.env.context.get("requested_change_field")
         if requested_field not in self._PENDING_CHANGE_EDITABLE:
+            trace.REFUSAL.event(
+                "change_field_not_editable", request=self.id, field=requested_field
+            )
             raise UserError(
                 self.env._(
                     "Internal: requested_change_field context value must "
@@ -507,6 +553,13 @@ class ApprovalRequestLifecycle(models.Model):
             )
         candidates = self._get_pending_change_candidates()
         if requested_field not in candidates:
+            trace.REFUSAL.event(
+                "change_field_not_on_category",
+                request=self.id,
+                field=requested_field,
+                category=self.category_id.id,
+                candidates=sorted(candidates),
+            )
             raise UserError(
                 self.env._(
                     "The '%(field)s' field is not available on category "
@@ -546,6 +599,7 @@ class ApprovalRequestLifecycle(models.Model):
     def action_resubmit(self) -> None:
         self.check_singleton()
         if not self.pending_change_field:
+            trace.REFUSAL.event("resubmit_without_pending_change", request=self.id)
             raise UserError(
                 self.env._(
                     "There is no pending change on this request.",
@@ -554,6 +608,9 @@ class ApprovalRequestLifecycle(models.Model):
         is_owner = self.request_owner_id == self.env.user
         is_manager = is_approval_manager(self.env)
         if not (is_owner or is_manager or self.user_approver_state):
+            trace.REFUSAL.event(
+                "resubmit_not_owner_nor_approver", request=self.id, uid=self.env.uid
+            )
             raise UserError(
                 self.env._(
                     "Only the request owner or an approver can re-submit "
@@ -610,6 +667,9 @@ class ApprovalRequestLifecycle(models.Model):
             request._lock_and_reload()
 
             if request.state != "new":
+                trace.REFUSAL.event(
+                    "confirm_not_draft", request=request.id, state=request.state
+                )
                 raise UserError(
                     self.env._(
                         "Only requests in draft state can be confirmed. "
@@ -704,6 +764,9 @@ class ApprovalRequestLifecycle(models.Model):
         for request in self:
             request._lock_and_reload()
             if request.state != "pending":
+                trace.REFUSAL.event(
+                    "cancel_not_pending", request=request.id, state=request.state
+                )
                 raise UserError(
                     self.env._(
                         "Only submitted requests can be cancelled. "
@@ -725,6 +788,9 @@ class ApprovalRequestLifecycle(models.Model):
         for request in self:
             request._lock_and_reload()
             if request.state not in self._TERMINAL_STATES:
+                trace.REFUSAL.event(
+                    "reset_not_decided", request=request.id, state=request.state
+                )
                 raise UserError(
                     self.env._(
                         "Only decided requests can be reset to draft. "
@@ -843,6 +909,12 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         current_approver = self._get_current_pending_approver()[:1]
         if not current_approver:
+            trace.REFUSAL.event(
+                "wizard_without_a_row",
+                request=self.id,
+                uid=self.env.uid,
+                decision=decision_type,
+            )
             self._raise_not_assigned_approver()
         titles = {
             "refuse": self.env._("Refuse Request"),
@@ -871,6 +943,9 @@ class ApprovalRequestLifecycle(models.Model):
         explicit_approver = approver if isinstance(approver, models.BaseModel) else None
         for request in self:
             if request.state not in ("pending", "approved"):
+                trace.REFUSAL.event(
+                    "withdraw_state", request=request.id, state=request.state
+                )
                 raise UserError(
                     self.env._(
                         "You cannot withdraw an approval on a %(state)s "
@@ -879,6 +954,11 @@ class ApprovalRequestLifecycle(models.Model):
                     ),
                 )
             if request.granted_by_user_id:
+                trace.REFUSAL.event(
+                    "withdraw_granted_request",
+                    request=request.id,
+                    granted_by=request.granted_by_user_id.id,
+                )
                 raise UserError(
                     self.env._(
                         "You cannot withdraw an approval on %(name)s: it was approved "
@@ -983,6 +1063,9 @@ class ApprovalRequestLifecycle(models.Model):
 
     def _check_approve_sequentially_can_approve(self, candidate) -> None:
         if self.approve_sequentially and any(a.state == "waiting" for a in candidate):
+            trace.REFUSAL.event(
+                "approve_out_of_sequence", request=self.id, rows=candidate.ids
+            )
             raise ValidationError(
                 self.env._("You cannot approve before the previous approver.")
             )
@@ -1122,6 +1205,9 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         approver = self.approver_ids.filtered(lambda a: a.id == approver_id)
         if not approver:
+            trace.REFUSAL.event(
+                "approver_not_on_request", request=self.id, approver=approver_id
+            )
             raise UserError(
                 self.env._(
                     "That approver is not on request %(name)s.",
@@ -1132,6 +1218,12 @@ class ApprovalRequestLifecycle(models.Model):
         if step_id:
             steps = steps.filtered(lambda step: step.id == int(step_id))
             if not steps:
+                trace.REFUSAL.event(
+                    "no_decision_for_that_step",
+                    request=self.id,
+                    approver=approver.id,
+                    step=int(step_id),
+                )
                 raise UserError(
                     self.env._(
                         "%(approver)s gave no decision for that step on %(name)s.",
@@ -1150,6 +1242,9 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         self._lock_and_reload(with_approvers=True)
         if self.state not in ("pending", "approved"):
+            trace.REFUSAL.event(
+                "withdraw_steps_state", request=self.id, state=self.state
+            )
             raise UserError(
                 self.env._(
                     "You cannot withdraw an approval on a %(state)s request.",
@@ -1405,6 +1500,9 @@ class ApprovalRequestLifecycle(models.Model):
         self._lock_and_reload()
         for request in self:
             if request.state != "approved":
+                trace.REFUSAL.event(
+                    "revoke_not_approved", request=request.id, state=request.state
+                )
                 raise UserError(
                     self.env._(
                         "Only an approved request can be revoked: %(name)s is "
@@ -1440,6 +1538,9 @@ class ApprovalRequestLifecycle(models.Model):
         self._lock_and_reload(with_approvers=True)
         for request in self:
             if request.state != "pending":
+                trace.REFUSAL.event(
+                    "grant_not_pending", request=request.id, state=request.state
+                )
                 raise UserError(
                     self.env._(
                         "Only a pending request can be approved without a decision: "

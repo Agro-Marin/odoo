@@ -41,6 +41,12 @@ class IrAttachment(models.Model):
     def _check_approval_requirement_belongs_to_the_request(self) -> None:
         for attachment in self.filtered("approval_requirement_id"):
             if attachment.res_model != "approval.request" or not attachment.res_id:
+                trace.REFUSAL.event(
+                    "requirement_not_on_a_request",
+                    attachment=attachment.id,
+                    model=attachment.res_model,
+                    res_id=attachment.res_id,
+                )
                 raise ValidationError(
                     self.env._(
                         "Only a file attached to an approval request can "

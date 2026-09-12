@@ -16,6 +16,7 @@ from . import (
     test_binding_reset,
     test_binding_studio_parity,
     test_bulk_operations,
+    test_campaign_instrumentation,
     test_category,
     test_category_steps,
     test_conditional_rules,

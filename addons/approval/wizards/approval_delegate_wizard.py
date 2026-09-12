@@ -72,8 +72,16 @@ class ApprovalDelegateWizard(models.TransientModel):
         today = fields.Date.context_today(self)
         for wizard in self:
             if wizard.end_date < wizard.start_date:
+                trace.REFUSAL.event(
+                    "delegation_window_inverted",
+                    start=wizard.start_date,
+                    end=wizard.end_date,
+                )
                 raise ValidationError(self.env._("End date must be after start date."))
             if wizard.end_date < today:
+                trace.REFUSAL.event(
+                    "delegation_window_past", end=wizard.end_date, today=today
+                )
                 raise ValidationError(
                     self.env._(
                         "The delegation period has already ended. Choose an "
@@ -85,6 +93,7 @@ class ApprovalDelegateWizard(models.TransientModel):
     def _check_users(self):
         for wizard in self:
             if wizard.user_id == wizard.delegate_id:
+                trace.REFUSAL.event("delegate_is_principal", user=wizard.user_id.id)
                 raise ValidationError(
                     self.env._("You cannot delegate approvals to yourself.")
                 )

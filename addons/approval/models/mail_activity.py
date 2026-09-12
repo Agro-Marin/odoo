@@ -30,6 +30,7 @@ class MailActivity(models.Model):
 
     def _search_approval_request_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
+            trace.REFUSAL.event("negative_operator_unsupported", operator=operator)
             raise UserError(
                 self.env._(
                     "Negative operators (%(operator)s) are not supported for "

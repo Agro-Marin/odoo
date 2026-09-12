@@ -175,6 +175,12 @@ class ApprovalRule(models.Model):
                 and category_company
                 and rule.company_id != category_company
             ):
+                trace.REFUSAL.event(
+                    "rule_company_not_category_company",
+                    rule=rule.id,
+                    company=rule.company_id.id,
+                    category_company=category_company.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule '%(rule)s' is scoped to %(company)s but its "
@@ -198,6 +204,12 @@ class ApprovalRule(models.Model):
                 lambda u, company=company: company not in u.company_ids
             )
             if outside:
+                trace.REFUSAL.event(
+                    "rule_approvers_outside_company",
+                    rule=rule.id,
+                    company=company.id,
+                    users=outside.ids,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule '%(rule)s' is scoped to %(company)s; these "
@@ -212,6 +224,9 @@ class ApprovalRule(models.Model):
     def _check_approver_ids_required(self):
         for rule in self:
             if rule.action_type in self._APPROVER_ACTIONS and not rule.approver_ids:
+                trace.REFUSAL.event(
+                    "rule_without_approvers", rule=rule.id, action=rule.action_type
+                )
                 raise ValidationError(
                     self.env._(
                         "Approvers are required when the action is '%(action)s'.",
@@ -229,10 +244,21 @@ class ApprovalRule(models.Model):
             if rule.action_type != "set_approvers":
                 continue
             if rule.approval_minimum < 1:
+                trace.REFUSAL.event(
+                    "rule_minimum_below_one",
+                    rule=rule.id,
+                    minimum=rule.approval_minimum,
+                )
                 raise ValidationError(
                     self.env._("Minimum Approval must be at least 1."),
                 )
             if rule.approval_minimum > len(rule.approver_ids):
+                trace.REFUSAL.event(
+                    "rule_minimum_above_approvers",
+                    rule=rule.id,
+                    minimum=rule.approval_minimum,
+                    approvers=len(rule.approver_ids),
+                )
                 raise ValidationError(
                     self.env._(
                         "Minimum Approval must not exceed the number of "
@@ -247,6 +273,12 @@ class ApprovalRule(models.Model):
             if rule.condition_type != "threshold" or rule.operator != "between":
                 continue
             if rule.threshold_max and rule.threshold_max <= rule.threshold:
+                trace.REFUSAL.event(
+                    "rule_range_inverted",
+                    rule=rule.id,
+                    threshold=rule.threshold,
+                    threshold_max=rule.threshold_max,
+                )
                 raise ValidationError(
                     self.env._(
                         "The upper bound must be greater than the lower one "
@@ -307,6 +339,12 @@ class ApprovalRule(models.Model):
                 ):
                     continue
                 if rule._condition_overlaps(other):
+                    trace.REFUSAL.event(
+                        "replacement_bands_overlap",
+                        rule=rule.id,
+                        other=other.id,
+                        field=rule.condition_field,
+                    )
                     raise ValidationError(
                         self.env._(
                             "'%(rule)s' and '%(other)s' both replace the "
@@ -368,6 +406,13 @@ class ApprovalRule(models.Model):
                 ):
                     continue
                 if rule._condition_overlaps(other):
+                    trace.REFUSAL.event(
+                        "auto_action_bands_overlap",
+                        rule=rule.id,
+                        other=other.id,
+                        field=rule.condition_field,
+                        actions=[rule.action_type, other.action_type],
+                    )
                     raise ValidationError(
                         self.env._(
                             "Rule '%(rule)s' (auto-%(rule_action)s) and "
@@ -395,6 +440,11 @@ class ApprovalRule(models.Model):
                 2,
                 3,
             ):
+                trace.REFUSAL.event(
+                    "priority_threshold_out_of_range",
+                    rule=rule.id,
+                    threshold=rule.threshold,
+                )
                 raise ValidationError(
                     self.env._(
                         "Priority threshold must be 0 (Low), 1 (Normal), "
@@ -415,6 +465,12 @@ class ApprovalRule(models.Model):
         for rule in self:
             if rule.condition_type == "threshold":
                 if not rule.condition_field or not rule.operator:
+                    trace.REFUSAL.event(
+                        "threshold_rule_incomplete",
+                        rule=rule.id,
+                        field=rule.condition_field,
+                        operator=rule.operator,
+                    )
                     raise ValidationError(
                         self.env._(
                             "Rule %(name)s compares a numeric threshold, so it "
@@ -425,6 +481,11 @@ class ApprovalRule(models.Model):
                 continue
 
             if not rule.subject_model_id:
+                trace.REFUSAL.event(
+                    "subject_rule_without_model",
+                    rule=rule.id,
+                    kind=rule.condition_type,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule %(name)s reads the source document, so it needs "
@@ -434,6 +495,11 @@ class ApprovalRule(models.Model):
                 )
             model = self.env.get(rule.subject_model_id.model)
             if model is None:
+                trace.REFUSAL.event(
+                    "subject_model_not_in_registry",
+                    rule=rule.id,
+                    model=rule.subject_model_id.model,
+                )
                 raise ValidationError(
                     self.env._(
                         "Rule %(name)s names the model %(model)s, which is not "
@@ -457,6 +523,7 @@ class ApprovalRule(models.Model):
     def _check_subject_field(self, model) -> None:
         self.check_singleton()
         if not self.subject_field:
+            trace.REFUSAL.event("subject_rule_without_field", rule=self.id)
             raise ValidationError(
                 self.env._(
                     "Rule %(name)s compares a source field, so it needs a field name.",

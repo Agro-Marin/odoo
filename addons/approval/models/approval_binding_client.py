@@ -128,6 +128,12 @@ class ApprovalBinding(models.Model):
         binding = self._get_button_binding_for(records, method, action_id)
         request = binding._get_button_request(records)
         if not request:
+            trace.REFUSAL.event(
+                "button_nothing_decided",
+                binding=binding.id,
+                model=model,
+                res_id=res_id,
+            )
             raise UserError(
                 self.env._(
                     "Nothing has been decided on %(record)s yet.",

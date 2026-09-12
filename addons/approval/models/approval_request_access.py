@@ -17,6 +17,12 @@ class ApprovalRequestAccess(models.Model):
                 and request.date_end
                 and request.date_start > request.date_end
             ):
+                trace.REFUSAL.event(
+                    "date_range_inverted",
+                    request=request.id,
+                    start=request.date_start,
+                    end=request.date_end,
+                )
                 raise ValidationError(
                     self.env._("End date must be after start date."),
                 )

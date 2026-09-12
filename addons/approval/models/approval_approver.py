@@ -203,12 +203,21 @@ class ApprovalApprover(models.Model):
         for approver in self:
             if approver.delegate_id:
                 if not (approver.delegate_start_date and approver.delegate_end_date):
+                    trace.REFUSAL.event(
+                        "delegation_dates_missing", approver=approver.id
+                    )
                     raise ValidationError(
                         self.env._(
                             "Both start and end dates are required for delegation."
                         ),
                     )
                 if approver.delegate_end_date < approver.delegate_start_date:
+                    trace.REFUSAL.event(
+                        "delegation_dates_backwards",
+                        approver=approver.id,
+                        start=approver.delegate_start_date,
+                        end=approver.delegate_end_date,
+                    )
                     raise ValidationError(
                         self.env._("Delegation end date must be after start date."),
                     )
@@ -219,6 +228,11 @@ class ApprovalApprover(models.Model):
             delegate = approver.delegate_id
             other_approvers = approver.request_id.approver_ids - approver
             if approver.user_id and approver.user_id in other_approvers.delegate_id:
+                trace.REFUSAL.event(
+                    "delegate_already_covers_a_row",
+                    approver=approver.id,
+                    user=approver.user_id.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(user)s already covers another approval on this "
@@ -231,12 +245,18 @@ class ApprovalApprover(models.Model):
             if not delegate:
                 continue
             if delegate == approver.user_id:
+                trace.REFUSAL.event("delegate_is_self", approver=approver.id)
                 raise ValidationError(
                     self.env._(
                         "You cannot delegate an approval to yourself.",
                     ),
                 )
             if delegate == approver.request_id.request_owner_id:
+                trace.REFUSAL.event(
+                    "delegate_is_request_owner",
+                    approver=approver.id,
+                    delegate=delegate.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "You cannot delegate this approval to the request "
@@ -246,6 +266,11 @@ class ApprovalApprover(models.Model):
                     ),
                 )
             if delegate in other_approvers.mapped("user_id"):
+                trace.REFUSAL.event(
+                    "delegate_is_co_approver",
+                    approver=approver.id,
+                    delegate=delegate.id,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(delegate)s is already an approver on this "

@@ -231,6 +231,11 @@ class ApprovalBinding(models.Model):
         for binding in self:
             model = self.env.get(binding.model_id.model)
             if model is None:
+                trace.REFUSAL.event(
+                    "binding_model_not_in_registry",
+                    binding=binding.id,
+                    model=binding.model_id.model,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(model)s is not in the registry.",
@@ -238,6 +243,12 @@ class ApprovalBinding(models.Model):
                     ),
                 )
             if bool(binding.method) == bool(binding.action_id):
+                trace.REFUSAL.event(
+                    "binding_gates_none_or_both",
+                    binding=binding.id,
+                    method=binding.method or None,
+                    action=binding.action_id.id or None,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s must gate exactly one thing: a method or an action.",
@@ -253,6 +264,9 @@ class ApprovalBinding(models.Model):
             if binding.reset_domain:
                 binding._check_domain_against_model(model, "reset_domain")
             if binding.mode != "advise" and not binding.category_id:
+                trace.REFUSAL.event(
+                    "binding_without_category", binding=binding.id, mode=binding.mode
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s is in %(mode)s mode, so it needs an approval "
@@ -262,6 +276,11 @@ class ApprovalBinding(models.Model):
                     ),
                 )
             if binding.approve_on_invoke and binding.mode != "request":
+                trace.REFUSAL.event(
+                    "approve_on_invoke_needs_request",
+                    binding=binding.id,
+                    mode=binding.mode,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s approves on invoke, which needs Request mode: "
@@ -273,6 +292,12 @@ class ApprovalBinding(models.Model):
                 if binding.method:
                     binding._check_method_replayable(model)
                 elif binding.action_id.type != "ir.actions.server":
+                    trace.REFUSAL.event(
+                        "only_a_server_action_replays",
+                        binding=binding.id,
+                        action=binding.action_id.id,
+                        type=binding.action_id.type,
+                    )
                     raise ValidationError(
                         self.env._(
                             "%(name)s would run its action again once approved, "
@@ -290,6 +315,13 @@ class ApprovalBinding(models.Model):
                 self.env["ir.actions.server"].sudo().browse(self.action_id.id).model_id
             )
             if action_model != self.model_id:
+                trace.REFUSAL.event(
+                    "action_runs_on_another_model",
+                    binding=self.id,
+                    action=self.action_id.id,
+                    action_model=action_model.model,
+                    model=self.model_id.model,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(action)s runs on %(action_model)s, not on %(model)s.",
@@ -303,6 +335,13 @@ class ApprovalBinding(models.Model):
                 self.env["ir.actions.report"].sudo().browse(self.action_id.id).model
             )
             if report_model != self.model_id.model:
+                trace.REFUSAL.event(
+                    "report_prints_another_model",
+                    binding=self.id,
+                    action=self.action_id.id,
+                    report_model=report_model,
+                    model=self.model_id.model,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(action)s prints %(report_model)s, not %(model)s.",
@@ -312,6 +351,9 @@ class ApprovalBinding(models.Model):
                     ),
                 )
             if self.mode == "request":
+                trace.REFUSAL.event(
+                    "report_cannot_wait", binding=self.id, action=self.action_id.id
+                )
                 raise ValidationError(
                     self.env._(
                         "%(action)s is a report, and a report cannot wait for an "
@@ -325,6 +367,9 @@ class ApprovalBinding(models.Model):
     def _check_method_available(self, model) -> None:
         self.check_singleton()
         if self.method in AUTOMATION_CLAIMED_METHODS:
+            trace.REFUSAL.event(
+                "method_claimed_by_automation", binding=self.id, method=self.method
+            )
             raise ValidationError(
                 self.env._(
                     "%(method)s cannot be gated. `automation` removes that "
@@ -336,13 +381,23 @@ class ApprovalBinding(models.Model):
                 ),
             )
         if refusal := self._get_method_refusal(self.method):
+            trace.REFUSAL.event(
+                "method_is_orm_api", binding=self.id, method=self.method
+            )
             raise ValidationError(refusal)
         if self.model_id.model == self._name:
+            trace.REFUSAL.event("binding_gates_itself", binding=self.id)
             raise ValidationError(
                 self.env._("A binding cannot gate the binding machinery."),
             )
         function = getattr(model, self.method, None)
         if function is None or not callable(function):
+            trace.REFUSAL.event(
+                "method_does_not_exist",
+                binding=self.id,
+                model=model._name,
+                method=self.method,
+            )
             raise ValidationError(
                 self.env._(
                     "%(model)s has no method %(method)s.",
@@ -369,6 +424,11 @@ class ApprovalBinding(models.Model):
             return
         for binding in self:
             if binding.method and binding.method.startswith("_"):
+                trace.REFUSAL.event(
+                    "private_method_outside_module_data",
+                    binding=binding.id,
+                    method=binding.method,
+                )
                 raise ValidationError(
                     self.env._(
                         "%(method)s is private. A binding on a private method is "
@@ -392,6 +452,12 @@ class ApprovalBinding(models.Model):
             and parameter.kind not in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD)
         ]
         if required:
+            trace.REFUSAL.event(
+                "method_takes_arguments",
+                binding=self.id,
+                method=self.method,
+                args=[parameter.name for parameter in required],
+            )
             raise ValidationError(
                 self.env._(
                     "%(method)s takes %(args)s, so it cannot be replayed after "
@@ -713,10 +779,22 @@ class ApprovalBinding(models.Model):
             with self.env.cr.savepoint():
                 probe = record.sudo()
                 if not probe.exists():
+                    trace.REFUSAL.event(
+                        "replay_record_gone",
+                        binding=self.id,
+                        model=request.res_model,
+                        res_id=request.res_id,
+                    )
                     raise UserError(self.env._("The record no longer exists."))
                 if self._get_selected(probe) and probe.id not in self._get_covered_ids(
                     probe
                 ):
+                    trace.REFUSAL.event(
+                        "replay_snapshot_moved",
+                        binding=self.id,
+                        request=request.id,
+                        record=probe,
+                    )
                     raise UserError(
                         self.env._(
                             "What was approved is no longer what is there: a "
@@ -848,6 +926,11 @@ class ApprovalBinding(models.Model):
                 field in vals and (vals[field] or False) != value
                 for field, value in current.items()
             ):
+                trace.REFUSAL.event(
+                    "binding_target_frozen",
+                    binding=binding.id,
+                    fields=sorted(set(vals) & set(current)),
+                )
                 raise UserError(
                     self.env._(
                         "%(binding)s already has approval requests, so what it gates "

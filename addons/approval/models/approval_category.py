@@ -396,6 +396,11 @@ class ApprovalCategory(models.Model):
     def _constrains_approval_minimum(self) -> None:
         for category in self:
             if category.approval_minimum < 1:
+                trace.REFUSAL.event(
+                    "minimum_below_one",
+                    category=category.id,
+                    minimum=category.approval_minimum,
+                )
                 raise ValidationError(
                     self.env._(
                         "Minimum Approval must be at least 1.",
@@ -419,6 +424,7 @@ class ApprovalCategory(models.Model):
     @api.constrains("approve_sequentially", "approval_minimum")
     def _constrains_approve_sequentially(self) -> None:
         if any(a.approve_sequentially and not a.approval_minimum for a in self):
+            trace.REFUSAL.event("sequential_without_minimum", categories=self.ids)
             raise ValidationError(
                 self.env._(
                     "Approver Sequence can only be activated with at least 1 minimum approver.",
@@ -429,10 +435,14 @@ class ApprovalCategory(models.Model):
     def _constrains_steps_not_sequential(self) -> None:
         for category in self:
             if category.approve_sequentially and category.step_ids:
+                trace.REFUSAL.event(
+                    "sequence_turned_on_with_steps",
+                    category=category.id,
+                    steps=category.step_ids.ids,
+                )
                 category._raise_steps_with_approver_sequence()
 
     def _raise_steps_with_approver_sequence(self) -> None:
-        trace.REFUSAL.event("steps_with_approver_sequence", categories=self.ids)
         raise ValidationError(
             self.env._(
                 "A category with steps orders them itself, so it cannot also use "
@@ -446,6 +456,11 @@ class ApprovalCategory(models.Model):
     def _constrains_consent_sequential(self) -> None:
         for category in self:
             if category.approve_sequentially and category.consent_approval_hours:
+                trace.REFUSAL.event(
+                    "consent_with_sequential",
+                    category=category.id,
+                    hours=category.consent_approval_hours,
+                )
                 raise ValidationError(
                     self.env._(
                         "Consent-based auto-approval cannot be used with "
@@ -483,6 +498,11 @@ class ApprovalCategory(models.Model):
     def _constrains_group_approval(self) -> None:
         for category in self:
             if category.group_approval != "no" and not category.approver_group_id:
+                trace.REFUSAL.event(
+                    "group_approval_without_group",
+                    category=category.id,
+                    mode=category.group_approval,
+                )
                 raise ValidationError(
                     self.env._(
                         "You must select a security group when group approval is enabled.",
@@ -492,6 +512,11 @@ class ApprovalCategory(models.Model):
             if category.group_approval == "exclusive" and category.approver_group_id:
                 group_users = category.approver_group_id.all_user_ids
                 if not group_users:
+                    trace.REFUSAL.event(
+                        "exclusive_group_is_empty",
+                        category=category.id,
+                        group=category.approver_group_id.id,
+                    )
                     raise ValidationError(
                         self.env._(
                             "Security group '%(group)s' has no members. "

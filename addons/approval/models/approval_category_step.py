@@ -107,6 +107,9 @@ class ApprovalCategoryStep(models.Model):
     def _check_pool(self) -> None:
         for step in self:
             if step.minimum < 1:
+                trace.REFUSAL.event(
+                    "step_minimum_below_one", step=step.id, minimum=step.minimum
+                )
                 raise ValidationError(
                     self.env._(
                         "Step '%(step)s' needs at least one approval.", step=step.name
@@ -128,6 +131,11 @@ class ApprovalCategoryStep(models.Model):
         for step in self.filtered("subject_user_path"):
             model = step.subject_model_id and self.env.get(step.subject_model_id.model)
             if model is None or not step.subject_model_id:
+                trace.REFUSAL.event(
+                    "source_user_path_without_model",
+                    step=step.id,
+                    path=step.subject_user_path,
+                )
                 raise ValidationError(
                     self.env._(
                         "Step '%(step)s' names its approvers through %(path)s, so it "
@@ -138,6 +146,12 @@ class ApprovalCategoryStep(models.Model):
                 )
             step._check_field_path(model, step.subject_user_path)
             if step._get_path_terminal_field(model).comodel_name != "res.users":
+                trace.REFUSAL.event(
+                    "source_user_path_not_users",
+                    step=step.id,
+                    path=step.subject_user_path,
+                    model=step.subject_model_id.model,
+                )
                 raise ValidationError(
                     self.env._(
                         "Step '%(step)s' names its approvers through %(path)s, which "
@@ -161,6 +175,11 @@ class ApprovalCategoryStep(models.Model):
         for step in self.filtered("subject_domain"):
             model = step.subject_model_id and self.env.get(step.subject_model_id.model)
             if model is None or not step.subject_model_id:
+                trace.REFUSAL.event(
+                    "step_condition_without_model",
+                    step=step.id,
+                    condition=step.subject_domain,
+                )
                 raise ValidationError(
                     self.env._(
                         "Step '%(step)s' has a condition, so it needs the source "
@@ -174,6 +193,11 @@ class ApprovalCategoryStep(models.Model):
     def _check_category_not_sequential(self) -> None:
         for step in self:
             if step.category_id.approve_sequentially:
+                trace.REFUSAL.event(
+                    "step_added_to_sequential_category",
+                    step=step.id,
+                    category=step.category_id.id,
+                )
                 step.category_id._raise_steps_with_approver_sequence()
 
     @api.depends("member_ids.user_id", "member_ids.date_end")

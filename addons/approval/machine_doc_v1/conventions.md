@@ -560,6 +560,29 @@ grep 'odoo.approval.refusal' run.log | sed 's/.*refusal: //' | cut -d' ' -f1 | s
 over a corpus is the ranked list of what the engine actually turns away -- and a
 refusal line on a successful flow is a bug in the code or in the instrumentation.
 
+Three things keep that list worth reading, and `tests/test_campaign_instrumentation.py`
+holds each one so it stays true:
+
+1. **The null control.** A green flow -- confirm, two approvals, a withdrawal, a
+   re-approval, a reset, a re-confirm -- runs inside `assertNoLogs` on
+   `odoo.approval.refusal`. A neighbouring project's refusal census read 5,726 over
+   a sweep of which 4,700 were the engine asking itself questions through the
+   refusing form, and the top two rows of its ranked work list were noise. Check the
+   null hypothesis the way you would check a test: on a corpus you know is handled,
+   the count is zero or the census is measuring something else.
+2. **Completeness.** Every `raise UserError/ValidationError/AccessError` in
+   `models/`, `wizards/` and `reports/` reports a refusal first -- 145 sites, checked
+   by walking the sources. A census of the sites somebody remembered is a biased
+   sample, and it biases toward whatever was easy to instrument. Add a guard, add its
+   event.
+3. **One kind per site.** No two sites share a kind, also checked, because a shared
+   raise reached by several callers silently merges several causes into one row. The
+   one method that IS shared -- `_raise_not_assigned_approver`, four callers, four
+   reasons -- carries no event of its own: each caller reports its own kind
+   (`decision_without_a_row`, `change_request_without_a_row`, `wizard_without_a_row`)
+   and the method is named in `REPORTED_BY_ITS_CALLERS` so the completeness check
+   knows why it is bare.
+
 ### The wrapped entry points
 
 `approval_trace.CALL_TRACES` maps model -> method -> target, and
@@ -629,8 +652,8 @@ with every target at DEBUG it is a few percent plus the cost of writing the line
 The debt it does add is length, measured with the gates' own runners:
 
 ```
-py_class_length.py    --addon approval --count   4423 -> 5306   (+883)
-py_function_length.py --addon approval --count    159 ->  240    (+81)
+py_class_length.py    --addon approval --count   4423 -> 5628  (+1205)
+py_function_length.py --addon approval --count    159 ->  265   (+106)
 ```
 
 Neither floor was moved: `pyclasslen_addons` and `pyfunclen_addons` are already
