@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markup } from "@odoo/owl";
+import { markup, toRaw } from "@odoo/owl";
 /** @import { Field } from "@web/model/types" */
 import { Domain } from "@web/core/domain";
 import {
@@ -15,6 +15,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
+import { deepEqual } from "@web/core/utils/collections/objects";
 
 const granularityToInterval = {
     hour: { hours: 1 },
@@ -317,6 +318,46 @@ export function sameMany2OneValue(a, b) {
         return !a && !b;
     }
     return a.id === b.id && a.display_name === b.display_name;
+}
+
+/**
+ * Whether two parsed values of one field read the same, so a reload can leave
+ * the field alone. An x2many is its StaticList: only identity counts.
+ *
+ * @param {Field} field
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+export function sameFieldValue(field, a, b) {
+    a = toRaw(a);
+    b = toRaw(b);
+    if (a === b) {
+        return true;
+    }
+    switch (field.type) {
+        case "many2one":
+            return sameMany2OneValue(a, b);
+        case "one2many":
+        case "many2many":
+            return false;
+        case "date":
+        case "datetime":
+            return Boolean(a && b && a.equals(b));
+        case "reference":
+        case "many2one_reference":
+            return (
+                Boolean(a && b) &&
+                a.resId === b.resId &&
+                a.resModel === b.resModel &&
+                a.displayName === b.displayName
+            );
+        default:
+            if (a instanceof String || b instanceof String) {
+                return String(a) === String(b);
+            }
+            return deepEqual(a, b);
+    }
 }
 
 /**

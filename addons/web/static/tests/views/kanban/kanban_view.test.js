@@ -12917,12 +12917,12 @@ test("rerenders only once after resequencing records", async () => {
     saveDef.resolve();
     await animationFrame();
 
-    expect(renderCounts).toEqual({ 1: 3, 2: 1, 3: 1, 4: 1 });
+    expect(renderCounts).toEqual({ 1: 2, 2: 1, 3: 1, 4: 1 });
 
     resequenceDef.resolve();
     await animationFrame();
 
-    expect(renderCounts).toEqual({ 1: 4, 2: 1, 3: 1, 4: 1 });
+    expect(renderCounts).toEqual({ 1: 3, 2: 1, 3: 1, 4: 1 });
 
     saveDef = new Deferred();
     resequenceDef = new Deferred();
@@ -12930,17 +12930,17 @@ test("rerenders only once after resequencing records", async () => {
         ".o_kanban_group:nth-child(2)",
     );
 
-    expect(renderCounts).toEqual({ 1: 4, 2: 1, 3: 2, 4: 1 });
+    expect(renderCounts).toEqual({ 1: 3, 2: 1, 3: 2, 4: 1 });
 
     saveDef.resolve();
     await animationFrame();
 
-    expect(renderCounts).toEqual({ 1: 4, 2: 1, 3: 3, 4: 1 });
+    expect(renderCounts).toEqual({ 1: 3, 2: 1, 3: 2, 4: 1 });
 
     resequenceDef.resolve();
     await animationFrame();
 
-    expect(renderCounts).toEqual({ 1: 4, 2: 1, 3: 4, 4: 1 });
+    expect(renderCounts).toEqual({ 1: 3, 2: 1, 3: 3, 4: 1 });
 
     expect.verifySteps([
         "/web/webclient/translations",

@@ -265,7 +265,7 @@ test("many2many_tags_avatar does not re-render its autocomplete on an unrelated 
     expect(stats["fields.web.Many2XAutocomplete"] || 0).toBe(0);
 });
 
-test("kanban many2many_tags_avatar re-renders its tag list once per save, not per render", async () => {
+test("kanban many2many_tags_avatar leaves its tag list alone on a save that leaves the tags alone", async () => {
     const mounted = await mountCounting({
         type: "kanban",
         resModel: "partner",
@@ -289,8 +289,9 @@ test("kanban many2many_tags_avatar re-renders its tag list once per save, not pe
         }
     });
 
-    expect(stats["fields.web.KanbanMany2ManyTagsAvatarField"]).toBe(5);
-    expect(stats["components.TagsList"]).toBe(5);
+    expect(stats["fields.web.BooleanToggleField"]).toBeGreaterThan(4);
+    expect(stats["fields.web.KanbanMany2ManyTagsAvatarField"] || 0).toBe(0);
+    expect(stats["components.TagsList"] || 0).toBe(0);
 });
 
 test("no widget on a form renders on an unrelated edit", async () => {
@@ -588,7 +589,7 @@ test("x2many kanban card modifiers reading parent still follow the parent", asyn
     expect(".o_kanban_record .o_probe").toHaveCount(0);
 });
 
-test("kanban many2many_tags re-renders its tag list once per save, not per render", async () => {
+test("kanban many2many_tags leaves its tag list alone on a save that leaves the tags alone", async () => {
     const mounted = await mountCounting({
         type: "kanban",
         resModel: "partner",
@@ -612,8 +613,9 @@ test("kanban many2many_tags re-renders its tag list once per save, not per rende
         }
     });
 
-    expect(stats["fields.web.KanbanMany2ManyTagsField"]).toBe(5);
-    expect(stats["components.TagsList"]).toBe(5);
+    expect(stats["fields.web.BooleanToggleField"]).toBeGreaterThan(4);
+    expect(stats["fields.web.KanbanMany2ManyTagsField"] || 0).toBe(0);
+    expect(stats["components.TagsList"] || 0).toBe(0);
 });
 
 test("a save does not rebuild the tag DOM nodes", async () => {

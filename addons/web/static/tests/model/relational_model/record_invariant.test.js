@@ -34,6 +34,8 @@ function makeSetDataProbeRecord({ dirty = false, changes = {} } = {}) {
         _parentRecord: null,
         parseServerValues: (data) => data,
         _getTextValues: () => ({}),
+        _unchangedX2Manys: () => ({}),
+        _rememberX2ManyPayloads() {},
         setEvalContext() {},
         setData: RelationalRecord.prototype.setData,
     };

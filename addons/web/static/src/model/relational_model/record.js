@@ -5,14 +5,14 @@ import { markRaw, toRaw } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { ModelEvent } from "@web/core/events";
 import { isX2Many } from "@web/core/field_types";
-import { omit } from "@web/core/utils/collections/objects";
+import { deepEqual, omit } from "@web/core/utils/collections/objects";
 import { Operation } from "@web/core/utils/operation";
 
 import { DataPoint } from "./datapoint.js";
 
 const log = makeLogger("web.model.record");
 import { getBasicEvalContext, getFieldContext } from "./field_context.js";
-import { sameMany2OneValue } from "./field_values.js";
+import { sameFieldValue, sameMany2OneValue } from "./field_values.js";
 import { RecordEditState } from "./record_edit_state.js";
 import {
     archive,
@@ -130,6 +130,8 @@ export class RelationalRecord extends DataPoint {
         }
         /** @type {Set<string>} */
         this.loadedFieldNames = markRaw(new Set(Object.keys(data)));
+        /** @type {Record<string, unknown>} */
+        this._x2manyPayloads = markRaw({});
         const missingFields = this.fieldNames.filter(
             (fieldName) => !(fieldName in data),
         );
@@ -143,13 +145,18 @@ export class RelationalRecord extends DataPoint {
      */
     setData(data, { orderBys, keepChanges } = {}) {
         this._isEvalContextReady = false;
+        const inPlace = Boolean(this.data && this.resId && !keepChanges);
         if (this.data) {
             for (const fieldName of Object.keys(data)) {
                 this.loadedFieldNames.add(fieldName);
             }
         }
         if (this.resId) {
-            this._values = markRaw(this.parseServerValues(data, { orderBys }));
+            const currentValues = inPlace ? this._unchangedX2Manys(data) : undefined;
+            this._values = markRaw(
+                this.parseServerValues(data, { orderBys, currentValues }),
+            );
+            this._rememberX2ManyPayloads(data);
             Object.assign(this._textValues, this._getTextValues(data));
         } else {
             const allVals = { ...this.getDefaultValues(), ...data };
@@ -166,7 +173,11 @@ export class RelationalRecord extends DataPoint {
         } else {
             this.dirty = this.dirty || this._hasChanges;
         }
-        this.data = { ...this._values, ...this.changes };
+        if (inPlace) {
+            this._reconcileData({ ...this._values, ...this.changes });
+        } else {
+            this.data = { ...this._values, ...this.changes };
+        }
         this._initialTextValues = markRaw({ ...this._textValues });
         if (keepChanges) {
             Object.assign(this._textValues, this._getTextValues(this.changes));
@@ -466,6 +477,73 @@ export class RelationalRecord extends DataPoint {
 
     _clearChanges() {
         this._editState.clearChanges();
+    }
+
+    /**
+     * A reload writes only the fields that read differently, so the
+     * components subscribed to the others are left alone.
+     *
+     * @param {Record<string, any>} next
+     */
+    _reconcileData(next) {
+        const written = [];
+        for (const fieldName of Object.keys(this.data)) {
+            if (!(fieldName in next)) {
+                delete this.data[fieldName];
+                written.push(`-${fieldName}`);
+            }
+        }
+        for (const fieldName of Object.keys(next)) {
+            const field = this.fields[fieldName];
+            if (
+                !field ||
+                !sameFieldValue(field, this.data[fieldName], next[fieldName])
+            ) {
+                this.data[fieldName] = next[fieldName];
+                written.push(fieldName);
+            }
+        }
+        log.logic("reconcileData", () => ({
+            resModel: this.resModel,
+            resId: this.resId,
+            written,
+        }));
+    }
+
+    /**
+     * The x2many lists a reload may keep: the server sent the rows it sent
+     * last time, and nothing local is staged on them.
+     *
+     * @param {Record<string, any>} data
+     * @returns {Record<string, any>}
+     */
+    _unchangedX2Manys(data) {
+        /** @type {Record<string, any>} */
+        const kept = {};
+        for (const fieldName of Object.keys(data)) {
+            if (!isX2Many(this.fields[fieldName]) || !this.activeFields[fieldName]) {
+                continue;
+            }
+            const list = toRaw(this.data[fieldName]);
+            if (
+                list &&
+                !list.hasStagedCommands &&
+                !list.records.some((record) => record.hasPendingChanges) &&
+                deepEqual(this._x2manyPayloads[fieldName], data[fieldName])
+            ) {
+                kept[fieldName] = list;
+            }
+        }
+        return kept;
+    }
+
+    /** @param {Record<string, any>} data */
+    _rememberX2ManyPayloads(data) {
+        for (const fieldName of Object.keys(data)) {
+            if (isX2Many(this.fields[fieldName])) {
+                this._x2manyPayloads[fieldName] = data[fieldName];
+            }
+        }
     }
 
     rebuildData() {
