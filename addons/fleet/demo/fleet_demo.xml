@@ -979,7 +979,7 @@
         <field name="amount">0</field>
         <field name="name">Daily leasing contract</field>
         <field name="cost_generated">20</field>
-        <field name="cost_frequency_unit">day</field>
+        <field name="repeat_unit">day</field>
         <field
             name="expiration_date"
             eval="(DateTime.now() - timedelta(days=233)).strftime('%Y-%m-%d')" />
@@ -1002,7 +1002,7 @@
         <field name="amount">0</field>
         <field name="name">Weekly leasing contract</field>
         <field name="cost_generated">150</field>
-        <field name="cost_frequency_unit">week</field>
+        <field name="repeat_unit">week</field>
         <field name="date" eval="time.strftime('%Y-01-01')" />
         <field
             name="start_date"
@@ -1026,7 +1026,7 @@
         <field name="amount">0</field>
         <field name="name">Monthly leasing</field>
         <field name="cost_generated">400</field>
-        <field name="cost_frequency_unit">month</field>
+        <field name="repeat_unit">month</field>
         <field name="date" eval="time.strftime('%Y-01-01')" />
         <field name="start_date" eval="time.strftime('%Y-01-01')" />
         <field name="expiration_date" eval="time.strftime('%Y-12-31')" />
@@ -1046,7 +1046,7 @@
         <field name="amount">0</field>
         <field name="name">Yearly leasing</field>
         <field name="cost_generated">4000</field>
-        <field name="cost_frequency_unit">year</field>
+        <field name="repeat_unit">year</field>
         <field name="date" eval="time.strftime('%Y-01-01')" />
         <field name="start_date" eval="time.strftime('%Y-01-01')" />
         <field name="expiration_date" eval="time.strftime('%Y-12-31')" />
@@ -1066,7 +1066,7 @@
         <field name="amount">17000</field>
         <field name="name">Unique leasing</field>
         <field name="cost_generated">0</field>
-        <field name="cost_frequency_unit" eval="False" />
+        <field name="repeat_unit" eval="False" />
         <field
             name="date"
             eval="(DateTime.now() - timedelta(days=300)).strftime('%Y-%m-%d')" />

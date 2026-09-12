@@ -67,6 +67,10 @@ class FleetVehicleSendMail(models.TransientModel):
                 partner_ids=vehicle.driver_id.ids,
                 subject=subjects[vehicle.id],
             )
+        # Nothing to do next: an action method answering None closes the dialog,
+        # and the branch above returns a notification instead. Spelled out
+        # because the two exits returning different kinds of thing is the point.
+        return None
 
     def action_save_as_template(self):
         model = self.env["ir.model"]._get("fleet.vehicle")

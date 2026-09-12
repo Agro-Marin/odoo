@@ -26,7 +26,7 @@ class FleetVehicleModelBrand(models.Model):
 
     def action_brand_model(self):
         self.check_singleton()
-        view = {
+        return {
             "name": _("Models"),
             "type": "ir.actions.act_window",
             "view_mode": "list,form",
@@ -36,8 +36,6 @@ class FleetVehicleModelBrand(models.Model):
                 "default_brand_id": self.id,
             },
         }
-
-        return view
 
     def action_view_brand_form(self):
         self.check_singleton()

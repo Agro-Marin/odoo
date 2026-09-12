@@ -1274,13 +1274,13 @@ Section  Population                                                  Count
 §2.4.2   … spelled ``_onchange_<field>``                               287
 §2.4.2   ``@api.ondelete`` hooks                                       173
 §2.4.2   … spelled ``_unlink_except_*``                                114
-§2.4.2   ``@api.constrains`` hooks                                     729
-§2.4.2   … spelled ``_check_*``                                        674
+§2.4.2   ``@api.constrains`` hooks                                     728
+§2.4.2   … spelled ``_check_*``                                        673
 §2.4.2   … with a first token carrying no rule                          50
-§2.4.2   … binding exactly one field                                   330
-§2.4.2   … of those, spelled ``_check_<field>``                        146
+§2.4.2   … binding exactly one field                                   329
+§2.4.2   … of those, spelled ``_check_<field>``                        145
 §2.4.2   Multi-field constraints named for one trigger                  62
-§2.4.3   Non-test methods declared on a model class                 27,491
+§2.4.3   Non-test methods declared on a model class                 27,490
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               106
 §2.4.4   Model methods with an abolished verb behind a noun            171
@@ -1300,7 +1300,7 @@ Section  Population                                                  Count
 §2.4.7   ``_calculate_*`` model methods                                  0
 §2.4.7   ``_prepare_*`` definitions                                    911
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            37
-§2.4.8   ``_check_*`` definitions                                    1,282
+§2.4.8   ``_check_*`` definitions                                    1,281
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184

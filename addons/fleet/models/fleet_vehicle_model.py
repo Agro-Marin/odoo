@@ -163,12 +163,10 @@ class FleetVehicleModel(models.Model):
         else:
             view_mode = "form"
             name = _("Vehicle")
-        view = {
+        return {
             "type": "ir.actions.act_window",
             "view_mode": view_mode,
             "res_model": "fleet.vehicle",
             "name": name,
             "context": context,
         }
-
-        return view

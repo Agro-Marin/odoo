@@ -1,3 +1,4 @@
+from . import mixin_recurrence_interval
 from . import mixin_recurrence_rule
 from . import mixin_recurrence_rrule
 from . import mixin_recurrence_occurrence

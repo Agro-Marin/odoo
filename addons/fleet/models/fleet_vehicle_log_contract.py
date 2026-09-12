@@ -1,13 +1,15 @@
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
-from odoo.tools.date_utils import time_unit_selection
 
 
 class FleetVehicleLogContract(models.Model):
     _name = "fleet.vehicle.log.contract"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.recurrence.interval",
+    ]
     _description = "Vehicle Contract"
     _order = "state desc,expiration_date"
 
@@ -85,23 +87,22 @@ class FleetVehicleLogContract(models.Model):
     )
     notes = fields.Html("Terms and Conditions", copy=False)
     cost_generated = fields.Monetary("Recurring Cost", tracking=True)
-    # "every N units", like every other recurrence in the codebase, rather than
-    # the five adverbs this used to offer. The adverbs could not say "every two
-    # weeks", and each reader spelled its own conversion to a comparable figure
-    # by hand -- fleet's own cost report simply omitted `weekly`, so a weekly
-    # contract contributed nothing to it for as long as the report has existed.
+    # "Every N units" from `mixin.recurrence.interval`, rather than the five
+    # adverbs this used to offer. The adverbs could not say "every two weeks",
+    # and each reader spelled its own conversion to a comparable figure by hand
+    # -- fleet's own cost report simply omitted `weekly`, so a weekly contract
+    # contributed nothing to it for as long as the report has existed. Only the
+    # labels are fleet's: a contract's cadence is the same object as a task's.
     #
-    # An empty unit is what "no recurring cost" means now. The old `no` value
-    # had to sit inside a required Selection, which made every reader carry a
-    # special case for a value that means "this field does not apply".
-    cost_frequency_interval = fields.Integer(
+    # An empty unit is what "no recurring cost" means. The old `no` value had to
+    # sit inside a required Selection, which made every reader carry a special
+    # case for a value that means "this field does not apply".
+    repeat_interval = fields.Integer(
         "Recurring Cost Every",
-        default=1,
         required=True,
     )
-    cost_frequency_unit = fields.Selection(
-        time_unit_selection("day", "week", "month", "year"),
-        "Recurring Cost Frequency",
+    repeat_unit = fields.Selection(
+        string="Recurring Cost Frequency",
         default="month",
         tracking=True,
         help="Leave empty for a contract that generates no recurring cost.",
@@ -143,25 +144,12 @@ class FleetVehicleLogContract(models.Model):
     def _cost_per_month(self):
         """This contract's recurring cost expressed per month, 0 when it has none."""
         self.check_singleton()
-        if not self.cost_frequency_unit or self.cost_frequency_interval <= 0:
+        if not self.repeat_unit or self.repeat_interval <= 0:
             return 0.0
-        if self.cost_frequency_unit == "month":
-            return self.cost_generated / self.cost_frequency_interval
-        period_days = (
-            self._PERIOD_DAYS[self.cost_frequency_unit] * self.cost_frequency_interval
-        )
+        if self.repeat_unit == "month":
+            return self.cost_generated / self.repeat_interval
+        period_days = self._PERIOD_DAYS[self.repeat_unit] * self.repeat_interval
         return self.cost_generated * self._AVERAGE_MONTH_DAYS / period_days
-
-    @api.constrains("cost_frequency_interval")
-    def _check_cost_frequency_interval(self):
-        """Python rather than a SQL CHECK, for the reason ``mixin.recurrence.rule``
-        gives: a CHECK fires inside the INSERT and hands the user a
-        CheckViolation that has already poisoned the transaction, where a
-        ValidationError names the field and leaves the transaction usable."""
-        if self.filtered(lambda contract: contract.cost_frequency_interval <= 0):
-            raise ValidationError(
-                self.env._("The recurring cost interval must be greater than 0.")
-            )
 
     @api.depends("expiration_date", "state")
     def _compute_expiration(self):

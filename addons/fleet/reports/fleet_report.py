@@ -54,22 +54,22 @@ contract_month AS (
             ELSE 0
         END
         + CASE
-            WHEN co.cost_frequency_unit IS NULL
-                 OR COALESCE(co.cost_frequency_interval, 0) <= 0
+            WHEN co.repeat_unit IS NULL
+                 OR COALESCE(co.repeat_interval, 0) <= 0
                  OR co.start_date IS NULL
                 THEN 0
-            WHEN co.cost_frequency_unit = 'day'
+            WHEN co.repeat_unit = 'day'
                 THEN COALESCE(co.cost_generated, 0) * cov.days
-                     / co.cost_frequency_interval
-            WHEN co.cost_frequency_unit = 'week'
+                     / co.repeat_interval
+            WHEN co.repeat_unit = 'week'
                 THEN COALESCE(co.cost_generated, 0) * cov.days
-                     / (7.0 * co.cost_frequency_interval)
-            WHEN co.cost_frequency_unit = 'month'
+                     / (7.0 * co.repeat_interval)
+            WHEN co.repeat_unit = 'month'
                 THEN COALESCE(co.cost_generated, 0) * cov.days
-                     / (cov.month_days * co.cost_frequency_interval)
-            WHEN co.cost_frequency_unit = 'year'
+                     / (cov.month_days * co.repeat_interval)
+            WHEN co.repeat_unit = 'year'
                 THEN COALESCE(co.cost_generated, 0) * cov.days
-                     / (365.25 * co.cost_frequency_interval)
+                     / (365.25 * co.repeat_interval)
             ELSE 0
         END AS cost
     FROM

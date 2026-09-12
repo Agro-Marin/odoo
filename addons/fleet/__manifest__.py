@@ -1,6 +1,6 @@
 {
     "name": "Fleet",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Human Resources/Fleet",
     "sequence": 185,
     "summary": "Manage your fleet and track car costs",
@@ -25,8 +25,8 @@ Main Features
     "website": "https://www.odoo.com/app/fleet",
     "license": "LGPL-3",
     "depends": [
-        "base",
         "mail",
+        "resource",
     ],
     "data": [
         "security/fleet_security.xml",
