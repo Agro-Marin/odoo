@@ -21,7 +21,7 @@
                                                 target="_new"
                                                 t-att-href="slide.website_absolute_url">
                                                 <span
-                                                    t-esc="slide.name"
+                                                    t-out="slide.name"
                                                     t-att-title="slide.name" />
                                             </a>
                                         </div>

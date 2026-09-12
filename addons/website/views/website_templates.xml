@@ -2686,7 +2686,7 @@
                                         t-as="link">
                                         <a
                                             t-att-href="link['href']"
-                                            t-esc="link['text']" />
+                                            t-out="link['text']" />
                                     </li>
                                 </ul>
                             </div>
@@ -2859,7 +2859,7 @@
                                                     t-as="link">
                                                     <a
                                                         t-att-href="link['href']"
-                                                        t-esc="link['text']" />
+                                                        t-out="link['text']" />
                                                 </li>
                                             </ul>
                                         </div>
@@ -3056,7 +3056,7 @@
                                                     t-as="link">
                                                     <a
                                                         t-att-href="link['href']"
-                                                        t-esc="link['text']" />
+                                                        t-out="link['text']" />
                                                 </li>
                                             </ul>
                                         </div>

@@ -25,7 +25,7 @@
                     class="col-7 me-2"
                     t-attf-style="#{'' if report_type != 'html' else 'padding: 0 !important;'}">
                     <strong>IRN:</strong>
-                    <span t-esc="l10n_in_einvoice_json['Irn']" />
+                    <span t-out="l10n_in_einvoice_json['Irn']" />
                 </div>
                 <div class="col-3 mt-1">
                     <img

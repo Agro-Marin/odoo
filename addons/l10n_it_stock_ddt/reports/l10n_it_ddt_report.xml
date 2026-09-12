@@ -24,7 +24,7 @@
                     <div class="col-6">
                         <strong>Warehouse Address</strong>
                             <div
-                                t-esc="delivery_from"
+                                t-out="delivery_from"
                                 t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True, &quot;phone_icons&quot;: True}" />
                             <p t-if="delivery_from.vat">VAT: <span t-field="delivery_from.vat" /></p>
                     </div>
@@ -32,7 +32,7 @@
                         <div>
                             <strong>Customer Address</strong>
                             <div
-                                t-esc="delivery_to"
+                                t-out="delivery_to"
                                 t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;, &quot;vat&quot;], &quot;no_marker&quot;: True, &quot;phone_icons&quot;: True}" />
                         </div>
                     </div>
@@ -40,7 +40,7 @@
                 <div class="mt16" />
                 <div class="mt64" />
                 <div>
-                    <h1>Documento di Trasporto <span t-esc="o.l10n_it_ddt_number" /></h1>
+                    <h1>Documento di Trasporto <span t-out="o.l10n_it_ddt_number" /></h1>
                 </div>
                 <div class="clearfix" />
                 <div class="mb32" />
@@ -150,7 +150,7 @@
                                                 t-value="move.product_id.lst_price * move.product_uom_id._compute_quantity(move.quantity, move.product_id.uom_id)" />
                                         </t>
                                         <span
-                                            t-esc="lst_price"
+                                            t-out="lst_price"
                                             t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: o.company_id.currency_id}" />
                                         <t
                                             t-set="total_value"
@@ -169,7 +169,7 @@
                             </td>
                             <td>
                                 <span
-                                    t-esc="total_value"
+                                    t-out="total_value"
                                     t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: o.company_id.currency_id}" />
                             </td>
                         </tr>

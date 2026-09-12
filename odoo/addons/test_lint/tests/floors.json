@@ -11,6 +11,5 @@
   "lint_null_exempt_composite_unique": 23,
   "lint_raise_unlink_override": 0,
   "lint_sql_injection": 9,
-  "lint_xml_deprecated_output_directive": 500,
   "lint_xml_menuitem_placement": 333
 }

@@ -57,7 +57,7 @@
                                 class="alert alert-danger"
                                 role="alert">
                                 <div class="col-lg-12">
-                                    <t t-foreach="messages" t-as="err"><t t-esc="err" /><br /></t>
+                                    <t t-foreach="messages" t-as="err"><t t-out="err" /><br /></t>
                                 </div>
                             </div>
                             <t t-if="not partner_address">
@@ -178,7 +178,7 @@
                                 class="alert alert-danger"
                                 role="alert">
                                 <div class="col-lg-12">
-                                    <t t-esc="banner_error" />
+                                    <t t-out="banner_error" />
                                 </div>
                             </div>
                             <h2>Invoice Request</h2>

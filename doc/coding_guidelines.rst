@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.41
+:Version: 6.42
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -6103,7 +6103,9 @@ Three parts -- document template, wrapper, action:
    </record>
 
 Output with ``t-out``; ``t-esc`` and ``t-raw`` log a deprecation on every
-compile ``[ratchet lint_xml_deprecated_output_directive]``.
+compile (``deprecated-output-directive``) ``[fixer _modernize_output_directives]``
+-- the fixer renames ``t-esc``; ``t-raw`` skips escaping and is rewritten by hand.
+An xpath that locates by ``@t-esc`` follows the rename.
 
 ``report_name`` is required and points at the QWeb template. ``report_file`` is
 optional -- a PDF base-filename hint core often omits. ``binding_type`` is
@@ -8115,6 +8117,10 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.42
+     - 2026-09-12
+     - §3.6: ``t-esc`` is fixer-owned (``_modernize_output_directives.py``);
+       no XML rule is floored any more.
    * - 6.41
      - 2026-09-12
      - §3.1: the x2many command tuples are fixer-owned

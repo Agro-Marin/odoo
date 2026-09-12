@@ -62,7 +62,7 @@
                             t-if="delivery_partner and delivery_partner != commercial_partner">
                             <span class="fw-bold">Shipping Address:</span>
                             <address
-                                t-esc="delivery_partner"
+                                t-out="delivery_partner"
                                 t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                         </td>
                         <td
@@ -71,7 +71,7 @@
                             <span class="fw-bold">Beneficiary:</span>
                             <address
                                 class="mb-0"
-                                t-esc="commercial_partner"
+                                t-out="commercial_partner"
                                 t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                             <div t-if="commercial_partner.vat">
                                 <t
@@ -88,7 +88,7 @@
                             <td class="shipping_address">
                                 <span class="fw-bold">Invoicing and Shipping Address:</span>
                                 <address
-                                    t-esc="doc.partner_shipping_id"
+                                    t-out="doc.partner_shipping_id"
                                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                             </td>
                         </t>
@@ -96,13 +96,13 @@
                             <td class="shipping_address">
                                 <span class="fw-bold">Shipping Address:</span>
                                 <address
-                                    t-esc="doc.partner_shipping_id"
+                                    t-out="doc.partner_shipping_id"
                                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                             </td>
                             <td class="shipping_address">
                                 <span class="fw-bold">Invoicing Address:</span>
                                 <address
-                                    t-esc="doc.partner_invoice_id"
+                                    t-out="doc.partner_invoice_id"
                                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                             </td>
                         </t>
@@ -137,7 +137,7 @@
         </xpath>
         <xpath expr="//td[@name='td_product_name']" position="before">
             <t t-if="doc.company_id.has_position_column">
-                <td class="text-start" t-esc="line_number" />
+                <td class="text-start" t-out="line_number" />
                     <t t-set="line_number" t-value="line_number+1" />
             </t>
         </xpath>

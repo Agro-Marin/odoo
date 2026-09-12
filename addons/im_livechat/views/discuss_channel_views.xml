@@ -221,7 +221,7 @@
                                             <t t-elif="record.livechat_failure.raw_value === 'no_failure'">Success</t>
                                             <t
                                                 t-else=""
-                                                t-esc="record.livechat_failure.value" />
+                                                t-out="record.livechat_failure.value" />
                                         </span>
                                     </span>
                                 </div>

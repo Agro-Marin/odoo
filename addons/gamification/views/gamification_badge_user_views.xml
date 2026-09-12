@@ -17,7 +17,7 @@
                                         type="open"
                                         class="fw-bold fs-5" />
                                     <div>
-                                        Granted on <t t-esc="luxon.DateTime.fromISO(record.create_date.raw_value).toFormat('D')" />
+                                        Granted on <t t-out="luxon.DateTime.fromISO(record.create_date.raw_value).toFormat('D')" />
                                         <div class="d-flex align-items-center">
                                             By
                                             <field

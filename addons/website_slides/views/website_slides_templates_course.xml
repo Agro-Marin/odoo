@@ -839,7 +839,7 @@
                 t-else=""
                 t-attf-href="/slides/#{slug(slide_promoted.channel_id)}/tag/#{slug(tag)}"
                 class="badge text-bg-primary"
-                t-esc="tag.name" />
+                t-out="tag.name" />
             </t>
             </div>
             </div>

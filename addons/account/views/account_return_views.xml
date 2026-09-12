@@ -116,7 +116,7 @@
                                             <div class="state-bubble" />
                                             <span
                                                 class="state-label"
-                                                t-esc="state.label" />
+                                                t-out="state.label" />
                                         </div>
                                     </t>
                                 </div>

@@ -125,11 +125,11 @@
                 <span
                     t-if="not no_text"
                     t-attf-class="#{_txt_class}"
-                    t-esc="active_lang.name.split('/').pop()" />
+                    t-out="active_lang.name.split('/').pop()" />
                 <span
                     t-elif="codes"
                     class="align-middle"
-                    t-esc="active_lang.url_code.split('_').pop(0).upper()" />
+                    t-out="active_lang.url_code.split('_').pop(0).upper()" />
             </button>
             <div t-attf-class="dropdown-menu #{_dropdown_menu_class}" role="menu">
                 <t t-foreach="frontend_languages.values()" t-as="lg">
@@ -142,11 +142,11 @@
                         role="menuitem">
                         <span
                             t-if="not no_text"
-                            t-esc="lg.name.split('/').pop()"
+                            t-out="lg.name.split('/').pop()"
                             t-attf-class="#{_txt_class}" />
                         <span
                             t-elif="codes"
-                            t-esc="lg.url_code.split('_').pop(0).upper()"
+                            t-out="lg.url_code.split('_').pop(0).upper()"
                             t-attf-class="align-middle #{_txt_class}" />
                     </a>
                 </t>
@@ -180,7 +180,7 @@
                 <span
                     t-if="_user_name"
                     t-attf-class="#{_user_name_class}"
-                    t-esc="user_id.name[:23] + '...' if user_id.name and len(user_id.name) &gt; 25 else user_id.name" />
+                    t-out="user_id.name[:23] + '...' if user_id.name and len(user_id.name) &gt; 25 else user_id.name" />
             </a>
             <div
                 t-attf-class="dropdown-menu js_usermenu #{_dropdown_menu_class}"
@@ -490,7 +490,7 @@
             <span
                 t-else=""
                 class="navbar-brand mb-0 h1 me-auto"
-                t-esc="title or 'No title'" />
+                t-out="title or 'No title'" />
 
             <!-- Collapse button -->
             <button
@@ -527,7 +527,7 @@
                                     this is the backstop for the ones that
                                     don't. -->
                                 <t
-                                    t-esc="(searchbar_sortings.get(sortby) or {}).get('label', 'Newest')" />
+                                    t-out="(searchbar_sortings.get(sortby) or {}).get('label', 'Newest')" />
                             </button>
                             <div
                                 class="dropdown-menu dropdown-menu-end"
@@ -537,7 +537,7 @@
                                         t-att-href="request.httprequest.path + '?' + keep_query('*', sortby=option)"
                                         t-attf-class="dropdown-item#{sortby == option and ' active' or ''}">
                                         <span
-                                            t-esc="searchbar_sortings[option].get('label')" />
+                                            t-out="searchbar_sortings[option].get('label')" />
                                     </a>
                                 </t>
                             </div>
@@ -551,7 +551,7 @@
                                 data-bs-toggle="dropdown"
                                 class="btn btn-light dropdown-toggle">
                                 <t
-                                    t-esc="(searchbar_filters.get(filterby) or searchbar_filters.get('all') or {}).get('label', 'All')" />
+                                    t-out="(searchbar_filters.get(filterby) or searchbar_filters.get('all') or {}).get('label', 'All')" />
                             </button>
                             <div
                                 class="dropdown-menu dropdown-menu-end"
@@ -561,7 +561,7 @@
                                         t-att-href="default_url + '?' + keep_query('*', filterby=option)"
                                         t-attf-class="dropdown-item#{filterby == option and ' active' or ''}">
                                         <span
-                                            t-esc="searchbar_filters[option].get('label')" />
+                                            t-out="searchbar_filters[option].get('label')" />
                                     </a>
                                 </t>
                             </div>
@@ -575,7 +575,7 @@
                                 data-bs-toggle="dropdown"
                                 class="btn btn-light dropdown-toggle">
                                 <t
-                                    t-esc="(searchbar_groupby.get(groupby) or {}).get('label', 'None')" />
+                                    t-out="(searchbar_groupby.get(groupby) or {}).get('label', 'None')" />
                             </button>
                             <div
                                 class="dropdown-menu dropdown-menu-end"
@@ -585,7 +585,7 @@
                                         t-att-href="default_url + '?' + keep_query('*', groupby=option)"
                                         t-attf-class="dropdown-item#{groupby == option and ' active' or ''}">
                                         <span
-                                            t-esc="searchbar_groupby[option].get('label')" />
+                                            t-out="searchbar_groupby[option].get('label')" />
                                     </a>
                                 </t>
                             </div>
@@ -632,7 +632,7 @@
         <div class="o_portal_contact_details mb-5">
             <h5>Your contact</h5>
             <hr class="mt-1" />
-            <h6 t-esc="sales_user.name" />
+            <h6 t-out="sales_user.name" />
             <div
                 t-if="sales_user.email_normalized"
                 class="d-flex align-items-baseline mb-1">
@@ -640,19 +640,19 @@
                 <a
                     class="text-break w-100"
                     t-att-href="'mailto:'+sales_user.email"
-                    t-esc="sales_user.email" />
+                    t-out="sales_user.email" />
             </div>
             <div
                 t-if="sales_user.phone_ids._primary().number"
                 class="d-flex flex-nowrap align-items-center mb-1">
                 <i class="fa-solid fa-phone me-1 text-600" />
-                <span t-esc="sales_user.phone_ids._primary().number" />
+                <span t-out="sales_user.phone_ids._primary().number" />
             </div>
             <div
                 t-if="sales_user.city"
                 class="d-flex flex-nowrap align-items-center mb-1">
                 <i class="fa-solid fa-location-dot me-1 text-600" />
-                <span t-esc="sales_user.city" />
+                <span t-out="sales_user.city" />
             </div>
         </div>
     </template>
@@ -699,7 +699,7 @@
                         class="alert alert-danger"
                         role="alert"
                         t-if="get_error(errors, 'password')">
-                        <t t-esc="errors['password']" />
+                        <t t-out="errors['password']" />
                     </div>
                     <form
                         action="/my/security"
@@ -885,7 +885,7 @@
                                         <div
                                             class="alert alert-danger"
                                             t-if="get_error(errors, 'deactivate.other')"
-                                            t-esc="get_error(errors, 'deactivate.other')" />
+                                            t-out="get_error(errors, 'deactivate.other')" />
                                         <p class="text-muted"> Disable your account, preventing any
                                             further login.<br />
                                             <b>
@@ -909,14 +909,14 @@
                                         </div>
                                         <hr />
                                         <p> 2. Confirm you want to delete your account by copying
-                                            down your login (<t t-esc="env.user.login" />). </p>
+                                            down your login (<t t-out="env.user.login" />). </p>
                                         <input
                                             name="validation"
                                             type="text"
                                             required="1"
                                             aria-label="Type your login to confirm"
                                             t-attf-class="form-control #{'is-invalid' if deactivate_error == 'validation' else ''}" />
-                                        <div t-if="deactivate_error == 'validation'" class="invalid-feedback"> You should enter "<t t-esc="env.user.login" />" to validate your action. </div>
+                                        <div t-if="deactivate_error == 'validation'" class="invalid-feedback"> You should enter "<t t-out="env.user.login" />" to validate your action. </div>
                                         <div class="d-flex flex-row align-items-center">
                                             <input
                                                 type="checkbox"

@@ -60,7 +60,7 @@
                                     height="13"
                                     t-attf-src="/web/image?model=res.users&amp;field=avatar_128&amp;id=#{request.env.user.id}"
                                     t-att-title="user_id.name" />
-                                <span t-esc="user_id.name" />
+                                <span t-out="user_id.name" />
                                 <span class="caret" />
                             </a>
                             <ul class="dropdown-menu js_usermenu" role="menu">
@@ -112,11 +112,11 @@
                 <div class="flex-grow-1 mb16">
                     <h2>
                         <t
-                            t-esc="len(documents.filtered(lambda doc: doc.type == 'folder'))" />
-                        folders, <t t-esc="len(documents.filtered(lambda doc: doc.type == 'binary' and (doc.shortcut_document_id or doc).attachment_id))" />
+                            t-out="len(documents.filtered(lambda doc: doc.type == 'folder'))" />
+                        folders, <t t-out="len(documents.filtered(lambda doc: doc.type == 'binary' and (doc.shortcut_document_id or doc).attachment_id))" />
                         files </h2>
                     <span class="align-middle"> shared by <img class="o_author rounded align-middle object-fit-cover" t-attf-src="/documents/avatar/#{quote(folder.access_token)}" t-att-alt="author" t-att-title="author" />
-                        <b t-esc="folder.owner_id.name" />
+                        <b t-out="folder.owner_id.name" />
                     </span>
                 </div>
                 <div class="flex-grow-1 text-end">
@@ -172,7 +172,7 @@
                                         <a
                                             t-att-href="subfolder_open_url"
                                             t-attf-title="Open folder #{subfolder.name}"
-                                            t-esc="subfolder.name" />
+                                            t-out="subfolder.name" />
                                     </h6>
                                 </header>
                                 <div class="o_card_footer">
@@ -183,7 +183,7 @@
                                                 t-options="{'format':'MMM d, yyyy'}" />
                                         </b>
                                         • <b>
-                                            <t t-esc="len(subfolders[subfolder.id])" /> documents </b>
+                                            <t t-out="len(subfolders[subfolder.id])" /> documents </b>
                                     </small>
                                 </div>
                             </div>
@@ -259,13 +259,13 @@
                                     <h6 class="o_card_title mt0 mb4">
                                         <span
                                             t-if="document_request"
-                                            t-esc="document.name" />
+                                            t-out="document.name" />
                                         <a
                                             t-else=""
                                             t-attf-href="#{document_content_url}?download=0"
                                             target="_blank"
                                             t-attf-title="Download #{document.name}"
-                                            t-esc="document.name" />
+                                            t-out="document.name" />
                                     </h6>
                                 </header>
                                 <div class="o_card_footer">
@@ -328,7 +328,7 @@
                                             t-att-href="document_url.url"
                                             t-attf-title="Open #{document_url.name}"
                                             target="blank"
-                                            t-esc="document_url.name" />
+                                            t-out="document_url.name" />
                                     </h6>
                                 </header>
                                 <div class="o_card_footer">
@@ -403,7 +403,7 @@
                     <i class="fa-solid fa-arrow-down fa-stack-1x" />
                 </span>
                 <div class="fs-4 text-truncate">
-                    <b t-esc="document.name" />
+                    <b t-out="document.name" />
                 </div>
                 <div> Size: <t t-call="document.format_file_size" />
                 </div>
@@ -472,7 +472,7 @@
                 <div class="fs-4 text-truncate">
                     <span t-out="document.owner_id.name" /> is requesting </div>
                 <div class="fs-4 text-truncate">
-                    <b t-esc="document.name" />
+                    <b t-out="document.name" />
                 </div>
                 <div
                     onclick="document.querySelector('.o_request_upload').click()"
@@ -506,10 +506,10 @@
         <t t-set="K" t-value="document.file_size / 1024" />
         <t t-set="B" t-value="document.file_size" />
 
-        <t t-if="G &gt; 1"><t t-esc="round(G, 2)" /> GiB</t>
-        <t t-elif="M &gt; 1"><t t-esc="round(M, 2)" /> MiB</t>
-        <t t-elif="K &gt; 1"><t t-esc="round(K, 2)" /> kiB</t>
-        <t t-else=""><t t-esc="round(B, 2)" /> bytes</t>
+        <t t-if="G &gt; 1"><t t-out="round(G, 2)" /> GiB</t>
+        <t t-elif="M &gt; 1"><t t-out="round(M, 2)" /> MiB</t>
+        <t t-elif="K &gt; 1"><t t-out="round(K, 2)" /> kiB</t>
+        <t t-else=""><t t-out="round(B, 2)" /> bytes</t>
     </template>
 
 </odoo>

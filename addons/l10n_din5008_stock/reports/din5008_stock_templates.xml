@@ -9,13 +9,13 @@
                         <t t-if="o.picking_type_id.code == 'incoming'">
                             <span class="fw-bold">Vendor Address:</span>
                             <address
-                                t-esc="o.partner_id"
+                                t-out="o.partner_id"
                                 t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                         </t>
                         <t t-if="o.picking_type_id.code == 'internal'">
                             <span class="fw-bold">Warehouse Address:</span>
                             <address
-                                t-esc="o.partner_id"
+                                t-out="o.partner_id"
                                 t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                         </t>
                         <t t-if="o.picking_type_id.code == 'outgoing'">
@@ -27,7 +27,7 @@
                                 <span class="fw-bold">Beneficiary:</span>
                                 <address
                                     class="mb-0"
-                                    t-esc="o.partner_id.commercial_partner_id"
+                                    t-out="o.partner_id.commercial_partner_id"
                                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                                 <div t-if="o.partner_id.vat">
                                     <t
@@ -40,7 +40,7 @@
                             <t t-if="main_address_box.id != o.partner_id.id">
                                 <span class="fw-bold">Customer Address:</span>
                                 <address
-                                    t-esc="o.partner_id.commercial_partner_id"
+                                    t-out="o.partner_id.commercial_partner_id"
                                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
                             </t>
                         </t>

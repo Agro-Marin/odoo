@@ -333,7 +333,7 @@
                 <span
                     class="o_search_tag d-flex align-items-baseline ps-2 my-2 me-2 border rounded bg-white">
                     <i class="fa-solid fa-tag me-2 text-muted" />
-                    <t t-esc="country.display_name" />
+                    <t t-out="country.display_name" />
                     <span t-att-data-post="'/event/%s/exhibitors?%s' % (                     slug(event),                     keep_query('*', countries=str((search_countries - country).ids)))" class="post_link cursor-pointer btn border-0 py-1 px-2">×</span>
                 </span>
             </t>
@@ -341,7 +341,7 @@
                 <span
                     class="o_search_tag d-flex align-items-baseline ps-2 my-2 me-2 border rounded bg-white">
                     <i class="fa-solid fa-tag me-2 text-muted" />
-                    <t t-esc="sponsorship.display_name" />
+                    <t t-out="sponsorship.display_name" />
                     <span t-att-data-post="'/event/%s/exhibitors?%s' % (                     slug(event),                     keep_query('*', sponsorships=str((search_sponsorships - sponsorship).ids)))" class="post_link cursor-pointer btn border-0 py-1 px-2">×</span>
                 </span>
             </t>

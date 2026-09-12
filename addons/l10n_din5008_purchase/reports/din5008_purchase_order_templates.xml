@@ -43,7 +43,7 @@
             <td class="shipping_address" t-if="o.dest_address_id">
                 <span class="fw-bold">Shipping Address:</span>
                 <address
-                    t-esc="o.dest_address_id"
+                    t-out="o.dest_address_id"
                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
             </td>
             <td
@@ -51,7 +51,7 @@
                 t-elif="'picking_type_id' in o._fields and o.picking_type_id.warehouse_id">
                 <span class="fw-bold">Shipping Address:</span>
                 <address
-                    t-esc="o.picking_type_id.warehouse_id.partner_id"
+                    t-out="o.picking_type_id.warehouse_id.partner_id"
                     t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True}" />
             </td>
         </tr>

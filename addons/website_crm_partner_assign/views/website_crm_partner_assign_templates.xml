@@ -50,7 +50,7 @@
                                 <t t-out="grade['grade_id'][1] if grade['grade_id'][0] != 0 else all_categories_label" />&amp;nbsp;&amp;nbsp;
                                 <span
                                     class="badge text-white bg-secondary rounded-pill px-2 py-1"
-                                    t-esc="grade['grade_id_count']" />
+                                    t-out="grade['grade_id_count']" />
                             </a>
                         </t>
                     </div>
@@ -83,7 +83,7 @@
                                 <t t-out="country['country_id'][1]" />&amp;nbsp;&amp;nbsp;
                                 <span
                                     class="badge text-white bg-secondary rounded-pill px-2 py-1"
-                                    t-esc="country['country_id_count']" />
+                                    t-out="country['country_id_count']" />
                             </a>
                         </t>
                     </div>

@@ -19,7 +19,7 @@
                     <meta
                         name="viewport"
                         content="width=device-width, initial-scale=1.0" />
-                    <title><t t-esc="channel_name" /> Livechat Support Page</title>
+                    <title><t t-out="channel_name" /> Livechat Support Page</title>
 
                     <!-- Call the external Bundle to render the css, js, and js loader tags -->
                     <t t-out="channel.script_external" />
@@ -79,7 +79,7 @@
 
                 <body>
                      <div class="main" style="opacity: 1;">
-                        <h1 class="channel_name"><t t-esc="channel.name" /></h1>
+                        <h1 class="channel_name"><t t-out="channel.name" /></h1>
                         <div>Website Live Chat Powered by <strong>Odoo</strong>.</div>
                     </div>
                 </body>

@@ -12,6 +12,7 @@ from odoo.tests.common import BaseCase, no_retry, tagged
 
 from . import (
     _modernize_commands,
+    _modernize_output_directives,
     _pretty_xml,
     _sort_manifests,
     _sort_xml_records,
@@ -599,6 +600,64 @@ class TestModernizeCommands(BaseCase):
         self.assertEqual(path.read_bytes(), original, "the file must be untouched")
 
 
+@no_retry
+class TestModernizeOutputDirectives(BaseCase):
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_t_esc_becomes_t_out_in_place_and_the_file_settles(self):
+        path = Path(self.tmpdir) / "case.xml"
+        path.write_bytes(
+            b'<?xml version="1.0" encoding="utf-8"?>\n<odoo>\n'
+            b'    <template id="t">\n'
+            b'        <span class="a" t-esc="x" t-if="y"/>\n'
+            b"        <!-- keep -->\n"
+            b'        <p t-out="z">text</p>\n'
+            b"    </template>\n</odoo>\n"
+        )
+        self.assertIs(_modernize_output_directives.modernize_xml_file(path), True)
+        text = path.read_text()
+        self.assertIn('<span class="a" t-out="x" t-if="y"', text, "renamed in place")
+        self.assertNotIn("t-esc", text)
+        self.assertIn("<!-- keep -->", text)
+        self.assertIs(_modernize_output_directives.modernize_xml_file(path), False)
+
+    def test_t_raw_is_not_renamed(self):
+        path = Path(self.tmpdir) / "raw.xml"
+        path.write_bytes(
+            b'<odoo><template id="t"><span t-raw="x"/></template></odoo>\n'
+        )
+        self.assertIs(_modernize_output_directives.modernize_xml_file(path), False)
+
+    def test_an_element_carrying_both_is_left_for_a_human(self):
+        path = Path(self.tmpdir) / "both.xml"
+        path.write_bytes(
+            b'<odoo><template id="t"><span t-esc="x" t-out="y"/></template></odoo>\n'
+        )
+        self.assertIs(_modernize_output_directives.modernize_xml_file(path), False)
+
+    def test_a_rewrite_that_changes_anything_else_is_refused(self):
+        original = b'<odoo><t t-esc="x"/></odoo>'
+        self.assertTrue(
+            _modernize_output_directives.is_rename_only(
+                original, b'<odoo><t t-out="x"/></odoo>'
+            )
+        )
+        self.assertFalse(
+            _modernize_output_directives.is_rename_only(
+                original, b'<odoo><t t-out="y"/></odoo>'
+            )
+        )
+        self.assertFalse(
+            _modernize_output_directives.is_rename_only(
+                original, b'<odoo><t t-out="x">extra</t></odoo>'
+            )
+        )
+
+
 @tagged("post_install", "-at_install")
 @no_retry
 class TestFieldOrderVocabulary(LintCase):
@@ -937,6 +996,7 @@ class TestFixerScope(LintCase):
             _sort_xml_records,
             _sort_manifests,
             _modernize_commands,
+            _modernize_output_directives,
         ):
             with self.subTest(fixer=module.__name__):
                 defaults = [

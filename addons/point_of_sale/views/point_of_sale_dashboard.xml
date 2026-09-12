@@ -142,7 +142,7 @@
                                             <span>Date</span>
                                         </div>
                                         <span
-                                            t-esc="statistics.date.start_date"
+                                            t-out="statistics.date.start_date"
                                             class="col-7" />
                                     </div>
                                     <div class="row">
@@ -151,7 +151,7 @@
                                         </div>
                                         <span
                                             name="opening_cash"
-                                            t-esc="statistics.cash.opening_cash"
+                                            t-out="statistics.cash.opening_cash"
                                             class="col-7" />
                                     </div>
                                     <div
@@ -162,7 +162,7 @@
                                         </div>
                                         <span
                                             name="paid_orders"
-                                            t-esc="statistics.orders.paid.display"
+                                            t-out="statistics.orders.paid.display"
                                             class="col-7" />
                                     </div>
                                     <div
@@ -173,7 +173,7 @@
                                         </div>
                                         <span
                                             name="draft_orders"
-                                            t-esc="statistics.orders.draft.display"
+                                            t-out="statistics.orders.draft.display"
                                             class="col-7" />
                                     </div>
                                 </t>

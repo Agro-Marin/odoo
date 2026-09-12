@@ -166,7 +166,7 @@
                                     t-attf-class="text-muted me-1 mb-0"
                                     style="white-space: nowrap;">
                                     <small
-                                        t-esc="template_price_vals['base_price']"
+                                        t-out="template_price_vals['base_price']"
                                         t-options="{'widget': 'monetary', 'display_currency': website.currency_id}" />
                                 </del>
                             </t>

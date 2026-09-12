@@ -153,7 +153,7 @@
                         <aside class="col-3 me-2">
                             <div
                                 class="display-3 fw-bold text-center text-primary mb-2"
-                                t-esc="val_stars" />
+                                t-out="val_stars" />
                             <i
                                 t-foreach="[...Array(val_integer).keys()]"
                                 t-as="num"

@@ -510,7 +510,7 @@
                                             options="{'display_avatar_name': True}" />
                                         <span class="mx-1">-</span>
                                         <t
-                                            t-esc="luxon.DateTime.fromISO(record.create_date.raw_value).toFormat('MMM yyyy')" />
+                                            t-out="luxon.DateTime.fromISO(record.create_date.raw_value).toFormat('MMM yyyy')" />
                                     </span>
                                     <field
                                         name="tag_ids"
