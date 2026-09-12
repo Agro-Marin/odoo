@@ -339,3 +339,26 @@ test(`ViewLayout: layout-actions-start renders before the search bar, layout-act
     expect(`.o_control_panel_actions .o_cp_searchview + .toy_after`).toHaveCount(1);
     expect(`.o_content > .toy_content`).toHaveCount(1);
 });
+
+test(`ViewLayout: a no-content slot replaces the ActionHelper`, async () => {
+    class ToyComponent extends Component {
+        static props = ["*"];
+        static template = xml`
+            <ViewLayout display="props.display" displayNoContent="true" noContentHelp="'standard help'">
+                <t t-set-slot="no-content">
+                    <div class="toy_no_content">nothing here</div>
+                </t>
+                <div class="toy_content"/>
+            </ViewLayout>
+        `;
+        static components = { ViewLayout };
+    }
+
+    await mountWithSearch(ToyComponent, {
+        resModel: "foo",
+        searchViewId: false,
+    });
+    expect(`.o_content .toy_no_content`).toHaveCount(1);
+    expect(`.o_content .o_view_nocontent`).toHaveCount(0);
+    expect(`.o_content > .toy_content`).toHaveCount(1);
+});
