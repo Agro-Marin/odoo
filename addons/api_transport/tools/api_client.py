@@ -12,6 +12,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 from requests.adapters import HTTPAdapter
 from requests.auth import HTTPDigestAuth
+from urllib3.exceptions import ReadTimeoutError
 from urllib3.util.retry import Retry
 
 from odoo import _, api, fields
@@ -56,11 +57,27 @@ class _ShapedRetry(Retry):
     """
 
     backoff_type = "exponential"
+    retry_after_cap = None
 
     def new(self, **kw):
         clone = super().new(**kw)
         clone.backoff_type = self.backoff_type
+        clone.retry_after_cap = self.retry_after_cap
         return clone
+
+    def is_retry(self, method, status_code, has_retry_after=False):
+        # A 429 means the vendor refused the request without acting on it, so
+        # resending is safe even for a POST; any other status after a POST may
+        # follow a charge, a stamp or a message already sent.
+        if status_code == 429 and not self._is_method_retryable(method):
+            return bool(self.total)
+        return super().is_retry(method, status_code, has_retry_after)
+
+    def get_retry_after(self, response):
+        retry_after = super().get_retry_after(response)
+        if retry_after is None or not self.retry_after_cap:
+            return retry_after
+        return min(retry_after, self.retry_after_cap)
 
     def get_backoff_time(self):
         if self.backoff_type == "exponential":
@@ -201,6 +218,13 @@ def _mask_sensitive_url(url: str) -> str:
     return urlunparse(
         (parsed.scheme, netloc, parsed.path, parsed.params, query, parsed.fragment),
     )
+
+
+def _is_exhausted_read_timeout(exc):
+    # requests reports a read timeout that outlived its retries as a
+    # ConnectionError wrapping urllib3's MaxRetryError, not as a Timeout.
+    reason = getattr(exc.args[0], "reason", None) if exc.args else None
+    return isinstance(reason, ReadTimeoutError)
 
 
 def _masked_cause(exc: BaseException) -> BaseException:
@@ -359,9 +383,11 @@ class OutboundAPIClient:
             total=self.service.retry_max_attempts or 3,
             backoff_factor=backoff_factor,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+            allowed_methods=Retry.DEFAULT_ALLOWED_METHODS,
+            raise_on_status=False,
         )
         retry.backoff_type = backoff_type or "exponential"
+        retry.retry_after_cap = self.service.timeout_read or 30
         return retry
 
     def request(self, method, endpoint, raw=False, **kwargs):
@@ -439,8 +465,26 @@ class OutboundAPIClient:
             )
             raise self._prepare_http_error(status_code, error) from _masked_cause(e)
 
+        except requests.exceptions.RetryError as e:
+            error = _mask_sensitive_text(str(e))
+            _logger.error(
+                "API Retries Exhausted: %s - %s", _mask_sensitive_url(url), error
+            )
+            self._record_failure(
+                method, url, kwargs, trace_id, skip_logging, error, "server"
+            )
+            raise ServerError(_("Server error: %s") % error) from _masked_cause(e)
+
         except requests.exceptions.RequestException as e:
             error = _mask_sensitive_text(str(e))
+            if _is_exhausted_read_timeout(e):
+                _logger.error("API Timeout: %s - %s", _mask_sensitive_url(url), error)
+                self._record_failure(
+                    method, url, kwargs, trace_id, skip_logging, error, "timeout"
+                )
+                raise CommTimeoutError(
+                    _("Request timed out: %s") % _mask_sensitive_url(url)
+                ) from _masked_cause(e)
             _logger.error("API Request Error: %s - %s", _mask_sensitive_url(url), error)
             self._record_failure(
                 method, url, kwargs, trace_id, skip_logging, error, "network"
