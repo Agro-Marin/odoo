@@ -208,9 +208,11 @@ def log_access(
             f"{now.tm_mday:02d}/{_MONTHS[now.tm_mon]}/{now.tm_year:04d} "
             f"{now.tm_hour:02d}:{now.tm_min:02d}:{now.tm_sec:02d}"
         )
-        _access_logger.log(
-            level, '%s - - [%s] "%s" %s %s', conn.addr[0], stamp, message, status, size
-        )
+        # Record args are werkzeug's (request line, status, size): access-log filters
+        # match on args[0], and an IPv6 zone id carries a literal %.
+        address = str(conn.addr[0]).replace("%", "%%")
+        template = address + " - - [" + stamp + '] "%s" %s %s'
+        _access_logger.log(level, template, message, status, size)
 
 
 def _reset_request_attributes() -> None:

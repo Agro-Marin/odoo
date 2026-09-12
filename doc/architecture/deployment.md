@@ -195,6 +195,16 @@ environ, because `X_Forwarded_For` and `X-Forwarded-For` would otherwise both
 become `HTTP_X_FORWARDED_FOR`. `100 Continue` is sent only when the application
 first reads the body.
 
+**The access log** is the logger `odoo.service.http.access`, no longer
+`werkzeug`. It keeps werkzeug's line and record shape (the request line is the
+first argument, which is what a masking filter rewrites) and werkzeug's standing:
+INFO by default even under `--log-level=debug`, quieted by the `warn`, `error`,
+`critical` and `runbot` levels. A `log_handler` entry naming `werkzeug` no longer
+reaches it, and the server warns at startup when one does. A logging filter sees
+only records emitted on its own logger, so a filter that masks secrets in URLs
+(`payment_stripe`'s client secret, `telegram_bot`'s webhook token) must be
+attached to `odoo.service.http.access` itself.
+
 **Behind a reverse proxy**, keep upstream connections alive and let the proxy
 close them first, so it never reuses a connection Odoo is closing:
 

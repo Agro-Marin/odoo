@@ -6643,7 +6643,7 @@ moment anything is mocked. Two rules keep it from rotting:
 * Assert on observables, never on internal state -- otherwise it is a slow unit
   test.
 * **Readiness is a served request, never a log line.** ``ThreadedServer.run``
-  spawns the WSGI server and logs "HTTP service (werkzeug) running" *before*
+  spawns the HTTP server and logs "HTTP service running" *before*
   ``preload_registries``, both under ``Registry._lock``, so the socket accepts and
   the log claims readiness while requests still block.
 

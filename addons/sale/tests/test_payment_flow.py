@@ -26,7 +26,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
 
         cls.sale_order.require_payment = True
 
-    @mute_logger("odoo.http", "werkzeug")
+    @mute_logger("odoo.http", "odoo.service.http.access")
     def test_payment_amount_must_not_be_less_than_prepayment_amount(self):
         res = self._make_http_get_request(
             f"/my/orders/{self.sale_order.id}",

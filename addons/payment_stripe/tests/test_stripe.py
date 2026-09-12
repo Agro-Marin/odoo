@@ -212,6 +212,35 @@ class StripeTest(StripeCommon, PaymentHttpCommon):
             res = self._make_http_get_request(url, params={"reference": tx.reference})
             self.assertTrue(res.ok, msg=res.content.decode())
 
+    @mute_logger("odoo.addons.payment_stripe.controllers.main")
+    def test_return_url_client_secret_stays_out_of_the_access_log(self):
+        tx = self._create_transaction(
+            "direct", amount=0, operation="validation", tokenize=True
+        )
+        url = self._build_url(StripeController._return_url)
+        secret = "seti_123_secret_ReturnUrlSecret987"
+        PaymentProvider = self.env.registry["payment.provider"]
+        with (
+            patch.object(StripeController, "_check_signature"),
+            patch.object(
+                PaymentProvider, "_send_api_request", self._mock_setup_intent_request
+            ),
+            self.assertLogs("odoo.service.http.access", "INFO") as capture,
+        ):
+            res = self._make_http_get_request(
+                url,
+                params={
+                    "reference": tx.reference,
+                    "setup_intent": "seti_123",
+                    "setup_intent_client_secret": secret,
+                },
+            )
+            self.assertTrue(res.ok, msg=res.content.decode())
+        log = "\n".join(capture.output)
+        self.assertIn(StripeController._return_url, log)
+        self.assertNotIn(secret, log)
+        self.assertIn("setup_intent_client_secret=[REDACTED]", log)
+
     def test_onboarding_action_redirect_to_url(self):
         """Test that the action generate and return an URL when the provider is disabled."""
         if country := self.env["res.country"].search(

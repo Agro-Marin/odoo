@@ -335,6 +335,50 @@ def test_static_requests_are_logged_at_debug_outside_dev_mode(caplog):
     assert [r.levelno for r in caplog.records] == [logging.DEBUG]
 
 
+def test_access_records_carry_the_request_line_first_for_filters(caplog):
+    conn = httpd.Connection(socket.socket(), ("127.0.0.1", 1))
+    try:
+        with caplog.at_level(logging.INFO, logger="odoo.service.http.access"):
+            httpd.log_access(conn, "GET /hw_proxy/hello HTTP/1.1", "/hw", 200, 7)
+    finally:
+        conn.sock.close()
+    [record] = caplog.records
+    assert record.args == ("GET /hw_proxy/hello HTTP/1.1", 200, 7)
+
+
+def test_a_filter_on_the_access_logger_rewrites_the_line(caplog):
+    class Mask(logging.Filter):
+        def filter(self, record):
+            record.args = tuple(
+                a.replace("s3cr3t", "***") if isinstance(a, str) else a
+                for a in record.args
+            )
+            return True
+
+    logger = logging.getLogger("odoo.service.http.access")
+    mask = Mask()
+    logger.addFilter(mask)
+    conn = httpd.Connection(socket.socket(), ("127.0.0.1", 1))
+    try:
+        with caplog.at_level(logging.INFO, logger="odoo.service.http.access"):
+            httpd.log_access(conn, "POST /hook/s3cr3t HTTP/1.1", "/hook", 200, 0)
+    finally:
+        logger.removeFilter(mask)
+        conn.sock.close()
+    assert "s3cr3t" not in caplog.text
+    assert '"POST /hook/*** HTTP/1.1" 200 0' in caplog.text
+
+
+def test_a_percent_in_the_peer_address_is_not_a_format_directive(caplog):
+    conn = httpd.Connection(socket.socket(), ("fe80::1%eth0", 1))
+    try:
+        with caplog.at_level(logging.INFO, logger="odoo.service.http.access"):
+            httpd.log_access(conn, "GET / HTTP/1.1", "/", 200, 0)
+    finally:
+        conn.sock.close()
+    assert caplog.records[0].getMessage().startswith("fe80::1%eth0 - - [")
+
+
 def test_control_characters_are_escaped_in_the_access_log(caplog):
     conn = httpd.Connection(socket.socket(), ("127.0.0.1", 1))
     try:

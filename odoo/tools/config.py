@@ -740,7 +740,7 @@ class configmanager:
             my_default=[":INFO"],
             metavar="MODULE:LEVEL",
             help="setup a handler at LEVEL for a given MODULE. An empty MODULE indicates the root logger. "
-            'This option can be repeated. Example: "odoo.orm:DEBUG" or "werkzeug:CRITICAL" (default: ":INFO")',
+            'This option can be repeated. Example: "odoo.orm:DEBUG" or "odoo.service.http.access:WARNING" (default: ":INFO")',
         )
         group.add_option(
             "--log-web",

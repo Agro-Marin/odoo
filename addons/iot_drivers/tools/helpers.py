@@ -652,7 +652,7 @@ def reset_log_level():
         update_conf(
             {
                 "log_level_reset_timestamp": "",
-                "log_handler": ":INFO,werkzeug:WARNING",
+                "log_handler": ":INFO,odoo.service.http.access:WARNING",
                 "log_level": "info",
             }
         )

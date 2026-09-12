@@ -407,7 +407,7 @@ class TestPortalFlow(MailCommon, HttpCase):
                 self.assertEqual(res.status_code, 200)
                 self.assertURLEqual(res.url, exp_url)
 
-    @mute_logger("werkzeug")
+    @mute_logger("odoo.service.http.access")
     @users("portal_test")
     def test_portal_access_logged(self):
         """Check portal behavior when accessing mail/view, notably check token
@@ -474,7 +474,7 @@ class TestPortalFlow(MailCommon, HttpCase):
                 self.assertEqual(res.status_code, 200)
                 self.assertURLEqual(res.url, exp_url)
 
-    @mute_logger("werkzeug")
+    @mute_logger("odoo.service.http.access")
     def test_portal_access_not_logged(self):
         """Check customer behavior when accessing mail/view, notably check token
         support and propagation."""

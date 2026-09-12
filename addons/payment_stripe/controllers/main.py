@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import logging
 import pprint
+import re
 from datetime import UTC, datetime
 
 from werkzeug.exceptions import Forbidden
@@ -8,7 +10,7 @@ from werkzeug.exceptions import Forbidden
 from odoo import http
 from odoo.exceptions import ValidationError
 from odoo.http import request
-from odoo.tools import file_open, mute_logger
+from odoo.tools import file_open
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.logging import get_payment_logger
@@ -16,6 +18,30 @@ from odoo.addons.payment_stripe import const
 from odoo.addons.payment_stripe import utils as stripe_utils
 
 _logger = get_payment_logger(__name__, const.SENSITIVE_KEYS)
+
+_CLIENT_SECRET_PARAM = re.compile(r"([?&][a-z_]*client_secret=)[^&\s#\"]+")
+
+
+class ReturnUrlSecretFilter(logging.Filter):
+    # Stripe appends payment_intent_client_secret / setup_intent_client_secret to the
+    # return URL, and the access log records the request line after the controller has
+    # returned, so only a filter on that logger can keep the secret out.
+    def filter(self, record):
+        if isinstance(record.args, tuple) and record.args:
+            line = record.args[0]
+            if isinstance(line, str) and "client_secret=" in line:
+                masked = _CLIENT_SECRET_PARAM.sub(r"\1[REDACTED]", line)
+                record.args = (masked, *record.args[1:])
+        return True
+
+
+def install_return_url_secret_filter():
+    access_logger = logging.getLogger("odoo.service.http.access")
+    if not any(isinstance(f, ReturnUrlSecretFilter) for f in access_logger.filters):
+        access_logger.addFilter(ReturnUrlSecretFilter())
+
+
+install_return_url_secret_filter()
 
 
 class StripeController(http.Controller):
@@ -64,8 +90,7 @@ class StripeController(http.Controller):
             tx_sudo._process("stripe", data)
 
         # Redirect the user to the status page.
-        with mute_logger("werkzeug"):  # avoid logging secret URL params
-            return request.redirect("/payment/status")
+        return request.redirect("/payment/status")
 
     @http.route(_webhook_url, type="http", methods=["POST"], auth="public", csrf=False)
     def stripe_webhook(self):

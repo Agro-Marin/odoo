@@ -33,7 +33,7 @@ class TestPosPerformance(TestPointOfSaleHttpCommon):
         "odoo.cli.populate",
         "odoo.tools.populate",
         "odoo.tests.common",
-        "werkzeug",
+        "odoo.service.http.access",
     )
     def test_pos_session_open_product_performance(self):
         self.env["ir.config_parameter"].sudo().set_param(

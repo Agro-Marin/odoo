@@ -186,7 +186,7 @@ class TestUICommon(HttpCaseGamification, HttpCaseWithUserPortal):
 
 @tests.common.tagged("post_install", "-at_install")
 class TestUi(TestUICommon):
-    @mute_logger("odoo.http", "odoo.addons.base.models.ir_rule", "werkzeug")
+    @mute_logger("odoo.http", "odoo.addons.base.models.ir_rule", "odoo.service.http.access")
     def test_course_access_fail_redirection(self):
         self.channel.visibility = "members"
         urls = (
