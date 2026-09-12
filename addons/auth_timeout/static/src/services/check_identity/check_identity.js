@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, EventBus, onWillDestroy, onWillStart, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Dialog } from "@web/ui/dialog";
 import { rpc, RPCError } from "@web/core/network";
 import { registry } from "@web/core/registry";
@@ -8,6 +9,8 @@ import { redirect } from "@web/core/utils/urls";
 import { session } from "@web/session";
 
 import { passkeyLib } from "@auth_passkey/passkey_lib";
+
+const log = makeLogger("auth_timeout.check_identity");
 
 /**
  * CheckIdentityForm component
@@ -212,20 +215,38 @@ export const checkIdentityService = {
             channel.postMessage("identityChecked");
         };
 
-        const run = async () => {
-            if (!started) {
-                dialog.add(CheckIdentityDialog);
+        let pendingCheck = null;
+        const run = () => {
+            log.logic("run", { started, pending: Boolean(pendingCheck) });
+            if (!pendingCheck && !started) {
+                pendingCheck = keepDialogOpenUntilChecked().finally(() => {
+                    pendingCheck = null;
+                });
             }
-            // Empty the current view, to not let any confidential data displayed
-            // not even inspecting the dom or through the console using Javascript.
-            env.services.action && env.bus.trigger("ACTION_MANAGER:UPDATE", {});
-            await new Promise((resolve) => {
-                checkIdentityService.eventBus.addEventListener(
-                    "identityChecked",
-                    resolve,
-                    { once: true },
-                );
-            });
+            return pendingCheck;
+        };
+
+        // Any navigation closes every dialog (the action manager calls closeAll when
+        // it mounts a controller), and the route the page was opened on can mount
+        // after the inactivity timer has already asked for a check. Closing is not
+        // confirming, so the dialog comes back until the identity is confirmed.
+        const keepDialogOpenUntilChecked = async () => {
+            let checked = false;
+            const onChecked = () => {
+                checked = true;
+            };
+            bus.addEventListener("identityChecked", onChecked, { once: true });
+            while (!checked) {
+                // Empty the current view, to not let any confidential data displayed
+                // not even inspecting the dom or through the console using Javascript.
+                env.services.action && env.bus.trigger("ACTION_MANAGER:UPDATE", {});
+                await new Promise((resolve) => {
+                    dialog.add(CheckIdentityDialog, {}, { onClose: resolve });
+                });
+                if (!checked) {
+                    log.logic("dialogReopened");
+                }
+            }
             // Reload the view to display back the data that was displayed before.
             env.services.action && env.services.action.doAction("soft_reload");
         };
@@ -264,6 +285,10 @@ export const checkIdentityService = {
             const startInactivityTimer = () => {
                 inactivityTimer = setTimeout(
                     async () => {
+                        log.logic("inactivityTimerFired", {
+                            inactivityMs: presence.getInactivityPeriod(),
+                            timeoutS: session.lock_timeout_inactivity,
+                        });
                         if (
                             presence.getInactivityPeriod() >=
                             session.lock_timeout_inactivity * 1000
@@ -291,6 +316,10 @@ export const checkIdentityService = {
         }
 
         const checkIdentityErrorHandler = (env, error, originalError) => {
+            log.logic("errorHandler", {
+                rpcError: originalError instanceof RPCError,
+                name: originalError?.data?.name,
+            });
             if (originalError instanceof RPCError) {
                 if (
                     originalError.data.name ===
