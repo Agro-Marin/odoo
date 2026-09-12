@@ -5,6 +5,7 @@ from unittest.mock import patch
 from requests import Response
 
 import odoo
+from odoo.libs.hashing import content_hash
 from odoo.tools.misc import file_open
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
@@ -55,8 +56,8 @@ class TestCloudStorageAttachmentController(
                 )
                 # ignore signature in url
                 content = re.sub(
-                    r'"url": "https://accountname\.blob\.core\.windows\.net/.*?"',
-                    '"url": "[url]"',
+                    r'"url":\s*"https://accountname\.blob\.core\.windows\.net/[^"]*"',
+                    '"url":"[url]"',
                     res.content.decode("utf-8"),
                 )
                 self.assertEqual(
@@ -67,7 +68,7 @@ class TestCloudStorageAttachmentController(
                             "store_data": {
                                 "ir.attachment": [
                                     {
-                                        "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+                                        "checksum": content_hash(b""),
                                         "create_date": odoo.fields.Datetime.to_string(
                                             attachment.create_date
                                         ),
@@ -78,6 +79,7 @@ class TestCloudStorageAttachmentController(
                                         "name": "__init__.py",
                                         "ownership_token": attachment._get_ownership_token(),
                                         "raw_access_token": attachment._get_raw_access_token(),
+                                        "res_model": "mail.compose.message",
                                         "res_name": False,
                                         "thread": False,
                                         "thumbnail_access_token": attachment._get_thumbnail_token(),

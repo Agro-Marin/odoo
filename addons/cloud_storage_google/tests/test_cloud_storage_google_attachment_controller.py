@@ -2,6 +2,7 @@ import json
 import re
 
 import odoo
+from odoo.libs.hashing import content_hash
 from odoo.tools.misc import file_open
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
@@ -36,8 +37,8 @@ class TestCloudStorageAttachmentController(
             attachment = self.env["ir.attachment"].search([], order="id desc", limit=1)
             # ignore signature in url
             content = re.sub(
-                r'"url": "https://storage\.googleapis\.com/.*?"',
-                '"url": "[url]"',
+                r'"url":\s*"https://storage\.googleapis\.com/[^"]*"',
+                '"url":"[url]"',
                 res.content.decode("utf-8"),
             )
             self.assertEqual(
@@ -48,7 +49,7 @@ class TestCloudStorageAttachmentController(
                         "store_data": {
                             "ir.attachment": [
                                 {
-                                    "checksum": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+                                    "checksum": content_hash(b""),
                                     "create_date": odoo.fields.Datetime.to_string(
                                         attachment.create_date
                                     ),
@@ -59,6 +60,7 @@ class TestCloudStorageAttachmentController(
                                     "name": "__init__.py",
                                     "ownership_token": attachment._get_ownership_token(),
                                     "raw_access_token": attachment._get_raw_access_token(),
+                                    "res_model": "mail.compose.message",
                                     "res_name": False,
                                     "thread": False,
                                     "thumbnail_access_token": attachment._get_thumbnail_token(),
