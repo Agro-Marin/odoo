@@ -4,7 +4,10 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class MixinPropertiesBaseDefinition(models.AbstractModel):
@@ -45,6 +48,12 @@ class MixinPropertiesBaseDefinition(models.AbstractModel):
 
         if not isinstance(value, Iterable):
             value = (value,)
+        _debug.logic(
+            "definition_searched",
+            model=self._name,
+            definition=properties_base_definition_id,
+            matched=properties_base_definition_id in value,
+        )
         return Domain.TRUE if properties_base_definition_id in value else Domain.FALSE
 
     @api.model_create_multi
@@ -56,6 +65,12 @@ class MixinPropertiesBaseDefinition(models.AbstractModel):
         )
         for vals in vals_list:
             vals["properties_base_definition_id"] = parent
+        _debug.lifecycle(
+            "definition_attached",
+            model=self._name,
+            definition=parent,
+            count=len(vals_list),
+        )
         return super().create(vals_list)
 
     def _field_to_sql(self, alias: str, fname: str, query: Any = None) -> SQL:

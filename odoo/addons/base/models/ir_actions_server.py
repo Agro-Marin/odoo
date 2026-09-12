@@ -186,6 +186,7 @@ class IrActionsServerHistory(models.Model):
         to_clean = self
         for _action_id, history_ids in result:
             to_clean |= history_ids.sorted()[self._max_entries_per_action :]
+        _debug.lifecycle("gc_histories", actions=len(result), removed=len(to_clean))
         to_clean.unlink()
 
 
@@ -619,6 +620,7 @@ class IrActionsServer(models.Model):
                 action.name_is_custom
                 and action.name == action._prepare_automated_name()
             ):
+                _debug.logic("automated_name_released", action=action.id)
                 action.name_is_custom = False
 
     @api.depends("state", "code")
@@ -1105,6 +1107,12 @@ class IrActionsServer(models.Model):
         value = {self.update_field_id.name: vals[self.id]}
 
         if record_cached := self.env.context.get("onchange_self"):
+            _debug.logic(
+                "update_path_target",
+                action=self.id,
+                by="onchange_self",
+                depth=len(path),
+            )
             if len(path) > 1:
                 raise UserError(
                     _(
@@ -1120,6 +1128,14 @@ class IrActionsServer(models.Model):
             return
 
         targets = records.mapped(".".join(path[:-1])) if len(path) > 1 else records
+        _debug.logic(
+            "update_path_target",
+            action=self.id,
+            by="records",
+            depth=len(path),
+            records=len(records),
+            targets=len(targets),
+        )
         targets.write(value)
 
     def _run_action_webhook(self, eval_context: dict[str, Any] | None = None) -> None:
@@ -1244,7 +1260,15 @@ class IrActionsServer(models.Model):
             return
         record = self._get_records_from_eval_context(eval_context)[:1]
         if not record:
+            _debug.logic("link_skipped_no_record", action=self.id, new_id=new_id)
             return
+        _debug.lifecycle(
+            "record_linked",
+            action=self.id,
+            record=record.id,
+            field=self.link_field_id.name,
+            new_id=new_id,
+        )
         if self.link_field_id.ttype in ("one2many", "many2many"):
             record.write({self.link_field_id.name: [Command.link(new_id)]})
         else:
@@ -1315,6 +1339,12 @@ class IrActionsServer(models.Model):
             if onchange_self := context.get("onchange_self"):
                 if onchange_self._name == model._name:
                     return model.browse(onchange_self._origin.id or ())
+            _debug.logic(
+                "targets_model_mismatch",
+                action=action.id,
+                model=model._name,
+                active_model=context.get("active_model"),
+            )
             return model
         if active_ids := context.get("active_ids"):
             return model.browse(active_ids)
@@ -1455,6 +1485,13 @@ class IrActionsServer(models.Model):
         config = self.sudo()
         if config.state not in CRUD_STATES:
             return
+        _debug.logic(
+            "crud_access_checked",
+            action=self.id,
+            state=config.state,
+            records=len(records),
+            linked=bool(config.link_field_id),
+        )
         if config.state == "object_write":
             records.check_access("write")
             return

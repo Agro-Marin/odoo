@@ -256,6 +256,9 @@ class ResCompany(models.Model):
         if paperformat_euro:
             companies_without = self.search([("paperformat_id", "=", False)])
             if companies_without:
+                _debug.lifecycle(
+                    "init_paperformat_set", companies=companies_without.ids
+                )
                 companies_without.write({"paperformat_id": paperformat_euro.id})
         super().init()
 
@@ -284,6 +287,11 @@ class ResCompany(models.Model):
             aggregates=["__count"],
         )
         if offenders:
+            _debug.logic(
+                "archive_refused",
+                companies=inactive_companies.ids,
+                offenders=len(offenders),
+            )
             raise ValidationError(
                 self.env._(
                     "The following companies cannot be archived because they are still "
@@ -307,6 +315,9 @@ class ResCompany(models.Model):
             if company.parent_id:
                 for fname in company._get_field_names_delegated_to_root():
                     if company[fname] != company.parent_id[fname]:
+                        _debug.logic(
+                            "delegated_field_mismatch", company=company.id, field=fname
+                        )
                         description = (
                             self.env["ir.model.fields"]
                             ._get("res.company", fname)
@@ -539,6 +550,12 @@ class ResCompany(models.Model):
             },
         )
         mapping = dict(self.env.cr.fetchall())
+        _debug.perf.count(
+            "uninstalled_l10n_modules_computed",
+            companies=len(self),
+            countries=len(mapping),
+            modules=sum(len(ids) for ids in mapping.values()),
+        )
         for company in self:
             company.uninstalled_l10n_module_ids = self.env["ir.module.module"].browse(
                 mapping.get(company.country_id.id)
@@ -654,6 +671,14 @@ class ResCompany(models.Model):
             seen.update(new.ids)
             current = new.child_ids
 
+        _debug.logic(
+            "accessible_branches",
+            company=self.id,
+            walked=len(seen),
+            accessible=len(accessible_branch_ids),
+            superuser_fallback=not accessible_branch_ids
+            and self.env.uid == SUPERUSER_ID,
+        )
         if not accessible_branch_ids and self.env.uid == SUPERUSER_ID:
             return self.ids
 
@@ -683,6 +708,7 @@ class ResCompany(models.Model):
             main_company = (
                 self.env["res.company"].sudo().search([], limit=1, order="id")
             )
+            _debug.logic("main_company_fallback", company=main_company.id)
 
         return main_company
 
@@ -697,6 +723,7 @@ class ResCompany(models.Model):
         )
         if existing:
             return existing
+        _debug.lifecycle("public_user_created", company=self.id, login=login)
         return (
             self.env.ref("base.public_user")
             .sudo()

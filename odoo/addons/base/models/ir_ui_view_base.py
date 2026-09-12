@@ -122,6 +122,9 @@ class Base(models.AbstractModel):
             self._fields,
             "date_start",
         ):
+            _debug.logic(
+                "default_calendar_refused", model=self._name, missing="date_start"
+            )
             raise UserError(_("Insufficient fields for Calendar View!"))
 
         set_first_of(
@@ -145,6 +148,9 @@ class Base(models.AbstractModel):
                 self._fields,
                 "date_delay",
             ):
+                _debug.logic(
+                    "default_calendar_refused", model=self._name, missing="date_stop"
+                )
                 raise UserError(
                     _(
                         "Insufficient fields to generate a Calendar View for %s, missing a date_stop or a date_delay",
@@ -152,6 +158,14 @@ class Base(models.AbstractModel):
                     )
                 )
 
+        _debug.logic(
+            "default_calendar_view",
+            model=self._name,
+            date_start=view.get("date_start"),
+            date_stop=view.get("date_stop"),
+            date_delay=view.get("date_delay"),
+            color=view.get("color"),
+        )
         return view
 
     @api.model
@@ -363,6 +377,13 @@ class Base(models.AbstractModel):
         ):
             node.set("string", header)
         result["arch"] = etree.tostring(node, encoding="unicode")
+        _debug.pipeline(
+            "get_view",
+            model=self._name,
+            view=result["id"],
+            view_type=node.tag,
+            arch_chars=len(result["arch"]),
+        )
 
         return result
 
@@ -433,6 +454,7 @@ class Base(models.AbstractModel):
     @api.readonly
     def get_formview_action(self, access_uid: int | None = None) -> dict[str, Any]:
         view_id = self.sudo().get_formview_id(access_uid=access_uid)
+        _debug.logic("formview_action", model=self._name, record=self.id, view=view_id)
         return {
             "type": "ir.actions.act_window",
             "res_model": self._name,

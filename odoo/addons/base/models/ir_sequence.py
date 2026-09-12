@@ -383,6 +383,11 @@ class IrSequence(models.Model):
     def _carry_over_pg_counter(self) -> None:
         self.check_singleton()
         predicted = _predict_nextvals(self.env, [self._get_pg_sequence_name()])
+        _debug.lifecycle(
+            "pg_counter_carried_over",
+            sequence=self.id,
+            number_next=predicted.get(self._get_pg_sequence_name(), self.number_next),
+        )
         self.flush_recordset(["number_next"])
         self.env.cr.execute(
             SQL(
@@ -401,6 +406,9 @@ class IrSequence(models.Model):
             return
         predicted = _predict_nextvals(
             self.env, [sub_seq._get_pg_sequence_name() for sub_seq in sub_seqs]
+        )
+        _debug.lifecycle(
+            "pg_range_counters_carried_over", sequence=self.id, ranges=len(sub_seqs)
         )
         sub_seqs.flush_recordset(["number_next"])
         self.env.cr.execute(
@@ -440,6 +448,13 @@ class IrSequence(models.Model):
         else:
             numbers = _update_nogap_batch(self, self.number_increment, count)
         self.invalidate_recordset(["number_next_actual"])
+        _debug.logic(
+            "next_batch",
+            sequence=self.id,
+            implementation=self.implementation,
+            count=count,
+            first=numbers[0] if numbers else None,
+        )
         return [self.get_next_char(number) for number in numbers]
 
     def _get_prefix_suffix(
@@ -606,7 +621,11 @@ class IrSequence(models.Model):
         if not self.use_date_range:
             return self
         dt = self._get_sequence_date(sequence_date)
-        return self._get_covering_date_range(dt) or self._create_date_range_seq(dt)
+        covering = self._get_covering_date_range(dt)
+        _debug.logic(
+            "date_range_resolved", sequence=self.id, date=str(dt), found=bool(covering)
+        )
+        return covering or self._create_date_range_seq(dt)
 
     def _next(self, sequence_date: Any = None) -> str:
         if not self.use_date_range:
@@ -796,6 +815,7 @@ class IrSequenceDate_Range(models.Model):
         ).grouped("sequence_id")
         for rng in self:
             if rng.date_from > rng.date_to:
+                _debug.logic("date_range_rejected", range=rng.id, reason="inverted")
                 raise ValidationError(
                     _(
                         "The date range %(date_from)s - %(date_to)s of sequence "
@@ -816,6 +836,12 @@ class IrSequenceDate_Range(models.Model):
                 None,
             )
             if overlapping:
+                _debug.logic(
+                    "date_range_rejected",
+                    range=rng.id,
+                    reason="overlap",
+                    other=overlapping.id,
+                )
                 raise ValidationError(
                     _(
                         "The date range %(date_from)s - %(date_to)s of sequence "
@@ -834,6 +860,13 @@ class IrSequenceDate_Range(models.Model):
         else:
             number_next = _update_nogap(self, self.sequence_id.number_increment)
         self.invalidate_recordset(["number_next_actual"])
+        _debug.logic(
+            "range_next",
+            sequence=self.sequence_id.id,
+            range=self.id,
+            implementation=self.sequence_id.implementation,
+            number=number_next,
+        )
         return self.sequence_id.get_next_char(number_next)
 
     def _next_batch(self, count: int) -> list[str]:
@@ -864,6 +897,11 @@ class IrSequenceDate_Range(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         seqs = super().create(vals_list)
+        _debug.lifecycle(
+            "range_create",
+            count=len(seqs),
+            sequences=sorted({vals.get("sequence_id") or 0 for vals in vals_list}),
+        )
         for seq in seqs:
             main_seq = seq.sequence_id
             if main_seq.implementation == "standard":
@@ -877,10 +915,12 @@ class IrSequenceDate_Range(models.Model):
         return seqs
 
     def unlink(self) -> bool:
+        _debug.lifecycle("range_unlink", ranges=self.ids)
         _drop_sequences(self.env.cr, [x._get_pg_sequence_name() for x in self])
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("range_write", ranges=self.ids, fields=list(vals))
         if "number_next" in vals:
             seq_to_alter = self.filtered(
                 lambda seq: seq.sequence_id.implementation == "standard"

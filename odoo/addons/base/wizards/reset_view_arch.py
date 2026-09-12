@@ -52,6 +52,7 @@ class ResetViewArchWizard(models.TransientModel):
         if len(view_ids) == 2:
             result["reset_mode"] = "other_view"
             result["compare_view_id"] = view_ids[1]
+        _debug.logic("reset_wizard_defaults", views=list(view_ids))
         return result
 
     @api.depends("reset_mode", "view_id", "compare_view_id")
@@ -79,6 +80,12 @@ class ResetViewArchWizard(models.TransientModel):
                 diff_to_name = _("File Arch")
 
             view.arch_to_compare = diff_to
+            _debug.logic(
+                "arch_comparison",
+                view=view.view_id.id,
+                mode=view.reset_mode,
+                has_target=bool(diff_to),
+            )
 
             if not diff_to:
                 view.arch_diff = False

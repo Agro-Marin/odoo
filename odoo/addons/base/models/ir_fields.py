@@ -147,8 +147,10 @@ class IrFieldsConverter(models.AbstractModel):
         path = self._get_field_path(field)
         skip_records, set_empty_fields = self._get_policy_paths()
         if path in skip_records:
+            _debug.logic("import_policy", field=path, policy="skip_record")
             return ImportPolicy.SKIP_RECORD
         if path in set_empty_fields:
+            _debug.logic("import_policy", field=path, policy="set_empty")
             return ImportPolicy.SET_EMPTY
         return ImportPolicy.REPORT
 
@@ -334,12 +336,15 @@ class IrFieldsConverter(models.AbstractModel):
             try:
                 value = json_loads(value)
             except ValueError:
+                _debug.logic("properties_rejected", field=field.name, reason="json")
                 raise self._prepare_import_error(ValueError, msg) from None
 
         if not isinstance(value, list):
+            _debug.logic("properties_rejected", field=field.name, reason="not_list")
             raise self._prepare_import_error(ValueError, msg, {"value": value})
 
         value = [dict(property_dict) for property_dict in value]
+        _debug.pipeline("properties_imported", field=field.name, properties=len(value))
 
         warnings = []
         for property_dict in value:
@@ -783,6 +788,13 @@ class IrFieldsConverter(models.AbstractModel):
                     put(txt, value)
                 if term_lang == lang:
                     labels[value] = txt
+        _debug.perf.count(
+            "selection_index_built",
+            model=field.model_name,
+            field=field.name,
+            lang=lang,
+            tokens=len(index),
+        )
         return index, labels
 
     @api.model
@@ -809,6 +821,12 @@ class IrFieldsConverter(models.AbstractModel):
         skipped = self._get_policy_fallback_value(field)
         if skipped is not None:
             return skipped, []
+        _debug.logic(
+            "selection_value_unknown",
+            model=field.model_name,
+            field=field.name,
+            value=value,
+        )
         raise self._prepare_import_error(
             ValueError,
             self.env._("Value '%s' not found in selection field '%%(field)s'"),
@@ -1179,6 +1197,12 @@ class IrFieldsConverter(models.AbstractModel):
             return SKIP, warnings
 
         ids = [id for id in ids if id]
+        _debug.logic(
+            "many2many_converted",
+            field=field.name,
+            ids=len(ids),
+            mode="link" if self.env.context.get("update_many2many") else "set",
+        )
         if self.env.context.get("update_many2many"):
             return [Command.link(id) for id in ids], warnings
         else:
@@ -1262,4 +1286,10 @@ class IrFieldsConverter(models.AbstractModel):
             else:
                 commands.append(Command.create(writable))
 
+        _debug.pipeline(
+            "one2many_converted",
+            field=field.name,
+            commands=len(commands),
+            warnings=len(warnings),
+        )
         return commands, warnings

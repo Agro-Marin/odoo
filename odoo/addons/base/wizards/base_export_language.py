@@ -88,6 +88,9 @@ class BaseLanguageExport(models.TransientModel):
                 if not isinstance(domain, list):
                     raise UserError(_("Invalid domain filter: %s", self.domain))
                 ids = self.env[self.model_name].search(domain).ids
+                _debug.logic(
+                    "export_records_selected", model=self.model_name, records=len(ids)
+                )
                 is_exported = trans_export_records(
                     lang, self.model_name, ids, buf, self.format, self.env
                 )
@@ -118,6 +121,7 @@ class BaseLanguageExport(models.TransientModel):
             extension = "pot"
         name = f"{filename}.{extension}"
 
+        _debug.lifecycle("export_file_ready", name=name, exported=bool(out))
         self.write({"state": "get", "data": out, "name": name})
         return {
             "name": self.env.ref("base.action_wizard_lang_export").name,

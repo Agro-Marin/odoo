@@ -42,6 +42,7 @@ class IrLogging(models.Model):
         if sql.get_constraint_definition(
             self.env.cr, "ir_logging", "ir_logging_write_uid_fkey"
         ):
+            _debug.lifecycle("init_write_uid_fkey_dropped")
             self.env.cr.execute(
                 "ALTER TABLE ir_logging DROP CONSTRAINT ir_logging_write_uid_fkey"
             )
@@ -58,6 +59,7 @@ class IrLogging(models.Model):
         except TypeError, ValueError:
             retention_days = 0
         if retention_days <= 0:
+            _debug.logic("gc_logging_skipped", param=param)
             _logger.warning(
                 "Skipping ir.logging garbage collection: "
                 "'base.logging_retention_days' is %r (expected a positive "

@@ -49,6 +49,7 @@ class BaseLanguageInstall(models.TransientModel):
     def action_install_lang(self) -> dict[str, Any]:
         self.check_singleton()
         mods = self.env["ir.module.module"].search([("state", "=", "installed")])
+        _debug.lifecycle("langs_activated", langs=self.lang_ids.mapped("code"))
         self.lang_ids.active = True
         with _debug.perf(
             "install_langs",
@@ -97,6 +98,9 @@ class BaseLanguageInstall(models.TransientModel):
         }
 
     def action_switch_lang(self) -> dict[str, str]:
+        _debug.lifecycle(
+            "user_lang_switched", uid=self.env.uid, lang=self.first_lang_id.code
+        )
         self.env.user.lang = self.first_lang_id.code
         return {
             "type": "ir.actions.client",

@@ -114,6 +114,13 @@ class AssetAttachmentStore:
             for attach_id, fname in fname_by_id.items()
             if attach_id in deleted_ids
         }
+        _debug.lifecycle(
+            "attachments_unlinked",
+            bundle=self.name,
+            requested=len(attachments),
+            deleted=len(deleted_ids),
+            files=len(to_delete),
+        )
         if to_delete:
             attachments._remove_stored_file_multi(to_delete)
 
@@ -130,6 +137,12 @@ class AssetAttachmentStore:
         ]
 
         attachments = ira.sudo().search(domain)
+        _debug.logic(
+            "stale_attachments",
+            bundle=self.name,
+            extension=extension,
+            stale=len(attachments),
+        )
         if attachments:
             _logger.info(
                 "Deleting attachments %s (matching %s) because it was replaced with %s",
@@ -162,6 +175,13 @@ class AssetAttachmentStore:
         self.env.cr.execute(SQL(query, SUPERUSER_ID, url_pattern))
 
         attachment_ids = [r[0] for r in self.env.cr.fetchall()]
+        _debug.logic(
+            "attachments_looked_up",
+            bundle=self.name,
+            extension=extension,
+            ignore_version=ignore_version,
+            found=len(attachment_ids),
+        )
         return self.env["ir.attachment"].sudo().browse(attachment_ids)
 
     def save_attachment(self, extension: str, content: str) -> IrAttachment:
@@ -206,6 +226,7 @@ class AssetAttachmentStore:
     def _broadcast_bundle_changed(self, unique: str) -> None:
         sent = self.env.cr.precommit.data.setdefault(self._BROADCAST_KEY, set())
         if self.name in sent:
+            _debug.logic("bundle_changed_already_sent", bundle=self.name)
             return
         sent.add(self.name)
         self.env["bus.bus"]._sendone(
@@ -214,3 +235,4 @@ class AssetAttachmentStore:
             {"server_version": release.version},
         )
         _logger.debug("Asset Changed: bundle: %s -- version: %s", self.name, unique)
+        _debug.lifecycle("bundle_changed_broadcast", bundle=self.name, unique=unique)

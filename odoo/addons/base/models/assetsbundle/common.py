@@ -13,8 +13,10 @@ from lxml import etree
 
 import odoo.tools
 from odoo.libs.asset_log import get_asset_logger
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger("odoo.addons.base.models.assetsbundle")
+_debug = DebugLog(__name__)
 
 _bundle_log = get_asset_logger("bundle")
 
@@ -62,6 +64,7 @@ def _toolchain_versions() -> str:
         except OSError, ValueError, AttributeError:
             version = None
         parts.append(f"{name}@{version or lock_versions.get(name) or 'absent'}")
+    _debug.logic("toolchain_versions", versions=";".join(parts))
     return ";".join(parts)
 
 
@@ -74,40 +77,44 @@ def _repo_root() -> Path | None:
 
 @functools.cache
 def _pipeline_fingerprint() -> str:
-    digest = hashlib.sha256()
-    digest.update(_toolchain_versions().encode())
-    digest.update(b"\x00")
-    files: list[Path] = []
-    for source in _pipeline_sources():
-        if source.is_dir():
-            files.extend(source.glob("*.py"))
-            files.extend(source.glob("js/*.mjs"))
-        elif source.is_file():
-            files.append(source)
-        else:
+    with _debug.perf("pipeline_fingerprint") as span:
+        digest = hashlib.sha256()
+        digest.update(_toolchain_versions().encode())
+        digest.update(b"\x00")
+        files: list[Path] = []
+        for source in _pipeline_sources():
+            if source.is_dir():
+                files.extend(source.glob("*.py"))
+                files.extend(source.glob("js/*.mjs"))
+            elif source.is_file():
+                files.append(source)
+            else:
+                _logger.warning(
+                    "Asset pipeline source %s does not exist; changes to it will "
+                    "not invalidate cached bundles.",
+                    source,
+                )
+        try:
+            for path in sorted(files):
+                digest.update(path.name.encode())
+                digest.update(path.read_bytes())
+        except OSError:
+            from odoo import release
+
             _logger.warning(
-                "Asset pipeline source %s does not exist; changes to it will "
-                "not invalidate cached bundles.",
-                source,
+                "Could not read the asset pipeline sources to fingerprint them; "
+                "falling back to the release version. A pipeline change that does "
+                "not touch any asset file will not invalidate cached bundles."
             )
-    try:
-        for path in sorted(files):
-            digest.update(path.name.encode())
-            digest.update(path.read_bytes())
-    except OSError:
-        from odoo import release
+            _debug.logic("pipeline_fingerprint_fallback", reason="unreadable_source")
+            return release.version
+        if not files:
+            from odoo import release
 
-        _logger.warning(
-            "Could not read the asset pipeline sources to fingerprint them; "
-            "falling back to the release version. A pipeline change that does "
-            "not touch any asset file will not invalidate cached bundles."
-        )
-        return release.version
-    if not files:
-        from odoo import release
-
-        return release.version
-    return digest.hexdigest()
+            _debug.logic("pipeline_fingerprint_fallback", reason="no_sources")
+            return release.version
+        span.set(files=len(files))
+        return digest.hexdigest()
 
 
 def _sourcemap_source_root(asset_url: str) -> str:
@@ -157,29 +164,31 @@ class XMLAssetError(AssetError):
 
 
 def _run_cli_pipe(argv: Sequence[str], source: str, timeout_s: int) -> str:
-    try:
-        proc = Popen(
-            argv,
-            stdin=PIPE,
-            stdout=PIPE,
-            stderr=PIPE,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except OSError:
-        raise CompileError(f"Could not execute command {argv[0]!r}") from None
-    try:
-        out, err = proc.communicate(input=source, timeout=timeout_s)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
-        raise CompileError(f"{argv[0]!r} timed out after {timeout_s}s") from None
-    if proc.returncode:
-        cmd_output = out + err
-        if not cmd_output:
-            cmd_output = f"Process exited with return code {proc.returncode}\n"
-        raise CompileError(f"{argv[0]!r}: {cmd_output}")
-    return out
+    with _debug.perf("cli_pipe", tool=argv[0], source_len=len(source)) as span:
+        try:
+            proc = Popen(
+                argv,
+                stdin=PIPE,
+                stdout=PIPE,
+                stderr=PIPE,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError:
+            raise CompileError(f"Could not execute command {argv[0]!r}") from None
+        try:
+            out, err = proc.communicate(input=source, timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise CompileError(f"{argv[0]!r} timed out after {timeout_s}s") from None
+        if proc.returncode:
+            cmd_output = out + err
+            if not cmd_output:
+                cmd_output = f"Process exited with return code {proc.returncode}\n"
+            raise CompileError(f"{argv[0]!r}: {cmd_output}")
+        span.set(returncode=proc.returncode, out_len=len(out))
+        return out
 
 
 _CSS_STRING_OR_COMMENT = re.compile(

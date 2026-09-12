@@ -1,5 +1,6 @@
 import inspect
 import io
+import logging
 import os
 import sys
 from unittest.mock import patch
@@ -453,10 +454,15 @@ class IrModuleDescriptionRenderingCase(TransactionCase):
         saved = os.dup(2)
         os.dup2(write_fd, 2)
         os.close(write_fd)
+        # the root handler is a StreamHandler on stderr too: any log line
+        # emitted inside the window (a DEBUG channel switched on) would be
+        # read as a docutils leak
+        logging.disable(logging.CRITICAL)
         try:
             module.invalidate_recordset(["description_html"])
             self.assertTrue(module.description_html)
         finally:
+            logging.disable(logging.NOTSET)
             sys.stderr.flush()
             os.dup2(saved, 2)
             os.close(saved)

@@ -26,13 +26,18 @@ class IrQweb(models.AbstractModel):
         try:
             self._create_served_libs()
         except _EsmReadonlyDeclined:
+            _debug.logic("served_libs_fallback", reason="readonly_declined")
             return dict(self._external_libs())
         return dict(self._served_external_libs_table())
 
     @staticmethod
     def _minify_served_lib(path: Path, declared_url: str) -> bytes:
         source = path.read_text(encoding="utf-8")
-        minified = minify_js(source, label=declared_url, keep_names=True)
+        with _debug.perf(
+            "served_lib_minify", url=declared_url, bytes=len(source)
+        ) as span:
+            minified = minify_js(source, label=declared_url, keep_names=True)
+            span.set(minified=minified is not None)
         return (minified if minified is not None else source).encode("utf-8")
 
     def _create_served_libs(self) -> None:

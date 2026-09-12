@@ -150,6 +150,7 @@ class ResCurrency(models.Model):
         if self.env["res.company"].search_count(
             [("currency_id", "in", currencies.ids)], limit=1
         ):
+            _debug.logic("deactivation_refused", currencies=currencies.mapped("name"))
             raise UserError(
                 self.env._(
                     "This currency is set on a company and therefore cannot be deactivated."
@@ -201,18 +202,21 @@ class ResCurrency(models.Model):
             )
         )
         rate = Rate._field_to_sql(rate_query.table, "rate")
-        return dict(
-            self.env.execute_query(
-                currency_query.select(
-                    currency_id,
-                    SQL(
-                        "COALESCE((%s), (%s), 1.0)",
-                        rate_query.select(rate),
-                        rate_fallback.select(rate),
-                    ),
+        with _debug.perf(
+            "rates_sql", cr=self.env.cr, currencies=len(self), company=company.id
+        ):
+            return dict(
+                self.env.execute_query(
+                    currency_query.select(
+                        currency_id,
+                        SQL(
+                            "COALESCE((%s), (%s), 1.0)",
+                            rate_query.select(rate),
+                            rate_fallback.select(rate),
+                        ),
+                    )
                 )
             )
-        )
 
     def _get_rate_history_scope(self) -> tuple:
         return (self.env.su, self.env.uid, tuple(sorted(self.env.companies.ids)))
@@ -492,6 +496,9 @@ class ResCurrency(models.Model):
                 node = arch.xpath(xpath_expression)
                 if node:
                     node[0].set("string", label)
+            _debug.logic(
+                "rate_labels_applied", view_type=view_type, currency=currency_name
+            )
         return arch, view
 
 
@@ -600,6 +607,12 @@ class ResCurrencyRate(models.Model):
         for rate in self.currency_id.rate_ids.sudo():
             if rate.rate and rate.company_id == company and rate.name < self.name:
                 return rate
+        _debug.logic(
+            "latest_rate_missing",
+            currency=self.currency_id.id,
+            company=company.id,
+            before=str(self.name),
+        )
         return self.browse()
 
     def _get_last_rates_for_companies(self, companies: Any) -> dict:
@@ -694,6 +707,9 @@ class ResCurrencyRate(models.Model):
     def _check_company_id(self) -> None:
         for rate in self:
             if rate.company_id.sudo().parent_id:
+                _debug.logic(
+                    "rate_on_branch_refused", rate=rate.id, company=rate.company_id.id
+                )
                 raise ValidationError(
                     self.env._(
                         "Currency rates should only be created for main companies"

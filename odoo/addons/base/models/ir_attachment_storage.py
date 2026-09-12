@@ -106,10 +106,12 @@ class UnknownSchemeStorage(AttachmentStorage):
 
     def read(self, key: str, size: int | None = None) -> bytes:
         _logger.warning("No storage backend can read %r; serving no content", key)
+        _debug.logic("unknown_scheme", op="read", key=key)
         return b""
 
     def delete(self, key: str) -> None:
         _logger.warning("No storage backend can delete %r; leaving it in place", key)
+        _debug.logic("unknown_scheme", op="delete", key=key)
 
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         raise MissingError(
@@ -139,6 +141,7 @@ class FileStorage(AttachmentStorage):
 
     def write(self, data: bytes, checksum: str) -> dict[str, Any]:
         if not data:
+            _debug.logic("file_write_inlined", reason="empty")
             return self._inline_datas_values(data)
         return {
             "store_fname": self._model()._write_file(data, checksum),
@@ -147,6 +150,7 @@ class FileStorage(AttachmentStorage):
 
     def write_stream(self, fileobj: Any) -> dict[str, Any]:
         fname, size, checksum = self._model()._write_file_stream(fileobj)
+        _debug.lifecycle("file_stream_written", size=size, inlined=not size)
         if not size:
             return {
                 "checksum": checksum,
@@ -164,6 +168,7 @@ class FileStorage(AttachmentStorage):
         return self._model()._read_file(key, size=size)
 
     def delete(self, key: str) -> None:
+        _debug.lifecycle("file_marked_for_gc", key=key)
         self._model()._mark_for_gc(key)
 
     def autovacuum(self) -> tuple[int, bool] | bool:

@@ -82,7 +82,11 @@ class IrActionsClient(models.Model):
                 record.params_store = False
             elif isinstance(params, dict):
                 record.params_store = repr(params)
+                _debug.lifecycle("params_stored", action=record.id, keys=len(params))
             else:
+                _debug.logic(
+                    "params_rejected", action=record.id, type=type(params).__name__
+                )
                 raise ValidationError(
                     self.env._(
                         "The parameters of client action '%(name)s' must be a "

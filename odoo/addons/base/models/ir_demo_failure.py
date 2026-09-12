@@ -1,6 +1,9 @@
 from typing import Any
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrDemo_Failure(models.TransientModel):
@@ -25,4 +28,5 @@ class IrDemo_FailureWizard(models.TransientModel):
     failures_count = fields.Count("failure_ids")
 
     def done(self) -> dict[str, Any]:
+        _debug.lifecycle("demo_failures_acknowledged", failures=self.failures_count)
         return self.env["ir.module.module"]._next_todo_action()

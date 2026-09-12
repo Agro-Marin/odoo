@@ -159,6 +159,7 @@ class ResUsersApikeys(models.Model):
         for current_key, expiration_date in self.env.cr.fetchall():
             if KEY_CRYPT_CONTEXT.verify(key, current_key):
                 return expiration_date
+        _debug.logic("apikey_expiration_unknown", scope=scope)
         return None
 
     def _get_max_duration(self) -> float:
@@ -174,15 +175,23 @@ class ResUsersApikeys(models.Model):
         if self.env.is_system():
             return
         if not date:
+            _debug.logic("apikey_expiration_rejected", uid=self.env.uid, reason="unset")
             raise ValidationError(_("The API key must have an expiration date"))
         max_duration = self._get_max_duration()
         if date > fields.Datetime.now() + datetime.timedelta(days=max_duration):
+            _debug.logic(
+                "apikey_expiration_rejected",
+                uid=self.env.uid,
+                reason="too_far",
+                max_days=max_duration,
+            )
             raise ValidationError(
                 _("You cannot exceed %(duration)s days.", duration=max_duration)
             )
 
     def _check_generate_access(self) -> None:
         if not self.env.user._is_internal():
+            _debug.logic("apikey_generate_refused", uid=self.env.uid)
             raise AccessError(_("Only internal users can create API keys"))
 
     def _generate(
@@ -326,6 +335,7 @@ class ResUsersApikeysDescription(models.TransientModel):
         k = self.env["res.users.apikeys"]._generate(
             None, description.name, self.expiration_date
         )
+        _debug.lifecycle("apikey_wizard_done", uid=self.env.uid, wizard=self.id)
         description.unlink()
 
         return {

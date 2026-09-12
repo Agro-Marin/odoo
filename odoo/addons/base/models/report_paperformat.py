@@ -1,5 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 PAPER_SIZES = [
     {
@@ -284,5 +287,13 @@ class ReportPaperformat(models.Model):
             if record.orientation == "Landscape":
                 width, height = height, width
 
+            _debug.logic(
+                "page_size_resolved",
+                paperformat=record.id,
+                format=record.format,
+                orientation=record.orientation,
+                width=width,
+                height=height,
+            )
             record.print_page_width = width
             record.print_page_height = height

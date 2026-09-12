@@ -148,6 +148,11 @@ class IrActionsAct_Window(models.Model):
             )
             for vals in vals_list
         ]
+        _debug.lifecycle(
+            "create",
+            count=len(vals_list),
+            models=sorted({vals.get("res_model") or "" for vals in vals_list}),
+        )
         return super().create(vals_list)
 
     @api.depends("all_embedded_action_ids.is_visible")
@@ -177,11 +182,18 @@ class IrActionsAct_Window(models.Model):
                 missing_modes.remove(act.view_id.type)
                 views.append((act.view_id.id, act.view_id.type))
             views.extend((False, mode) for mode in missing_modes)
+            _debug.logic(
+                "views_computed",
+                action=act.id,
+                explicit=len(lines),
+                unbacked=len(missing_modes),
+            )
             act.views = views
 
     def _get_empty_list_help(self, stored_help: str | bool) -> str | bool:
         self.check_singleton()
         if self.res_model not in self.env:
+            _debug.logic("empty_list_help_stored", action=self.id, model=self.res_model)
             return stored_help
         ctx = self.env["ir.actions.actions"]._eval_action_context(self.context)
         return (
@@ -221,6 +233,12 @@ class IrActionsAct_Window(models.Model):
                 sorted(embedded._get_fields_readable())
             )
         result["help"] = self._get_empty_list_help(result.get("help", ""))
+        _debug.pipeline(
+            "action_dict",
+            action=self.id,
+            model=self.res_model,
+            embedded=len(result["embedded_action_ids"] or ()),
+        )
         return result
 
     @api.model
@@ -244,6 +262,9 @@ class IrActionsAct_Window(models.Model):
             )
         )
         missing = candidates - covered
+        _debug.pipeline(
+            "view_modes_check", candidates=len(candidates), missing=len(missing)
+        )
         if not missing:
             return
         actions_by_model = self.search(

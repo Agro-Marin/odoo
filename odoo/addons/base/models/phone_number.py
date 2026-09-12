@@ -121,6 +121,7 @@ class PhoneNumber(models.Model):
     @api.model
     def _get_country_from_vals(self, vals: ValuesType):
         if vals.get("country_id"):
+            _debug.logic("country_from_vals", by="country_id")
             return self.env["res.country"].browse(vals["country_id"])
         partner_ids = [
             id_
@@ -134,6 +135,7 @@ class PhoneNumber(models.Model):
                 else []
             )
         ]
+        _debug.logic("country_from_vals", by="partner", partners=len(partner_ids))
         return self.env["res.partner"].browse(partner_ids[:1]).country_id
 
     def _link_existing(self, vals: ValuesType) -> None:
@@ -150,6 +152,12 @@ class PhoneNumber(models.Model):
         }
         if not self.active:
             relational["active"] = True
+        _debug.logic(
+            "link_existing",
+            phone=self.id,
+            reactivated=not self.active,
+            fields=list(relational),
+        )
         if relational:
             self.write(relational)
 

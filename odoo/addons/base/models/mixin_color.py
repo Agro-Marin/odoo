@@ -3,6 +3,9 @@ from random import choice
 from odoo import api, models
 from odoo.exceptions import ValidationError
 from odoo.libs.colors import TAG_COLORS, hex_to_rgb, lighten_hex
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinColor(models.AbstractModel):
@@ -25,6 +28,12 @@ class MixinColor(models.AbstractModel):
                         raise ValueError(value)
                     hex_to_rgb(value)
                 except ValueError:
+                    _debug.logic(
+                        "hex_color_rejected",
+                        model=self._name,
+                        field=field_name,
+                        value=value,
+                    )
                     raise ValidationError(
                         self.env._(
                             "%(field)s must be a hex color such as #2EB769.",
@@ -37,6 +46,13 @@ class MixinColor(models.AbstractModel):
             for field_name in field_names:
                 value = record[field_name]
                 if not 0 <= value < len(palette):
+                    _debug.logic(
+                        "palette_color_rejected",
+                        model=self._name,
+                        field=field_name,
+                        value=value,
+                        palette=len(palette),
+                    )
                     raise ValidationError(
                         self.env._(
                             "%(field)s must be a color index between 0 and %(max)s.",

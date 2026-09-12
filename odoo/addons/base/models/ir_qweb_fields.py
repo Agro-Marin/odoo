@@ -369,6 +369,7 @@ class IrQwebFieldHtml(models.AbstractModel):
             f"<body>{value}</body>", etree.HTMLParser(encoding="utf-8")
         )[0]
         att_names = irQweb._get_post_processing_att_names()
+        rewritten = 0  # debuglog
         for element in body.iter():
             attrib = element.attrib
             if not attrib:
@@ -381,6 +382,8 @@ class IrQwebFieldHtml(models.AbstractModel):
             ):
                 attrib.clear()
                 attrib.update(processed)
+                rewritten += 1  # debuglog
+        _debug.perf.count("html_post_processed", chars=len(value), rewritten=rewritten)
         body = self._post_process_html_body(body, options)
         serialized = etree.tostring(body, encoding="unicode", method="html")
         return Markup(serialized.removeprefix("<body>").removesuffix("</body>"))
@@ -753,6 +756,13 @@ class IrQwebFieldContact(models.AbstractModel):
             address = opsep.join(address_lines).strip()
         else:
             address = ""
+        _debug.logic(
+            "contact_rendered",
+            partner=value.id,
+            fields=list(opf),
+            address_lines=len(address_lines),
+            separator="br" if not sep and not options.get("no_tag_br") else "text",
+        )
         val = {
             "name": name_line,
             "address": address,
@@ -792,6 +802,7 @@ class IrQwebFieldQweb(models.AbstractModel):
                 field_name,
                 view._name,
             )
+            _debug.logic("qweb_field_not_a_view", field=field_name, model=view._name)
             return ""
 
         return self.env["ir.qweb"]._render(view.id, options.get("values", {}))

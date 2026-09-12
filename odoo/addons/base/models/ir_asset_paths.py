@@ -130,6 +130,7 @@ def _get_static_files(
                 continue
             file = real
         result.add((file, status.st_mtime))
+    _debug.perf.count("static_files_globbed", pattern=pattern, files=len(result))
     return sorted(result)
 
 
@@ -252,6 +253,7 @@ class BundleWalk:
 
     def walk(self, bundle: str, seen: tuple[str, ...] = ()) -> None:
         if bundle in seen:
+            _debug.logic("bundle_circular", bundle=bundle, depth=len(seen))
             raise ValueError(
                 f"Circular assets bundle declaration: {' > '.join([*seen, bundle])}"
             )
@@ -300,6 +302,14 @@ class BundleWalk:
             if not targets:
                 return
 
+        _debug.logic(
+            "directive_applied",
+            bundle=bundle,
+            directive=directive,
+            path=path_def,
+            resolved=len(paths),
+            targets=len(targets),
+        )
         if directive == APPEND_DIRECTIVE:
             asset_paths.append_paths(paths, bundle)
         elif directive == PREPEND_DIRECTIVE:
@@ -320,6 +330,7 @@ class BundleWalk:
                     bundle,
                     path_def,
                 )
+                _debug.logic("remove_no_effect", bundle=bundle, path=path_def)
                 return
             asset_paths.remove_paths(
                 paths, bundle, strict=not is_wildcard_glob(path_def)
@@ -343,6 +354,9 @@ class BundleWalk:
                 bundle,
                 path_def,
             )
+            _debug.logic(
+                "target_skipped", bundle=bundle, directive=directive, reason="no_target"
+            )
             return []
         target_paths = self.resolve(target)
         if not target_paths:
@@ -353,6 +367,13 @@ class BundleWalk:
                 bundle,
                 target,
                 path_def,
+            )
+            _debug.logic(
+                "target_skipped",
+                bundle=bundle,
+                directive=directive,
+                target=target,
+                reason="unresolved",
             )
             return []
         return [resolved[0] for resolved in target_paths]
@@ -381,6 +402,12 @@ class BundleWalk:
                 directive,
                 target,
             )
+            _debug.logic(
+                "stranded_sources",
+                bundle=bundle,
+                directive=directive,
+                stranded=len(stranded),
+            )
 
     def _replace_paths(
         self,
@@ -408,6 +435,14 @@ class BundleWalk:
         doomed = [
             ResolvedPath(path, None, None) for path in targets if path not in surviving
         ]
+        _debug.pipeline(
+            "replace_paths",
+            bundle=bundle,
+            sources=len(sources),
+            moved=len(present),
+            surviving=len(surviving),
+            removed=len(doomed),
+        )
         if doomed:
             asset_paths.remove_paths(doomed, bundle, strict=strict)
 

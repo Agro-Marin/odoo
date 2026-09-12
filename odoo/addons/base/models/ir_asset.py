@@ -128,6 +128,9 @@ class IrAsset(models.Model):
     def _check_directive_target(self) -> None:
         for asset in self:
             if asset.directive in DIRECTIVES_WITH_TARGET and not asset.target:
+                _debug.logic(
+                    "target_missing", asset=asset.id, directive=asset.directive
+                )
                 raise ValidationError(
                     self.env._(
                         "Asset %(name)s: directive '%(directive)s' positions its "
@@ -229,6 +232,14 @@ class IrAsset(models.Model):
             raise ValueError(
                 f"{bundle_name} is not a valid bundle name, should have two parts"
             )
+        _debug.logic(
+            "bundle_name_parsed",
+            bundle=bundle_name,
+            asset_type=asset_type,
+            rtl=rtl,
+            autoprefix=autoprefix,
+            debug_assets=debug_assets,
+        )
         return bundle_name, rtl, asset_type, autoprefix
 
     @tools.conditional(
@@ -339,6 +350,14 @@ class IrAsset(models.Model):
             ).filtered("active")
             if applicable:
                 resolution.bundle_assets[bundle] = list(applicable)
+        _debug.pipeline(
+            "bundle_assets_loaded",
+            bundles=len(missing),
+            records=len(assets),
+            applicable=sum(
+                len(resolution.bundle_assets.get(bundle, ())) for bundle in missing
+            ),
+        )
 
     def _get_bundles_in_include_closure(
         self, bundle: str, manifest_assets: Mapping[str, tuple[tuple[str, Any], ...]]
@@ -357,6 +376,7 @@ class IrAsset(models.Model):
                     and command[0] == INCLUDE_DIRECTIVE
                 ):
                     pending.append(command[1])
+        _debug.pipeline("include_closure", bundle=bundle, bundles=len(closure))
         return closure
 
     def _get_bundle_containing_path(
@@ -374,6 +394,12 @@ class IrAsset(models.Model):
 
         for entry in asset_paths:
             if entry.path == target_path:
+                _debug.logic(
+                    "bundle_containing_path",
+                    path=target_path,
+                    root=root_bundle,
+                    bundle=entry.bundle,
+                )
                 return entry.bundle
 
         return root_bundle
@@ -400,6 +426,7 @@ class IrAsset(models.Model):
             key=lambda m: (not m["application"], int(m["sequence"]), m["name"]),
         )
 
+        _debug.perf.count("addons_sorted_topologically", addons=len(addons_tuple))
         return tuple(
             misc.topological_sort(
                 {m["name"]: tuple(m["depends"]) for m in sorted_manifs}
@@ -446,6 +473,7 @@ class IrAsset(models.Model):
                     path_def,
                     addon,
                 )
+                _debug.logic("path_skipped_inactive_addon", path=path_def, addon=addon)
                 return ()
             addon_root, static_dir = resolution.get_addon_roots(addon, addon_manifest)
             full_path = os.path.normpath("/".join([addon_root, *path_parts[1:]]))
@@ -477,6 +505,12 @@ class IrAsset(models.Model):
                 self._warn_attachment_path_unbacked(
                     path_def, addon if addon_manifest else None
                 )
+            _debug.logic(
+                "path_as_attachment_url",
+                path=path_def,
+                addon=addon if addon_manifest else None,
+                escaping=bool(addon_manifest and not safe_path),
+            )
             paths = (ResolvedPath(intern(path_def), None, None),)
 
         if not paths:

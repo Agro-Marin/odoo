@@ -134,8 +134,10 @@ class IrActionsActions(models.Model):
                 )
             for prefix in self._RESERVED_PATH_PREFIXES:
                 if action.path.startswith(prefix):
+                    _debug.logic("path_rejected", action=action.id, path=action.path)
                     raise ValidationError(_("'%s' is a reserved prefix.", prefix))
             if action.path in self._RESERVED_PATHS:
+                _debug.logic("path_rejected", action=action.id, path=action.path)
                 raise ValidationError(
                     _("'%s' is reserved, and can not be used as path.", action.path)
                 )
@@ -190,6 +192,12 @@ class IrActionsActions(models.Model):
         for action_id, model_name in self._get_model_names_concrete().items():
             by_model[model_name].append(action_id)
         result = True
+        _debug.pipeline(
+            "unlink_as_concrete_types",
+            actions=len(self),
+            models={model: len(ids) for model, ids in by_model.items()},
+            cache_groups=sorted(groups),
+        )
         with self.env.cr.savepoint():
             for model_name, ids in by_model.items():
                 if model_name != self._name:
@@ -414,12 +422,20 @@ class IrActionsActions(models.Model):
             )
         )
         found = {}
+        mismatched = 0  # debuglog
         for action_id, table, action_type in self.env.cr.fetchall():
             candidates = by_table.get(table) or (root._name,)
             if action_type in candidates:
                 found[action_id] = action_type
             else:
                 found[action_id] = candidates[0] if len(candidates) == 1 else root._name
+                mismatched += 1  # debuglog
+        _debug.perf.count(
+            "concrete_models_resolved",
+            actions=len(self),
+            found=len(found),
+            type_mismatched=mismatched,
+        )
         return {action_id: found.get(action_id, root._name) for action_id in self.ids}
 
     def _get_action_concrete(self) -> Self:
@@ -435,6 +451,7 @@ class IrActionsActions(models.Model):
             .search([("path", "=", path)], limit=1)
             .action_id
         )
+        _debug.logic("action_by_path", path=path, action=action.id)
         return action._get_action_concrete() if action else action
 
     @api.model
@@ -572,6 +589,9 @@ class IrActionsActions(models.Model):
         record = self.env.ref(full_xml_id)
         if not isinstance(self.env[record._name], self.env.registry[self._name]):
             msg = f"{full_xml_id} is a {record._name}, not a {self._name}"
+            _debug.logic(
+                "action_xmlid_wrong_type", xmlid=full_xml_id, model=record._name
+            )
             raise ValueError(msg)
         return record._get_action_dict()
 
@@ -605,15 +625,25 @@ class IrActionsActions(models.Model):
             for reservation in Reservation.search([("action_id", "in", self.ids)])
         }
         to_create = []
+        released = renamed = 0  # debuglog
         for action in self:
             reservation = reserved.get(action.id)
             if not action.path:
                 if reservation:
                     reservation.unlink()
+                    released += 1  # debuglog
             elif not reservation:
                 to_create.append({"path": action.path, "action_id": action.id})
             elif reservation.path != action.path:
                 reservation.path = action.path
+                renamed += 1  # debuglog
+        _debug.lifecycle(
+            "path_reservations_synced",
+            actions=len(self),
+            created=len(to_create),
+            renamed=renamed,
+            released=released,
+        )
         if to_create:
             Reservation.create(to_create)
 
@@ -626,6 +656,12 @@ class IrActionsActions(models.Model):
                 if mode and mode not in allowed
             ]
             if unknown:
+                _debug.logic(
+                    "view_type_unknown",
+                    action=action.id,
+                    field=field_name,
+                    unknown=unknown,
+                )
                 raise ValidationError(
                     _(
                         "Unknown view type(s) %(unknown)s in %(field)s. Allowed: %(allowed)s",

@@ -3,8 +3,11 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from .ir_module import LINK_STATES
+
+_debug = DebugLog(__name__)
 
 
 class MixinModuleLink(models.AbstractModel):
@@ -29,6 +32,12 @@ class MixinModuleLink(models.AbstractModel):
             [("name", "in", list({link.name for link in self}))]
         )
         by_name = {module.name: module for module in modules}
+        _debug.perf.count(
+            "linked_modules_resolved",
+            model=self._name,
+            links=len(self),
+            modules=len(modules),
+        )
         for link in self:
             link.linked_id = by_name.get(link.name)
 
@@ -36,6 +45,12 @@ class MixinModuleLink(models.AbstractModel):
         Module = self.env["ir.module.module"]
         if operator in ("any", "not any"):
             names = list(Module.search(Domain(value)).mapped("name"))
+            _debug.logic(
+                "linked_id_search",
+                model=self._name,
+                operator=operator,
+                names=len(names),
+            )
             return Domain("name", "in" if operator == "any" else "not in", names)
         if operator not in ("in", "not in"):
             return NotImplemented
@@ -51,6 +66,13 @@ class MixinModuleLink(models.AbstractModel):
         if len(ids) < len(values):
             known = list(Module.search([]).mapped("name"))
             matched |= Domain("name", "not in", known)
+        _debug.logic(
+            "linked_id_search",
+            model=self._name,
+            operator=operator,
+            ids=len(ids),
+            with_unset=len(ids) < len(values),
+        )
         return matched if operator == "in" else ~matched
 
     @api.depends("linked_id.state")

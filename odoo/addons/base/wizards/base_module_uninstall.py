@@ -40,6 +40,12 @@ class BaseModuleUninstall(models.TransientModel):
             wizard.impacted_module_ids = (
                 modules if wizard.show_all else wizard._get_modules_to_display(modules)
             )
+            _debug.pipeline(
+                "uninstall_impact",
+                modules=wizard.module_ids.mapped("name"),
+                downstream=len(modules),
+                shown=len(wizard.impacted_module_ids),
+            )
 
     @api.model
     def _get_modules_to_display(self, modules: Self) -> Self:
@@ -63,6 +69,12 @@ class BaseModuleUninstall(models.TransientModel):
                     )
 
                 wizard.model_ids = ir_models.filtered(lost).sorted("name")
+                _debug.pipeline(
+                    "uninstall_lost_models",
+                    modules=len(module_names),
+                    candidates=len(ir_models),
+                    lost=len(wizard.model_ids),
+                )
             else:
                 wizard.model_ids = False
 

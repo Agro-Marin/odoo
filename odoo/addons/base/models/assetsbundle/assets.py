@@ -91,7 +91,11 @@ class WebAsset:
                 )
                 self._ir_attach.check_singleton()
             except ValueError:
+                _debug.logic("attachment_asset_missing", name=self.name, url=self.url)
                 raise AssetNotFoundError(f"Could not find {self.name}") from None
+            _debug.logic(
+                "attachment_asset_loaded", name=self.name, attachment=self._ir_attach.id
+            )
 
     @property
     def last_modified(self) -> float | int:
@@ -127,6 +131,7 @@ class WebAsset:
             else:
                 return self._ir_attach.raw.decode()
         except UnicodeDecodeError:
+            _debug.logic("asset_not_utf8", name=self.name, url=self.url)
             raise AssetError(f"{self.name} is not utf-8 encoded.") from None
         except OSError:
             _debug.logic("asset_missing", name=self.name, url=self.url)
@@ -216,6 +221,7 @@ class XMLAsset(WebAsset):
         try:
             raw = self._raw_source()
         except AssetError as e:
+            _debug.logic("xml_asset_unreadable", name=self.name, url=self.url)
             return self._prepare_asset_error(str(e))
         parser = etree.XMLParser(
             ns_clean=True, remove_comments=True, resolve_entities=False
@@ -223,6 +229,9 @@ class XMLAsset(WebAsset):
         try:
             return etree.fromstring(raw.encode("utf-8"), parser=parser)
         except etree.XMLSyntaxError as e:
+            _debug.logic(
+                "xml_asset_invalid", name=self.name, url=self.url, line=e.lineno
+            )
             return self._prepare_asset_error(f"Invalid XML template: {e.msg}")
 
     @functools.cached_property
@@ -295,6 +304,7 @@ class StylesheetAsset(WebAsset):
             return self.rx_charset.sub("", content)
         except AssetError as e:
             self.errors.append(str(e))
+            _debug.logic("stylesheet_content_failed", name=self.name, url=self.url)
             return ""
 
     def get_source(self) -> str:

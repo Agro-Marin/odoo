@@ -177,6 +177,7 @@ class ResLang(models.Model):
                 if (lang.time_format and pattern in lang.time_format) or (
                     lang.date_format and pattern in lang.date_format
                 ):
+                    _debug.logic("format_rejected", lang=lang.code, pattern=pattern)
                     raise ValidationError(
                         _(
                             "Invalid date/time format directive specified. "
@@ -278,6 +279,7 @@ class ResLang(models.Model):
                 }
             finally:
                 tools.translate.resetlocale()
+        _debug.lifecycle("lang_created_from_locale", code=lang, iso=iso_lang)
         return self.create(lang_info)
 
     @api.model
@@ -382,6 +384,7 @@ class ResLang(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         lang_codes = self.mapped("code")
+        _debug.lifecycle("write", codes=lang_codes, fields=list(vals))
         if "code" in vals and any(code != vals["code"] for code in lang_codes):
             raise UserError(_("Language code cannot be modified."))
         if "active" in vals and not vals["active"]:
@@ -449,6 +452,9 @@ class ResLang(models.Model):
                 ):
                     short_lang.url_code = short_lang.code
                     long_lang.url_code = short_code
+                    _debug.logic(
+                        "url_code_swapped", long=long_lang.code, short=short_lang.code
+                    )
 
         self.env.flush_all()
         self.env.registry.clear_cache("stable")
@@ -458,6 +464,7 @@ class ResLang(models.Model):
     def _unlink_except_default_lang(self) -> None:
         for language in self:
             if language.code == "en_US":
+                _debug.logic("unlink_refused", lang=language.code, reason="base")
                 raise UserError(_("Base Language 'en_US' can not be deleted."))
             ctx_lang = self.env.context.get("lang")
             if ctx_lang and (language.code == ctx_lang):
@@ -467,6 +474,7 @@ class ResLang(models.Model):
                     )
                 )
             if language.active:
+                _debug.logic("unlink_refused", lang=language.code, reason="active")
                 raise UserError(
                     _(
                         "You cannot delete the language which is Active!\nPlease de-activate the language first."
@@ -474,6 +482,7 @@ class ResLang(models.Model):
                 )
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", codes=self.mapped("code"))
         self.env.registry.clear_cache("stable")
         return super().unlink()
 

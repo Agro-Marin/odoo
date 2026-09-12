@@ -84,6 +84,7 @@ class IrRule(models.Model):
     @api.constrains("model_id")
     def _check_model_name(self) -> None:
         if any(rule.model_id.model == self._name for rule in self):
+            _debug.logic("rule_on_rules_refused", rules=self.ids)
             raise ValidationError(
                 _("Rules can not be applied on the Record Rules model.")
             )
@@ -98,6 +99,12 @@ class IrRule(models.Model):
                     model = self.env[rule.model_id.model].sudo()
                     Domain(domain).check(model)
                 except Exception as e:
+                    _debug.logic(
+                        "rule_domain_invalid",
+                        rule=rule.id,
+                        model=rule.model_id.model,
+                        error=type(e).__name__,
+                    )
                     raise ValidationError(_("Invalid domain: %s", e)) from None
 
     def _get_context_keys_in_domains(self) -> list[str]:
@@ -173,7 +180,15 @@ class IrRule(models.Model):
             list(self.env.user._get_group_ids()),
             self._get_clause_for_unloaded_module_rules(),
         )
-        return self.browse(v for (v,) in self.env.execute_query(sql))
+        rules = self.browse(v for (v,) in self.env.execute_query(sql))
+        _debug.perf.count(
+            "rules_fetched",
+            model=model_name,
+            mode=mode,
+            uid=self.env.uid,
+            rules=len(rules),
+        )
+        return rules
 
     def _get_clause_for_unloaded_module_rules(self) -> SQL:
         return unloaded_module_clause(self.env, "ir.rule", "r")
@@ -349,6 +364,13 @@ class IrRule(models.Model):
     ) -> tuple[str, dict | None]:
         context = None
         suggested_companies = display_records._get_redirect_suggested_company()
+        _debug.logic(
+            "access_error_company_hint",
+            uid=self.env.uid,
+            suggested=len(suggested_companies) if suggested_companies else 0,
+            reachable=bool(suggested_companies)
+            and suggested_companies in self.env.user.company_ids,
+        )
         if suggested_companies and len(suggested_companies) != 1:
             resolution_info += _(
                 "\n\nNote: this might be a multi-company issue. Switching company may help - in Odoo, not in real life!"

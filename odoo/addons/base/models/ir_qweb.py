@@ -587,6 +587,12 @@ class IrQweb(models.AbstractModel):
         if compiled is None:
             compiled = irQweb._compile(params.view_ref)
             compiled_cache[compile_key] = compiled
+            _debug.perf.count(
+                "render_compiled_memo_miss",
+                template=params.view_ref
+                if isinstance(params.view_ref, int | str)
+                else "etree",
+            )
         template_functions, def_name, options = compiled
         return template_functions[params.method or def_name], options
 
@@ -609,6 +615,12 @@ class IrQweb(models.AbstractModel):
             qweb_error_info = error.qweb
         elif not isinstance(error, UserError):
             if self._is_error_raised_in_qweb(error):
+                _debug.logic(
+                    "render_error_wrapped",
+                    error=type(error).__name__,
+                    template=str(qweb_error_info.ref)[:80],
+                    depth=len(stack),
+                )
                 raise QWebError(qweb_error_info) from error
 
         error.qweb = qweb_error_info
@@ -862,6 +874,7 @@ class IrQweb(models.AbstractModel):
                 f"Cannot load template file {path!r}: "
                 f"{module!r} is not a known Odoo module"
             )
+            _debug.logic("template_file_rejected", path=path, reason="unknown_module")
             raise ValueError(msg)
         if "templates" not in Path(file_path(path)).relative_to(manifest.path).parts:
             msg = (
@@ -871,6 +884,7 @@ class IrQweb(models.AbstractModel):
             raise ValueError(msg)
         with file_open(path, "rb", filter_ext=(".xml",)) as file:
             element = etree.fromstring(memoryview(file.read()))
+        _debug.logic("template_file_loaded", path=path, module=module)
         return self._generate_code_uncached(element)
 
     def _generate_code_uncached(
@@ -1091,6 +1105,7 @@ class IrQweb(models.AbstractModel):
         id_or_xmlid = _id_or_xmlid(template)
         value = self._preload_trees([id_or_xmlid]).get(id_or_xmlid)
         if value.get("error"):
+            _debug.logic("template_cached_error", template=id_or_xmlid)
             raise self.env["ir.ui.view"]._prepare_cached_template_error(value["error"])
 
         value_tree = deepcopy(value["tree"])
@@ -1208,6 +1223,11 @@ class IrQweb(models.AbstractModel):
                         limit=1,
                     )
                     converted_cache[checksum] = converted.datas if converted else None
+                    _debug.logic(
+                        "webp_as_jpg_lookup",
+                        checksum=checksum[:12],
+                        converted=bool(converted),
+                    )
                 if converted_cache[checksum]:
                     base64_source = converted_cache[checksum]
         return image_data_uri(base64_source)
@@ -2748,6 +2768,7 @@ class IrQweb(models.AbstractModel):
         lazy_load = self._compile_bool(el.attrib.pop("lazy_load", False))
         media = el.attrib.pop("media", False)
         autoprefix = self._compile_bool(el.attrib.pop("t-autoprefix", False))
+        _debug.logic("call_assets_compiled", bundle=xmlid, css=css, js=js, media=media)
         code.append(
             indent_code(
                 f"""

@@ -102,6 +102,7 @@ class IrUiMenu(models.Model):
             ) as icon_file:
                 return base64.encodebytes(icon_file.read())
         except FileNotFoundError, ValueError:
+            _debug.logic("web_icon_unreadable", path=icon_path)
             return False
 
     _hierarchy_cycle_message = _lt("Error! You cannot create recursive menus.")
@@ -282,6 +283,7 @@ class IrUiMenu(models.Model):
         for menu in menu_roots_data:
             menu["xmlid"] = xmlids.get(menu["id"], "")
 
+        _debug.pipeline("load_menus_root", uid=self.env.uid, roots=len(menu_roots))
         return menu_root
 
     @api.model
@@ -407,6 +409,12 @@ class IrUiMenu(models.Model):
                 category = category.parent_id
             if category:
                 categories[menu_id] = (category.name, category.sequence)
+        _debug.perf.count(
+            "app_categories_computed",
+            roots=len(root_menu_ids),
+            modules=len(modules),
+            headings=len({name for name, _seq in categories.values()}),
+        )
         return categories
 
     @classmethod
@@ -439,6 +447,9 @@ class IrUiMenu(models.Model):
                 fields=["res_id", "datas", "mimetype"],
             )
         )
+        _debug.perf.count(
+            "menu_icons_loaded", menus=len(visible_menus), icons=len(icon_attachments)
+        )
         return {attachment["res_id"]: attachment for attachment in icon_attachments}
 
     def _get_action_info(self, action_ids_by_type: dict) -> dict[tuple, dict[str, Any]]:
@@ -452,6 +463,11 @@ class IrUiMenu(models.Model):
                     "path": action.path,
                     "res_model": action.res_model if has_res_model else False,
                 }
+        _debug.perf.count(
+            "menu_actions_loaded",
+            types=len(action_ids_by_type),
+            actions=len(action_info_by_action),
+        )
         return action_info_by_action
 
     def _get_menuitems_xmlids(self) -> dict[int, str]:

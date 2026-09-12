@@ -52,6 +52,12 @@ class JsPipeline:
             bundle=bundle.name,
             url=asset.url or "<inline>",
         )
+        _debug.logic(
+            "module_syntax_stub",
+            bundle=bundle.name,
+            url=asset.url or "<inline>",
+            fatal=self._is_asset_error_fatal(),
+        )
         if self._is_asset_error_fatal():
             raise ModuleSyntaxInLegacyBundleError(msg)
         return f"console.error({json.dumps(msg)});"
@@ -98,4 +104,11 @@ class JsPipeline:
             content_bundle += ";" + template_bundle
 
         content_bundle += "\n\n//# sourceMappingURL=" + sourcemap_url
+        _debug.pipeline(
+            "sourcemap_bundle",
+            bundle=self._bundle.name,
+            assets=len(self._bundle.javascripts),
+            lines=content_line_count,
+            bytes=len(content_bundle),
+        )
         return content_bundle

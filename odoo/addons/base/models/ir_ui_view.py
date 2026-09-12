@@ -404,15 +404,21 @@ class IrUiView(models.Model):
             _logger.warning(
                 "View %s: Full path [%s] cannot be found.", xml_id, self.arch_fs
             )
+            _debug.logic("arch_file_unreadable", view=self.id, reason="missing")
             return None
         except etree.ParseError as e:
             _logger.warning(
                 "View %s: file [%s] is not well-formed XML: %s", xml_id, self.arch_fs, e
             )
+            _debug.logic("arch_file_unreadable", view=self.id, reason="parse")
             return None
 
         if not arch:
+            _debug.logic("arch_file_unreadable", view=self.id, reason="not_found")
             return None
+        _debug.logic(
+            "arch_read_from_file", view=self.id, xml_id=xml_id, chars=len(arch)
+        )
         return self._translate_arch_from_file(
             self._rewrite_arch_fs_refs(arch, xml_id).replace("%%", "%")
         )
@@ -449,6 +455,7 @@ class IrUiView(models.Model):
                 if path_info:
                     data["arch_fs"] = path_info.addons_path
                     data["arch_updated"] = False
+            _debug.lifecycle("arch_written", view=view.id, arch_fs=data.get("arch_fs"))
             view.write(data)
             view.arch = view.arch_db
         self.invalidate_recordset(["arch"])
@@ -755,12 +762,19 @@ class IrUiView(models.Model):
                 include_loaded_xmlids=True
             )
 
+        _debug.pipeline(
+            "sibling_primary_views_checked",
+            view=view.id,
+            root=root.id,
+            siblings=len(sibling_primary_views),
+        )
         sibling_primary_views._get_combined_archs()
 
     @api.constrains("group_ids", "inherit_id", "mode")
     def _check_groups(self) -> None:
         for view in self:
             if view.group_ids and view.inherit_id and view.mode != "primary":
+                _debug.logic("groups_on_extension_refused", view=view.id)
                 raise ValidationError(
                     _(
                         "Inherited view cannot have 'Groups' define on the record. Use 'groups' attributes inside the view definition"
@@ -770,6 +784,7 @@ class IrUiView(models.Model):
     @api.constrains("inherit_id")
     def _check_000_inheritance(self) -> None:
         if self._has_cycle("inherit_id"):
+            _debug.logic("inheritance_cycle", views=self.ids)
             raise ValidationError(_("You cannot create recursive inherited views."))
 
     _inheritance_mode = models.Constraint(
@@ -1039,7 +1054,11 @@ class IrUiView(models.Model):
 
     @api.model
     def default_view(self, model: str, view_type: str) -> int | bool:
-        return self.search(self._get_domain_default_view(model, view_type), limit=1).id
+        view_id = self.search(
+            self._get_domain_default_view(model, view_type), limit=1
+        ).id
+        _debug.logic("default_view", model=model, view_type=view_type, view=view_id)
+        return view_id
 
     @api.model
     def _get_domain_default_view(self, model: str, view_type: str) -> Domain:
@@ -1221,6 +1240,7 @@ class IrUiView(models.Model):
         return err
 
     def _log_view_warning(self, message: str, node: _Element | None) -> None:
+        _debug.logic("view_warning", view=self.id, model=self.model)
         _logger.warning(
             "%s\nView error context:\n%s",
             message,
@@ -1255,6 +1275,7 @@ class IrUiView(models.Model):
             return
 
         if validate_view_ids is True or self.id in validate_view_ids:
+            _debug.logic("validation_flagged", view=self.id, scope="whole")
             combined_arch.set("__validate__", "1")
             return
 
@@ -3152,6 +3173,7 @@ class IrUiView(models.Model):
                 )
             )
         )
+        _debug.pipeline("custom_views_check", model=model, views=len(rec))
         return rec.with_context({"load_all_views": True})._check_xml()
 
     @api.model
@@ -3188,6 +3210,9 @@ class IrUiView(models.Model):
             )
         )
 
+        _debug.pipeline(
+            "module_views_check", module=module, xmlids=len(names), views=len(views)
+        )
         views._check_xml()
 
     def _create_all_specific_views(self, processed_modules: list[str]) -> None:
@@ -3206,7 +3231,15 @@ class IrUiView(models.Model):
     def _load_records_write(self, values: dict[str, Any]) -> None:
         self = self.with_context(ir_ui_view_loading_records=True)
         if self.type == "qweb":
-            for cow_view in self._get_views_specific():
+            cow_views = self._get_views_specific()
+            _debug.pipeline(
+                "load_records_write_cow",
+                view=self.id,
+                key=self.key,
+                specific=len(cow_views),
+                fields=list(values),
+            )
+            for cow_view in cow_views:
                 authorized_vals = {
                     key: value
                     for key, value in values.items()
@@ -3230,6 +3263,9 @@ class IrUiView(models.Model):
     ) -> None:
         if not hasattr(self.pool, "website_views_to_adapt"):
             self.pool.website_views_to_adapt = []
+        _debug.lifecycle(
+            "cow_view_deferred", cow_view=cow_view.id, inherit_id=inherit_id
+        )
         self.pool.website_views_to_adapt.append(
             (
                 cow_view.id,

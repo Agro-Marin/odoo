@@ -524,6 +524,9 @@ class ResUsers(models.Model):
     def _check_user_company(self) -> None:
         for user in self.filtered(lambda u: u.active):
             if user.company_id not in user.company_ids:
+                _debug.logic(
+                    "company_not_allowed", user=user.id, company=user.company_id.id
+                )
                 raise ValidationError(
                     _(
                         "Company %(company_name)s is not in the allowed companies for user %(user_name)s (%(company_allowed)s).",
@@ -578,6 +581,9 @@ class ResUsers(models.Model):
         for user in self:
             disjoint_groups = user.all_group_ids & user_type_groups
             if len(disjoint_groups) > 1:
+                _debug.logic(
+                    "disjoint_groups_violated", user=user.id, groups=disjoint_groups.ids
+                )
                 raise ValidationError(
                     _(
                         "User %(user)s cannot be at the same time in exclusive groups %(groups)s.",
@@ -602,6 +608,7 @@ class ResUsers(models.Model):
             )
         )
         if not has_admin:
+            _debug.logic("last_administrator_refused", users=self.ids)
             raise ValidationError(_("You must have at least an administrator user."))
 
     def _inverse_password(self) -> None:
@@ -763,6 +770,7 @@ class ResUsers(models.Model):
                 continue
             keep = user.group_ids.ids
             wanted = admin_id if user.role == "group_system" else user_id
+            _debug.lifecycle("role_applied", user=user.id, role=user.role, group=wanted)
             user.group_ids = [
                 Command.set(
                     [gid for gid in keep if gid not in (admin_id, user_id)] + [wanted]
@@ -1028,6 +1036,7 @@ class ResUsers(models.Model):
         portal_user_template = self.env.ref("base.template_portal_user_id", False)
         public_user = self.env.ref("base.public_user", False)
         if SUPERUSER_ID in self.ids:
+            _debug.logic("unlink_refused", users=self.ids, reason="superuser")
             raise UserError(
                 _(
                     "You can not remove the admin user as it is used internally for resources created by Odoo (updates, module installation, ...)"
@@ -1035,13 +1044,16 @@ class ResUsers(models.Model):
             )
         user_admin = self.env.ref("base.user_admin", raise_if_not_found=False)
         if user_admin and user_admin in self:
+            _debug.logic("unlink_refused", users=self.ids, reason="admin")
             raise UserError(
                 _(
                     "You cannot delete the admin user because it is utilized in various places (such as security configurations,...). Instead, archive it."
                 )
             )
+        _debug.lifecycle("cache_cleared_before_unlink", users=self.ids)
         self.env.registry.clear_cache()
         if portal_user_template and portal_user_template in self:
+            _debug.logic("unlink_refused", users=self.ids, reason="portal_template")
             raise UserError(
                 _(
                     "Deleting the template users is not allowed. Deleting this profile will compromise critical functionalities."
@@ -1278,6 +1290,7 @@ class ResUsers(models.Model):
     def _deactivate_portal_user(self, **post: Any) -> None:
         non_portal_users = self.filtered(lambda user: not user.share)
         if non_portal_users:
+            _debug.logic("portal_deactivation_refused", users=non_portal_users.ids)
             raise AccessDenied(
                 _(
                     "Only the portal users can delete their accounts. The user(s) %s can not be deleted.",
@@ -1316,6 +1329,11 @@ class ResUsers(models.Model):
             self.with_user(SUPERUSER_ID).action_archive()
         with contextlib.suppress(UserError, AccessError, ValidationError):
             self.partner_id.action_archive()
+        _debug.lifecycle(
+            "portal_users_deactivated",
+            users=self.ids,
+            archived=not any(self.mapped("active")),
+        )
         self.env["res.users.deletion"].create(res_users_deletion_values)
 
     def action_save_preferences(self) -> dict[str, Any]:
@@ -1359,7 +1377,9 @@ class ResUsers(models.Model):
 
     def _action_revoke_all_devices(self) -> dict[str, Any]:
         self.check_singleton()
-        self.device_ids.filtered(lambda d: not d.is_current)._revoke()
+        others = self.device_ids.filtered(lambda d: not d.is_current)
+        _debug.lifecycle("all_devices_revoked", user=self.id, devices=len(others))
+        others._revoke()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def _assert_group_query_allowed(self) -> None:
@@ -1368,6 +1388,7 @@ class ResUsers(models.Model):
             or self == self.env.user
             or self.env.user._has_group("base.group_user")
         ):
+            _debug.logic("group_query_refused", uid=self.env.uid, target=self.id)
             raise AccessError(
                 _(
                     "Reading another user's groups requires an internal user; %(login)s is not one.",
@@ -1390,6 +1411,7 @@ class ResUsers(models.Model):
         if group_ext_id in _UNRESOLVED_GROUPS_WARNED:
             return
         _UNRESOLVED_GROUPS_WARNED.add(group_ext_id)
+        _debug.logic("group_unresolved", group=group_ext_id, module=module)
         _logger.warning(
             "Group %r does not exist though %r is loaded; the check answers "
             "'not a member', and a negated check answers 'everyone'.",
@@ -1549,6 +1571,7 @@ class ResUsers(models.Model):
         if not row:
             return 0, datetime.datetime.min.replace(tzinfo=datetime.UTC)
         failures, last_failure = row
+        _debug.logic("login_failure_state", source=source, failures=failures)
         return failures, last_failure.replace(tzinfo=datetime.UTC)
 
     def _record_login_failure(self, source: str) -> None:
@@ -1710,6 +1733,12 @@ class UsersMultiCompany(models.Model):
                 to_add |= user
             elif wanted is False:
                 to_remove |= user
+        _debug.lifecycle(
+            "multi_company_group_synced",
+            users=len(self),
+            added=to_add.ids,
+            removed=to_remove.ids,
+        )
         if to_remove:
             to_remove.write({"group_ids": [Command.unlink(group_id)]})
         if to_add:

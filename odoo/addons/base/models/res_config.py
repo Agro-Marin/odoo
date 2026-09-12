@@ -68,6 +68,11 @@ class ResConfigSettings(models.TransientModel):
         to_install_modules = modules.filtered(
             lambda module: module.state == "uninstalled"
         )
+        _debug.pipeline(
+            "settings_install_modules",
+            requested=modules.mapped("name"),
+            to_install=to_install_modules.mapped("name"),
+        )
         if to_install_modules:
             result = to_install_modules.button_immediate_install()
 
@@ -215,6 +220,14 @@ class ResConfigSettings(models.TransientModel):
             res[name] = value
 
         res.update(self.get_values())
+        _debug.pipeline(
+            "settings_defaults",
+            fields=len(fields),
+            defaults=len(classified["default"]),
+            groups=len(classified["group"]),
+            modules=len(classified["module"]),
+            config=len(classified["config"]),
+        )
 
         return res
 
@@ -374,6 +387,9 @@ class ResConfigSettings(models.TransientModel):
             elif ref_type == "field":
                 values[item] = self.get_option_name(ref)
 
+        _debug.logic(
+            "config_warning", references=len(references), redirect=bool(action_id)
+        )
         if action_id:
             return RedirectWarning(
                 msg % values, action_id, _("Go to the configuration panel")
@@ -404,6 +420,7 @@ class ResConfigSettings(models.TransientModel):
                 if old_value == new_value:
                     vals.pop(field.name)
 
+        _debug.lifecycle("settings_create", count=len(vals_list))
         return super().create(vals_list)
 
     def action_view_template_user(self) -> dict[str, Any]:

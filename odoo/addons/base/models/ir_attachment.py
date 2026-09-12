@@ -375,6 +375,11 @@ class IrAttachment(models.Model):
                         "db_datas": False,
                     }
                 )
+            _debug.lifecycle(
+                "copy_shared_content",
+                copied=len(new_attachments),
+                shared=len(by_content),
+            )
         return new_attachments
 
     def unlink(self) -> bool:
@@ -618,6 +623,7 @@ class IrAttachment(models.Model):
                 "Invalid base.image_autoresize_max_px value: %r, skipping image resize",
                 max_resolution,
             )
+            _debug.logic("autoresize_config_invalid", value=max_resolution)
             return subtypes, 0, 0, 0
         quality = (
             self.env["ir.config_parameter"]
@@ -973,6 +979,14 @@ class IrAttachment(models.Model):
                 return values
             img = img.resize(max_width, max_height)
             image_data = img.image_quality(quality=quality if subtype == "jpeg" else 0)
+            _debug.logic(
+                "image_autoresized",
+                subtype=subtype,
+                width=width,
+                height=height,
+                bytes_in=len(data),
+                bytes_out=len(image_data),
+            )
             if is_raw:
                 values["raw"] = image_data
             else:
@@ -1469,6 +1483,9 @@ class IrAttachment(models.Model):
                 len(suspicious),
             )
         current = set(suspicious.ids)
+        _debug.pipeline(
+            "url_attachments_audited", total=total, new=len(new), seen=len(seen)
+        )
         if current != seen:
             ICP.set_param(param, ",".join(map(str, sorted(current))))
 
@@ -1536,6 +1553,9 @@ class IrAttachment(models.Model):
                 attach.store_fname,
             )
             rekeyed += 1
+        _debug.lifecycle(
+            "legacy_keys_rehashed", candidates=len(legacy), rekeyed=rekeyed
+        )
         if not rekeyed:
             return 0, 0
         remaining = model.search_count(domain, limit=limit + 1)
@@ -1569,6 +1589,7 @@ class IrAttachment(models.Model):
                 _logger.info("temp gc could not remove %s", entry, exc_info=True)
         if removed:
             _logger.info("filestore temp gc: removed %d stale temp file(s)", removed)
+        _debug.lifecycle("gc_stale_temps", removed=removed, capped=bool(remaining))
         return removed, remaining
 
     def _get_gc_checklist(
@@ -1800,6 +1821,7 @@ class IrAttachment(models.Model):
     def _check_circular_attachment(self) -> None:
         for record in self.sudo():
             if record.res_model == "ir.attachment" and record.id == record.res_id:
+                _debug.logic("circular_attachment_refused", attachment=record.id)
                 raise ValidationError(
                     _(
                         "You cannot attach an attachment to itself.\n"
@@ -1817,6 +1839,7 @@ class IrAttachment(models.Model):
         )
         if force_text:
             values["mimetype"] = "text/plain"
+            _debug.logic("xml_mimetype_forced_text", original=mimetype)
         if not self.env.context.get("image_no_postprocess"):
             values = self._prepare_contents_resized(values)
         return values
@@ -1829,6 +1852,9 @@ class IrAttachment(models.Model):
             return
         has_group = self.env.user.has_group
         if not any(has_group(g) for g in self.get_groups_allowed_to_serve()):
+            _debug.logic(
+                "serving_write_refused", uid=self.env.uid, attachments=served.ids
+            )
             raise ValidationError(
                 _("Sorry, you are not allowed to write on this document")
             )

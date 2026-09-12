@@ -11,13 +11,15 @@ from odoo.tools.misc import limited_field_access_token
 _FieldName = str
 
 
+_debug = DebugLog(__name__)
+
+
 @functools.cache
 def _get_placeholder_image(path: str) -> bytes:
     with file_open(path, "rb") as file:
-        return file.read()
-
-
-_debug = DebugLog(__name__)
+        data = file.read()
+    _debug.perf.count("placeholder_image_loaded", path=path, bytes=len(data))
+    return data
 
 
 class MixinAvatar(models.AbstractModel):

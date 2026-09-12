@@ -116,12 +116,18 @@ class IrDefault(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         new_defaults = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(new_defaults),
+            fields=sorted({vals.get("field_id") or 0 for vals in vals_list}),
+        )
         new_defaults._check_accessible_field_id()
         if new_defaults:
             new_defaults._invalidate_defaults_cache()
         return new_defaults
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         result = super().write(vals)
         self._check_accessible_field_id()
         if self:
@@ -129,6 +135,7 @@ class IrDefault(models.Model):
         return result
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         result = super().unlink()
         if self:
             self._invalidate_defaults_cache()
@@ -212,6 +219,16 @@ class IrDefault(models.Model):
 
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
+        _debug.logic(
+            "set_default",
+            model=model_name,
+            field=field_name,
+            user=user_id,
+            company=company_id,
+            conditional=bool(condition),
+            by="update" if default else "create",
+            changed=not default or default.json_value != json_value,
+        )
         if default:
             if default.json_value != json_value:
                 default.write({"json_value": json_value})
@@ -294,14 +311,29 @@ class IrDefault(models.Model):
             ("field_id.relation", "=", records._name),
             ("json_value", "in", json_vals),
         ]
-        return self.search(domain).unlink()
+        stale = self.search(domain)
+        _debug.lifecycle(
+            "discard_records",
+            model=records._name,
+            records=len(records),
+            defaults=len(stale),
+        )
+        return stale.unlink()
 
     @api.model
     def discard_values(self, model_name: str, field_name: str, values: list) -> bool:
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         json_vals = [json.dumps(value, ensure_ascii=False) for value in values]
         domain = [("field_id", "=", field.id), ("json_value", "in", json_vals)]
-        return self.search(domain).unlink()
+        stale = self.search(domain)
+        _debug.lifecycle(
+            "discard_values",
+            model=model_name,
+            field=field_name,
+            values=len(values),
+            defaults=len(stale),
+        )
+        return stale.unlink()
 
     @api.model
     def rename_value(
@@ -312,9 +344,11 @@ class IrDefault(models.Model):
             ("field_id", "=", field.id),
             ("json_value", "=", json.dumps(old_value, ensure_ascii=False)),
         ]
-        return self.search(domain).write(
-            {"json_value": json.dumps(new_value, ensure_ascii=False)}
+        renamed = self.search(domain)
+        _debug.lifecycle(
+            "rename_value", model=model_name, field=field_name, defaults=len(renamed)
         )
+        return renamed.write({"json_value": json.dumps(new_value, ensure_ascii=False)})
 
     @tools.ormcache("model_name", "field_name")
     def _get_field_column_fallbacks(self, model_name: str, field_name: str) -> str:

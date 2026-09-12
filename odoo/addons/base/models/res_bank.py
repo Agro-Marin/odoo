@@ -65,6 +65,7 @@ class ResBank(models.Model):
             ]
             if operator == "not ilike":
                 domain = ["!", *domain]
+            _debug.logic("bank_name_search", operator=operator, by="bic_or_name")
             return domain
         return super()._search_display_name(operator, value)
 
@@ -75,9 +76,11 @@ class ResBank(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle("bank_create", count=len(vals_list))
         return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("bank_write", count=len(self), fields=list(vals))
         return super().write(self._sanitize_vals(vals))
 
     @api.onchange("country")
@@ -288,16 +291,24 @@ class ResPartnerBank(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle(
+            "bank_account_create",
+            count=len(vals_list),
+            partners=sorted({vals.get("partner_id") or 0 for vals in vals_list}),
+        )
         return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("bank_account_write", count=len(self), fields=list(vals))
         return super().write(self._sanitize_vals(vals))
 
     def action_archive_bank(self) -> dict[str, str]:
         self.check_singleton()
+        _debug.lifecycle("bank_account_archived", account=self.id, by="action")
         self.action_archive()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def unlink(self) -> bool:
+        _debug.lifecycle("bank_account_archived", accounts=self.ids, by="unlink")
         self.action_archive()
         return True

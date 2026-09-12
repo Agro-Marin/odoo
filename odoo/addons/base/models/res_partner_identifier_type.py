@@ -77,6 +77,9 @@ class ResPartnerIdentifierType(models.Model):
             try:
                 re.compile(identifier_type.pattern)
             except re.error as error:
+                _debug.logic(
+                    "pattern_rejected", type=identifier_type.code, error=str(error)
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s: the format is not a valid regular "
@@ -94,10 +97,12 @@ class ResPartnerIdentifierType(models.Model):
         self.check_singleton()
         normalized = self._normalize(value)
         if not normalized:
+            _debug.logic("identifier_rejected", type=self.code, reason="empty")
             raise ValidationError(
                 self.env._("%(name)s cannot be empty.", name=self.display_name)
             )
         if self.pattern and not re.fullmatch(self.pattern, normalized):
+            _debug.logic("identifier_rejected", type=self.code, reason="pattern")
             raise ValidationError(
                 self.env._(
                     "%(value)s is not a valid %(name)s.",
@@ -113,6 +118,7 @@ class ResPartnerIdentifierType(models.Model):
             checker=checker.__name__ if checker else None,
         )
         if checker and not checker(normalized):
+            _debug.logic("identifier_rejected", type=self.code, reason="checker")
             raise ValidationError(
                 self.env._(
                     "%(value)s is not a valid %(name)s.",

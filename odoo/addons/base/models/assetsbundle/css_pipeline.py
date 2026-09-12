@@ -67,6 +67,7 @@ def _is_rtlcss_available() -> bool:
             check.returncode,
         )
         return False
+    _debug.logic("rtlcss_available", bin=_rtlcss_bin())
     return True
 
 
@@ -133,6 +134,9 @@ class CssPipeline:
                 )
                 _logger.warning(msg)
                 bundle.css_errors.append(msg)
+                _debug.logic(
+                    "css_dialects_mixed", bundle=bundle.name, dialects=len(dialects)
+                )
                 return ""
             source = "\n".join(asset.get_source() for asset in assets)
             _logger.debug(
@@ -157,6 +161,9 @@ class CssPipeline:
         if compile_failed:
             for asset in bundle.stylesheets:
                 bundle.css_errors.extend(asset.errors)
+            _debug.logic(
+                "css_compile_failed", bundle=bundle.name, errors=len(bundle.css_errors)
+            )
             return ""
 
         fragments = self.rx_css_split.split(compiled)
@@ -314,6 +321,7 @@ class CssPipeline:
             _logger.debug(
                 "rtlcss unavailable, serving %r left-to-right", self._log_name
             )
+            _debug.logic("rtl_skipped", bundle=self._log_name, reason="unavailable")
             return source
 
         cmd = [_rtlcss_bin(), "-c", _rtlcss_config_path(), "-"]
@@ -332,6 +340,7 @@ class CssPipeline:
                 error = self._format_compiler_error(error)
             _logger.warning("%s", error)
             self._bundle.css_errors.append(error)
+            _debug.logic("rtl_failed", bundle=self._log_name, chars=len(source))
             return ""
 
     _RX_ERROR_TRACE = re.compile(r"^\s*-?\s*(?P<line>\d+):\d+\s+\S", re.MULTILINE)

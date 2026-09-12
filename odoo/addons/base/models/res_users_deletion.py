@@ -53,6 +53,7 @@ class ResUsersDeletion(models.Model):
                 lambda d: d.state == "todo"
             )
             if not delete_request:
+                _debug.logic("deletion_request_skipped", reason="locked_or_done")
                 continue
             user = delete_request.user_id
             user_name = user.name
@@ -68,6 +69,9 @@ class ResUsersDeletion(models.Model):
                     requester_name,
                 )
                 delete_request.state = "done"
+                _debug.lifecycle(
+                    "user_deleted", request=delete_request.id, user=user.id
+                )
                 commit_progress(1)
             except Exception as e:
                 self.env.cr.rollback()
@@ -77,6 +81,12 @@ class ResUsersDeletion(models.Model):
                     user_name,
                     requester_name,
                     e,
+                )
+                _debug.lifecycle(
+                    "user_deletion_failed",
+                    request=delete_request.id,
+                    user=user.id,
+                    error=type(e).__name__,
                 )
                 delete_request.state = "fail"
                 if commit_progress(1):
@@ -94,6 +104,9 @@ class ResUsersDeletion(models.Model):
                     partner.id,
                     user_name,
                     requester_name,
+                )
+                _debug.lifecycle(
+                    "partner_deleted", request=delete_request.id, partner=partner.id
                 )
                 if not commit_progress():
                     break

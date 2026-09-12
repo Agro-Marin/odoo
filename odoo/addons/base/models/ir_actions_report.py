@@ -450,7 +450,9 @@ class OdooURLFetcher(URLFetcher):
                     "private/reserved host (possible SSRF): %s",
                     url,
                 )
+                _debug.logic("fetch_blocked", host=parsed.hostname)
                 raise ValueError(f"Blocked fetch to private address: {url}")
+            _debug.logic("fetch_external", host=parsed.hostname)
             return super().fetch(url, headers)
 
         path = parsed.path or ""
@@ -475,6 +477,7 @@ class OdooURLFetcher(URLFetcher):
             if result:
                 return result
 
+        _debug.logic("fetch_via_http", path=path[:120])
         return self._get_via_http(url, path)
 
     def _get_asset_attachment(self, path: str) -> Any:
@@ -709,6 +712,7 @@ class OdooURLFetcher(URLFetcher):
             _logger.warning(
                 "WeasyPrint URL fetch failed for %s", full_url, exc_info=True
             )
+            _debug.logic("fetch_http_failed", path=path[:120])
             return super().fetch(full_url)
 
     @staticmethod
@@ -875,6 +879,11 @@ class WeasyPrintEngine:
                 except Exception as e:
                     _logger.warning("HTML-to-PDF rendering failed for one body: %s", e)
                     results.append(None)
+        _debug.pipeline(
+            "render_each_tolerant",
+            bodies=len(bodies),
+            failed=sum(1 for result in results if result is None),
+        )
         return results
 
     @staticmethod
@@ -1262,6 +1271,13 @@ class IrActionsReport(models.Model):
             res_id = attachment.res_id
             if res_id not in result and attachment.name == names_by_id.get(res_id):
                 result[res_id] = attachment
+        _debug.logic(
+            "saved_attachments_looked_up",
+            report=self.id,
+            records=len(records),
+            named=len(names_by_id),
+            found=len(result),
+        )
         return result
 
     def get_paperformat(self) -> Any:
@@ -1391,6 +1407,7 @@ class IrActionsReport(models.Model):
                     param,
                     _NATIVE_MERGE_MAX,
                 )
+                _debug.logic("native_merge_max_invalid", param=param)
         return _NATIVE_MERGE_MAX
 
     @api.model
@@ -1775,6 +1792,11 @@ class IrActionsReport(models.Model):
             report = report_ref.sudo()
         else:
             report = ReportSudo.search([("report_name", "=", report_ref)], limit=1)
+            _debug.logic(
+                "report_resolved",
+                ref=report_ref,
+                by="report_name" if report else "xmlid",
+            )
             if not report:
                 report = self.env.ref(report_ref, raise_if_not_found=False)
                 if not report:
@@ -2129,6 +2151,12 @@ class IrActionsReport(models.Model):
             and report_sudo.attachment
             and set(res_ids_wo_stream) != set(html_ids)
         ):
+            _debug.logic(
+                "attachment_split_refused",
+                report=report_sudo.id,
+                expected=len(res_ids_wo_stream),
+                html_ids=len(html_ids),
+            )
             raise UserError(
                 _(
                     "Report template \u201c%s\u201d has an issue, please contact your administrator. \n\n"
@@ -2493,10 +2521,19 @@ class IrActionsReport(models.Model):
                     action.domain,
                     exc_info=True,
                 )
+                _debug.logic("report_domain_malformed", report=action.id)
                 valid_action_report_ids.append(action.id)
                 continue
             if records.filtered_domain(domain):
                 valid_action_report_ids.append(action.id)
+        _debug.logic(
+            "valid_action_reports",
+            model=model,
+            records=len(record_ids),
+            reports=len(self),
+            with_domain=len(actions_with_domain),
+            valid=len(valid_action_report_ids),
+        )
         return valid_action_report_ids
 
     @api.model

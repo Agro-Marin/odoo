@@ -43,6 +43,7 @@ class IrActionsPath(models.Model):
                 SQL.identifier(self.env["ir.actions.actions"]._table),
             )
         )
+        _debug.lifecycle("init_paths_backfilled", rows=self.env.cr.rowcount)
         self.env.cr.execute(
             SQL(
                 "SELECT a.id, a.path FROM %s a"

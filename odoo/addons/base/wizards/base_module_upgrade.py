@@ -52,6 +52,7 @@ class BaseModuleUpgrade(models.TransientModel):
         return res
 
     def upgrade_module_cancel(self) -> dict[str, str]:
+        _debug.lifecycle("upgrade_cancelled", uid=self.env.uid)
         self.env["ir.module.module"].button_reset_state()
         return {"type": "ir.actions.act_window_close"}
 
@@ -69,6 +70,11 @@ class BaseModuleUpgrade(models.TransientModel):
             self.env.cr.execute(query, (mods.ids, "uninstalled"))
             unmet_packages = [row[0] for row in self.env.cr.fetchall()]
             if unmet_packages:
+                _debug.logic(
+                    "upgrade_unmet_dependencies",
+                    modules=len(mods),
+                    unmet=unmet_packages,
+                )
                 raise UserError(
                     self.env._(
                         "The following modules are not installed or unknown: %s",
@@ -76,6 +82,7 @@ class BaseModuleUpgrade(models.TransientModel):
                     )
                 )
 
+        _debug.pipeline("upgrade_planned", modules=mods.mapped("name"))
         self.env.cr.commit()
         with _debug.perf("registry_reload", db=self.env.cr.dbname, modules=len(mods)):
             odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)

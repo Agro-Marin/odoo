@@ -65,11 +65,20 @@ class XmlTemplatePipeline:
                     raise asset._prepare_asset_error(
                         bundle.env._("Template name is missing.")
                     )
+        _debug.pipeline(
+            "xml_blocks",
+            bundle=bundle.name,
+            assets=len(bundle.templates),
+            blocks=len(blocks),
+            extension_blocks=sum(1 for b in blocks if b["type"] == "extensions"),
+        )
         return blocks
 
     def generate_xml_bundle(self) -> str:
         if self._rendered_bundle is None:
-            self._rendered_bundle = self._render_xml_bundle()
+            with _debug.perf("xml_render", bundle=self._bundle.name) as span:
+                self._rendered_bundle = self._render_xml_bundle()
+                span.set(bytes=len(self._rendered_bundle))
         return self._rendered_bundle
 
     def _render_xml_bundle(self) -> str:
@@ -142,7 +151,14 @@ class XmlTemplatePipeline:
             return ""
         templates = self.generate_xml_bundle()
         if not templates:
+            _debug.logic("esm_template_bundle_empty", bundle=bundle.name)
             return ""
+        _debug.logic(
+            "esm_template_bundle",
+            bundle=bundle.name,
+            use_import=use_import,
+            bytes=len(templates),
+        )
         if use_import:
             header = (
                 f"import {{ {self._TEMPLATE_REGISTRARS} }} "

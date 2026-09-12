@@ -2,6 +2,9 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinBand(models.AbstractModel):
@@ -75,8 +78,17 @@ class MixinBand(models.AbstractModel):
                 continue
             scales[repr(record._get_domain_band_scope())] |= record
 
+        _debug.pipeline(
+            "band_overlap_check",
+            model=self._name,
+            records=len(self),
+            scales=len(scales),
+        )
         for records in scales.values():
             candidates = records.search(records[0]._get_domain_band_scope())
+            _debug.perf.count(
+                "band_scale_candidates", model=self._name, candidates=len(candidates)
+            )
             for record in records:
                 for other in candidates:
                     if other == record or not other._is_band():

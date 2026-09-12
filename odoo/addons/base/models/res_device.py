@@ -97,6 +97,11 @@ class ResDeviceLog(models.Model):
             aggregates=["ip_address:array_agg"],
         ):
             device_group_map[tuple(device_info)] = ip_array
+        _debug.perf.count(
+            "linked_ip_addresses_computed",
+            devices=len(self),
+            groups=len(device_group_map),
+        )
         for device in self:
             device.linked_ip_addresses = "\n".join(
                 OrderedSet(
@@ -145,6 +150,12 @@ class ResDeviceLog(models.Model):
         user_id = request.session.uid
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
 
+        _debug.logic(
+            "device_log_cursor",
+            uid=user_id,
+            own_cursor=bool(self.env.cr.readonly),
+            mobile=self._is_mobile(trace["platform"]),
+        )
         if self.env.cr.readonly:
             cursor = self.env.registry.cursor(readonly=False)
         else:
@@ -274,6 +285,7 @@ class ResDevice(models.Model):
         if not self:
             return
         if not self.env.is_system() and self.mapped("user_id") != self.env.user:
+            _debug.logic("revoke_refused", uid=self.env.uid, devices=self.ids)
             raise AccessError(_("You can only revoke your own devices."))
         ResDeviceLog = self.env["res.device.log"]
         session_identifiers = list(unique(device.session_identifier for device in self))

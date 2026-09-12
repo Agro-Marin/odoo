@@ -128,6 +128,7 @@ class ResCountry(models.Model):
                 limit=limit,
             )
             result.extend((country.id, country.display_name) for country in countries)
+            _debug.logic("country_name_search", by="code", matched=len(countries))
             domain &= Domain("id", "not in", countries.ids)
             if limit is not None:
                 limit -= len(countries)
@@ -144,11 +145,13 @@ class ResCountry(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _get_id_by_code(self) -> frozendict[str, int]:
-        return frozendict(
+        by_code = frozendict(
             (country.code, country.id)
             for country in self.sudo().search_fetch([], ["code"])
             if country.code
         )
+        _debug.perf.count("country_ids_by_code_computed", countries=len(by_code))
+        return by_code
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -201,6 +204,7 @@ class ResCountry(models.Model):
                 try:
                     record.address_format % test_values
                 except ValueError, KeyError, TypeError:
+                    _debug.logic("address_format_rejected", country=record.code)
                     raise UserError(
                         _("The layout contains an invalid format key")
                     ) from None
@@ -239,9 +243,13 @@ class ResCountryGroup(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle(
+            "country_group_create", codes=[vals.get("code") for vals in vals_list]
+        )
         return super().create([self._sanitize_vals(vals) for vals in vals_list])
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("country_group_write", count=len(self), fields=list(vals))
         return super().write(self._sanitize_vals(vals))
 
 
@@ -295,6 +303,7 @@ class ResCountryState(models.Model):
                 limit=limit,
             )
             result.extend((state.id, state.display_name) for state in states)
+            _debug.logic("state_name_search", by="code", matched=len(states))
             domain &= Domain("id", "not in", states.ids)
             if limit is not None:
                 limit -= len(states)
@@ -317,6 +326,11 @@ class ResCountryState(models.Model):
                 )
         if country_id := self.env.context.get("country_id"):
             domain &= Domain("country_id", "=", country_id)
+        _debug.logic(
+            "state_display_name_search",
+            operator=operator,
+            country=self.env.context.get("country_id"),
+        )
         return domain
 
     def _get_domain_name_search(self, name: str, operator: str) -> Domain:

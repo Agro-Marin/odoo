@@ -51,6 +51,7 @@ class PropertiesBaseDefinition(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if "properties_field_id" in vals:
+            _debug.logic("write_field_refused", definitions=self.ids)
             raise AccessError(_("You can not change the field of a base definition"))
         return super().write(vals)
 
@@ -66,6 +67,9 @@ class PropertiesBaseDefinition(models.Model):
     ) -> int:
         memo = self.env.cr.cache.get(DEFINITION_MEMO_CACHE_KEY)
         if memo and (definition_id := memo.get((model_name, field_name))):
+            _debug.logic(
+                "definition_resolved", model=model_name, field=field_name, by="memo"
+            )
             return definition_id
 
         try:
@@ -74,6 +78,9 @@ class PropertiesBaseDefinition(models.Model):
             )
         except ValueError:
             pass
+        _debug.logic(
+            "definition_resolved", model=model_name, field=field_name, by="create"
+        )
 
         field_ids = self.env["ir.model.fields"]._get_ids_by_name(model_name)
         field_id = field_ids.get(field_name)
@@ -106,6 +113,12 @@ class PropertiesBaseDefinition(models.Model):
                 [field_id],
             )
             row = cr.fetchone()
+            _debug.perf.count(
+                "definition_looked_up",
+                model=model_name,
+                field=field_name,
+                found=bool(row),
+            )
             if row:
                 return row[0]
 

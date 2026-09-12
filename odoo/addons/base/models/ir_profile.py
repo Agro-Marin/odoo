@@ -119,6 +119,9 @@ class IrProfile(models.Model):
         aggregation_mode = params.get("profile_aggregation_mode")
         if aggregation_mode not in ("tabs", "temporal"):
             aggregation_mode = "tabs"
+        _debug.logic(
+            "profile_params_parsed", keys=sorted(params), aggregation=aggregation_mode
+        )
         return {
             "constant_time": str2bool(
                 params.get("constant_time", False), default=False
@@ -156,6 +159,7 @@ class IrProfile(models.Model):
         self.check_access("read")
         init_stack_trace = self[0].init_stack_trace
         if not init_stack_trace:
+            _debug.logic("speedscope_empty", profiles=self.ids)
             return b"{}"
         for record in self:
             if record.init_stack_trace != init_stack_trace:
@@ -241,6 +245,11 @@ class IrProfile(models.Model):
             _logger.info("User %s started profiling", self.env.user.name)
             if not limit:
                 request.session["profile_session"] = None
+                _debug.logic(
+                    "profiling_not_enabled",
+                    uid=self.env.uid,
+                    system=self.env.user._is_system(),
+                )
                 if self.env.user._is_system():
                     return {
                         "type": "ir.actions.act_window",
@@ -323,6 +332,9 @@ class BaseEnableProfilingWizard(models.TransientModel):
             )
 
     def submit(self) -> bool:
+        _debug.lifecycle(
+            "profiling_enabled_until", uid=self.env.uid, until=str(self.expiration)
+        )
         self.env["ir.config_parameter"].set_param(
             "base.profiling_enabled_until", self.expiration
         )

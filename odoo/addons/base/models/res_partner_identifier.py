@@ -86,9 +86,18 @@ class ResPartnerIdentifier(models.Model):
             ]
         ):
             held[(other.partner_id.id, other.type_id.id)].append(other.id)
+        _debug.logic(
+            "one_per_contact_check", candidates=len(candidates), held_keys=len(held)
+        )
         for identifier in candidates:
             key = (identifier.partner_id.id, identifier.type_id.id)
             if len(held.get(key, ())) > 1:
+                _debug.logic(
+                    "one_per_contact_violated",
+                    partner=identifier.partner_id.id,
+                    type=identifier.type_id.id,
+                    held=len(held[key]),
+                )
                 raise ValidationError(
                     self.env._(
                         "%(partner)s already has a %(type)s.",

@@ -61,6 +61,12 @@ class MixinUserFavorite(models.AbstractModel):
         if operator != "in":
             return NotImplemented
         favorited = Domain("favorite_user_ids", "in", [self.env.uid])
+        _debug.logic(
+            "user_favorite_search",
+            model=self._name,
+            uid=self.env.uid,
+            value=list(value),
+        )
         if set(value) == {True}:
             return favorited
         if set(value) == {False}:
@@ -83,6 +89,9 @@ class MixinUserFavorite(models.AbstractModel):
                 if is_favorite
             ]
         )
+        _debug.lifecycle(
+            "create", model=self._name, count=len(records), favorited=len(favorited)
+        )
         favorited._update_user_favorite(True)
         return records
 
@@ -90,6 +99,7 @@ class MixinUserFavorite(models.AbstractModel):
         if "is_user_favorite" in vals:
             self._update_user_favorite(vals.pop("is_user_favorite"))
             if not vals:
+                _debug.logic("write_favorite_only", model=self._name, count=len(self))
                 return True
         return super().write(vals)
 

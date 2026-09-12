@@ -125,6 +125,14 @@ class IrQweb(models.AbstractModel):
         if aliasable:
             child_stubs = asset_bundle._bridges.prepare_shim_sources(aliasable)
             secondary_stubs = {**child_stubs, **secondary_stubs}
+        _debug.pipeline(
+            "child_externals",
+            bundle=bundle,
+            children=len(child_bundles),
+            child_specs=len(child_specs),
+            aliasable=len(aliasable),
+            stubs=len(secondary_stubs),
+        )
         return frozenset(child_specs - aliasable) or None, secondary_stubs
 
     def _compile_with_esbuild(
@@ -234,6 +242,7 @@ class IrQweb(models.AbstractModel):
             )
             reused = self._load_esbuild_result_by_source(bundle, source_key)
             if reused is not None:
+                _debug.logic("esbuild_result", bundle=bundle, by="reused")
                 return reused, child_bundles
             result = self._compile_with_esbuild(
                 bundle,
@@ -245,6 +254,13 @@ class IrQweb(models.AbstractModel):
             )
             if result.code:
                 result = result._replace(source_key=source_key)
+            _debug.logic(
+                "esbuild_result",
+                bundle=bundle,
+                by="compiled" if result.code else "fallback",
+                standalone=standalone,
+                exported=len(exported_specs or ()),
+            )
         return result, child_bundles
 
     def _esm_source_key(
@@ -511,17 +527,24 @@ class IrQweb(models.AbstractModel):
             )
             config = self._get_esbuild_config()
             try:
-                result = compiler.compile_group(
-                    entries,
-                    timeout_s=config.get_param_int(
-                        "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
-                    ),
-                    target=config.get_param("web.esbuild.target")
-                    or EsbuildCompiler._ESBUILD_TARGET,
-                    source_maps=config.get_param("web.esbuild.source_maps")
-                    or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
-                    secondary_parent_stubs=stubs or None,
-                )
+                with _debug.perf(
+                    "esbuild_group",
+                    group=group,
+                    children=len(children),
+                    modules=sum(len(modules) for modules in entries.values()),
+                    stubs=len(stubs),
+                ):
+                    result = compiler.compile_group(
+                        entries,
+                        timeout_s=config.get_param_int(
+                            "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
+                        ),
+                        target=config.get_param("web.esbuild.target")
+                        or EsbuildCompiler._ESBUILD_TARGET,
+                        source_maps=config.get_param("web.esbuild.source_maps")
+                        or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
+                        secondary_parent_stubs=stubs or None,
+                    )
             except Exception as exc:
                 log_event(
                     _fallback_log,

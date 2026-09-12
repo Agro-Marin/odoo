@@ -148,6 +148,9 @@ class NameManager:
                     name_or_id=name,
                     use=use,
                 )
+                _debug.logic(
+                    "name_check_failed", view=view.id, name=name, reason="unknown"
+                )
                 raise view._prepare_view_error(msg)
             if name not in self.available_actions and name not in self.available_names:
                 msg = _(
@@ -155,12 +158,18 @@ class NameManager:
                     name_or_id=name,
                     use=use,
                 )
+                _debug.logic(
+                    "name_check_failed", view=view.id, name=name, reason="not_in_view"
+                )
                 raise view._prepare_view_error(msg)
 
     def _check_available_fields(self, view: Any) -> None:
         for name in self.available_fields:
             if name not in self.model._fields and name not in self.field_info:
                 message = _("Field `%(name)s` does not exist", name=name)
+                _debug.logic(
+                    "name_check_failed", view=view.id, name=name, reason="no_field"
+                )
                 raise view._prepare_view_error(message)
 
     def _check_required_actions(self, view: Any) -> None:
@@ -175,6 +184,12 @@ class NameManager:
                     msg = _(
                         "Invalid xmlid %(xmlid)s for button of type action.",
                         xmlid=name,
+                    )
+                    _debug.logic(
+                        "action_check_failed",
+                        view=view.id,
+                        action=name,
+                        reason="bad_xmlid",
                     )
                     raise view._prepare_view_error(msg, node) from None
                 if not issubclass(view.pool[model], view.pool["ir.actions.actions"]):
@@ -191,6 +206,9 @@ class NameManager:
                     action_reference=name,
                     action_id=action_id,
                 )
+                _debug.logic(
+                    "action_check_failed", view=view.id, action=name, reason="missing"
+                )
                 raise view._prepare_view_error(msg, node)
 
     def _check_required_groups(self, view: Any) -> None:
@@ -200,6 +218,7 @@ class NameManager:
                     "The group \u201c%(name)s\u201d defined in view does not exist!",
                     name=name,
                 )
+                _debug.logic("group_unknown", view=view.id, group=name)
                 view._log_view_warning(msg, node)
 
     def _check_used_fields(self, view: Any) -> None:
@@ -229,6 +248,13 @@ class NameManager:
         ) in self.get_fields_missing().items():
             message, error_type = self._error_message_group_inconsistency(
                 name, missing_groups, reasons
+            )
+            _debug.logic(
+                "group_inconsistency",
+                view=view.id,
+                field=name,
+                error_type=error_type,
+                reasons=len(reasons),
             )
             if error_type == "does_not_exist":
                 raise view._prepare_view_error(message)
@@ -369,4 +395,10 @@ class NameManager:
 
             missing_fields[name] = (missing_groups, used)
 
+        _debug.perf.count(
+            "fields_missing_computed",
+            model=self.model._name,
+            used_fields=len(self.used_fields),
+            missing=len(missing_fields),
+        )
         return missing_fields

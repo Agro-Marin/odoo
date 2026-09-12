@@ -960,6 +960,13 @@ class ResPartner(models.Model):
         existing = self.identifier_ids.filtered(
             lambda i, identifier_type=identifier_type: i.type_id == identifier_type
         )
+        _debug.lifecycle(
+            "identifier_updated",
+            partner=self.id,
+            type=code,
+            existing=len(existing),
+            by="unlink" if not value else "write" if existing else "create",
+        )
         if not value:
             existing.unlink()
             return
@@ -1130,6 +1137,7 @@ class ResPartner(models.Model):
         for partner_id, value in self.env.cr.fetchall():
             ids_by_value[value].append(partner_id)
         if any(len(ids) > 1 for ids in ids_by_value.values()):
+            _debug.logic("barcode_duplicate", company=cid, scope="batch")
             raise ValidationError(_("Another partner already has this barcode"))
         if not ids_by_value:
             return
@@ -1149,6 +1157,7 @@ class ResPartner(models.Model):
             )
         )
         if self.env.cr.fetchone():
+            _debug.logic("barcode_duplicate", company=cid, scope="others")
             raise ValidationError(_("Another partner already has this barcode"))
 
     def _convert_fields_to_values(self, field_names: list[str]) -> dict[str, Any]:
@@ -1278,6 +1287,12 @@ class ResPartner(models.Model):
                 )
             ]
             if stale_fields:
+                _debug.pipeline(
+                    "commercial_fields_synced_in_company",
+                    partners=self.ids,
+                    company=company_sudo.id,
+                    fields=stale_fields,
+                )
                 self_in_company.write(
                     commercial_in_company._convert_fields_to_values(stale_fields)
                 )
@@ -1303,6 +1318,13 @@ class ResPartner(models.Model):
                     d._fields[fname].convert_to_write(d[fname], d) != sync_vals[fname]
                     for fname in fields_to_sync
                 )
+            )
+            _debug.pipeline(
+                "commercial_fields_synced_to_descendants",
+                partner=self.id,
+                descendants=len(descendants),
+                stale=len(descendants_to_sync),
+                fields=list(fields_to_sync),
             )
             if descendants_to_sync:
                 descendants_to_sync.write(sync_vals)
@@ -1338,6 +1360,9 @@ class ResPartner(models.Model):
             and any(self[f] != self.parent_id[f] for f in address_fields)
             and (address_vals := self._prepare_address_vals())
         ):
+            _debug.logic(
+                "address_synced_to_parent", partner=self.id, parent=self.parent_id.id
+            )
             self.parent_id.write(address_vals)
         synced_fields = self._synced_commercial_fields()
         if (
@@ -1346,6 +1371,12 @@ class ResPartner(models.Model):
             and any(self[f] != self.parent_id[f] for f in synced_fields)
             and (synced_vals := self._prepare_commercial_vals_synced())
         ):
+            _debug.logic(
+                "commercial_synced_to_parent",
+                partner=self.id,
+                parent=self.parent_id.id,
+                fields=list(synced_vals),
+            )
             self.parent_id.write(synced_vals)
 
     def _sync_children(self, values: dict[str, Any]) -> None:
@@ -1356,6 +1387,9 @@ class ResPartner(models.Model):
         address_fields = self._address_fields()
         if any(field in values for field in address_fields):
             contacts = self.child_ids.filtered(lambda c: c.type == "contact")
+            _debug.logic(
+                "address_synced_to_children", partner=self.id, contacts=len(contacts)
+            )
             if contacts:
                 contacts._update_address(values)
 
@@ -1369,6 +1403,7 @@ class ResPartner(models.Model):
             and len(parent.child_ids) == 1
         ):
             addr_vals = self._convert_fields_to_values(address_fields)
+            _debug.logic("parent_address_filled", partner=self.id, parent=parent.id)
             parent._update_address(addr_vals)
 
     def _clean_website(self, website: str) -> str:
@@ -1606,6 +1641,12 @@ class ResPartner(models.Model):
         if additional_values:
             values.update(additional_values)
         parent_company = self._create_contact_parent_company(values)
+        _debug.lifecycle(
+            "parent_created_from_name",
+            partner=self.id,
+            parent=parent_company.id,
+            children=len(self.child_ids),
+        )
         self.write(
             {
                 "parent_id": parent_company.id,
@@ -1768,6 +1809,13 @@ class ResPartner(models.Model):
                 for node in nodes:
                     if node.parent_id:
                         children_map[node.parent_id.id].append(node)
+                _debug.perf.count(
+                    "address_get_tree_loaded",
+                    partners=len(self),
+                    roots=len(root_ids),
+                    nodes=len(nodes),
+                    types=sorted(adr_pref),
+                )
 
             visited = set()
             for chain in chains:
@@ -1924,6 +1972,12 @@ class ResPartner(models.Model):
             if key in mismatch_keys:
                 state_by_key.setdefault(key, state)
 
+        _debug.pipeline(
+            "import_state_country_realigned",
+            records=len(vals_list),
+            mismatches=len(mismatches),
+            resolved=sum(1 for _vals, key in mismatches if key in state_by_key),
+        )
         for vals, key in mismatches:
             matching = state_by_key.get(key)
             vals["state_id"] = matching.id if matching else False

@@ -86,6 +86,7 @@ class AssetsBundle:
             spec for spec in import_map if not EsbuildCompiler.resolves_specifier(spec)
         ]
         if missing_alias:
+            _debug.logic("external_libs_rejected", reason="alias", specs=missing_alias)
             raise ValueError(
                 f"esm.external_libs declares {sorted(missing_alias)} "
                 f"but esbuild has no resolution for them (no per-lib alias, "
@@ -97,6 +98,7 @@ class AssetsBundle:
             if not cls._is_addon_path_present(url.lstrip("/")):
                 missing_files.append(f"{spec} -> {url}")
         if missing_files:
+            _debug.logic("external_libs_rejected", reason="file", specs=missing_files)
             raise ValueError(
                 f"esm.external_libs URLs point at files that do not exist "
                 f"on disk: {missing_files}. Browsers would 404 on the "
@@ -177,6 +179,15 @@ class AssetsBundle:
                     bundle=self.name,
                     url=spec["url"],
                 )
+        _debug.pipeline(
+            "files_collected",
+            bundle=self.name,
+            files=len(files),
+            stylesheets=len(self.stylesheets),
+            javascripts=len(self.javascripts),
+            native_modules=len(self.native_modules),
+            templates=len(self.templates),
+        )
 
     def __init__(
         self,
@@ -372,13 +383,23 @@ class AssetsBundle:
         exported_specs: Collection[str] | None = None,
         registered_reach: Mapping[str, str] | None = None,
     ) -> EsbuildResult:
-        return self._prepare_esbuild_compiler(exported_specs, registered_reach).compile(
-            timeout_s=timeout_s,
-            target=target,
-            source_maps=source_maps,
-            dynamic_child_specs=dynamic_child_specs,
-            secondary_parent_stubs=secondary_parent_stubs,
-        )
+        with _debug.perf(
+            "esbuild_native_bundle",
+            bundle=self.name,
+            modules=len(self.native_modules),
+            dynamic_children=len(dynamic_child_specs or ()),
+            stubs=len(secondary_parent_stubs or ()),
+            exported=len(exported_specs or ()),
+        ) as span:
+            result = self._prepare_esbuild_compiler(exported_specs, registered_reach).compile(
+                timeout_s=timeout_s,
+                target=target,
+                source_maps=source_maps,
+                dynamic_child_specs=dynamic_child_specs,
+                secondary_parent_stubs=secondary_parent_stubs,
+            )
+            span.set(compiled=bool(result.code), bytes=len(result.code or ""))
+        return result
 
     @functools.cached_property
     def _bridges(self) -> BridgeShimManager:
@@ -403,6 +424,12 @@ class AssetsBundle:
                 h.update(asset.unique_descriptor.encode())
                 h.update(b"\x00")
             self._checksum_cache[asset_type] = h.hexdigest()
+            _debug.perf.count(
+                "checksum_computed",
+                bundle=self.name,
+                asset_type=asset_type,
+                assets=len(self._version_assets[asset_type]),
+            )
         return self._checksum_cache[asset_type]
 
     @functools.cached_property

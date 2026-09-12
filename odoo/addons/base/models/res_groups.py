@@ -143,6 +143,7 @@ class ResGroups(models.Model):
 
     @api.constrains("implied_ids", "implied_by_ids")
     def _check_disjoint_groups(self) -> None:
+        _debug.lifecycle("groups_cache_cleared", groups=self.ids, by="implied_ids")
         self.env.registry.clear_cache("groups")
         self.all_implied_by_ids._check_user_disjoint_groups()
 
@@ -163,6 +164,12 @@ class ResGroups(models.Model):
             )
         )
         user = self.env["res.users"].search(domain, order="id", limit=1)
+        _debug.logic(
+            "user_disjoint_groups_checked",
+            groups=self.ids,
+            user_type_groups=len(gids),
+            offender=user.id,
+        )
         if user:
             user._check_disjoint_groups()
 
@@ -171,6 +178,7 @@ class ResGroups(models.Model):
         classified = self.env["res.config.settings"]._get_fields_classified()
         for _name, _groups, implied_group in classified["group"]:
             if implied_group.id in self.ids:
+                _debug.logic("unlink_refused_settings_group", group=implied_group.id)
                 raise ValidationError(
                     self.env._(
                         "You cannot delete a group linked with a settings field."
@@ -335,6 +343,7 @@ class ResGroups(models.Model):
     @api.depends("implied_ids.all_implied_ids")
     def _compute_all_implied_ids(self) -> None:
         group_definitions = self._get_group_definitions()
+        _debug.perf.count("all_implied_ids_computed", groups=len(self))
         for g in self:
             g.all_implied_ids = g.ids + group_definitions.get_superset_ids(g.ids)
 
@@ -348,6 +357,7 @@ class ResGroups(models.Model):
     @api.depends("implied_by_ids.all_implied_by_ids")
     def _compute_all_implied_by_ids(self) -> None:
         group_definitions = self._get_group_definitions()
+        _debug.perf.count("all_implied_by_ids_computed", groups=len(self))
         for g in self:
             g.all_implied_by_ids = g.ids + group_definitions.get_subset_ids(g.ids)
 
@@ -404,10 +414,16 @@ class ResGroups(models.Model):
 
     def _add_implied_group(self, implied_group: Self) -> None:
         groups = self.filtered(lambda g: implied_group not in g.all_implied_ids)
+        _debug.lifecycle(
+            "implied_group_added", implied=implied_group.id, groups=groups.ids
+        )
         groups.write({"implied_ids": [Command.link(implied_group.id)]})
 
     def _remove_group(self, implied_group: Self) -> None:
         groups = self.all_implied_ids.filtered(lambda g: implied_group in g.implied_ids)
+        _debug.lifecycle(
+            "implied_group_removed", implied=implied_group.id, groups=groups.ids
+        )
         groups.write({"implied_ids": [Command.unlink(implied_group.id)]})
 
     def _compute_view_group_hierarchy(self) -> None:

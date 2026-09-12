@@ -126,6 +126,7 @@ class IrEmbeddedActions(models.Model):
     def _unlink_except_default_action(self) -> None:
         for record in self:
             if not record.is_deletable:
+                _debug.logic("unlink_refused_default", action=record.id)
                 raise UserError(
                     self.env._("You cannot delete a default embedded action")
                 )
@@ -151,6 +152,7 @@ class IrEmbeddedActions(models.Model):
     def _compute_is_visible(self) -> None:
         active_id = self.env.context.get("active_id", False)
         if not active_id:
+            _debug.logic("visibility_no_active_id", count=len(self))
             self.is_visible = False
             return
         active_model = self.env.context.get("active_model")
@@ -159,6 +161,12 @@ class IrEmbeddedActions(models.Model):
             if parent_res_model not in self.env or (
                 active_model and parent_res_model != active_model
             ):
+                _debug.logic(
+                    "visibility_model_mismatch",
+                    parent_model=parent_res_model,
+                    active_model=active_model,
+                    count=len(records),
+                )
                 records.is_visible = False
                 continue
             parent_model = self.env[parent_res_model]
@@ -174,6 +182,7 @@ class IrEmbeddedActions(models.Model):
                     try:
                         domain_model = literal_eval(record.domain or "[]")
                     except ValueError, SyntaxError:
+                        _debug.logic("visibility_domain_unparsable", action=record.id)
                         record.is_visible = False
                         continue
                     record.is_visible = bool(

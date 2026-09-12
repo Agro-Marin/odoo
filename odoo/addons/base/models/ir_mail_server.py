@@ -381,6 +381,7 @@ class IrMail_Server(models.Model):
                 )
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", servers=self.ids, fields=list(vals))
         if not vals.get("active", True):
             self._check_archivable()
         return super().write(vals)
@@ -397,6 +398,12 @@ class IrMail_Server(models.Model):
         )
         if not servers:
             return
+        _debug.logic(
+            "archive_refused",
+            servers=[server.id for server in servers],
+            deleting=deleting,
+            usages=sum(len(usages_per_server[server.id]) for server in servers),
+        )
 
         is_multiple_server_usage = len(servers) > 1
         usage_details = []
@@ -539,6 +546,7 @@ class IrMail_Server(models.Model):
     def _probe_smtp_connections(self) -> dict[Self, float | None]:
         self.check_access("write")
         if self._disable_send():
+            _debug.logic("probe_refused", servers=self.ids, reason="send_disabled")
             raise UserError(
                 _(
                     "Testing the SMTP connection is not possible because "
@@ -546,6 +554,7 @@ class IrMail_Server(models.Model):
                     "initialization)."
                 )
             )
+        _debug.pipeline("probe_smtp_connections", servers=self.ids)
         return {server: server._probe_smtp_connection() for server in self}
 
     def _probe_smtp_connection(self) -> float | None:
@@ -586,10 +595,12 @@ class IrMail_Server(models.Model):
                         repl=repl,
                     )
                 )
+            _debug.logic("probe_accepted", server=self.id)
             return self._get_session_max_email_size(smtp)
         except UserError:
             raise
         except Exception as e:
+            _debug.logic("probe_failed", server=self.id, error=type(e).__name__)
             raise self._prepare_connection_test_error(e, self) from e
         finally:
             if smtp is not None:
@@ -948,6 +959,7 @@ class IrMail_Server(models.Model):
         self, allow_archived: bool, smtp_from: str | None
     ) -> None:
         if not allow_archived and not self.active:
+            _debug.logic("forced_server_archived", server=self.id)
             raise UserError(
                 _(
                     'The server "%s" cannot be used because it is archived.',
@@ -962,6 +974,11 @@ class IrMail_Server(models.Model):
             return
         session_server_id = self._read_session_context(smtp_session).mail_server_id
         if session_server_id != mail_server_id:
+            _debug.logic(
+                "session_server_mismatch",
+                session_server=session_server_id,
+                forced_server=mail_server_id,
+            )
             e = (
                 f"smtp_session was opened for mail server {session_server_id}, "
                 f"not {mail_server_id}; connect through the forced server instead"
@@ -1166,6 +1183,7 @@ class IrMail_Server(models.Model):
     @api.model
     def _check_ascii_envelope(self, smtp_from: str, smtp_to_list: list[str]) -> None:
         if not smtp_from.isascii():
+            _debug.logic("envelope_not_ascii", part="from")
             raise OutgoingEmailError(
                 _(
                     "Malformed 'Return-Path' or 'From' address: %s - It should "
@@ -1176,6 +1194,7 @@ class IrMail_Server(models.Model):
                 self.NO_VALID_FROM,
             )
         if non_ascii := [address for address in smtp_to_list if not address.isascii()]:
+            _debug.logic("envelope_not_ascii", part="to", count=len(non_ascii))
             raise OutgoingEmailError(
                 _(
                     "Recipient address requires SMTPUTF8, which this server does "

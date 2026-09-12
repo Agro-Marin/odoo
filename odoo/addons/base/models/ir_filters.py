@@ -119,6 +119,7 @@ class IrFilters(models.Model):
         try:
             return ast.literal_eval(self.domain)
         except (ValueError, SyntaxError) as e:
+            _debug.logic("domain_unevaluable", filter=self.id, error=type(e).__name__)
             raise ValueError(f"Invalid domain: {self.domain}") from e
 
     @api.model
@@ -144,6 +145,12 @@ class IrFilters(models.Model):
             else ("embedded_parent_res_id", "in", [0, False])
         )
 
+        _debug.logic(
+            "action_domain",
+            action=action_id,
+            embedded=embedded_action_id,
+            parent_res_id=embedded_parent_res_id,
+        )
         return [
             action_condition,
             embedded_condition,
@@ -189,6 +196,12 @@ class IrFilters(models.Model):
 
     @api.model
     def _check_serialized_vals(self, vals: dict[str, Any]) -> None:
+        _debug.pipeline(
+            "serialized_vals_checked",
+            fields=[
+                f for f in ("domain", "context", "sort") if vals.get(f) is not None
+            ],
+        )
         self._check_domain_expression(vals.get("domain"))
         self._check_context_expression(vals.get("context"))
         self._check_sort_expression(vals.get("sort"))
@@ -280,6 +293,7 @@ class IrFilters(models.Model):
             if isinstance(node, ast.Name) and node.id not in _ALLOWED_DOMAIN_NAMES
         }
         if rejected:
+            _debug.logic("domain_names_rejected", names=sorted(rejected))
             raise ValidationError(
                 self.env._(
                     "Invalid filter domain: forbidden name(s) %(names)s.",

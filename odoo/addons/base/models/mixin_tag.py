@@ -1,7 +1,10 @@
 import re
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 _CODE_SEPARATORS = re.compile(r"[^A-Z0-9]+")
 
@@ -54,14 +57,23 @@ class MixinTag(models.AbstractModel):
                 )
             )
         }
+        suffixed = 0  # debuglog
         for tag in pending:
             base = self._name_to_code(tag.name) or "TAG"
             candidate, suffix = base, 1
             while candidate in taken:
                 suffix += 1
                 candidate = f"{base}_{suffix}"
+            suffixed += candidate != base  # debuglog
             taken.add(candidate)
             tag.code = candidate
+        _debug.logic(
+            "codes_generated",
+            model=self._name,
+            pending=len(pending),
+            taken=len(taken),
+            suffixed=suffixed,
+        )
 
     @api.model
     def _name_to_code(self, name):

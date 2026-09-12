@@ -4,12 +4,14 @@ from collections.abc import Collection
 from typing import TYPE_CHECKING, Any
 
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
 
 if TYPE_CHECKING:
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.base.models.ir_module import IrModuleModule
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class ReportBaseReport_Irmodulereference(models.AbstractModel):
@@ -75,6 +77,9 @@ class ReportBaseReport_Irmodulereference(models.AbstractModel):
                 model_name,
                 exc_info=True,
             )
+            _debug.logic(
+                "field_descriptions_failed", model=model_name, fields=len(field_names)
+            )
             return []
         return [
             {
@@ -93,8 +98,10 @@ class ReportBaseReport_Irmodulereference(models.AbstractModel):
         self, docids: list[int] | None, data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         modules = self.env["ir.module.module"].browse(docids)
-        models_by_module = self._get_models_by_module(modules)
-        names_by_module = self._get_field_names_by_model(modules)
+        with _debug.perf("report_values", cr=self.env.cr, modules=len(modules)) as span:
+            models_by_module = self._get_models_by_module(modules)
+            names_by_module = self._get_field_names_by_model(modules)
+            span.set(models=sum(len(m) for m in models_by_module.values()))
 
         objects_by_module = {}
         for module in modules:

@@ -150,6 +150,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     parent_id,
                     dst_partner.id,
                 )
+                _debug.logic(
+                    "merge_parent_skipped", partner=dst_partner.id, parent=parent_id
+                )
         return deferred_values
 
     @api.model
@@ -158,6 +161,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     ) -> None:
         all_src_accounts = src_partners.bank_ids
 
+        absorbed = 0  # debuglog
         for src_account in all_src_accounts:
             duplicate_account = dst_partner.bank_ids.filtered(
                 lambda a, src_account=src_account: (
@@ -172,8 +176,15 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     "res.partner.bank", src_account, duplicate_account
                 )
                 src_account.sudo().unlink()
+                absorbed += 1  # debuglog
             else:
                 src_account.sudo().write({"partner_id": dst_partner.id})
+        _debug.pipeline(
+            "merge_bank_accounts",
+            dst=dst_partner.id,
+            accounts=len(all_src_accounts),
+            absorbed=absorbed,
+        )
 
     @api.model
     def _merge_phone_numbers(
@@ -181,6 +192,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     ) -> None:
         src_partners = src_partners.with_context(active_test=False)
         numbers = src_partners.phone_ids.sudo()
+        _debug.pipeline("merge_phone_numbers", dst=dst_partner.id, numbers=len(numbers))
         if numbers:
             numbers.write(
                 {
@@ -210,6 +222,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 clash = identifier_type.id in held_types
             if clash:
                 src_identifier.sudo().unlink()
+                _debug.logic(
+                    "merge_identifier_dropped",
+                    dst=dst_partner.id,
+                    type=identifier_type.code,
+                )
             else:
                 src_identifier.sudo().write({"partner_id": dst_partner.id})
                 held_types.add(identifier_type.id)
@@ -316,6 +333,12 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         dst_partner = self._get_ordered_partner(partner_ids)[-1]
         src_partners = [pid for pid in partner_ids if pid != dst_partner.id]
         chunk = self._MERGE_SIZE_LIMIT - 1
+        _debug.pipeline(
+            "merge_duplicate_group",
+            dst=dst_partner.id,
+            sources=len(src_partners),
+            chunks=-(-len(src_partners) // chunk),
+        )
         for start in range(0, len(src_partners), chunk):
             self._merge(
                 src_partners[start : start + chunk] + [dst_partner.id],
@@ -407,8 +430,11 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             right,
             limit,
         )
-        self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
-        return self.env.cr.fetchall()
+        with _debug.perf("similar_name_pairs", cr=self.env.cr, limit=limit) as span:
+            self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
+            pairs = self.env.cr.fetchall()
+            span.set(pairs=len(pairs))
+        return pairs
 
     def _get_recall_threshold(self) -> float:
         return self.env["res.partner"]._get_similar_name_recall_threshold()
@@ -458,6 +484,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             if len(members) >= 2
         ]
         groups.sort()
+        _debug.pipeline(
+            "similar_name_groups",
+            pairs=len(pairs),
+            partners=len(involved),
+            threshold=threshold,
+            groups=len(groups),
+            maximum_group=maximum_group,
+        )
         return groups[:maximum_group] if maximum_group else groups
 
     @api.model
@@ -622,6 +656,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             query = self._generate_query(exact_fields, self.maximum_group)
             self.env.cr.execute(query)  # noqa: E8501  built via SQL() by _generate_query
             groups.extend(self.env.cr.fetchall())
+            _debug.pipeline("exact_groups", fields=exact_fields, groups=len(groups))
 
         if self.match_similar_names:
             groups.extend(self._get_similar_name_groups(self.maximum_group))
@@ -634,6 +669,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         self.action_start_manual_process()
         self.env.invalidate_all()
 
+        _debug.pipeline("automatic_merge", wizard=self.id, lines=len(self.line_ids))
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))
             line.unlink()
@@ -678,6 +714,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         self._create_merge_lines_from_query(query)
 
+        _debug.pipeline("parent_migration", wizard=self.id, lines=len(self.line_ids))
         for line in self.line_ids:
             self._merge_duplicate_group(literal_eval(line.aggr_ids))
             line.unlink()
@@ -694,6 +731,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             WHERE
                 parent_id = id
         """)
+        _debug.lifecycle("self_parents_cleared", rows=self.env.cr.rowcount)
 
         return {
             "type": "ir.actions.act_window",

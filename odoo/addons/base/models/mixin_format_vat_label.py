@@ -3,6 +3,9 @@ from typing import Any
 from lxml import etree
 
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MixinFormatVatLabel(models.AbstractModel):
@@ -26,4 +29,10 @@ class MixinFormatVatLabel(models.AbstractModel):
                 node.set("string", vat_label)
             for node in arch.iterfind(".//label[@for='vat']"):
                 node.set("string", vat_label)
+            _debug.logic(
+                "vat_label_applied",
+                model=self._name,
+                view_type=view_type,
+                label=vat_label,
+            )
         return arch, view
