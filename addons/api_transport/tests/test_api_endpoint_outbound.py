@@ -206,10 +206,10 @@ class TestApiEndpointOutbound(TransactionCase):
         )
         self.assertEqual(service.oauth_scope, "read write")
 
-    def test_log_retention_default(self):
+    def test_log_retention_defaults_to_the_global_setting(self):
         service = self._create_service(code="retention_test")
 
-        self.assertEqual(service.log_retention_days, 90)
+        self.assertEqual(service.log_retention_days, 0)
 
 
 class TestCacheErrorReset(TransactionCase):

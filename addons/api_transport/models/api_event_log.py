@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import SQL
 
 from odoo.addons.api_transport.tools import compute_payload_hash
 
@@ -657,32 +658,51 @@ class ApiEventLog(models.Model):
                 default="90",
             ),
         )
-
-        if default_retention <= 0:
-            return
-
-        cutoff = fields.Datetime.now() - timedelta(days=default_retention)
-
-        self.env.cr.execute(
-            """
-            DELETE FROM api_event_log
-            WHERE (
-                    state IN ('success', 'failed', 'duplicate')
-                    AND date_completed < %(cutoff)s
-                )
-                OR (
-                    state IN ('pending', 'retry')
-                    AND create_date < %(cutoff)s
-                )
-            """,
-            {"cutoff": cutoff},
+        overrides = (
+            self.env["api.endpoint.outbound"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([("log_retention_days", ">", 0)])
         )
+        overridden_refs = [f"api.endpoint.outbound,{e.id}" for e in overrides]
 
+        for endpoint in overrides:
+            self._delete_logs_older_than(
+                endpoint.log_retention_days,
+                SQL("channel_id = %s", f"api.endpoint.outbound,{endpoint.id}"),
+            )
+
+        if default_retention > 0:
+            self._delete_logs_older_than(
+                default_retention,
+                SQL("NOT (channel_id = ANY(%s))", overridden_refs)
+                if overridden_refs
+                else SQL("TRUE"),
+            )
+
+    def _delete_logs_older_than(self, days, scope):
+        cutoff = fields.Datetime.now() - timedelta(days=days)
+        self.env.cr.execute(
+            SQL(
+                """
+                DELETE FROM api_event_log
+                WHERE %s
+                  AND (
+                        (state IN ('success', 'failed', 'duplicate')
+                         AND date_completed < %s)
+                     OR (state IN ('pending', 'retry') AND create_date < %s)
+                  )
+                """,
+                scope,
+                cutoff,
+                cutoff,
+            )
+        )
         if self.env.cr.rowcount:
             _logger.info(
                 "Garbage collected %d event logs older than %d days",
                 self.env.cr.rowcount,
-                default_retention,
+                days,
             )
 
     def get_payload_dict(self) -> dict[str, Any]:

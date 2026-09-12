@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import timedelta
 from typing import Any
 from urllib.parse import urlparse
 
@@ -255,8 +256,9 @@ class ApiEndpointOutbound(models.Model):
     )
 
     log_retention_days = fields.Integer(
-        default=90,
-        help="Delete logs older than this. 0 = keep forever.",
+        default=0,
+        help="Delete this endpoint's event logs older than this many days. 0 uses "
+        "the retention set in API Transport settings.",
     )
     log_request_payload = fields.Boolean(
         default=True,
@@ -510,8 +512,18 @@ class ApiEndpointOutbound(models.Model):
                 ("health_check_enabled", "=", True),
             ],
         )
+        now = fields.Datetime.now()
+        due = services.filtered(
+            lambda service: (
+                not service.last_health_check
+                or service.health_check_interval <= 0
+                or service.last_health_check
+                + timedelta(minutes=service.health_check_interval)
+                <= now
+            )
+        )
 
-        for service in services:
+        for service in due:
             try:
                 service._perform_health_check()
             except Exception as e:
