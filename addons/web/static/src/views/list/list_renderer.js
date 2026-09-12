@@ -60,17 +60,6 @@ import {
     useListVirtualization,
 } from "./list_virtualization.js";
 
-const perfMark = (/** @type {string} */ name) => {
-    if (odoo.debug) {
-        performance.mark(name);
-    }
-};
-const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) => {
-    if (odoo.debug) {
-        performance.measure(name, start);
-    }
-};
-
 /**
  * @typedef {import('@web/model/relational_model/dynamic_list').DynamicList} DynamicList
  * @typedef {import('@web/model/relational_model/group').Group} Group
@@ -559,19 +548,21 @@ export class ListRenderer extends Component {
             this.tooltipInfoByColumn = {};
         }
 
-        perfMark("list:processAllColumns:start");
-        this.allColumns = /** @type {Column[]} */ (
-            this.processAllColumns(this.props.archInfo.columns, this.props.list)
+        this.allColumns = log.measure(
+            "processAllColumns",
+            () =>
+                /** @type {Column[]} */ (
+                    this.processAllColumns(this.props.archInfo.columns, this.props.list)
+                ),
         );
-        perfMeasure("list:processAllColumns", "list:processAllColumns:start");
 
         Object.assign(this.optionalActiveFields, this.computeOptionalActiveFields());
         this.debugOpenView = this.opt.debugOpenView;
 
-        perfMark("list:getActiveColumns:start");
-        this.columns = this._toStableColumns(this.getActiveColumns());
-        this.visibleOptionalColumns = this.getVisibleOptionalColumns();
-        perfMeasure("list:getActiveColumns", "list:getActiveColumns:start");
+        log.measure("getActiveColumns", () => {
+            this.columns = this._toStableColumns(this.getActiveColumns());
+            this.visibleOptionalColumns = this.getVisibleOptionalColumns();
+        });
 
         this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
 
@@ -583,13 +574,8 @@ export class ListRenderer extends Component {
             hasActionsColumn: this.hasActionsColumn,
             showGroupAddLine: Boolean(this.props.editable && this.canCreate),
         });
-        perfMark("list:gridState.rebuild:start");
-        this.gridState.rebuild();
-        perfMeasure("list:gridState.rebuild", "list:gridState.rebuild:start");
-
-        perfMark("list:virt.refresh:start");
-        this.virt.refresh();
-        perfMeasure("list:virt.refresh", "list:virt.refresh:start");
+        log.measure("gridState.rebuild", () => this.gridState.rebuild());
+        log.measure("virt.refresh", () => this.virt.refresh());
     }
 
     /** @returns {import("./list_renderer").ListGridContext} */

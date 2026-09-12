@@ -538,6 +538,21 @@ test("a statusbar button modifier is evaluated once, on the slot", () => {
     expect(compiled).not.toInclude("t-if=");
 });
 
+test("a separator modifier is evaluated once, outside and inside a group", () => {
+    const bare = compileTemplate(
+        `<form><separator string="S" invisible="bar == 'x'"/></form>`,
+    ).outerHTML;
+    expect(bare.match(/evaluateBooleanExpr/g)).toHaveLength(1);
+    expect(bare).toInclude("t-if=");
+
+    const grouped = compileTemplate(
+        `<form><group><separator string="S" invisible="bar == 'x'"/></group></form>`,
+    ).outerHTML;
+    expect(grouped.match(/evaluateBooleanExpr/g)).toHaveLength(1);
+    expect(grouped).toInclude("isVisible=");
+    expect(grouped).not.toInclude("t-if=");
+});
+
 describe("button box, label pairing", () => {
     const BOX = `<div name="button_box">
             <button class="oe_stat_button"><field name="bar" field_id="bar"/></button>

@@ -699,13 +699,12 @@ export class FormCompiler extends ViewCompiler {
 
     /**
      * @param {Element} el
-     * @param {Record<string, any>} params
-     * @returns {Element | undefined}
+     * @returns {Element}
      */
-    compileSeparator(el, params = {}) {
+    compileSeparator(el) {
         const separator = makeSeparator(el.getAttribute("string"));
         copyAttributes(el, separator);
-        return this.applyInvisible(getModifier(el, "invisible"), separator, params);
+        return separator;
     }
 
     /**
