@@ -14,7 +14,7 @@ from requests.adapters import HTTPAdapter
 from requests.auth import HTTPDigestAuth
 from urllib3.util.retry import Retry
 
-from odoo import _, fields
+from odoo import _, api, fields
 from odoo.exceptions import UserError
 
 from .exceptions import (
@@ -826,15 +826,37 @@ class OutboundAPIClient:
             _logger.debug("Failed to increment cache error counter: %s", e)
 
     def _register_log_hooks(self):
-        if "api.event.log.values" not in self.env.cr.precommit.data:
-            self.env.cr.precommit.data["api.event.log.values"] = []
+        cr = self.env.cr
+        if "api.event.log.values" in cr.precommit.data:
+            return
+        pending = cr.precommit.data["api.event.log.values"] = []
+        registry = self.env.registry
+        uid = self.env.uid
 
-            @self.env.cr.precommit.add
-            def batch_create_logs():
-                logs = self.env.cr.precommit.data.pop("api.event.log.values")
-                if logs:
-                    self.env["api.event.log"].sudo().create(logs)
-                    _logger.debug("Batch created %d API event logs", len(logs))
+        @cr.precommit.add
+        def batch_create_logs():
+            logs = cr.precommit.data.pop("api.event.log.values", pending)
+            if logs:
+                self.env["api.event.log"].sudo().create(logs)
+                _logger.debug("Batch created %d API event logs", len(logs))
+
+        # A caller that lets a CommError propagate rolls its transaction back,
+        # and the exchange that failed is the one most worth a row. `_rollback`
+        # empties `precommit.data` before running this, so it keeps its own list.
+        @cr.postrollback.add
+        def keep_logs_of_rolled_back_transaction():
+            if not pending:
+                return
+            try:
+                with registry.cursor() as log_cr:
+                    log_env = api.Environment(log_cr, uid, {})
+                    log_env["api.event.log"].sudo().create(list(pending))
+            except Exception:
+                _logger.exception(
+                    "Could not keep %d API event log row(s) of a rolled-back "
+                    "transaction",
+                    len(pending),
+                )
 
     def log_external_exchange(
         self,

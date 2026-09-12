@@ -28,3 +28,4 @@ from . import test_cache_credential_scope
 from . import test_response_cache_search
 from . import test_credential_egress_policy
 from . import test_transport_secret_use
+from . import test_exchange_log_rollback
