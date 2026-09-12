@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { getAttendeeStatusClass } from "@calendar/views/attendee_calendar/attendee_calendar_utils";
 import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
+import { toRaw } from "@odoo/owl";
 import { CalendarCommonRenderer } from "@web/views/calendar";
+
+/** @type {WeakSet<object>} */
+const defaultEventPopoverOpened = new WeakSet();
 
 export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     static eventTemplate = "calendar.AttendeeCalendarCommonRenderer.event";
@@ -42,18 +46,17 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     /**
      * @override
      */
-    onEventDidMount(info) {
+    onEventDidMount({ el, event }) {
         super.onEventDidMount(...arguments);
-        const { el, event, isDragging, isMirror } = info;
         const record = this.props.model.records[event.id];
         if (
             record &&
             this.env.searchModel?.context?.default_calendar_event_id ===
                 parseInt(event.id) &&
-            !this.popover.isOpen &&
-            !isDragging &&
-            !isMirror
+            !defaultEventPopoverOpened.has(toRaw(this.props.model))
         ) {
+            // the prop is a reactive proxy that differs per renderer instance
+            defaultEventPopoverOpened.add(toRaw(this.props.model));
             this.openPopover(el, record);
         }
     }

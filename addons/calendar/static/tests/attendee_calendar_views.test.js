@@ -146,7 +146,7 @@ test("Default duration rendering", async () => {
     });
 });
 
-test("the default event's popover opens once and not again on a drag frame", async () => {
+test("the default event's popover opens once per arrival, and never again by itself", async () => {
     let opened = 0;
     let renderer;
     patchWithCleanup(AttendeeCalendarCommonRenderer.prototype, {
@@ -169,21 +169,26 @@ test("the default event's popover opens once and not again on a drag frame", asy
     expect(opened).toBe(1);
 
     // FullCalendar mounts the dragged event and its mirror again on every
-    // drag frame, and any re-render of the event while the popover is open
+    // drag frame, and every event again on a reload
     const el = findEvent(2);
     const event = renderer.fc.api.getEventById("2");
     expect(event).not.toBe(null);
-    renderer.onEventDidMount({ el, event, isDragging: true, isMirror: false });
-    renderer.onEventDidMount({ el, event, isDragging: false, isMirror: true });
-    renderer.onEventDidMount({ el, event, isDragging: false, isMirror: false });
+    renderer.onEventDidMount({ el, event, isDragging: true, isMirror: true });
+    renderer.onEventDidMount({ el, event });
     expect(opened).toBe(1);
     expect(".o_cw_popover").toHaveCount(1);
 
+    // dismissed by the user, then re-rendered (next week and back, a scale
+    // switch): the popover stays dismissed
     renderer.popover.close();
     await animationFrame();
     expect(".o_cw_popover").toHaveCount(0);
-    renderer.onEventDidMount({ el, event, isDragging: false, isMirror: false });
+    renderer.onEventDidMount({ el, event });
     await animationFrame();
-    expect(opened).toBe(2);
-    expect(".o_cw_popover").toHaveCount(1);
+    expect(opened).toBe(1);
+    expect(".o_cw_popover").toHaveCount(0);
+    await changeScale("week");
+    await changeScale("month");
+    expect(opened).toBe(1);
+    expect(".o_cw_popover").toHaveCount(0);
 });
