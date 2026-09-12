@@ -31,3 +31,4 @@ from . import test_transport_secret_use
 from . import test_exchange_log_rollback
 from . import test_retry_policy
 from . import test_endpoint_schedules
+from . import test_credential_health_probe

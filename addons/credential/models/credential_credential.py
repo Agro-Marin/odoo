@@ -1002,6 +1002,21 @@ class CredentialCredential(models.Model):
 
     def action_validate_credential(self) -> dict[str, Any]:
         self.check_singleton()
+        result = self._validate_health()
+        if result.get("not_implemented"):
+            kind, title = "warning", self.env._("Not Validated")
+        elif result.get("success"):
+            kind, title = "success", self.env._("Credential Valid")
+        else:
+            kind, title = "danger", self.env._("Validation Failed")
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {"title": title, "message": result.get("message"), "type": kind},
+        }
+
+    def _validate_health(self) -> dict[str, Any]:
+        self.check_singleton()
 
         _logger.info(
             "Validating credential %s (category: %s)",
@@ -1014,7 +1029,7 @@ class CredentialCredential(models.Model):
             "not_implemented": True,
             "message": self.env._(
                 "No built-in validation for category '%s'. "
-                "Override action_validate_credential in an inheriting "
+                "Override _validate_health in an inheriting "
                 "module to add a service-specific probe."
             )
             % (self.category_code or "unknown"),
@@ -1049,7 +1064,7 @@ class CredentialCredential(models.Model):
 
         for cred in credentials:
             try:
-                result = cred.action_validate_credential()
+                result = cred._validate_health()
                 if result.get("not_implemented"):
                     skipped += 1
                 elif result.get("success"):

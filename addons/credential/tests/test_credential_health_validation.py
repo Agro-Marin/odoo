@@ -28,7 +28,7 @@ class TestActionValidateCredential(HealthValidationCommon):
     def test_category_without_probe_stays_unknown(self):
         credential = self._make_credential("Custom cred without probe")
 
-        result = credential.action_validate_credential()
+        result = credential._validate_health()
 
         self.assertTrue(result["not_implemented"])
         self.assertFalse(result["success"])
@@ -60,7 +60,7 @@ class TestCronValidateCredentials(HealthValidationCommon):
 
         with patch.object(
             type(credential),
-            "action_validate_credential",
+            "_validate_health",
             side_effect=ValueError("boom"),
         ):
             result = Credential.cron_validate_credentials()

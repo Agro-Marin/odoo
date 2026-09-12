@@ -1,5 +1,6 @@
 import json
 import logging
+from time import monotonic
 from typing import Any, Self
 
 from odoo import api, fields, models
@@ -298,40 +299,47 @@ class CredentialCredential(models.Model):
             "warning",
         )
 
-    def action_validate_credentials(self) -> dict[str, Any]:
+    def _validate_health(self) -> dict[str, Any]:
         self.check_singleton()
-
         if not self.endpoint_id:
-            return self._notify_not_linked()
+            return super()._validate_health()
 
+        code = self.endpoint_id.code
+        started = monotonic()
+        error = None
         try:
             client = self.endpoint_id.with_company(self.company_id)._get_api_client(
                 self
             )
-            is_valid = client.health_check()
+            healthy = client.health_check()
         except Exception as e:
             _logger.warning(
-                "Validation failed for credential %s (service %s): %s",
+                "Health probe of credential %s (service %s) failed: %s",
                 self.id,
-                self.endpoint_id.code,
+                code,
                 e,
             )
-            raise ValidationError(
-                self.env._(
-                    "Credentials could not be validated. See the server log "
-                    "for details.",
-                ),
-            ) from e
+            healthy, error = False, str(e)[:255]
+        latency_ms = (monotonic() - started) * 1000
 
-        if not is_valid:
-            raise ValidationError(self.env._("Credentials validation failed"))
-
-        self.write({"last_validated": fields.Datetime.now()})
-        return self._notify(
-            self.env._("Success"),
-            self.env._("Credentials are valid!"),
-            "success",
+        now = fields.Datetime.now()
+        message = (
+            self.env._("Service '%s' answered with this credential.", code)
+            if healthy
+            else error or self.env._("Service '%s' did not answer successfully.", code)
         )
+        vals = {
+            "health_status": "healthy" if healthy else "error",
+            "health_message": message,
+            "last_health_check": now,
+            "last_health_check_latency": latency_ms,
+            "total_health_checks": self.total_health_checks + 1,
+            "failed_health_checks": self.failed_health_checks + (0 if healthy else 1),
+        }
+        if healthy:
+            vals["last_validated"] = now
+        self.with_context(**{self._INTERNAL_STATS_UPDATE_KEY: True}).write(vals)
+        return {"success": healthy, "message": message}
 
     def action_view_usage_logs(self) -> dict[str, Any]:
         self.check_singleton()
