@@ -625,3 +625,34 @@ class ApprovalRequestAccess(models.Model):
     def _allows_self_approval(self) -> bool:
         self.check_singleton()
         return bool(self.category_id.allow_self_approval)
+
+    @api.constrains("request_owner_id", "company_id", "res_model", "res_id")
+    def _check_owner_company(self) -> None:
+        """A request typed in by hand belongs to someone of its company; a request
+        raised for a document takes its company from the document and its owner
+        from whoever the document names.
+
+        The generic `check_company` said the first for both, and the second
+        broke on real data: an allocation for an employee of company B owned by
+        that employee's user, whose login only reaches company A, or by the
+        officer acting for an employee with no user at all. Record rules on
+        `company_id` still decide who sees the request.
+        """
+        for request in self:
+            if request.res_model or not request.company_id:
+                continue
+            if request.company_id not in request.request_owner_id.company_ids:
+                trace.REFUSAL.event(
+                    "owner_outside_company",
+                    request=request.id,
+                    owner=request.request_owner_id.id,
+                    company=request.company_id.id,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "%(owner)s cannot own a request of %(company)s: they do not "
+                        "work in that company.",
+                        owner=request.request_owner_id.name,
+                        company=request.company_id.name,
+                    )
+                )

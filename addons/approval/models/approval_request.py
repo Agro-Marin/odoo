@@ -44,7 +44,6 @@ class ApprovalRequest(models.Model):
         comodel_name="res.users",
         required=True,
         default=lambda self: self.env.user,
-        check_company=True,
         domain="[('company_ids', 'in', company_id)]",
         index=True,
     )

@@ -389,6 +389,36 @@ class TestMultiCompanyAuditRegressions(ApprovalCommon):
         )
 
 
+class TestRequestOwnerCompany(ApprovalCommon):
+    def test_a_request_typed_in_belongs_to_someone_of_its_company(self):
+        other = self.env["res.company"].create({"name": "Owner Elsewhere"})
+        category = self._make_category(name="Owner Co", approvers=[self.approver_1])
+        with self.assertRaises(ValidationError):
+            self.env["approval.request"].create(
+                {
+                    "category_id": category.id,
+                    "request_owner_id": self.owner_user.id,
+                    "company_id": other.id,
+                }
+            )
+
+    def test_a_document_request_may_be_owned_by_whoever_the_document_names(self):
+        other = self.env["res.company"].create({"name": "Document Elsewhere"})
+        self.approver_1.write({"company_ids": [(4, other.id)]})
+        category = self._make_category(name="Doc Co", approvers=[self.approver_1])
+        partner = self.env["res.partner"].create({"name": "Owned elsewhere"})
+        request = self.env["approval.request"].create(
+            {
+                "category_id": category.id,
+                "request_owner_id": self.owner_user.id,
+                "company_id": other.id,
+                "res_model": "res.partner",
+                "res_id": partner.id,
+            }
+        )
+        self.assertEqual(request.company_id, other)
+
+
 class TestCompanyIsNeverEmpty(ApprovalCommon):
     def test_request_without_company_is_refused(self):
         category = self._make_category(name="No Co", approvers=[self.approver_1])
