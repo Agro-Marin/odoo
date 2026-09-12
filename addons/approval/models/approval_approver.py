@@ -289,7 +289,70 @@ class ApprovalApprover(models.Model):
     def write(self, vals: dict) -> bool:
         self._check_access_write(vals)
         self._check_business_rules_write(vals)
-        return super().write(self._stamp_pending_since(vals))
+        delegation = self._DELEGATION_ONLY_FIELDS & vals.keys()
+        previous_delegates = (
+            {approver.id: approver.delegate_id for approver in self}
+            if delegation
+            else {}
+        )
+        result = super().write(self._stamp_pending_since(vals))
+        if delegation:
+            self._hand_activities_to_effective_approver(previous_delegates)
+        return result
+
+    def _hand_activities_to_effective_approver(
+        self, previous_delegates: dict | None = None
+    ) -> None:
+        """A pending row's approval activity belongs to whoever may decide it now.
+
+        Who that is changes without the delegation wizard: a delegation written on
+        the row itself (the request form edits it), and the clock, since
+        `is_delegated` is computed from today against the window. Left alone, the
+        delegate may decide with nothing asking them to, and the principal holds a
+        to-do they are refused on -- or the other way round once the window ends.
+        """
+        previous_delegates = previous_delegates or {}
+        rows = self.filtered(
+            lambda row: (
+                row.state == "pending"
+                and (row.delegate_id or previous_delegates.get(row.id))
+            )
+        )
+        if not rows:
+            return
+        activities = rows.request_id._get_approval_activities().filtered(
+            lambda activity: activity.approver_id in rows
+        )
+        for approver in rows:
+            holder = approver._get_effective_approver()
+            parties = (
+                approver.user_id
+                | approver.delegate_id
+                | previous_delegates.get(approver.id, approver.delegate_id)
+            )
+            misplaced = activities.filtered(
+                lambda activity, row=approver, holder=holder, parties=parties: (
+                    activity.approver_id == row
+                    and activity.user_id in parties
+                    and activity.user_id != holder
+                )
+            )
+            if not misplaced:
+                continue
+            trace.DELEGATION.event(
+                "activity_follows_effective_approver",
+                approver=approver.id,
+                holder=holder.id,
+                activities=misplaced.ids,
+            )
+            misplaced.write({"user_id": holder.id})
+
+    @api.model
+    def cron_hand_delegated_activities_over(self) -> None:
+        """Move activities when a delegation window opens or closes today."""
+        self.search(
+            [("state", "=", "pending"), ("delegate_id", "!=", False)]
+        )._hand_activities_to_effective_approver()
 
     def _stamp_pending_since(self, vals: dict) -> dict:
         state = vals.get("state")

@@ -683,7 +683,7 @@ by `_get_escalation_rules()`:
 
 ## Cron Jobs
 
-3 scheduled actions (`data/ir_cron_data.xml`), all batched via
+4 scheduled actions (`data/ir_cron_data.xml`). The three on requests are batched via
 `CRON_BATCH_LIMIT = 500`. The cap is per TICK for auto-expire and
 consent — both build one OR-of-per-category-windows domain through
 `_eligible_by_category_domain()` and issue a single capped, globally
@@ -699,6 +699,7 @@ carries its own thresholds:
 | `ir_cron_smart_escalation` | `cron_smart_escalation()` | Every 4 hours | Yes | Priority-based reminders and manager escalation |
 | `ir_cron_auto_expire` | `cron_auto_expire()` | Daily | Yes | **Cancel** (terminal `cancelled`, via `_force_terminal`) requests past `category.auto_expire_hours` |
 | `ir_cron_consent_approval` | `cron_consent_approval()` | Every 4 hours | Yes | Auto-approve if no refusal within `consent_approval_hours`; skips sequential categories, requests with `pending_change_field`, and `_can_consent_approve()` vetoes |
+| `ir_cron_hand_delegated_activities_over` | `approval.approver.cron_hand_delegated_activities_over()` | Daily | Yes | `is_delegated` is computed from today, so who may decide a delegated row changes when its window opens or closes. The approval activity is moved to that person (`_hand_activities_to_effective_approver`, also run by every write of the delegation fields). Unbatched: it reads only pending rows that carry a delegate |
 
 Removed: the weekly `ir_cron_performance_report` (and its
 `approver_compute_ms` column) — unlinked/dropped by the 19.0.1.0.7

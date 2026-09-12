@@ -12,6 +12,17 @@
         <field name="active" eval="True" />
     </record>
 
+    <record id="ir_cron_hand_delegated_activities_over" model="ir.cron">
+        <field name="name">Approval Delegations: Hand Activities Over</field>
+        <field name="model_id" ref="model_approval_approver" />
+        <field name="state">code</field>
+        <field name="code">model.cron_hand_delegated_activities_over()</field>
+        <field name="repeat_interval" eval="1" />
+        <field name="repeat_unit">day</field>
+        <field name="priority" eval="10" />
+        <field name="active" eval="True" />
+    </record>
+
     <record id="ir_cron_auto_expire" model="ir.cron">
         <field name="name">Auto-Expire Stale Approval Requests</field>
         <field name="model_id" ref="model_approval_request" />

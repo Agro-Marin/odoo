@@ -24,7 +24,7 @@ dashboards.
 | Views | 15 XML files (9 `views/` + 4 `reports/` + 2 `wizards/`) |
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
-| Cron jobs | 3 (escalation, auto-expire, consent) |
+| Cron jobs | 4 (escalation, auto-expire, consent, delegated activity hand-over) |
 | Test files | 46 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
 | JS files | 25 (14 `static/src` + 11 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
@@ -157,7 +157,7 @@ into `test_approvals.py`).
 | `res_users_data.xml` | The administrator is an approval manager. The generic categories (General, Business Trip, etc.) are `approval_app`'s since 2.3 |
 | `mail_activity_type_data.xml` | 2 activity types: approval + change request |
 | `mail_message_subtype_data.xml` | Approval state change subtype |
-| `ir_cron_data.xml` | 3 scheduled actions |
+| `ir_cron_data.xml` | 4 scheduled actions |
 | `approval_refusal_reason_data.xml` | 12 refusal reasons, incl. system reasons `refusal_reason_parent_cancelled`, `refusal_reason_auto_rule`, `refusal_reason_data_migration` |
 
 ### Static (`static/src/`)
@@ -255,7 +255,7 @@ approval/
 | SQL view models | 2 |
 | Transient models | 2 |
 | Test-only models | 3 |
-| Cron jobs | 3 |
+| Cron jobs | 4 |
 | Migration script directories | 25 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
