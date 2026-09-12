@@ -27,16 +27,16 @@ from odoo.tools import (
 )
 from odoo.tools.date_utils import get_intervals_hours, localized, weekend, weekstart
 
+from odoo.addons.base.models.mixin_recurrence_rule import (
+    REPEAT_TYPE_SELECTION,
+    REPEAT_UNIT_SELECTION,
+)
 from odoo.addons.html_editor.tools import handle_history_divergence
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.project.controllers.project_sharing_chatter import (
     ProjectSharingChatter,
 )
 from odoo.addons.rating.models import rating_data
-from odoo.addons.resource.models.mixin_recurrence_rule import (
-    REPEAT_TYPE_SELECTION,
-    REPEAT_UNIT_SELECTION,
-)
 from odoo.addons.resource.models.utils import filter_domain_leaf
 
 _logger = logging.getLogger(__name__)

@@ -10,14 +10,14 @@ from odoo.db import BaseCursor
 from odoo.fields import Domain
 from odoo.modules.registry import Registry
 
+from odoo.addons.base.models.mixin_recurrence_rrule import (
+    MAX_RECURRENT_OCCURRENCES,
+)
 from odoo.addons.microsoft_account.models.microsoft_service import TIMEOUT
 from odoo.addons.microsoft_calendar.utils.microsoft_calendar import (
     MicrosoftCalendarService,
 )
 from odoo.addons.microsoft_calendar.utils.microsoft_event import MicrosoftEvent
-from odoo.addons.resource.models.mixin_recurrence_rrule import (
-    MAX_RECURRENT_OCCURRENCES,
-)
 
 _logger = logging.getLogger(__name__)
 

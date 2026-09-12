@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.36
+:Version: 6.37
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -809,25 +809,56 @@ because it is free; a subject-matter home is worth the dependency when it is the
 place a reader would look and when it keeps a vocabulary whole rather than
 scattering it.
 
-**``mixin_recurrence`` is the worked example, and it went to ``resource``.** It
-depended on ``base`` alone and shipped one abstract model, so by the paragraphs
-above it was a fold waiting to happen, and this section used to nominate
-``base`` for it. It is dissolved into ``resource`` instead: recurrence is
-scheduling vocabulary, ``resource`` is where this fork's scheduling mixins
-already live (``mixin.resource.scheduling``, ``mixin.resource.allocation``,
-``resource.reservation``), and keeping ``mixin.recurrence.rule`` there let the
-iCalendar engine lifted out of ``calendar.recurrence`` land beside it as
-``mixin.recurrence.rrule`` rather than in a second place. One module answers
-"how does this repeat" for ``project.task.recurrence``, ``planning.recurrency``,
-``maintenance.request``, ``calendar.recurrence`` and ``calendar.event``.
+**"Every consumer already reaches it" is a manifest closure, not an
+impression** ``[review]``. Compute it before choosing a subject-matter home,
+over the consumers the mixin is *for* and not only the ones folding onto it
+today:
 
-The cost is named rather than waved away: ``maintenance`` gains a ``depends`` on
-``resource`` it did not have, and so will ``fleet`` when its recurring-cost pair
-follows. ``resource`` depends on ``web`` alone and every one of those modules
-already carries ``web``, so the edge is one row in a manifest, not new reach.
-Nothing stored changed in the fold itself -- a mixin has no table (§2.2.1) --
-and the migration only re-points ``ir_model_data`` and marks the dissolved
-module uninstalled.
+.. code-block:: python
+
+   # depends closure of each intended consumer; does it contain the home?
+   for name in intended_consumers:
+       assert home in closure(name), f"{name} cannot reach {home}"
+
+A module that fails this test is not an argument for adding the dependency. It
+may be an argument against the home, and if the module is at or below the home
+in the graph it is proof against it: the edge would be a cycle and no amount of
+subject-matter affinity buys it.
+
+**``mixin_recurrence`` is the worked example, and the test is why it is in
+``base``.** It went to ``resource`` first, on the grounds that recurrence is
+scheduling vocabulary and ``resource`` is where this fork's scheduling mixins
+live. The reasoning was sound about affinity and wrong about reach, because it
+was run over the five consumers then folding and not over the question "who
+asks how does this repeat".
+
+``ir.cron`` asks it: ``interval_number``, ``interval_type``, ``nextcall`` and a
+``CHECK(interval_number > 0)`` that is the constraint
+``mixin.recurrence.interval`` owns. It is the most-read recurrence in the tree
+and it lives in ``base``. ``resource`` depends on ``web``, ``web`` depends on
+``base``, so a ``base`` -> ``resource`` edge is a cycle: ``ir.cron`` could never
+take the mixin, at any price. Six more askers -- ``mail``, and ``event``,
+``lunch``, ``gamification``, ``data_recycle`` behind it, plus ``date_range`` --
+sit above ``web`` and carry no ``resource``, where the edge is possible and is
+not free: ``resource`` ships ``resource.calendar``, ``resource.resource``,
+views, menus and demo data, so putting it under ``mail`` installs Resource for
+every database that has Discuss.
+
+So the four recurrence mixins -- ``mixin.recurrence.interval``,
+``.rule``, ``.rrule``, ``.occurrence`` -- live in ``base``, which is free in
+every closure, and ``resource`` keeps the scheduling models that genuinely need
+it. ``maintenance`` and ``fleet`` gave back the ``depends`` on ``resource`` the
+first fold charged them; ``project``, ``calendar`` and ``planning`` keep theirs
+on their own merits. The recurrence-update **dialog** stays in ``resource``:
+only ``calendar`` and ``planning`` open it, both carry ``resource``, and
+``base`` is no home for a scheduling dialog. A vocabulary and a widget over it
+are allowed to live apart.
+
+Nothing stored moved either time -- a mixin has no table (§2.2.1). Both
+migrations only re-point ``ir_model_data``, and the second adopts from
+``mixin_recurrence`` as well as from ``resource``, because ``base`` upgrades
+first and a database that skipped the intermediate release still holds those
+rows under the dissolved module's name.
 
 2.3 Field conventions
 ---------------------
@@ -7974,6 +8005,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.37
+     - 2026-09-12
+     - §2.2.2: "every consumer already reaches it" is a manifest closure, run
+       over who asks the question and not over who is folding today; the four
+       recurrence mixins move from ``resource`` to ``base`` because ``ir.cron``
+       asks it and a ``base`` -> ``resource`` edge is a cycle.
    * - 6.36
      - 2026-09-12
      - §2.2.2: a mixin may live with the module that owns its subject matter

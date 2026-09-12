@@ -26,7 +26,6 @@ Main Features
     "license": "LGPL-3",
     "depends": [
         "mail",
-        "resource",
     ],
     "data": [
         "security/fleet_security.xml",

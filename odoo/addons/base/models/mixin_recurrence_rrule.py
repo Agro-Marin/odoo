@@ -8,11 +8,11 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.datetime import localize_standard, timezone
 
-from odoo.addons.base.models.res_partner import _selection_timezones
-from odoo.addons.resource.models.mixin_recurrence_rule import (
+from odoo.addons.base.models.mixin_recurrence_rule import (
     REPEAT_TYPE_COUNT,
     REPEAT_TYPE_SELECTION,
 )
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 REPEAT_TYPE_SELECTION_RRULE = [*REPEAT_TYPE_SELECTION, REPEAT_TYPE_COUNT]
 

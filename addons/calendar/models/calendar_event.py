@@ -19,20 +19,20 @@ from odoo.tools import html2plaintext, html_sanitize, is_html_empty, single_emai
 from odoo.tools.misc import get_lang
 from odoo.tools.translate import _
 
-from odoo.addons.base.models.res_partner import _selection_timezones
-from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
-from odoo.addons.calendar.models.utils import (
-    generate_calendar_token,
-)
-from odoo.addons.resource.models.mixin_recurrence_rrule import (
+from odoo.addons.base.models.mixin_recurrence_rrule import (
     BYDAY_SELECTION,
     MONTH_BY_SELECTION,
     REPEAT_TYPE_SELECTION_RRULE,
     WEEKDAY_SELECTION,
     weekday_to_field,
 )
-from odoo.addons.resource.models.mixin_recurrence_rule import (
+from odoo.addons.base.models.mixin_recurrence_rule import (
     REPEAT_UNIT_SELECTION,
+)
+from odoo.addons.base.models.res_partner import _selection_timezones
+from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
+from odoo.addons.calendar.models.utils import (
+    generate_calendar_token,
 )
 
 _logger = logging.getLogger(__name__)

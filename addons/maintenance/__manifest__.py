@@ -10,7 +10,6 @@ Track equipment and maintenance requests""",
     "website": "https://www.odoo.com/app/maintenance",
     "license": "LGPL-3",
     "depends": [
-        "resource",
         "mail",
     ],
     "data": [

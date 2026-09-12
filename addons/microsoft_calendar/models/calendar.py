@@ -11,7 +11,7 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.tools import email_normalize
 
-from odoo.addons.resource.models.mixin_recurrence_rrule import (
+from odoo.addons.base.models.mixin_recurrence_rrule import (
     MAX_RECURRENT_OCCURRENCES,
 )
 

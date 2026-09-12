@@ -1,6 +1,6 @@
 from odoo import fields, models
 
-from odoo.addons.resource.models.mixin_recurrence_interval import (
+from odoo.addons.base.models.mixin_recurrence_interval import (
     REPEAT_UNIT_SELECTION,  # noqa: F401  re-exported: consumers take the whole vocabulary from the rule
 )
 
