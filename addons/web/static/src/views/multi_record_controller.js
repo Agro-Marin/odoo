@@ -130,6 +130,25 @@ export class MultiRecordController extends ViewController {
         };
     }
 
+    /**
+     * @param {Record<string, any>} button a parsed `<header>` button
+     * @returns {Record<string, any>}
+     */
+    headerButtonProps(button) {
+        return {
+            list: this.model.root,
+            className: button.className,
+            clickParams: button.clickParams,
+            defaultRank: "btn-secondary",
+            domain: this.props.domain,
+            icon: button.icon,
+            string: button.string,
+            title: button.title,
+            attrs: button.attrs,
+            modifiers: button.modifiers,
+        };
+    }
+
     get chassisProps() {
         return {
             ...this.chassis.props,
