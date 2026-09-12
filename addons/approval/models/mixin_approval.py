@@ -390,13 +390,14 @@ class MixinApproval(models.AbstractModel):
         """A document may point only at an approval request it answers to.
 
         Three relations are real. The request is about this record: the
-        engine's own link. The request's category produces records of this model
-        (`target_model`) and this record is one of them: a bill or an order
-        created from an approved request is covered by it. Or the request has no
-        subject and nobody has decided it yet: it is bound to the record here,
-        so it cannot be adopted twice. Anything else -- another document's
-        request, or a decided request that neither is about this record nor
-        produces its kind -- would lend it a decision taken about something else.
+        engine's own link. The request produced this record: its category's
+        `target_model` is this model, and the link is written inside the
+        request's `_link_produced_documents` (or `_producing_documents`) window,
+        which only server code opens. A bill or an order created from an
+        approved request is covered by it; one a user points at that request is
+        not. Or the request has no subject and nobody has decided it yet: it is
+        bound to the record here, so it cannot be adopted twice. Anything else
+        would lend the record a decision taken about something else.
         """
         request = (
             self.env["approval.request"]
@@ -406,7 +407,11 @@ class MixinApproval(models.AbstractModel):
         for record in self:
             if request.res_model == record._name and request.res_id == record.id:
                 continue
-            if request.target_model and request.target_model == record._name:
+            if (
+                request.target_model
+                and request.target_model == record._name
+                and request._is_producing_documents()
+            ):
                 continue
             if not request.res_model and not request.res_id and request.state == "new":
                 request.write({"res_model": record._name, "res_id": record.id})
@@ -442,7 +447,11 @@ class MixinApproval(models.AbstractModel):
                         count=len(self),
                     )
                 )
-            self._check_approval_request_link(vals["approval_request_id"])
+            request_id = vals["approval_request_id"]
+            request_id = request_id.id if hasattr(request_id, "id") else request_id
+            self.filtered(
+                lambda record: record.approval_request_id.id != request_id
+            )._check_approval_request_link(request_id)
         if not self.env.su:
             protected = set(self._get_fields_approval_protected())
             touched = protected & vals.keys()

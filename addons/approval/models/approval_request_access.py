@@ -1,3 +1,7 @@
+import contextlib
+from collections import Counter
+from collections.abc import Iterator
+
 from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
@@ -5,9 +9,34 @@ from odoo.fields import Command
 from . import approval_trace as trace
 from .approval_utils import is_approval_manager
 
+_PRODUCING_REQUESTS = "approval.producing_request_ids"
+
 
 class ApprovalRequestAccess(models.Model):
     _inherit = "approval.request"
+
+    @contextlib.contextmanager
+    def _producing_documents(self) -> Iterator[None]:
+        # Kept on the cursor rather than in the context: an RPC caller writes the
+        # context it sends, and nothing such a caller sends may open this window.
+        self.check_singleton()
+        producing = self.env.cr.cache.setdefault(_PRODUCING_REQUESTS, Counter())
+        producing[self.id] += 1
+        try:
+            yield
+        finally:
+            producing[self.id] -= 1
+
+    def _is_producing_documents(self) -> bool:
+        self.check_singleton()
+        return self.env.cr.cache.get(_PRODUCING_REQUESTS, {}).get(self.id, 0) > 0
+
+    def _link_produced_documents(self, documents) -> None:
+        """Link records this request produced, of its category's `target_model`."""
+        self.check_singleton()
+        with self._producing_documents():
+            for document in documents:
+                document.write({"approval_request_id": self.id})
 
     @api.constrains("date_start", "date_end")
     def _check_date_consistency(self) -> None:

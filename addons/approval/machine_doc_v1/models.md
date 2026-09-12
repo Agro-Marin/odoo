@@ -1182,7 +1182,7 @@ closure with it. Read their fields in those modules.
 
 **Subject integrity (19.0.2.2.0).** After approval, a write that actually changes a field of `_get_fields_approval_protected()` -- compared value by value, x2many commands included -- sends the request back to draft through `_force_draft`, logged as a `reset` naming the fields, unless `_is_approval_invalidated_by_changes(fields)` says the document re-checks those fields itself. Applies to every caller; a request whose `_check_reset_allowed` refuses makes the write refuse instead. Context key `approval_keep_on_subject_change` skips it.
 
-**Coverage integrity (19.0.2.1.0).** `mixin.approval` refuses writes to `approval_state`, `date_approval_granted` and `date_approval_requested` for every caller, and accepts an `approval_request_id` only for a request about the record itself or a subject-less request still in `new`, which the write binds to the record.
+**Coverage integrity (19.0.2.1.0).** `mixin.approval` refuses writes to `approval_state`, `date_approval_granted` and `date_approval_requested` for every caller, and accepts an `approval_request_id` only for a request about the record itself, a subject-less request still in `new`, which the write binds to the record, or a request whose category's `target_model` is the record's model linking what it produced. The last is written inside `approval.request._link_produced_documents` (or its `_producing_documents` window), which is kept on the cursor so that no RPC caller can open it: pointing an order at an approved request that produces orders is refused. Re-writing the link a record already has is not checked.
 
 ---
 

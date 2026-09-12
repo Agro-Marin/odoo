@@ -93,6 +93,51 @@ class TestCoverageIntegrity(ApprovalCommon):
         with self.assertRaises(ValidationError):
             documents.write({"approval_request_id": request.id})
 
+    def _approved_producing_request(self):
+        category = self._make_category(
+            "Produces documents", approvers=[(self.approver_1, True, 10)]
+        )
+        category.target_model = "approval.test.document"
+        request = self._prepare_request(category)
+        request.with_user(self.approver_1).action_approve()
+        self.assertEqual(request.state, "approved")
+        return request
+
+    def test_a_request_that_produces_this_kind_cannot_be_pointed_at(self):
+        request = self._approved_producing_request()
+        document = self._document("Pointed")
+        for caller in (document, document.sudo()):
+            with self.assertRaises(ValidationError):
+                caller.write({"approval_request_id": request.id})
+        self.assertNotEqual(document.approval_state, "approved")
+
+    def test_a_document_cannot_be_created_pointing_at_a_producing_request(self):
+        request = self._approved_producing_request()
+        with self.assertRaises(ValidationError):
+            self.env["approval.test.document"].create(
+                {
+                    "name": "Born covered",
+                    "partner_id": self.partner.id,
+                    "approval_request_id": request.id,
+                }
+            )
+
+    def test_the_request_links_what_it_produced(self):
+        request = self._approved_producing_request()
+        documents = self._document("Produced A") | self._document("Produced B")
+        request._link_produced_documents(documents)
+        self.assertEqual(documents.approval_request_id, request)
+        self.assertEqual(set(documents.mapped("approval_state")), {"approved"})
+        documents[0].write({"approval_request_id": request.id})
+        with self.assertRaises(ValidationError):
+            self._document("After").write({"approval_request_id": request.id})
+
+    def test_the_producing_window_closes_when_production_raises(self):
+        request = self._approved_producing_request()
+        with self.assertRaises(ZeroDivisionError), request._producing_documents():
+            raise ZeroDivisionError
+        self.assertFalse(request._is_producing_documents())
+
     def test_the_engine_still_links_its_own_request(self):
         document = self._document()
         document.action_create_approval_request()
