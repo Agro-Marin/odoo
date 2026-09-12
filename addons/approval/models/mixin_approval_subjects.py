@@ -55,7 +55,7 @@ class MixinApprovalSubjects(models.AbstractModel):
     def _get_approval_request(self, subject_key: str):
         """The latest request raised for `subject_key`, whatever its state."""
         self.check_singleton()
-        return (
+        request = (
             self.env["approval.request"]
             .sudo()
             .search(
@@ -68,6 +68,14 @@ class MixinApprovalSubjects(models.AbstractModel):
                 limit=1,
             )
         )
+        trace.SUBJECTS.event(
+            "request_lookup",
+            record=self,
+            subject=subject_key,
+            request=request.id or None,
+            state=request.state if request else None,
+        )
+        return request
 
     def _get_live_approval_request(self, subject_key: str):
         request = self._get_approval_request(subject_key)

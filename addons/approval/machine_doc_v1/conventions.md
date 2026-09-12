@@ -522,18 +522,18 @@ One per concern, so a session enables the axis it is working on. `_BY_NAME` in
 
 | Target | Covers |
 |--------|--------|
-| `access` | The guard questions and their answers: `_can_decide_step`, `_is_later_step_member` |
+| `access` | The guard questions and their answers: `_can_decide_step`, `_is_later_step_member`, `_get_rows_decidable_by` (who may decide right now, which the button and the state sync both ask) |
 | `activity` | Activities created, not created, marked done, retired, cancelled |
 | `attachment` | `ir.attachment` locking on decided requests |
-| `binding` | Gating: selection, coverage, observation, requests raised, replay, coverage reset, checkpoints |
+| `binding` | Gating: the guard's front door (entered, or skipped for the kill switch or for no binding), selection, coverage, observation, requests raised, replay, coverage reset, checkpoints, the one-shot invoke stamp |
 | `button` | What the approval button asks and does (`approval_binding_client.py`) |
 | `compute` | Compute fields worth a look for cost or correctness (`_compute_state`, the kanban dashboard, minimum validity) |
 | `cron` | The three crons' envelopes: batch contents, caps, totals |
 | `crud` | `create` / `write` / `unlink` on the engine's own models, and which write triggered a re-route |
-| `decision` | The decision funnel: actor resolution, fan-in, what was decided for which step, withdrawals |
+| `decision` | The decision funnel: actor resolution, fan-in, which steps an approval naming none is given for (the exclusivity rule), how the chain advanced, withdrawals |
 | `degraded` | The third class: not a refusal and not a question -- the engine gave up on something and carried on (an unparseable subject domain, a `res_model` that left the registry). INFO, because a session debugging "why did nothing happen?" cannot find these from either of the other two |
 | `delegation` | Effective approver, delegation set, superseded, handover on archive |
-| `document` | Reserved for document requirements (no call site today) |
+| `document` | The confirm-time document check: which requirements a request had, which its attachments satisfied, and which were missing -- the PASS as well as the refusal |
 | `editor` | Studio's editor calls (`approval_binding_editor.py`) |
 | `escalation` | Reminder/escalation triage, targets, consent approval, delegation activity reconciliation |
 | `lifecycle` | State transitions of `approval.request`, round opening, bulk decisions, cascades |
@@ -545,7 +545,7 @@ One per concern, so a session enables the axis it is working on. `_BY_NAME` in
 | `report` | Dashboard and SQL-report queries |
 | `routing` | `_sync_approvers`: the desired set, the plan, where each staged approver came from |
 | `rules` | `approval.rule` evaluation, replacement bands, auto-approve/refuse, currency conversion |
-| `search` | The search helpers behind the non-stored fields |
+| `search` | The search helpers behind the non-stored fields, and which branch `boolean_search_domain` took for an operator |
 | `snapshot` | The category snapshot taken at confirm |
 | `steps` | Applicability, pools, quorum assignment, open steps |
 | `subjects` | `mixin.approval.subjects` (one request per subject) |
@@ -595,6 +595,14 @@ exist: five for five read `1 failed`):
    `_logger.warning` instead, because that one is a defect the campaign happens to have
    found rather than something to instrument and remove. The exemption list holds one
    entry: the renderer, whose `<unrenderable>` marker IS its report.
+
+**Coverage, so the next pass knows where to look.** 300 of the addon's 523 methods
+(57%) carry a hand-placed line or a wrapper, and the 1,619 lines of body that do not are
+mostly `view_*` action builders, one-line getters and the two methods that ARE the
+pre-campaign logging (`_log_sync_plan`, `_log_cycle`). Re-measure rather than trusting
+this: walk `models/`, `wizards/` and `reports/` with `ast`, and count a method covered
+when its body holds `trace.` or its name is in `CALL_TRACES`. Every target fires on one
+suite run except `perf`, which by design speaks only on the measurement switch.
 
 **The two kinds of check are not interchangeable.** The null control has a natural
 oracle -- zero -- so it can be measured. Completeness has none: 62 of 145 sites reading
@@ -782,8 +790,8 @@ with every target at DEBUG it is a few percent plus the cost of writing the line
 The debt it does add is length, measured with the gates' own runners:
 
 ```
-py_class_length.py    --addon approval --count   4423 -> 5648  (+1225)
-py_function_length.py --addon approval --count    159 ->  267   (+108)
+py_class_length.py    --addon approval --count   4423 -> 5796  (+1373)
+py_function_length.py --addon approval --count    159 ->  269   (+110)
 ```
 
 Neither floor was moved: `pyclasslen_addons` and `pyfunclen_addons` are already

@@ -525,6 +525,13 @@ class MixinApproval(models.AbstractModel):
         if binding_for and tuple(binding_for[:2]) == (self._name, self.id):
             vals["binding_id"] = binding_for[2]
 
+        trace.MIXIN.event(
+            "request_values",
+            record=self,
+            category=category.id,
+            fields=sorted(vals),
+            binding=vals.get("binding_id"),
+        )
         return vals
 
     def _on_approval_state_changed(self, new_state: str) -> None:
@@ -611,6 +618,12 @@ class MixinApproval(models.AbstractModel):
         )
         if "activity_ids" in self._fields:
             responsible = getattr(self, "user_id", None) or self.create_uid
+            trace.MIXIN.note(
+                "withdrawal_todo",
+                record=self,
+                responsible=responsible.id,
+                request=self.approval_request_id.id,
+            )
             self.activity_schedule(
                 "mail.mail_activity_data_todo",
                 user_id=responsible.id,

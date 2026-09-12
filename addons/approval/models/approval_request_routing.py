@@ -182,6 +182,14 @@ class ApprovalRequestRouting(models.Model):
             managed.update(rule.approver_ids.ids)
         if self.group_approval != "no" and self.approver_group_id:
             managed.update(self.approver_group_id.all_user_ids.ids)
+        trace.ROUTING.event(
+            "managed_users",
+            request=self.id,
+            managed=sorted(managed),
+            replacement=replacement.id if replacement else None,
+            rules=[rule.id for rule in matched_rules or ()],
+            group=self.approver_group_id.id or None,
+        )
         return managed
 
     def _rule_applies_to_company(self, rule) -> bool:
@@ -497,6 +505,15 @@ class ApprovalRequestRouting(models.Model):
             for user_id, approver in desired.existing_by_user.items()
             if user_id not in desired.staging
         ]
+        trace.ROUTING.event(
+            "live_extension",
+            request=self.id,
+            missing=sorted(missing),
+            kept_orphans=[approver.id for approver in kept_orphans],
+            replacement=replacement.id if replacement else None,
+            rules=matched_rules.ids,
+            superseded=superseded_delegations.ids,
+        )
         if kept_orphans:
             _logger.info(
                 "%s live: request %s keeps %d approver row(s) whose source "
@@ -867,3 +884,12 @@ class ApprovalRequestRouting(models.Model):
                 ("step_ids", tuple(new_step_ids)),
             )
             rows_to_update.setdefault(key, []).append(approver.id)
+            trace.ROUTING.event(
+                "row_needs_update",
+                approver=approver.id,
+                required=new_required,
+                sequence=new_sequence,
+                rule=new_source_rule_id,
+                synced=new_source_synced,
+                steps=list(new_step_ids),
+            )

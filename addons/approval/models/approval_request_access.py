@@ -446,7 +446,7 @@ class ApprovalRequestAccess(models.Model):
         its steps only.
         """
         self.check_singleton()
-        return self.approver_ids.filtered(
+        decidable = self.approver_ids.filtered(
             lambda approver: (
                 approver._get_effective_approver() == user
                 and (
@@ -461,6 +461,14 @@ class ApprovalRequestAccess(models.Model):
                 )
             )
         )
+        trace.ACCESS.event(
+            "rows_decidable_by",
+            request=self.id,
+            user=user.id,
+            rows=decidable.ids,
+            of=self.approver_ids.ids,
+        )
+        return decidable
 
     def _is_later_step_member(self, approvers, user, steps=None) -> bool:
         """Whether `user` may act on these rows as the approver of a later step."""

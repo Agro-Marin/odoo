@@ -293,6 +293,14 @@ class ApprovalBinding(models.Model):
             )
         )
         if not steps:
+            trace.BUTTON.event(
+                "steps_flat",
+                binding=self.id,
+                request=request.id,
+                rows=rows.ids,
+                decided=decided.ids,
+                open=is_open,
+            )
             return [self._get_button_flat_step(request, rows, decided, user, is_open)]
         assignment = request._get_step_assignment() if request else {}
         company = (
@@ -304,7 +312,7 @@ class ApprovalBinding(models.Model):
             )
             or self.env.company
         )
-        return [
+        drawn = [
             {
                 "id": step.id,
                 "name": step.name,
@@ -326,6 +334,28 @@ class ApprovalBinding(models.Model):
             }
             for step in steps.sorted(lambda step: (step.sequence, step.id))
         ]
+        trace.BUTTON.event(
+            "steps_drawn",
+            binding=self.id,
+            request=request.id,
+            steps=[step["id"] for step in drawn],
+            decidable=[step["id"] for step in drawn if step["can_decide"]],
+            company=company.id,
+        )
+        trace.BUTTON.items(
+            "step_drawn",
+            lambda: [
+                {
+                    "step": step["id"],
+                    "minimum": step["minimum"],
+                    "exclusive": step["exclusive"],
+                    "can_decide": step["can_decide"],
+                    "decisions": len(step["decisions"]),
+                }
+                for step in drawn
+            ],
+        )
+        return drawn
 
     def _get_button_flat_step(self, request, rows, decided, user, is_open):
         self.check_singleton()
@@ -337,6 +367,15 @@ class ApprovalBinding(models.Model):
             )
         else:
             asked = user in category.approver_ids.user_id
+        trace.BUTTON.event(
+            "flat_step_drawn",
+            binding=self.id,
+            request=request.id or None,
+            category=category.id,
+            asked=asked,
+            can_decide=is_open and asked,
+            decisions=decided.ids,
+        )
         return {
             "id": False,
             "name": category.name,

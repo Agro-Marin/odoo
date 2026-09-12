@@ -142,14 +142,23 @@ class ApprovalRequestEscalation(models.Model):
         sla_hours: float,
         warning_pct: float | None,
     ) -> str:
-        if elapsed_hours > sla_hours:
-            return "breached"
         warning_hours = sla_hours * (
             (warning_pct or self._SLA_DEFAULT_WARNING_PCT) / 100
         )
-        if elapsed_hours > warning_hours:
-            return "at_risk"
-        return "on_track"
+        if elapsed_hours > sla_hours:
+            status = "breached"
+        elif elapsed_hours > warning_hours:
+            status = "at_risk"
+        else:
+            status = "on_track"
+        trace.ESCALATION.event(
+            "sla_status",
+            elapsed_hours=elapsed_hours,
+            sla_hours=sla_hours,
+            warning_hours=warning_hours,
+            status=status,
+        )
+        return status
 
     @api.model
     def _search_sla_status(self, operator: str, value: str | list | None) -> list:
@@ -578,7 +587,15 @@ class ApprovalRequestEscalation(models.Model):
                 if group
                 else False
             )
-        return self.env["res.users"].browse(cache[company_id] or ())
+        manager = self.env["res.users"].browse(cache[company_id] or ())
+        trace.ESCALATION.event(
+            "default_manager",
+            request=self.id,
+            company=company_id,
+            manager=manager.id or None,
+            memo_size=len(cache),
+        )
+        return manager
 
     @api.model
     def _invalidate_escalation_manager_cache(self) -> None:
@@ -681,6 +698,7 @@ class ApprovalRequestEscalation(models.Model):
                         kind,
                         param,
                     )
+        trace.ESCALATION.event("escalation_rules", rules=rules)
         return rules
 
     def _send_reminder(self, approvers: models.BaseModel | None = None) -> int:

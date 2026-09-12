@@ -138,6 +138,13 @@ class MixinApprovalStateSync(models.AbstractModel):
                 or not record._can_raise_approval_request()
                 or not record.can_request_approval
             ):
+                trace.SYNC.event(
+                    "backfill_skipped",
+                    record=record,
+                    kind=kind,
+                    can_raise=record._can_raise_approval_request(),
+                    can_request=record.can_request_approval,
+                )
                 continue
             xmlids = record._get_legacy_approval_activity_xmlids()
             if xmlids and "activity_ids" in record._fields:
@@ -146,12 +153,25 @@ class MixinApprovalStateSync(models.AbstractModel):
             if kind == "progress":
                 record._backfill_approval_progress()
             backfilled |= record
+        trace.SYNC.note(
+            "backfilled",
+            model=self._name,
+            asked=len(self),
+            raised=len(backfilled),
+        )
+        trace.annotate(work=len(backfilled))
         return backfilled
 
     def _backfill_approval_progress(self) -> None:
         self.check_singleton()
         request = self._get_synced_approval_request()
         decider = self._get_approval_backfill_decider()
+        trace.SYNC.event(
+            "backfill_progress",
+            record=self,
+            request=request.id,
+            decider=decider.id if decider else None,
+        )
         steps = request._get_open_steps()
         rows = (
             request._get_rows_decidable_by(decider).filtered(

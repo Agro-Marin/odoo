@@ -210,6 +210,12 @@ class ApprovalBinding(models.Model):
         for binding in self:
             binding.elevated_count = elevated.get(binding.id, 0)
             binding.self_elevated_count = self_elevated.get(binding.id, 0)
+            trace.BINDING.event(
+                "elevation_counts",
+                binding=binding.id,
+                elevated=binding.elevated_count,
+                self_elevated=binding.self_elevated_count,
+            )
 
     def _domain_source_field(self) -> str:
         return "subject_domain"
@@ -755,13 +761,21 @@ class ApprovalBinding(models.Model):
                     ],
                 )
             )
-        requests.filtered(
+        consumed = requests.filtered(
             lambda r: (
                 r.binding_id == self
                 and r.state == "approved"
                 and not r.date_binding_replayed
             ),
-        ).write({"date_binding_replayed": fields.Datetime.now()})
+        )
+        trace.BINDING.note(
+            "invoke_consumed",
+            binding=self.id,
+            records=records,
+            requests=consumed.ids,
+            already_stamped=len(requests) - len(consumed),
+        )
+        consumed.write({"date_binding_replayed": fields.Datetime.now()})
 
     def _get_requests_action(self, requests):
         if not requests:
@@ -1046,7 +1060,15 @@ class ApprovalBinding(models.Model):
                 )
             )
         )
-        return self._get_covering_requests(records) | waiting
+        covering = self._get_covering_requests(records)
+        trace.BINDING.event(
+            "requests_holding_decisions",
+            binding=self.id,
+            records=records,
+            covering=covering.ids,
+            waiting_with_decisions=waiting.ids,
+        )
+        return covering | waiting
 
     def _get_covering_requests(self, records):
         """Every approved request that could be covering these records."""
@@ -1264,11 +1286,32 @@ class ApprovalBinding(models.Model):
             origin = getattr(guarded, ORIGIN_ATTR)
             Binding = records.env["approval.binding"]
             if not Binding._enabled():
+                trace.BINDING.event(
+                    "guard_skipped",
+                    model=model_name,
+                    method=method_name,
+                    records=records.ids,
+                    reason="kill_switch",
+                )
                 return origin(records, *args, **kwargs)
 
             bindings = Binding._bindings_for(model_name, method_name)
             if not bindings:
+                trace.BINDING.event(
+                    "guard_skipped",
+                    model=model_name,
+                    method=method_name,
+                    records=records.ids,
+                    reason="no_binding",
+                )
                 return origin(records, *args, **kwargs)
+            trace.BINDING.event(
+                "guard_entered",
+                model=model_name,
+                method=method_name,
+                records=records.ids,
+                bindings=bindings.ids,
+            )
 
             return Binding._gate(
                 records,

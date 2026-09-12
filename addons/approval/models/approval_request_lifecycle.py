@@ -363,13 +363,31 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         undecided = approver.step_ids - approver.decided_step_ids
         if not any(approver.step_ids.mapped("exclusive")):
+            trace.DECISION.event(
+                "steps_for_decision",
+                request=self.id,
+                approver=approver.id,
+                undecided=undecided.ids,
+                exclusive=False,
+                chosen=undecided.ids,
+            )
             return undecided
         counts = self._get_step_counts()
         ordered = undecided.sorted(
             lambda step: (step.sequence, not step.exclusive, step.id)
         )
         short = ordered.filtered(lambda step: counts.get(step.id, 0) < step.minimum)
-        return short[:1] or ordered[:1]
+        chosen = short[:1] or ordered[:1]
+        trace.DECISION.event(
+            "steps_for_decision",
+            request=self.id,
+            approver=approver.id,
+            undecided=undecided.ids,
+            exclusive=True,
+            short_of_quorum=short.ids,
+            chosen=chosen.ids,
+        )
+        return chosen
 
     def _check_steps_decidable(self, approvers, steps=None) -> None:
         """Refuse deciding a step twice, or a step beside an exclusive decided one."""
@@ -418,6 +436,13 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         steps = steps or approvers.decided_step_ids
         partners = steps.notify_user_ids.partner_id
+        trace.DECISION.event(
+            "step_notify",
+            request=self.id,
+            decision=decision,
+            steps=steps.ids,
+            partners=partners.ids,
+        )
         if not partners:
             return
         if decision == "approve":
@@ -1135,6 +1160,15 @@ class ApprovalRequestLifecycle(models.Model):
 
         satisfied = self.attachment_ids.approval_requirement_id
         missing = requirements - satisfied
+        trace.DOCUMENT.event(
+            "requirements",
+            request=self.id,
+            category=self.category_id.id,
+            required=requirements.ids,
+            satisfied=satisfied.ids,
+            missing=missing.ids,
+            attachments=self.count_attachment,
+        )
         if missing:
             trace.REFUSAL.event(
                 "missing_documents",
@@ -1753,6 +1787,15 @@ class ApprovalRequestLifecycle(models.Model):
             if only_next_approver and approvers_to_update:
                 approvers_to_update = approvers_to_update[0]
             approvers_updated |= approvers_to_update
+        trace.DECISION.event(
+            "chain_advanced",
+            requests=self.ids,
+            decided=approver.ids,
+            moved=approvers_updated.ids,
+            to=new_state,
+            only_next=only_next_approver,
+            cancel_activities=cancel_activities,
+        )
         approvers_updated.sudo().state = new_state
         if new_state == "pending":
             approvers_updated._create_activity()

@@ -26,6 +26,12 @@ class ApprovalRequestPrediction(models.Model):
         def get_stats_bucket(category_id: int, partner_id: int) -> list:
             cache_key = (category_id, partner_id)
             if cache_key in stats_cache:
+                trace.PREDICTION.event(
+                    "corpus_cached",
+                    category=category_id,
+                    partner=partner_id or None,
+                    rows=len(stats_cache[cache_key]),
+                )
                 return stats_cache[cache_key]
             domain = [
                 ("category_id", "=", category_id),
@@ -40,6 +46,13 @@ class ApprovalRequestPrediction(models.Model):
                 order="date_confirmed desc",
             )
             stats_cache[cache_key] = rows
+            trace.PREDICTION.event(
+                "corpus_read",
+                category=category_id,
+                partner=partner_id or None,
+                rows=len(rows),
+                capped=len(rows) == 200,
+            )
             return rows
 
         predictions: dict[int, tuple[str | bool, float]] = {}
@@ -103,6 +116,9 @@ class ApprovalRequestPrediction(models.Model):
     def action_predict_outcome(self) -> dict[str, Any]:
         self.check_singleton()
         outcome, confidence = self._predict_outcome()
+        trace.PREDICTION.note(
+            "asked", request=self.id, outcome=outcome, confidence=confidence
+        )
         if not outcome:
             message = self.env._("This request is already decided.")
         elif outcome == "uncertain":

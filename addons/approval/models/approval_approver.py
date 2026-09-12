@@ -465,7 +465,11 @@ class ApprovalApprover(models.Model):
         if request.category_id.activity_target == "document":
             document = request.get_source_document()
             if document and document.exists() and "activity_ids" in document._fields:
+                trace.ACTIVITY.event(
+                    "activity_target", approver=self.id, target=document
+                )
                 return document
+        trace.ACTIVITY.event("activity_target", approver=self.id, target=request)
         return request
 
     def _get_activity_type(self):
@@ -482,7 +486,22 @@ class ApprovalApprover(models.Model):
             isinstance(document, self.env.registry["mixin.approval.source"])
             and len(document) == 1
         ):
-            return document.sudo()._get_approval_activity_type(self, step_type)
+            chosen = document.sudo()._get_approval_activity_type(self, step_type)
+            trace.ACTIVITY.event(
+                "activity_type",
+                approver=self.id,
+                step_type=step_type.id if step_type else None,
+                chosen=chosen.id if chosen else None,
+                by="document",
+            )
+            return chosen
+        trace.ACTIVITY.event(
+            "activity_type",
+            approver=self.id,
+            step_type=step_type.id if step_type else None,
+            chosen=step_type.id if step_type else None,
+            by="step",
+        )
         return step_type
 
     def _filtered_notifiable(self):
