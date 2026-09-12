@@ -6,6 +6,7 @@ from collections.abc import (
 from typing import override
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
@@ -21,6 +22,8 @@ if typing.TYPE_CHECKING:
     from ...models import BaseModel
 
     OnDelete = typing.Literal["cascade", "set null", "restrict"]
+
+_debug = DebugLog(__name__)
 
 
 def _optimize_comodel_id_lookup(condition: DomainCondition) -> Domain | None:
@@ -70,6 +73,12 @@ class Many2one(_Relational):
         if level == OptimizationLevel.FULL:
             domain = _optimize_comodel_id_lookup(condition)
             if domain is not None:
+                _debug.logic(
+                    "field.many2one.id_lookup_flattened",
+                    model=model._name,
+                    field=condition.field_expr,
+                    operator=condition.operator,
+                )
                 return domain
         return super()._optimize_condition(condition, model, level)
 
@@ -343,6 +352,13 @@ class Many2one(_Relational):
                 continue
             ids1 = tuple(unique((ids0 or ()) + valid_records._ids))
             if corecord.id and not _is_cache_order_stable(records, ids1):
+                _debug.logic(
+                    "field.many2one.inverse_invalidated_unstable_order",
+                    model=self.model_name,
+                    field=self.name,
+                    inverse=f"{invf.model_name}.{invf.name}",
+                    corecord=corecord.id,
+                )
                 invf._invalidate_cache(corecord.env, [corecord.id])
             else:
                 invf._update_cache(corecord, ids1)
@@ -399,6 +415,14 @@ class Many2one(_Relational):
                 for cond in value.iter_conditions()
             )
 
+        _debug.logic(
+            "field.many2one.any_strategy",
+            model=model._name,
+            field=self.name,
+            operator=operator,
+            strategy="left_join" if left_join else "subselect",
+            bypass_access=bypass_access,
+        )
         if left_join:
             comodel, coalias = self.join(model, alias, query)
             if not positive:

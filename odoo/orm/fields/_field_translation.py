@@ -109,6 +109,14 @@ def get_translation_dictionary(
     for lang, to_lang_value in to_lang_values.items():
         to_lang_terms = field.get_trans_terms(to_lang_value)
         if len(from_lang_terms) != len(to_lang_terms):
+            _debug.logic(
+                "field.translation.terms_mismatch",
+                model=field.model_name,
+                field=field.name,
+                lang=lang,
+                from_terms=len(from_lang_terms),
+                to_terms=len(to_lang_terms),
+            )
             for from_lang_term in from_lang_terms:
                 dictionary[from_lang_term][lang] = from_lang_term
         else:
@@ -179,6 +187,13 @@ def edit_translations_value(
             field.get_trans_terms(value) if value != base_value else base_terms
         )
         if len(base_terms) != len(translated_terms):
+            _debug.logic(
+                "field.translation.edit.terms_mismatch_reset",
+                model=field.model_name,
+                field=field.name,
+                lang=lang,
+                base_lang=base_lang,
+            )
             value = base_value
             translated_terms = base_terms
         get_base = dict(zip(translated_terms, base_terms, strict=True)).__getitem__
@@ -228,6 +243,13 @@ def insert_cache(
 
             installed = [lang for lang, _ in env["res.lang"].get_installed()]
             langs = OrderedSet[str](installed + ["en_US"])
+            _debug.pipeline(
+                "field.translation.prefetch_langs_inserted",
+                model=field.model_name,
+                field=field.name,
+                records=len(records._ids),
+                langs=len(langs),
+            )
             for id_, val in zip(records._ids, values, strict=True):
                 if val is None:
                     for lang in langs:
@@ -329,11 +351,22 @@ def mark_dirty(field: BaseString, records: BaseModel, value: typing.Any) -> None
 
     lang = get_translation_lang(field, records.env)
     if not (field.store and any(records._ids)):
+        strategy = "unstored"  # debuglog
         _mark_dirty_unstored(field, records, cache_value, lang)
     elif not callable(field.translate):
+        strategy = "model"  # debuglog
         _mark_dirty_model_translation(field, records, cache_value, lang, dirty_ids)
     else:
+        strategy = "terms"  # debuglog
         mark_dirty_model_term_translation(field, records, cache_value, lang)
+    _debug.logic(
+        "field.translation.mark_dirty",
+        model=field.model_name,
+        field=field.name,
+        lang=lang,
+        records=len(records),
+        strategy=strategy,
+    )
 
 
 def _flush_pending_none(
@@ -355,6 +388,12 @@ def _flush_pending_none(
             for record_id in dirty_records._ids
         )
     if has_dirty_none:
+        _debug.logic(
+            "field.translation.pending_none_flushed",
+            model=field.model_name,
+            field=field.name,
+            records=len(dirty_records),
+        )
         dirty_records.flush_recordset([field.name])
         if field.translate is True:
             field._invalidate_cache(records.env, dirty_records._ids)
@@ -386,8 +425,20 @@ def _mark_dirty_model_translation(
     clean_records = records.filtered(lambda rec: rec.id not in dirty_ids)
     clean_records.invalidate_recordset([field.name])
     field._update_cache(records, cache_value, dirty=True)
+    en_us_mirrored = lang != "en_US" and not records.env["res.lang"]._get_data(
+        code="en_US"
+    )  # debuglog
     if lang != "en_US" and not records.env["res.lang"]._get_data(code="en_US"):
         field._update_cache(records.with_context(lang="en_US"), cache_value, dirty=True)
+    if _debug.logic.enabled and (mirrored_ids or en_us_mirrored):
+        _debug.logic(
+            "field.translation.mirrored",
+            model=field.model_name,
+            field=field.name,
+            lang=lang,
+            langs=sorted(mirrored_ids),
+            en_us=en_us_mirrored,
+        )
     for other_lang, ids in mirrored_ids.items():
         field._update_cache(
             records.browse(ids).with_context(lang=other_lang),

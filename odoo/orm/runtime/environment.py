@@ -374,6 +374,7 @@ class Environment(Mapping[str, "BaseModel"]):
     def companies(self) -> BaseModel:
         if company_ids := self._get_allowed_company_ids():
             return self["res.company"].browse(company_ids)
+        _debug.logic("environment.companies.fallback_to_user", uid=self.uid)
         return self["res.company"].browse(self.user._get_company_ids())
 
     @functools.cached_property
@@ -384,6 +385,7 @@ class Environment(Mapping[str, "BaseModel"]):
                 return get_timezone(tz_name)
             except Exception:
                 _logger.debug("Invalid timezone %r", tz_name, exc_info=True)
+                _debug.logic("environment.tz.invalid", uid=self.uid, tz=tz_name)
         return utc
 
     @functools.cached_property
@@ -559,6 +561,7 @@ class Environment(Mapping[str, "BaseModel"]):
         except ProgrammingError as exc:
             if exc.sqlstate is not None:
                 raise
+            _debug.logic("environment.execute_query.no_result_set", uid=self.uid)
             return []
 
     def execute_query_dict(self, query: SQL) -> list[dict]:

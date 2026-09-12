@@ -4,6 +4,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare, float_round
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
@@ -14,6 +15,8 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, Environment, ModelClass, ModelLike, ModelType
 
 MAXINT = 2**31 - 1
+
+_debug = DebugLog(__name__)
 
 
 def _float_to_pg_text(value: float) -> str:
@@ -272,7 +275,14 @@ class Monetary(Field[float]):
                 model._read_group_select(
                     f"{currency_field_name}:array_agg_distinct", query
                 )
-            except ValueError, AccessError, NotImplementedError:
+            except (ValueError, AccessError, NotImplementedError) as e:
+                _debug.logic(
+                    "field.monetary.aggregator_unsupported",
+                    model=self.model_name,
+                    field=self.name,
+                    currency_field=currency_field_name,
+                    error=type(e).__name__,
+                )
                 return None
 
         return super()._description_aggregator(env)

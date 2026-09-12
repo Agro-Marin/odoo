@@ -85,6 +85,13 @@ class _Relational(Field["BaseModel"]):
         positive_operator = NEGATIVE_CONDITION_OPERATORS.get(operator, operator)
         any_operator = "any" if positive_operator == operator else "not any"
         if operator.endswith("like"):
+            _debug.logic(
+                "field.relational.display_name_rewrite",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+                kind="like",
+            )
             return DomainCondition(
                 condition.field_expr,
                 any_operator,
@@ -103,6 +110,15 @@ class _Relational(Field["BaseModel"]):
         if not any(isinstance(v, str) for v in value):
             return condition
         str_values, other_values = partition(lambda v: isinstance(v, str), value)
+        _debug.logic(
+            "field.relational.display_name_rewrite",
+            model=model._name,
+            field=condition.field_expr,
+            operator=operator,
+            kind="in",
+            names=len(str_values),
+            ids=len(other_values),
+        )
         domain: Domain = DomainCondition(
             condition.field_expr,
             any_operator,
@@ -623,6 +639,13 @@ class _RelationalMulti(_Relational):
         if comodel._allow_sudo_commands:
             return comodel
         default_env = comodel.env.transaction.default_env
+        _debug.logic(
+            "field.x2many.commands_demoted",
+            model=self.model_name,
+            field=self.name,
+            comodel=comodel._name,
+            uid=getattr(default_env, "uid", None),
+        )
         if default_env is None:
             raise AccessError(
                 comodel.env._(
@@ -710,12 +733,26 @@ class _RelationalMulti(_Relational):
                 "any!",
                 "not any!",
             )
+            _debug.logic(
+                "field.x2many.subquery",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+                bypass_access=bypass_access,
+                field_domain=not field_domain.is_true(),
+            )
             query = comodel._search(domain, bypass_access=bypass_access)
             assert isinstance(query, Query)
             return query
         if isinstance(value, Query):
             domain = field_domain.optimize_full(comodel)
             if not domain.is_true():
+                _debug.logic(
+                    "field.x2many.subquery.field_domain_added",
+                    model=self.model_name,
+                    field=self.name,
+                    operator=operator,
+                )
                 value.add_where(domain._to_sql(comodel, value.table, value))
             return value
         raise NotImplementedError(f"Cannot build query for {value}")

@@ -275,6 +275,9 @@ class Registry(
                 _logger.info(
                     "Evicting idle registry for %s, idle for %.0fs", db_name, idle_for
                 )
+                _debug.lifecycle(
+                    "registry.evicted_idle", db=db_name, idle_seconds=idle_for
+                )
                 cls.remove(db_name)
 
     @classmethod
@@ -287,6 +290,7 @@ class Registry(
     @classmethod
     @locked
     def remove_all(cls):
+        _debug.lifecycle("registry.remove_all", registries=len(cls.registries))
         cls.registries.clear()
         clear_all_text_transforms()
         _ASSERTION_REPORTS.clear()
@@ -537,6 +541,9 @@ class Registry(
                 self.check_tables_exist(cr)
 
     def clear_all_caches(self) -> None:
+        _debug.lifecycle(
+            "registry.clear_all_caches", db=self.db_name, loaded=self.loaded
+        )
         self._invalidate_cache_groups(CACHES_BY_KEY)
         self._log_invalidation(("all",), logging.INFO if self.loaded else logging.DEBUG)
 
@@ -557,6 +564,12 @@ class Registry(
                 changes = ""
                 if db_registry_sequence > self.registry_sequence:
                     old_sequence = self.registry_sequence
+                    _debug.lifecycle(
+                        "registry.signaling.reload",
+                        db=self.db_name,
+                        sequence=old_sequence,
+                        db_sequence=db_registry_sequence,
+                    )
                     self = self._reload_after_signaling(db_registry_sequence)
                     sig_cr.invalidate_cached_plans()
                     if _logger.isEnabledFor(logging.DEBUG):
@@ -570,12 +583,23 @@ class Registry(
                         db_registry_sequence,
                         self.registry_sequence,
                     )
+                    _debug.logic(
+                        "registry.signaling.stale_read",
+                        db=self.db_name,
+                        sequence=self.registry_sequence,
+                        db_sequence=db_registry_sequence,
+                    )
                 changes += self._sync_cache_sequences(db_cache_sequences)
                 if changes:
                     _logger.debug("Multiprocess signaling check: %s", changes)
         except db.PoolError:
             raise
         except psycopg.OperationalError:
+            _debug.lifecycle(
+                "registry.signaling.check_failed",
+                db=self.db_name,
+                removed=own_cursor,
+            )
             if own_cursor:
                 type(self).remove(self.db_name)
             raise

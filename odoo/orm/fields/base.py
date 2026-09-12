@@ -552,6 +552,7 @@ class Field[T](
         core = env._core
         scheduled = core.get_pending_ids(self)
         dirty = core.get_dirty(self)
+        cleared = 0  # debuglog
         for id_ in records._ids:
             if field_cache.get(id_) is not PENDING:
                 continue
@@ -560,6 +561,15 @@ class Field[T](
             if dirty and id_ in dirty:
                 continue
             del field_cache[id_]
+            cleared += 1  # debuglog
+        if _debug.logic.enabled and cleared:
+            _debug.logic(
+                "field.dead_pending_cleared",
+                model=self.model_name,
+                field=self.name,
+                cleared=cleared,
+                records=len(records._ids),
+            )
 
     def _insert_cache(self, records: ModelLike, values: Iterable) -> None:
         field_cache = self._get_cache(records.env)
@@ -727,6 +737,12 @@ class Field[T](
             new_records.modified([self.name])
 
         if self.inherited:
+            _debug.logic(
+                "field.set.new_inherited_forwarded",
+                model=self.model_name,
+                field=self.name,
+                records=len(ids),
+            )
             parents = new_records[self._related_names[0]]
             parents._new_records[self.name] = value
 

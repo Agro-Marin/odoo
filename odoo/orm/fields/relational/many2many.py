@@ -212,6 +212,13 @@ class Many2many(_RelationalMulti):
             corecord_ids = OrderedSet(id_ for ids in group.values() for id_ in ids)
             accessible_corecords = comodel.browse(corecord_ids)._filtered_access("read")
             if len(accessible_corecords) < len(corecord_ids):
+                _debug.logic(
+                    "field.many2many.read.filtered_by_access",
+                    model=self.model_name,
+                    field=self.name,
+                    corecords=len(corecord_ids),
+                    dropped=len(corecord_ids) - len(accessible_corecords),
+                )
                 accessible_ids = set(accessible_corecords._ids)
                 for id1, ids in group.items():
                     group[id1] = [id_ for id_ in ids if id_ in accessible_ids]
@@ -357,6 +364,13 @@ class Many2many(_RelationalMulti):
         if self.store:
             missing_ids = tuple(self._iter_cache_missing_ids(records))
             if missing_ids:
+                _debug.logic(
+                    "field.many2many.write.read_before_write",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(records),
+                    missing=len(missing_ids),
+                )
                 self.read(records.browse(missing_ids))
 
         old_relation = {

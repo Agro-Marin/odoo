@@ -173,6 +173,13 @@ class One2many(_RelationalMulti):
                 group[value or False].append(line_id)
 
         if missed:
+            _debug.logic(
+                "field.one2many.read.inverse_cache_missed",
+                model=self.model_name,
+                field=self.name,
+                lines=len(lines),
+                missed=len(missed),
+            )
             get_id = (lambda rec: rec.id) if inverse_field.is_many2one else int
             for line in lines.browse(missed):
                 group[get_id(line[inverse])].append(line.id)
@@ -221,9 +228,17 @@ class One2many(_RelationalMulti):
             & Domain(inverse, "in", recs.ids)
             & Domain("id", "not in", lines.ids)
         )
-        return comodel.with_context(active_test=False).search(  # noqa: E8507  see above
+        orphans = comodel.with_context(active_test=False).search(  # noqa: E8507  see above
             domain
         )
+        _debug.logic(
+            "field.one2many.orphans_found",
+            model=self.model_name,
+            field=self.name,
+            records=len(recs),
+            orphans=len(orphans),
+        )
+        return orphans
 
     def _write_real_stored(
         self, records_commands_list, model, comodel, create: bool

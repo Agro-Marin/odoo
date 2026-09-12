@@ -4,6 +4,7 @@ from collections.abc import (
 )
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ValuesType
@@ -13,6 +14,8 @@ if typing.TYPE_CHECKING:
 
 
 from ._field_stubs import _FieldStubs
+
+_debug = DebugLog(__name__)
 
 
 class _FieldDescriptionMixin(_FieldStubs):
@@ -63,7 +66,14 @@ class _FieldDescriptionMixin(_FieldStubs):
             query = model._as_query(ordered=False)
             model._read_group_select(f"{self.name}:{self.aggregator}", query)
             return self.aggregator
-        except ValueError, AccessError, NotImplementedError:
+        except (ValueError, AccessError, NotImplementedError) as e:
+            _debug.logic(
+                "field.description.aggregator_unsupported",
+                model=self.model_name,
+                field=self.name,
+                aggregator=self.aggregator,
+                error=type(e).__name__,
+            )
             return None
 
     def _description_string(self, env: Environment) -> str | None:

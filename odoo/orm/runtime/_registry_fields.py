@@ -107,6 +107,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
     @functools.cached_property
     def field_computed(self) -> dict[Field, list[Field]]:
         computed: dict[Field, list[Field]] = {}
+        _debug.pipeline("registry.field_computed.begin", models=len(self.models))
         for model_name, Model in self.models.items():
             groups: defaultdict[Field, list[Field]] = defaultdict(list)
             for field in Model._fields.values():
@@ -145,6 +146,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
                         stacklevel=1,
                     )
         self.model_graph.set_computed(computed)
+        _debug.pipeline("registry.field_computed.end", fields=len(computed))
         return computed
 
     def get_trigger_tree(
@@ -159,6 +161,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
     @locked
     def _discard_fields(self, fields: list[Field]) -> None:
+        _debug.lifecycle("registry.fields_discarded", fields=len(fields))
         self.model_graph.begin_invalidation()
         try:
             for f in fields:

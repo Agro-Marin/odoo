@@ -80,6 +80,11 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
         """
         phase = self.init_phase
         if relation in phase.model_tables:
+            _debug.logic(
+                "registry.relation_table.owned_by_model",
+                model=model_name,
+                relation=relation,
+            )
             return False
         if reflect:
             phase.relation_reflections.add((model_name, relation, module))

@@ -45,42 +45,50 @@ def _get_text_transforms(
     cached = _TextTables.by_db.get(db_name)
     if cached is not None and cached.unaccent_enabled == unaccent_enabled:
         return cached
-    cr.execute(
-        "SELECT datlocprovider FROM pg_database WHERE datname = current_database()"
-    )
-    provider = cr.fetchone()
-    assert provider is not None
-    # Other providers can lowercase contextually, so a character table is insufficient.
-    context_free = provider[0] == "c"
-    unaccent = SQL("unaccent(source)") if unaccent_enabled else SQL("source")
-    folded = SQL("lower(%s)", unaccent) if context_free else SQL("source")
-    # PostgreSQL text excludes NUL and Unicode surrogate code points.
-    cr.execute(
-        SQL(
-            """
-        WITH chars AS (
-            SELECT chr(code) AS source FROM generate_series(1, 55295) AS code
-            UNION ALL
-            SELECT chr(code) AS source FROM generate_series(57344, 1114111) AS code
+    with _debug.perf(
+        "registry.text_transforms.built", cr=cr, db=db_name, unaccent=unaccent_enabled
+    ) as span:
+        cr.execute(
+            "SELECT datlocprovider FROM pg_database WHERE datname = current_database()"
         )
-        SELECT source, %(unaccent)s AS unaccented, %(folded)s AS folded
-        FROM chars WHERE source <> %(unaccent)s OR source <> %(folded)s
-        """,
-            unaccent=unaccent,
-            folded=folded,
+        provider = cr.fetchone()
+        assert provider is not None
+        # Other providers can lowercase contextually, so a character table is insufficient.
+        context_free = provider[0] == "c"
+        unaccent = SQL("unaccent(source)") if unaccent_enabled else SQL("source")
+        folded = SQL("lower(%s)", unaccent) if context_free else SQL("source")
+        # PostgreSQL text excludes NUL and Unicode surrogate code points.
+        cr.execute(
+            SQL(
+                """
+            WITH chars AS (
+                SELECT chr(code) AS source FROM generate_series(1, 55295) AS code
+                UNION ALL
+                SELECT chr(code) AS source FROM generate_series(57344, 1114111) AS code
+            )
+            SELECT source, %(unaccent)s AS unaccented, %(folded)s AS folded
+            FROM chars WHERE source <> %(unaccent)s OR source <> %(folded)s
+            """,
+                unaccent=unaccent,
+                folded=folded,
+            )
         )
-    )
-    unaccent_table = {}
-    ilike_table = {}
-    for row in cr.dictfetchall():
-        code = ord(row["source"])
-        if row["unaccented"] != row["source"]:
-            unaccent_table[code] = row["unaccented"]
-        if row["folded"] != row["source"]:
-            ilike_table[code] = row["folded"]
-    transforms = _TextTransforms(
-        unaccent_enabled, unaccent_table, ilike_table if context_free else None
-    )
+        unaccent_table = {}
+        ilike_table = {}
+        for row in cr.dictfetchall():
+            code = ord(row["source"])
+            if row["unaccented"] != row["source"]:
+                unaccent_table[code] = row["unaccented"]
+            if row["folded"] != row["source"]:
+                ilike_table[code] = row["folded"]
+        transforms = _TextTransforms(
+            unaccent_enabled, unaccent_table, ilike_table if context_free else None
+        )
+        span.set(
+            context_free=context_free,
+            unaccent_table=len(unaccent_table),
+            ilike_table=len(ilike_table),
+        )
     _TextTables.by_db[db_name] = transforms
     return transforms
 

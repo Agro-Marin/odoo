@@ -2,6 +2,7 @@ import typing
 import warnings
 from collections.abc import Callable, Iterable, Iterator
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import SENTINEL, unique
 
 from ..primitives import STATE_FIELD
@@ -10,6 +11,8 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ModelClass
     from ..runtime import Registry
     from .base import Field
+
+_debug = DebugLog(__name__)
 
 
 COMPANY_DEPENDENT_FIELDS: tuple[str, ...] = (
@@ -116,6 +119,13 @@ def get_attrs(
     modules: list[str] = []
     for base in field._args__.get("_base_fields__", ()):
         if not isinstance(field, type(base)):
+            _debug.logic(
+                "field.setup.base_attrs_dropped",
+                model=model_class._name,
+                field=name,
+                base_type=type(base).__name__,
+                type=type(field).__name__,
+            )
             attrs.clear()
             modules.clear()
             continue
@@ -202,6 +212,13 @@ def resolve_depends(field: Field, registry: Registry) -> Iterator[tuple[Field, .
                 )
             Model = registry[model_name]
             if Model0._transient and not Model._transient:
+                _debug.logic(
+                    "field.depends.transient_path_cut",
+                    model=field.model_name,
+                    field=field.name,
+                    path=dotnames,
+                    at=model_name,
+                )
                 break
 
             try:
@@ -213,6 +230,12 @@ def resolve_depends(field: Field, registry: Registry) -> Iterator[tuple[Field, .
                 ) from None
             if step is field and index and not field.recursive:
                 field.recursive = True
+                _debug.logic(
+                    "field.depends.recursive_inferred",
+                    model=field.model_name,
+                    field=field.name,
+                    path=dotnames,
+                )
                 warnings.warn(
                     f"Field {field} should be declared with recursive=True",
                     stacklevel=1,

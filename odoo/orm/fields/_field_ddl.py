@@ -42,6 +42,12 @@ def update_db(
     ):
         join_field = model._fields[field._related_names[0]]
         if join_field.is_many2one and join_field.store and not join_field.compute:
+            _debug.logic(
+                "field.ddl.related_column_filled_by_join",
+                model=model._name,
+                field=field.name,
+                related=field.related,
+            )
             model.pool.post_init(field.update_db_related, model)
             return False
 
@@ -90,6 +96,13 @@ def convert_db_column_translatable(
     assert field.column_type is not None, (
         f"{field}: a column conversion is only reached for a stored column"
     )
+    _debug.logic(
+        "field.ddl.column_converted_translatable",
+        model=model._name,
+        field=field.name,
+        from_type=column["udt_name"],
+        translate=bool(field.translate),
+    )
     if field.translate or column["udt_name"] == "jsonb":
         sql.convert_column_translatable(
             model.env.cr, model._table, field.name, field.column_type[1]
@@ -110,6 +123,13 @@ def widen_varchar_column(
         and column["character_maximum_length"]
         and (field.size is None or column["character_maximum_length"] < field.size)
     ):
+        _debug.logic(
+            "field.ddl.varchar_widened",
+            model=model._name,
+            field=field.name,
+            from_size=column["character_maximum_length"],
+            to_size=field.size,
+        )
         sql.convert_column(model.env.cr, model._table, field.name, column_type[1])
 
 
@@ -120,6 +140,12 @@ def update_db_notnull(
 
     if not column or (field.required and not has_notnull):
         if model._has_rows_in_table():
+            _debug.pipeline(
+                "field.ddl.init_column",
+                model=model._name,
+                field=field.name,
+                new_column=not column,
+            )
             model._init_column(field.name, new_column=not column)
 
     if field.required and not has_notnull:
@@ -220,8 +246,20 @@ def update_db_foreign_key(
         return
     comodel = model.env[field.comodel_name]
     if not model._is_an_ordinary_table() or not comodel._is_an_ordinary_table():
+        _debug.logic(
+            "field.ddl.foreign_key_skipped",
+            model=model._name,
+            field=field.name,
+            reason="not_ordinary_table",
+        )
         return
     if not comodel._auto or comodel._is_table_inheritance_root():
+        _debug.logic(
+            "field.ddl.foreign_key_skipped",
+            model=model._name,
+            field=field.name,
+            reason="comodel_not_auto" if not comodel._auto else "inheritance_root",
+        )
         return
     model.pool.add_foreign_key(
         model._table,
@@ -264,6 +302,12 @@ def update_db_relation_table(field: Many2many, model: ModelLike) -> bool:
             relation,
             model._table,
             comodel._table,
+        )
+        _debug.lifecycle(
+            "field.ddl.relation_table_created",
+            model=model._name,
+            field=field.name,
+            relation=relation,
         )
         model.pool.post_init(field.update_db_foreign_keys, model)
         return True

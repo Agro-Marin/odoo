@@ -8,6 +8,7 @@ from collections.abc import (
 )
 from collections.abc import Set as AbstractSet
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     SQL,
     Query,
@@ -33,6 +34,8 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[typing.Any, typing.Any], bool]] 
 }
 
 IN_TO_ANY_THRESHOLD = 100
+
+_debug = DebugLog(__name__)
 
 
 def _get_like_regex(value: str, exact: bool) -> str:
@@ -142,6 +145,7 @@ class _FieldSqlMixin(_FieldStubs):
         )
         converted: list[typing.Any] = []
         null_in_condition = False
+        dropped = 0  # debuglog
         for v in value:
             if v is False or v is None:
                 null_in_condition = True
@@ -149,9 +153,25 @@ class _FieldSqlMixin(_FieldStubs):
             try:
                 converted.append(_value_to_column(v))
             except ValueError, TypeError:
+                dropped += 1  # debuglog
                 continue
+        if _debug.logic.enabled and dropped:
+            _debug.logic(
+                "field.sql.in.values_dropped",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+                dropped=dropped,
+                kept=len(converted),
+            )
         params = tuple(converted)
         if not params and not null_in_condition:
+            _debug.logic(
+                "field.sql.in.constant",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+            )
             return SQL("FALSE") if operator == "in" else SQL("TRUE")
         if (null_value := self.falsy_value) is not None:
             null_value = _value_to_column(null_value)
@@ -163,6 +183,13 @@ class _FieldSqlMixin(_FieldStubs):
         sql = None
         if params:
             if len(params) > IN_TO_ANY_THRESHOLD:
+                _debug.logic(
+                    "field.sql.in.any_rewrite",
+                    model=self.model_name,
+                    field=self.name,
+                    operator=operator,
+                    values=len(params),
+                )
                 anyall = "= ANY(%s)" if operator == "in" else "!= ALL(%s)"
                 sql = SQL(f"%s {anyall}", sql_field, list(params))
             else:
@@ -297,6 +324,12 @@ class _FieldSqlMixin(_FieldStubs):
             )
             is False
         ):
+            _debug.logic(
+                "field.sql.company_dependent.fallback_excluded",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+            )
             return SQL(
                 "(%s IS NOT NULL AND %s)",
                 SQL.identifier(alias, self.name),

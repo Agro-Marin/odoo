@@ -332,6 +332,7 @@ class ModelGraph:
         self._computed.clear()
 
     def clear_caches(self) -> None:
+        _debug.lifecycle("model_graph.caches_cleared", epoch=self._epoch)
         with self._publish_lock:
             self._state = _TriggerState(self._state.triggers)
 
@@ -354,6 +355,12 @@ class ModelGraph:
                 if kept:
                     new_triggers[dep][path] = kept
 
+        _debug.lifecycle(
+            "model_graph.fields_discarded",
+            fields=len(discarded),
+            triggers_before=len(old_triggers),
+            triggers_after=len(new_triggers),
+        )
         with self._publish_lock:
             self._state = _TriggerState(new_triggers)
 
@@ -373,7 +380,16 @@ class ModelGraph:
                 if field in state.triggers
             ]
             structure = TriggerTree.merge(trees, bool)
+            _debug.perf.count(
+                "model_graph.trigger_tree_merged",
+                fields=len(fields),
+                trees=len(trees),
+                cached=len(state.merged),
+            )
             if len(state.merged) >= _MERGED_CACHE_MAX:
+                _debug.logic(
+                    "model_graph.merged_cache_evicted", entries=len(state.merged)
+                )
                 state.merged.clear()
             state.merged[key] = structure
         return structure._filtered(select)
@@ -397,7 +413,8 @@ class ModelGraph:
     def _add_missing_trees(state: _TriggerState) -> None:
         missing = [field for field in state.triggers if field not in state.trees]
         if missing:
-            state.trees.update(state.get_index().get_trees(missing))
+            with _debug.perf("model_graph.trees_built", missing=len(missing)):
+                state.trees.update(state.get_index().get_trees(missing))
 
     def get_dependent_fields(self, field: Any) -> Iterator[Any]:
         return self._get_dependent_fields(self._state, field)
@@ -436,7 +453,13 @@ class ModelGraph:
         state = self._state
         order = state.recompute_order
         if order is None:
-            order = state.recompute_order = self._get_recompute_order(state.triggers)
+            with _debug.perf(
+                "model_graph.recompute_order", triggers=len(state.triggers)
+            ) as span:
+                order = state.recompute_order = self._get_recompute_order(
+                    state.triggers
+                )
+                span.set(fields=len(order))
         return order
 
     @staticmethod

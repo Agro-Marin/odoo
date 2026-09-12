@@ -44,8 +44,15 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 with cr.savepoint(flush=False):
                     func(cr)
             else:
+                _debug.logic("registry.constraint.requeued", key=key)
                 self._constraint_queue[key] = func
         except Exception as e:
+            _debug.logic(
+                "registry.constraint.failed",
+                key=key,
+                install=self.init_phase.install,
+                error=type(e).__name__,
+            )
             if self.init_phase.install:
                 _schema.error("%s", e)
             else:
@@ -138,6 +145,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
         try:
             with cr.savepoint(flush=False):
                 if stale:
+                    _debug.logic(
+                        "registry.index.stale_dropped",
+                        index=indexname,
+                        table=tablename,
+                    )
                     sql.drop_index(cr, indexname, tablename)
                 sql.create_index(
                     cr,

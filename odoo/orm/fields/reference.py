@@ -3,6 +3,7 @@ from collections import defaultdict
 from operator import attrgetter
 from typing import override
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import pg_varchar
 from odoo.tools import SQL, OrderedSet, unique
 
@@ -16,6 +17,8 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
 
 REFERENCE_VERIFIED_CACHE_KEY = "reference.verified_pairs"
+
+_debug = DebugLog(__name__)
 
 
 class Reference(Selection["BaseModel | None"]):
@@ -60,6 +63,13 @@ class Reference(Selection["BaseModel | None"]):
                     ) not in memo and not self._reference_exists(
                         record, value._name, res_id, memo
                     ):
+                        _debug.logic(
+                            "field.reference.dangling_dropped",
+                            model=self.model_name,
+                            field=self.name,
+                            res_model=value._name,
+                            res_id=res_id,
+                        )
                         return None
                 return f"{value._name},{res_id}"
         elif isinstance(value, str):
@@ -78,6 +88,13 @@ class Reference(Selection["BaseModel | None"]):
                     if res_model in self.get_values(record.env):
                         if self._reference_exists(record, res_model, res_id_int, memo):
                             return value
+                        _debug.logic(
+                            "field.reference.dangling_dropped",
+                            model=self.model_name,
+                            field=self.name,
+                            res_model=res_model,
+                            res_id=res_id_int,
+                        )
                         return None
         elif not value:
             return None
@@ -93,9 +110,16 @@ class Reference(Selection["BaseModel | None"]):
         if not per_field:
             return
         names = set(model_names)
+        discarded = 0  # debuglog
         for pairs in per_field.values():
             stale = [pair for pair in pairs if pair[0] in names]
             pairs.difference_update(stale)
+            discarded += len(stale)  # debuglog
+        _debug.lifecycle(
+            "field.reference.verified_pairs_discarded",
+            models=sorted(names),
+            pairs=discarded,
+        )
 
     def _reference_exists(
         self,
@@ -141,9 +165,19 @@ class Reference(Selection["BaseModel | None"]):
                 if model in valid_models and model in env.registry:
                     ids_per_model.setdefault(model, set()).add(sibling_id)
 
-        for model, ids in ids_per_model.items():
-            existing = env[model].browse(ids).exists()
-            memo.update((model, id_) for id_ in existing._ids)
+        with _debug.perf(
+            "field.reference.verify",
+            cr=env.cr,
+            model=self.model_name,
+            field=self.name,
+            res_model=res_model,
+            models=len(ids_per_model),
+            candidates=sum(len(ids) for ids in ids_per_model.values()),
+        ) as span:
+            for model, ids in ids_per_model.items():
+                existing = env[model].browse(ids).exists()
+                memo.update((model, id_) for id_ in existing._ids)
+            span.set(found=(res_model, res_id) in memo)
 
         return (res_model, res_id) in memo
 

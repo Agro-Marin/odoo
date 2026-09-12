@@ -2,6 +2,7 @@ import typing
 from collections import defaultdict
 from typing import override
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import pg_varchar
 from odoo.tools.misc import SENTINEL, Sentinel, merge_sequences
 
@@ -15,6 +16,8 @@ if typing.TYPE_CHECKING:
 
     SelectValue = tuple[str, str]
     OnDeletePolicy = str | Callable[[BaseModel], None]
+
+_debug = DebugLog(__name__)
 
 
 class Selection[T = str | typing.Literal[False]](Field[T]):
@@ -146,6 +149,15 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
             for key in merge_sequences(values, values_add)
         }
         self.ondelete.update(ondelete)
+        _debug.logic(
+            "field.selection.add_merged",
+            model=self.model_name,
+            field=self.name,
+            module=field._module,
+            added=new_values,
+            relabeled=len(values_add) - len(new_values),
+            total=len(values),
+        )
         return values
 
     def _setup_attrs__(self, model_class: ModelClass, name: str) -> None:

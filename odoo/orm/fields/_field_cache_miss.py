@@ -25,9 +25,14 @@ def _run_batch_then_single(
     try:
         batch()
         return False
-    except catching:
+    except catching as e:
         if reraise_when_single and len(recs) == 1:
             raise
+        _debug.logic(
+            "field.cache_miss.batch_fallback",
+            records=len(recs),
+            error=type(e).__name__,
+        )
     single()
     return True
 
@@ -98,6 +103,12 @@ def get_cache_miss_by_compute(
     field: Field, record: BaseModel, env: Environment, record_id
 ):
     if env.is_protected(field, record):
+        _debug.logic(
+            "field.cache_miss.compute_protected",
+            model=field.model_name,
+            field=field.name,
+            record=record_id,
+        )
         value = field.convert_to_cache(False, record, validate=False)
         field._update_cache(record, value)
     else:
@@ -113,6 +124,13 @@ def get_cache_miss_by_compute(
 
         missing_recs_ids = tuple(field._iter_cache_missing_ids(recs))
         if missing_recs_ids:
+            _debug.logic(
+                "field.cache_miss.compute_unassigned",
+                model=field.model_name,
+                field=field.name,
+                records=len(recs),
+                unassigned=len(missing_recs_ids),
+            )
             missing_recs = record.browse(missing_recs_ids)
             if field.readonly and not field.store:
                 raise ValueError(

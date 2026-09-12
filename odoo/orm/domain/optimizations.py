@@ -143,6 +143,15 @@ def nary_condition_optimization(
                     merge_conditions = []
                 result.append(domain)
             flush()
+            if _debug.logic.enabled and merged_any:
+                _debug.logic(
+                    "domain.nary.conditions_merged",
+                    model=model._name,
+                    kind=cls.__name__,
+                    optimization=optimization.__name__,
+                    before=len(domains),
+                    after=len(result),
+                )
             return result if merged_any else domains
 
         optimizer._match_operators = frozenset(operators)  # type: ignore[attr-defined]
@@ -261,6 +270,12 @@ def _optimize_in_required(condition, model):
             OrderedSet(v for v in value if v is not False),
         )
         object.__setattr__(stripped, "_predicate_fallback", condition)
+        _debug.logic(
+            "domain.in.false_stripped_required",
+            model=model._name,
+            field=condition.field_expr,
+            operator=condition.operator,
+        )
         return stripped
     return condition
 
@@ -300,6 +315,13 @@ def _optimize_any_domain_at_level(level: OptimizationLevel, condition, model):
         ) from None
     domain = domain._optimize(comodel, level)
     if domain.is_false():
+        _debug.logic(
+            "domain.any.subdomain_false",
+            model=model._name,
+            field=condition.field_expr,
+            operator=condition.operator,
+            comodel=comodel._name,
+        )
         return _FALSE_DOMAIN if condition.operator in ("any", "any!") else _TRUE_DOMAIN
     if domain is condition.value:
         return condition
@@ -321,11 +343,25 @@ def _optimize_like_str(condition, model):
         result = (condition.operator in NEGATIVE_CONDITION_OPERATORS) == (
             "=" in condition.operator
         )
+        _debug.logic(
+            "domain.like.empty_pattern",
+            model=model._name,
+            field=condition.field_expr,
+            operator=condition.operator,
+            result=result,
+        )
         if condition._get_field(model).relational or "=" in condition.operator:
             return DomainCondition(condition.field_expr, "!=" if result else "=", False)
         return Domain(result)
     if isinstance(value, str) and not value.strip("%"):
         result = condition.operator not in NEGATIVE_CONDITION_OPERATORS
+        _debug.logic(
+            "domain.like.wildcard_only",
+            model=model._name,
+            field=condition.field_expr,
+            operator=condition.operator,
+            result=result,
+        )
         if condition._get_field(model).relational:
             return DomainCondition(condition.field_expr, "!=" if result else "=", False)
         return Domain(result)
@@ -342,6 +378,13 @@ def _optimize_like_str(condition, model):
         raise condition._prepare_condition_error(
             "The pattern to match must be a string", error=TypeError
         )
+    _debug.logic(
+        "domain.like.value_coerced",
+        model=model._name,
+        field=condition.field_expr,
+        operator=condition.operator,
+        type=type(value).__name__,
+    )
     return DomainCondition(condition.field_expr, condition.operator, str(value))
 
 
@@ -388,6 +431,14 @@ def _optimize_numeric_comparand(condition, model):
     if is_collection:
         coerced = [_coerce_numeric(v, field_type) for v in value]
         if _NOT_A_NUMBER in coerced:
+            _debug.logic(
+                "domain.numeric.non_numeric_dropped",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+                dropped=sum(1 for v in coerced if v is _NOT_A_NUMBER),
+                values=len(coerced),
+            )
             coerced = [v for v in coerced if v is not _NOT_A_NUMBER]
         elif coerced == list(value):
             return condition
@@ -395,6 +446,12 @@ def _optimize_numeric_comparand(condition, model):
     coerced = _coerce_numeric(value, field_type)
     if coerced is _NOT_A_NUMBER:
         if operator in ("in", "not in"):
+            _debug.logic(
+                "domain.numeric.non_numeric_collapsed",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+            )
             return Domain(operator == "not in")
         raise condition._prepare_condition_error(
             "Cannot compare the numeric field %r with a non-numeric value",
@@ -477,6 +534,12 @@ def _optimize_boolean_in_all(condition, model):
         False,
         True,
     }:
+        _debug.logic(
+            "domain.boolean.all_values_collapsed",
+            model=model._name,
+            field=condition.field_expr,
+            operator=condition.operator,
+        )
         return Domain(condition.operator == "in")
     return condition
 
@@ -490,6 +553,12 @@ def _optimize_inequality_against_null(condition, model):
         return condition
     if condition._get_field(model).falsy_value is not None:
         return condition
+    _debug.logic(
+        "domain.inequality.null_collapsed",
+        model=model._name,
+        field=condition.field_expr,
+        operator=condition.operator,
+    )
     return _FALSE_DOMAIN
 
 
@@ -776,6 +845,13 @@ def _optimize_same_conditions(cls, conditions, model):
         if condition not in seen:
             seen.add(condition)
             kept.append(condition)
+    _debug.logic(
+        "domain.nary.duplicates_removed",
+        model=model._name,
+        kind=cls.__name__,
+        removed=len(conditions) - len(kept),
+        kept=len(kept),
+    )
     return kept
 
 

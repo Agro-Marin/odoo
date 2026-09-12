@@ -557,6 +557,11 @@ class PostgresBackend:
                 field._insert_cache(fetched, values)
             prof.mark("cache")
         else:
+            _debug.logic(
+                "backend.fetch.no_columns",
+                model=model._name,
+                other=len(other_fields),
+            )
             fetched = model.browse(query)
             prof.mark("sql")
             prof.mark("cache")
@@ -749,6 +754,12 @@ class PostgresBackend:
             ir_field = default.field_id.sudo()
             field = model.env[ir_field.model]._fields[ir_field.name]
             record = model.browse(json_loads(default.json_value))
+            _debug.logic(
+                "backend.unlink.blocked_by_default",
+                model=model._name,
+                field=f"{field.model_name}.{field.name}",
+                record=record.id,
+            )
             raise UserError(
                 _(
                     "Unable to delete %(record)s because it is used as the default value of %(field)s",
@@ -780,6 +791,13 @@ class PostgresBackend:
             to_delete_id = next(iter(field_json.values()))
             on_restrict_record = referrer.browse(on_restrict_id)
             to_delete_record = model.browse(to_delete_id)
+            _debug.logic(
+                "backend.unlink.blocked_by_restrict",
+                model=model._name,
+                referrer=referrer._name,
+                field=field.name,
+                record=to_delete_id,
+            )
             raise UserError(
                 _(
                     "You cannot delete %(to_delete_record)s, as it is used by %(on_restrict_record)s",

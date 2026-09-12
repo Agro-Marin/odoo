@@ -7,6 +7,7 @@ from markupsafe import Markup
 
 from odoo.exceptions import AccessError, UserError
 from odoo.libs.colors import DEFAULT, GREEN, RED, colorize
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import (
     pattern_to_translated_trigram_pattern,
     pg_varchar,
@@ -32,6 +33,8 @@ if typing.TYPE_CHECKING:
     from ..models import BaseModel
     from ..runtime import Environment
     from ._field_stubs import TranslateDialect
+
+_debug = DebugLog(__name__)
 
 
 def _get_string_comparand(value: typing.Any) -> typing.Any:
@@ -78,10 +81,24 @@ class BaseString(Field[str | typing.Literal[False]]):
             coerced = [_get_string_comparand(v) for v in value]
             if coerced == list(value):
                 return condition
+            _debug.logic(
+                "field.string.comparands_coerced",
+                model=model._name,
+                field=condition.field_expr,
+                operator=operator,
+                values=len(coerced),
+            )
             return DomainCondition(condition.field_expr, operator, OrderedSet(coerced))
         coerced = _get_string_comparand(value)
         if coerced is value:
             return condition
+        _debug.logic(
+            "field.string.comparand_coerced",
+            model=model._name,
+            field=condition.field_expr,
+            operator=operator,
+            type=type(value).__name__,
+        )
         return DomainCondition(condition.field_expr, operator, coerced)
 
     falsy_value = ""
@@ -559,12 +576,26 @@ class Html(BaseString):
 
         if self.sanitize_overridable:
             if record.env.user.has_group("base.group_sanitize_override"):
+                _debug.logic(
+                    "field.html.sanitize_overridden",
+                    model=self.model_name,
+                    field=self.name,
+                    uid=record.env.uid,
+                )
                 return value
 
             for rec in record:
                 self._check_overridable_content(rec, sanitize_vals)
 
-        return html_sanitize(value, **sanitize_vals)
+        with _debug.perf(
+            "field.html.sanitize",
+            model=self.model_name,
+            field=self.name,
+            length=len(value),
+        ) as span:
+            sanitized = html_sanitize(value, **sanitize_vals)
+            span.set(sanitized_length=len(sanitized))
+        return sanitized
 
     def _check_overridable_content(
         self, record: ModelLike, sanitize_vals: dict[str, typing.Any]
@@ -594,6 +625,13 @@ class Html(BaseString):
                     else:
                         diff_str += line.rstrip() + "\n"
                 _logger.info(diff_str)
+                _debug.logic(
+                    "field.html.overridable_content_locked",
+                    model=self.model_name,
+                    field=self.name,
+                    record=record.id,
+                    uid=record.env.uid,
+                )
 
                 raise UserError(
                     record.env._(

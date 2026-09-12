@@ -4,6 +4,7 @@ import typing
 from pprint import pformat
 
 from odoo.exceptions import CacheMiss
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -15,6 +16,7 @@ if typing.TYPE_CHECKING:
     from .transaction import Transaction
 
 _logger = logging.getLogger("odoo.api")
+_debug = DebugLog(__name__)
 
 
 class CacheInvalidError(AssertionError):
@@ -185,10 +187,16 @@ class Cache:
                     f"{overlap[:10]}; they hold a pending write that would be "
                     f"silently lost.  Flush those records first."
                 )
+        _debug.lifecycle(
+            "recordset_cache.invalidate",
+            fields=len(spec),
+            whole_fields=sum(1 for _field, ids in spec if ids is None),
+        )
         for field, ids in spec:
             field._invalidate_cache(env, ids)
 
     def clear(self):
+        _debug.lifecycle("recordset_cache.clear")
         self.transaction.core.clear_cache()
 
     def check(self, env, *, raise_on_invalid: bool = True) -> list[tuple]:
@@ -230,26 +238,30 @@ class Cache:
                     )
                 )
 
-        for field in list(core.iter_cached_fields()):
-            if (
-                not field.store
-                or not field.column_type
-                or field.translate
-                or field.company_dependent
-            ):
-                continue
+        checked = 0  # debuglog
+        with _debug.perf("recordset_cache.check", cr=env.cr) as span:
+            for field in list(core.iter_cached_fields()):
+                if (
+                    not field.store
+                    or not field.column_type
+                    or field.translate
+                    or field.company_dependent
+                ):
+                    continue
 
-            model = env[field.model_name]
-            if field in depends_context:
-                for context_keys, inner_cache in core.iter_context_caches(field):
-                    context = dict(
-                        zip(depends_context[field], context_keys, strict=True)
-                    )
-                    if "company" in context:
-                        context["allowed_company_ids"] = [context.pop("company")]
-                    process(model.with_context(context), field, inner_cache)
-            elif (field_cache := core.get_field_data_or_none(field)) is not None:
-                process(model, field, field_cache)
+                checked += 1  # debuglog
+                model = env[field.model_name]
+                if field in depends_context:
+                    for context_keys, inner_cache in core.iter_context_caches(field):
+                        context = dict(
+                            zip(depends_context[field], context_keys, strict=True)
+                        )
+                        if "company" in context:
+                            context["allowed_company_ids"] = [context.pop("company")]
+                        process(model.with_context(context), field, inner_cache)
+                elif (field_cache := core.get_field_data_or_none(field)) is not None:
+                    process(model, field, field_cache)
+            span.set(fields=checked, invalid=len(invalids))
 
         if invalids:
             _logger.warning("Invalid cache: %s", pformat(invalids))

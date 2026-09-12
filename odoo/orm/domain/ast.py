@@ -703,6 +703,15 @@ class DomainNary(Domain):
                     continue
                 merged = merge(cls, children, model)
                 if merged is not children:
+                    if _debug.logic.enabled:
+                        _debug.logic(
+                            "domain.nary.merged",
+                            model=model._name,
+                            kind=cls.__name__,
+                            merge=getattr(merge, "__name__", type(merge).__name__),
+                            before=len(children),
+                            after=len(merged),
+                        )
                     present_ops = {
                         c.operator for c in merged if isinstance(c, DomainCondition)
                     }
@@ -1007,6 +1016,12 @@ class DomainCondition(Domain):
                 parent_domain = DomainCondition(
                     self.field_expr, self.operator, self.value
                 )
+                _debug.logic(
+                    "domain.condition.inherited_delegated",
+                    model=model._name,
+                    field=self.field_expr,
+                    parent=parent_fname,
+                )
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
@@ -1020,6 +1035,14 @@ class DomainCondition(Domain):
                 if domain != self:
                     domain = domain.optimize(model)
                     if domain != self:
+                        if _debug.logic.enabled:
+                            _debug.logic(
+                                "domain.condition.search_method_applied",
+                                model=model._name,
+                                field=self.field_expr,
+                                operator=self.operator,
+                                conditions=sum(1 for _c in domain.iter_conditions()),
+                            )
                         return domain
 
         optimizations = _OPTIMIZATIONS_FOR[level]
@@ -1058,6 +1081,13 @@ class DomainCondition(Domain):
         if original_exception is None and (inversed_op := INVERSE_OPERATOR.get(op)):
             computed_domain = field.get_search_domain(model, inversed_op, value)
             if computed_domain is not NotImplemented:
+                _debug.logic(
+                    "domain.search_method.fallback",
+                    model=model._name,
+                    field=self.field_expr,
+                    operator=op,
+                    kind="inverse_operator",
+                )
                 return ~Domain(computed_domain, internal=True)
         try:
             if op in ("any!", "not any!"):
@@ -1068,11 +1098,27 @@ class DomainCondition(Domain):
                     model.sudo()
                 )
                 _logger.warning("Field %s should implement any! operator", field)
+                _debug.logic(
+                    "domain.search_method.fallback",
+                    model=model._name,
+                    field=self.field_expr,
+                    operator=op,
+                    kind="any_without_bang",
+                )
                 return computed_domain
         except (NotImplementedError, UserError) as e:
             if original_exception is None:
                 original_exception = e
         try:
+            if _debug.logic.enabled and op in ("in", "not in"):
+                _debug.logic(
+                    "domain.search_method.fallback",
+                    model=model._name,
+                    field=self.field_expr,
+                    operator=op,
+                    kind="per_value",
+                    values=len(value),
+                )
             if op == "in":
                 return Domain.OR(
                     Domain(field.get_search_domain(model, "=", v), internal=True)
@@ -1113,6 +1159,14 @@ class DomainCondition(Domain):
                 DomainCondition("id", "in", OrderedSet(real_ids)) & self
             )
             matched = set(query.get_result_ids())
+            _debug.logic(
+                "domain.predicate.search_defined_query",
+                model=records._name,
+                field=self.field_expr,
+                operator=self.operator,
+                records=len(real_ids),
+                matched=len(matched),
+            )
 
         if all(records._ids):
             return lambda rec: rec._ids[0] in matched
@@ -1180,6 +1234,13 @@ class DomainCondition(Domain):
             # domain is cached across requests, so a Query inside it may still
             # point at the closed cursor of the request that built it.
             value = set(value.get_result_ids(records.env))
+            _debug.logic(
+                "domain.predicate.query_resolved",
+                model=records._name,
+                field=field_expr,
+                operator=op,
+                ids=len(value),
+            )
             return DomainCondition(field_expr, op, value)._as_predicate(records)
 
         field = self._get_field(records)

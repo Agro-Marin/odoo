@@ -165,6 +165,11 @@ class _RegistrySignalingMixin(_RegistryStubs):
         self.registry_sequence = db_registry_sequence
         self.cache_sequences.update(db_cache_sequences)
 
+        _debug.lifecycle(
+            "registry.signaling.sequences_loaded",
+            sequence=db_registry_sequence,
+            caches=len(db_cache_sequences),
+        )
         _logger.debug(
             "Multiprocess load registry signaling: [Registry: %s] %s",
             self.registry_sequence,

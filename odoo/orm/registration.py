@@ -264,6 +264,11 @@ def _reset_setup(model_cls: type[BaseModel]):
         return
 
     if model_cls.__bases__ != model_cls._base_classes__:
+        _debug.lifecycle(
+            "registration.model_bases_restored",
+            model=model_cls._name,
+            bases=len(model_cls._base_classes__),
+        )
         model_cls.__bases__ = model_cls._base_classes__
 
     for attr in ("_rec_name", "_active_name"):
@@ -330,6 +335,7 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
             for field in cls._field_definitions:
                 definitions[field.name].append(field)
 
+    merged = 0  # debuglog
     for name, fields_ in definitions.items():
         _patch_translate_field(model_cls, name, fields_)
         _patch_company_dependent_field(model_cls, env, name, fields_)
@@ -341,8 +347,16 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
         ):
             model_cls._fields__[name] = fields_[0]
         else:
+            merged += 1  # debuglog
             Field = type(fields_[-1])
             add_field(model_cls, name, Field(_base_fields__=tuple(fields_)))
+    _debug.pipeline(
+        "registration.fields_collected",
+        model=model_cls._name,
+        fields=len(definitions),
+        merged=merged,
+        classes=len(model_cls._model_classes__),
+    )
 
 
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
@@ -365,6 +379,12 @@ def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list)
             True,
         )
         _logger.debug("Patching %s.%s with translate=True", model_cls._name, name)
+        _debug.logic(
+            "registration.field_patched",
+            model=model_cls._name,
+            field=name,
+            attribute="translate",
+        )
         fields_.append(type(fields_[0])(translate=field_translate))
 
 
@@ -390,6 +410,12 @@ def _patch_company_dependent_field(
                 "Patching %s.%s with company_dependent=True",
                 model_cls._name,
                 name,
+            )
+            _debug.logic(
+                "registration.field_patched",
+                model=model_cls._name,
+                field=name,
+                attribute="company_dependent",
             )
             fields_.append(type(fields_[0])(company_dependent=True))
 
@@ -482,6 +508,12 @@ def _add_inherited_fields(model_cls: type[BaseModel]):
                 )
             to_inherit[name] = (parent_fname, field)
 
+    _debug.pipeline(
+        "registration.inherited_fields_added",
+        model=model_cls._name,
+        parents=len(model_cls._inherits),
+        fields=len(to_inherit),
+    )
     for name, (parent_fname, field) in to_inherit.items():
         field_cls = type(field)
         add_field(
@@ -522,6 +554,12 @@ def _setup_fields(model_cls: type[BaseModel], env: Environment):
         if field.is_many2one and field.company_dependent:
             many2one_company_dependents.add(field.comodel_name or "", field)
 
+    if _debug.logic.enabled and bad_fields:
+        _debug.logic(
+            "registration.manual_fields_dropped",
+            model=model_cls._name,
+            fields=bad_fields,
+        )
     for name in bad_fields:
         pop_field(model_cls, name)
 
@@ -642,6 +680,13 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
 def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:
     field = model_cls._fields__.pop(name, None)
     discardattr(model_cls, name)
+    _debug.lifecycle(
+        "registration.field_popped",
+        model=model_cls._name,
+        field=name,
+        found=field is not None,
+        was_rec_name=model_cls._rec_name == name,
+    )
     if model_cls._rec_name == name:
         model_cls._rec_name = None
         registry = get_registry_of_model(model_cls)

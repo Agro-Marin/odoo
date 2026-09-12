@@ -1,6 +1,7 @@
 import typing
 from typing import override
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.misc import SENTINEL, Sentinel
 
@@ -12,6 +13,8 @@ if typing.TYPE_CHECKING:
     from .._typing import BaseModel, ModelClass
 
 COUNTABLE_TYPES = ("one2many", "many2many")
+
+_debug = DebugLog(__name__)
 
 
 class Count(Integer):
@@ -80,6 +83,14 @@ class Count(Integer):
             and "active_test" not in counted.context
         ):
             self._depends_context = ("active_test",)
+        _debug.logic(
+            "field.count.setup",
+            model=self.model_name,
+            field=self.name,
+            count_of=self.count_of,
+            in_database=self.counts_in_database,
+            depends_context=self._depends_context,
+        )
 
     @override
     def get_depends(
@@ -165,6 +176,13 @@ class Count(Integer):
             ]
         if pending:
             counts = self._count_in_database(records.browse(pending))
+        _debug.logic(
+            "field.count.computed",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            from_database=len(counts),
+        )
         for record in records:
             id_ = record.id
             if id_ in counts:
@@ -187,11 +205,19 @@ class Count(Integer):
 
         if counted.is_one2many:
             inverse_name = counted.inverse_name
-            groups = comodel._read_group(
-                domain & Domain(inverse_name, "in", records.ids),
-                [inverse_name],
-                ["__count"],
-            )
+            with _debug.perf(
+                "field.count.query",
+                cr=env.cr,
+                model=self.model_name,
+                field=self.name,
+                kind="one2many",
+                records=len(records),
+            ):
+                groups = comodel._read_group(
+                    domain & Domain(inverse_name, "in", records.ids),
+                    [inverse_name],
+                    ["__count"],
+                )
             for key, count in groups:
                 result[key.id if is_recordset(key) else key] = count
             return result
@@ -199,23 +225,32 @@ class Count(Integer):
         bypass_access = counted.bypass_search_access and is_search_overridden(
             type(comodel)
         )
-        query = comodel._search(domain, bypass_access=bypass_access)
-        relation, column1, column2 = counted._get_relation_columns()
-        sql_id1 = SQL.identifier(relation, column1)
-        result.update(
-            env.execute_query(
-                SQL(
-                    "SELECT %s, count(*) FROM %s WHERE %s = ANY(%s) AND %s IN (%s) "
-                    "GROUP BY %s",
-                    sql_id1,
-                    SQL.identifier(relation),
-                    sql_id1,
-                    list(records.ids),
-                    SQL.identifier(relation, column2),
-                    query.subselect(),
-                    sql_id1,
-                    to_flush=counted,
+        with _debug.perf(
+            "field.count.query",
+            cr=env.cr,
+            model=self.model_name,
+            field=self.name,
+            kind="many2many",
+            records=len(records),
+            bypass_access=bypass_access,
+        ):
+            query = comodel._search(domain, bypass_access=bypass_access)
+            relation, column1, column2 = counted._get_relation_columns()
+            sql_id1 = SQL.identifier(relation, column1)
+            result.update(
+                env.execute_query(
+                    SQL(
+                        "SELECT %s, count(*) FROM %s WHERE %s = ANY(%s) AND %s IN (%s) "
+                        "GROUP BY %s",
+                        sql_id1,
+                        SQL.identifier(relation),
+                        sql_id1,
+                        list(records.ids),
+                        SQL.identifier(relation, column2),
+                        query.subselect(),
+                        sql_id1,
+                        to_flush=counted,
+                    )
                 )
             )
-        )
         return result

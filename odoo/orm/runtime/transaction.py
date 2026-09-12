@@ -194,6 +194,11 @@ class Transaction:
             _logger.warning(
                 "Transaction.flush(): no default_env; flushing as SUPERUSER"
             )
+            _debug.logic(
+                "transaction.flush.superuser_fallback",
+                db=self.registry.db_name,
+                envs=len(self.envs),
+            )
             try:
                 self._flush_as(self.environment(env.cr, SUPERUSER_ID, {}))
             finally:
@@ -222,6 +227,13 @@ class Transaction:
 
         if not result.converged:
             remaining = result.stalled_fields
+            _debug.logic(
+                "transaction.flush.not_converged",
+                uid=env.uid,
+                iterations=result.iterations,
+                stalled=remaining,
+                tolerant=bool(env.context.get("tolerant_recompute")),
+            )
             if env.context.get("tolerant_recompute"):
                 _logger.error(
                     "flush_all() did not converge after %d iterations. "

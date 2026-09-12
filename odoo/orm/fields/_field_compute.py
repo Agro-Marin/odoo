@@ -144,6 +144,12 @@ def _recompute_singly(
     except AccessError:
         if not (expanded and record_ids[0] in computed_ids):
             raise
+        _debug.logic(
+            "field.recompute.recursive_access_error_swallowed",
+            model=field.model_name,
+            field=field.name,
+            computed=len(computed_ids),
+        )
     if computed_ids:
         records.browse(computed_ids)._check_computed(field)
 
@@ -163,6 +169,12 @@ def _recompute_batched(
                 continue
             except AccessError:
                 pass
+            _debug.logic(
+                "field.recompute.batch_access_error_single",
+                model=field.model_name,
+                field=field.name,
+                batch=len(recs),
+            )
             field.compute_value(record)
 
 
@@ -181,7 +193,14 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
     try:
         with records.env.protecting(fields, records):
             records._compute_field_value(field, validate=validate)
-    except Exception:
+    except Exception as e:
+        _debug.logic(
+            "field.compute.failed_rescheduled",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
+            error=type(e).__name__,
+        )
         for computed in fields:
             if computed.store:
                 env.add_to_compute(computed, records)

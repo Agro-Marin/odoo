@@ -30,6 +30,12 @@ def setup_related(field: Field, model: BaseModel) -> None:
                 f"Field {name} referenced in related field definition {field} does not exist."
             )
         if not step._setup_done:
+            _debug.logic(
+                "field.related.step_setup_forced",
+                model=field.model_name,
+                field=field.name,
+                step=f"{model_name}.{name}",
+            )
             step.setup(model.env[model_name])
         field_seq.append(step)
         if depth < len(related_names):
@@ -112,6 +118,13 @@ def compute_related(field: Field, records: BaseModel) -> None:
         except AccessError as e:
             description = records.env["ir.model"]._get(records._name).name
             env = records.env
+            _debug.logic(
+                "field.related.access_denied_through",
+                model=field.model_name,
+                field=field.name,
+                step=name,
+                records=len(records),
+            )
             raise AccessError(
                 env._(
                     "%(previous_message)s\n\nImplicitly accessed through '%(document_kind)s' (%(document_model)s).",
@@ -175,6 +188,15 @@ def inverse_related(field: Field, records: BaseModel) -> None:
         else:
             groups[key] = (target, target_field, value, [target.id])
 
+    _debug.pipeline(
+        "field.related.inversed",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        targets=len(latest),
+        groups=len(groups),
+        ungrouped=len(ungrouped),
+    )
     for target, target_field, value, ids in groups.values():
         target.browse(ids)[target_field.name] = value
     for target, target_field, value in ungrouped:
@@ -193,6 +215,12 @@ def search_related(
         value_is_null = value is False or value is None or value == falsy_value
     can_be_null = (operator not in Domain.NEGATIVE_OPERATORS) == value_is_null
     if operator in Domain.NEGATIVE_OPERATORS and not value_is_null:
+        _debug.logic(
+            "field.related.search_unsupported",
+            model=field.model_name,
+            field=field.name,
+            operator=operator,
+        )
         return NotImplemented
 
     field_seq = field._related_field_seq
