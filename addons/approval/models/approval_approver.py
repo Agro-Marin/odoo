@@ -294,14 +294,22 @@ class ApprovalApprover(models.Model):
     def _stamp_pending_since(self, vals: dict) -> dict:
         state = vals.get("state")
         if state == "pending":
+            trace.DECISION.event("pending_clock", rows=self.ids, action="started")
             return {**vals, "pending_since": fields.Datetime.now()}
         if state == "new":
+            trace.DECISION.event("pending_clock", rows=self.ids, action="cleared")
             return {**vals, "pending_since": False}
         return vals
 
     def unlink(self) -> bool:
         self._check_access_unlink()
         self._check_business_rules_unlink()
+        trace.CRUD.note(
+            "unlink_approvers",
+            rows=self.ids,
+            requests=self.request_id.ids,
+            uid=self.env.uid,
+        )
         return super().unlink()
 
     def _delegation_today(self):
@@ -456,7 +464,14 @@ class ApprovalApprover(models.Model):
     def _is_advisory_only(self) -> bool:
         """Whether every step this row counts toward is advisory."""
         self.check_singleton()
-        return bool(self.step_ids) and all(self.step_ids.mapped("advisory"))
+        advisory_only = bool(self.step_ids) and all(self.step_ids.mapped("advisory"))
+        trace.STEPS.event(
+            "advisory_only",
+            approver=self.id,
+            steps=self.step_ids.ids,
+            advisory_only=advisory_only,
+        )
+        return advisory_only
 
     def _get_activity_target(self):
         """The record this row's approver is asked on: the request, or its document."""
@@ -513,7 +528,14 @@ class ApprovalApprover(models.Model):
         a row is asked only once one of its steps is among the lowest steps still
         unmet -- the decision is open from the start, the asking is not.
         """
-        return self.filtered(lambda approver: approver._is_notifiable())
+        notifiable = self.filtered(lambda approver: approver._is_notifiable())
+        trace.ACTIVITY.event(
+            "notifiable_rows",
+            rows=self.ids,
+            asked=notifiable.ids,
+            held=(self - notifiable).ids,
+        )
+        return notifiable
 
     def _is_notifiable(self) -> bool:
         """A step's group lets its members decide; only its listed members are asked.

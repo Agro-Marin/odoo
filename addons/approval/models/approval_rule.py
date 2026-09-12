@@ -596,20 +596,57 @@ class ApprovalRule(models.Model):
     def _evaluate_domain(self, request) -> bool:
         subject = self._get_subject(request)
         if not subject:
+            trace.RULES.event(
+                "domain_not_evaluated",
+                rule=self.id,
+                request=request.id,
+                why="no_subject",
+            )
             return False
         domain = self._parse_domain_or_warn()
         if domain is None:
+            trace.RULES.event(
+                "domain_not_evaluated",
+                rule=self.id,
+                request=request.id,
+                why="unparseable",
+            )
             return False
-        return bool(subject.filtered_domain(domain))
+        matched = bool(subject.filtered_domain(domain))
+        trace.RULES.event(
+            "domain_evaluated",
+            rule=self.id,
+            request=request.id,
+            subject=subject,
+            matched=matched,
+        )
+        return matched
 
     def _evaluate_field_selection(self, request) -> bool:
         subject = self._get_subject(request)
         if not subject or self.subject_field not in subject._fields:
+            trace.RULES.event(
+                "field_selection_not_evaluated",
+                rule=self.id,
+                request=request.id,
+                field=self.subject_field,
+                why="no_subject" if not subject else "field_absent",
+            )
             return False
         value = subject[self.subject_field]
         if hasattr(value, "ids"):
             value = value.id
-        return str(value) == (self.subject_value or "")
+        matched = str(value) == (self.subject_value or "")
+        trace.RULES.event(
+            "field_selection_evaluated",
+            rule=self.id,
+            request=request.id,
+            field=self.subject_field,
+            value=str(value),
+            wanted=self.subject_value or "",
+            matched=matched,
+        )
+        return matched
 
     def _get_field_value(self, request) -> float | None:
         match self.condition_field:
@@ -623,8 +660,22 @@ class ApprovalRule(models.Model):
                 if request.date_start and request.date_end:
                     delta = request.date_end - request.date_start
                     return delta.total_seconds() / 86400
+                trace.RULES.event(
+                    "condition_value_missing",
+                    rule=self.id,
+                    request=request.id,
+                    field=self.condition_field,
+                    has_start=bool(request.date_start),
+                    has_end=bool(request.date_end),
+                )
                 return None
             case _:
+                trace.RULES.event(
+                    "condition_field_unknown",
+                    rule=self.id,
+                    request=request.id,
+                    field=self.condition_field,
+                )
                 return None
 
     def _compare(self, value: float, threshold: float) -> bool:
@@ -690,8 +741,23 @@ class ApprovalRule(models.Model):
         bounds_a = self._condition_bounds()
         bounds_b = other._condition_bounds()
         if bounds_a is None or bounds_b is None:
+            trace.RULES.event(
+                "overlap_assumed",
+                rule=self.id,
+                other=other.id,
+                unbounded=self.id if bounds_a is None else other.id,
+            )
             return True
-        return self._intervals_overlap(bounds_a, bounds_b)
+        overlaps = self._intervals_overlap(bounds_a, bounds_b)
+        trace.RULES.event(
+            "overlap_checked",
+            rule=self.id,
+            other=other.id,
+            bounds=str(bounds_a),
+            other_bounds=str(bounds_b),
+            overlaps=overlaps,
+        )
+        return overlaps
 
     def _get_approver_tuples(self) -> list[tuple[int, bool, int]]:
         self.check_singleton()

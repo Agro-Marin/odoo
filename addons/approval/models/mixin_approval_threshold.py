@@ -47,6 +47,17 @@ class MixinApprovalThreshold(models.AbstractModel):
         from_currency = request.currency_id
         to_currency = self.currency_id
         if not from_currency or not to_currency or from_currency == to_currency:
+            trace.RULES.event(
+                "amount_unconverted",
+                record=self.id,
+                request=request.id,
+                amount=request.amount,
+                reason="same_currency"
+                if from_currency and to_currency
+                else "currency_missing",
+                from_currency=from_currency.id,
+                to_currency=to_currency.id,
+            )
             return request.amount
         rate_datetime = request.date or request.date_confirmed
         rate_date = (

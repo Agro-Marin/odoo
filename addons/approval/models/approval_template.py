@@ -86,6 +86,9 @@ class ApprovalTemplate(models.Model):
         counts = {template.id: count for template, count in data}
         for template in self:
             template.usage_count = counts.get(template.id, 0)
+        trace.TEMPLATE.event(
+            "usage_count", n=len(self), used=len(counts), requests=sum(counts.values())
+        )
 
     def action_create_request(self) -> dict[str, Any]:
         self.check_singleton()
@@ -130,6 +133,7 @@ class ApprovalTemplate(models.Model):
 
     def action_view_requests(self) -> dict[str, Any]:
         self.check_singleton()
+        trace.TEMPLATE.note("view_requests", template=self.id)
         return {
             "name": self.env._("Requests from: %s", self.name),
             "type": "ir.actions.act_window",

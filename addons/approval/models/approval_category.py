@@ -646,6 +646,13 @@ class ApprovalCategory(models.Model):
                 category.id,
                 0,
             )
+        trace.COMPUTE.event(
+            "count_request_to_validate",
+            n=len(self),
+            uid=self.env.uid,
+            with_requests=len(requests_mapped_data),
+            requests=sum(requests_mapped_data.values()),
+        )
 
     def _compute_rule_count(self) -> None:
         data = self.env["approval.rule"]._read_group(
@@ -656,6 +663,12 @@ class ApprovalCategory(models.Model):
         mapped = {cat.id: count for cat, count in data}
         for category in self:
             category.rule_count = mapped.get(category.id, 0)
+        trace.RULES.event(
+            "rule_count",
+            n=len(self),
+            with_rules=len(mapped),
+            rules=sum(mapped.values()),
+        )
 
     def _compute_template_count(self) -> None:
         data = self.env["approval.template"]._read_group(
@@ -666,6 +679,12 @@ class ApprovalCategory(models.Model):
         mapped = {cat.id: count for cat, count in data}
         for category in self:
             category.template_count = mapped.get(category.id, 0)
+        trace.TEMPLATE.event(
+            "template_count",
+            n=len(self),
+            with_templates=len(mapped),
+            templates=sum(mapped.values()),
+        )
 
     @api.depends_context("uid")
     def _compute_kanban_dashboard(self) -> None:
@@ -850,6 +869,9 @@ class ApprovalCategory(models.Model):
 
     def _is_applicable_for(self, document) -> bool:
         self.check_singleton()
+        trace.SUBJECTS.event(
+            "category_applicable", category=self.id, subject=document, applicable=True
+        )
         return True
 
     def _get_view_request(
@@ -859,6 +881,12 @@ class ApprovalCategory(models.Model):
         domain = [("category_id", "=", self.id)]
         if extra_domain:
             domain.extend(extra_domain)
+        trace.REPORT.note(
+            "view_request",
+            category=self.id,
+            label=label or None,
+            filters=len(extra_domain or ()),
+        )
         return {
             "type": "ir.actions.act_window",
             "name": f"{label} - {self.name}" if label else self.name,

@@ -154,16 +154,36 @@ class ApprovalRequestRouting(models.Model):
         preserved = self.applied_rule_ids.filtered(
             lambda r: r.action_type != "add_approver",
         )
-        return preserved | matched_rules
+        kept = preserved | matched_rules
+        trace.RULES.event(
+            "applied_rules_after_sync",
+            request=self.id,
+            was=self.applied_rule_ids.ids,
+            preserved=preserved.ids,
+            matched=matched_rules.ids,
+            dropped=(self.applied_rule_ids - kept).ids,
+        )
+        return kept
 
     def _matched_add_approver_rule_by_user(self, matched_rules=None) -> dict[int, int]:
         self.check_singleton()
         if matched_rules is None:
             matched_rules = self._matched_add_approver_rules()
         mapping: dict[int, int] = {}
+        contested: dict[int, list[int]] = {}
         for rule in matched_rules:
             for user in rule.approver_ids:
+                if user.id in mapping:
+                    contested.setdefault(user.id, [mapping[user.id]]).append(rule.id)
                 mapping.setdefault(user.id, rule.id)
+        if contested:
+            trace.RULES.event(
+                "rule_by_user_contested",
+                request=self.id,
+                users=sorted(contested),
+                rules=contested,
+                won=[mapping[user_id] for user_id in sorted(contested)],
+            )
         return mapping
 
     def _get_managed_approver_user_ids(
@@ -195,7 +215,16 @@ class ApprovalRequestRouting(models.Model):
     def _rule_applies_to_company(self, rule) -> bool:
         self.check_singleton()
         rule_company = rule.company_id
-        return not rule_company or rule_company == self.company_id
+        applies = not rule_company or rule_company == self.company_id
+        if not applies:
+            trace.RULES.event(
+                "rule_other_company",
+                request=self.id,
+                rule=rule.id,
+                rule_company=rule_company.id,
+                company=self.company_id.id,
+            )
+        return applies
 
     def _find_matching_replacement(self):
         self.check_singleton()
@@ -317,7 +346,15 @@ class ApprovalRequestRouting(models.Model):
             lambda r: r.action_type == "auto_refuse",
         )
         candidates = refusals or matching_rules
-        return candidates.sorted(lambda r: (r.sequence, r.id))[:1]
+        chosen = candidates.sorted(lambda r: (r.sequence, r.id))[:1]
+        trace.RULES.event(
+            "auto_action_resolved",
+            matching=matching_rules.ids,
+            refusals=refusals.ids,
+            preempted=(candidates - chosen).ids,
+            chosen=chosen.id or None,
+        )
+        return chosen
 
     def _get_sequence_param(self, kind: str, default: int) -> int:
         raw = (
@@ -353,6 +390,14 @@ class ApprovalRequestRouting(models.Model):
         sequence: int,
     ) -> None:
         if user_id in staging:
+            trace.ROUTING.event(
+                "staging_merge",
+                user=user_id,
+                required=staging[user_id]["required"] or required,
+                was_required=staging[user_id]["required"],
+                sequence=min(staging[user_id]["sequence"], sequence),
+                was_sequence=staging[user_id]["sequence"],
+            )
             staging[user_id]["required"] |= required
             staging[user_id]["sequence"] = min(staging[user_id]["sequence"], sequence)
             staging[user_id]["source_synced"] = True
@@ -744,7 +789,11 @@ class ApprovalRequestRouting(models.Model):
                     approver_staging, user_id, required, sequence
                 )
 
-        for user_id, required, sequence in self._get_additional_approvers():
+        additional = self._get_additional_approvers()
+        trace.ROUTING.event(
+            "additional_approvers", request=self.id, added=len(additional)
+        )
+        for user_id, required, sequence in additional:
             self._merge_approver_to_staging(
                 approver_staging, user_id, required, sequence
             )

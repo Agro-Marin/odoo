@@ -198,7 +198,8 @@ class ApprovalDashboard(models.TransientModel):
         return local_midnight.astimezone(UTC).replace(tzinfo=None)
 
     def _accessible(self, model_name: str, domain=()) -> SQL:
-        return self.env[model_name]._search(domain).subselect()
+        with trace.REPORT.span("accessible_subselect", model=model_name):
+            return self.env[model_name]._search(domain).subselect()
 
     @api.depends_context("uid", "allowed_company_ids", "tz")
     def _compute_today_stats(self) -> None:
@@ -247,6 +248,14 @@ class ApprovalDashboard(models.TransientModel):
             today_end,
         )
 
+        trace.REPORT.event(
+            "today_stats",
+            submitted=submitted,
+            pending=pending,
+            approved=approved,
+            refused=refused,
+            hours=avg_hours,
+        )
         for dashboard in self:
             dashboard.submitted_today = submitted
             dashboard.approved_today = approved
@@ -276,6 +285,8 @@ class ApprovalDashboard(models.TransientModel):
             ["__count"],
         )
 
+        trace.REPORT.event("trend_days", buckets=len(daily_counts), tz=tz_name)
+
         def count_window(start: datetime, end: datetime) -> int:
             return sum(count for day, count in daily_counts if start <= day < end)
 
@@ -292,13 +303,24 @@ class ApprovalDashboard(models.TransientModel):
                     1,
                 )
                 display_val = abs(trend)
+                branch = "ratio"
             elif this_period_count > 0:
                 trend = 100.0
                 display_val = "NEW"
+                branch = "new"
             else:
                 trend = 0.0
                 display_val = "0.0"
+                branch = "empty"
 
+            trace.REPORT.event(
+                "trend",
+                days=days,
+                branch=branch,
+                this_period=this_period_count,
+                last_period=last_period_count,
+                trend=trend,
+            )
             return trend, display_val
 
         trend_7, trend_7_display_val = get_trend(7)
@@ -424,23 +446,33 @@ class ApprovalDashboard(models.TransientModel):
             round((approved / total_decided * 100), 2) if total_decided > 0 else 0.0
         )
 
-        self.env.cr.execute(
-            SQL(
-                """
-                SELECT AVG(EXTRACT(EPOCH FROM
-                    (date_approval_granted - date_confirmed)
-                ) / 3600)
-                FROM approval_request
-                WHERE state = 'approved'
-                    AND date_confirmed IS NOT NULL
-                    AND date_approval_granted IS NOT NULL
-                    AND id IN %s
-                """,
-                self._accessible("approval.request"),
-            ),
+        with trace.REPORT.span("all_time_avg_hours") as span:
+            self.env.cr.execute(
+                SQL(
+                    """
+                    SELECT AVG(EXTRACT(EPOCH FROM
+                        (date_approval_granted - date_confirmed)
+                    ) / 3600)
+                    FROM approval_request
+                    WHERE state = 'approved'
+                        AND date_confirmed IS NOT NULL
+                        AND date_approval_granted IS NOT NULL
+                        AND id IN %s
+                    """,
+                    self._accessible("approval.request"),
+                ),
+            )
+            row = self.env.cr.fetchone()
+            avg_time = round(row[0], 2) if row and row[0] else 0.0
+            span["hours"] = avg_time
+        trace.REPORT.event(
+            "all_time_stats",
+            states=len(state_counts),
+            total=total,
+            pending=pending,
+            decided=total_decided,
+            rate=approval_rate,
         )
-        row = self.env.cr.fetchone()
-        avg_time = round(row[0], 2) if row and row[0] else 0.0
 
         for dashboard in self:
             dashboard.total_requests_all_time = total
@@ -461,28 +493,37 @@ class ApprovalDashboard(models.TransientModel):
             pending_domain + [("priority", "=", "3")],
         )
 
-        self.env.cr.execute(
-            SQL(
-                """
-                SELECT AVG(
-                    EXTRACT(EPOCH FROM (
-                        a.decision_date
-                        - COALESCE(a.pending_since, ar.date_confirmed)
-                    )) / 3600
-                )
-                FROM approval_approver a
-                JOIN approval_request ar ON ar.id = a.request_id
-                WHERE COALESCE(a.decided_by_user_id, a.user_id) = %s
-                    AND a.decision_date IS NOT NULL
-                    AND COALESCE(a.pending_since, ar.date_confirmed) IS NOT NULL
-                    AND a.id IN %s
-                """,
-                current_user.id,
-                self._accessible("approval.approver"),
-            ),
+        with trace.REPORT.span("my_avg_response_hours", uid=current_user.id) as span:
+            self.env.cr.execute(
+                SQL(
+                    """
+                    SELECT AVG(
+                        EXTRACT(EPOCH FROM (
+                            a.decision_date
+                            - COALESCE(a.pending_since, ar.date_confirmed)
+                        )) / 3600
+                    )
+                    FROM approval_approver a
+                    JOIN approval_request ar ON ar.id = a.request_id
+                    WHERE COALESCE(a.decided_by_user_id, a.user_id) = %s
+                        AND a.decision_date IS NOT NULL
+                        AND COALESCE(a.pending_since, ar.date_confirmed) IS NOT NULL
+                        AND a.id IN %s
+                    """,
+                    current_user.id,
+                    self._accessible("approval.approver"),
+                ),
+            )
+            row = self.env.cr.fetchone()
+            avg_response = round(row[0], 2) if row and row[0] else 0.0
+            span["hours"] = avg_response
+        trace.REPORT.event(
+            "user_metrics",
+            uid=current_user.id,
+            pending=my_pending,
+            urgent=my_urgent,
+            hours=avg_response,
         )
-        row = self.env.cr.fetchone()
-        avg_response = round(row[0], 2) if row and row[0] else 0.0
 
         for dashboard in self:
             dashboard.my_pending_count = my_pending
@@ -553,27 +594,37 @@ class ApprovalDashboard(models.TransientModel):
 
         ninety_days_ago = today_utc - timedelta(days=90)
 
-        self.env.cr.execute(
-            SQL(
-                """
-                SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
-                    EXTRACT(EPOCH FROM (date_approval_granted - date_confirmed))
-                    / 3600
-                ) AS median_hours
-                FROM approval_request
-                WHERE state = 'approved'
-                    AND date_confirmed IS NOT NULL
-                    AND date_approval_granted IS NOT NULL
-                    AND date_approval_granted >= %s
-                    AND id IN %s
-                """,
-                ninety_days_ago,
-                self._accessible("approval.request"),
-            ),
-        )
+        with trace.REPORT.span("median_approval_hours", days=90) as span:
+            self.env.cr.execute(
+                SQL(
+                    """
+                    SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
+                        EXTRACT(EPOCH FROM (date_approval_granted - date_confirmed))
+                        / 3600
+                    ) AS median_hours
+                    FROM approval_request
+                    WHERE state = 'approved'
+                        AND date_confirmed IS NOT NULL
+                        AND date_approval_granted IS NOT NULL
+                        AND date_approval_granted >= %s
+                        AND id IN %s
+                    """,
+                    ninety_days_ago,
+                    self._accessible("approval.request"),
+                ),
+            )
 
-        result = self.env.cr.fetchone()
-        median_hours = round(result[0], 2) if result and result[0] else 0.0
+            result = self.env.cr.fetchone()
+            median_hours = round(result[0], 2) if result and result[0] else 0.0
+            span["hours"] = median_hours
+        trace.REPORT.event(
+            "velocity_metrics",
+            request_days=len(request_days),
+            approval_days=len(approval_days),
+            requests_30d=requests_30d,
+            approvals_30d=approvals_30d,
+            median=median_hours,
+        )
 
         for dashboard in self:
             dashboard.requests_per_day_7d = requests_per_day_7d

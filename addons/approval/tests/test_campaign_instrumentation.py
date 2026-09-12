@@ -38,6 +38,19 @@ REFUSAL_EVENT = re.compile(r"trace\.REFUSAL\.event\(")
 # instead, so one event cannot collapse four causes into one census row.
 REPORTED_BY_ITS_CALLERS = frozenset({"_raise_not_assigned_approver"})
 
+# A `refusal` line whose own method raises nothing. The census's oracle survives it
+# only because the flow it reports on refuses somewhere else.
+REFUSAL_WITHOUT_A_RAISE = frozenset()
+
+# An extension point left empty by OMISSION, not by design: there the campaign line IS
+# the report that nobody implemented it, so it may be the whole body.
+EMPTY_BY_OMISSION = frozenset(
+    {
+        "_raise_approval_category_not_configured",
+        "_raise_approval_category_not_matched",
+    }
+)
+
 ADDON = Path(__file__).resolve().parents[1]
 
 
@@ -138,6 +151,106 @@ class TestCampaignRefusalCensus(ApprovalCommon):
             f"{total - 7} campaign call site(s) reach the model name through self: "
             f"{ {name: n for name, n in reads.items() if n} }. "
             "Pass the record instead: `record=self` renders model#id.",
+        )
+
+    def test_the_refusal_target_carries_only_refusals(self):
+        """`refusal` is the one target with an oracle -- a green flow logs zero -- and
+        that only holds while every line on it precedes a `raise`.
+
+        A method that raises through a `_raise_*` helper counts as raising: three sites
+        do that on purpose, so several callers can each report their own kind while one
+        helper holds the message.
+
+        This was broken while the test was being written: a `_compute_usage_count` on
+        `approval.refusal.reason` reported its `_read_group` on `REFUSAL` because the
+        MODEL is about refusal reasons. The target is about refusals, and a compute that
+        runs on any form view would have put a line on the one target whose value is
+        that it stays empty. It also found an older one: `_parse_domain_or_warn`
+        reported an unparseable domain as a refusal, where nothing is refused -- the
+        domain is treated as matching nothing and the flow carries on. That is the
+        `degraded` class, `_parse_domain` already says so on that target, and the line
+        was deleted rather than moved.
+        """
+        misplaced = []
+        for path in _source_files():
+            tree = ast.parse(path.read_text())
+            for holder in ast.walk(tree):
+                if not isinstance(holder, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                raises = any(
+                    isinstance(node, ast.Raise)
+                    or (
+                        isinstance(node, ast.Call)
+                        and isinstance(node.func, ast.Attribute)
+                        and node.func.attr.startswith("_raise")
+                    )
+                    for node in ast.walk(holder)
+                )
+                for node in ast.walk(holder):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    target = node.func
+                    if not (
+                        isinstance(target, ast.Attribute)
+                        and isinstance(target.value, ast.Attribute)
+                        and target.value.attr == "REFUSAL"
+                    ):
+                        continue
+                    if raises or holder.name in REFUSAL_WITHOUT_A_RAISE:
+                        continue
+                    misplaced.append(f"{path.name}:{node.lineno} {holder.name}")
+        self.assertEqual(
+            misplaced,
+            [],
+            "these lines are on the `refusal` target inside a method that raises "
+            f"nothing: {misplaced}. A question that is answered rather than declined "
+            "belongs on `access`; anything else belongs on its own concern's target.",
+        )
+
+    def test_no_campaign_line_is_the_only_statement_of_a_body(self):
+        """A campaign line is DELETED at the end of the campaign, so a body that holds
+        nothing else becomes a syntax error the moment it is.
+
+        `mixin.approval.state.sync._check_approval_sync_policy` is the shape:
+        `def ...: return`, an adopter's veto point that vetoes nothing by default.
+        Instrument the CALL SITE, which survives the deletion. A hook that is empty by
+        OMISSION rather than by design (`_raise_approval_category_not_configured`) is
+        the exception -- there the line is the report that nobody implemented it, and
+        it is named below.
+        """
+        traps = []
+        for path in _source_files():
+            tree = ast.parse(path.read_text())
+            for holder in ast.walk(tree):
+                if not isinstance(holder, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                body = [
+                    node
+                    for node in holder.body
+                    if not (
+                        isinstance(node, ast.Expr)
+                        and isinstance(node.value, ast.Constant)
+                    )
+                ]
+                if len(body) != 1 or not isinstance(body[0], ast.Expr):
+                    continue
+                call = body[0].value
+                if not (
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Attribute)
+                    and isinstance(call.func.value, ast.Attribute)
+                    and isinstance(call.func.value.value, ast.Name)
+                    and call.func.value.value.id == "trace"
+                ):
+                    continue
+                if holder.name in EMPTY_BY_OMISSION:
+                    continue
+                traps.append(f"{path.name}:{holder.lineno} {holder.name}")
+        self.assertEqual(
+            traps,
+            [],
+            "removing the campaign would leave these bodies empty: "
+            f"{traps}. Instrument the call site instead.",
         )
 
     def test_the_reported_kinds_are_distinct(self):

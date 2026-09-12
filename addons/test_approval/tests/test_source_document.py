@@ -6,6 +6,24 @@ from odoo.addons.approval.tests.common import ApprovalCommon
 
 @tagged("post_install", "-at_install")
 class TestSourceDocumentIsNotified(ApprovalCommon):
+    def test_the_source_document_is_told_once(self):
+        category = self._make_category(
+            name=f"Grant Notify Cat {self.id()}", approvers=[self.approver_1]
+        )
+        doc = self.env["approval.test.document"].create(
+            {
+                "name": "Doc approved without a decision",
+                "partner_id": self.partner.id,
+                "test_category_id": category.id,
+            },
+        )
+        doc.action_create_approval_request()
+
+        doc.approval_request_id._approve_without_decision("Validated by the system")
+
+        self.assertEqual(doc.last_approval_state, "approved")
+        self.assertEqual(doc.hook_call_count, 1)
+
     def test_withdraw_notifies_source_document(self):
         category = self._make_category(
             name=f"Withdraw Notify Cat {self.id()}",

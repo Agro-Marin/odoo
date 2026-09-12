@@ -226,15 +226,22 @@ class ApprovalCategoryStep(models.Model):
     def _get_member_user_ids(self, document=None, company=None) -> set[int]:
         self.check_singleton()
         today = fields.Date.context_today(self)
-        return self._filter_company_user_ids(
-            {
-                member.user_id.id
-                for member in self.member_ids
-                if not member.date_end or member.date_end >= today
-            }
-            | self._get_source_user_ids(document),
-            company,
+        current = {
+            member.user_id.id
+            for member in self.member_ids
+            if not member.date_end or member.date_end >= today
+        }
+        from_document = self._get_source_user_ids(document)
+        in_company = self._filter_company_user_ids(current | from_document, company)
+        trace.STEPS.event(
+            "member_users",
+            step=self.id,
+            members=len(self.member_ids),
+            current=sorted(current),
+            from_document=sorted(from_document),
+            excluded_by_company=sorted((current | from_document) - in_company),
         )
+        return in_company
 
     def _get_source_user_ids(self, document) -> set[int]:
         self.check_singleton()
@@ -300,7 +307,15 @@ class ApprovalCategoryStep(models.Model):
             or len(document) != 1
         ):
             return user_ids
-        return document.sudo()._filter_approval_step_user_ids(self, set(user_ids))
+        kept = document.sudo()._filter_approval_step_user_ids(self, set(user_ids))
+        trace.STEPS.event(
+            "document_filtered_users",
+            step=self.id,
+            document=document,
+            asked=sorted(user_ids),
+            refused=sorted(set(user_ids) - set(kept)),
+        )
+        return kept
 
     def _filter_company_user_ids(self, user_ids: set[int], company) -> set[int]:
         """An approver row belongs to its request's company, so only a user allowed

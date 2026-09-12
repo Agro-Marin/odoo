@@ -26,9 +26,19 @@ class MixinApprovalStateSync(models.AbstractModel):
 
     def _get_approval_sync_kind(self) -> str | None:
         self.check_singleton()
-        return self._get_approval_sync_kinds().get(
-            self[self._get_approval_sync_state_field()]
-        )
+        field = self._get_approval_sync_state_field()
+        kinds = self._get_approval_sync_kinds()
+        value = self[field]
+        kind = kinds.get(value)
+        if kind is None:
+            trace.DEGRADED.event(
+                "sync_state_unmapped",
+                record=self,
+                field=field,
+                value=value,
+                mapped=sorted(kinds, key=repr),
+            )
+        return kind
 
     def _check_approval_sync_policy(self, kind: str) -> None:
         return
@@ -43,7 +53,12 @@ class MixinApprovalStateSync(models.AbstractModel):
         xmlid = self._get_approval_category_xmlid()
         category = xmlid and self.env.ref(xmlid, raise_if_not_found=False)
         if category:
+            trace.SYNC.event(
+                "category_by_xmlid", record=self, xmlid=xmlid, category=category.id
+            )
             return [("id", "=", category.id)]
+        if xmlid:
+            trace.DEGRADED.event("category_xmlid_missing", record=self, xmlid=xmlid)
         return super()._get_domain_approval_category()
 
     @api.model_create_multi
@@ -102,10 +117,16 @@ class MixinApprovalStateSync(models.AbstractModel):
 
     def _is_approval_request_required(self) -> bool:
         self.check_singleton()
-        return (
-            self._get_approval_sync_kind() == "pending"
-            and self._can_raise_approval_request()
+        kind = self._get_approval_sync_kind()
+        can_raise = kind == "pending" and self._can_raise_approval_request()
+        trace.SYNC.event(
+            "request_needed",
+            record=self,
+            kind=kind,
+            has_request=bool(self.approval_request_id),
+            needed=can_raise,
         )
+        return can_raise
 
     def _can_raise_approval_request(self) -> bool:
         """Whether this document may hold a request at all; adopters add their own
@@ -216,9 +237,25 @@ class MixinApprovalStateSync(models.AbstractModel):
 
     def _is_synced_with_approval_request(self) -> bool:
         self.check_singleton()
-        return self.approval_request_id.id in self.env.context.get(SYNC_CONTEXT_KEY, ())
+        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
+        reentrant = self.approval_request_id.id in synced
+        if reentrant:
+            trace.SYNC.event(
+                "sync_reentry_blocked",
+                record=self,
+                request=self.approval_request_id.id,
+                depth=len(synced),
+            )
+        return reentrant
 
     def _restart_approval_request(self, request) -> None:
+        trace.SYNC.note(
+            "restart_request",
+            record=self,
+            request=request.id,
+            was=request.state,
+            forced_draft=request.state != "new",
+        )
         if request.state != "new":
             request._force_draft()
         request.action_confirm()
@@ -355,7 +392,15 @@ class MixinApprovalStateSync(models.AbstractModel):
             decided=decided,
             request=self.approval_request_id.id,
         )
-        if decided and self.env.uid != SUPERUSER_ID:
+        checks_policy = decided and self.env.uid != SUPERUSER_ID
+        trace.SYNC.event(
+            "sync_policy",
+            record=self,
+            kind=kind,
+            checked=checks_policy,
+            uid=self.env.uid,
+        )
+        if checks_policy:
             self.sudo(False)._check_approval_sync_policy(kind)
         synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
         self.with_context(

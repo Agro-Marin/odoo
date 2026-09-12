@@ -3,6 +3,7 @@ import { useSubEnv } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
 import { ViewButton } from "@web/views/view_button";
 
+import { trace } from "../../common/approval_trace.js";
 import { ApprovalButton } from "./approval_button.js";
 import { useApprovalButton } from "./approval_button_hook.js";
 
@@ -10,13 +11,18 @@ patch(ViewButton.prototype, {
     setup() {
         super.setup(...arguments);
         const { name, type } = this.props.clickParams || {};
-        if (!name || !this.props.record?.resModel || !this._isApprovalGated()) {
+        const model = this.props.record?.resModel;
+        // Every button of every row reaches this line, so it stays silent: the
+        // ungated case is the common one and says nothing a reader needs.
+        if (!name || !model || !this._isApprovalGated()) {
             return;
         }
         const kind = (type || "").replace(/=$/, "");
         if (kind !== "object" && kind !== "action") {
+            trace.event("button", "kind_not_gated", { name, model, kind });
             return;
         }
+        trace.event("button", "gating", { name, model, kind });
         this.approvalGate = useApprovalButton({
             getRecord: () => this.props.record,
             method: kind === "object" && name,
@@ -39,6 +45,11 @@ patch(ViewButton.prototype, {
                             return false;
                         }
                         if (kind === "object" && !this.approvalGate.result?.gated) {
+                            trace.event("button", "server_gates_it", {
+                                name,
+                                model,
+                                loaded: Boolean(this.approvalGate.result),
+                            });
                             return true;
                         }
                         return this.approvalGate.check();

@@ -572,19 +572,28 @@ class ApprovalRequest(models.Model):
         }
         if not categories or not owner:
             return {category_id: self.browse() for category_id in by_category}
-        candidates = self.search(
-            [
-                ("request_owner_id", "=", owner.id),
-                ("category_id", "in", categories.ids),
-                ("state", "=", "approved"),
-            ],
-            order="date_confirmed desc",
-            limit=limit * len(categories),
-        )
-        for request in candidates:
-            bucket = by_category[request.category_id.id]
-            if len(bucket) < limit:
-                bucket.append(request.id)
+        with trace.SEARCH.span(
+            "recent_approved_by_category",
+            categories=len(by_category),
+            owner=owner.id,
+            limit=limit,
+        ) as span:
+            candidates = self.search(
+                [
+                    ("request_owner_id", "=", owner.id),
+                    ("category_id", "in", categories.ids),
+                    ("state", "=", "approved"),
+                ],
+                order="date_confirmed desc",
+                limit=limit * len(categories),
+            )
+            for request in candidates:
+                bucket = by_category[request.category_id.id]
+                if len(bucket) < limit:
+                    bucket.append(request.id)
+            span["n"] = len(candidates)
+            span["truncated"] = len(candidates) == limit * len(by_category)
+            span["short"] = sum(1 for ids in by_category.values() if len(ids) < limit)
         return {
             category_id: self.browse(ids) for category_id, ids in by_category.items()
         }
@@ -606,6 +615,16 @@ class ApprovalRequest(models.Model):
             if partners:
                 smart["partner_id"] = Counter(partners).most_common(1)[0][0].id
 
+        if trace.PREDICTION.on():
+            trace.PREDICTION.event(
+                "smart_clone_defaults",
+                request=self.id,
+                category=category.id,
+                recent=len(recent),
+                inferred=sorted(smart),
+                asks_amount=category.has_amount,
+                asks_partner=category.has_partner,
+            )
         return smart
 
     def copy_data(self, default: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -618,13 +637,26 @@ class ApprovalRequest(models.Model):
             )
             for owner in self.request_owner_id
         }
+        applied = 0
+        suppressed = 0
         for source, vals in zip(self, vals_list, strict=True):
             recent = recent_by_owner.get(source.request_owner_id.id, {}).get(
                 source.category_id.id, self.browse()
             )
             for key, value in source._smart_clone_defaults(recent).items():
-                if key not in explicit:
-                    vals[key] = value
+                if key in explicit:
+                    suppressed += 1
+                    continue
+                vals[key] = value
+                applied += 1
+        trace.CRUD.event(
+            "copy_data",
+            requests=len(vals_list),
+            owners=len(recent_by_owner),
+            explicit=sorted(explicit),
+            applied=applied,
+            suppressed=suppressed,
+        )
         return vals_list
 
     def copy(self, default: dict[str, Any] | None = None) -> Self:
@@ -649,6 +681,11 @@ class ApprovalRequest(models.Model):
                 ("res_id", "in", self.ids),
             ],
         )
+        trace.ATTACHMENT.note(
+            "unlink_with_requests",
+            requests=self.ids,
+            attachments=len(attachment_ids),
+        )
         if attachment_ids:
             attachment_ids.unlink()
 
@@ -670,14 +707,17 @@ class ApprovalRequest(models.Model):
             ("res_model", "=", "approval.request"),
             ("res_id", "in", self.ids),
         ]
-        attachment_data = self.env["ir.attachment"]._read_group(
-            domain,
-            groupby=["res_id"],
-            aggregates=["__count"],
-        )
-        attachment_counts = dict(attachment_data)
-        for request in self:
-            request.count_attachment = attachment_counts.get(request.id, 0)
+        with trace.COMPUTE.span("count_attachment", n=len(self)) as span:
+            attachment_data = self.env["ir.attachment"]._read_group(
+                domain,
+                groupby=["res_id"],
+                aggregates=["__count"],
+            )
+            attachment_counts = dict(attachment_data)
+            for request in self:
+                request.count_attachment = attachment_counts.get(request.id, 0)
+            span["with_attachments"] = len(attachment_counts)
+            span["attachments"] = sum(attachment_counts.values())
 
     @api.depends("res_model")
     def _compute_res_model_id(self) -> None:
@@ -709,26 +749,44 @@ class ApprovalRequest(models.Model):
                 record.id: record.display_name for record in accessible
             }
 
+        outcomes: Counter[str] = Counter()
         for request in self:
             if not (request.res_model and request.res_id):
                 request.res_name = False
+                outcomes["unset"] += 1
                 continue
             names = names_by_model.get(request.res_model)
             if names is None:
                 request.res_name = self.env._("Unknown Model")
+                outcomes["model_gone"] += 1
             elif request.res_id in names:
                 request.res_name = names[request.res_id]
+                outcomes["named"] += 1
             elif request.res_id in existing_by_model.get(request.res_model, ()):
                 request.res_name = self.env._("Access Denied")
+                outcomes["unreadable"] += 1
             else:
                 request.res_name = self.env._("Deleted Document")
+                outcomes["deleted"] += 1
+        if trace.COMPUTE.on():
+            trace.COMPUTE.event(
+                "res_name",
+                n=len(self),
+                models=len(ids_by_model),
+                **outcomes,
+            )
 
     def _get_snapshot_config(self, key: str) -> Any:
         self.check_singleton()
         snapshot = self.category_snapshot or {}
         value = snapshot.get(key)
+        source = "snapshot"
         if value is None:
             value = self.category_id[key]
+            source = "category" if snapshot else "no_snapshot"
+        trace.SNAPSHOT.event(
+            "config_read", request=self.id, key=key, source=source, value=value
+        )
         return value
 
     @api.depends_context("uid")
@@ -786,10 +844,18 @@ class ApprovalRequest(models.Model):
     )
     def _compute_user_approver_state(self) -> None:
         current_user = self.env.user
+        resolved = 0
         for approval in self:
             approval.user_approver_state = approval.approver_ids.filtered(
                 lambda approver: approver._get_effective_approver() == current_user,
             )[:1].state
+            resolved += bool(approval.user_approver_state)
+        trace.COMPUTE.event(
+            "user_approver_state",
+            n=len(self),
+            uid=current_user.id,
+            resolved=resolved,
+        )
 
     @api.depends("approver_ids.state")
     def _compute_approval_progress(self) -> None:
@@ -883,17 +949,42 @@ class ApprovalRequest(models.Model):
         """Refused rows that refuse the request: all but those refused only for
         advisory steps."""
         self.check_singleton()
-        return self.approver_ids.filtered(
-            lambda approver: (
-                approver.state == "refused" and not approver._is_advisory_only()
-            )
+        refused = self.approver_ids.filtered(
+            lambda approver: approver.state == "refused"
         )
+        deciding = refused.filtered(lambda approver: not approver._is_advisory_only())
+        if refused and trace.DECISION.on():
+            trace.DECISION.event(
+                "deciding_refusals",
+                request=self.id,
+                refused=refused.ids,
+                deciding=deciding.ids,
+                advisory_only=(refused - deciding).ids,
+            )
+        return deciding
 
     def _is_quorum_met(self, state_counts, approval_threshold: int) -> bool:
         self.check_singleton()
         if self.approver_ids.step_ids:
-            return not self._get_blocking_unmet_steps()
-        return state_counts.get("approved", 0) >= approval_threshold
+            blocking = self._get_blocking_unmet_steps()
+            trace.DECISION.event(
+                "quorum",
+                request=self.id,
+                rule="steps",
+                blocking=blocking.ids,
+                met=not blocking,
+            )
+            return not blocking
+        approved = state_counts.get("approved", 0)
+        trace.DECISION.event(
+            "quorum",
+            request=self.id,
+            rule="minimum",
+            approved=approved,
+            minimum=approval_threshold,
+            met=approved >= approval_threshold,
+        )
+        return approved >= approval_threshold
 
     def _get_step_counts(self) -> dict[int, int]:
         self.check_singleton()
@@ -961,9 +1052,12 @@ class ApprovalRequest(models.Model):
         blocking = unmet.filtered(lambda step: not step.advisory)
         advisory = unmet - blocking
         if not blocking:
-            return advisory
-        lowest = min(blocking.mapped("sequence"))
-        open_steps = blocking.filtered(lambda step: step.sequence == lowest) | advisory
+            open_steps = advisory
+        else:
+            lowest = min(blocking.mapped("sequence"))
+            open_steps = (
+                blocking.filtered(lambda step: step.sequence == lowest) | advisory
+            )
         trace.STEPS.event(
             "open",
             request=self.id,
@@ -976,11 +1070,24 @@ class ApprovalRequest(models.Model):
 
     def _compute_terminal_date_stamp(self, field_name: str, target_state: str) -> None:
         now = fields.Datetime.now()
+        cleared = 0
+        stamped = 0
         for request in self:
             if request.state != target_state:
+                cleared += bool(request[field_name])
                 request[field_name] = False
             elif not request[field_name]:
                 request[field_name] = now
+                stamped += 1
+        if cleared or stamped:
+            trace.LIFECYCLE.event(
+                "terminal_date_stamp",
+                field=field_name,
+                state=target_state,
+                n=len(self),
+                cleared=cleared,
+                stamped=stamped,
+            )
 
     @api.depends("state", "revoked_state")
     def _compute_date_approval_granted(self) -> None:

@@ -561,7 +561,7 @@ grep 'odoo.approval.refusal' run.log | sed 's/.*refusal: //' | cut -d' ' -f1 | s
 over a corpus is the ranked list of what the engine actually turns away -- and a
 refusal line on a successful flow is a bug in the code or in the instrumentation.
 
-Four things keep that list worth reading, and `tests/test_campaign_instrumentation.py`
+Six things keep that list worth reading, and `tests/test_campaign_instrumentation.py`
 holds each one so it stays true -- and each one was broken on purpose once to check the
 test sees it (a raise with no event, two sites sharing a kind, a silent `except`, a
 refusal emitted on a green path, a `CALL_TRACES` entry naming a method that does not
@@ -595,14 +595,70 @@ exist: five for five read `1 failed`):
    `_logger.warning` instead, because that one is a defect the campaign happens to have
    found rather than something to instrument and remove. The exemption list holds one
    entry: the renderer, whose `<unrenderable>` marker IS its report.
+5. **Only refusals on the `refusal` target.** Every line on it sits in a method that
+   raises, directly or through a `_raise_*` helper -- three sites use the helper so that
+   several callers each report their own kind. Written after two lines were found on it
+   that refuse nothing: a `_compute_usage_count` on `approval.refusal.reason` (the MODEL
+   is about refusal reasons; the TARGET is about refusals) and `_parse_domain_or_warn`,
+   where an unparseable domain is treated as matching nothing and the flow carries on.
+   The first moved to `compute`; the second was deleted, because `_parse_domain` already
+   reports it on `degraded`. Either one would have put a line on the one target whose
+   whole value is that a green flow leaves it empty.
+6. **No campaign line is the only statement of a body.** The campaign is DELETED at the
+   end, so such a body becomes a syntax error the moment it is -- see the placement rules
+   below. The check names the two hooks that are empty by omission rather than by design
+   and may therefore be all line.
 
-**Coverage, so the next pass knows where to look.** 300 of the addon's 523 methods
-(57%) carry a hand-placed line or a wrapper, and the 1,619 lines of body that do not are
+**Coverage, so the next pass knows where to look.** 363 of the addon's 523 methods
+(69%) carry a hand-placed line or a wrapper, and the 827 lines of body that do not are
 mostly `view_*` action builders, one-line getters and the two methods that ARE the
 pre-campaign logging (`_log_sync_plan`, `_log_cycle`). Re-measure rather than trusting
-this: walk `models/`, `wizards/` and `reports/` with `ast`, and count a method covered
-when its body holds `trace.` or its name is in `CALL_TRACES`. Every target fires on one
-suite run except `perf`, which by design speaks only on the measurement switch.
+this, and say what you counted: walk `models/`, `wizards/` and `reports/` with `ast`,
+**excluding `models/approval_trace.py`** -- the kernel is the instrument, not a subject --
+and count a method covered when its body holds `trace.` or its name is a key in
+`CALL_TRACES`. **`CALL_TRACES` is an annotated assignment**, so a walk that matches only
+`ast.Assign` finds zero wrapped methods and reads 261 of 523 instead of 332: it silently
+drops the 155 names the declarative half covers, which is most of the campaign. The
+worst-covered files are where the next pass should start:
+
+```
+30/48  models/approval_request.py          19/28  models/approval_request_routing.py
+20/36  models/mixin_approval.py            16/29  models/approval_category.py
+15/30  models/mixin_approval_state_sync.py 10/15  models/approval_binding_client.py
+37/50  models/approval_binding.py          20/25  models/approval_request_escalation.py
+50/62  models/approval_request_lifecycle.py 18/23  models/approval_rule.py
+```
+
+Every target fires on one suite run except `perf`, which by design speaks only on the
+measurement switch.
+
+**`migrations/` is deliberately outside the campaign.** Those files already log what they
+did, on their own module logger, at INFO and WARNING -- and that logging is PERMANENT: a
+migration runs once, on somebody's upgrade, and the campaign's lines are deleted before
+most of them will ever run again. A campaign target there would be either deleted before
+it reported anything or kept by accident. When a migration statement is silently a no-op
+(`1.0.26` reports its `UPDATE` rowcount and says nothing about the three `DELETE`s that
+follow), the fix is a permanent `_logger` line in that file, not a `trace.` call.
+
+**Two placement rules the sites here follow, both learned by breaking them.**
+
+1. **An empty extension hook cannot carry a campaign line.** `_check_approval_sync_policy`
+   is `def ...: return` on purpose -- the adopter's veto point, vetoing nothing by default.
+   Putting the only statement of a body on a line the campaign deletes leaves a syntax
+   error behind, and ruff refuses the shape anyway (`PLR1711`, a useless `return` under a
+   statement). Instrument the **call site**, which survives the deletion:
+   `_apply_approval_outcome` reports `sync_policy checked=<bool>` and the hook stays bare.
+   The same applies to `_raise_approval_category_not_configured` and
+   `_raise_approval_category_not_matched` -- except that those two are not empty by design
+   but empty by omission, so there the line belongs in the body and says so
+   (`category_not_configured_unraised` on `degraded`).
+2. **A line on a hot path stays silent even when the target is off.** `ViewButton.setup`
+   runs for every button of every row, and its first branch is the ungated common case.
+   An event there costs a dictionary literal and a second `_isApprovalGated()` call on
+   every one of them, since the payload is built before `trace.event` asks whether anyone
+   is listening. Instrument the branch a reader is asking about (`gating`,
+   `kind_not_gated`) and leave the majority path bare, with a comment saying it is bare on
+   purpose so the next pass does not "complete" it.
 
 **The two kinds of check are not interchangeable.** The null control has a natural
 oracle -- zero -- so it can be measured. Completeness has none: 62 of 145 sites reading
@@ -664,10 +720,12 @@ Mechanics worth knowing before adding a site:
   `npx tsc --project tsconfig.json --noEmit` reports no diagnostic in `approval/static`.
 - The switch is memoised on first use; `trace.forget()` drops it, which only the tests
   need.
-- Two files are deliberately uninstrumented: `approval_button.js` and
-  `view_button_patch.js`. They were being edited outside this session when the client
-  half landed (an ESM `.js`-extension migration), and §12 says not to write into
-  somebody else's held file.
+- `view_button_patch.js` now carries the client's gating decision (`gating`,
+  `kind_not_gated`, `server_gates_it`), and the kanban controller carries the one
+  navigation it owns. `approval_button.js` stays uninstrumented: it is a template plus
+  two delegations to the hook, which reports both. Both files were held by another session
+  during an ESM `.js`-extension migration when the client half first landed, which is why
+  they came late -- §12, not a judgement about their content.
 - Four more carry no line because they hold no decision: `activity_model_patch.js`,
   `approver_model.js`, `activity_patch.js` and `approvals_category_kanban_view.js` are
   declarations and registrations.

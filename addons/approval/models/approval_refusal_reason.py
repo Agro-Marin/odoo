@@ -1,5 +1,6 @@
 from odoo import fields, models
 
+from . import approval_trace as trace
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
@@ -68,3 +69,9 @@ class ApprovalRefusalReason(models.Model):
         }
         for reason in self:
             reason.usage_count = counts.get(reason.id, 0)
+        trace.COMPUTE.event(
+            "refusal_reason_usage_count",
+            n=len(self),
+            used=len(counts),
+            requests=sum(counts.values()),
+        )

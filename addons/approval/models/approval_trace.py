@@ -663,12 +663,18 @@ CALL_TRACES: dict[str, dict[str, str]] = {
     "approval.dashboard": {
         "get_dashboard": "report",
         "action_refresh": "report",
+        "action_view_slowest_category": "report",
+        "action_view_slowest_approver": "report",
+        "action_view_overloaded_approver": "report",
+        "action_view_to_review": "report",
         "_compute_today_stats": "report",
         "_compute_trends": "report",
         "_compute_bottlenecks": "report",
         "_compute_all_time_stats": "report",
         "_compute_user_metrics": "report",
         "_compute_velocity_metrics": "report",
+        "_get_avg_response_time_sql": "report",
+        "_get_avg_response_time_today_sql": "report",
     },
     "ir.attachment": {
         "_approval_terminal_parent_ids": "attachment",

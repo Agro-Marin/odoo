@@ -489,17 +489,35 @@ class ApprovalBinding(models.Model):
     def _passes_on_elevation(self, elevation: str) -> bool:
         self.check_singleton()
         if elevation == "none":
-            return False
-        if self.sudo_policy == "enforce":
-            return False
-        if self.sudo_policy == "bypass":
-            return True
-        return elevation == "superuser"
+            passes, rule = False, "not_elevated"
+        elif self.sudo_policy == "enforce":
+            passes, rule = False, "enforced"
+        elif self.sudo_policy == "bypass":
+            passes, rule = True, "bypass"
+        else:
+            passes, rule = elevation == "superuser", "superuser_only"
+        trace.BINDING.event(
+            "elevation",
+            binding=self.id,
+            elevation=elevation,
+            policy=self.sudo_policy,
+            rule=rule,
+            passes=passes,
+        )
+        return passes
 
     def _has_anyone_to_ask(self) -> bool:
         self.check_singleton()
         category = self.category_id.sudo()
-        return bool(category.step_ids or category.approver_ids or category.rule_ids)
+        anyone = bool(category.step_ids or category.approver_ids or category.rule_ids)
+        if not anyone:
+            trace.DEGRADED.event(
+                "binding_has_nobody_to_ask",
+                binding=self.id,
+                category=category.id,
+                mode=self.mode,
+            )
+        return anyone
 
     def _get_selected(self, records):
         self.check_singleton()
@@ -908,6 +926,9 @@ class ApprovalBinding(models.Model):
         """Run this binding's server action on `records`, in their environment."""
         self.check_singleton()
         action = records.env["ir.actions.server"].browse(self.action_id.id)
+        trace.BINDING.note(
+            "run_action", binding=self.id, action=action.id, records=records
+        )
         return action.with_context(
             active_model=records._name,
             active_ids=records.ids,
@@ -1360,11 +1381,28 @@ class ApprovalBinding(models.Model):
         def guarded(records, *args, **kwargs):
             origin = getattr(guarded, ORIGIN_ATTR)
             Binding = records.env["approval.binding"]
-            if records and Binding._enabled():
-                for operation in operations:
-                    bindings = Binding._bindings_for(model_name, operation)
-                    if bindings:
-                        Binding._enforce_at_checkpoint(records, bindings, operation)
+            if not records:
+                return origin(records, *args, **kwargs)
+            if not Binding._enabled():
+                trace.BINDING.event(
+                    "checkpoint_disabled",
+                    checkpoint=checkpoint,
+                    model=model_name,
+                    records=len(records),
+                )
+                return origin(records, *args, **kwargs)
+            for operation in operations:
+                bindings = Binding._bindings_for(model_name, operation)
+                trace.BINDING.event(
+                    "checkpoint",
+                    checkpoint=checkpoint,
+                    model=model_name,
+                    operation=operation,
+                    records=len(records),
+                    bindings=bindings.ids,
+                )
+                if bindings:
+                    Binding._enforce_at_checkpoint(records, bindings, operation)
             return origin(records, *args, **kwargs)
 
         guarded.__name__ = checkpoint

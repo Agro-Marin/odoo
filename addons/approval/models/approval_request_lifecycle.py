@@ -615,6 +615,13 @@ class ApprovalRequestLifecycle(models.Model):
         field_label = dict(
             self._fields["pending_change_field"]._description_selection(self.env)
         )[field_name]
+        trace.ACTIVITY.note(
+            "change_request_scheduled",
+            request=self.id,
+            field=field_name,
+            owner=self.request_owner_id.id,
+            has_note=bool(note),
+        )
         self.activity_schedule(
             "approval.mail_activity_data_change_request",
             user_id=self.request_owner_id.id,
@@ -1452,10 +1459,13 @@ class ApprovalRequestLifecycle(models.Model):
         )
 
     def _lock_and_reload(self, with_approvers: bool = False) -> None:
-        self._lock_for_approval_action()
-        if with_approvers:
-            self.approver_ids.invalidate_recordset(["state"])
-        self.invalidate_recordset(["state"])
+        with trace.LIFECYCLE.span(
+            "lock_and_reload", n=len(self), with_approvers=with_approvers
+        ):
+            self._lock_for_approval_action()
+            if with_approvers:
+                self.approver_ids.invalidate_recordset(["state"])
+            self.invalidate_recordset(["state"])
 
     def _flip_unsettled_approvers(self, new_state: str) -> None:
         self.check_singleton()
@@ -1479,6 +1489,13 @@ class ApprovalRequestLifecycle(models.Model):
             vals["refusal_reason_id"] = refusal_reason.id
         if refusal_note and not self.refusal_note:
             vals["refusal_note"] = refusal_note
+        trace.LIFECYCLE.event(
+            "refusal_metadata",
+            request=self.id,
+            stamped=sorted(vals),
+            kept_reason=bool(refusal_reason and self.refusal_reason_id),
+            kept_note=bool(refusal_note and self.refusal_note),
+        )
         if vals:
             self.sudo().write(vals)
 
@@ -1605,12 +1622,27 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         if not self.pending_change_field:
             return
-        self._get_change_request_activities().sudo().action_feedback()
+        activities = self._get_change_request_activities()
+        trace.LIFECYCLE.note(
+            "pending_change_closed",
+            request=self.id,
+            field=self.pending_change_field,
+            activities=activities.ids,
+        )
+        activities.sudo().action_feedback()
         self.sudo().write({"pending_change_field": False})
 
     def _notify_if_terminal_transition(self, old_state: str) -> None:
         self.check_singleton()
-        if self.state != old_state and self.state in self._TERMINAL_STATES:
+        terminal = self.state != old_state and self.state in self._TERMINAL_STATES
+        trace.LIFECYCLE.event(
+            "terminal_transition",
+            request=self.id,
+            was=old_state,
+            now=self.state,
+            notifies=terminal,
+        )
+        if terminal:
             self._notify_source_document_state_change(self.state)
             if self.state == "approved":
                 self._replay_bound_operation()
@@ -1654,6 +1686,13 @@ class ApprovalRequestLifecycle(models.Model):
         """
         self.check_singleton()
         if not self.res_model or not self.res_id:
+            trace.SYNC.event(
+                "no_notifiable_source",
+                request=self.id,
+                why="no_reference",
+                model=self.res_model or None,
+                res_id=self.res_id or None,
+            )
             return None
         try:
             source_doc = self.env[self.res_model].browse(self.res_id)
@@ -1667,9 +1706,23 @@ class ApprovalRequestLifecycle(models.Model):
             return None
         if isinstance(source_doc, subjects_cls):
             if not self.subject_key or not source_doc.exists():
+                trace.SYNC.event(
+                    "no_notifiable_source",
+                    request=self.id,
+                    why="subject_key_missing" if not self.subject_key else "gone",
+                    model=self.res_model,
+                    res_id=self.res_id,
+                )
                 return None
             return source_doc.sudo().with_context(approval_acting_user_id=self.env.uid)
         if not isinstance(source_doc, mixin_cls):
+            trace.SYNC.event(
+                "no_notifiable_source",
+                request=self.id,
+                why="not_an_adopter",
+                model=self.res_model,
+                res_id=self.res_id,
+            )
             return None
         if source_doc.approval_request_id != self:
             _logger.warning(

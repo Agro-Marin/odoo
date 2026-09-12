@@ -84,14 +84,27 @@ class MixinApproval(models.AbstractModel):
     @api.depends_context("uid", "company")
     def _compute_approval_required(self) -> None:
         cache: dict[tuple, bool] = {}
+        hits = 0
+        required = 0
         for record in self:
             company_id = False
             if "company_id" in record._fields:
                 company_id = record.company_id.id if record.company_id else False
             key = (repr(record._get_domain_approval_category()), company_id)
-            if key not in cache:
+            if key in cache:
+                hits += 1
+            else:
                 cache[key] = bool(record._find_approval_category())
             record.approval_required = cache[key]
+            required += bool(cache[key])
+        trace.MIXIN.event(
+            "approval_required",
+            record=self,
+            n=len(self),
+            searches=len(cache),
+            hits=hits,
+            required=required,
+        )
 
     @api.depends("approval_request_id", "approval_required")
     def _compute_can_request_approval(self) -> None:
@@ -104,6 +117,12 @@ class MixinApproval(models.AbstractModel):
                 f for f in record._get_fields_approval_required() if not record[f]
             ]
             record.can_request_approval = not missing_fields
+            if missing_fields:
+                trace.MIXIN.event(
+                    "cannot_request_approval",
+                    record=record,
+                    missing=missing_fields,
+                )
 
     def _check_can_request_approval(self) -> None:
         self.check_singleton()
@@ -448,26 +467,48 @@ class MixinApproval(models.AbstractModel):
     def _get_approval_category(self) -> "ApprovalCategory | bool":  # noqa: UP037 — see _get_candidate_approval_categories.
         self.check_singleton()
         if not self._get_domain_approval_category():
+            trace.MIXIN.event("approval_category", record=self, outcome="no_domain")
             return False
         categories = self._get_candidate_approval_categories()
         if not categories:
+            trace.MIXIN.event(
+                "approval_category", record=self, outcome="none_configured"
+            )
             self._raise_approval_category_not_configured()
             return False
         category = self._find_approval_category()
         if category:
+            trace.MIXIN.event(
+                "approval_category",
+                record=self,
+                outcome="matched",
+                category=category.id,
+                candidates=len(categories),
+            )
             return category
+        trace.MIXIN.event(
+            "approval_category",
+            record=self,
+            outcome="no_match",
+            candidates=categories.ids,
+        )
         self._raise_approval_category_not_matched(categories)
         return False
 
     def _get_approval_category_fallback(self, categories):
         self.check_singleton()
+        trace.DEGRADED.event(
+            "no_category_fallback", record=self, candidates=len(categories)
+        )
         return self.env["approval.category"].browse()
 
     def _raise_approval_category_not_configured(self) -> None:
-        pass
+        trace.DEGRADED.event("category_not_configured_unraised", record=self)
 
     def _raise_approval_category_not_matched(self, categories) -> None:
-        pass
+        trace.DEGRADED.event(
+            "category_not_matched_unraised", record=self, candidates=categories.ids
+        )
 
     def _get_approval_reason_html(self) -> str:
         self.check_singleton()
@@ -557,6 +598,13 @@ class MixinApproval(models.AbstractModel):
         deciders = self.approval_request_id.approver_ids.filtered(
             lambda approver: approver.state == state and approver.decision_date,
         )
+        trace.MIXIN.event(
+            "decider_names",
+            record=self,
+            state=state,
+            rows=self.approval_request_id.approver_ids.ids,
+            deciders=deciders.ids,
+        )
         return ", ".join(
             (approver.decided_by_user_id or approver.user_id).name
             for approver in deciders
@@ -637,6 +685,11 @@ class MixinApproval(models.AbstractModel):
 
     def _on_approval_reset(self) -> None:
         self.check_singleton()
+        trace.MIXIN.event(
+            "reset_notice",
+            record=self,
+            reset_from=self.env.context.get("approval_reset_from"),
+        )
         if self.env.context.get("approval_reset_from") == "approved":
             body = self.env._(
                 "The approval linked to this document was reset to draft — "

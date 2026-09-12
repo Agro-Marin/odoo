@@ -348,11 +348,23 @@ class ApprovalRequestAccess(models.Model):
                 )
 
     def _skip_check_access(self) -> bool:
-        return self.env.su or is_approval_manager(self.env)
+        skipped = self.env.su or is_approval_manager(self.env)
+        if skipped:
+            trace.ACCESS.event(
+                "checks_skipped", uid=self.env.uid, su=self.env.su, record=self
+            )
+        return skipped
 
     def _check_reset_actor(self) -> None:
         self.check_singleton()
-        if self._is_standing_refusal():
+        standing = self._is_standing_refusal()
+        trace.ACCESS.event(
+            "reset_actor_rule",
+            request=self.id,
+            uid=self.env.uid,
+            rule="refusal_reopener" if standing else "owner_or_manager",
+        )
+        if standing:
             self._check_refusal_reopener()
             return
         self._check_owner_or_manager(self.env._("reset to draft"))
@@ -360,9 +372,24 @@ class ApprovalRequestAccess(models.Model):
     def _is_standing_refusal(self) -> bool:
         self.check_singleton()
         if self.state != "refused" or not self.binding_id:
+            trace.ACCESS.event(
+                "standing_refusal",
+                request=self.id,
+                standing=False,
+                state=self.state,
+                binding=self.binding_id.id or None,
+            )
             return False
         document = self.get_source_document()
-        return not (document and "approval_request_id" in document._fields)
+        standing = not (document and "approval_request_id" in document._fields)
+        trace.ACCESS.event(
+            "standing_refusal",
+            request=self.id,
+            standing=standing,
+            document=document or None,
+            links_back=bool(document) and "approval_request_id" in document._fields,
+        )
+        return standing
 
     def _check_refusal_reopener(self) -> None:
         self.check_singleton()
@@ -380,13 +407,23 @@ class ApprovalRequestAccess(models.Model):
     def _can_reopen_refusal(self, user) -> bool:
         self.check_singleton()
         if user._is_approval_manager():
+            trace.ACCESS.event(
+                "can_reopen_refusal", request=self.id, user=user.id, by="manager"
+            )
             return True
         refused = self.approver_ids.filtered(
             lambda a: a.state == "refused" and a.decided_by_user_id,
         )
-        return user in refused.decided_by_user_id or self._is_later_step_member(
-            refused, user
+        is_refuser = user in refused.decided_by_user_id
+        later_step = not is_refuser and self._is_later_step_member(refused, user)
+        trace.ACCESS.event(
+            "can_reopen_refusal",
+            request=self.id,
+            user=user.id,
+            refused=refused.ids,
+            by="refuser" if is_refuser else "later_step" if later_step else None,
         )
+        return is_refuser or later_step
 
     def _check_withdraw_actor(self, approver, steps=None) -> None:
         self.check_singleton()
@@ -410,11 +447,27 @@ class ApprovalRequestAccess(models.Model):
 
     def _can_withdraw_approver(self, approver, user, steps=None) -> bool:
         self.check_singleton()
-        return (
-            user._is_approval_manager()
-            or approver._get_effective_approver() == user
-            or self._is_later_step_member(approver, user, steps)
+        is_manager = user._is_approval_manager()
+        is_own = not is_manager and approver._get_effective_approver() == user
+        later_step = (
+            not is_manager
+            and not is_own
+            and self._is_later_step_member(approver, user, steps)
         )
+        trace.ACCESS.event(
+            "can_withdraw_approver",
+            request=self.id,
+            approver=approver.id,
+            user=user.id,
+            by="manager"
+            if is_manager
+            else "own"
+            if is_own
+            else "later_step"
+            if later_step
+            else None,
+        )
+        return is_manager or is_own or later_step
 
     def _can_decide_step(self, step, user) -> bool:
         """Whether `user` has decided neither this step nor one that excludes it."""
