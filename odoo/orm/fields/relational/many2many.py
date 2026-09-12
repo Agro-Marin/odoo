@@ -7,6 +7,7 @@ from collections.abc import (
 from typing import override
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import SENTINEL, Sentinel
 
@@ -17,6 +18,8 @@ from .. import _field_ddl as _ddl
 from ..base import Field
 from ._base import _RelationalMulti
 from ._commands import CommandDelta
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.tools.misc import Collector
@@ -259,7 +262,19 @@ class Many2many(_RelationalMulti):
                     )
                     invf._update_cache(corecord, ids1)
 
-        pairs = [(x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]]
+        unlink_pairs = [
+            (x, y) for x, ys in old_relation.items() for y in ys - new_relation[x]
+        ]
+        _debug.logic(
+            "field.many2many.relation_delta",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            linked=len(pairs),
+            unlinked=len(unlink_pairs),
+            store=store,
+        )
+        pairs = unlink_pairs
         if pairs:
             y_to_xs = defaultdict(set)
             for x, y in pairs:

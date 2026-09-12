@@ -12,6 +12,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query, partition, unique
 from odoo.tools.misc import PENDING, SENTINEL, unquote
 
@@ -26,6 +27,8 @@ from ...domain.constants import (
 from ...primitives import COLLECTION_TYPES, PREFETCH_MAX, Command, IdType, NewId
 from ..base import Field, _logger
 from ._commands import CommandDelta
+
+_debug = DebugLog(__name__)
 
 
 def _strip_granularity_suffix(field_expr: str) -> str:
@@ -575,6 +578,16 @@ class _RelationalMulti(_Relational):
             return
 
         record_ids = {rid for recs, cs in normalized for rid in recs._ids}
+        _debug.pipeline(
+            "field.x2many.write_batch",
+            model=self.model_name,
+            field=self.name,
+            records=len(record_ids),
+            commands=sum(len(cmds) for _recs, cmds in normalized),
+            real=all(record_ids),
+            store=self.store,
+            create=create,
+        )
         if all(record_ids):
             if self.store:
                 normalized = [(recs, cmds) for recs, cmds in normalized if cmds]

@@ -15,6 +15,7 @@ import odoo.service.db
 import odoo.service.model
 from odoo.db import is_maintenance_db
 from odoo.db import settings as pool_settings
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 
 from .constants import SESSION_LIFETIME
@@ -22,6 +23,7 @@ from .core import borrow_request, request
 from .settings import current as current_settings
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def prepare_content_disposition_header(
@@ -106,6 +108,13 @@ def filter_dbs_served(dbs: Iterable[str], host: str | None = None) -> list[str]:
         exposed = set(settings.db_name)
         names = [db for db in names if db in exposed]
 
+    _debug.logic(
+        "http.dbfilter",
+        host=host,
+        pattern=pattern or None,
+        db_name=len(settings.db_name or ()),
+        served=len(names),
+    )
     return names
 
 
@@ -139,7 +148,8 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
         thread.dbname = None
         try:
             dispatch = _get_rpc_dispatcher(service_name)
-            return dispatch(method, params)
+            with _debug.perf("http.dispatch_rpc", service=service_name, method=method):
+                return dispatch(method, params)
         finally:
             _restore_thread_attr(thread, "uid", prev_uid, sentinel)
             _restore_thread_attr(thread, "dbname", prev_dbname, sentinel)

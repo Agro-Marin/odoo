@@ -9,6 +9,7 @@ from typing import Any, NoReturn
 
 import odoo
 from odoo import api
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.modules.registry import Registry
 from odoo.service import server
@@ -19,6 +20,7 @@ from . import server as cli_server
 from .command import PROG_NAME
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 """
@@ -213,4 +215,5 @@ class Shell(Command):
     def run(self, args: list[str]) -> None:
         self._start_server(args)
         dbname = get_single_database(config["db_name"], allow_none=True)
+        _debug.lifecycle("cli.shell", db=dbname)
         self._start_shell(dbname)

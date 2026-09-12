@@ -7,6 +7,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import SENTINEL, Sentinel
 
@@ -17,6 +18,8 @@ from ..reference import Many2oneReference
 from ._base import _RelationalMulti
 from ._commands import CommandDelta
 from .many2one import Many2one
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.tools.misc import Collector
@@ -261,6 +264,18 @@ class One2many(_RelationalMulti):
 
         for recs, commands in records_commands_list:
             delta = CommandDelta.fold(commands, superseding=allow_full_delete)
+            _debug.logic(
+                "field.one2many.delta",
+                model=self.model_name,
+                field=self.name,
+                records=len(recs),
+                created=len(delta.created),
+                updated=len(delta.updated),
+                deleted=len(delta.deleted),
+                unlinked=len(delta.unlinked),
+                linked=len(delta.linked),
+                replaced=delta.replaced,
+            )
             for line_id, vals in delta.updated:
                 prefetch_ids = recs[self.name]._prefetch_ids
                 comodel.browse(line_id).with_prefetch(prefetch_ids).write(vals)

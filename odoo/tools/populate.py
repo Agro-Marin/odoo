@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 from psycopg.errors import InsufficientPrivilege
 
 from odoo.fields import Field, Many2one
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 
 if TYPE_CHECKING:
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
     from odoo.models import Model
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MIN_DATETIME = datetime((datetime.now() - relativedelta(years=4)).year, 1, 1)
 MAX_DATETIME = datetime.now()
@@ -413,8 +415,14 @@ def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
             model_factors.setdefault(delegated, model_factors[model_])
             process(delegated)
 
-        with ctx.ignore_fkey_constraints(model_), ctx.ignore_indexes(model_):
-            populate_model(model_, populated, model_factors, separator_code)
+        with _debug.perf(
+            "populate.model",
+            cr=model_.env.cr,
+            model=model_._name,
+            factor=model_factors[model_],
+        ):
+            with ctx.ignore_fkey_constraints(model_), ctx.ignore_indexes(model_):
+                populate_model(model_, populated, model_factors, separator_code)
 
         for field in model_._fields.values():
             if field.store and field.copy:

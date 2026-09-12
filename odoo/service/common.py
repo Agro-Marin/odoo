@@ -8,11 +8,13 @@ import odoo.api
 import odoo.release
 from odoo.db import PoolError
 from odoo.exceptions import AccessDenied
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 
 from ._dispatch import dispatch_through_table, is_db_rpc_exposed
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _EXPECTED_CONNECT_FAILURES: tuple[type[BaseException], ...] = (
     psycopg.OperationalError,
@@ -59,6 +61,7 @@ def exp_authenticate(
     elif not isinstance(user_agent_env, dict):
         return False
     if not is_db_rpc_exposed(db):
+        _debug.logic("rpc.authenticate.db_not_exposed", db=db)
         return False
     try:
         registry = Registry(db)
@@ -87,10 +90,12 @@ def exp_authenticate(
                 "password": password,
                 "type": "password",
             }
+            _debug.lifecycle("rpc.authenticate", db=db, login=login)
             return env["res.users"].authenticate(
                 credential, {**user_agent_env, "interactive": False}
             )["uid"]
         except AccessDenied:
+            _debug.logic("rpc.authenticate.denied", db=db, login=login)
             return False
 
 

@@ -2,6 +2,7 @@ import logging
 import typing
 from contextlib import suppress
 
+from odoo.libs.debug_log import DebugLog
 from odoo.modules._protocols import SqlReader
 from odoo.modules.module import Manifest
 from odoo.tools.misc import file_open
@@ -11,6 +12,7 @@ if typing.TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def get_installed_module_names(cursor: SqlReader) -> list[str]:
@@ -48,6 +50,7 @@ def neutralize_database(cursor: SqlReader) -> None:
     for module, query in iter_neutralization_queries(
         get_installed_module_names(cursor)
     ):
+        _debug.pipeline("modules.neutralize.module", module=module)
         try:
             cursor.execute(query)
         except Exception as exc:

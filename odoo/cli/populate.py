@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
 from odoo.logutils import RUNBOT
 from odoo.tools.populate import populate_models
 
@@ -16,6 +17,7 @@ DEFAULT_SEPARATOR = "_"
 DEFAULT_MODELS = "res.partner,product.template,account.move,sale.order,crm.lead,stock.picking,project.task"
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _prepare_factors_by_model_name(
@@ -113,8 +115,14 @@ class Populate(DatabaseCommand):
             )
         _logger.log(RUNBOT, "Populating models %s", list(model_factors))
         t0 = time.time()
-        populate_models(model_factors, separator_code)
-        env.flush_all()
+        with _debug.perf(
+            "cli.populate",
+            cr=env.cr,
+            models=len(model_factors),
+            skipped=len(skipped) if skipped else 0,
+        ):
+            populate_models(model_factors, separator_code)
+            env.flush_all()
         model_time = time.time() - t0
         _logger.info(
             "Populated models %s (total: %fs)", list(model_factors), model_time

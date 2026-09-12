@@ -12,6 +12,7 @@ import odoo.api
 import odoo.modules.neutralize
 import odoo.modules.registry
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
 from .._env import get_env_float, get_env_int
@@ -25,6 +26,7 @@ from .lifecycle import (
 from .listing import exp_db_exist
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 _RESTORE_MAX_EXPANSION_RATIO = 50
@@ -167,15 +169,18 @@ def _get_restore_command(
 def _run_pg_restore(db: str, pg_cmd: str, pg_args: list[str]) -> None:
     timeout = _get_pg_restore_total_timeout()
     try:
-        r = subprocess.run(
-            [get_pg_tool_path(pg_cmd), "--dbname=" + db, *pg_args],
-            env=exec_pg_environ(),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
+        with _debug.perf(
+            "database.restore.pg_restore", db=db, tool=pg_cmd, timeout=timeout
+        ):
+            r = subprocess.run(
+                [get_pg_tool_path(pg_cmd), "--dbname=" + db, *pg_args],
+                env=exec_pg_environ(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=timeout,
+            )
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(
             f"Restore of {db!r} exceeded {timeout:.0f}s wall-clock "
@@ -237,6 +242,13 @@ def restore_db(
             _finalize_restored_db(db, copy, neutralize_database, filestore_path)
 
         _logger.info("RESTORE DB: %s", db)
+        _debug.lifecycle(
+            "database.restored",
+            db=db,
+            copy=copy,
+            neutralized=neutralize_database,
+            filestore=filestore_path is not None,
+        )
     except Exception:
         _rollback_new_database(db, "RESTORE DB")
         raise

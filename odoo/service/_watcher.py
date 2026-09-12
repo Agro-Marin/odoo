@@ -7,6 +7,8 @@ import threading
 from contextlib import suppress
 from pathlib import Path
 
+from odoo.libs.debug_log import DebugLog
+
 import odoo.addons
 from . import _process_state
 from .lifecycle import restart
@@ -44,6 +46,7 @@ else:
     watchdog = None  # type: ignore[assignment]
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 _OBSERVER_JOIN_TIMEOUT_S = 5.0
 
@@ -119,6 +122,9 @@ class FSWatcherBase:
         from odoo.orm.runtime.registry import Registry
 
         databases = set(Registry.registries.snapshot) | set(current().db_name or ())
+        _debug.lifecycle(
+            "watcher.assets_signalled", path=path, databases=len(databases)
+        )
         for db_name in databases:
             try:
                 with odoo_db.db_connect(db_name).cursor() as cr:
@@ -173,6 +179,11 @@ class FSWatcherBase:
 
     def on_file_changed(self, path: str) -> bool | None:
         if path.endswith(ASSET_SUFFIXES) and "/static/" in path:
+            _debug.logic(
+                "watcher.asset_changed",
+                path=path,
+                handled="assets" in current().dev_mode,
+            )
             if "assets" in current().dev_mode:
                 self.on_asset_file_changed(path)
             return None

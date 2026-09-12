@@ -14,6 +14,7 @@ from typing import NoReturn
 import requests
 
 from ..db import SYSTEM_DBS, db_connect
+from ..libs.debug_log import DebugLog
 from ..modules.neutralize import neutralize_database
 from ..service.db import (
     _drop_database,
@@ -32,6 +33,7 @@ from .command import check_db_not_maintenance
 from .server import report_configuration
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 eprint = partial(print, file=sys.stderr, flush=True)
 
@@ -320,6 +322,11 @@ class Db(Command):
         config["list_db"] = True
         report_configuration()
 
+        _debug.lifecycle(
+            "cli.db",
+            subcommand=getattr(args.func, "__name__", None),
+            database=getattr(args, "database", None),
+        )
         args.func(args)
 
     def init(self, args: argparse.Namespace) -> None:

@@ -15,12 +15,14 @@ import odoo.release
 import odoo.tools
 from odoo.db import is_maintenance_db
 from odoo.db import schema as _db_schema
+from odoo.libs.debug_log import DebugLog
 from odoo.release import version_info
 
 from .._env import get_env_float
 from ._checks import check_db_name
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 _catalog_listeners: list[Callable[[], None]] = []
@@ -158,7 +160,9 @@ def _get_catalog_cached() -> list[str]:
         if cached is not None and now - cached[0] < ttl:
             return list(cached[1])
         generation = _catalog_generation
-    names = _get_catalog_uncached()
+    with _debug.perf("database.catalog_listed", ttl=ttl) as span:
+        names = _get_catalog_uncached()
+        span.set(databases=None if names is None else len(names))
     if names is None:
         return []
     with _catalog_lock:

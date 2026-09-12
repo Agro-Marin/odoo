@@ -12,6 +12,7 @@ from typing import override
 from psycopg.types.json import Json as PsycopgJson
 
 from odoo.exceptions import AccessError, MissingError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import fast_clone
 from odoo.tools import SQL, OrderedSet, html_sanitize, is_list_of
 from odoo.tools.misc import frozendict, has_list_types
@@ -24,6 +25,8 @@ from ..primitives import COLLECTION_TYPES, SQL_OPERATORS
 from ..validation import regex_alphanumeric
 from .base import Field, _logger
 from .temporal import _value_to_date, _value_to_datetime
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
@@ -354,6 +357,14 @@ class Properties(Field):
         definition_changed = any(
             definition.get("definition_changed") or definition.get("definition_deleted")
             for definition in (value or [])
+        )
+        _debug.logic(
+            "field.properties.write",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            properties=len(value or ()),
+            definition_changed=definition_changed,
         )
         if definition_changed:
             value = [

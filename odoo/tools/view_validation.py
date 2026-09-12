@@ -8,6 +8,7 @@ from pathlib import Path
 from lxml import etree
 
 from odoo import tools
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -15,6 +16,7 @@ if typing.TYPE_CHECKING:
     type Validator = Callable[..., bool]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 _validators: collections.defaultdict[str, list[Validator]] = collections.defaultdict(
@@ -251,7 +253,18 @@ def valid_view(arch: etree._Element, **kwargs: object) -> bool:
                 arch.tag,
                 pred.__doc__ or pred.__name__,
             )
+            _debug.logic(
+                "view_validation.predicate_rejected",
+                view_type=arch.tag,
+                predicate=pred.__name__,
+            )
             return False
+    _debug.pipeline(
+        "view_validation.valid",
+        view_type=arch.tag,
+        predicates=len(_validators.get(arch.tag, ())),
+        schema=_view_schemas.get(arch.tag) is not None,
+    )
     return True
 
 
@@ -327,6 +340,11 @@ def schema_valid(arch: etree._Element, **kwargs: object) -> bool:
     if not validator.validate(arch):
         for error in validator.error_log:
             _logger.warning("%s", error)
+        _debug.logic(
+            "view_validation.schema_rejected",
+            view_type=view_type,
+            errors=len(validator.error_log),
+        )
         return False
     return True
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from odoo.api import Environment
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.loading import force_demo
 from odoo.modules.module import get_module_path, initialize_sys_path
 from odoo.tools import OrderedSet, parse_version
@@ -15,6 +16,7 @@ from odoo.tools import OrderedSet, parse_version
 from . import DatabaseCommand, open_environment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> NoReturn:
@@ -106,6 +108,9 @@ class Module(DatabaseCommand):
     def run(self, cmdargs: list[str]) -> None:
         parsed_args, unknown = self.parse_args(cmdargs)
         self.bootstrap_config(parsed_args, extra_args=unknown)
+        _debug.lifecycle(
+            "cli.module", subcommand=getattr(parsed_args.func, "__name__", None)
+        )
         parsed_args.func(parsed_args)
 
     @staticmethod

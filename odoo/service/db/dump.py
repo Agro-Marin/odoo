@@ -15,6 +15,7 @@ from typing import IO, TYPE_CHECKING, Any
 import odoo.db
 import odoo.release
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import exec_pg_environ, get_pg_tool_path
 
 from .._env import get_env_float
@@ -27,6 +28,7 @@ else:
     BaseCursor = Any
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 BACKUP_FORMATS = frozenset({"zip", "dump"})
@@ -266,29 +268,36 @@ def dump_db(
     cmd = [get_pg_tool_path("pg_dump"), "--no-owner", db_name]
     env = exec_pg_environ()
 
-    if backup_format == "zip":
-        if stream:
-            _write_zip_dump(db_name, stream, cmd, env, with_filestore)
+    with _debug.perf(
+        "database.dumped",
+        db=db_name,
+        format=backup_format,
+        filestore=with_filestore,
+        streaming=stream is not None,
+    ):
+        if backup_format == "zip":
+            if stream:
+                _write_zip_dump(db_name, stream, cmd, env, with_filestore)
+            else:
+                t = tempfile.TemporaryFile()  # noqa: SIM115  `t` IS the return value; the caller owns and closes it
+                try:
+                    _write_zip_dump(db_name, t, cmd, env, with_filestore)
+                    t.seek(0)
+                except BaseException:
+                    t.close()
+                    raise
+                return t
         else:
-            t = tempfile.TemporaryFile()  # noqa: SIM115  `t` IS the return value; the caller owns and closes it
-            try:
-                _write_zip_dump(db_name, t, cmd, env, with_filestore)
-                t.seek(0)
-            except BaseException:
-                t.close()
-                raise
-            return t
-    else:
-        cmd.insert(-1, "--format=c")
-        if stream:
-            _run_pg_dump_streaming(cmd, env, stream)
-        else:
-            t = tempfile.TemporaryFile()  # noqa: SIM115  returned to the caller, as above
-            try:
-                _run_pg_dump_blocking(cmd, env, stdout=t)
-                t.seek(0)
-            except BaseException:
-                t.close()
-                raise
-            return t
+            cmd.insert(-1, "--format=c")
+            if stream:
+                _run_pg_dump_streaming(cmd, env, stream)
+            else:
+                t = tempfile.TemporaryFile()  # noqa: SIM115  returned to the caller, as above
+                try:
+                    _run_pg_dump_blocking(cmd, env, stdout=t)
+                    t.seek(0)
+                except BaseException:
+                    t.close()
+                    raise
+                return t
     return None

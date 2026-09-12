@@ -6,11 +6,14 @@ from hashlib import sha256
 
 from markupsafe import escape as markup_escape
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.misc import SENTINEL, OrderedSet
 
 from ..primitives import NewId
 from .base import Field
+
+_debug = DebugLog(__name__)
 
 _EN_US_KEY = ("en_US",)
 
@@ -471,6 +474,16 @@ def mark_dirty_model_term_translation(
             new_store_translations["en_US"] = cache_value
             new_store_translations.pop("_en_US", None)
         new_translations_list.append(new_store_translations)
+    _debug.pipeline(
+        "field.translation.terms_marked",
+        model=field.model_name,
+        field=field.name,
+        lang=lang,
+        records=len(records),
+        terms=len(new_terms),
+        stored=sum(1 for stored in stored_by_id.values() if stored),
+        delayed=bool(delay_translations),
+    )
     for record, new_translation in zip(
         records.with_context(prefetch_langs=True),
         new_translations_list,
@@ -524,6 +537,13 @@ def reconcile_obsolete_terms(
             get_translation_dictionary[closest_term] = get_translation_dictionary.pop(
                 old_term
             )
+        _debug.logic(
+            "field.translation.term_reconciled",
+            model=field.model_name,
+            field=field.name,
+            lang=lang,
+            adapted=not closest_is_text,
+        )
 
 
 _PROXY_MISSING = object()

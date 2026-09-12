@@ -12,6 +12,7 @@ from psycopg import OperationalError
 
 from odoo import tools
 from odoo.libs.datetime import real_cpu_time, real_datetime_now, real_time
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.gc import disabling_gc
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools import SQL
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from types import EllipsisType, FrameType
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _format_frame(frame: FrameType) -> tuple[str, int, str, str]:
@@ -685,6 +687,14 @@ class Profiler:
                         collector,
                     )
             raise
+        _debug.lifecycle(
+            "profiler.started",
+            db=self.db,
+            session=self.profile_session,
+            description=self.description,
+            collectors=[collector.name for collector in self.collectors],
+            disable_gc=self.disable_gc,
+        )
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -704,6 +714,14 @@ class Profiler:
             self.duration = real_time() - self.start_time
             self.cpu_duration = real_cpu_time() - self.start_cpu_time
             self._add_file_lines(self.init_stack_trace)
+            _debug.lifecycle(
+                "profiler.ended",
+                db=self.db,
+                session=self.profile_session,
+                duration=self.duration,
+                cpu_duration=self.cpu_duration,
+                entries=self.entry_count(),
+            )
 
             if self.db:
                 from odoo.db import (

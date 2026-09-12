@@ -5,10 +5,13 @@ import hmac
 import time
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import consteq
 
 from ._protocols import RequestState
 from .constants import CSRF_TOKEN_MAX_AGE, STORED_SESSION_BYTES
+
+_debug = DebugLog(__name__)
 
 
 def _get_csrf_secret(env: Any) -> str:
@@ -49,6 +52,7 @@ class _RequestCsrfMixin(RequestState):
             return False
         try:
             if int(max_ts) < int(time.time()):
+                _debug.logic("http.csrf.expired", sid=self.session.sid[:8])
                 return False
         except ValueError:
             return False
@@ -56,4 +60,7 @@ class _RequestCsrfMixin(RequestState):
         if not hm.isascii():
             return False
 
-        return consteq(hm, _get_csrf_digest(secret, self.session.sid, max_ts))
+        digest = _get_csrf_digest(secret, self.session.sid, max_ts)
+        if _debug.logic.enabled and not consteq(hm, digest):
+            _debug.logic("http.csrf.mismatch", sid=self.session.sid[:8])
+        return consteq(hm, digest)

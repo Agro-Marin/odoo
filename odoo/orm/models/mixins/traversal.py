@@ -8,6 +8,7 @@ from odoo.libs.accel import batch_cache_filter as _batch_cache_filter
 from odoo.libs.accel import batch_cache_get as _batch_cache_get
 from odoo.libs.accel import batch_group_ids as _batch_group_ids
 from odoo.libs.accel import sort_ids_by_cache as _sort_ids_by_cache
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -26,6 +27,8 @@ from ._cache_scan import (
     is_cache_detached,
 )
 from ._model_stubs import _ModelStubs
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -303,6 +306,12 @@ class TraversalMixin(_ModelStubs):
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
                 return self._spawn(self.env, ids, self._prefetch_ids)
+            _debug.logic(
+                "traversal.sorted.slow_path",
+                model=self._name,
+                order=order,
+                records=len(self),
+            )
             key = self._sorted_order_to_function(order)
         elif key is None:
             order = self._order
@@ -310,6 +319,12 @@ class TraversalMixin(_ModelStubs):
             ids = self._sorted_by_ids(order, reverse)
             if ids is not None:
                 return self._spawn(self.env, ids, self._prefetch_ids)
+            _debug.logic(
+                "traversal.sorted.slow_path",
+                model=self._name,
+                order=order,
+                records=len(self),
+            )
             key = self._sorted_order_to_function(order)
         ids = tuple(
             item._ids[0]

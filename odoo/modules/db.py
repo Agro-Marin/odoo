@@ -8,6 +8,7 @@ from psycopg.types.json import Json
 import odoo.api
 import odoo.tools
 from odoo.db import schema as _db_schema
+from odoo.libs.debug_log import DebugLog
 from odoo.modules._protocols import SqlReader
 from odoo.modules.module import Manifest
 
@@ -19,6 +20,7 @@ if typing.TYPE_CHECKING:
     from odoo.db import Cursor
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _AUTO_INSTALL_CANDIDATES_QUERY = """
     SELECT m.name FROM ir_module_module m
@@ -176,6 +178,14 @@ def initialize(cr: Cursor) -> None:
     ]
     module_ids = _insert_modules(cr, module_rows)
     _copy_module_metadata(cr, manifests, module_ids)
+    _debug.lifecycle(
+        "modules.db.initialized",
+        db=cr.dbname,
+        manifests=len(manifests),
+        modules=len(module_ids),
+        categories=len(category_cache),
+        skip_auto_install=bool(odoo.tools.config.get("skip_auto_install")),
+    )
 
     if odoo.tools.config.get("skip_auto_install"):
         cr.execute(
@@ -292,6 +302,14 @@ def initialize_db(
             env.ref("base.user_admin").write(values)
 
             cr.commit()
+            _debug.lifecycle(
+                "modules.db.initialize_db",
+                db=db_name,
+                demo=demo,
+                lang=lang,
+                country=normalized_country,
+                login=login,
+            )
     except Exception:
         _logger.exception("CREATE DATABASE failed:")
         raise

@@ -10,12 +10,15 @@ from zlib import adler32
 
 from werkzeug.utils import send_file as _send_file
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import file_path
 
 from .constants import STATIC_CACHE_LONG
 from .core import request
 from .settings import current as current_settings
 from .wrappers import Response, _Response
+
+_debug = DebugLog(__name__)
 
 
 class Stream:
@@ -197,6 +200,16 @@ class Stream:
         else:
             res = self._prepare_path_response(send_file_kwargs)
 
+        _debug.pipeline(
+            "http.stream.response",
+            type=self.type,
+            mimetype=self.mimetype,
+            size=self.size,
+            status=res.status_code,
+            public=self.public,
+            immutable=immutable,
+            attachment=as_attachment,
+        )
         headers = res.headers
         headers["X-Content-Type-Options"] = "nosniff"
 

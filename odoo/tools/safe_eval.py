@@ -17,6 +17,7 @@ from psycopg import OperationalError
 
 import odoo.exceptions
 from odoo.libs.datetime import tz as _tz_module
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -290,6 +291,7 @@ _SAFE_OPCODES = (
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _validated_bytecode_cache: dict[tuple, bool] = {}
 _VALIDATED_CACHE_MAX = 8192
@@ -601,6 +603,13 @@ def safe_eval(
     except Exception as e:
         if _is_classified_db_error(e):
             raise
+        _debug.logic(
+            "safe_eval.failed",
+            mode=mode,
+            filename=filename or "<unknown>",
+            error=type(e).__name__,
+            expr_len=len(expr),
+        )
         raise ValueError("%r while evaluating\n%r" % (e, expr)) from e
 
     finally:

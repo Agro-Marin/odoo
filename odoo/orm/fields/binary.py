@@ -9,6 +9,7 @@ from operator import attrgetter
 from typing import override
 
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import SQL, human_size
 from odoo.tools.image import image_process
@@ -16,6 +17,8 @@ from odoo.tools.image import image_process
 from ..domain.ast import Domain, DomainCondition, OptimizationLevel
 from ..primitives import COLLECTION_TYPES
 from .base import Field
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.tools import Query
@@ -212,6 +215,14 @@ class Binary(Field[bytes | typing.Literal[False]]):
             att.res_id: (_encode(human_size(att.file_size)) if bin_size else att.datas)
             for att in attachments.search_fetch(domain)
         }
+        _debug.perf.count(
+            "field.binary.attachments_read",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            attachments=len(data),
+            bin_size=bool(bin_size),
+        )
         self._insert_cache(records, map(data.get, records._ids))
 
     @override
@@ -267,6 +278,14 @@ class Binary(Field[bytes | typing.Literal[False]]):
                 atts.write({"datas": value})
                 atts_records = records.browse(atts.mapped("res_id"))
                 missing = real_records - atts_records
+                _debug.logic(
+                    "field.binary.attachments_written",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(real_records),
+                    updated=len(atts),
+                    created=len(missing),
+                )
                 if missing:
                     atts.create(
                         [
@@ -282,6 +301,12 @@ class Binary(Field[bytes | typing.Literal[False]]):
                         ]
                     )
             else:
+                _debug.logic(
+                    "field.binary.attachments_unlinked",
+                    model=self.model_name,
+                    field=self.name,
+                    attachments=len(atts),
+                )
                 atts.unlink()
 
     @override
@@ -403,6 +428,13 @@ class Image(Binary):
                     ],
                 ]
                 resized = Attachment.sudo().search(resized_domain, limit=1)
+                _debug.logic(
+                    "field.image.webp_resize_lookup",
+                    model=self.model_name,
+                    field=self.name,
+                    origins=len(origins),
+                    resized=bool(resized),
+                )
                 if resized:
                     return resized.datas or value
             return value

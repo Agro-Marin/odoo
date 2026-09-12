@@ -17,6 +17,7 @@ import odoo.modules.db
 import odoo.modules.neutralize
 import odoo.modules.registry
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from ._checks import check_db_management_enabled, check_db_name
@@ -28,6 +29,7 @@ else:
     BaseCursor = Any
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 class DatabaseExists(Warning):
@@ -147,6 +149,14 @@ def _create_empty_database(
             f"CREATE DB: {name} (template {chosen_template})", _create
         )
 
+    _debug.lifecycle(
+        "database.created",
+        db=name,
+        template=chosen_template,
+        already_exists=already_exists,
+        setup_if_exists=setup_if_exists,
+        unaccent=bool(force_unaccent or odoo.tools.config.get("unaccent")),
+    )
     if already_exists and not setup_if_exists:
         raise DatabaseExists(f"database {name!r} already exists!")
 
@@ -293,10 +303,18 @@ def _duplicate_database(
                 raise RuntimeError(
                     f"Filestore {to_fs!r} appeared between pre-flight and copy (race)."
                 )
-            shutil.copytree(from_fs, to_fs)
+            with _debug.perf("database.filestore_copied", db=db_name):
+                shutil.copytree(from_fs, to_fs)
     except Exception:
         _rollback_new_database(db_name, "DUPLICATE DB")
         raise
+    _debug.lifecycle(
+        "database.duplicated",
+        source=db_original_name,
+        db=db_name,
+        neutralized=neutralize_database,
+        filestore=Path(to_fs).exists(),
+    )
     invalidate_catalog_caches()
     return True
 
@@ -327,6 +345,12 @@ def _retry_on_object_in_use(
                 attempt,
                 _DROP_DATABASE_MAX_RETRIES,
                 e,
+            )
+            _debug.logic(
+                "database.ddl.object_in_use",
+                operation=op_label,
+                attempt=attempt,
+                max_attempts=_DROP_DATABASE_MAX_RETRIES,
             )
             if attempt < _DROP_DATABASE_MAX_RETRIES:
                 time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
@@ -364,6 +388,7 @@ def _drop_database(db_name: str) -> bool:
         owner_row = ()
 
     if owner_row is None:
+        _debug.logic("database.drop.absent", db=db_name)
         return False
     odoo.modules.registry.Registry.clear_database_state(db_name)
     odoo.db.close_db(db_name)
@@ -389,6 +414,7 @@ def _drop_database(db_name: str) -> bool:
     odoo.db.close_db(db_name)
 
     fs = odoo.tools.config.filestore(db_name)
+    _debug.lifecycle("database.dropped", db=db_name, filestore=Path(fs).exists())
     if Path(fs).exists():
         shutil.rmtree(fs)
     invalidate_catalog_caches()
