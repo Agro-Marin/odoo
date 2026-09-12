@@ -416,37 +416,11 @@ class MailAliasDomain(models.Model):
         if not split:
             return []
         config = self._get_config()
-        aliases = set(
-            config.bounce_emails + config.catchall_emails + config.default_from_emails
+        full_names, local_alias_names = self.env["mail.alias"]._get_alias_addresses()
+        aliases = full_names.union(
+            config.bounce_emails, config.catchall_emails, config.default_from_emails
         )
-
         allowed_domains = self._get_allowed_domains()
-        localparts_tocheck = [
-            local_part
-            for _email, local_part, domain in split
-            if not allowed_domains or domain in allowed_domains
-        ]
-
-        potential_aliases = self.env["mail.alias"].search(
-            [
-                "|",
-                ("alias_full_name", "in", [email for email, _lp, _d in split]),
-                "&",
-                ("alias_name", "in", localparts_tocheck),
-                ("alias_incoming_local", "=", True),
-            ],
-            order="id",
-        )
-        aliases.update(
-            potential_aliases.filtered(lambda x: not x.alias_incoming_local).mapped(
-                "alias_full_name"
-            )
-        )
-        local_alias_names = set(
-            potential_aliases.filtered(lambda x: x.alias_incoming_local).mapped(
-                "alias_name"
-            )
-        )
 
         res, seen = [], set()
         for email, local_part, domain in split:
@@ -461,7 +435,6 @@ class MailAliasDomain(models.Model):
         _debug.logic(
             "alias_emails",
             asked=len(split),
-            candidates=len(potential_aliases),
             matched=len(res),
             allowed_domains=len(allowed_domains),
         )

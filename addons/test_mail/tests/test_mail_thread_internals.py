@@ -604,7 +604,7 @@ class TestAPI(ThreadRecipients):
 
         # test default computation of recipients
         self.env.invalidate_all()
-        with self.assertQueryCount(9):
+        with self.assertQueryCount(7):
             defaults_withcc = (
                 test_records.with_context()._message_get_default_recipients(
                     with_cc=True

@@ -65,7 +65,7 @@ Nothing may be cached per process without a database key.
 
 Ten tables, one for the registry and one for each key in `CACHES_BY_KEY`
 (`default`, `assets`, `stable`, `templates`, `routing`, `groups`,
-`product_variants`, `actions`, `mail_subtypes`), each created as:
+`product_variants`, `actions`, `mail`), each created as:
 
 ```sql
 CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())

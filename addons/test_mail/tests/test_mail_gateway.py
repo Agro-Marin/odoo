@@ -5774,6 +5774,32 @@ class TestMailGatewayRouteVerdicts(MailGatewayCommon):
         self.assertTrue(record)
         self.assertEqual(self.test_record.message_bounce, 0)
 
+    def test_an_inbound_email_searches_the_aliases_once(self):
+        """A reply searched twice (other-model aliases on To, then reply aliases on
+        To+Cc) and a new mail once more; every step now filters one candidate set."""
+        MailAlias = self.registry["mail.alias"]
+        cases = (
+            ("new", {}),
+            ("reply", {"extra": f"In-Reply-To: {self.fake_email.message_id}"}),
+        )
+        for label, extra in cases:
+            with (
+                self.subTest(label=label),
+                patch.object(
+                    MailAlias, "search", autospec=True, side_effect=MailAlias.search
+                ) as search,
+                self.mock_mail_gateway(),
+            ):
+                self.format_and_process(
+                    MAIL_TEMPLATE,
+                    self.email_from,
+                    f"groups@{self.alias_domain}",
+                    subject=label,
+                    msg_id=f"<{label}@iron.sky>",
+                    **extra,
+                )
+            self.assertEqual(search.call_count, 1)
+
     def test_a_reply_to_a_child_document_is_judged_by_its_parent_s_alias(self):
         """Tasks and tickets own no alias; their project or team does. A reply
         routed by References alone used to bypass that alias' contact policy."""

@@ -49,12 +49,17 @@ BUCKET_OWNERS: dict[str, str] = {
         "has to invalidate it, and from `default` that would have evicted record "
         "rules, ACLs and menus in every worker on each new xmlid"
     ),
-    "mail_subtypes": (
-        "the `mail` addon — mail.message.subtype._get_auto_subscription_subtypes "
-        "and _default_subtypes, the only two ormcaches derived from subtype rows. "
-        "Its own bucket because a subtype create/write/unlink cleared `default` "
-        "cluster-wide (5,687 misses of the first one in a single suite); a bare "
-        "clear_cache() still empties it, because `default` and `stable` list it"
+    "mail": (
+        "the `mail` addon — its small configuration snapshots: "
+        "mail.message.subtype._get_auto_subscription_subtypes and _default_subtypes, "
+        "and mail.alias._get_alias_addresses, the set every inbound email's "
+        "recipients and authors are matched against. One bucket for the three "
+        "because every check_signaling SELECT costs one scalar subquery per bucket, "
+        "and each is one query to rebuild. Its own bucket because a subtype or "
+        "alias create/write/unlink cleared `default` cluster-wide (5,687 misses of "
+        "the first ormcache in a single suite, and an alias is created with every "
+        "project, team or job); a bare clear_cache() still empties it, because "
+        "`default` and `stable` list it"
     ),
 }
 

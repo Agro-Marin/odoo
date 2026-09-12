@@ -57,6 +57,7 @@ class RoutingRecipients(NamedTuple):
     rcpt_tos_localparts: list[str]
     rcpt_tos_valid: list[str]
     rcpt_tos_valid_localparts: list[str]
+    aliases: MailAlias
 
 
 _logger = logging.getLogger(__name__)
@@ -522,19 +523,58 @@ class MixinMailGateway(models.AbstractModel):
         return self.env["res.partner"].browse(cache[key] or ())
 
     @api.model
+    def _routing_author_missed(
+        self, message_dict: dict, thread: models.BaseModel
+    ) -> bool:
+        lookups = message_dict.get("author_lookups") or {}
+        return any(
+            lookups.get(key) is False
+            for key in ((thread._name, thread.id), ("mixin.mail.thread", False))
+        )
+
+    @api.model
     def _routing_reset_bounce(
         self, email_message: EmailMessage, message_dict: dict
     ) -> None:
         normalized_from = email_normalize(message_dict["email_from"])
-        if normalized_from:
-            _debug.lifecycle("bounce_counters_reset", email_from=normalized_from)
-            for model_name in self.env["ir.model"]._get_mail_blacklist_models():
-                self.env[model_name].sudo().search(  # noqa: E8507  the loop is over blacklist models, not records: one query per table
-                    [
-                        ("message_bounce", ">", 0),
-                        ("email_normalized", "=", normalized_from),
-                    ]
-                )._message_reset_bounce(normalized_from)
+        if not normalized_from:
+            return
+        bounced = self._routing_find_bounced(normalized_from)
+        _debug.lifecycle(
+            "bounce_counters_reset",
+            email_from=normalized_from,
+            models=sorted(bounced),
+        )
+        for model_name, ids in bounced.items():
+            self.env[model_name].sudo().browse(ids)._message_reset_bounce(
+                normalized_from
+            )
+
+    @api.model
+    def _routing_find_bounced(self, normalized_from: str) -> dict[str, list[int]]:
+        model_names = [
+            model_name
+            for model_name in self.env["ir.model"]._get_mail_blacklist_models()
+            if not self.env[model_name]._abstract
+        ]
+        if not model_names:
+            return {}
+        for model_name in model_names:
+            self.env[model_name].flush_model(["message_bounce", "email_normalized"])
+        query = SQL(" UNION ALL ").join(
+            SQL(
+                "SELECT %s AS model, id FROM %s"
+                " WHERE message_bounce > 0 AND email_normalized = %s",
+                model_name,
+                SQL.identifier(self.env[model_name]._table),
+                normalized_from,
+            )
+            for model_name in model_names
+        )
+        bounced: dict[str, list[int]] = {}
+        for model_name, res_id in self.env.execute_query(query):
+            bounced.setdefault(model_name, []).append(res_id)
+        return bounced
 
     @api.model
     def _is_bounce(self, message: EmailMessage, message_dict: dict) -> bool:
@@ -920,24 +960,49 @@ class MixinMailGateway(models.AbstractModel):
         return self._mail_get_referenced_message(message_dict)
 
     @api.model
-    def _routing_get_other_model_aliases(
-        self,
-        reply_model: str,
-        email_to_list: list[str],
-        email_to_localparts: list[str],
+    def _routing_search_aliases(
+        self, emails: list[str], localparts: list[str]
     ) -> MailAlias:
+        if not emails and not localparts:
+            return self.env["mail.alias"]
         return self.env["mail.alias"].search(
             [
-                "&",
-                ("alias_model_id", "!=", self.env["ir.model"]._get_id(reply_model)),
                 "|",
-                ("alias_full_name", "in", email_to_list),
+                ("alias_full_name", "in", emails),
                 "&",
-                ("alias_name", "in", email_to_localparts),
+                ("alias_name", "in", localparts),
                 ("alias_incoming_local", "=", True),
             ],
             order="id",
         )
+
+    @api.model
+    def _routing_addressed_aliases(
+        self, aliases: MailAlias, emails: list[str], localparts: list[str]
+    ) -> MailAlias:
+        addressed, addressed_localparts = frozenset(emails), frozenset(localparts)
+        return aliases.filtered(
+            lambda alias: (
+                alias.alias_full_name in addressed
+                or (
+                    alias.alias_incoming_local
+                    and alias.alias_name in addressed_localparts
+                )
+            )
+        )
+
+    @api.model
+    def _routing_get_other_model_aliases(
+        self,
+        reply_model: str,
+        aliases: MailAlias,
+        email_to_list: list[str],
+        email_to_localparts: list[str],
+    ) -> MailAlias:
+        reply_model_id = self.env["ir.model"]._get_id(reply_model)
+        return self._routing_addressed_aliases(
+            aliases, email_to_list, email_to_localparts
+        ).filtered(lambda alias: alias.alias_model_id.id != reply_model_id)
 
     @api.model
     def _routing_get_alias_recipients(
@@ -959,23 +1024,12 @@ class MixinMailGateway(models.AbstractModel):
         self,
         reply_model: str,
         reply_thread_id: int | Literal[False],
-        rcpt_tos_list: list[str],
-        rcpt_tos_localparts: list[str],
+        aliases: MailAlias,
     ) -> MailAlias:
         reply_model_id = self.env["ir.model"]._get_id(reply_model)
-        dest_aliases = self.env["mail.alias"].search(
-            [
-                "&",
-                ("alias_model_id", "=", reply_model_id),
-                "|",
-                ("alias_full_name", "in", rcpt_tos_list),
-                "&",
-                ("alias_name", "in", rcpt_tos_localparts),
-                ("alias_incoming_local", "=", True),
-            ],
-            limit=1,
-            order="id",
-        )
+        dest_aliases = aliases.filtered(
+            lambda alias: alias.alias_model_id.id == reply_model_id
+        )[:1]
         if dest_aliases or not reply_thread_id:
             _debug.logic(
                 "reply_aliases",
@@ -1121,10 +1175,11 @@ class MixinMailGateway(models.AbstractModel):
             rcpt_tos, catchall_domains_allowed
         )
         rcpt_tos_valid = list(rcpt_tos)
+        aliases = self._routing_search_aliases(rcpt_tos, rcpt_tos_localparts)
 
         if reply_model and reply_thread_id:
             other_model_aliases = self._routing_get_other_model_aliases(
-                reply_model, email_to, email_to_localparts
+                reply_model, aliases, email_to, email_to_localparts
             )
             if other_model_aliases:
                 _debug.logic(
@@ -1143,6 +1198,7 @@ class MixinMailGateway(models.AbstractModel):
             rcpt_tos_localparts,
             rcpt_tos_valid,
             self._routing_get_local_parts(rcpt_tos_valid, catchall_domains_allowed),
+            aliases,
         )
         return recipients, is_a_reply, reply_model, reply_thread_id
 
@@ -1157,10 +1213,7 @@ class MixinMailGateway(models.AbstractModel):
     ) -> list[Route] | None:
         email_from = message_dict["email_from"]
         dest_aliases = self._routing_get_reply_aliases(
-            reply_model,
-            reply_thread_id,
-            recipients.rcpt_tos,
-            recipients.rcpt_tos_localparts,
+            reply_model, reply_thread_id, recipients.aliases
         )
         user_id = (
             self._mail_get_user_for_gateway(email_from, alias=dest_aliases).id
@@ -1215,18 +1268,13 @@ class MixinMailGateway(models.AbstractModel):
             )
             return self._route_bounce_catchall(message, message_dict)
 
-        dest_aliases = self.env["mail.alias"].search(
-            [
-                "|",
-                ("alias_full_name", "in", recipients.rcpt_tos_valid),
-                "&",
-                ("alias_name", "in", recipients.rcpt_tos_valid_localparts),
-                ("alias_incoming_local", "=", True),
-            ],
-            order="id",
-        )
         dest_aliases = self._routing_filtered_local_aliases(
-            dest_aliases, recipients.rcpt_tos_valid
+            self._routing_addressed_aliases(
+                recipients.aliases,
+                recipients.rcpt_tos_valid,
+                recipients.rcpt_tos_valid_localparts,
+            ),
+            recipients.rcpt_tos_valid,
         )
         _debug.logic(
             "route_aliases",
@@ -1585,6 +1633,10 @@ class MixinMailGateway(models.AbstractModel):
                 subtype_id=subtype_id,
                 partner_ids=partner_ids,
             )
+            if post_params.get("author_id") is None and self._routing_author_missed(
+                route_message_dict, thread
+            ):
+                post_params["author_id"] = False
             thread_root = thread_root.with_context(
                 mail_post_autofollow_author_skip=not route_message_dict.get("author_id")
             )

@@ -12,7 +12,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import is_html_empty, remove_accents
+from odoo.tools import is_html_empty, ormcache, remove_accents
 
 if typing.TYPE_CHECKING:
     from .mail_alias_domain import MailAliasDomain
@@ -131,6 +131,9 @@ class MailAlias(models.Model):
             "alias_name",
             "alias_domain_id",
         }
+    )
+    ALIAS_ADDRESS_FIELDS = frozenset(
+        {"alias_name", "alias_domain_id", "alias_incoming_local"}
     )
 
     _name_domain_unique = models.UniqueIndex(
@@ -373,7 +376,9 @@ class MailAlias(models.Model):
             named=sum(1 for vals in prepared if vals["alias_name"]),
             defaulted=defaults is not None,
         )
-        return super().create(prepared)
+        aliases = super().create(prepared)
+        self.env.registry.clear_cache("mail")
+        return aliases
 
     def write(self, vals: ValuesType) -> Literal[True]:
         if "alias_status" not in vals and not self.ALIAS_STATUS_NEUTRAL.issuperset(
@@ -401,7 +406,34 @@ class MailAlias(models.Model):
             ):
                 self._check_alias_address_available(addresses)
 
-        return super().write(vals)
+        result = super().write(vals)
+        if not self.ALIAS_ADDRESS_FIELDS.isdisjoint(vals):
+            self.env.registry.clear_cache("mail")
+        return result
+
+    def unlink(self) -> Literal[True]:
+        result = super().unlink()
+        self.env.registry.clear_cache("mail")
+        return result
+
+    @api.model
+    @ormcache(cache="mail")
+    def _get_alias_addresses(self) -> tuple[frozenset[str], frozenset[str]]:
+        aliases = self.sudo().search_fetch(
+            [("alias_name", "!=", False)],
+            ["alias_full_name", "alias_name", "alias_incoming_local"],
+        )
+        _debug.perf.count("addresses_computed", aliases=len(aliases))
+        return (
+            frozenset(
+                alias.alias_full_name
+                for alias in aliases
+                if alias.alias_full_name and not alias.alias_incoming_local
+            ),
+            frozenset(
+                alias.alias_name for alias in aliases if alias.alias_incoming_local
+            ),
+        )
 
     @api.model
     def _update_alias_name_vals(self, vals_list: list[ValuesType]) -> None:

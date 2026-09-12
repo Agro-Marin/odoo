@@ -133,14 +133,7 @@ class ResUsers(models.Model):
         ) and not self.env.context.get("mail_notrack")
         _debug.lifecycle("create", users=users.ids, log_portal_access=log_portal_access)
         if log_portal_access:
-            for user in users:
-                if user._is_portal():
-                    body = user._get_portal_access_update_body(True)
-                    user.partner_id.message_post(
-                        body=body,
-                        message_type="notification",
-                        subtype_xmlid="mail.mt_note",
-                    )
+            users.filtered(lambda user: user._is_portal())._log_portal_access(True)
         return users
 
     def write(self, vals: ValuesType) -> Literal[True]:
@@ -180,21 +173,14 @@ class ResUsers(models.Model):
             self.env.registry.clear_cache("stable")
 
         if log_portal_access:
-            for user in self:
-                user_has_group = user._is_portal()
-                portal_access_changed = (
-                    user_has_group != user_portal_access_dict[user.id]
-                )
-                if portal_access_changed:
-                    _debug.logic(
-                        "portal_access_changed", user=user.id, granted=user_has_group
-                    )
-                    body = user._get_portal_access_update_body(user_has_group)
-                    user.partner_id.message_post(
-                        body=body,
-                        message_type="notification",
-                        subtype_xmlid="mail.mt_note",
-                    )
+            changed = self.filtered(
+                lambda user: user._is_portal() != user_portal_access_dict[user.id]
+            )
+            for granted, users in changed.grouped(
+                lambda user: user._is_portal()
+            ).items():
+                _debug.logic("portal_access_changed", users=users.ids, granted=granted)
+                users._log_portal_access(granted)
 
         self._notify_security_settings_updated(vals, previous_email_by_user)
         for user in user_notification_type_modified:
@@ -205,6 +191,18 @@ class ResUsers(models.Model):
             self._remove_inbox_group_from_shared_users()
 
         return write_res
+
+    def _log_portal_access(self, granted: bool) -> None:
+        self.env["res.partner"]._message_post_values_all(
+            {
+                user.partner_id.id: {
+                    "body": user._get_portal_access_update_body(granted),
+                    "message_type": "notification",
+                    "subtype_xmlid": "mail.mt_note",
+                }
+                for user in self
+            }
+        )
 
     def unlink(self) -> Literal[True]:
         had_out_of_office = any(user.out_of_office_from for user in self)

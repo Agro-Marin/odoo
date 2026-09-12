@@ -2577,6 +2577,55 @@ class TestMailAliasDomainFindAliases(TestMailAliasCommon):
             self.env["mail.alias.domain"]._get_alias_emails([catchall] * 3), [catchall]
         )
 
+    @users("admin")
+    def test_a_warm_lookup_runs_no_query(self):
+        Domain = self.env["mail.alias.domain"]
+        ours = f"helpdesk@{self.mail_alias_domain.name}"
+        Domain._get_alias_emails([ours])
+        with self.assertQueryCount(0):
+            self.assertEqual(
+                Domain._get_alias_emails([ours, "nobody@gmail.com"]), [ours]
+            )
+
+    @users("admin")
+    def test_the_snapshot_follows_alias_and_domain_changes(self):
+        Domain = self.env["mail.alias.domain"]
+        domain = self.mail_alias_domain.with_env(self.env)
+        name = domain.name
+        self.assertEqual(Domain._get_alias_emails([f"sales@{name}"]), [])
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_domain_id": domain.id,
+                "alias_model_id": self.env["ir.model"]._get("mail.test.container").id,
+                "alias_name": "sales",
+            }
+        )
+        self.assertEqual(
+            Domain._get_alias_emails([f"sales@{name}", "sales@gmail.com"]),
+            [f"sales@{name}"],
+        )
+        alias.alias_name = "orders"
+        self.assertEqual(
+            Domain._get_alias_emails([f"sales@{name}", f"orders@{name}"]),
+            [f"orders@{name}"],
+        )
+        domain.name = "renamed.example.com"
+        self.assertEqual(
+            Domain._get_alias_emails([f"orders@{name}", "orders@renamed.example.com"]),
+            ["orders@renamed.example.com"],
+        )
+        alias.alias_incoming_local = True
+        self.assertEqual(
+            Domain._get_alias_emails(["orders@gmail.com"]), ["orders@gmail.com"]
+        )
+        alias.unlink()
+        self.assertEqual(
+            Domain._get_alias_emails(
+                ["orders@renamed.example.com", "orders@gmail.com"]
+            ),
+            [],
+        )
+
 
 @tagged("mail_gateway", "mail_alias")
 class TestMailAliasDomainAllowedParameter(TestMailAliasCommon):
