@@ -282,7 +282,7 @@ class CalendarRecurrence(models.Model):
         """
         events = self._get_events_from(dtstart) if dtstart else self.calendar_event_ids
         return events.with_context(no_mail_to_attendees=True, dont_notify=True).write(
-            dict(values, recurrence_update="self_only")
+            dict(values, recurrence_update="this")
         )
 
     def _get_first_event(self, include_outliers=False):

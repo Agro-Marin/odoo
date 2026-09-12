@@ -123,7 +123,7 @@ class CalendarEvent(models.Model):
     def write(self, vals):
         recurrence_update_setting = vals.get("recurrence_update")
         if (
-            recurrence_update_setting in ("all_events", "future_events")
+            recurrence_update_setting in ("all", "subsequent")
             and len(self) == 1
         ):
             vals = dict(vals, need_sync=False)
@@ -136,7 +136,7 @@ class CalendarEvent(models.Model):
             vals
         )
         if (
-            recurrence_update_setting == "all_events"
+            recurrence_update_setting == "all"
             and len(self) == 1
             and vals.keys() & self._get_fields_google_synced()
         ):
@@ -392,20 +392,20 @@ class CalendarEvent(models.Model):
         return commands
 
     def action_mass_archive(self, recurrence_update_setting):
-        """Delete recurrence in Odoo if in 'all_events' or in 'future_events' edge case, triggering one mail."""
+        """Delete recurrence in Odoo if in 'all' or in 'subsequent' edge case, triggering one mail."""
         self.check_singleton()
         google_service = GoogleCalendarService(self.env["google.service"])
         archive_future_events = (
-            recurrence_update_setting == "future_events"
+            recurrence_update_setting == "subsequent"
             and self == self.recurrence_id.base_event_id
         )
-        if recurrence_update_setting == "all_events" or archive_future_events:
+        if recurrence_update_setting == "all" or archive_future_events:
             self.recurrence_id.with_context(is_recurrence=True)._google_delete(
                 google_service, self.recurrence_id.google_id
             )
-            # Increase performance handling 'future_events' edge case as it was an 'all_events' update.
+            # Increase performance handling 'subsequent' edge case as it was an 'all' update.
             if archive_future_events:
-                recurrence_update_setting = "all_events"
+                recurrence_update_setting = "all"
         super().action_mass_archive(recurrence_update_setting)
 
     def _get_google_start_end(self):

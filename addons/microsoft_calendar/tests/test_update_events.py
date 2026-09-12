@@ -129,7 +129,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "self_only",
+                    "recurrence_update": "this",
                     "name": new_name,
                 }
             )
@@ -171,7 +171,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "self_only",
+                    "recurrence_update": "this",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
@@ -231,7 +231,7 @@ class TestUpdateEvents(TestCommon):
                 self.organizer_user
             ).write(
                 {
-                    "recurrence_update": "self_only",
+                    "recurrence_update": "this",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
@@ -258,7 +258,7 @@ class TestUpdateEvents(TestCommon):
         res = (
             self.recurrent_events[modified_event_id]
             .with_user(self.attendee_user)
-            .write({"recurrence_update": "self_only", "name": new_name})
+            .write({"recurrence_update": "this", "name": new_name})
         )
         self.call_post_commit_hooks()
         self.recurrent_events[modified_event_id].invalidate_recordset()
@@ -299,7 +299,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "future_events",
+                    "recurrence_update": "subsequent",
                     "name": new_name,
                 }
             )
@@ -363,7 +363,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "future_events",
+                    "recurrence_update": "subsequent",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
@@ -451,7 +451,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "future_events",
+                    "recurrence_update": "subsequent",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
@@ -532,7 +532,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.attendee_user)
             .write(
                 {
-                    "recurrence_update": "future_events",
+                    "recurrence_update": "subsequent",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
@@ -607,7 +607,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "name": new_name,
                 }
             )
@@ -654,7 +654,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.organizer_user)
             .write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )
@@ -730,7 +730,7 @@ class TestUpdateEvents(TestCommon):
             .with_user(self.attendee_user)
             .write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": new_date.strftime("%Y-%m-%d %H:%M:%S"),
                 }
             )

@@ -7,9 +7,9 @@ function calendarRecurrenceUpdateProps() {
     return {
         title: _t("Edit Recurrent event"),
         choices: {
-            self_only: _t("This event"),
-            future_events: _t("This and following events"),
-            all_events: _t("All events"),
+            this: _t("This event"),
+            subsequent: _t("This and following events"),
+            all: _t("All events"),
         },
     };
 }

@@ -435,7 +435,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
         event.write(
             {
                 "name": "New name",
-                "recurrence_update": "future_events",
+                "recurrence_update": "subsequent",
             }
         )
         self.assertGoogleEventInserted(
@@ -566,7 +566,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
         event.write(
             {
                 "name": "New name",
-                "recurrence_update": "all_events",
+                "recurrence_update": "all",
             }
         )
         new_recurrence = self.env["calendar.recurrence"].search(
@@ -716,7 +716,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
         )
         event_type = self.env["calendar.event.type"].create({"name": "type"})
         event.write(
-            {"recurrence_update": "all_events", "categ_ids": [(4, event_type.id)]}
+            {"recurrence_update": "all", "categ_ids": [(4, event_type.id)]}
         )
         self.assertTrue(
             all(e.categ_ids == event_type for e in recurrence.calendar_event_ids)
@@ -795,7 +795,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
         event.write(
             {
                 "name": "New name",
-                "recurrence_update": "all_events",
+                "recurrence_update": "all",
             }
         )
         new_recurrence = self.env["calendar.recurrence"].search(
@@ -865,7 +865,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
             }
         )
         # Delete base_event and assert that patch was called.
-        event_1.action_mass_archive("self_only")
+        event_1.action_mass_archive("this")
         self.assertGoogleEventPatched(
             event_1.google_id,
             {
@@ -894,7 +894,7 @@ class TestSyncOdoo2Google(TestSyncGoogle):
         self.assertEqual(recurrence.base_event_id.id, event_2.id)
         self.assertEqual(recurrence.calendar_event_ids.ids, [event_2.id])
         # Delete last event and assert that the recurrence and event were archived after the last event deletion.
-        event_2.action_mass_archive("self_only")
+        event_2.action_mass_archive("this")
         self.assertFalse(event_2.active)
         self.assertFalse(recurrence.active)
 

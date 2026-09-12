@@ -121,7 +121,7 @@ class TestCommon(EncryptionKeyCase, HttpCase):
             "start": self.start_date.strftime("%Y-%m-%d %H:%M:%S"),
             "stop": self.end_date.strftime("%Y-%m-%d %H:%M:%S"),
             "event_tz": "Europe/London",
-            "recurrence_update": "self_only",
+            "recurrence_update": "this",
             "rrule_type": "daily",
             "interval": self.recurrent_event_interval,
             "count": self.recurrent_events_count,

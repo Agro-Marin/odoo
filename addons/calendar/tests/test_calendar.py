@@ -255,7 +255,7 @@ class TestCalendar(SavepointCaseWithUserDemo):
         m.write(
             {
                 "partner_ids": partner_ids,
-                "recurrence_update": "all_events",
+                "recurrence_update": "all",
             }
         )
 

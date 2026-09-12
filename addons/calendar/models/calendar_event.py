@@ -77,7 +77,7 @@ class RecurrencePolicy(NamedTuple):
     the rest are what it means for this particular recordset.
     """
 
-    #: 'self_only' / 'future_events' / 'all_events', or None when no policy
+    #: 'this' / 'subsequent' / 'all', or None when no policy
     #: applies -- including when one was asked for on an event with no
     #: recurrence, where it is meaningless.
     setting: str | None
@@ -85,9 +85,9 @@ class RecurrencePolicy(NamedTuple):
     update: bool
     #: `recurrency=False` is being written: detach rather than rewrite.
     breaking: bool
-    #: 'future_events' asked for from the base event, i.e. from the first
+    #: 'subsequent' asked for from the base event, i.e. from the first
     #: occurrence -- "this and following" is then the whole series, and it takes
-    #: the `all_events` path.
+    #: the `all` path.
     from_base_event: bool
 
 
@@ -102,7 +102,11 @@ class CalendarEvent(models.Model):
     _name = "calendar.event"
     _description = "Calendar Event"
     _order = "start desc"
-    _inherit = ["mixin.mail.thread", "mixin.resource.scheduling"]
+    _inherit = [
+        "mixin.mail.thread",
+        "mixin.recurrence.occurrence",
+        "mixin.resource.scheduling",
+    ]
     _systray_view = "calendar"
 
     # ``write`` below keeps working long after ``super()`` returns: it applies
@@ -360,13 +364,10 @@ class CalendarEvent(models.Model):
     )  # Indicates if an event follows the recurrence, i.e. is not an exception
     recurrence_update = fields.Selection(
         [
-            ("self_only", "This event"),
-            ("future_events", "This and following events"),
-            ("all_events", "All events"),
+            ("this", "This event"),
+            ("subsequent", "This and following events"),
+            ("all", "All events"),
         ],
-        store=False,
-        copy=False,
-        default="self_only",
         help="Choose what to do with other events in the recurrence. Updating All Events is not allowed when dates or time is modified",
     )
     # Those field are pseudo-related fields of recurrence_id.
@@ -1349,16 +1350,16 @@ class CalendarEvent(models.Model):
         setting = values.pop("recurrence_update", None)
         # `recurrence_update` selects which occurrences of an EXISTING recurrence
         # to touch. On an event with no recurrence yet (a plain event being made
-        # recurrent), it is meaningless: honouring 'self_only'/'all_events' here
+        # recurrent), it is meaningless: honouring 'this'/'all' here
         # skipped _apply_recurrence_values and left the record contradictory
         # (recurrency=True, recurrence_id=False), silently dropping the rrule.
-        # Its own default is 'self_only', so this bit any programmatic caller
+        # Its own default is 'this', so this bit any programmatic caller
         # that passed the field through. Treat it as unset so the recurrence is
         # built regardless of which policy was requested.
         if setting and not self.recurrence_id:
             setting = None
         update = bool(
-            setting in ("all_events", "future_events")
+            setting in ("all", "subsequent")
             and len(self) == 1
             and self.recurrence_id
         )
@@ -1371,7 +1372,7 @@ class CalendarEvent(models.Model):
             update=update,
             breaking=values.get("recurrency") is False,
             from_base_event=(
-                setting == "future_events" and self == self.recurrence_id.base_event_id
+                setting == "subsequent" and self == self.recurrence_id.base_event_id
             ),
         )
 
@@ -1383,7 +1384,7 @@ class CalendarEvent(models.Model):
         """
         if policy.breaking:
             return self, self._break_recurrence(
-                future=policy.setting == "future_events"
+                future=policy.setting == "subsequent"
             )
         time_values = {
             field: values.pop(field)
@@ -1396,7 +1397,7 @@ class CalendarEvent(models.Model):
         # not always ``self``: `_rewrite_recurrence` archives every occurrence
         # and rebuilds from the *base* event, so a write on any other occurrence
         # leaves ``self`` archived and detached, with nobody left to notify.
-        if policy.setting == "all_events" or policy.from_base_event:
+        if policy.setting == "all" or policy.from_base_event:
             # Update all events: we create a new reccurrence and dismiss the existing events
             return self._rewrite_recurrence(
                 values, time_values, recurrence_values
@@ -1451,7 +1452,7 @@ class CalendarEvent(models.Model):
         update_alarms = touches_time or "alarm_ids" in values or "partner_ids" in values
 
         if (
-            not policy.setting or policy.setting == "self_only"
+            not policy.setting or policy.setting == "this"
         ) and "follow_recurrence" not in values:
             if touches_time:
                 values["follow_recurrence"] = False
@@ -1473,12 +1474,12 @@ class CalendarEvent(models.Model):
 
         # We reapply recurrence for future events and when we add a rrule and 'recurrency' == True on the event
         if (
-            policy.setting not in ["self_only", "all_events"]
+            policy.setting not in ["this", "all"]
             and not policy.from_base_event
             and not policy.breaking
         ):
             detached_events |= self._apply_recurrence_values(
-                recurrence_values, future=policy.setting == "future_events"
+                recurrence_values, future=policy.setting == "subsequent"
             )
 
         (detached_events & self).active = False
@@ -1853,7 +1854,7 @@ class CalendarEvent(models.Model):
 
         :param recurrence: which occurrences to delete. Accepts the
             `recurrence_update` vocabulary the form view sends
-            ('self_only'/'future_events'/'all_events') and the delete wizard's
+            ('this'/'subsequent'/'all') and the delete wizard's
             own ('one'/'next'/'all'); anything else means this occurrence only.
         :return: Action to delete the event, or to open the wizard
         """
@@ -2132,14 +2133,16 @@ class CalendarEvent(models.Model):
     # The two vocabularies a delete policy arrives in: the form view sends the
     # `recurrence_update` selection, the delete wizard its own `delete` field.
     # They mean the same three things, so normalise once here instead of letting
-    # each call site test for one spelling and silently ignore the other.
+    # each call site test for one spelling and silently ignore the other. Since
+    # `recurrence_update` took the neutral spelling the other models already
+    # used, the two now agree on "all" and only the wizard's other two words are
+    # still aliases.
     RECURRENCE_DELETE_POLICIES = {
-        "all_events": "all_events",
-        "all": "all_events",
-        "future_events": "future_events",
-        "next": "future_events",
-        "self_only": "self_only",
-        "one": "self_only",
+        "all": "all",
+        "subsequent": "subsequent",
+        "next": "subsequent",
+        "this": "this",
+        "one": "this",
     }
 
     @api.model
@@ -2149,23 +2152,23 @@ class CalendarEvent(models.Model):
         Anything unrecognised (including False) means this occurrence only: the
         user did ask for a delete, so the one thing we must never do is nothing.
         """
-        return self.RECURRENCE_DELETE_POLICIES.get(policy, "self_only")
+        return self.RECURRENCE_DELETE_POLICIES.get(policy, "this")
 
     def _unlink_by_recurrence_policy(self, policy):
         """Delete the occurrences `policy` selects, for a possibly-recurrent event."""
         policy = self._normalize_recurrence_policy(policy)
-        if policy == "self_only" or not self.recurrency or len(self) > 1:
+        if policy == "this" or not self.recurrency or len(self) > 1:
             self.unlink()
             return
         self.action_mass_deletion(policy)
 
     def action_mass_deletion(self, recurrence_update_setting):
         self.check_singleton()
-        if recurrence_update_setting == "all_events":
+        if recurrence_update_setting == "all":
             events = self.recurrence_id.calendar_event_ids
             self.recurrence_id.unlink()
             events.unlink()
-        elif recurrence_update_setting == "future_events":
+        elif recurrence_update_setting == "subsequent":
             # `_stop_at` does both halves: it detaches the occurrences from this
             # one onward AND trims the rule to end before it. Selecting the rows
             # by hand and unlinking them did only the first, so the recurrence
@@ -2177,7 +2180,7 @@ class CalendarEvent(models.Model):
         else:
             # Public, RPC-callable method: fail loudly instead of silently
             # no-op'ing on an unrecognized policy. Today's only caller,
-            # `_unlink_by_recurrence_policy`, pre-filters 'self_only' before
+            # `_unlink_by_recurrence_policy`, pre-filters 'this' before
             # reaching here, but nothing enforces that for a future caller.
             raise UserError(
                 _(
@@ -2191,13 +2194,13 @@ class CalendarEvent(models.Model):
         The aim of this action purpose is to be called from sync calendar module when mass deletion is not possible.
         """
         self.check_singleton()
-        if recurrence_update_setting == "all_events":
+        if recurrence_update_setting == "all":
             self.recurrence_id.calendar_event_ids.write(self._get_archive_values())
-        elif recurrence_update_setting == "future_events":
+        elif recurrence_update_setting == "subsequent":
             detached_events = self.recurrence_id._stop_at(self)
             detached_events.write(self._get_archive_values())
-        elif recurrence_update_setting == "self_only":
-            self.write({"active": False, "recurrence_update": "self_only"})
+        elif recurrence_update_setting == "this":
+            self.write({"active": False, "recurrence_update": "this"})
             if len(self.recurrence_id.calendar_event_ids) == 0:
                 self.recurrence_id.unlink()
             elif self == self.recurrence_id.base_event_id:
@@ -2599,7 +2602,7 @@ class CalendarEvent(models.Model):
             old_recurrence_values = self._get_updated_recurrence_values(start_date)
 
             # Archive all events and delete recurrence, reactivate base event and apply updated values.
-            base_event.action_mass_archive("all_events")
+            base_event.action_mass_archive("all")
             base_event.recurrence_id.unlink()
             base_event.with_context(skip_attendee_notification=True).write(
                 {"active": True, "recurrence_id": False, **values, **time_values}
@@ -2631,9 +2634,9 @@ class CalendarEvent(models.Model):
 
     def change_attendee_status(self, status, recurrence_update_setting):
         self.check_singleton()
-        if recurrence_update_setting == "all_events":
+        if recurrence_update_setting == "all":
             events = self.recurrence_id.calendar_event_ids
-        elif recurrence_update_setting == "future_events":
+        elif recurrence_update_setting == "subsequent":
             events = self.recurrence_id.calendar_event_ids.filtered(
                 lambda ev: ev.start >= self.start
             )

@@ -271,7 +271,7 @@ class CalendarEvent(models.Model):
                     deactivated_events_ids.append(event.id)
 
         # check a Outlook limitation in overlapping the actual recurrence
-        if recurrence_update_setting == "self_only" and "start" in values:
+        if recurrence_update_setting == "this" and "start" in values:
             self._check_recurrence_overlapping(values["start"])
 
         # if a single event becomes the base event of a recurrency, it should be first
@@ -306,7 +306,7 @@ class CalendarEvent(models.Model):
             ).write({**values, "active": False})
 
         if (
-            recurrence_update_setting in ("all_events",)
+            recurrence_update_setting in ("all",)
             and len(self) == 1
             and values.keys() & self._get_fields_microsoft_synced()
         ):

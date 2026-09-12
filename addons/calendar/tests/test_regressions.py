@@ -214,7 +214,7 @@ class TestCalendarRecurrenceUpdateOnPlainEvent(TransactionCase):
         return event
 
     def test_recurrence_built_whatever_the_update_policy(self):
-        for policy in ("self_only", "future_events", "all_events"):
+        for policy in ("this", "subsequent", "all"):
             with self.subTest(recurrence_update=policy):
                 event = self._make_recurrent(policy)
                 self.assertTrue(
@@ -375,7 +375,7 @@ class TestCalendarRangeCalculation(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestCalendarPopoverDeleteWizard(TransactionCase):
     """The delete wizard's action_delete must honour the recurrence_update
-    vocabulary ('self_only'/'future_events'/'all_events') that the calendar form
+    vocabulary ('this'/'subsequent'/'all') that the calendar form
     passes through action_unlink_event, not only the popover's own
     'one'/'next'/'all'. It used to no-op on the former, so deleting "this and
     following"/"all events" from the form silently deleted nothing.
@@ -428,16 +428,16 @@ class TestCalendarPopoverDeleteWizard(TransactionCase):
         return started, remaining
 
     def test_future_events_deletes_from_form_vocabulary(self):
-        started, remaining = self._delete_with("future_events")
+        started, remaining = self._delete_with("subsequent")
         self.assertLess(
             remaining,
             started,
-            "'future_events' must delete the current and later occurrences",
+            "'subsequent' must delete the current and later occurrences",
         )
 
     def test_all_events_deletes_from_form_vocabulary(self):
-        _started, remaining = self._delete_with("all_events")
-        self.assertEqual(remaining, 0, "'all_events' must delete the whole recurrence")
+        _started, remaining = self._delete_with("all")
+        self.assertEqual(remaining, 0, "'all' must delete the whole recurrence")
 
     def test_next_and_all_still_work(self):
         _, remaining_next = self._delete_with("next")
@@ -725,7 +725,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: event.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "self_only",
+                    "recurrence_update": "this",
                     "start": "2030-04-01 14:00:00",
                     "stop": "2030-04-01 15:00:00",
                 }
@@ -738,7 +738,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: event.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": "2030-04-01 14:00:00",
                     "stop": "2030-04-01 15:00:00",
                 }
@@ -752,7 +752,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: event.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": "2030-04-01 14:00:00",
                     "stop": "2030-04-01 15:00:00",
                 }
@@ -773,7 +773,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: event.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": "2030-04-01 14:00:00",
                     "stop": "2030-04-01 15:00:00",
                 }
@@ -799,7 +799,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: middle.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "future_events",
+                    "recurrence_update": "subsequent",
                     "start": "2030-04-15 18:00:00",
                     "stop": "2030-04-15 19:00:00",
                 }
@@ -821,7 +821,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: event.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": "2030-04-01 16:00:00",
                     "stop": "2030-04-01 17:00:00",
                     "partner_ids": [
@@ -849,7 +849,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         mails = self._mails_sent_by(
             lambda: event.with_user(self.organizer).write(
                 {
-                    "recurrence_update": "all_events",
+                    "recurrence_update": "all",
                     "start": "2020-01-06 14:00:00",
                     "stop": "2020-01-06 15:00:00",
                 }
@@ -860,7 +860,7 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
-    """`action_mass_deletion('future_events')` must trim the recurrence too.
+    """`action_mass_deletion('subsequent')` must trim the recurrence too.
 
     It selected the occurrences from this one onward and unlinked the rows,
     leaving the rule still claiming its original `count` with no `until`. The
@@ -904,7 +904,7 @@ class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
         occurrences = recurrence.calendar_event_ids.sorted("start")
         self.assertEqual(len(occurrences), 4)
 
-        occurrences[2].action_mass_deletion("future_events")
+        occurrences[2].action_mass_deletion("subsequent")
         self.env.flush_all()
         remaining = len(recurrence.calendar_event_ids)
         self.assertEqual(remaining, 2)
@@ -930,7 +930,7 @@ class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
         occurrences[3].with_context(dont_notify=True).write({"active": False})
         self.env.flush_all()
 
-        occurrences[1].action_mass_deletion("future_events")
+        occurrences[1].action_mass_deletion("subsequent")
         self.env.flush_all()
 
         survivors = (
@@ -951,7 +951,7 @@ class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
         cut = occurrences[2]
         cut_date = cut.start.date()
 
-        cut.action_mass_deletion("future_events")
+        cut.action_mass_deletion("subsequent")
         self.env.flush_all()
         self.assertEqual(recurrence.end_type, "end_date")
         self.assertTrue(recurrence.until)

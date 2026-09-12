@@ -317,7 +317,7 @@ class TestCalendarReservation(TransactionCase):
         base = event.recurrence_id.base_event_id
         base.write(
             {
-                "recurrence_update": "all_events",
+                "recurrence_update": "all",
                 "start": self.start + timedelta(hours=4),
                 "stop": self.start + timedelta(hours=6),
             }
