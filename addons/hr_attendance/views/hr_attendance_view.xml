@@ -6,22 +6,22 @@
         <field name="model">hr.attendance</field>
         <field name="arch" type="xml">
             <list
-                js_class="attendance_list_view"
                 string="Employee attendances"
-                decoration-success="color == 10"
+                duplicate="false"
                 decoration-danger="color == 1"
-                duplicate="false">
+                decoration-success="color == 10"
+                js_class="attendance_list_view">
                 <header>
                     <button
-                        class="btn-secondary"
-                        string="Approve Extra Hours"
                         name="action_approve_overtime"
-                        type="object" />
+                        type="object"
+                        string="Approve Extra Hours"
+                        class="btn-secondary" />
                     <button
-                        class="btn-secondary"
-                        string="Refuse Extra Hours"
                         name="action_refuse_overtime"
-                        type="object" />
+                        type="object"
+                        string="Refuse Extra Hours"
+                        class="btn-secondary" />
                 </header>
                 <field name="employee_id" widget="many2one_avatar_employee" />
                 <field name="check_in" />
@@ -30,20 +30,20 @@
                 <field
                     name="overtime_hours"
                     string="Worked Extra Hours"
-                    optional="show"
-                    widget="float_time" />
+                    widget="float_time"
+                    optional="show" />
                 <field
                     name="validated_overtime_hours"
                     string="Extra Hours"
-                    optional="show"
-                    widget="float_time" />
+                    widget="float_time"
+                    optional="show" />
                 <field
                     name="overtime_status"
-                    optional="hide"
                     widget="badge"
-                    decoration-warning="overtime_status == 'to_approve'"
+                    optional="hide"
+                    decoration-danger="overtime_status == 'refused'"
                     decoration-success="overtime_status == 'approved'"
-                    decoration-danger="overtime_status == 'refused'" />
+                    decoration-warning="overtime_status == 'to_approve'" />
                 <field name="in_mode" string="Input Mode (In)" optional="hide" />
                 <field name="out_mode" string="Input Mode (Out)" optional="hide" />
                 <field name="in_latitude" string="Latitude (In)" optional="hide" />
@@ -64,7 +64,7 @@
         <field name="name">hr.attendance.kanban</field>
         <field name="model">hr.attendance</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" sample="1">
+            <kanban sample="1" class="o_kanban_mobile">
                 <field name="check_in" />
                 <field name="check_out" />
                 <templates>
@@ -98,29 +98,29 @@
                     <field
                         name="overtime_status"
                         widget="statusbar"
-                        readonly="1"
                         options="{'clickable': '1'}"
-                        invisible="not overtime_status" />
+                        invisible="not overtime_status"
+                        readonly="1" />
                 </header>
                 <sheet>
                     <group>
                         <group colspan="2">
-                            <group col="1" name="group_employee">
+                            <group name="group_employee" col="1">
                                 <field
+                                    name="employee_id"
                                     id="employee_no_officer"
-                                    name="employee_id"
                                     widget="many2one_avatar_employee"
-                                    readonly="1"
-                                    groups="!hr_attendance.group_hr_attendance_officer" />
+                                    groups="!hr_attendance.group_hr_attendance_officer"
+                                    readonly="1" />
                                 <field
-                                    id="employee_no_manager"
                                     name="employee_id"
+                                    id="employee_no_manager"
                                     widget="many2one_avatar_employee"
                                     domain="[                                         ('attendance_manager_id', '=', uid),                                         ('company_id', 'in', allowed_company_ids),                                     ]"
                                     groups="hr_attendance.group_hr_attendance_officer,!hr_attendance.group_hr_attendance_user" />
                                 <field
-                                    id="employee_manager"
                                     name="employee_id"
+                                    id="employee_manager"
                                     widget="many2one_avatar_employee"
                                     domain="[                                         ('company_id', 'in', allowed_company_ids),                                     ]"
                                     groups="hr_attendance.group_hr_attendance_user" />
@@ -130,8 +130,8 @@
                                     readonly="not is_manager" />
                                 <field
                                     name="check_out"
-                                    options="{'rounding': 0}"
                                     placeholder="Currently Working"
+                                    options="{'rounding': 0}"
                                     readonly="not is_manager" />
                             </group>
                             <group col="2">
@@ -141,34 +141,34 @@
                                     widget="float_time" />
                                 <field
                                     name="overtime_hours"
-                                    widget="float_time"
                                     string="Worked Extra Hours"
+                                    widget="float_time"
                                     invisible="overtime_hours == validated_overtime_hours" />
                                 <label for="validated_overtime_hours" />
                                 <div>
                                     <field
                                         name="validated_overtime_hours"
-                                        style="width:5ch"
                                         widget="float_time"
-                                        readonly="1" />
+                                        readonly="1"
+                                        style="width:5ch" />
                                     <button
-                                        class="oe_stat_button flex-shrink-0"
+                                        name="action_approve_overtime"
+                                        type="object"
                                         string=" "
                                         help="Approve all overtimes for the same employee and date"
-                                        invisible="not is_manager or overtime_status not in ['to_approve', 'refused'] or not overtime_status"
-                                        name="action_approve_overtime"
                                         icon="fa-check"
-                                        type="object"
-                                        groups="hr_attendance.group_hr_attendance_officer" />
+                                        groups="hr_attendance.group_hr_attendance_officer"
+                                        invisible="not is_manager or overtime_status not in ['to_approve', 'refused'] or not overtime_status"
+                                        class="oe_stat_button flex-shrink-0" />
                                     <button
-                                        class="oe_stat_button flex-shrink-0"
+                                        name="action_refuse_overtime"
+                                        type="object"
                                         string=" "
                                         help="Refuse all overtimes for the same employee and date"
-                                        invisible="not is_manager or overtime_status not in ['to_approve', 'approved'] or not overtime_status"
-                                        name="action_refuse_overtime"
                                         icon="fa-times"
-                                        type="object"
-                                        groups="hr_attendance.group_hr_attendance_officer" />
+                                        groups="hr_attendance.group_hr_attendance_officer"
+                                        invisible="not is_manager or overtime_status not in ['to_approve', 'approved'] or not overtime_status"
+                                        class="oe_stat_button flex-shrink-0" />
                                 </div>
                             </group>
                         </group>
@@ -201,20 +201,20 @@
                                     <button
                                         name="action_in_attendance_maps"
                                         type="object"
-                                        class="btn btn-link ps-0 pt-0 pb-2"
-                                        icon="oi-arrow-right"
                                         string="View on Maps"
-                                        colspan="2" />
+                                        icon="oi-arrow-right"
+                                        colspan="2"
+                                        class="btn btn-link ps-0 pt-0 pb-2" />
                                 </div>
                             </group>
                         </group>
                         <separator
-                            string="Check Out"
                             name="check_out_separator"
+                            string="Check Out"
                             invisible="not check_out" />
                         <group
-                            colspan="2"
                             name="check_out_group"
+                            colspan="2"
                             invisible="not check_out">
                             <group>
                                 <group>
@@ -245,10 +245,10 @@
                                     <button
                                         name="action_out_attendance_maps"
                                         type="object"
-                                        class="btn btn-link ps-0 pt-0 pb-2"
-                                        icon="oi-arrow-right"
                                         string="View on Maps"
-                                        colspan="2" />
+                                        icon="oi-arrow-right"
+                                        colspan="2"
+                                        class="btn btn-link ps-0 pt-0 pb-2" />
                                 </div>
                             </group>
                         </group>
@@ -274,25 +274,25 @@
                                         name="status"
                                         widget="badge"
                                         readonly="1"
-                                        decoration-warning="status == 'to_approve'"
+                                        decoration-danger="status == 'refused'"
                                         decoration-success="status == 'approved'"
-                                        decoration-danger="status == 'refused'" />
+                                        decoration-warning="status == 'to_approve'" />
                                     <button
-                                        class="oe_stat_button"
-                                        string="Approve"
-                                        invisible="not is_manager or status not in ['to_approve', 'refused']"
                                         name="action_approve"
+                                        type="object"
+                                        string="Approve"
                                         icon="fa-check"
-                                        type="object"
-                                        groups="hr_attendance.group_hr_attendance_officer" />
+                                        groups="hr_attendance.group_hr_attendance_officer"
+                                        invisible="not is_manager or status not in ['to_approve', 'refused']"
+                                        class="oe_stat_button" />
                                     <button
-                                        class="oe_stat_button"
-                                        string="Refuse"
-                                        invisible="not is_manager or status not in ['to_approve', 'approved']"
                                         name="action_refuse"
-                                        icon="fa-times"
                                         type="object"
-                                        groups="hr_attendance.group_hr_attendance_officer" />
+                                        string="Refuse"
+                                        icon="fa-times"
+                                        groups="hr_attendance.group_hr_attendance_officer"
+                                        invisible="not is_manager or status not in ['to_approve', 'approved']"
+                                        class="oe_stat_button" />
                                 </list>
                             </field>
                         </page>
@@ -307,9 +307,9 @@
         <field name="name">hr.attendance.graph</field>
         <field name="model">hr.attendance</field>
         <field name="arch" type="xml">
-            <graph string="Worked Hours" type="line" stacked="0" sample="1">
+            <graph type="line" string="Worked Hours" sample="1" stacked="0">
                 <field name="employee_id" type="row" />
-                <field name="check_in" interval="week" type="col" />
+                <field name="check_in" type="col" interval="week" />
                 <field name="overtime_hours" widget="float_time" />
                 <field name="worked_hours" type="measure" widget="float_time" />
             </graph>
@@ -327,13 +327,13 @@
                 <field name="expected_hours" type="measure" widget="float_time" />
                 <field
                     name="overtime_hours"
-                    string="Difference"
                     type="measure"
+                    string="Difference"
                     widget="float_time" />
                 <field
                     name="validated_overtime_hours"
-                    string="Balance"
                     type="measure"
+                    string="Balance"
                     widget="float_time" />
             </pivot>
         </field>
@@ -348,63 +348,63 @@
                 <field name="department_id" operator="child_of" />
                 <field name="check_in" />
                 <filter
-                    string="My Attendances"
                     name="myattendances"
+                    string="My Attendances"
                     domain="[('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Team"
                     name="myteam"
+                    string="My Team"
                     domain="[('employee_id.parent_id.user_id', '=', uid)]" />
                 <separator />
                 <filter
-                    string="At Work"
                     name="nocheckout"
+                    string="At Work"
                     domain="[('check_out', '=', False)]" />
                 <filter
-                    string="Errors"
                     name="errors"
+                    string="Errors"
                     domain="['|', ('worked_hours', '&gt;=', 16), '&amp;', ('check_out', '=', False), ('check_in', '&lt;=', '-1d')]" />
                 <filter
-                    string="Automatically Checked-Out"
                     name="auto_check"
+                    string="Automatically Checked-Out"
                     domain="[('out_mode', '=', 'auto_check_out')]" />
                 <separator />
-                <filter string="Date" name="check_in_filter" date="check_in" />
+                <filter name="check_in_filter" string="Date" date="check_in" />
                 <separator />
                 <filter
-                    string="Active Employees"
                     name="activeemployees"
+                    string="Active Employees"
                     domain="[('employee_id.active', '=', True)]" />
                 <filter
-                    string="Archived Employees"
                     name="archivedemployees"
+                    string="Archived Employees"
                     domain="[('employee_id.active', '=', False)]" />
                 <separator invisible="1" />
                 <filter
-                    string="Last 3 Months"
-                    invisible="1"
                     name="last_three_months"
-                    domain="[('check_in','&gt;=', '-3m')]" />
+                    string="Last 3 Months"
+                    domain="[('check_in','&gt;=', '-3m')]"
+                    invisible="1" />
                 <group>
                     <filter
-                        string="Employee"
                         name="employee"
+                        string="Employee"
                         context="{'group_by': 'employee_id'}" />
                     <filter
-                        string="Department"
                         name="departement"
+                        string="Department"
                         context="{'group_by': 'department_id'}" />
                     <filter
-                        string="Manager"
                         name="manager"
+                        string="Manager"
                         context="{'group_by': 'manager_id'}" />
                     <filter
-                        string="Method"
                         name="groupby_mode_in"
+                        string="Method"
                         context="{'group_by': 'in_mode'}" />
                     <filter
-                        string="Date"
                         name="groupby_name"
+                        string="Date"
                         context="{'group_by': 'check_in:month'}" />
                 </group>
             </search>
@@ -471,45 +471,45 @@
                 <field name="employee_id" />
                 <field name="department_id" operator="child_of" />
                 <filter
-                    string="My Attendances"
                     name="myattendances"
+                    string="My Attendances"
                     domain="[('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Team"
                     name="myteam"
+                    string="My Team"
                     domain="[('employee_id.parent_id.user_id', '=', uid)]" />
                 <separator />
                 <filter
-                    string="To Approve"
                     name="to_approve"
+                    string="To Approve"
                     domain="[('overtime_status','=', 'to_approve')]" />
                 <filter
-                    string="Approved"
                     name="approved"
+                    string="Approved"
                     domain="[('overtime_status','=', 'approved')]" />
                 <filter
-                    string="Refused"
                     name="refused"
+                    string="Refused"
                     domain="[('overtime_status','=', 'refused')]" />
                 <separator />
-                <filter string="Date" name="check_in_filter" date="check_in" />
+                <filter name="check_in_filter" string="Date" date="check_in" />
                 <separator />
                 <filter
-                    string="Active Employees"
                     name="activeemployees"
+                    string="Active Employees"
                     domain="[('employee_id.active', '=', True)]" />
                 <filter
-                    string="Archived Employees"
                     name="archivedemployees"
+                    string="Archived Employees"
                     domain="[('employee_id.active', '=', False)]" />
                 <group>
                     <filter
-                        string="Employee"
                         name="employee"
+                        string="Employee"
                         context="{'group_by': 'employee_id'}" />
                     <filter
-                        string="Date"
                         name="groupby_date"
+                        string="Date"
                         context="{'group_by': 'check_in'}" />
                 </group>
             </search>
@@ -523,15 +523,15 @@
             <list string="Employee attendances" create="0">
                 <header>
                     <button
-                        class="btn-secondary"
-                        string="Approve"
                         name="action_approve_overtime"
-                        type="object" />
+                        type="object"
+                        string="Approve"
+                        class="btn-secondary" />
                     <button
-                        class="btn-secondary"
-                        string="Refuse"
                         name="action_refuse_overtime"
-                        type="object" />
+                        type="object"
+                        string="Refuse"
+                        class="btn-secondary" />
                 </header>
                 <field
                     name="employee_id"
@@ -541,34 +541,34 @@
                 <field name="check_out" readonly="1" />
                 <field
                     name="worked_hours"
-                    readonly="1"
                     string="Worked Time"
-                    widget="float_time" />
+                    widget="float_time"
+                    readonly="1" />
                 <field
                     name="overtime_hours"
                     string="Worked Extra Hours"
                     widget="float_time" />
                 <field
                     name="validated_overtime_hours"
-                    readonly="overtime_status == 'refused'"
                     string="Extra Hours"
-                    widget="float_time" />
+                    widget="float_time"
+                    readonly="overtime_status == 'refused'" />
                 <button
-                    class="oe_stat_button"
-                    string="Approve"
-                    invisible="not is_manager or overtime_status not in ['to_approve', 'refused']"
-                    groups="hr_attendance.group_hr_attendance_officer"
                     name="action_approve_overtime"
+                    type="object"
+                    string="Approve"
                     icon="fa-check"
-                    type="object" />
-                <button
-                    class="oe_stat_button"
-                    string="Refuse"
-                    invisible="not is_manager or overtime_status not in ['to_approve', 'approved']"
                     groups="hr_attendance.group_hr_attendance_officer"
+                    invisible="not is_manager or overtime_status not in ['to_approve', 'refused']"
+                    class="oe_stat_button" />
+                <button
                     name="action_refuse_overtime"
+                    type="object"
+                    string="Refuse"
                     icon="fa-times"
-                    type="object" />
+                    groups="hr_attendance.group_hr_attendance_officer"
+                    invisible="not is_manager or overtime_status not in ['to_approve', 'approved']"
+                    class="oe_stat_button" />
             </list>
         </field>
     </record>

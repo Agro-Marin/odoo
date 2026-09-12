@@ -9,12 +9,12 @@
             <field name="arch" type="xml">
                 <xpath expr="//div[@name='button_box']" position="inside">
                     <button
-                        type="object"
-                        class="oe_stat_button"
-                        groups="base.group_system"
                         name="action_karma_report"
-                        icon="fa-certificate">
-                        <field string="Karma" name="karma" widget="statinfo" />
+                        type="object"
+                        icon="fa-certificate"
+                        groups="base.group_system"
+                        class="oe_stat_button">
+                        <field name="karma" string="Karma" widget="statinfo" />
                     </button>
                 </xpath>
             </field>
@@ -28,8 +28,8 @@
             <field name="arch" type="xml">
                 <xpath expr="//notebook" position="inside">
                     <page
-                        string="Gamification"
                         name="gamification"
+                        string="Gamification"
                         groups="gamification.group_gamification_manager">
                         <group>
                             <group string="Level Progress">
@@ -55,7 +55,7 @@
                                     domain="[('user_id', '=', id)]" />
                             </group>
                         </group>
-                        <field name="streak_ids" readonly="1" string="Active Streaks">
+                        <field name="streak_ids" string="Active Streaks" readonly="1">
                             <list>
                                 <field name="streak_type_id" />
                                 <field name="current_count" />
@@ -64,8 +64,8 @@
                                 <field
                                     name="state"
                                     widget="badge"
-                                    decoration-success="state == 'active'"
-                                    decoration-danger="state == 'broken'" />
+                                    decoration-danger="state == 'broken'"
+                                    decoration-success="state == 'active'" />
                             </list>
                         </field>
                     </page>

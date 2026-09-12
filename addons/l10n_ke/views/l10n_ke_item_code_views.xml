@@ -21,17 +21,17 @@
                     <field name="code" />
                     <field name="description" />
                     <filter
+                        name="type_exempted"
                         string="Exempted"
-                        domain="[('tax_rate','=','E')]"
-                        name="type_exempted" />
+                        domain="[('tax_rate','=','E')]" />
                     <filter
+                        name="type_zero_rated"
                         string="Zero Rated"
-                        domain="[('tax_rate','=','C')]"
-                        name="type_zero_rated" />
+                        domain="[('tax_rate','=','C')]" />
                     <filter
+                        name="type_eight_rated"
                         string="Taxable at 8%"
-                        domain="[('tax_rate','=','B')]"
-                        name="type_eight_rated" />
+                        domain="[('tax_rate','=','B')]" />
                     <filter
                         name="group_by_tax_rate"
                         string="By Tax Rate"

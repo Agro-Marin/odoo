@@ -19,28 +19,28 @@
                     <div invisible="state != 'init'" class="d-flex gap-1">
                         <button
                             name="update_module"
-                            string="Update"
                             type="object"
+                            string="Update"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
                             special="cancel"
-                            data-hotkey="x"
                             string="Cancel"
-                            class="btn-secondary" />
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </div>
                     <div invisible="state != 'done'" class="d-flex gap-1">
                         <button
                             name="action_module_open"
-                            string="Open Apps"
                             type="object"
+                            string="Open Apps"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
                             special="cancel"
-                            data-hotkey="x"
                             string="Close"
-                            class="btn-secondary" />
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </div>
                 </footer>
             </form>

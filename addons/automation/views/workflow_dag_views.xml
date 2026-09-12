@@ -29,7 +29,7 @@
             </xpath>
 
             <xpath expr="//page[@name='actions']" position="after">
-                <page string="Workflow" name="workflow">
+                <page name="workflow" string="Workflow">
                     <group>
                         <field name="create_runtime_instance" />
                     </group>

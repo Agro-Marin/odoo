@@ -15,7 +15,7 @@
                 </div>
             </xpath>
             <xpath expr="//div[@name='bank_cash_buttons']" position="inside">
-                <button t-if="dashboard.number_to_reconcile &gt; 0" type="object" name="action_view_reconcile" class="btn btn-secondary d-block text-nowrap" groups="account.group_account_basic"><t t-out="dashboard.number_to_reconcile" /> to reconcile</button>
+                <button name="action_view_reconcile" type="object" groups="account.group_account_basic" class="btn btn-secondary d-block text-nowrap" t-if="dashboard.number_to_reconcile &gt; 0"><t t-out="dashboard.number_to_reconcile" /> to reconcile</button>
             </xpath>
 
             <xpath expr="//div[@name='latest_statement']//span" position="replace">

@@ -11,14 +11,14 @@
                 <setting
                     id="events_app_setting"
                     string="Events PWA"
-                    groups="base.group_no_one"
-                    help="Name of your website's Events Progressive Web Application">
+                    help="Name of your website's Events Progressive Web Application"
+                    groups="base.group_no_one">
                     <div class="content-group">
                         <div class="row mt16">
                             <label
-                                class="col-lg-3 o_light_label"
+                                for="events_app_name"
                                 string="Name"
-                                for="events_app_name" />
+                                class="col-lg-3 o_light_label" />
                             <field name="events_app_name" required="website_id" />
                         </div>
                     </div>

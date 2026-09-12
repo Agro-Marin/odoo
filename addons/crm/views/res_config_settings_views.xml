@@ -9,18 +9,18 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="CRM"
-                    string="CRM"
                     name="crm"
-                    groups="sales_team.group_sale_manager">
+                    string="CRM"
+                    groups="sales_team.group_sale_manager"
+                    data-string="CRM">
                     <block title="CRM">
                         <setting
                             help="Define recurring plans and revenues on Opportunities">
                             <field name="group_use_recurring_revenues" />
                             <div invisible="not group_use_recurring_revenues">
                                 <button
-                                    type="action"
                                     name="crm.crm_recurring_plan_action"
+                                    type="action"
                                     string="Manage Recurring Plans"
                                     icon="oi-arrow-right"
                                     class="oe_link" />
@@ -38,8 +38,8 @@
                             <field name="is_membership_multi" />
                         </setting>
                         <setting
-                            string="Ringover VOIP Phone"
                             id="ringover-voip"
+                            string="Ringover VOIP Phone"
                             help="Make and receive calls from Odoo with Ringover's dialer. Track calls, SMS messages, and get AI-powered transcripts of your conversations.">
                             <a
                                 class="oe_link fw-bold"
@@ -63,9 +63,9 @@
                             name="predictive_lead_scoring_start_date_str"
                             invisible="1" />
                         <setting
-                            title="This can be used to compute statistical probability to close a lead"
                             name="predictive_lead_setting_container"
-                            string="Predictive Lead Scoring">
+                            string="Predictive Lead Scoring"
+                            title="This can be used to compute statistical probability to close a lead">
                             <div class="text-muted">
                                 The success rate is computed based on <b>
                                     <field
@@ -73,7 +73,7 @@
                                         class="d-inline" />
                                 </b>
                                 for the leads created as of the
-                                <b><field name="predictive_lead_scoring_start_date" class="oe_inline" readonly="1" /></b>.
+                                <b><field name="predictive_lead_scoring_start_date" readonly="1" class="oe_inline" /></b>.
                                 </div>
                             <div class="mt16" groups="base.group_erp_manager">
                                 <button
@@ -98,8 +98,8 @@
                                 class="row flex-row flex-nowrap mt16"
                                 invisible="not crm_use_auto_assignment">
                                 <label
-                                    string="Running"
                                     for="crm_auto_assignment_action"
+                                    string="Running"
                                     class="col-lg-3 o_light_label" />
                                 <field
                                     name="crm_auto_assignment_action"
@@ -119,24 +119,24 @@
                                 class="row mt16"
                                 invisible="not crm_use_auto_assignment or crm_auto_assignment_action == 'manual'">
                                 <label
-                                    string="Repeat every"
                                     for="crm_auto_assignment_interval_type"
+                                    string="Repeat every"
                                     class="col-lg-3 o_light_label" />
                                 <field
                                     name="crm_auto_assignment_interval_number"
-                                    class="oe_inline me-2"
-                                    required="crm_use_auto_assignment and crm_auto_assignment_action == 'auto'" />
+                                    required="crm_use_auto_assignment and crm_auto_assignment_action == 'auto'"
+                                    class="oe_inline me-2" />
                                 <field
                                     name="crm_auto_assignment_interval_type"
-                                    class="oe_inline"
-                                    required="crm_use_auto_assignment and crm_auto_assignment_action == 'auto'" />
+                                    required="crm_use_auto_assignment and crm_auto_assignment_action == 'auto'"
+                                    class="oe_inline" />
                             </div>
                             <div
                                 class="row"
                                 invisible="not crm_use_auto_assignment or crm_auto_assignment_action == 'manual'">
                                 <label
-                                    string="Next Run"
                                     for="crm_auto_assignment_run_datetime"
+                                    string="Next Run"
                                     class="col-lg-3 o_light_label" />
                                 <field name="crm_auto_assignment_run_datetime" />
                             </div>
@@ -144,8 +144,8 @@
                     </block>
 
                     <block
-                        title="Lead Generation"
-                        name="convert_visitor_setting_container">
+                        name="convert_visitor_setting_container"
+                        title="Lead Generation">
                         <setting
                             string="Lead Enrichment"
                             help="Enrich your leads with company data based on their email addresses">
@@ -153,17 +153,17 @@
                             <div class="mt8" invisible="not module_crm_iap_enrich">
                                 <field
                                     name="lead_enrich_auto"
-                                    class="o_light_label"
                                     widget="radio"
-                                    required="True" />
+                                    required="True"
+                                    class="o_light_label" />
                             </div>
                         </setting>
 
                         <setting
                             id="crm_iap_mine_settings"
                             string="Lead Mining"
-                            documentation="/applications/sales/crm/acquire_leads/lead_mining.html"
-                            help="Generate new leads based on their country, industry, size, etc.">
+                            help="Generate new leads based on their country, industry, size, etc."
+                            documentation="/applications/sales/crm/acquire_leads/lead_mining.html">
                             <field name="module_crm_iap_mine" />
                         </setting>
 

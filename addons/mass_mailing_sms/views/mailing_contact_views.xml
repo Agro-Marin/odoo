@@ -18,16 +18,16 @@
                 position="after">
                 <separator />
                 <filter
-                    string="Valid SMS Recipients"
                     name="filter_valid_sms_recipient"
+                    string="Valid SMS Recipients"
                     domain="[('opt_out', '=', False), ('phone_sanitized_blacklisted', '=', False), ('phone_sanitized', '!=', False)]"
                     invisible="not context.get('default_list_ids')" />
             </xpath>
             <xpath expr="//filter[@name='filter_not_email_bl']" position="after">
                 <separator />
                 <filter
-                    string="Exclude Blacklisted Phone"
                     name="filter_not_phone_bl"
+                    string="Exclude Blacklisted Phone"
                     domain="[('phone_sanitized_blacklisted', '=', False)]" />
             </xpath>
         </field>
@@ -43,8 +43,8 @@
                 <field
                     name="phone_ids"
                     widget="many2many_tags"
-                    class="o_force_ltr"
-                    readonly="1" />
+                    readonly="1"
+                    class="o_force_ltr" />
                 <field name="phone_sanitized" column_invisible="True" />
                 <field name="phone_sanitized_blacklisted" />
             </xpath>
@@ -61,12 +61,12 @@
                 <div class="o_row o_row_readonly" name="phone_details">
                     <button
                         name="phone_action_blacklist_remove"
-                        class="fa-solid fa-ban text-danger"
-                        title="This phone number is blacklisted for SMS Marketing. Click to unblacklist."
                         type="object"
+                        title="This phone number is blacklisted for SMS Marketing. Click to unblacklist."
                         context="{'default_phone': phone_sanitized}"
                         groups="base.group_user"
-                        invisible="not phone_blacklisted" />
+                        invisible="not phone_blacklisted"
+                        class="fa-solid fa-ban text-danger" />
                     <field name="phone_ids" widget="many2many_tags" />
                     <field name="phone_sanitized" invisible="1" />
                 </div>

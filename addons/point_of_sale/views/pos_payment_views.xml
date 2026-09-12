@@ -10,7 +10,7 @@
                     <group>
                         <field name="session_id" readonly="0" />
                         <field name="pos_order_id" />
-                        <field name="amount" readonly="0" widget="monetary" />
+                        <field name="amount" widget="monetary" readonly="0" />
                         <field name="currency_id" />
                         <field name="payment_method_id" />
                         <field

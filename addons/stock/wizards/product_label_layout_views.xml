@@ -26,10 +26,10 @@
                 <field name="zpl_template" invisible="'zpl' not in print_format" />
                 <field
                     name="zpl_preview"
-                    invisible="'zpl' not in print_format"
                     widget="image"
+                    nolabel="1"
                     options="{'img_class': 'border'}"
-                    nolabel="1" />
+                    invisible="'zpl' not in print_format" />
             </xpath>
         </field>
     </record>

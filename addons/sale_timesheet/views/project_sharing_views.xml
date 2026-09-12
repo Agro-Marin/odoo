@@ -19,10 +19,10 @@
                 <field
                     name="so_line"
                     widget="so_line_field"
-                    column_invisible="not parent.allow_billable"
+                    optional="hide"
                     context="{'with_remaining_hours': True, 'with_price_unit': True}"
                     options="{'no_create': True, 'no_open': True}"
-                    optional="hide" />
+                    column_invisible="not parent.allow_billable" />
             </xpath>
             <xpath
                 expr="//field[@name='child_ids']/list/field[@name='remaining_hours']"
@@ -30,8 +30,8 @@
                 <field name="remaining_hours_available" column_invisible="True" />
                 <field
                     name="remaining_hours_so"
-                    optional="hide"
                     widget="timesheet_uom"
+                    optional="hide"
                     column_invisible="not parent.allow_timesheets" />
             </xpath>
             <xpath
@@ -40,8 +40,8 @@
                 <field name="remaining_hours_available" column_invisible="True" />
                 <field
                     name="remaining_hours_so"
-                    optional="hide"
                     widget="timesheet_uom"
+                    optional="hide"
                     column_invisible="not parent.allow_timesheets" />
             </xpath>
             <xpath expr="//field[@name='remaining_hours']" position="after">
@@ -53,18 +53,18 @@
                     invisible="not allow_billable or not sale_order_id or not partner_id or not sale_line_id or not remaining_hours_available"
                     class="o_td_label float-start">
                     <label
-                        class="fw-bold"
                         for="remaining_hours_so"
-                        invisible="remaining_hours_so &lt; 0" />
+                        invisible="remaining_hours_so &lt; 0"
+                        class="fw-bold" />
                     <label
-                        class="fw-bold text-danger"
                         for="remaining_hours_so"
-                        invisible="remaining_hours_so &gt;= 0" />
+                        invisible="remaining_hours_so &gt;= 0"
+                        class="fw-bold text-danger" />
                 </span>
                 <field
                     name="remaining_hours_so"
-                    nolabel="1"
                     widget="timesheet_uom"
+                    nolabel="1"
                     invisible="not allow_billable or not sale_order_id or not partner_id or not sale_line_id or not remaining_hours_available"
                     decoration-danger="remaining_hours_so &lt; 0" />
             </xpath>

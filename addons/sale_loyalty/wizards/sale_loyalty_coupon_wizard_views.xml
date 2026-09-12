@@ -15,8 +15,8 @@
                 </sheet>
                 <footer>
                     <button
-                        type="object"
                         name="action_apply"
+                        type="object"
                         string="Apply"
                         class="btn btn-primary"
                         data-hotkey="q" />

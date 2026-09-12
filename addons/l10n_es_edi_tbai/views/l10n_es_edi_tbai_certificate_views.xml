@@ -12,10 +12,10 @@
             <field name="arch" type="xml">
                 <filter name="scope_general" position="after">
                     <filter
-                        string="TBAI"
                         name="scope_tbai"
-                        domain="[('scope','=','tbai')]"
-                        help="TBAI certificates" />
+                        string="TBAI"
+                        help="TBAI certificates"
+                        domain="[('scope','=','tbai')]" />
                 </filter>
             </field>
         </record>

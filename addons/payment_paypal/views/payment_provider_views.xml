@@ -24,17 +24,17 @@
                     <div class="o_row" col="2">
                         <field name="paypal_webhook_id" />
                         <button
-                            string="Generate your webhook"
-                            type="object"
                             name="action_paypal_create_webhook"
-                            class="btn-primary"
-                            invisible="paypal_webhook_id" />
+                            type="object"
+                            string="Generate your webhook"
+                            invisible="paypal_webhook_id"
+                            class="btn-primary" />
                     </div>
                     <widget
                         name="documentation_link"
-                        path="/applications/finance/payment_providers/paypal.html"
+                        colspan="2"
                         label="How to configure your paypal account?"
-                        colspan="2" />
+                        path="/applications/finance/payment_providers/paypal.html" />
                 </group>
             </group>
         </field>

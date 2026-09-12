@@ -8,11 +8,11 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='anchor_buttons_documents']" position="before">
                 <button
-                    groups="document.group_documents_user"
                     name="action_see_documents"
                     type="object"
-                    class="oe_stat_button"
-                    icon="fa-file-text-o">
+                    icon="fa-file-text-o"
+                    groups="document.group_documents_user"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="document_count" />

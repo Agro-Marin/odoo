@@ -13,8 +13,8 @@
                     widget="boolean_toggle" />
                 <field
                     name="website_id"
-                    groups="website.group_multi_website"
                     string="Website"
+                    groups="website.group_multi_website"
                     invisible="not is_published" />
             </field>
         </field>

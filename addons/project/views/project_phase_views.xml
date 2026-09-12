@@ -5,7 +5,7 @@
         <field name="name">project.phase.view.list</field>
         <field name="model">project.phase</field>
         <field name="arch" type="xml">
-            <list editable="bottom" sample="1" delete="0">
+            <list editable="bottom" delete="0" sample="1">
                 <field name="sequence" widget="handle" />
                 <field name="name" placeholder="e.g. Planning" />
                 <field
@@ -15,9 +15,9 @@
                 <field
                     name="company_id"
                     optional="hide"
-                    groups="base.group_multi_company"
-                    options="{'no_create': True}" />
-                <field name="color" optional="hide" widget="color_picker" />
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
+                <field name="color" widget="color_picker" optional="hide" />
                 <field name="fold" optional="show" />
             </list>
         </field>
@@ -46,8 +46,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <h1><field name="name" placeholder="e.g. Planning" /></h1>
                     <group>
                         <group>
@@ -62,9 +62,9 @@
                             <field name="fold" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
+                                placeholder="Visible to all"
                                 options="{'no_create': True}"
-                                placeholder="Visible to all" />
+                                groups="base.group_multi_company" />
                         </group>
                     </group>
                 </sheet>
@@ -77,9 +77,9 @@
         <field name="model">project.phase</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
-                class="o_kanban_mobile"
                 sample="1"
+                class="o_kanban_mobile"
+                highlight_color="color"
                 quick_create_view="project.project_phase_view_form_quick_create">
                 <templates>
                     <t t-name="menu" t-if="!selection_mode" groups="base.group_user">
@@ -89,8 +89,8 @@
                         <field name="name" class="fw-bolder mb-4" />
                         <field
                             name="mail_template_id"
-                            class="text-muted mb-2"
-                            invisible="not mail_template_id" />
+                            invisible="not mail_template_id"
+                            class="text-muted mb-2" />
                         <field
                             name="company_id"
                             groups="base.group_multi_company"
@@ -111,13 +111,13 @@
                 <field name="mail_template_id" />
                 <field name="company_id" groups="base.group_multi_company" />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>

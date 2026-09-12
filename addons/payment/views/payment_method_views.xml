@@ -13,7 +13,7 @@
                         <h1><field name="name" placeholder="Name" /></h1>
                     </div>
                     <group>
-                        <field name="code" readonly="id" groups="base.group_no_one" />
+                        <field name="code" groups="base.group_no_one" readonly="id" />
                         <field
                             name="primary_payment_method_id"
                             invisible="is_primary" />
@@ -22,9 +22,9 @@
                         <div>
                             <field
                                 name="supported_country_ids"
-                                class="oe_inline"
                                 widget="many2many_tags"
-                                readonly="1" />
+                                readonly="1"
+                                class="oe_inline" />
                             <span
                                 class="oe_inline text-muted"
                                 invisible="supported_country_ids">
@@ -35,9 +35,9 @@
                         <div>
                             <field
                                 name="supported_currency_ids"
-                                class="oe_inline"
                                 widget="many2many_tags"
-                                readonly="1" />
+                                readonly="1"
+                                class="oe_inline" />
                             <span
                                 class="oe_inline text-muted"
                                 invisible="supported_currency_ids">
@@ -46,22 +46,22 @@
                         </div>
                     </group>
                     <notebook>
-                        <page string="Providers" name="providers">
+                        <page name="providers" string="Providers">
                             <field name="provider_ids" readonly="1">
                                 <list
-                                    decoration-muted="state == 'disabled'"
-                                    editable="bottom">
+                                    editable="bottom"
+                                    decoration-muted="state == 'disabled'">
                                     <field name="name" />
                                     <field name="state" />
                                 </list>
                             </field>
                         </page>
-                        <page string="Brands" name="brands" invisible="not is_primary">
+                        <page name="brands" string="Brands" invisible="not is_primary">
                             <field name="brand_ids" />
                         </page>
                         <page
-                            string="Configuration"
                             name="configuration"
+                            string="Configuration"
                             groups="base.group_no_one">
                             <div class="alert alert-warning" role="alert">
                                 <i class="fa-solid fa-exclamation-triangle" /> These properties are set to
@@ -76,12 +76,12 @@
                                 <field name="support_refund" />
                                 <field
                                     name="supported_country_ids"
-                                    widget="many2many_tags"
-                                    placeholder="Select countries. Leave empty to allow any." />
+                                    placeholder="Select countries. Leave empty to allow any."
+                                    widget="many2many_tags" />
                                 <field
                                     name="supported_currency_ids"
-                                    widget="many2many_tags"
-                                    placeholder="Select currencies. Leave empty to allow any." />
+                                    placeholder="Select currencies. Leave empty to allow any."
+                                    widget="many2many_tags" />
                                 <field
                                     name="provider_ids"
                                     string="Supported by"

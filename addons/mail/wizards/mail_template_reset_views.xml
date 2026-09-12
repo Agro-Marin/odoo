@@ -13,15 +13,15 @@
                 </div>
                 <footer>
                     <button
+                        name="reset_template"
+                        type="object"
                         string="Reset Template"
                         class="btn btn-primary"
-                        type="object"
-                        name="reset_template"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

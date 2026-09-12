@@ -19,14 +19,14 @@
                     </group>
                     <footer>
                         <button
-                            string="Set sender name"
                             name="action_set_sender_name"
                             type="object"
+                            string="Set sender name"
                             class="btn btn-primary" />
                         <button
+                            special="cancel"
                             string="Skip for now"
-                            class="btn-secondary"
-                            special="cancel" />
+                            class="btn-secondary" />
                     </footer>
                 </sheet>
             </form>

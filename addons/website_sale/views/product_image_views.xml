@@ -25,8 +25,8 @@
                                     <span>Video Preview</span>
                                     <field
                                         name="embed_code"
-                                        class="mt-2"
-                                        widget="video_preview" />
+                                        widget="video_preview"
+                                        class="mt-2" />
                                     <h4
                                         class="o_invalid_warning text-muted text-center"
                                         invisible="embed_code">
@@ -53,9 +53,9 @@
                         <div class="card">
                             <div class="o_squared_image">
                                 <field
-                                    class="card-img-top"
                                     name="image_1920"
-                                    widget="x2_many_image" />
+                                    widget="x2_many_image"
+                                    class="card-img-top" />
                             </div>
                             <div
                                 class="p-2 m-0 bg-200"

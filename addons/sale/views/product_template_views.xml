@@ -13,11 +13,11 @@
             <group name="upsell" position="inside">
                 <field
                     name="optional_product_ids"
+                    placeholder="Recommend when 'Adding to Cart' or quotation"
                     widget="many2many_tags"
-                    options="{'color_field': 'color'}"
                     domain="[('id', '!=', id), '|', ('company_id', '=', company_id), ('company_id', '=', False)]"
                     context="{'search_product_product': True}"
-                    placeholder="Recommend when 'Adding to Cart' or quotation" />
+                    options="{'color_field': 'color'}" />
             </group>
             <page name="sales" position="attributes">
                 <attribute name="invisible" remove="1" separator="or" />
@@ -29,8 +29,8 @@
             <field name="type" position="after">
                 <field
                     name="invoice_policy"
-                    required="1"
-                    invisible="not sale_ok or type == 'combo'" />
+                    invisible="not sale_ok or type == 'combo'"
+                    required="1" />
             </field>
             <field name="service_tracking" position="attributes">
                 <attribute name="invisible" add="not sale_ok" separator="or" />
@@ -43,8 +43,8 @@
                         <field
                             name="sale_line_warn_msg"
                             placeholder="e.g. This product is defective."
-                            nolabel="1"
-                            colspan="2" />
+                            colspan="2"
+                            nolabel="1" />
                     </group>
                 </t>
                 <group
@@ -64,13 +64,13 @@
         <field name="arch" type="xml">
             <span id="button_documents_after" position="after">
                 <button
-                    class="oe_stat_button"
                     name="action_view_sales"
                     type="object"
-                    icon="fa-signal"
                     help="Sold in the last 365 days"
+                    icon="fa-signal"
                     groups="sales_team.group_sale_salesman"
-                    invisible="not sale_ok">
+                    invisible="not sale_ok"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value d-flex gap-1">
                             <field
@@ -80,8 +80,8 @@
                                 class="oe_inline" />
                             <field
                                 name="uom_name"
-                                class="oe_inline"
-                                groups="uom.group_uom" />
+                                groups="uom.group_uom"
+                                class="oe_inline" />
                         </span>
                         <span class="o_stat_text">Sold</span>
                     </div>

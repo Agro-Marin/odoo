@@ -16,12 +16,12 @@
                 </sheet>
                 <footer>
                     <button
-                        string="Create Consolidated Invoices"
                         name="button_consolidate"
                         type="object"
+                        string="Create Consolidated Invoices"
                         default_focus="1"
                         class="btn-primary" />
-                    <button string="Close" special="cancel" />
+                    <button special="cancel" string="Close" />
                 </footer>
             </form>
         </field>

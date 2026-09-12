@@ -55,18 +55,18 @@
         <field name="arch" type="xml">
             <calendar
                 string="Work Entry"
+                mode="month"
+                color="color"
                 date_start="date"
                 date_stop="date"
-                mode="month"
-                scales="month"
-                show_unusual_days="True"
-                month_overflow="0"
-                quick_create="0"
-                color="color"
                 event_limit="9"
-                show_date_picker="0"
+                js_class="work_entries_calendar"
+                month_overflow="0"
                 multi_create_view="hr_work_entry.hr_work_entry_view_calendar_multi_create_form"
-                js_class="work_entries_calendar">
+                quick_create="0"
+                scales="month"
+                show_date_picker="0"
+                show_unusual_days="True">
                 <field name="state" />
                 <field name="name" string="Description" invisible="not name" />
                 <field name="duration" invisible="1" />
@@ -86,14 +86,14 @@
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="draft,validated"
-                        invisible="state == 'conflict'" />
+                        invisible="state == 'conflict'"
+                        statusbar_visible="draft,validated" />
                     <field
                         name="state"
                         widget="statusbar"
+                        invisible="state != 'conflict'"
                         readonly="1"
-                        statusbar_visible="draft,validated,conflict"
-                        invisible="state != 'conflict'" />
+                        statusbar_visible="draft,validated,conflict" />
                 </header>
                 <div
                     class="alert alert-warning text-center"
@@ -123,13 +123,13 @@
                                 readonly="state == 'validated'" />
                             <field
                                 name="work_entry_type_id"
-                                readonly="state == 'validated'"
+                                widget="many2one_work_entry_type"
                                 options="{'no_create': True, 'no_open': True}"
-                                widget="many2one_work_entry_type" />
+                                readonly="state == 'validated'" />
                             <field
                                 name="employee_id"
-                                readonly="state == 'validated'"
-                                widget="many2one_avatar_employee" />
+                                widget="many2one_avatar_employee"
+                                readonly="state == 'validated'" />
                         </group>
                         <group>
                             <field name="date" readonly="state == 'validated'" />
@@ -137,10 +137,10 @@
                             <div class="o_row mw-50 mw-sm-25">
                                 <field
                                     name="duration"
-                                    nolabel="1"
                                     widget="float_time"
-                                    class="o_hr_narrow_field"
-                                    readonly="state == 'validated'" />
+                                    nolabel="1"
+                                    readonly="state == 'validated'"
+                                    class="o_hr_narrow_field" />
                                 <span>Hours</span>
                             </div>
                             <field name="company_id" invisible="1" />
@@ -181,13 +181,13 @@
                 <field name="employee_id" widget="many2one_avatar_employee" />
                 <field
                     name="work_entry_type_id"
-                    options="{'no_create': True, 'no_open': True}"
-                    widget="many2one_work_entry_type" />
+                    widget="many2one_work_entry_type"
+                    options="{'no_create': True, 'no_open': True}" />
                 <field name="duration" widget="float_time" />
                 <field
                     name="state"
-                    optional="show"
                     widget="badge"
+                    optional="show"
                     decoration-info="state == 'draft'"
                     decoration-success="state == 'validated'"
                     decoration-warning="state == 'conflict'" />
@@ -203,7 +203,7 @@
         <field name="model">hr.work.entry</field>
         <field name="arch" type="xml">
             <pivot string="Work Entries" sample="1">
-                <field name="duration" widget="float_time" type="measure" />
+                <field name="duration" type="measure" widget="float_time" />
                 <field name="employee_id" type="row" />
                 <field name="work_entry_type_id" type="col" />
             </pivot>
@@ -319,8 +319,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="Work Entry Type Name" />
@@ -369,7 +369,7 @@
                     <t
                         t-name="card"
                         t-attf-class="#{!selection_mode ? record.color.raw_value : ''}">
-                        <field class="fw-bold fs-5" name="name" />
+                        <field name="name" class="fw-bold fs-5" />
                         <span class="text-muted">
                             <field name="code" />
                             <t t-if="record.display_code.raw_value" class="text-muted">

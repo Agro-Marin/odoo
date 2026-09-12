@@ -8,16 +8,16 @@
             <field name="transient" position="after">
                 <field
                     name="is_mail_thread"
-                    readonly="state != 'manual'"
-                    groups="base.group_no_one" />
+                    groups="base.group_no_one"
+                    readonly="state != 'manual'" />
                 <field
                     name="is_mail_activity"
-                    readonly="state != 'manual'"
-                    groups="base.group_no_one" />
+                    groups="base.group_no_one"
+                    readonly="state != 'manual'" />
                 <field
                     name="is_mail_blacklist"
-                    readonly="state != 'manual'"
-                    groups="base.group_no_one" />
+                    groups="base.group_no_one"
+                    readonly="state != 'manual'" />
             </field>
         </field>
     </record>
@@ -28,16 +28,16 @@
         <field name="arch" type="xml">
             <field name="model" position="after">
                 <filter
-                    string="Mail Thread"
                     name="is_mail_thread"
+                    string="Mail Thread"
                     domain="[('is_mail_thread', '=', True)]" />
                 <filter
-                    string="Mail Activity"
                     name="is_mail_activity"
+                    string="Mail Activity"
                     domain="[('is_mail_activity', '=', True)]" />
                 <filter
-                    string="Mail Blacklist"
                     name="is_mail_blacklist"
+                    string="Mail Blacklist"
                     domain="[('is_mail_blacklist', '=', True)]" />
             </field>
         </field>

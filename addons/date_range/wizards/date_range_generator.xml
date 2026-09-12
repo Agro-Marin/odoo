@@ -8,33 +8,33 @@
             <form string="Generate Date Ranges">
                 <sheet>
                     <group>
-                        <group col="2" colspan="4" string="Parameters">
+                        <group string="Parameters" col="2" colspan="4">
                             <field name="type_id" required="1" />
                             <field name="company_id" invisible="1" />
                             <field
-                                groups="base.group_multi_company"
                                 name="company_id"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company" />
                             <label for="duration_count" />
                             <div>
                                 <field
-                                    class="oe_inline"
                                     name="duration_count"
-                                    required="1" />
+                                    required="1"
+                                    class="oe_inline" />
                                 <field
-                                    class="oe_inline"
                                     name="unit_of_time"
-                                    required="1" />
+                                    required="1"
+                                    class="oe_inline" />
                             </div>
                             <field name="date_start" required="1" />
                             <label for="date_end" string="Until" />
                             <div>
-                                <field class="oe_inline" name="date_end" required="not count" />,
-                                or generate <field class="oe_inline" name="count" required="not date_end" /> entries.
+                                <field name="date_end" required="not count" class="oe_inline" />,
+                                or generate <field name="count" required="not date_end" class="oe_inline" /> entries.
                             </div>
                             <label for="name_prefix" />
                             <div>
-                                <field name="name_prefix" class="oe_inline" required="unit_of_time and not name_expr" /> or enter a complex expression below
+                                <field name="name_prefix" required="unit_of_time and not name_expr" class="oe_inline" /> or enter a complex expression below
                             </div>
                             <field
                                 name="name_expr"
@@ -45,14 +45,14 @@
                 </sheet>
                 <footer>
                     <button
-                        class="btn btn-sm btn-primary"
                         name="action_apply"
+                        type="object"
                         string="Generate"
-                        type="object" />
+                        class="btn btn-sm btn-primary" />
                     <button
-                        class="btn btn-sm btn-default"
                         special="cancel"
-                        string="Cancel" />
+                        string="Cancel"
+                        class="btn btn-sm btn-default" />
                 </footer>
             </form>
         </field>

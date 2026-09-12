@@ -13,14 +13,14 @@
                     title="French Time Off Localization"
                     invisible="company_country_code != 'FR'">
                     <setting
-                        company_dependent="1"
-                        help="Set the time off type used as the company Paid Time Off to compute part-timers leave duration">
+                        help="Set the time off type used as the company Paid Time Off to compute part-timers leave duration"
+                        company_dependent="1">
                         <field
                             name="l10n_fr_reference_leave_type"
-                            class="o_light_label"
                             domain="[('company_id', 'in', [company_id, False])]"
                             context="{'default_company_id': company_id}"
-                            required="company_country_code == 'FR'" />
+                            required="company_country_code == 'FR'"
+                            class="o_light_label" />
                     </setting>
                 </block>
             </block>

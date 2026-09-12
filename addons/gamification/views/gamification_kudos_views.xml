@@ -16,12 +16,12 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -136,30 +136,30 @@
                 <field name="category_id" />
                 <field name="message" />
                 <filter
-                    string="Sent by Me"
                     name="sent_by_me"
+                    string="Sent by Me"
                     domain="[('sender_id', '=', uid)]" />
                 <filter
-                    string="Received by Me"
                     name="received_by_me"
+                    string="Received by Me"
                     domain="[('recipient_id', '=', uid)]" />
                 <separator />
                 <group>
                     <filter
-                        string="Recipient"
                         name="group_recipient"
+                        string="Recipient"
                         context="{'group_by': 'recipient_id'}" />
                     <filter
-                        string="Sender"
                         name="group_sender"
+                        string="Sender"
                         context="{'group_by': 'sender_id'}" />
                     <filter
-                        string="Category"
                         name="group_category"
+                        string="Category"
                         context="{'group_by': 'category_id'}" />
                     <filter
-                        string="Month"
                         name="group_month"
+                        string="Month"
                         context="{'group_by': 'create_date:month'}" />
                 </group>
             </search>

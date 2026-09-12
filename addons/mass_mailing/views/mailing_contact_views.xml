@@ -8,15 +8,15 @@
             <search string="Mailing List Contacts">
                 <field
                     name="name"
-                    filter_domain="['|', '|', ('name','ilike',self), ('company_name','ilike',self), ('email_normalized','ilike',self)]"
-                    string="Name / Email" />
+                    string="Name / Email"
+                    filter_domain="['|', '|', ('name','ilike',self), ('company_name','ilike',self), ('email_normalized','ilike',self)]" />
                 <field name="tag_ids" />
                 <field name="list_ids" />
                 <field name="properties" />
                 <separator />
                 <filter
-                    string="Valid Email Recipients"
                     name="filter_valid_email_recipient"
+                    string="Valid Email Recipients"
                     domain="[('opt_out', '=', False), ('is_blacklisted', '=', False), ('email_normalized', '!=', False)]"
                     invisible="not context.get('default_list_ids')" />
                 <separator />
@@ -36,23 +36,23 @@
                     invisible="1" />
                 <separator />
                 <filter
-                    string="Exclude Blacklisted Emails"
                     name="filter_not_email_bl"
+                    string="Exclude Blacklisted Emails"
                     domain="[('is_blacklisted', '=', False)]" />
                 <separator />
                 <filter
-                    string="Exclude Opt Out"
                     name="filter_not_optout"
+                    string="Exclude Opt Out"
                     domain="[('opt_out', '=', False)]"
                     invisible="not context.get('default_list_ids')" />
                 <group>
                     <filter
-                        string="Creation Date"
                         name="group_create_date"
+                        string="Creation Date"
                         context="{'group_by': 'create_date'}" />
                     <filter
-                        string="Properties"
                         name="group_properties"
+                        string="Properties"
                         context="{'group_by': 'properties'}" />
                 </group>
                 </search>
@@ -64,18 +64,18 @@
         <field name="model">mailing.contact</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="Mailing List Contacts" sample="1" multi_edit="1">
+            <list string="Mailing List Contacts" multi_edit="1" sample="1">
                 <header>
                     <button
                         name="action_import"
-                        string="Import"
                         type="object"
+                        string="Import"
                         display="always"
                         context="{'from_mailing_list_ids': context.get('active_ids') if context.get('active_model') == 'mailing.list' else False}" />
                     <button
                         name="action_add_to_mailing_list"
-                        string="Add to List"
-                        type="object" />
+                        type="object"
+                        string="Add to List" />
                 </header>
                 <field name="create_date" optional="show" />
                 <field name="name" optional="show" readonly="1" />
@@ -86,8 +86,8 @@
                 <field name="message_bounce" sum="Total Bounces" readonly="1" />
                 <field
                     name="opt_out"
-                    readonly="1"
-                    column_invisible="'default_list_ids' not in context" />
+                    column_invisible="'default_list_ids' not in context"
+                    readonly="1" />
                 <field name="list_ids" widget="many2many_tags" optional="hide" />
                 <field name="properties" optional="hide" />
             </list>
@@ -102,8 +102,8 @@
                 <header>
                     <button
                         name="action_import"
-                        string="Import"
                         type="object"
+                        string="Import"
                         display="always"
                         context="{'from_mailing_list_ids': context.get('active_ids') if context.get('active_model') == 'mailing.list' else False}" />
                 </header>
@@ -139,9 +139,9 @@
                         <label for="name" string="Contact Name" />
                         <h1>
                             <field
-                                class="text-break"
                                 name="name"
-                                placeholder="e.g. John Smith" />
+                                placeholder="e.g. John Smith"
+                                class="text-break" />
                         </h1>
                     </div>
                     <group>
@@ -150,12 +150,12 @@
                             <div class="o_row o_row_readonly" name="email_details">
                                 <button
                                     name="mail_action_blacklist_remove"
-                                    class="fa-solid fa-ban text-danger"
-                                    title="This email is blacklisted for mass mailings. Click to unblacklist."
                                     type="object"
+                                    title="This email is blacklisted for mass mailings. Click to unblacklist."
                                     context="{'default_email': email}"
                                     groups="base.group_user"
-                                    invisible="not is_blacklisted" />
+                                    invisible="not is_blacklisted"
+                                    class="fa-solid fa-ban text-danger" />
                                 <field name="email" widget="email" />
                                 <field name="is_blacklisted" invisible="1" />
                             </div>
@@ -165,21 +165,21 @@
                                 options="{'no_open': True, 'no_create': True}" />
                         </group>
                         <group>
-                            <field name="create_date" readonly="1" invisible="not id" />
+                            <field name="create_date" invisible="not id" readonly="1" />
                             <field
                                 name="message_bounce"
-                                readonly="1"
-                                invisible="not id" />
+                                invisible="not id"
+                                readonly="1" />
                             <field
                                 name="tag_ids"
+                                placeholder="e.g. &quot;VIP&quot;, &quot;Roadshow&quot;, ..."
                                 widget="many2many_tags"
                                 options="{'color_field': 'color'}"
-                                placeholder="e.g. &quot;VIP&quot;, &quot;Roadshow&quot;, ..."
                                 style="width: 100%" />
                         </group>
                     </group>
                     <div class="d-flex">
-                        <field name="properties" nolabel="1" columns="2" />
+                        <field name="properties" columns="2" />
                     </div>
                     <notebook>
                         <page string="Subscriptions">
@@ -207,7 +207,7 @@
         <field name="model">mailing.contact</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <pivot string="Mailing List Contacts" stacked="1" sample="1">
+            <pivot string="Mailing List Contacts" sample="1" stacked="1">
                 <field name="create_date" type="row" />
             </pivot>
         </field>

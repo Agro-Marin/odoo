@@ -11,23 +11,23 @@
                         <button
                             name="action_view_linked_orders"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-shopping-cart"
-                            invisible="count_linked_orders == 0">
+                            invisible="count_linked_orders == 0"
+                            class="oe_stat_button">
                             <field
-                                string="Order(s)"
                                 name="count_linked_orders"
+                                string="Order(s)"
                                 widget="statinfo" />
                         </button>
                         <button
                             name="action_view_linked_config"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-share-alt"
-                            invisible="count_linked_config == 0">
+                            invisible="count_linked_config == 0"
+                            class="oe_stat_button">
                             <field
-                                string="PoS Config"
                                 name="count_linked_config"
+                                string="PoS Config"
                                 widget="statinfo" />
                         </button>
                     </div>
@@ -36,7 +36,7 @@
                         <label for="name" />
                         <h1><field name="name" placeholder="e.g. Dine in" /></h1>
                     </div>
-                    <group class="w-100" name="Presets">
+                    <group name="Presets" class="w-100">
                         <group>
                             <field name="pricelist_id" placeholder="Default" />
                             <field name="fiscal_position_id" placeholder="Default" />
@@ -60,13 +60,13 @@
                             <div class="o_row">
                                 <field
                                     name="slots_per_interval"
-                                    class="text-center"
-                                    readonly="not use_timing" />
+                                    readonly="not use_timing"
+                                    class="text-center" />
                                 <label for="slots_per_interval" string="orders per" />
                                 <field
                                     name="interval_time"
-                                    class="text-center"
-                                    readonly="not use_timing" />
+                                    readonly="not use_timing"
+                                    class="text-center" />
                                 <label for="interval_time" string="minutes" />
                             </div>
                         </group>
@@ -74,7 +74,7 @@
                             <field name="identification" />
                             <label for="return" string="Return mode" />
                             <div>
-                                <field id="return" name="is_return" class="oe_inline" />
+                                <field name="is_return" id="return" class="oe_inline" />
                                 <span invisible="not is_return or pricelist_id" class="oe_inline ps-2 text-info">Tip: add a return pricelist (i.e. 0€)</span>
                             </div>
                             <field name="color" widget="color_picker" />
@@ -82,8 +82,8 @@
                     </group>
                     <notebook>
                         <page
-                            string="Schedule"
                             name="resource"
+                            string="Schedule"
                             invisible="not use_timing or not resource_calendar_id">
                             <field name="attendance_ids" widget="section_one2many" />
                         </page>

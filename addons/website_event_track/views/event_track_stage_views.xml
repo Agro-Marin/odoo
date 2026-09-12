@@ -37,24 +37,24 @@
                         <label
                             for="legend_normal"
                             string=" "
-                            class="o_status"
                             title="Task in progress. Click to block or set as done."
+                            class="o_status"
                             aria-label="Task in progress. Click to block or set as done."
                             role="img" />
                         <field name="legend_normal" nolabel="1" />
                         <label
                             for="legend_blocked"
                             string=" "
-                            class="o_status o_status_red"
                             title="Task is blocked. Click to unblock or set as done."
+                            class="o_status o_status_red"
                             aria-label="Task is blocked. Click to unblock or set as done."
                             role="img" />
                         <field name="legend_blocked" nolabel="1" />
                         <label
                             for="legend_done"
                             string=" "
-                            class="o_status o_status_green"
                             title="This step is done. Click to block or set in progress."
+                            class="o_status o_status_green"
                             aria-label="This step is done. Click to block or set in progress."
                             role="img" />
                         <field name="legend_done" nolabel="1" />
@@ -64,8 +64,8 @@
                         <field
                             name="description"
                             placeholder="Add a description..."
-                            nolabel="1"
-                            colspan="2" />
+                            colspan="2"
+                            nolabel="1" />
                     </group>
                 </sheet>
             </form>

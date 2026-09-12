@@ -26,15 +26,15 @@
                     </group>
                     <footer>
                         <button
-                            string="Create Debit Note"
                             name="create_debit"
                             type="object"
+                            string="Create Debit Note"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Cancel"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

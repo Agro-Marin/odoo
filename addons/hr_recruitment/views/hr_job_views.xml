@@ -13,14 +13,14 @@
         <field name="model">hr.job</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
-                class="o_hr_recruitment_kanban"
-                on_create="hr_recruitment.create_job_simple"
-                sample="1"
-                limit="40"
-                action="%(action_hr_job_applications)d"
                 type="action"
-                js_class="recruitment_kanban_view">
+                limit="40"
+                sample="1"
+                class="o_hr_recruitment_kanban"
+                action="%(action_hr_job_applications)d"
+                highlight_color="color"
+                js_class="recruitment_kanban_view"
+                on_create="hr_recruitment.create_job_simple">
                 <field name="active" />
                 <field name="alias_email" />
                 <templates>
@@ -90,7 +90,7 @@
                                                     name="is_user_favorite"
                                                     widget="boolean_favorite"
                                                     nolabel="1" />
-                                                <field class="fs-3" name="name" />
+                                                <field name="name" class="fs-3" />
                                             </div>
                                             <div
                                                 t-if="record.alias_email.value"
@@ -120,8 +120,8 @@
                                                                 widget="many2one_avatar_user"
                                                                 options="{'display_avatar_name': False}" />
                                                             <field
-                                                                class="ms-1"
-                                                                name="company_id" />
+                                                                name="company_id"
+                                                                class="ms-1" />
                                                         </div>
                                                     </t>
                                                     <t t-else="">
@@ -199,15 +199,15 @@
                                                 class="me-2"
                                                 invisible="1">
                                                 <button
-                                                    class="btn btn-primary"
                                                     name="%(action_hr_job_applications)d"
-                                                    type="action">
+                                                    type="action"
+                                                    class="btn btn-primary">
                                                     Job Page
                                                 </button>
                                             </div>
                                             <button
-                                                class="btn btn-secondary"
-                                                type="open">
+                                                type="open"
+                                                class="btn btn-secondary">
                                                 Configure
                                             </button>
                                         </div>
@@ -295,8 +295,8 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='department_id']" position="after">
                 <filter
-                    string="My Favorites"
                     name="my_favorite_jobs"
+                    string="My Favorites"
                     domain="[('favorite_user_ids', 'in', uid)]" />
                 <separator />
             </xpath>
@@ -312,8 +312,8 @@
                 <group>
                     <field
                         name="name"
-                        class="o_job_name oe_inline"
-                        placeholder="e.g. Sales Manager" />
+                        placeholder="e.g. Sales Manager"
+                        class="o_job_name oe_inline" />
                     <label
                         for="alias_name"
                         string="Application email"
@@ -321,32 +321,32 @@
                     <div name="alias_def">
                         <field
                             name="alias_id"
-                            class="oe_read_only"
                             string="Email Alias"
+                            groups="hr_recruitment.group_hr_recruitment_interviewer"
                             required="0"
-                            groups="hr_recruitment.group_hr_recruitment_interviewer" />
+                            class="oe_read_only" />
                         <div class="oe_edit_only" name="edit_alias">
-                            <field name="alias_name" class="oe_inline o_job_alias" placeholder="e.g. sales-manager" />@
+                            <field name="alias_name" placeholder="e.g. sales-manager" class="oe_inline o_job_alias" />@
                             <field
                                 name="alias_domain_id"
-                                class="oe_inline"
                                 placeholder="e.g. mycompany.com"
-                                options="{'no_create': True, 'no_open': True}" />
+                                options="{'no_create': True, 'no_open': True}"
+                                class="oe_inline" />
                         </div>
                         <div class="text-muted">Incoming emails create applications automatically. Use it for direct applications or when posting job offers on LinkedIn, Monster, etc.</div>
                     </div>
                 </group>
                 <footer>
                     <button
-                        string="Create"
                         name="%(action_hr_job_applications)d"
                         type="action"
+                        string="Create"
                         class="btn-primary o_create_job"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -374,8 +374,8 @@
                 <field
                     name="is_user_favorite"
                     widget="boolean_favorite"
-                    class="hr_recruitment_is_favorite_job"
-                    nolabel="1" />
+                    nolabel="1"
+                    class="hr_recruitment_is_favorite_job" />
             </xpath>
             <xpath expr="//form" position="attributes">
                 <attribute name="js_class">recruitment_form_view</attribute>
@@ -420,54 +420,54 @@
                     <span invisible="address_id" class="oe_read_only">Remote</span>
                     <field
                         name="address_id"
-                        context="{'show_address': 1}"
-                        placeholder="Remote" />
+                        placeholder="Remote"
+                        context="{'show_address': 1}" />
                 </div>
             </group>
 
             <xpath expr="//group" position="after">
                 <field
                     name="job_properties"
-                    columns="2"
-                    groups="hr_recruitment.group_hr_recruitment_interviewer" />
+                    groups="hr_recruitment.group_hr_recruitment_interviewer"
+                    columns="2" />
             </xpath>
             <div name="button_box" position="inside">
                 <button
-                    class="oe_stat_button"
-                    groups="hr_recruitment.group_hr_recruitment_interviewer"
-                    icon="fa-pencil"
                     name="%(action_hr_job_applications)d"
+                    type="action"
+                    icon="fa-pencil"
                     context="{'default_user_id': user_id, 'active_test': False}"
-                    type="action">
+                    groups="hr_recruitment.group_hr_recruitment_interviewer"
+                    class="oe_stat_button">
                     <field
                         name="all_application_count"
-                        widget="statinfo"
-                        string="Applications" />
+                        string="Applications"
+                        widget="statinfo" />
                 </button>
                 <button
-                    class="oe_stat_button"
-                    groups="hr_recruitment.group_hr_recruitment_interviewer"
-                    icon="fa-regular fa-file-lines"
                     name="action_view_attachments"
                     type="object"
-                    invisible="documents_count == 0">
+                    icon="fa-regular fa-file-lines"
+                    groups="hr_recruitment.group_hr_recruitment_interviewer"
+                    invisible="documents_count == 0"
+                    class="oe_stat_button">
                     <field
                         name="documents_count"
-                        widget="statinfo"
-                        string="Documents" />
+                        string="Documents"
+                        widget="statinfo" />
                 </button>
                 <button
                     name="action_view_employees"
-                    groups="hr_recruitment.group_hr_recruitment_interviewer"
-                    class="oe_stat_button"
+                    type="object"
                     icon="fa-users"
+                    groups="hr_recruitment.group_hr_recruitment_interviewer"
                     invisible="not employee_count"
-                    type="object">
-                    <field name="employee_count" widget="statinfo" string="Employees" />
+                    class="oe_stat_button">
+                    <field name="employee_count" string="Employees" widget="statinfo" />
                 </button>
             </div>
             <xpath expr="//page[@name='job_description_page']" position="after">
-                <page string="Trackers" name="trackers_page" groups="hr.group_hr_user">
+                <page name="trackers_page" string="Trackers" groups="hr.group_hr_user">
                     <field
                         name="job_source_ids"
                         groups="hr_recruitment.group_hr_recruitment_interviewer" />
@@ -475,8 +475,8 @@
             </xpath>
             <xpath expr="//sheet" position="after">
                 <chatter
-                    open_attachments="True"
-                    groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user" />
+                    groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user"
+                    open_attachments="True" />
             </xpath>
         </field>
     </record>
@@ -514,14 +514,14 @@
                 <searchpanel class="w-auto">
                     <field
                         name="company_id"
-                        groups="base.group_multi_company"
                         icon="fa-building"
+                        groups="base.group_multi_company"
                         enable_counters="1" />
                     <field name="department_id" icon="fa-users" enable_counters="1" />
                 </searchpanel>
                 <filter
-                    string="My Job Positions"
                     name="my_positions"
+                    string="My Job Positions"
                     domain="[('user_id', '=', uid)]" />
             </xpath>
         </field>
@@ -551,15 +551,15 @@
                 <field name="message_needaction" column_invisible="True" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field name="company_id" column_invisible="True" />
                 <field name="alias_name" column_invisible="True" />
                 <field
                     name="alias_id"
-                    invisible="not alias_name"
                     optional="hide"
-                    groups="hr_recruitment.group_hr_recruitment_interviewer" />
+                    groups="hr_recruitment.group_hr_recruitment_interviewer"
+                    invisible="not alias_name" />
                 <field
                     name="user_id"
                     widget="many2one_avatar_user"

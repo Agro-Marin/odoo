@@ -4,7 +4,7 @@
         <field name="name">stock.picking.batch.pivot</field>
         <field name="model">stock.picking.batch</field>
         <field name="arch" type="xml">
-            <pivot string="Batch Transfer" class="oe_stock_picking_batch" sample="1">
+            <pivot string="Batch Transfer" sample="1" class="oe_stock_picking_batch">
                 <field name="date_planned" type="row" />
                 <field name="vehicle_id" type="col" />
             </pivot>
@@ -15,7 +15,7 @@
         <field name="name">stock.picking.batch.graph</field>
         <field name="model">stock.picking.batch</field>
         <field name="arch" type="xml">
-            <graph string="Graph View" class="oe_stock_picking_batch" sample="1">
+            <graph string="Graph View" sample="1" class="oe_stock_picking_batch">
                 <field name="date_planned" type="row" interval="day" />
                 <field name="vehicle_category_id" type="row" />
             </graph>
@@ -31,9 +31,9 @@
                 <group invisible="not has_dispatch_management">
                     <field
                         name="dock_id"
-                        invisible="not allowed_dock_ids"
+                        options="{'no_create': True, 'no_open': True}"
                         groups="stock.group_stock_multi_locations"
-                        options="{'no_create': True, 'no_open': True}" />
+                        invisible="not allowed_dock_ids" />
                     <field name="vehicle_id" placeholder="Third Party Provider" />
                     <field name="vehicle_category_id" placeholder="semi-truck" />
                     <label
@@ -130,20 +130,20 @@
                     string="Own Fleet"
                     domain="[('vehicle_id', '!=', False)]" />
                 <filter
-                    name="vehicle_id"
+                    name="third_party_carrier"
                     string="Third Party Carrier"
                     domain="[('vehicle_id', '=', False), ('vehicle_category_id', '!=', False)]" />
             </xpath>
             <xpath expr="//filter[@name='my_transfers']" position="after">
                 <filter
                     name="date_planned"
-                    date="date_planned"
-                    string="Scheduled Date" />
+                    string="Scheduled Date"
+                    date="date_planned" />
                 <filter
-                    string="Today"
                     name="filter_today"
+                    string="Today"
                     domain="[('date_planned', '&gt;=', 'today'), ('date_planned', '&lt;', 'today +1d')]" />
-                <filter string="Tomorrow" name="filter_tomorrow" domain="[('date_planned','&gt;=', 'today +1d')]" />                <filter string="Next 7 Days" name="filter_next_7_days" domain="[('date_planned','&gt;=', 'today +7d')]" />            </xpath>
+                <filter name="filter_tomorrow" string="Tomorrow" domain="[('date_planned','&gt;=', 'today +1d')]" />                <filter name="filter_next_7_days" string="Next 7 Days" domain="[('date_planned','&gt;=', 'today +7d')]" />            </xpath>
         </field>
     </record>
 

@@ -15,7 +15,7 @@
         <field name="name">stock.reference.list</field>
         <field name="model">stock.reference</field>
         <field name="arch" type="xml">
-            <list string="References" create="false" delete="false" edit="false">
+            <list string="References" create="false" edit="false" delete="false">
                 <field name="name" decoration-bf="1" />
             </list>
         </field>
@@ -29,7 +29,7 @@
                 <sheet>
                     <div class="oe_title">
                         <h1>
-                            <field name="name" nolabel="1" />
+                            <field name="name" />
                         </h1>
                     </div>
                     <group>

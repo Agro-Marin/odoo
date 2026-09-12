@@ -9,7 +9,7 @@
                 <field name="lead_tomerge_ids" invisible="1" />
                 <separator string="Conversion Options" />
                 <group>
-                    <field name="name" class="oe_inline" widget="radio" />
+                    <field name="name" widget="radio" class="oe_inline" />
                     <field name="deduplicate" class="oe_inline" />
                 </group>
                 <group string="Assign these opportunities to">
@@ -36,8 +36,8 @@
                             <field name="contact_name" optional="show" />
                             <field
                                 name="country_id"
-                                column_invisible="context.get('invisible_country', True)"
-                                options="{'no_open': True, 'no_create': True}" />
+                                options="{'no_open': True, 'no_create': True}"
+                                column_invisible="context.get('invisible_country', True)" />
                             <field name="email_from" optional="show" />
                             <field name="stage_id" />
                             <field name="user_id" widget="many2one_avatar_user" />
@@ -45,29 +45,29 @@
                         </list>
                     </field>
                 </group>
-                <group invisible="name != 'convert'" string="Customers" col="1">
-                    <field name="action" class="oe_inline" widget="radio" />
+                <group string="Customers" col="1" invisible="name != 'convert'">
+                    <field name="action" widget="radio" class="oe_inline" />
                     <group col="2">
                         <field
                             name="partner_id"
                             widget="res_partner_many2one"
+                            context="{'show_vat': True}"
                             invisible="action != 'exist'"
                             required="action == 'exist'"
-                            context="{'show_vat': True}"
                             class="oe_inline" />
                     </group>
                 </group>
                 <footer>
                     <button
-                        string="Convert to Opportunities"
                         name="action_mass_convert"
                         type="object"
+                        string="Convert to Opportunities"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

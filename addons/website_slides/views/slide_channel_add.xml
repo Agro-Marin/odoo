@@ -14,14 +14,14 @@
                     <field name="website_url" invisible="1" />
                     <field
                         name="tag_ids"
+                        placeholder="Tags"
                         widget="many2many_tags"
-                        options="{'color_field': 'color'}"
-                        placeholder="Tags" />
+                        options="{'color_field': 'color'}" />
                     <field
                         name="channel_type"
+                        string="Choose a layout"
                         widget="image_radio"
-                        options="{'images': ['/website_slides/static/src/img/channel-training-layout.png', '/website_slides/static/src/img/channel-documentation-layout.png']}"
-                        string="Choose a layout" />
+                        options="{'images': ['/website_slides/static/src/img/channel-training-layout.png', '/website_slides/static/src/img/channel-documentation-layout.png']}" />
                     <field
                         name="description"
                         placeholder="Common tasks for a computer scientist is asking the right questions and answering questions..."

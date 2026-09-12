@@ -12,8 +12,8 @@
                     class="content-group row"
                     invisible="not pos_self_ordering_mode == 'mobile'">
                     <label
-                        string="Online Payment"
                         for="pos_self_order_online_payment_method_id"
+                        string="Online Payment"
                         class="col-lg-4" />
                     <field
                         name="pos_self_order_online_payment_method_id"
@@ -24,9 +24,9 @@
                     invisible="not pos_self_ordering_mode == 'mobile' and not pos_self_ordering_pay_after == 'each'">
                     <button
                         name="%(point_of_sale.action_payment_methods_tree)d"
-                        icon="oi-arrow-right"
                         type="action"
                         string="Payment Methods"
+                        icon="oi-arrow-right"
                         class="btn-link" />
                 </div>
             </xpath>

@@ -14,10 +14,10 @@
                     <button
                         name="action_view_sale_order"
                         type="object"
-                        class="oe_stat_button"
                         icon="fa-usd"
                         groups="sales_team.group_sale_salesman"
-                        invisible="not sale_order_id">
+                        invisible="not sale_order_id"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Sale Order</span>
                         </div>
@@ -51,7 +51,7 @@
                 </group>
                 <xpath expr="//sheet" position="inside">
                     <notebook groups="base.group_no_one">
-                        <page string="Registrations" name="page_registrations">
+                        <page name="page_registrations" string="Registrations">
                             <field name="event_booth_registration_ids" readonly="1" />
                         </page>
                     </notebook>
@@ -70,8 +70,8 @@
                     <field
                         name="price"
                         widget="monetary"
-                        options="{'currency_field': 'currency_id'}"
-                        sum="Total" />
+                        sum="Total"
+                        options="{'currency_field': 'currency_id'}" />
                 </field>
             </field>
         </record>

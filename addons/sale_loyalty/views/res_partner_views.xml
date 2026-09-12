@@ -9,8 +9,8 @@
             <button name="action_view_loyalty_cards" position="attributes">
                 <attribute
                     name="groups"
-                    separator=","
-                    add="sales_team.group_sale_salesman" />
+                    add="sales_team.group_sale_salesman"
+                    separator="," />
             </button>
         </field>
     </record>

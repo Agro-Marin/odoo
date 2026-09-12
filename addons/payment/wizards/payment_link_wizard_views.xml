@@ -37,14 +37,14 @@
                     <field
                         name="link"
                         string="Generate and Copy Payment Link"
-                        readonly="1"
-                        disabled="bool(warning_message)"
                         widget="PaymentWizardCopyClipboardButtonField"
-                        data-hotkey="q" />
+                        readonly="1"
+                        data-hotkey="q"
+                        disabled="bool(warning_message)" />
                     <button
+                        special="cancel"
                         string="Close"
                         class="btn btn-secondary rounded-2"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

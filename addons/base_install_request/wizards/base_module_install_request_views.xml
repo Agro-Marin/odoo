@@ -9,15 +9,15 @@
                 <header>
                     <button
                         name="action_open_install_review"
-                        string="Install App"
                         type="object"
-                        class="btn-primary"
+                        string="Install App"
                         groups="base.group_system"
-                        invisible="approval_state != 'approved'" />
+                        invisible="approval_state != 'approved'"
+                        class="btn-primary" />
                     <button
                         name="action_view_approval_request"
-                        string="Approval Request"
                         type="object"
+                        string="Approval Request"
                         invisible="not approval_request_id" />
                     <field name="approval_state" widget="statusbar" />
                 </header>
@@ -36,7 +36,7 @@
                         </group>
                     </group>
                     <group string="Why is this module needed?">
-                        <field colspan="2" name="body_html" nolabel="1" readonly="1" />
+                        <field name="body_html" colspan="2" nolabel="1" readonly="1" />
                     </group>
                 </sheet>
                 <chatter />
@@ -53,30 +53,30 @@
                 <field name="module_id" invisible="1" />
                 <group string="Send to:">
                     <field
-                        colspan="2"
                         name="user_ids"
                         widget="many2many_tags"
+                        colspan="2"
                         nolabel="1" />
                 </group>
                 <group string="Why do you need this module?">
                     <field
-                        colspan="2"
                         name="body_html"
+                        placeholder="e.g. I'd like to use the SMS Marketing module to organize the promotion of our internal events, and exhibitions. I need access for 3 people of my team."
                         widget="html"
-                        nolabel="1"
-                        placeholder="e.g. I'd like to use the SMS Marketing module to organize the promotion of our internal events, and exhibitions. I need access for 3 people of my team." />
+                        colspan="2"
+                        nolabel="1" />
                 </group>
                 <footer>
                     <button
+                        name="action_send_request"
+                        type="object"
                         string="Request Activation"
                         class="btn-primary"
-                        type="object"
-                        name="action_send_request"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -93,15 +93,15 @@
                 <field name="modules_description" />
                 <footer>
                     <button
+                        name="action_install_module"
+                        type="object"
                         string="Install App"
                         class="btn-primary"
-                        type="object"
-                        name="action_install_module"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

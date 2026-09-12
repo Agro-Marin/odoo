@@ -10,46 +10,46 @@
                     <header>
                         <button
                             name="action_channel_enroll"
-                            string="Add Attendees"
                             type="object"
+                            string="Add Attendees"
                             class="oe_highlight" />
                         <button
                             name="action_channel_invite"
-                            string="Invite"
                             type="object"
+                            string="Invite"
                             class="oe_highlight btn btn-secondary" />
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button
                                 icon="fa-eye"
-                                class="oe_stat_button"
                                 groups="website_slides.group_website_slides_officer"
-                                invisible="total_views == 0">
+                                invisible="total_views == 0"
+                                class="oe_stat_button">
                                 <field
                                     name="total_views"
-                                    widget="statinfo"
-                                    string="Visits" />
+                                    string="Visits"
+                                    widget="statinfo" />
                             </button>
                             <button
                                 name="action_view_slides"
                                 type="object"
                                 icon="fa-regular fa-copy"
-                                class="oe_stat_button"
-                                groups="website_slides.group_website_slides_officer">
+                                groups="website_slides.group_website_slides_officer"
+                                class="oe_stat_button">
                                 <field
                                     name="total_slides"
-                                    widget="statinfo"
-                                    string="Published Contents" />
+                                    string="Published Contents"
+                                    widget="statinfo" />
                             </button>
                             <button
                                 name="action_redirect_to_completed_members"
                                 type="object"
                                 icon="fa-flag-checkered"
-                                class="oe_stat_button"
-                                groups="website_slides.group_website_slides_officer">
+                                groups="website_slides.group_website_slides_officer"
+                                class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
-                                    <span class="o_stat_value"><field name="members_completed_count" nolabel="1" /></span>
+                                    <span class="o_stat_value"><field name="members_completed_count" /></span>
                                     <span name="members_completed_count_label" class="o_stat_text">Finished</span>
                                 </div>
                             </button>
@@ -57,11 +57,11 @@
                                 name="action_redirect_to_members"
                                 type="object"
                                 icon="fa-graduation-cap"
-                                class="oe_stat_button"
-                                groups="website_slides.group_website_slides_officer">
+                                groups="website_slides.group_website_slides_officer"
+                                class="oe_stat_button">
                                 <div class="o_stat_info">
                                     <span class="o_stat_value">
-                                        <field name="members_all_count" nolabel="1" />
+                                        <field name="members_all_count" />
                                     </span>
                                     <span class="o_stat_text">Attendees</span>
                                 </div>
@@ -70,12 +70,12 @@
                                     name="action_view_ratings"
                                     type="object"
                                     icon="fa-regular fa-star-half-stroke"
-                                    class="oe_stat_button"
                                     groups="website_slides.group_website_slides_officer"
-                                    invisible="not allow_comment">
+                                    invisible="not allow_comment"
+                                    class="oe_stat_button">
                                     <div class="o_field_widget o_stat_info">
-                                        <span class="o_stat_value"><field name="rating_avg_stars" nolabel="1" />/5</span>
-                                        <span name="rating_count_label" class="o_stat_text"><field name="rating_count" nolabel="1" /> Reviews</span>
+                                        <span class="o_stat_value"><field name="rating_avg_stars" />/5</span>
+                                        <span name="rating_count_label" class="o_stat_text"><field name="rating_count" /> Reviews</span>
                                     </div>
                             </button>
                             <field
@@ -85,36 +85,35 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field
                             name="image_1920"
                             widget="image"
-                            class="oe_avatar"
-                            options="{'preview_image': 'image_128'}" />
+                            options="{'preview_image': 'image_128'}"
+                            class="oe_avatar" />
                         <div class="oe_title">
                             <label for="name" string="Course Title" />
-                            <h1><field name="name" options="{'line_breaks': False}" widget="text" default_focus="1" placeholder="e.g. &quot;Computer Science for kids&quot;" /></h1>
+                            <h1><field name="name" placeholder="e.g. &quot;Computer Science for kids&quot;" widget="text" default_focus="1" options="{'line_breaks': False}" /></h1>
                         </div>
                         <div>
                             <field name="active" invisible="1" />
                             <field
                                 name="tag_ids"
+                                placeholder="Tags"
                                 widget="many2many_tags"
-                                options="{'color_field': 'color'}"
-                                placeholder="Tags" />
+                                options="{'color_field': 'color'}" />
                         </div>
                         <notebook colspan="4">
                             <page name="content" string="Content">
                                 <field
                                     name="slide_ids"
                                     string="Content"
-                                    colspan="4"
-                                    nolabel="1"
                                     widget="slide_category_one2many"
                                     mode="list,kanban"
+                                    colspan="4"
                                     context="{'default_channel_id': id, 'form_view_ref' : 'website_slides.view_slide_slide_form_wo_channel_id'}">
-                                    <list decoration-bf="is_category" editable="bottom">
+                                    <list editable="bottom" decoration-bf="is_category">
                                         <field name="sequence" widget="handle" />
                                         <field name="name" />
                                         <field
@@ -122,9 +121,9 @@
                                             invisible="slide_category == 'category'" />
                                         <field
                                             name="completion_time"
-                                            invisible="slide_category == 'category'"
                                             string="Duration"
-                                            widget="float_time" />
+                                            widget="float_time"
+                                            invisible="slide_category == 'category'" />
                                         <field
                                             name="total_views"
                                             invisible="slide_category == 'category'" />
@@ -148,17 +147,16 @@
                             <page name="description" string="Description">
                                 <field
                                     name="description"
-                                    widget="html"
-                                    nolabel="1"
-                                    placeholder="Common tasks for a computer scientist is asking the right questions and answering questions. In this course, you'll study those topics with activities about mathematics, science and logic." />
+                                    placeholder="Common tasks for a computer scientist is asking the right questions and answering questions. In this course, you'll study those topics with activities about mathematics, science and logic."
+                                    widget="html" />
                             </page>
                             <page name="options" string="Options">
                                 <group>
                                     <group name="course" string="Course">
                                         <field
                                             name="user_id"
-                                            domain="[('share', '=', False)]"
-                                            widget="many2one_avatar_user" />
+                                            widget="many2one_avatar_user"
+                                            domain="[('share', '=', False)]" />
                                         <field
                                             name="website_id"
                                             options="{'no_create': True}"
@@ -172,8 +170,8 @@
                                         <field
                                             name="prerequisite_of_channel_ids"
                                             widget="many2many_tags"
-                                            readonly="1"
-                                            invisible="not prerequisite_of_channel_ids" />
+                                            invisible="not prerequisite_of_channel_ids"
+                                            readonly="1" />
                                         <field
                                             name="visibility"
                                             widget="radio"
@@ -181,8 +179,8 @@
                                         <field
                                             name="website_absolute_url"
                                             widget="CopyClipboardChar"
-                                            nolabel="1"
                                             colspan="2"
+                                            nolabel="1"
                                             invisible="visibility != 'link'" />
                                         <field
                                             name="enroll"
@@ -205,8 +203,8 @@
                                 <group>
                                     <group name="communication" string="Communication">
                                         <field
-                                            string="Allow Reviews"
-                                            name="allow_comment" />
+                                            name="allow_comment"
+                                            string="Allow Reviews" />
                                         <field
                                             name="share_slide_template_id"
                                             domain="[('model','=','slide.slide')]"
@@ -224,8 +222,8 @@
                                     </group>
                                     <group name="display" string="Display">
                                         <field
-                                            string="Type"
                                             name="channel_type"
+                                            string="Type"
                                             widget="radio"
                                             options="{'horizontal': true}" />
                                         <field
@@ -234,14 +232,14 @@
                                             invisible="channel_type == 'training'" />
                                         <field
                                             name="promoted_slide_id"
-                                            invisible="channel_type == 'training' or promote_strategy != 'specific'"
-                                            required="channel_type != 'training' and promote_strategy == 'specific'"
                                             string="Content"
-                                            domain="[('channel_id', '=', id), ('is_category', '=', False)]" />
+                                            domain="[('channel_id', '=', id), ('is_category', '=', False)]"
+                                            invisible="channel_type == 'training' or promote_strategy != 'specific'"
+                                            required="channel_type != 'training' and promote_strategy == 'specific'" />
                                     </group>
                                 </group>
                             </page>
-                            <page string="Karma" name="karma_rules">
+                            <page name="karma_rules" string="Karma">
                                 <group>
                                     <group string="Rewards">
                                         <field
@@ -276,7 +274,7 @@
             <field name="name">slide.channel.view.list</field>
             <field name="model">slide.channel</field>
             <field name="arch" type="xml">
-                <list string="Courses" sample="1" multi_edit="1">
+                <list string="Courses" multi_edit="1" sample="1">
                     <field name="sequence" widget="handle" />
                     <field name="name" readonly="1" />
                     <field name="user_id" widget="many2one_avatar_user" />
@@ -286,10 +284,10 @@
                     <field
                         name="enroll"
                         widget="badge"
-                        decoration-success="enroll == 'public'"
+                        optional="hide"
                         decoration-info="enroll == 'invite'"
-                        decoration-warning="enroll == 'payment'"
-                        optional="hide" />
+                        decoration-success="enroll == 'public'"
+                        decoration-warning="enroll == 'payment'" />
                     <field name="is_published" string="Published" />
                     <field name="active" column_invisible="True" />
                 </list>
@@ -302,8 +300,8 @@
             <field name="arch" type="xml">
                 <list
                     string="Courses"
-                    create="false"
                     default_order="total_views desc"
+                    create="false"
                     sample="1">
                     <field name="name" />
                     <field name="user_id" widget="many2one_avatar_user" />
@@ -335,13 +333,13 @@
                     <field name="tag_ids" string="Tags" />
                     <field name="slide_ids" string="Contents" />
                     <filter
-                        string="Published"
                         name="filter_published"
+                        string="Published"
                         domain="[('is_published', '=', True)]" />
                     <separator />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                 </search>
             </field>
@@ -367,8 +365,8 @@
             <field name="model">slide.channel</field>
             <field name="arch" type="xml">
                 <pivot string="Pivot" default_order="create_date desc" sample="1">
-                    <field type="row" name="name" />
-                    <field type="measure" name="total_views" />
+                    <field name="name" type="row" />
+                    <field name="total_views" type="measure" />
                     <field name="karma_slide_comment" invisible="1" />
                     <field name="karma_review" invisible="1" />
                     <field name="color" invisible="1" />
@@ -383,11 +381,11 @@
             <field name="model">slide.channel</field>
             <field name="arch" type="xml">
                 <kanban
-                    highlight_color="color"
                     string="eLearning Overview"
-                    class="o_slide_kanban o_slide_channel_kanban"
                     edit="false"
-                    sample="1">
+                    sample="1"
+                    class="o_slide_kanban o_slide_channel_kanban"
+                    highlight_color="color">
                     <field name="website_published" />
                     <templates>
                         <t t-name="menu">
@@ -407,41 +405,41 @@
                             <widget
                                 name="web_ribbon"
                                 title="Archived"
-                                bg_color="text-bg-danger"
-                                invisible="active" />
+                                invisible="active"
+                                bg_color="text-bg-danger" />
                             <widget
                                 name="web_ribbon"
                                 title="Published"
-                                bg_color="text-bg-success"
-                                invisible="not website_published or not active" />
+                                invisible="not website_published or not active"
+                                bg_color="text-bg-success" />
                             <field name="name" class="fw-bold fs-4 me-auto ms-1" />
                             <field
-                                t-if="record.tag_ids"
                                 name="tag_ids"
                                 widget="many2many_tags"
                                 options="{'color_field': 'color'}"
-                                class="mb-4 w-75 ms-1" />
+                                class="mb-4 w-75 ms-1"
+                                t-if="record.tag_ids" />
                             <div class="row g-0 mb16 mt-1 ms-2 me-2">
                                 <div name="card_primary_left" class="col-6">
-                                    <button class="btn btn-primary" name="open_website_url" type="object">View course</button>
+                                    <button name="open_website_url" type="object" class="btn btn-primary">View course</button>
                                 </div>
                                 <div class="col-6">
                                     <div class="d-flex">
                                         <label for="total_views" class="mb0 me-auto">Views</label>
-                                        <field class="text-nowrap" name="total_views" />
+                                        <field name="total_views" class="text-nowrap" />
                                     </div>
                                     <div class="d-flex" name="info_total_slides">
                                         <label for="total_slides" class="mb0 me-auto">Contents</label>
                                         <field
-                                            class="text-nowrap"
-                                            name="total_slides" />
+                                            name="total_slides"
+                                            class="text-nowrap" />
                                     </div>
                                     <div class="d-flex" name="info_total_time">
                                         <label for="total_time" class="mb0 me-auto">Duration</label>
                                         <field
-                                            class="text-nowrap"
                                             name="total_time"
-                                            widget="float_time" />
+                                            widget="float_time"
+                                            class="text-nowrap" />
                                     </div>
                                     <div
                                         class="d-flex"

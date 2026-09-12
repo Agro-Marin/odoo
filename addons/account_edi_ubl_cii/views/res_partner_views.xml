@@ -12,8 +12,8 @@
                 <field
                     name="peppol_eas"
                     placeholder="Peppol ID"
-                    nolabel="1"
                     widget="filterable_selection"
+                    nolabel="1"
                     options="{'whitelist_field': 'available_peppol_eas'}"
                     class="o_field_peppol_eas_selection" />
                 <field name="peppol_endpoint" nolabel="1" />

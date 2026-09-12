@@ -10,51 +10,51 @@
                 <field name="model_id" />
                 <field name="groups" />
                 <filter
-                    string="Global"
                     name="global"
+                    string="Global"
                     domain="[('global', '=', True)]" />
                 <filter
-                    string="Group-based"
                     name="group_based"
+                    string="Group-based"
                     domain="[('global', '=', False)]" />
                 <filter
-                    string="Restricting"
                     name="restricting"
+                    string="Restricting"
                     domain="[('composition', '=', 'restrict')]" />
                 <separator />
                 <filter
-                    string="Full Access"
                     name="full_access_right"
+                    string="Full Access"
                     domain="[('perm_read', '=', True), ('perm_write', '=', True), ('perm_create', '=', True), ('perm_unlink', '=', True)]" />
                 <filter
-                    string="Read"
                     name="read_access_right"
+                    string="Read"
                     domain="[('perm_read', '=', True)]" />
                 <filter
-                    string="Write"
                     name="write_access_right"
+                    string="Write"
                     domain="[('perm_write', '=', True)]" />
                 <filter
-                    string="Create"
                     name="create_access_right"
+                    string="Create"
                     domain="[('perm_create', '=' ,True)]" />
                 <filter
-                    string="Delete"
                     name="delete_access_right"
+                    string="Delete"
                     domain="[('perm_unlink', '=', True)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Model"
                         name="group_by_object"
+                        string="Model"
                         context="{'group_by': 'model_id'}" />
                     <filter
-                        string="Group"
                         name="group_by_group"
+                        string="Group"
                         context="{'group_by': 'groups'}" />
                 </group>
             </search>
@@ -105,10 +105,10 @@
                         </group>
                     </group>
                     <separator string="Rule Definition (Domain Filter)" />
-                    <field name="domain_force" colspan="2" nolabel="1" />
+                    <field name="domain_force" colspan="2" />
                     <group string="Groups (no group = global)">
                         <field name="global" />
-                        <field name="groups" nolabel="1" colspan="2" />
+                        <field name="groups" colspan="2" nolabel="1" />
                     </group>
                     <i
                         class="fa-solid fa-info fa-3x text-info float-start"

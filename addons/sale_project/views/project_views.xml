@@ -10,9 +10,9 @@
             <xpath expr="//div[hasclass('o_settings_container')]" position="inside">
                 <field name="company_id" invisible="1" />
                 <setting
-                    class="col-lg-12"
                     help="Invoice your time and material to customers"
-                    invisible="context.get('hide_allow_billable', False)">
+                    invisible="context.get('hide_allow_billable', False)"
+                    class="col-lg-12">
                     <field name="allow_billable" />
                     <div
                         invisible="not allow_billable"
@@ -20,11 +20,11 @@
                         <label for="partner_id" />
                         <field
                             name="partner_id"
-                            class="ms-1"
+                            placeholder="Select who to bill..."
                             widget="res_partner_many2one"
                             context="{'res_partner_search_mode': 'customer'}"
                             options="{'no_create_edit': True, 'no_open': True}"
-                            placeholder="Select who to bill..." />
+                            class="ms-1" />
                     </div>
                 </setting>
             </xpath>

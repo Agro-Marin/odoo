@@ -8,8 +8,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -24,8 +24,8 @@
                 <field name="allow_overlap" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
                 <field name="active" widget="boolean_toggle" />
             </list>
         </field>
@@ -44,8 +44,8 @@
                                 <field name="allow_overlap" />
                                 <field
                                     name="company_id"
-                                    groups="base.group_multi_company"
-                                    options="{'no_create': True}" />
+                                    options="{'no_create': True}"
+                                    groups="base.group_multi_company" />
                                 <field name="active" invisible="1" />
                             </group>
                         </group>
@@ -58,11 +58,11 @@
                                 <label for="duration_count" />
                                 <div>
                                     <field name="duration_count" class="oe_inline" />
-                                    <field class="oe_inline" name="unit_of_time" />
+                                    <field name="unit_of_time" class="oe_inline" />
                                 </div>
                                 <label for="name_prefix" />
                                 <div>
-                                    <field name="name_prefix" class="oe_inline" required="unit_of_time and not name_expr" /> or enter a complex
+                                    <field name="name_prefix" required="unit_of_time and not name_expr" class="oe_inline" /> or enter a complex
                                     expression below </div>
                                 <field
                                     name="name_expr"
@@ -79,7 +79,7 @@
                                     <field
                                         name="autogeneration_count"
                                         class="oe_inline" />
-                                    <field class="oe_inline" name="autogeneration_unit" /> in advance </div>
+                                    <field name="autogeneration_unit" class="oe_inline" /> in advance </div>
                             </group>
                         </group>
                     </page>

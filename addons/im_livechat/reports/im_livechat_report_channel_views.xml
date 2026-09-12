@@ -7,10 +7,10 @@
             <field name="model">im_livechat.report.channel</field>
             <field name="arch" type="xml">
                 <pivot
-                    js_class="im_livechat.report_channel_pivot"
                     string="Livechat Support Statistics"
                     sample="1"
-                    display_quantity="1">
+                    display_quantity="1"
+                    js_class="im_livechat.report_channel_pivot">
                     <field name="has_call" type="measure" invisible="1" />
                     <field
                         name="call_duration_hour"
@@ -24,20 +24,20 @@
                         widget="percentage" />
                     <field
                         name="time_to_answer"
-                        string="Response Time (hh:mm:ss)"
                         type="measure"
+                        string="Response Time (hh:mm:ss)"
                         widget="float_time"
                         options="{'display_seconds': True}" />
                     <field name="duration" type="measure" />
                     <field
                         name="rating"
-                        string="Rating (%)"
                         type="measure"
+                        string="Rating (%)"
                         widget="im_livechat.rating_percentage" />
                     <field
                         name="number_of_calls"
-                        string="# of calls"
                         type="measure"
+                        string="# of calls"
                         widget="integer" />
                 </pivot>
             </field>
@@ -82,11 +82,11 @@
             <field name="model">im_livechat.report.channel</field>
             <field name="arch" type="xml">
                 <graph
-                    js_class="im_livechat.channel_report_graph_views"
-                    string="Livechat Support Statistics"
                     type="line"
-                    stacked="1"
-                    sample="1">
+                    string="Livechat Support Statistics"
+                    sample="1"
+                    js_class="im_livechat.channel_report_graph_views"
+                    stacked="1">
                     <field
                         name="call_duration_hour"
                         type="measure"
@@ -100,8 +100,8 @@
                     <field name="rating_text" />
                     <field
                         name="rating"
-                        string="Rating (%)"
                         type="measure"
+                        string="Rating (%)"
                         widget="im_livechat.rating_percentage" />
                 </graph>
             </field>
@@ -123,8 +123,8 @@
                     <field name="visitor_partner_id" />
                     <filter
                         name="my_session"
-                        domain="[('partner_id.user_ids', '=', uid)]"
-                        string="My Sessions" />
+                        string="My Sessions"
+                        domain="[('partner_id.user_ids', '=', uid)]" />
                     <separator />
                     <filter
                         name="escalated"
@@ -155,14 +155,14 @@
                     <filter name="filter_start_date" string="Date" date="start_date" />
                     <filter
                         name="filter_date_last_month"
-                        invisible="1"
                         string="Date: Last month"
-                        domain="[('start_date', '&gt;=', 'today -1m')]" />
+                        domain="[('start_date', '&gt;=', 'today -1m')]"
+                        invisible="1" />
                     <filter
                         name="filter_date_last_week"
-                        invisible="1"
                         string="Date: Last week"
-                        domain="[('start_date', '&gt;=', 'today -1w')]" />
+                        domain="[('start_date', '&gt;=', 'today -1w')]"
+                        invisible="1" />
                     <group>
                         <filter
                             name="group_by_channel"

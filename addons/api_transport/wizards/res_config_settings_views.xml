@@ -8,9 +8,9 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="API Transport"
+                    name="api_transport"
                     string="API Transport"
-                    name="api_transport">
+                    data-string="API Transport">
                     <block title="API Transport Configuration">
                         <setting
                             string="Log Retention Period"

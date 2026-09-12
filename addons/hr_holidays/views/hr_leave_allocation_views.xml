@@ -15,98 +15,98 @@
                 <field name="activity_user_id" string="Activities of" />
                 <field name="activity_type_id" string="Activity type" />
                 <filter
-                    domain="[                         ('state','in',['confirm']),                         '|',                         ('employee_id.user_id', '!=', uid),                         '&amp;',                         ('employee_id.user_id', '=', uid),                         ('employee_id.leave_manager_id', '=', uid)]"
-                    string="Waiting For Me"
                     name="waiting_for_me"
+                    string="Waiting For Me"
+                    domain="[                         ('state','in',['confirm']),                         '|',                         ('employee_id.user_id', '!=', uid),                         '&amp;',                         ('employee_id.user_id', '=', uid),                         ('employee_id.leave_manager_id', '=', uid)]"
                     groups="hr_holidays.group_hr_holidays_responsible,!hr_holidays.group_hr_holidays_user" />
                 <filter
-                    domain="[                         ('state','in',['confirm','validate1']),                         '|',                             ('employee_id.user_id', '!=', uid),                             '|',                                 '&amp;',                                     ('state','=','confirm'),                                     ('holiday_status_id.leave_validation_type','=','hr'),                                 ('state','=','validate1')]"
-                    string="Waiting For Me"
                     name="waiting_for_me_manager"
+                    string="Waiting For Me"
+                    domain="[                         ('state','in',['confirm','validate1']),                         '|',                             ('employee_id.user_id', '!=', uid),                             '|',                                 '&amp;',                                     ('state','=','confirm'),                                     ('holiday_status_id.leave_validation_type','=','hr'),                                 ('state','=','validate1')]"
                     groups="hr_holidays.group_hr_holidays_user" />
                 <separator />
                 <filter
-                    domain="[('state','in',('confirm','validate1'))]"
+                    name="approve"
                     string="First Approval"
-                    name="approve" />
+                    domain="[('state','in',('confirm','validate1'))]" />
                 <filter
-                    domain="[('state', '=', 'validate1')]"
+                    name="second_approval"
                     string="Second Approval"
-                    name="second_approval" />
+                    domain="[('state', '=', 'validate1')]" />
                 <filter
+                    name="validated"
                     string="Approved"
-                    domain="[('state', '=', 'validate')]"
-                    name="validated" />
+                    domain="[('state', '=', 'validate')]" />
                 <filter
+                    name="refused_allocations"
                     string="Refused"
-                    domain="[('state', '=', 'refuse')]"
-                    name="refused_allocations" />
+                    domain="[('state', '=', 'refuse')]" />
                 <separator />
                 <filter
                     name="year"
                     string="Currently Valid"
-                    domain="[                         ('date_from', '&lt;=', 'today'),                         '|',                         ('date_to', '=', False),                         ('date_to', '&gt;=', 'today'),                     ]"
-                    help="Active Allocations" />
+                    help="Active Allocations"
+                    domain="[                         ('date_from', '&lt;=', 'today'),                         '|',                         ('date_to', '=', False),                         ('date_to', '&gt;=', 'today'),                     ]" />
                 <separator />
                 <filter
-                    string="Unread Messages"
                     name="message_needaction"
+                    string="Unread Messages"
                     domain="[('message_needaction','=',True)]"
                     groups="mail.group_mail_notification_type_inbox" />
                 <separator />
                 <filter
-                    string="My Team"
                     name="my_team"
-                    domain="['|', ('employee_id.leave_manager_id', '=', uid), ('employee_id.user_id', '=', uid)]"
-                    help="Time off of people you are manager of" />
+                    string="My Team"
+                    help="Time off of people you are manager of"
+                    domain="['|', ('employee_id.leave_manager_id', '=', uid), ('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Department"
                     name="my_team_leaves"
+                    string="My Department"
+                    help="Time Off of Your Team Member"
                     domain="[('employee_id.parent_id.user_id', '=', uid)]"
-                    groups="hr_holidays.group_hr_holidays_manager"
-                    help="Time Off of Your Team Member" />
+                    groups="hr_holidays.group_hr_holidays_manager" />
                 <separator />
                 <filter
-                    string="My Allocations"
                     name="my_leaves"
+                    string="My Allocations"
                     domain="[('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="Validity Start"
                     name="validity_start"
+                    string="Validity Start"
                     date="date_from"
-                    start_month="0"
                     end_month="2"
-                    start_year="-1"
-                    end_year="1" />
+                    end_year="1"
+                    start_month="0"
+                    start_year="-1" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')                         ]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')                         ]"
+                    invisible="1" />
                 <separator />
                 <filter
                     name="approved_state"
                     string="To Approve or Approved Allocations"
-                    invisible="1"
-                    domain="[('state', 'in', ('confirm', 'validate'))]" />
+                    domain="[('state', 'in', ('confirm', 'validate'))]"
+                    invisible="1" />
                 <separator />
                 <group>
                     <filter
@@ -146,37 +146,37 @@
                 <field name="carried_over_days_expiration_date" invisible="1" />
                 <header>
                     <button
+                        name="action_approve"
+                        type="object"
                         string="Approve"
-                        name="action_approve"
-                        type="object"
-                        class="oe_highlight"
-                        invisible="not can_approve or not id" />
-                    <button
-                        string="Validate"
-                        name="action_approve"
-                        invisible="not can_validate or can_approve or not id"
-                        type="object"
+                        invisible="not can_approve or not id"
                         class="oe_highlight" />
                     <button
-                        string="Refuse"
+                        name="action_approve"
+                        type="object"
+                        string="Validate"
+                        invisible="not can_validate or can_approve or not id"
+                        class="oe_highlight" />
+                    <button
                         name="action_refuse"
                         type="object"
+                        string="Refuse"
                         invisible="not can_refuse or not id" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="confirm,validate,validate1"
-                        invisible="validation_type != 'both'" />
+                        invisible="validation_type != 'both'"
+                        statusbar_visible="confirm,validate,validate1" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="confirm,validate"
-                        invisible="validation_type == 'both'" />
+                        invisible="validation_type == 'both'"
+                        statusbar_visible="confirm,validate" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box" />
                     <div id="title" class="oe_title">
-                        <h2><field name="name" class="w-100" placeholder="e.g. Time Off type (From validity start to validity end / no limit)" invisible="state != 'confirm'" readonly="True" force_save="True" />
+                        <h2><field name="name" placeholder="e.g. Time Off type (From validity start to validity end / no limit)" force_save="True" invisible="state != 'confirm'" readonly="True" class="w-100" />
                         <field name="name_validity" invisible="state == 'confirm'" /></h2>
                     </div>
                     <group id="full_group">
@@ -197,8 +197,8 @@
                             <field
                                 name="accrual_plan_id"
                                 invisible="allocation_type == 'regular'"
-                                required="allocation_type == 'accrual'"
-                                readonly="not is_officer or state == 'validate'" />
+                                readonly="not is_officer or state == 'validate'"
+                                required="allocation_type == 'accrual'" />
                             <div
                                 class="o_td_label"
                                 name="validity_label"
@@ -219,24 +219,24 @@
                                 <field
                                     name="date_from"
                                     nolabel="1"
-                                    readonly="allocation_type == 'accrual' and state != 'confirm'"
-                                    invisible="allocation_type == 'regular' and state != 'confirm'" />
+                                    invisible="allocation_type == 'regular' and state != 'confirm'"
+                                    readonly="allocation_type == 'accrual' and state != 'confirm'" />
                                 <i
                                     class="fa-solid fa-right-long mx-2"
                                     aria-label="Arrow icon"
                                     title="Arrow"
                                     invisible="allocation_type == 'accrual' or state != 'confirm'" />
                                 <label
-                                    class="mx-2"
                                     for="date_to"
                                     string="Run until"
-                                    invisible="allocation_type == 'regular'" />
+                                    invisible="allocation_type == 'regular'"
+                                    class="mx-2" />
                                 <field
                                     name="date_to"
-                                    nolabel="1"
                                     placeholder="No Limit"
-                                    readonly="allocation_type == 'accrual' and state != 'confirm'"
-                                    invisible="allocation_type == 'regular' and state != 'confirm'" />
+                                    nolabel="1"
+                                    invisible="allocation_type == 'regular' and state != 'confirm'"
+                                    readonly="allocation_type == 'accrual' and state != 'confirm'" />
                                 <div id="no_limit_label" class="oe_read_only" invisible="not id or date_to or state != 'confirm'">No limit</div>
                             </div>
                             <div
@@ -257,15 +257,15 @@
                                 <field
                                     name="number_of_days_display"
                                     nolabel="1"
-                                    style="width: 6ch;"
                                     invisible="type_request_unit == 'hour'"
-                                    readonly="state != 'confirm' and not is_officer" />
+                                    readonly="state != 'confirm' and not is_officer"
+                                    style="width: 6ch;" />
                                 <field
                                     name="number_of_hours_display"
                                     nolabel="1"
-                                    style="width: 6ch;"
                                     invisible="type_request_unit != 'hour'"
-                                    readonly="state != 'confirm' and not is_officer" />
+                                    readonly="state != 'confirm' and not is_officer"
+                                    style="width: 6ch;" />
                                 <span class="ml8" invisible="type_request_unit == 'hour'">Days</span>
                                 <span class="ml8" invisible="type_request_unit != 'hour'">Hours</span>
                             </div>
@@ -279,7 +279,6 @@
                     </group>
                     <field
                         name="notes"
-                        nolabel="1"
                         placeholder="Add a reason..."
                         readonly="state not in ['confirm']" />
                 </sheet>
@@ -303,8 +302,8 @@
             <field name="employee_id" position="replace">
                 <field
                     name="employee_id"
-                    readonly="state in ['refuse', 'validate']"
-                    widget="many2one_avatar_employee" />
+                    widget="many2one_avatar_employee"
+                    readonly="state in ['refuse', 'validate']" />
             </field>
             <field name="allocation_type" position="attributes">
                 <attribute name="invisible">0</attribute>
@@ -401,38 +400,38 @@
                 js_class="hr_holidays_payslip_list">
                 <header>
                     <button
-                        type="action"
                         name="%(hr_holidays.action_hr_leave_allocation_generate_multi_wizard)d"
+                        type="action"
                         string="New Group Allocation"
-                        class="btn btn-secondary"
+                        display="always"
                         groups="hr_holidays.group_hr_holidays_responsible"
-                        display="always" />
+                        class="btn btn-secondary" />
                     <button
-                        type="object"
                         name="action_approve"
+                        type="object"
                         string="Approve"
                         icon="fa-thumbs-up"
                         class="btn btn-outline-success" />
                     <button
-                        type="object"
                         name="action_refuse"
+                        type="object"
                         string="Refuse"
                         icon="fa-times"
                         class="btn btn-outline-danger" />
                 </header>
                 <field
                     name="employee_id"
-                    decoration-muted="not active_employee"
                     widget="many2one_avatar_employee"
-                    readonly="state in ['refuse', 'validate']" />
+                    readonly="state in ['refuse', 'validate']"
+                    decoration-muted="not active_employee" />
                 <field
                     name="department_id"
                     optional="hide"
                     readonly="state not in ['confirm']" />
                 <field
                     name="holiday_status_id"
-                    class="fw-bold"
-                    readonly="state in ['refuse', 'validate', 'validate1']" />
+                    readonly="state in ['refuse', 'validate', 'validate1']"
+                    class="fw-bold" />
                 <field name="name" string="Title" optional="hide" />
                 <field name="duration_display" string="Amount" />
                 <field name="date_from" string="Validity Start" optional="hide" />
@@ -449,30 +448,30 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-warning="state in ['confirm', 'validate1']"
+                    decoration-danger="state == 'refuse'"
                     decoration-success="state == 'validate'"
-                    decoration-danger="state == 'refuse'" />
+                    decoration-warning="state in ['confirm', 'validate1']" />
                 <button
+                    name="action_approve"
+                    type="object"
                     string="Approve"
-                    name="action_approve"
-                    type="object"
-                    class="text-success"
                     icon="fa-thumbs-up"
-                    invisible="not can_approve" />
+                    invisible="not can_approve"
+                    class="text-success" />
                 <button
-                    string="Validate"
                     name="action_approve"
                     type="object"
-                    class="text-success"
+                    string="Validate"
                     icon="fa-check"
-                    invisible="not can_validate or can_approve" />
+                    invisible="not can_validate or can_approve"
+                    class="text-success" />
                 <button
-                    string="Refuse"
                     name="action_refuse"
                     type="object"
-                    class="text-danger"
+                    string="Refuse"
                     icon="fa-times"
-                    invisible="not can_refuse" />
+                    invisible="not can_refuse"
+                    class="text-danger" />
                 <field
                     name="activity_exception_decoration"
                     widget="activity_exception" />
@@ -547,15 +546,15 @@
         <field name="name">hr.leave.allocation.view.kanban</field>
         <field name="model">hr.leave.allocation</field>
         <field name="arch" type="xml">
-            <kanban class="o_holidays_view_kanban" sample="1">
+            <kanban sample="1" class="o_holidays_view_kanban">
                 <header>
                     <button
-                        type="action"
                         name="%(hr_holidays.action_hr_leave_allocation_generate_multi_wizard)d"
+                        type="action"
                         string="New Group Allocation"
-                        class="btn btn-secondary"
+                        display="always"
                         groups="hr_holidays.group_hr_holidays_responsible"
-                        display="always" />
+                        class="btn btn-secondary" />
                 </header>
                 <field name="can_approve" />
                 <field name="can_validate" />
@@ -569,28 +568,28 @@
                             <widget
                                 name="web_ribbon"
                                 title="To Approve"
-                                bg_color="text-bg-warning"
-                                invisible="state != 'confirm'" />
+                                invisible="state != 'confirm'"
+                                bg_color="text-bg-warning" />
                             <widget
                                 name="web_ribbon"
                                 title="To Validate"
-                                bg_color="text-bg-warning"
-                                invisible="state != 'validate1'" />
+                                invisible="state != 'validate1'"
+                                bg_color="text-bg-warning" />
                             <widget
                                 name="web_ribbon"
                                 title="Cancelled"
-                                bg_color="text-bg-danger"
-                                invisible="state != 'cancel'" />
+                                invisible="state != 'cancel'"
+                                bg_color="text-bg-danger" />
                             <widget
                                 name="web_ribbon"
                                 title="Refused"
-                                bg_color="bg-danger"
-                                invisible="state != 'refuse'" />
+                                invisible="state != 'refuse'"
+                                bg_color="bg-danger" />
                             <widget
                                 name="web_ribbon"
                                 title="Approved"
-                                bg_color="bg-success"
-                                invisible="state != 'validate'" />
+                                invisible="state != 'validate'"
+                                bg_color="bg-success" />
                             <aside>
                                 <img
                                     t-att-src="'/web/image/hr.employee/' + record.employee_id.raw_value + '/avatar_128?unique=' + record.write_date.raw_value"
@@ -605,8 +604,8 @@
                                             class="col-12 align-items-center o_hr_holidays_value">
                                             <div class="col-4 o_hr_holidays_card">
                                                 <field
-                                                    class="fw-bold fs-3 mb-2"
-                                                    name="employee_id" />
+                                                    name="employee_id"
+                                                    class="fw-bold fs-3 mb-2" />
                                             </div>
                                             <div class="col-2 o_hr_holidays_name">
                                                 <div class="o_hr_holidays_card">
@@ -674,10 +673,10 @@
                                 <div
                                     class="w-100 d-flex flex-row gap-2 align-items-center">
                                     <field
-                                        class="fw-bold"
                                         name="employee_id"
-                                        widget="many2one_avatar_employee" />
-                                    <field class="fw-bold w-100" name="employee_id" />
+                                        widget="many2one_avatar_employee"
+                                        class="fw-bold" />
+                                    <field name="employee_id" class="fw-bold w-100" />
                                     <span
                                         style="min-width: fit-content;"
                                         t-attf-class="rounded-pill badge flex-shrink-1 text-bg-{{                                             record.state.raw_value == 'validate' ? 'success' :                                             ['confirm', 'validate1'].includes(record.state.raw_value) ?                                             'warning' : 'danger' }}"
@@ -737,7 +736,7 @@
                             t-att-alt="record.employee_id.value" />
                         <div class="ms-2">
                             <field name="employee_id" class="o_text_block o_text_bold" /> <span class="text-muted">(<field name="number_of_days" /> days)</span>
-                            <field name="holiday_status_id" muted="1" display="full" />
+                            <field name="holiday_status_id" display="full" muted="1" />
                         </div>
                     </div>
                 </templates>

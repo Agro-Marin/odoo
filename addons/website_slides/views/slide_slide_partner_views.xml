@@ -12,13 +12,13 @@
                     <field name="channel_id" />
                         <separator />
                     <filter
-                        string="Completed"
                         name="filter_completed"
+                        string="Completed"
                         domain="[('completed', '=', True)]" />
                     <group>
                         <filter
-                            string="Content"
                             name="groupby_slide_id"
+                            string="Content"
                             context="{'group_by': 'slide_id'}" />
                     </group>
                 </search>
@@ -36,10 +36,10 @@
                     <field name="completed" readonly="1" />
                     <field
                         name="quiz_attempts_count"
-                        readonly="1"
                         string="# Quizz Attempts"
-                        sum="# Total Attempts" />
-                    <field name="vote" readonly="1" sum="# Likes" />
+                        sum="# Total Attempts"
+                        readonly="1" />
+                    <field name="vote" sum="# Likes" readonly="1" />
                 </list>
             </field>
         </record>
@@ -49,7 +49,7 @@
             <field name="arch" type="xml">
                 <form string="Attendee" create="0">
                     <sheet>
-                        <group col="2" name="main_content">
+                        <group name="main_content" col="2">
                             <group>
                                 <field name="partner_id" />
                                 <field name="slide_id" />

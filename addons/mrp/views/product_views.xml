@@ -21,12 +21,12 @@
                 <filter name="combo" position="after">
                     <separator />
                     <filter
-                        string="Manufactured Products"
                         name="manufactured_products"
+                        string="Manufactured Products"
                         domain="[('bom_ids', '!=', False)]" />
                     <filter
-                        string="BoM Components"
                         name="components"
+                        string="BoM Components"
                         domain="[('bom_line_ids', '!=', False)]" />
                 </filter>
             </field>
@@ -40,12 +40,12 @@
                 <filter name="combo" position="after">
                     <separator />
                     <filter
-                        string="Manufactured Products"
                         name="manufactured_products"
+                        string="Manufactured Products"
                         domain="[('bom_ids', '!=', False)]" />
                     <filter
-                        string="BoM Components"
                         name="components"
+                        string="BoM Components"
                         domain="[('bom_line_ids', '!=', False)]" />
                 </filter>
             </field>
@@ -76,15 +76,15 @@
             <field name="arch" type="xml">
                 <filter name="goods" position="after">
                     <filter
-                        string="In the BoM"
-                        invisible="context.get('active_model') != 'mrp.bom.line'"
                         name="products_in_bom"
-                        domain="[('product_catalog_product_is_in_bom', '=', True)]" />
+                        string="In the BoM"
+                        domain="[('product_catalog_product_is_in_bom', '=', True)]"
+                        invisible="context.get('active_model') != 'mrp.bom.line'" />
                     <filter
-                        string="In the MO"
-                        invisible="context.get('active_model') != 'stock.move' or                                        context.get('product_catalog_order_model') != 'mrp.production'"
                         name="products_in_mo"
-                        domain="[('product_catalog_product_is_in_mo', '=', True)]" />
+                        string="In the MO"
+                        domain="[('product_catalog_product_is_in_mo', '=', True)]"
+                        invisible="context.get('active_model') != 'stock.move' or                                        context.get('product_catalog_order_model') != 'mrp.production'" />
                 </filter>
                 <filter name="services" position="attributes">
                     <attribute name="invisible">context.get('product_catalog_order_model') == 'mrp.production'</attribute>
@@ -106,39 +106,39 @@
             <field name="arch" type="xml">
                 <span id="button_documents_before" position="before">
                     <button
-                        class="oe_stat_button"
                         name="%(template_open_bom)d"
                         type="action"
+                        icon="fa-flask"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu'"
-                        icon="fa-flask">
+                        class="oe_stat_button">
                         <field
-                            string="Bill of Materials"
                             name="bom_count"
+                            string="Bill of Materials"
                             widget="statinfo" />
                     </button>
                 </span>
                 <span id="button_documents_after" position="after">
                     <button
-                        class="oe_stat_button"
                         name="action_used_in_bom"
                         type="object"
+                        icon="fa-level-up"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu' or used_in_bom_count == 0"
-                        icon="fa-level-up">
+                        class="oe_stat_button">
                         <field
-                            string="Used In"
                             name="used_in_bom_count"
+                            string="Used In"
                             widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="action_view_mos"
                         type="object"
+                        help="Manufactured in the last 365 days"
+                        icon="fa-list-alt"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu' or bom_count == 0 or mrp_product_qty == 0"
-                        icon="fa-list-alt"
-                        help="Manufactured in the last 365 days">
+                        class="oe_stat_button">
                         <div class="o_field_widget o_stat_info">
                             <span class="o_stat_value d-flex gap-1">
                                 <field
@@ -163,37 +163,37 @@
                     expr="//button[@name='action_view_product_lot']"
                     position="after">
                     <button
-                        class="oe_stat_button"
                         name="action_view_bom"
                         type="object"
+                        icon="fa-flask"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu'"
-                        icon="fa-flask">
+                        class="oe_stat_button">
                         <field
-                            string="Bill of Materials"
                             name="bom_count"
+                            string="Bill of Materials"
                             widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="action_used_in_bom"
                         type="object"
+                        icon="fa-level-up"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu' or used_in_bom_count == 0"
-                        icon="fa-level-up">
+                        class="oe_stat_button">
                         <field
-                            string="Used In"
                             name="used_in_bom_count"
+                            string="Used In"
                             widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="action_view_mos"
                         type="object"
+                        help="Manufactured in the last 365 days"
+                        icon="fa-list-alt"
                         groups="mrp.group_mrp_user"
                         invisible="type != 'consu' or bom_count == 0 or mrp_product_qty == 0"
-                        icon="fa-list-alt"
-                        help="Manufactured in the last 365 days">
+                        class="oe_stat_button">
                         <div class="o_field_widget o_stat_info">
                             <span class="o_stat_value d-flex gap-1">
                                 <field

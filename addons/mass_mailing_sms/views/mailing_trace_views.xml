@@ -76,12 +76,12 @@
                 <field
                     name="sms_id_int"
                     string="SMS ID"
-                    invisible="trace_type != 'sms'"
-                    groups="base.group_no_one" />
+                    groups="base.group_no_one"
+                    invisible="trace_type != 'sms'" />
                 <field
                     name="sms_code"
-                    invisible="trace_type != 'sms'"
-                    groups="base.group_no_one" />
+                    groups="base.group_no_one"
+                    invisible="trace_type != 'sms'" />
             </xpath>
         </field>
     </record>
@@ -112,8 +112,8 @@
                     <widget
                         name="web_ribbon"
                         title="Test"
-                        bg_color="text-bg-danger"
-                        invisible="is_test_trace != True" />
+                        invisible="is_test_trace != True"
+                        bg_color="text-bg-danger" />
                     <div
                         class="alert alert-info text-center"
                         invisible="trace_status != 'error' or                                    failure_type not in ('sms_not_delivered', 'sms_not_allowed', 'sms_invalid_destination', 'sms_rejected', 'sms_rejected')"

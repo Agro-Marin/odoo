@@ -22,17 +22,17 @@
                     <footer>
                         <button
                             name="action_create_alternative"
-                            string="Create Alternative"
-                            data-hotkey="q"
                             type="object"
+                            string="Create Alternative"
                             colspan="1"
-                            class="btn-primary" />
+                            class="btn-primary"
+                            data-hotkey="q" />
                         <button
-                            string="Cancel"
-                            data-hotkey="x"
                             special="cancel"
+                            string="Cancel"
                             colspan="1"
-                            class="btn-secondary" />
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </footer>
                 </form>
             </field>

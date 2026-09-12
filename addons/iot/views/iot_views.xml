@@ -29,9 +29,9 @@
                 <header>
                     <widget
                         name="test_iot_box"
-                        btn_name="Test"
+                        invisible="not version or 'W' in version"
                         btn_class="primary"
-                        invisible="not version or 'W' in version" />
+                        btn_name="Test" />
                     <button
                         name="open_homepage"
                         type="object"
@@ -40,24 +40,24 @@
                     <t groups="base.group_no_one">
                         <widget
                             name="iot_download_logs"
-                            btn_name="Download Logs"
-                            btn_class="secondary" />
+                            btn_class="secondary"
+                            btn_name="Download Logs" />
                         <widget
                             name="iot_restart_odoo"
-                            btn_name="Restart Odoo"
-                            btn_class="secondary" />
+                            btn_class="secondary"
+                            btn_name="Restart Odoo" />
                         <widget
-                            groups="iot.group_iot_admin"
                             name="iot_reset_password"
-                            btn_name="Reset Password"
-                            btn_class="secondary"
-                            invisible="not version or 'W' in version" />
-                        <widget
                             groups="iot.group_iot_admin"
-                            name="iot_remote_debug"
-                            btn_name="Remote Debug"
+                            invisible="not version or 'W' in version"
                             btn_class="secondary"
-                            invisible="not version or 'W' in version" />
+                            btn_name="Reset Password" />
+                        <widget
+                            name="iot_remote_debug"
+                            groups="iot.group_iot_admin"
+                            invisible="not version or 'W' in version"
+                            btn_class="secondary"
+                            btn_name="Remote Debug" />
                     </t>
                 </header>
                 <sheet>
@@ -81,17 +81,17 @@
                             <field name="identifier" readonly="True" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
+                                placeholder="Visible to all"
                                 options="{'no_create': True}"
-                                placeholder="Visible to all" />
+                                groups="base.group_multi_company" />
                         </group>
                     </group>
                     <notebook>
-                        <page string="Devices" name="devices">
+                        <page name="devices" string="Devices">
                             <field
                                 name="device_ids"
-                                readonly="False"
-                                widget="device_list_field">
+                                widget="device_list_field"
+                                readonly="False">
                                 <list default_order="connection, name">
                                     <field name="name" />
                                     <field name="identifier" />
@@ -126,12 +126,12 @@
             <kanban create="false">
                 <header>
                     <button
-                        groups="iot.group_iot_admin"
                         name="iot.action_discover_iot_boxes"
                         type="action"
                         string="Connect"
-                        class="btn-primary o-kanban-button-new"
-                        display="always" />
+                        display="always"
+                        groups="iot.group_iot_admin"
+                        class="btn-primary o-kanban-button-new" />
                 </header>
                 <templates>
                     <t t-name="card" class="p-0">
@@ -145,10 +145,10 @@
                                 <span class="float-end"><field name="device_count" /> <i t-attf-class="fa-solid fa-plug" title="device-icon" /></span>
                             </div>
                             <field
-                                class="fs-6 pb-2"
                                 name="create_date"
                                 widget="datetime"
-                                options="{'show_time': false}" />
+                                options="{'show_time': false}"
+                                class="fs-6 pb-2" />
                         </div>
                     </t>
                 </templates>
@@ -163,12 +163,12 @@
             <list create="false">
                 <header>
                     <button
-                        groups="iot.group_iot_admin"
                         name="iot.action_discover_iot_boxes"
                         type="action"
                         string="Connect"
-                        class="btn-primary"
-                        display="always" />
+                        display="always"
+                        groups="iot.group_iot_admin"
+                        class="btn-primary" />
                 </header>
                 <field name="name" />
                 <field name="identifier" />
@@ -202,8 +202,8 @@
                     <button
                         name="test_device"
                         string="Test"
-                        class="btn btn-primary"
-                        invisible="type not in ['printer', 'fiscal_data_module']" />
+                        invisible="type not in ['printer', 'fiscal_data_module']"
+                        class="btn btn-primary" />
                     <field name="connected_status" widget="statusbar" />
                 </header>
                 <sheet>
@@ -219,8 +219,8 @@
                             <field name="connection" />
                             <field
                                 name="is_scanner"
-                                invisible="type not in ['keyboard', 'scanner']"
-                                widget="boolean_toggle" />
+                                widget="boolean_toggle"
+                                invisible="type not in ['keyboard', 'scanner']" />
                             <field name="manufacturer" invisible="manufacturer == ''" />
                             <field
                                 name="keyboard_layout"
@@ -234,8 +234,8 @@
                     </group>
                     <notebook>
                         <page
-                            string="Reports to Auto-Print"
                             name="reports"
+                            string="Reports to Auto-Print"
                             invisible="type != 'printer'">
                             <field
                                 name="report_ids"
@@ -253,11 +253,11 @@
         <field name="model">iot.device</field>
         <field name="arch" type="xml">
             <kanban
-                create="false"
-                group_create="false"
-                sample="1"
+                default_order="type"
                 default_group_by="iot_id"
-                default_order="type">
+                create="false"
+                sample="1"
+                group_create="false">
                 <field name="type" />
                 <field name="connection" />
                 <field name="connected_status" />
@@ -291,8 +291,8 @@
                                     title="connection_type" />
                                 <field
                                     name="iot_id"
-                                    class="text-truncate"
-                                    readonly="1" />
+                                    readonly="1"
+                                    class="text-truncate" />
                             </div>
                         </main>
                     </t>
@@ -305,7 +305,7 @@
         <field name="name">iot.device.view.list</field>
         <field name="model">iot.device</field>
         <field name="arch" type="xml">
-            <list create="false" default_order="type">
+            <list default_order="type" create="false">
                 <field name="name" />
                 <field name="iot_id" />
                 <field name="identifier" />

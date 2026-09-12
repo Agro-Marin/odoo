@@ -39,8 +39,8 @@
                         <field
                             name="phone_number"
                             string="Phone"
-                            required="edi_mode != 'demo'"
-                            invisible="l10n_dk_nemhandel_proxy_state != 'not_registered'" />
+                            invisible="l10n_dk_nemhandel_proxy_state != 'not_registered'"
+                            required="edi_mode != 'demo'" />
 
                         <!-- The participant needs to fill in the SMS code they received -->
                         <div
@@ -52,9 +52,9 @@
                                 Fill in the code below that we sent you by SMS to
                                 <field
                                     name="phone_number"
-                                    class="oe_inline"
                                     nolabel="1"
-                                    readonly="l10n_dk_nemhandel_proxy_state == 'in_verification'" />
+                                    readonly="l10n_dk_nemhandel_proxy_state == 'in_verification'"
+                                    class="oe_inline" />
                             </div>
                             <div class="mt-1 ps-3 w-50">
                                 <field
@@ -88,47 +88,47 @@
                         name="nemhandel_send_code"
                         invisible="l10n_dk_nemhandel_proxy_state != 'not_registered'">
                         <button
+                            name="button_nemhandel_registration_sms"
+                            type="object"
                             string="Activate Nemhandel"
+                            invisible="edi_mode != 'prod'"
+                            class="btn-primary"
+                            data-hotkey="q" />
+                        <button
                             name="button_nemhandel_registration_sms"
                             type="object"
-                            class="btn-primary"
-                            data-hotkey="q"
-                            invisible="edi_mode != 'prod'" />
-                        <button
                             string="Activate Nemhandel (Test)"
-                            name="button_nemhandel_registration_sms"
-                            type="object"
+                            invisible="edi_mode != 'test'"
                             class="btn-primary"
-                            data-hotkey="q"
-                            invisible="edi_mode != 'test'" />
+                            data-hotkey="q" />
                         <button
-                            string="Activate Nemhandel (Demo)"
                             name="button_check_nemhandel_verification_code"
                             type="object"
+                            string="Activate Nemhandel (Demo)"
+                            invisible="edi_mode != 'demo'"
                             class="btn-primary"
-                            data-hotkey="q"
-                            invisible="edi_mode != 'demo'" />
+                            data-hotkey="q" />
                     </div>
                     <div
                         name="nemhandel_check_code"
                         invisible="l10n_dk_nemhandel_proxy_state != 'in_verification'">
                         <button
-                            string="Confirm"
                             name="button_check_nemhandel_verification_code"
                             type="object"
+                            string="Confirm"
                             class="btn-primary"
                             data-hotkey="q" />
                     </div>
                     <button
-                        string="Send again"
                         name="send_nemhandel_verification_code"
                         type="object"
-                        class="btn-secondary"
-                        invisible="l10n_dk_nemhandel_proxy_state != 'in_verification'" />
+                        string="Send again"
+                        invisible="l10n_dk_nemhandel_proxy_state != 'in_verification'"
+                        class="btn-secondary" />
                     <button
                         name="button_deregister_nemhandel_participant"
-                        string="Cancel Registration"
                         type="object"
+                        string="Cancel Registration"
                         class="btn-secondary"
                         data-hotkey="x" />
                 </footer>

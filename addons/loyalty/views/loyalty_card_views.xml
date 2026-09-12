@@ -12,11 +12,11 @@
                             <field name="code" readonly="1" />
                             <field name="expiration_date" />
                             <field name="partner_id" />
-                            <label string="Balance" for="points_display" />
+                            <label for="points_display" string="Balance" />
                             <button
                                 name="action_loyalty_update_balance"
-                                class="p-0 text-info fw-normal"
-                                type="object">
+                                type="object"
+                                class="p-0 text-info fw-normal">
                                 <field name="points_display" nolabel="1" />
                             </button>
                         </group>
@@ -57,8 +57,8 @@
                 <field name="partner_id" />
                 <button
                     name="action_coupon_send"
-                    string="Send"
                     type="object"
+                    string="Send"
                     icon="fa-regular fa-paper-plane" />
             </list>
         </field>

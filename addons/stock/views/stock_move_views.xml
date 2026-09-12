@@ -15,8 +15,8 @@
                 <field name="product_id" />
                 <field
                     name="origin"
-                    filter_domain="['|', '|', ('origin', 'ilike', self), ('reference', 'ilike', self), ('picking_id', 'ilike', self)]"
-                    string="Reference" />
+                    string="Reference"
+                    filter_domain="['|', '|', ('origin', 'ilike', self), ('reference', 'ilike', self), ('picking_id', 'ilike', self)]" />
                 <field
                     name="location_id"
                     string="Source Location"
@@ -30,74 +30,74 @@
                     string="Partner"
                     filter_domain="[('picking_id.partner_id', 'child_of', self)]" />
                 <filter
-                    string="Ready"
                     name="ready"
-                    domain="[('state','=','assigned')]"
-                    help="Stock moves that are Available (Ready to process)" />
+                    string="Ready"
+                    help="Stock moves that are Available (Ready to process)"
+                    domain="[('state','=','assigned')]" />
                 <filter
-                    string="To Do"
                     name="future"
-                    domain="[('state','in',('assigned','confirmed','waiting'))]"
-                    help="Stock moves that are Confirmed, Available or Waiting" />
+                    string="To Do"
+                    help="Stock moves that are Confirmed, Available or Waiting"
+                    domain="[('state','in',('assigned','confirmed','waiting'))]" />
                 <filter
-                    string="Done"
                     name="done"
-                    domain="[('state','=','done')]"
-                    help="Stock moves that have been processed" />
+                    string="Done"
+                    help="Stock moves that have been processed"
+                    domain="[('state','=','done')]" />
                 <separator />
                 <filter
-                    string="Incoming"
                     name="incoming"
+                    string="Incoming"
                     domain="[('location_id.usage', 'not in', ('internal', 'transit')), ('location_dest_id.usage', 'in', ('internal', 'transit'))]" />
                 <filter
-                    string="Outgoing"
                     name="outgoing"
+                    string="Outgoing"
                     domain="[('location_id.usage', 'in', ('internal', 'transit')), ('location_dest_id.usage', 'not in', ('internal', 'transit'))]" />
                 <filter
-                    string="Inventory"
                     name="inventory"
+                    string="Inventory"
                     domain="[('is_inventory', '=', True)]" />
                 <separator />
                 <filter
-                    string="Date"
                     name="today"
-                    date="date"
-                    help="Scheduled or processing date" />
+                    string="Date"
+                    help="Scheduled or processing date"
+                    date="date" />
                 <group>
                     <filter
-                        string="Product"
                         name="by_product"
+                        string="Product"
                         context="{'group_by': 'product_id'}" />
                     <filter
-                        string="Operation Type"
                         name="groupby_picking_type_id"
+                        string="Operation Type"
                         context="{'group_by': 'picking_type_id'}" />
                     <filter
-                        string="Picking"
                         name="groupby_picking_id"
+                        string="Picking"
                         context="{'group_by': 'picking_id'}" />
                     <filter
-                        string="Source Location"
                         name="groupby_location_id"
+                        string="Source Location"
                         context="{'group_by': 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter
-                        string="Destination Location"
                         name="groupby_dest_location_id"
+                        string="Destination Location"
                         context="{'group_by': 'location_dest_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Creation Date"
                         name="groupby_create_date"
+                        string="Creation Date"
                         context="{'group_by': 'create_date'}"
                         groups="base.group_no_one" />
                     <filter
-                        string="Scheduled Date"
                         name="groupby_date"
+                        string="Scheduled Date"
                         context="{'group_by': 'date'}" />
                 </group>
             </search>
@@ -111,9 +111,9 @@
         <field name="arch" type="xml">
             <list
                 string="Moves"
-                create="0"
-                editable="bottom"
                 default_order="date desc"
+                editable="bottom"
+                create="0"
                 duplicate="0">
                 <field
                     name="date"
@@ -130,16 +130,16 @@
                 <field name="product_id" readonly="1" />
                 <field
                     name="location_id"
-                    options="{'no_create': True}"
                     string="From"
-                    decoration-muted="location_usage not in ('internal','transit')"
-                    readonly="1" />
+                    options="{'no_create': True}"
+                    readonly="1"
+                    decoration-muted="location_usage not in ('internal','transit')" />
                 <field
                     name="location_dest_id"
-                    options="{'no_create': True}"
                     string="To"
-                    decoration-muted="location_dest_usage not in ('internal','transit')"
-                    readonly="1" />
+                    options="{'no_create': True}"
+                    readonly="1"
+                    decoration-muted="location_dest_usage not in ('internal','transit')" />
                 <field name="product_uom_qty" sum="Total Demand" readonly="1" />
                 <field
                     name="quantity"
@@ -150,19 +150,19 @@
                     decoration-success="(location_usage not in ('internal','transit')) and (location_dest_usage in ('internal','transit'))" />
                 <field
                     name="product_uom_id"
-                    readonly="1"
+                    widget="many2one_uom"
                     options="{'no_open': True, 'no_create': True}"
                     groups="uom.group_uom"
-                    widget="many2one_uom" />
+                    readonly="1" />
                 <field
                     name="company_id"
-                    readonly="1"
-                    groups="base.group_multi_company" />
+                    groups="base.group_multi_company"
+                    readonly="1" />
                 <field
                     name="state"
-                    readonly="1"
                     widget="badge"
                     optional="show"
+                    readonly="1"
                     decoration-danger="state=='cancel'"
                     decoration-info="state== 'assigned'"
                     decoration-muted="state == 'draft'"
@@ -178,12 +178,12 @@
         <field name="priority" eval="50" />
         <field name="arch" type="xml">
             <list
-                decoration-muted="scrap_id or state == 'cancel' or (state == 'done' and is_locked == True)"
                 string="Stock Moves"
-                editable="bottom">
+                editable="bottom"
+                decoration-muted="scrap_id or state == 'cancel' or (state == 'done' and is_locked == True)">
                 <field name="company_id" column_invisible="True" />
                 <field name="date" column_invisible="True" />
-                <field name="state" readonly="0" column_invisible="True" />
+                <field name="state" column_invisible="True" readonly="0" />
                 <field name="picking_type_id" column_invisible="True" />
                 <field name="location_id" column_invisible="True" />
                 <field name="location_dest_id" column_invisible="True" />
@@ -194,8 +194,8 @@
                 <field name="is_locked" column_invisible="True" />
                 <field
                     name="product_id"
-                    required="1"
-                    readonly="(state != 'draft' and not additional) or move_lines_count &gt; 0" />
+                    readonly="(state != 'draft' and not additional) or move_lines_count &gt; 0"
+                    required="1" />
                 <field
                     name="quantity_packaging_uom"
                     optional="hide"
@@ -214,10 +214,10 @@
                 <field name="picked" />
                 <field
                     name="product_uom_id"
-                    readonly="state != 'draft' and id"
-                    options="{'no_open': True, 'no_create': True}"
                     widget="many2one_uom"
-                    groups="uom.group_uom" />
+                    options="{'no_open': True, 'no_create': True}"
+                    groups="uom.group_uom"
+                    readonly="state != 'draft' and id" />
             </list>
         </field>
     </record>
@@ -228,10 +228,10 @@
         <field name="priority" eval="6" />
         <field name="arch" type="xml">
             <list
-                decoration-muted="state == 'cancel'"
-                default_order="date, picking_id, sequence"
                 string="Moves"
-                create="0">
+                default_order="date, picking_id, sequence"
+                create="0"
+                decoration-muted="state == 'cancel'">
                 <field name="date" column_invisible="True" />
                 <field name="date_deadline" optional="hide" />
                 <field
@@ -245,9 +245,9 @@
                 <field name="product_uom_qty" readonly="state == 'done'" />
                 <field
                     name="product_uom_id"
+                    widget="many2one_uom"
                     options="{'no_open': True, 'no_create': True}"
-                    groups="uom.group_uom"
-                    widget="many2one_uom" />
+                    groups="uom.group_uom" />
                 <field
                     name="location_id"
                     options="{'no_create': True}"
@@ -265,7 +265,7 @@
         <field name="priority">10</field>
         <field name="arch" type="xml">
             <kanban class="o_kanban_mobile">
-                <field name="product_qty" readonly="1" force_save="0" />
+                <field name="product_qty" force_save="0" readonly="1" />
                 <field name="is_inventory" />
                 <templates>
                     <t t-name="card">
@@ -302,7 +302,7 @@
         <field name="arch" type="xml">
             <pivot string="Stock Moves Analysis" sample="1">
                 <field name="picking_type_id" type="col" />
-                <field name="date" interval="month" type="row" />
+                <field name="date" type="row" interval="month" />
             </pivot>
         </field>
     </record>
@@ -351,17 +351,17 @@
                             <span>
                                 <field
                                     name="product_uom_qty"
-                                    readonly="state != 'draft'"
-                                    nolabel="1" />
+                                    nolabel="1"
+                                    readonly="state != 'draft'" />
                             </span>
                             <span>
                                 <field
                                     name="product_uom_id"
-                                    groups="uom.group_uom"
                                     widget="many2one_uom"
-                                    readonly="state != 'draft'"
                                     nolabel="1"
-                                    options="{'no_open': True}" />
+                                    options="{'no_open': True}"
+                                    groups="uom.group_uom"
+                                    readonly="state != 'draft'" />
                             </span>
                         </div>
                     </group>
@@ -369,19 +369,19 @@
                 </group>
                 <div class="d-flex">
                     <widget
-                        class="btn btn-link btn-group"
                         name="generate_serials"
-                        invisible="not show_lot_actions" />
+                        invisible="not show_lot_actions"
+                        class="btn btn-link btn-group" />
                     <widget
-                        class="btn btn-link btn-group"
                         name="import_lots"
-                        invisible="not show_lot_actions" />
+                        invisible="not show_lot_actions"
+                        class="btn btn-link btn-group" />
                 </div>
                 <field
                     name="move_line_ids"
-                    readonly="state == 'cancel' or (state == 'done' and is_locked) or not product_id"
+                    widget="sml_x2_many"
                     context="{'list_view_ref': 'stock.view_stock_move_line_operation_tree', 'form_view_ref': 'stock.view_stock_move_line_form_mobile', 'default_picking_id': picking_id, 'default_move_id': id, 'default_product_id': product_id, 'default_location_id': location_id, 'default_location_dest_id': location_dest_id, 'default_company_id': company_id, 'active_picking_id': picking_id}"
-                    widget="sml_x2_many" />
+                    readonly="state == 'cancel' or (state == 'done' and is_locked) or not product_id" />
             </form>
         </field>
     </record>
@@ -431,16 +431,16 @@
                                 </div>
                                 <field
                                     name="date"
-                                    readonly="1"
                                     string="Scheduled Date"
+                                    help="Scheduled time for the first part of the shipment to be processed."
                                     invisible="state == 'done'"
-                                    help="Scheduled time for the first part of the shipment to be processed." />
+                                    readonly="1" />
                                 <field
                                     name="date"
-                                    readonly="1"
                                     string="Move Date"
+                                    help="The actual date when the transfer was processed."
                                     invisible="state != 'done'"
-                                    help="The actual date when the transfer was processed." />
+                                    readonly="1" />
                                 <field name="date_deadline" force_save="1" />
                             </group>
                         </group>
@@ -451,14 +451,14 @@
                             <field name="origin" />
                             <field
                                 name="procure_method"
-                                readonly="state != 'draft'"
-                                groups="stock.group_adv_location" />
+                                groups="stock.group_adv_location"
+                                readonly="state != 'draft'" />
                         </group>
                         <group
                             name="linked_group"
                             string="Linked Moves"
-                            groups="base.group_no_one"
-                            colspan="2">
+                            colspan="2"
+                            groups="base.group_no_one">
                             <field
                                 name="move_orig_ids"
                                 string="Origin Moves"

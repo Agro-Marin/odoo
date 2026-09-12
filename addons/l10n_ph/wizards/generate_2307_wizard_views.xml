@@ -8,7 +8,7 @@
             <form string="Generate BIR 2307 Report">
                 This will export a XLS file for BIR 2307.
                 <group>
-                    <field name="moves_to_export" nolabel="1" readonly="1" colspan="2">
+                    <field name="moves_to_export" colspan="2" nolabel="1" readonly="1">
                         <list>
                             <field name="name" optional="show" />
                             <field
@@ -26,40 +26,40 @@
                             <field
                                 name="amount_tax_signed"
                                 string="Tax"
-                                sum="Total"
-                                optional="hide"
                                 widget="monetary"
+                                optional="hide"
+                                sum="Total"
                                 options="{'currency_field': 'currency_id'}" />
                             <field
                                 name="amount_total_signed"
                                 string="Total"
-                                sum="Total"
-                                decoration-bf="1"
-                                optional="show"
                                 widget="monetary"
-                                options="{'currency_field': 'currency_id'}" />
+                                optional="show"
+                                sum="Total"
+                                options="{'currency_field': 'currency_id'}"
+                                decoration-bf="1" />
                             <field
                                 name="state"
                                 widget="badge"
-                                decoration-success="state == 'posted'"
-                                decoration-info="state == 'draft'"
                                 optional="show"
+                                decoration-info="state == 'draft'"
+                                decoration-success="state == 'posted'"
                                 on_change="1" />
                         </list>
                     </field>
                 </group>
                 <footer>
                     <button
-                        string="Generate"
-                        type="object"
                         name="action_generate"
+                        type="object"
+                        string="Generate"
                         class="btn btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Cancel"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn btn-secondary" />
+                        string="Cancel"
+                        class="btn btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

@@ -8,11 +8,11 @@
             <field name="arch" type="xml">
                 <list
                     create="false"
-                    delete="false"
                     edit="false"
+                    delete="false"
+                    decoration-danger="blocking_level == 'error'"
                     decoration-info="blocking_level == 'info'"
-                    decoration-warning="blocking_level == 'warning'"
-                    decoration-danger="blocking_level == 'error'">
+                    decoration-warning="blocking_level == 'warning'">
                     <field name="edi_format_name" />
                     <field name="error" />
                     <field name="blocking_level" column_invisible="True" />

@@ -16,8 +16,8 @@
                 <field name="reason" position="attributes">
                     <attribute
                         name="invisible"
-                        separator="or"
-                        add="move_type != 'in_refund' or country_code == 'SA'" />
+                        add="move_type != 'in_refund' or country_code == 'SA'"
+                        separator="or" />
                 </field>
             </field>
         </record>

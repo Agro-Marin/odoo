@@ -10,17 +10,17 @@
                 <field name="project_id" />
                 <separator />
                 <filter
-                    string="Overallocated"
                     name="overallocated"
+                    string="Overallocated"
                     domain="[('is_overallocated', '=', True)]" />
                 <group>
                     <filter
-                        string="User"
                         name="group_user"
+                        string="User"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Project"
                         name="group_project"
+                        string="Project"
                         context="{'group_by': 'project_id'}" />
                 </group>
             </search>
@@ -45,8 +45,8 @@
         <field name="arch" type="xml">
             <list
                 string="Resource Utilization"
-                decoration-danger="is_overallocated"
-                default_order="allocated_hours desc">
+                default_order="allocated_hours desc"
+                decoration-danger="is_overallocated">
                 <field name="user_id" widget="many2one_avatar_user" />
                 <field name="project_id" />
                 <field name="allocated_hours" widget="float_time" />
@@ -61,7 +61,7 @@
         <field name="name">project.resource.report.graph</field>
         <field name="model">project.resource.report</field>
         <field name="arch" type="xml">
-            <graph string="Resource Utilization" type="bar">
+            <graph type="bar" string="Resource Utilization">
                 <field name="user_id" />
                 <field name="allocated_hours" type="measure" />
             </graph>

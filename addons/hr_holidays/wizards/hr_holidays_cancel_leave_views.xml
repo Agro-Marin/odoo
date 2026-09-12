@@ -15,10 +15,10 @@
                     <button
                         name="action_cancel_leave"
                         type="object"
-                        class="btn-primary"
                         string="Cancel Time Off"
+                        class="btn-primary"
                         accesskey="c" />
-                    <button special="cancel" string="Discard" close="1" accesskey="j" />
+                    <button special="cancel" string="Discard" accesskey="j" close="1" />
                 </footer>
             </form>
         </field>

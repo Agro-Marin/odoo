@@ -12,8 +12,8 @@
                 <div class="m-0" id="alerts" invisible="not alerts">
                     <field
                         name="alerts"
-                        class="o_field_html"
-                        widget="actionable_errors" />
+                        widget="actionable_errors"
+                        class="o_field_html" />
                 </div>
 
                 <div class="m-0" id="extra_edis">
@@ -47,48 +47,47 @@
                         <div>
                             <field
                                 name="mail_partner_ids"
-                                widget="many2many_tags_email"
                                 placeholder="Add contacts to notify..."
+                                widget="many2many_tags_email"
+                                context="{'show_email': True, 'form_view_ref': 'base.view_partner_simple_form'}"
                                 options="{'no_quick_create': True}"
-                                required="'email' in sending_methods"
-                                context="{'show_email': True, 'form_view_ref': 'base.view_partner_simple_form'}" />
+                                required="'email' in sending_methods" />
                         </div>
                         <field
                             name="subject"
                             placeholder="Subject..."
                             required="'email' in sending_methods" />
                     </group>
-                    <field name="body" class="oe-bordered-editor" widget="html_mail" />
+                    <field name="body" widget="html_mail" class="oe-bordered-editor" />
                 </div>
 
                 <field
                     name="mail_attachments_widget"
-                    widget="mail_attachments"
                     string="Attach a file"
-                    nolabel="1"
+                    widget="mail_attachments"
                     colspan="2"
                     invisible="not display_attachments_widget" />
 
                 <footer>
                     <button
+                        name="action_send_and_print"
+                        type="object"
                         string="Send"
-                        data-hotkey="q"
+                        invisible="not sending_methods"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
                         name="action_send_and_print"
                         type="object"
-                        class="btn-primary"
-                        invisible="not sending_methods" />
-                    <button
                         string="Generate"
-                        data-hotkey="q"
-                        name="action_send_and_print"
-                        type="object"
+                        invisible="sending_methods"
                         class="btn-primary"
-                        invisible="sending_methods" />
+                        data-hotkey="q" />
                     <button
-                        string="Discard"
-                        data-hotkey="x"
                         special="cancel"
-                        class="btn-secondary" />
+                        string="Discard"
+                        class="btn-secondary"
+                        data-hotkey="x" />
 
                     <field
                         name="mail_attachments_widget"

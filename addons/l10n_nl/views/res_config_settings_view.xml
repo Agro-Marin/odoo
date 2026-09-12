@@ -9,8 +9,8 @@
             <xpath expr="//app[@name='account']/block" position="after">
                 <div id="dutch_localization_section" invisible="1">
                     <block
-                        title="Dutch Localization"
                         id="dutch_localization"
+                        title="Dutch Localization"
                         invisible="country_code != 'NL'">
                     </block>
                 </div>

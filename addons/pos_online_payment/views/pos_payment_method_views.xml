@@ -56,14 +56,14 @@
                         <label for="online_payment_provider_ids" />
                         <field
                             name="online_payment_provider_ids"
+                            placeholder="All available providers"
                             widget="many2many_tags"
-                            options="{'no_create': True}"
-                            placeholder="All available providers" />
+                            options="{'no_create': True}" />
                         <button
                             name="%(payment.action_payment_provider)d"
-                            icon="fa-arrow-right"
                             type="action"
                             string="Payment Providers"
+                            icon="fa-arrow-right"
                             class="btn-link" />
                     </div>
                 </group>

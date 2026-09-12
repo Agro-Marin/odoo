@@ -14,24 +14,24 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <div class="oe_title">
                             <label for="name" />
                             <h1>
                                 <field
                                     name="name"
-                                    options="{'line_breaks': False}"
+                                    placeholder="e.g. Sales Manager"
                                     widget="text"
-                                    placeholder="e.g. Sales Manager" />
+                                    options="{'line_breaks': False}" />
                             </h1>
                         </div>
                         <notebook>
                             <page
-                                string="Details"
                                 name="recruitment_page"
-                                invisible="1"
-                                groups="hr.group_hr_user">
+                                string="Details"
+                                groups="hr.group_hr_user"
+                                invisible="1">
                                 <group>
                                     <group
                                         name="hiring_process"
@@ -54,9 +54,9 @@
                                     <group name="job" string="Job">
                                         <field
                                             name="company_id"
+                                            placeholder="Visible to all"
                                             options="{'no_create': True}"
-                                            groups="base.group_multi_company"
-                                            placeholder="Visible to all" />
+                                            groups="base.group_multi_company" />
                                         <field name="department_id" />
                                     </group>
                                     <group name="contract" string="Contract">
@@ -65,14 +65,14 @@
                                 </group>
                             </page>
                             <page
-                                string="Summary"
                                 name="job_description_page"
-                                invisible="1"
-                                groups="hr.group_hr_user">
+                                string="Summary"
+                                groups="hr.group_hr_user"
+                                invisible="1">
                                 <field
                                     name="description"
-                                    options="{'collaborative': true}"
-                                    placeholder="e.g. Summarize the position in one or two lines..." />
+                                    placeholder="e.g. Summarize the position in one or two lines..."
+                                    options="{'collaborative': true}" />
                             </page>
                         </notebook>
                     </sheet>
@@ -88,8 +88,8 @@
                     <field name="name" />
                     <field
                         name="no_of_employee"
-                        optional="hide"
-                        string="Number of Employees" />
+                        string="Number of Employees"
+                        optional="hide" />
                 </list>
             </field>
         </record>
@@ -97,10 +97,10 @@
             <field name="name">hr.job.kanban</field>
             <field name="model">hr.job</field>
             <field name="arch" type="xml">
-                <kanban class="o_kanban_mobile" sample="1">
+                <kanban sample="1" class="o_kanban_mobile">
                     <templates>
                         <t t-name="card">
-                            <field class="fw-bold" name="name" />
+                            <field name="name" class="fw-bold" />
                             <field name="department_id" />
                             <span t-if="!selection_mode" groups="hr.group_hr_user">
                                 Vacancies: <field name="expected_employees" />
@@ -130,17 +130,17 @@
                         domain="[('active', '=', False)]" />
                     <group>
                         <filter
-                            string="Department"
                             name="department"
+                            string="Department"
                             context="{'group_by': 'department_id'}" />
                         <filter
-                            string="Company"
                             name="company"
+                            string="Company"
                             context="{'group_by': 'company_id'}"
                             groups="base.group_multi_company" />
                         <filter
-                            string="Employment Type"
                             name="employment_type"
+                            string="Employment Type"
                             context="{'group_by': 'contract_type_id'}" />
                     </group>
                 </search>

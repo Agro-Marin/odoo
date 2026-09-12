@@ -9,9 +9,9 @@
             <group name="description" position="after">
                 <group
                     string="Gelato"
-                    invisible="not gelato_product_uid"
-                    groups="base.group_no_one">
-                    <field string="Product UID" name="gelato_product_uid" />
+                    groups="base.group_no_one"
+                    invisible="not gelato_product_uid">
+                    <field name="gelato_product_uid" string="Product UID" />
                 </group>
             </group>
         </field>
@@ -25,9 +25,9 @@
             <group name="sales" position="after">
                 <group
                     string="Gelato"
-                    invisible="not gelato_product_uid"
-                    groups="base.group_no_one">
-                    <field string="Product UID" name="gelato_product_uid" />
+                    groups="base.group_no_one"
+                    invisible="not gelato_product_uid">
+                    <field name="gelato_product_uid" string="Product UID" />
                 </group>
             </group>
         </field>

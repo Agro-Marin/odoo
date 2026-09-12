@@ -7,18 +7,18 @@
         <field name="inherit_id" ref="point_of_sale.res_config_settings_view_form" />
         <field name="arch" type="xml">
             <div id="warning_text_pos_restaurant" position="replace" />
-            <block id="restaurant_section" position="inside">
+            <block position="inside" id="restaurant_section">
                 <setting
                     id="floor_and_table_map"
                     string="Floors &amp; Tables Map"
                     help="Design floors and assign orders to tables"
-                    documentation="/applications/sales/point_of_sale/restaurant/floors_tables.html"
-                    invisible="is_kiosk_mode or not pos_module_pos_restaurant">
+                    invisible="is_kiosk_mode or not pos_module_pos_restaurant"
+                    documentation="/applications/sales/point_of_sale/restaurant/floors_tables.html">
                     <div class="content-group">
                         <div class="mt16">
                             <label
-                                string="Floors"
                                 for="pos_floor_ids"
+                                string="Floors"
                                 class="o_light_label me-2" />
                             <field
                                 name="pos_floor_ids"
@@ -28,25 +28,25 @@
                         <div>
                             <button
                                 name="%(pos_restaurant.action_restaurant_floor_form)d"
-                                icon="oi-arrow-right"
                                 type="action"
                                 string="Floors"
+                                icon="oi-arrow-right"
                                 class="btn-link" />
                         </div>
                     </div>
                 </setting>
                 <setting
+                    id="iface_printbill"
                     string="Early Receipt Printing"
                     help="Allow to print receipt before payment"
-                    id="iface_printbill"
                     invisible="not pos_module_pos_restaurant or is_kiosk_mode">
                     <field name="pos_iface_printbill" />
                 </setting>
                 <setting
-                    help="Split total or order lines"
                     id="iface_splitbill"
-                    documentation="/applications/sales/point_of_sale/restaurant/bill_printing.html"
-                    invisible="not pos_module_pos_restaurant or is_kiosk_mode">
+                    help="Split total or order lines"
+                    invisible="not pos_module_pos_restaurant or is_kiosk_mode"
+                    documentation="/applications/sales/point_of_sale/restaurant/bill_printing.html">
                     <field name="pos_iface_splitbill" string="Allow Bill Splitting" />
                 </setting>
             </block>
@@ -55,15 +55,15 @@
                     invisible="not pos_module_pos_restaurant or not pos_iface_tipproduct or country_code == 'BE'">
                     <field name="pos_set_tip_after_payment" class="oe_inline" />
                     <label
-                        class="fw-normal"
                         for="pos_set_tip_after_payment"
-                        string="Add tip after payment" />
+                        string="Add tip after payment"
+                        class="fw-normal" />
                 </div>
             </div>
-            <block id="pos_interface_section" position="inside">
+            <block position="inside" id="pos_interface_section">
                 <setting
-                    invisible="not pos_module_pos_restaurant or is_kiosk_mode"
-                    help="Select the table first or after registering the order">
+                    help="Select the table first or after registering the order"
+                    invisible="not pos_module_pos_restaurant or is_kiosk_mode">
                     <field name="pos_default_screen" widget="radio" />
                 </setting>
             </block>

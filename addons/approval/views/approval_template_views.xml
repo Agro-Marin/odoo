@@ -13,8 +13,8 @@
                 <field name="usage_count" string="Used" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -27,8 +27,8 @@
                 <header>
                     <button
                         name="action_create_request"
-                        string="Create Request"
                         type="object"
+                        string="Create Request"
                         class="oe_highlight" />
                 </header>
                 <sheet>
@@ -36,20 +36,20 @@
                         <button
                             name="action_view_requests"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-files-o"
-                            invisible="usage_count == 0">
+                            invisible="usage_count == 0"
+                            class="oe_stat_button">
                             <field
                                 name="usage_count"
-                                widget="statinfo"
-                                string="Requests" />
+                                string="Requests"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field
@@ -69,12 +69,12 @@
                     <group string="Description">
                         <field
                             name="description"
-                            nolabel="1"
+                            placeholder="Describe when to use this template..."
                             colspan="2"
-                            placeholder="Describe when to use this template..." />
+                            nolabel="1" />
                     </group>
                     <notebook>
-                        <page string="Default Values" name="defaults">
+                        <page name="defaults" string="Default Values">
                             <group>
                                 <group>
                                     <field name="has_amount" invisible="1" />
@@ -103,7 +103,7 @@
                                 </group>
                             </group>
                             <group string="Default Description">
-                                <field name="default_reason" nolabel="1" colspan="2" />
+                                <field name="default_reason" colspan="2" nolabel="1" />
                             </group>
                         </page>
                     </notebook>

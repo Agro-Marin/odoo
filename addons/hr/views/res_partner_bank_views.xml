@@ -9,10 +9,10 @@
             <xpath expr="//field[@name='allow_out_payment']" position="after">
                 <field name="employee_has_multiple_bank_accounts" invisible="1" />
                 <label
-                    string="Salary Allocation"
                     for="employee_salary_amount"
-                    invisible="not employee_has_multiple_bank_accounts"
-                    groups="hr.group_hr_user" />
+                    string="Salary Allocation"
+                    groups="hr.group_hr_user"
+                    invisible="not employee_has_multiple_bank_accounts" />
                 <div
                     class="d-flex"
                     invisible="not employee_has_multiple_bank_accounts"
@@ -26,8 +26,8 @@
                 </div>
                 <field
                     name="employee_id"
-                    invisible="not employee_id"
-                    widget="many2one_avatar_employee" />
+                    widget="many2one_avatar_employee"
+                    invisible="not employee_id" />
             </xpath>
             <xpath expr="//page" position="before">
                 <page string="Bank Information" invisible="not bank_id">
@@ -54,8 +54,8 @@
                                 <field
                                     name="bank_state"
                                     placeholder="State"
-                                    class="o_address_state"
-                                    options="{&quot;no_open&quot;: True}" />
+                                    options="{&quot;no_open&quot;: True}"
+                                    class="o_address_state" />
                                 <field
                                     name="bank_zip"
                                     placeholder="ZIP"
@@ -63,8 +63,8 @@
                                 <field
                                     name="bank_country"
                                     placeholder="Country"
-                                    class="o_address_country"
-                                    options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
+                                    options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
+                                    class="o_address_country" />
                             </div>
                         </group>
                         <group name="communication_details">

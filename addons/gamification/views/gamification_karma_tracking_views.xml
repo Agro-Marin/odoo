@@ -11,30 +11,30 @@
                     <field name="tracking_date" />
                     <field name="origin_ref_model_name" />
                     <filter
-                        string="Consolidated"
                         name="filter_consolidated"
+                        string="Consolidated"
                         domain="[('consolidated', '=', True)]" />
                     <filter
-                        string="My Karma"
                         name="filter_user_id"
+                        string="My Karma"
                         domain="[('user_id', '=', uid)]" />
                     <separator />
                     <filter
-                        string="Manual"
                         name="filter_res_users"
+                        string="Manual"
                         domain="[('origin_ref', 'ilike', 'res.users,')]" />
                     <group>
                         <filter
-                            string="Granted By"
                             name="group_by_create_uid"
+                            string="Granted By"
                             context="{'group_by': 'create_uid'}" />
                         <filter
-                            string="Source Type"
                             name="group_by_origin_ref_model_name"
+                            string="Source Type"
                             context="{'group_by': 'origin_ref_model_name'}" />
                         <filter
-                            string="Karma Owner"
                             name="group_by_user_id"
+                            string="Karma Owner"
                             context="{'group_by': 'user_id'}" />
                     </group>
                 </search>
@@ -53,8 +53,8 @@
                     <field name="reason" />
                     <field
                         name="user_id"
-                        widget="many2one_avatar_user"
                         string="Karma Owner"
+                        widget="many2one_avatar_user"
                         readonly="id" />
                     <field name="old_value" string="Previous Total" optional="hide" />
                     <field name="gain" readonly="id" />
@@ -75,8 +75,8 @@
                         <group>
                             <field
                                 name="user_id"
-                                widget="many2one_avatar_user"
                                 string="Karma Owner"
+                                widget="many2one_avatar_user"
                                 readonly="id" />
                             <field name="tracking_date" />
                             <field name="gain" readonly="id" />

@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='peppol']" position="after">
                 <block
-                    title="Türkiye Electronic Integrations"
                     id="l10n_tr_nilvera_settings"
+                    title="Türkiye Electronic Integrations"
                     invisible="country_code != 'TR'">
                     <div class="col-12 col-lg-12 o_setting_box">
                         <div class="o_setting_right_pane border-0">
@@ -24,7 +24,7 @@
                             <div class="text-muted oe_inline mb-3">
                                 <div>
                                     You are sending and receiving e-documents using the following Tax ID:
-                                    <strong><field class="d-inline" name="l10n_tr_nilvera_vat" nolabel="1" /></strong>
+                                    <strong><field name="l10n_tr_nilvera_vat" nolabel="1" class="d-inline" /></strong>
                                 </div>
                                 <div class="mb-1">
                                     <div>
@@ -42,15 +42,15 @@
                             </div>
                             <div class="row">
                                 <label
-                                    string="API Key"
                                     for="l10n_tr_nilvera_api_key"
+                                    string="API Key"
                                     class="col-lg-3 o_light_label" />
                                 <field name="l10n_tr_nilvera_api_key" />
                             </div>
                             <div class="row">
                                 <label
-                                    string="Incoming Invoices Journal"
                                     for="l10n_tr_nilvera_purchase_journal_id"
+                                    string="Incoming Invoices Journal"
                                     class="col-lg-3 o_light_label" />
                                 <field name="l10n_tr_nilvera_purchase_journal_id" />
                             </div>
@@ -91,8 +91,8 @@
                             </div>
                             <setting
                                 id="l10n_tr_nilvera_use_test_env"
-                                class="mt-3"
-                                help="Activate to send e-documents to sandbox">
+                                help="Activate to send e-documents to sandbox"
+                                class="mt-3">
                                 <field name="l10n_tr_nilvera_use_test_env" />
                             </setting>
                         </div>

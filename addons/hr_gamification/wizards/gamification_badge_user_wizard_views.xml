@@ -10,10 +10,10 @@
                 <xpath expr="//field[@name='user_id']" position="after">
                     <field
                         name="employee_id"
+                        colspan="2"
                         nolabel="1"
-                        invisible="1"
                         domain="[('user_id', '!=', False),('user_id', '!=', uid)]"
-                        colspan="2" />
+                        invisible="1" />
                 </xpath>
             </data>
         </field>
@@ -31,8 +31,8 @@
                         <div>
                             <div colspan="3" class="mb-3 mt-1">What are you thankful for?</div>
                             <field
-                                colspan="6"
                                 name="badge_id"
+                                colspan="6"
                                 nolabel="1"
                                 domain="[('rule_auth','!=','nobody')]" />
                         </div>
@@ -40,28 +40,27 @@
                     <group colspan="3">
                         <field
                             name="badge_id"
-                            nolabel="1"
-                            class="oe_avatar m-0"
                             widget="image"
-                            options="{'preview_image': 'image_1024'}" />
+                            nolabel="1"
+                            options="{'preview_image': 'image_1024'}"
+                            class="oe_avatar m-0" />
                     </group>
                 </group>
                 <field
                     name="comment"
-                    nolabel="1"
                     placeholder="Describe what they did and why it matters (will be public)" />
                 <footer>
                     <button
-                        string="Grant a badge"
-                        type="object"
                         name="action_grant_badge"
+                        type="object"
+                        string="Grant a badge"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Discard"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

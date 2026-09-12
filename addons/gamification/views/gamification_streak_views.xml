@@ -59,13 +59,13 @@
                         <button
                             name="%(streak_list_action)d"
                             type="action"
-                            class="oe_stat_button"
                             icon="fa-fire"
-                            context="{'search_default_streak_type_id': id}">
+                            context="{'search_default_streak_type_id': id}"
+                            class="oe_stat_button">
                             <field
                                 name="user_count"
-                                widget="statinfo"
-                                string="Active Streaks" />
+                                string="Active Streaks"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <field name="icon" widget="image" class="oe_avatar" />
@@ -117,8 +117,8 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-success="state == 'active'"
-                    decoration-danger="state == 'broken'" />
+                    decoration-danger="state == 'broken'"
+                    decoration-success="state == 'active'" />
             </list>
         </field>
     </record>
@@ -162,30 +162,30 @@
                 <field name="user_id" />
                 <field name="streak_type_id" />
                 <filter
-                    string="Active"
                     name="active_streaks"
+                    string="Active"
                     domain="[('state', '=', 'active')]" />
                 <filter
-                    string="Broken"
                     name="broken_streaks"
+                    string="Broken"
                     domain="[('state', '=', 'broken')]" />
                 <filter
-                    string="My Streaks"
                     name="my_streaks"
+                    string="My Streaks"
                     domain="[('user_id', '=', uid)]" />
                 <separator />
                 <group>
                     <filter
-                        string="User"
                         name="group_user"
+                        string="User"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Streak Type"
                         name="group_type"
+                        string="Streak Type"
                         context="{'group_by': 'streak_type_id'}" />
                     <filter
-                        string="State"
                         name="group_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                 </group>
             </search>

@@ -20,8 +20,8 @@
             <field name="model">im_livechat.channel.member.history</field>
             <field name="arch" type="xml">
                 <list
-                    default_order="create_date desc"
                     string="Member History"
+                    default_order="create_date desc"
                     sample="1">
                     <field name="create_date" />
                     <field name="channel_id" />
@@ -65,8 +65,8 @@
                     <field name="conversation_tag_ids" string="Tags" />
                     <filter
                         name="my_session"
-                        domain="[('partner_id.user_ids', '=', uid)]"
-                        string="My Sessions" />
+                        string="My Sessions"
+                        domain="[('partner_id.user_ids', '=', uid)]" />
                     <separator />
                     <filter
                         name="escalated"
@@ -93,14 +93,14 @@
                     <filter name="filter_start_date" string="Date" date="create_date" />
                     <filter
                         name="filter_date_last_month"
-                        invisible="1"
                         string="Date: Last month"
-                        domain="[('create_date', '&gt;=', 'today -1m')]" />
+                        domain="[('create_date', '&gt;=', 'today -1m')]"
+                        invisible="1" />
                     <filter
                         name="filter_date_last_week"
-                        invisible="1"
                         string="Date: Last week"
-                        domain="[('create_date', '&gt;=', 'today -1w')]" />
+                        domain="[('create_date', '&gt;=', 'today -1w')]"
+                        invisible="1" />
                     <group>
                         <filter
                             name="group_by_channel"
@@ -155,11 +155,11 @@
             <field name="model">im_livechat.channel.member.history</field>
             <field name="arch" type="xml">
                 <graph
-                    js_class="im_livechat.agent_history_graph"
-                    string="Livechat Support Statistics"
                     type="line"
-                    stacked="1"
-                    sample="1">
+                    string="Livechat Support Statistics"
+                    sample="1"
+                    js_class="im_livechat.agent_history_graph"
+                    stacked="1">
                     <field name="has_call" invisible="1" />
                     <field name="session_start_hour" invisible="1" />
                     <field name="session_week_day" invisible="1" />
@@ -170,13 +170,13 @@
                     <field name="call_percentage" type="measure" widget="percentage" />
                     <field
                         name="rating"
-                        string="Rating (%)"
                         type="measure"
+                        string="Rating (%)"
                         widget="im_livechat.rating_percentage" />
                     <field
                         name="response_time_hour"
-                        string="Response Time"
                         type="measure"
+                        string="Response Time"
                         widget="float_time" />
                     <field
                         name="session_duration_hour"
@@ -190,10 +190,10 @@
             <field name="model">im_livechat.channel.member.history</field>
             <field name="arch" type="xml">
                 <pivot
-                    js_class="im_livechat.agent_history_pivot"
                     string="Livechat Support Statistics"
                     sample="1"
-                    display_quantity="1">
+                    display_quantity="1"
+                    js_class="im_livechat.agent_history_pivot">
                     <field name="has_call" invisible="1" />
                     <field name="session_start_hour" invisible="1" />
                     <field name="session_week_day" invisible="1" />
@@ -206,8 +206,8 @@
                     <field name="call_percentage" type="measure" widget="percentage" />
                     <field
                         name="response_time_hour"
-                        string="Response Time"
                         type="measure"
+                        string="Response Time"
                         widget="float_time"
                         options="{'display_seconds': True}" />
                     <field
@@ -217,8 +217,8 @@
                         options="{'display_seconds': True}" />
                     <field
                         name="rating"
-                        string="Rating (%)"
                         type="measure"
+                        string="Rating (%)"
                         widget="im_livechat.rating_percentage" />
                     <field name="call_count" type="measure" widget="integer" />
                 </pivot>

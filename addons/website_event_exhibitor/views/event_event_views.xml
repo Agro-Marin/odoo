@@ -11,8 +11,8 @@
                 <button
                     name="%(event_sponsor_action_from_event)d"
                     type="action"
-                    class="oe_stat_button"
-                    icon="fa-black-tie">
+                    icon="fa-black-tie"
+                    class="oe_stat_button">
                     <field name="sponsor_count" string="Sponsors" widget="statinfo" />
                 </button>
             </field>
@@ -29,7 +29,7 @@
         <field name="inherit_id" ref="event.view_event_tree" />
         <field name="arch" type="xml">
             <field name="stage_id" position="after">
-                <field name="sponsor_count" readonly="1" optional="hide" />
+                <field name="sponsor_count" optional="hide" readonly="1" />
             </field>
         </field>
     </record>

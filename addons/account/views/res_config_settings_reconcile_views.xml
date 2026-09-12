@@ -7,7 +7,7 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="account.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <setting id="fiscalyear" position="replace">
+            <setting position="replace" id="fiscalyear">
                 <setting id="fiscalyear" string="Fiscal Year">
                     <div class="content-group">
                         <div class="d-flex mt16 align-items-baseline">
@@ -23,8 +23,8 @@
                     </div>
                 </setting>
                 <setting
-                    groups="account.group_account_manager"
-                    help="All entries created by Invoicing before that date will be ignored in Accounting.">
+                    help="All entries created by Invoicing before that date will be ignored in Accounting."
+                    groups="account.group_account_manager">
                     <field name="invoicing_switch_threshold" />
                 </setting>
                 <setting help="Define fiscal years of more or less than one year">
@@ -32,37 +32,37 @@
                     <div class="mt16">
                         <button
                             name="%(account.actions_account_fiscal_year)d"
-                            icon="oi-arrow-right"
                             type="action"
                             string="Fiscal Years"
-                            class="btn-link"
-                            invisible="not group_fiscal_year" />
+                            icon="oi-arrow-right"
+                            invisible="not group_fiscal_year"
+                            class="btn-link" />
                     </div>
                 </setting>
             </setting>
-            <setting id="dynamic_report" position="attributes">
+            <setting position="attributes" id="dynamic_report">
                 <attribute name="invisible">0</attribute>
             </setting>
-            <block id="bank_cash" position="inside">
+            <block position="inside" id="bank_cash">
                 <setting
-                    groups="account.group_account_manager"
                     help="Enable Auto Transfers "
+                    groups="account.group_account_manager"
                     invisible="1">
                     <field
                         name="module_account_auto_transfer"
                         widget="upgrade_boolean" />
                 </setting>
             </block>
-            <block id="invoicing_settings" position="inside">
+            <block position="inside" id="invoicing_settings">
                 <setting
-                    company_dependent="1"
-                    help="To enhance authenticity, add a signature to your invoices">
+                    help="To enhance authenticity, add a signature to your invoices"
+                    company_dependent="1">
                     <field name="sign_invoice" />
                     <label
                         for="signing_user"
                         string="Legal signatory"
-                        class="col-lg-5 o_light_label"
-                        invisible="not sign_invoice" />
+                        invisible="not sign_invoice"
+                        class="col-lg-5 o_light_label" />
                     <field name="signing_user" invisible="not sign_invoice" />
                 </setting>
             </block>
@@ -74,7 +74,7 @@
                 </setting>
             </xpath>
 
-            <setting id="post_bank_transactions_and_payments_setting" position="after">
+            <setting position="after" id="post_bank_transactions_and_payments_setting">
                 <setting
                     string="Deferred expense entries:"
                     company_dependent="1"
@@ -83,8 +83,8 @@
                         <div class="row mt8">
                             <label
                                 for="deferred_expense_journal_id"
-                                class="col-lg-5 o_light_label"
-                                string="Journal" />
+                                string="Journal"
+                                class="col-lg-5 o_light_label" />
                             <field
                                 name="deferred_expense_journal_id"
                                 domain="[('type', '=', 'general'), ('active', '=', True)]" />
@@ -92,8 +92,8 @@
                         <div class="row mt8">
                             <label
                                 for="deferred_expense_account_id"
-                                class="col-lg-5 o_light_label"
-                                string="Deferred expense" />
+                                string="Deferred expense"
+                                class="col-lg-5 o_light_label" />
                             <field
                                 name="deferred_expense_account_id"
                                 domain="[('account_type', '=', 'asset_current')]" />
@@ -101,15 +101,15 @@
                         <div class="row mt8">
                             <label
                                 for="generate_deferred_expense_entries_method"
-                                class="col-lg-5 o_light_label"
-                                string="Generate Entries" />
+                                string="Generate Entries"
+                                class="col-lg-5 o_light_label" />
                             <field name="generate_deferred_expense_entries_method" />
                         </div>
                         <div class="row mt8">
                             <label
                                 for="deferred_expense_amount_computation_method"
-                                class="col-lg-5 o_light_label"
-                                string="Based on" />
+                                string="Based on"
+                                class="col-lg-5 o_light_label" />
                             <field name="deferred_expense_amount_computation_method" />
                         </div>
                     </div>
@@ -122,8 +122,8 @@
                         <div class="row mt8">
                             <label
                                 for="deferred_revenue_journal_id"
-                                class="col-lg-5 o_light_label"
-                                string="Journal" />
+                                string="Journal"
+                                class="col-lg-5 o_light_label" />
                             <field
                                 name="deferred_revenue_journal_id"
                                 domain="[('type', '=', 'general'), ('active', '=', True)]" />
@@ -131,8 +131,8 @@
                         <div class="row mt8">
                             <label
                                 for="deferred_revenue_account_id"
-                                class="col-lg-5 o_light_label"
-                                string="Deferred revenue" />
+                                string="Deferred revenue"
+                                class="col-lg-5 o_light_label" />
                             <field
                                 name="deferred_revenue_account_id"
                                 domain="[('account_type', '=', 'liability_current')]" />
@@ -140,15 +140,15 @@
                         <div class="row mt8">
                             <label
                                 for="generate_deferred_revenue_entries_method"
-                                class="col-lg-5 o_light_label"
-                                string="Generate Entries" />
+                                string="Generate Entries"
+                                class="col-lg-5 o_light_label" />
                             <field name="generate_deferred_revenue_entries_method" />
                         </div>
                         <div class="row mt8">
                             <label
                                 for="deferred_revenue_amount_computation_method"
-                                class="col-lg-5 o_light_label"
-                                string="Based on" />
+                                string="Based on"
+                                class="col-lg-5 o_light_label" />
                             <field name="deferred_revenue_amount_computation_method" />
                         </div>
                     </div>

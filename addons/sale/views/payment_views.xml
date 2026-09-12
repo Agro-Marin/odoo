@@ -21,13 +21,13 @@
                 <button
                     name="action_view_sales_orders"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-money"
-                    invisible="sale_order_ids_nbr == 0">
+                    invisible="sale_order_ids_nbr == 0"
+                    class="oe_stat_button">
                     <field
                         name="sale_order_ids_nbr"
-                        widget="statinfo"
-                        string="Sales Order(s)" />
+                        string="Sales Order(s)"
+                        widget="statinfo" />
                 </button>
             </xpath>
         </field>

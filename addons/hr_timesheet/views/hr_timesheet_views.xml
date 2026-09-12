@@ -7,8 +7,8 @@
             <field name="model">account.analytic.line</field>
             <field name="arch" type="xml">
                 <list
-                    editable="top"
                     string="Timesheet Activities"
+                    editable="top"
                     sample="1"
                     decoration-muted="readonly_timesheet == True">
                     <field name="readonly_timesheet" column_invisible="True" />
@@ -19,27 +19,27 @@
                         readonly="readonly_timesheet" />
                     <field
                         name="project_id"
+                        context="{'search_default_my_projects': True}"
                         options="{'no_create_edit': True}"
-                        required="1"
                         readonly="readonly_timesheet"
-                        context="{'search_default_my_projects': True}" />
+                        required="1" />
                     <field
                         name="task_id"
-                        optional="show"
-                        options="{'no_create_edit': True, 'no_open': True}"
                         widget="task_with_hours"
+                        optional="show"
                         context="{'default_project_id': project_id, 'search_default_my_tasks': True, 'search_default_open_tasks': True}"
+                        options="{'no_create_edit': True, 'no_open': True}"
                         readonly="readonly_timesheet" />
                     <field
                         name="name"
                         optional="show"
-                        required="0"
-                        readonly="readonly_timesheet" />
+                        readonly="readonly_timesheet"
+                        required="0" />
                     <field
                         name="unit_amount"
                         string="Time Spent"
-                        optional="show"
                         widget="timesheet_uom"
+                        optional="show"
                         sum="Total"
                         readonly="readonly_timesheet"
                         decoration-danger="unit_amount &gt; 24 or unit_amount &lt; 0"
@@ -88,11 +88,11 @@
             <field name="arch" type="xml">
                 <pivot string="Timesheets" sample="1">
                     <field name="employee_id" type="row" />
-                    <field name="date" interval="month" type="col" />
+                    <field name="date" type="col" interval="month" />
                     <field
                         name="unit_amount"
-                        string="Time Spent"
                         type="measure"
+                        string="Time Spent"
                         widget="timesheet_uom" />
                     <field name="amount" string="Timesheet Costs" />
                 </pivot>
@@ -103,11 +103,11 @@
             <field name="model">account.analytic.line</field>
             <field name="arch" type="xml">
                 <pivot string="Timesheet" sample="1">
-                    <field name="date" interval="week" type="row" />
+                    <field name="date" type="row" interval="week" />
                     <field
                         name="unit_amount"
-                        string="Time Spent"
                         type="measure"
+                        string="Time Spent"
                         widget="timesheet_uom" />
                     <field name="amount" string="Timesheet Costs" />
                 </pivot>
@@ -122,8 +122,8 @@
                     <field name="project_id" />
                     <field
                         name="unit_amount"
-                        string="Time Spent"
                         type="measure"
+                        string="Time Spent"
                         widget="timesheet_uom" />
                     <field name="amount" string="Timesheet Costs" />
                 </graph>
@@ -139,8 +139,8 @@
                     <field name="amount" type="measure" string="Timesheet Costs" />
                     <field
                         name="unit_amount"
-                        string="Time Spent"
                         type="measure"
+                        string="Time Spent"
                         widget="timesheet_uom" />
                 </graph>
             </field>
@@ -155,8 +155,8 @@
                     <field name="amount" type="measure" string="Timesheet Costs" />
                     <field
                         name="unit_amount"
-                        string="Time Spent"
                         type="measure"
+                        string="Time Spent"
                         widget="timesheet_uom" />
                 </graph>
             </field>
@@ -203,15 +203,15 @@
                                 <field name="readonly_timesheet" invisible="1" />
                                 <field
                                     name="project_id"
-                                    options="{'no_create_edit': True}"
                                     context="{'search_default_my_projects': True}"
-                                    required="1"
-                                    readonly="readonly_timesheet" />
+                                    options="{'no_create_edit': True}"
+                                    readonly="readonly_timesheet"
+                                    required="1" />
                                 <field
                                     name="task_id"
                                     widget="task_with_hours"
-                                    options="{'no_create_edit': True}"
                                     context="{'default_project_id': project_id, 'search_default_my_tasks': True, 'search_default_open_tasks': True}"
+                                    options="{'no_create_edit': True}"
                                     readonly="readonly_timesheet" />
                                 <field
                                     name="company_id"
@@ -225,8 +225,8 @@
                                     name="unit_amount"
                                     string="Time Spent"
                                     widget="timesheet_uom"
-                                    decoration-danger="unit_amount &gt; 24"
                                     readonly="readonly_timesheet"
+                                    decoration-danger="unit_amount &gt; 24"
                                     decoration-muted="unit_amount == 0" />
                                 <field name="currency_id" invisible="1" />
                                 <field name="company_id" invisible="1" />
@@ -236,9 +236,8 @@
                             name="name"
                             placeholder="Describe your activity"
                             widget="text"
-                            nolabel="1"
-                            required="0"
-                            readonly="readonly_timesheet" />
+                            readonly="readonly_timesheet"
+                            required="0" />
                     </sheet>
                 </form>
             </field>
@@ -253,15 +252,15 @@
                 <xpath expr="//field[@name='date']" position="before">
                     <field
                         name="employee_id"
-                        groups="hr_timesheet.group_hr_timesheet_approver"
                         widget="many2one_avatar_employee"
-                        required="1"
+                        context="{'active_test': True}"
+                        groups="hr_timesheet.group_hr_timesheet_approver"
                         readonly="readonly_timesheet"
-                        context="{'active_test': True}" />
+                        required="1" />
                     <field
                         name="user_id"
-                        invisible="1"
-                        groups="hr_timesheet.group_hr_timesheet_approver" />
+                        groups="hr_timesheet.group_hr_timesheet_approver"
+                        invisible="1" />
                 </xpath>
             </field>
         </record>
@@ -301,28 +300,28 @@
                 </xpath>
                 <xpath expr="//group[@name='groupby']" position="inside">
                     <filter
-                        string="Project"
                         name="groupby_project"
+                        string="Project"
                         context="{'group_by': 'project_id'}" />
                     <filter
-                        string="Parent Task"
                         name="groupby_parent_task"
+                        string="Parent Task"
                         context="{'group_by': 'parent_task_id'}" />
                     <filter
-                        string="Task"
                         name="groupby_task"
+                        string="Task"
                         context="{'group_by': 'task_id'}" />
                     <filter
-                        string="Department"
                         name="groupby_department"
+                        string="Department"
                         context="{'group_by': 'department_id'}" />
                     <filter
-                        string="Manager"
                         name="groupby_manager"
+                        string="Manager"
                         context="{'group_by': 'manager_id'}" />
                     <filter
-                        string="Employee"
                         name="groupby_employee"
+                        string="Employee"
                         context="{'group_by': 'employee_id'}" />
                 </xpath>
             </field>
@@ -370,7 +369,7 @@
             <field name="name">account.analytic.line.kanban</field>
             <field name="model">account.analytic.line</field>
             <field name="arch" type="xml">
-                <kanban class="o_kanban_mobile" sample="1">
+                <kanban sample="1" class="o_kanban_mobile">
                     <field name="company_id" invisible="1" />
                     <templates>
                         <t t-name="card">
@@ -416,7 +415,7 @@
                             </div>
                             <footer class="mt-0 pt-0">
                                 <div class="d-flex ms-auto">
-                                    <strong><field name="unit_amount" widget="timesheet_duration_uom" decoration-danger="unit_amount &gt; 24" decoration-muted="unit_amount == 0" class="ms-1" /></strong>
+                                    <strong><field name="unit_amount" widget="timesheet_duration_uom" class="ms-1" decoration-danger="unit_amount &gt; 24" decoration-muted="unit_amount == 0" /></strong>
                                 </div>
                             </footer>
                         </t>
@@ -429,29 +428,29 @@
             <field name="model">account.analytic.line</field>
             <field name="arch" type="xml">
                 <calendar
-                    scales="month"
                     mode="month"
-                    date_start="date"
                     color="employee_id"
-                    show_unusual_days="True"
-                    multi_create_view="hr_timesheet.view_calendar_account_analytic_line_multi_create"
-                    js_class="timesheet_calendar"
                     create_name_field="calendar_display_name"
-                    form_view_id="%(hr_timesheet.hr_timesheet_line_form)d">
+                    date_start="date"
+                    form_view_id="%(hr_timesheet.hr_timesheet_line_form)d"
+                    js_class="timesheet_calendar"
+                    multi_create_view="hr_timesheet.view_calendar_account_analytic_line_multi_create"
+                    scales="month"
+                    show_unusual_days="True">
                     <field
                         name="employee_id"
-                        avatar_field="avatar_128"
-                        widget="many2one_avatar_employee" />
+                        widget="many2one_avatar_employee"
+                        avatar_field="avatar_128" />
                     <field name="project_id" />
                     <field name="task_id" invisible="not task_id" />
                     <field name="name" />
                     <field
                         name="employee_id"
                         avatar_field="avatar_128"
+                        filter_field="checked"
                         filters="1"
-                        write_model="account.analytic.line.calendar.employee"
                         write_field="employee_id"
-                        filter_field="checked" />
+                        write_model="account.analytic.line.calendar.employee" />
                 </calendar>
             </field>
         </record>
@@ -465,8 +464,8 @@
                     <group>
                         <field
                             name="project_id"
-                            options="{'no_create_edit': True}"
                             context="{'search_default_my_projects': True}"
+                            options="{'no_create_edit': True}"
                             required="1" />
                         <field
                             name="task_id"
@@ -480,8 +479,8 @@
                             decoration-muted="unit_amount == 0" />
                         <field
                             name="name"
-                            required="0"
-                            placeholder="e.g. Sending E-mails" />
+                            placeholder="e.g. Sending E-mails"
+                            required="0" />
                     </group>
                 </form>
             </field>
@@ -501,7 +500,7 @@
                     <attribute name="js_class">timesheet_calendar_my_timesheets</attribute>
                 </calendar>
                 <field name="employee_id" position="replace" />
-                <field name="employee_id" filters="1" position="replace" />
+                <field name="employee_id" position="replace" filters="1" />
             </field>
         </record>
         <record id="view_kanban_account_analytic_line_portal_user" model="ir.ui.view">

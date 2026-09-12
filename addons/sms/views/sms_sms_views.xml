@@ -11,19 +11,19 @@
                         <field name="to_delete" invisible="1" />
                         <button
                             name="send"
-                            string="Send Now"
                             type="object"
+                            string="Send Now"
                             invisible="state != 'outgoing' or to_delete"
                             class="oe_highlight" />
                         <button
                             name="action_set_outgoing"
-                            string="Retry"
                             type="object"
+                            string="Retry"
                             invisible="state not in ('error', 'canceled')" />
                         <button
                             name="action_set_canceled"
-                            string="Cancel"
                             type="object"
+                            string="Cancel"
                             invisible="state not in ('error', 'outgoing')" />
                         <field
                             name="state"
@@ -36,24 +36,24 @@
                                 <field name="partner_id" string="Contact" />
                                 <field
                                     name="mail_message_id"
-                                    readonly="1"
-                                    invisible="not mail_message_id" />
+                                    invisible="not mail_message_id"
+                                    readonly="1" />
                             </group>
                             <group>
                                 <field name="number" required="1" />
                                 <field
                                     name="failure_type"
-                                    readonly="1"
-                                    invisible="not failure_type" />
+                                    invisible="not failure_type"
+                                    readonly="1" />
                             </group>
                         </group>
                         <group>
                             <field
                                 name="body"
-                                widget="sms_widget"
                                 string="Message"
-                                required="1"
-                                readonly="state in ('process', 'sent')" />
+                                widget="sms_widget"
+                                readonly="state in ('process', 'sent')"
+                                required="1" />
                         </group>
                     </sheet>
                 </form>
@@ -70,26 +70,26 @@
                     <field
                         name="state"
                         widget="badge"
+                        decoration-danger="state == 'error'"
                         decoration-info="state == 'outgoing'"
                         decoration-muted="state == 'canceled'"
-                        decoration-success="state == 'sent'"
-                        decoration-danger="state == 'error'" />
+                        decoration-success="state == 'sent'" />
                     <button
                         name="send"
-                        string="Send Now"
                         type="object"
+                        string="Send Now"
                         icon="fa-paper-plane"
                         invisible="state != 'outgoing'" />
                     <button
                         name="action_set_outgoing"
-                        string="Retry"
                         type="object"
+                        string="Retry"
                         icon="fa-repeat"
                         invisible="state not in ('error', 'canceled')" />
                     <button
                         name="action_set_canceled"
-                        string="Cancel"
                         type="object"
+                        string="Cancel"
                         icon="fa-times-circle"
                         invisible="state not in ('error', 'outgoing')" />
                 </list>

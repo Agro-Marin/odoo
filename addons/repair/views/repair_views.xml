@@ -38,56 +38,56 @@
                     <field name="company_id" column_invisible="True" />
                     <field
                         name="priority"
-                        optional="show"
                         widget="priority"
-                        nolabel="1" />
+                        nolabel="1"
+                        optional="show" />
                     <field name="name" />
                     <field
                         name="schedule_date"
-                        optional="show"
-                        widget="remaining_days" />
-                    <field name="product_id" readonly="1" optional="show" />
+                        widget="remaining_days"
+                        optional="show" />
+                    <field name="product_id" optional="show" readonly="1" />
                     <field name="parts_availability_state" column_invisible="True" />
                     <field
                         name="parts_availability"
-                        invisible="state not in ['confirmed', 'under_repair']"
                         optional="show"
+                        invisible="state not in ['confirmed', 'under_repair']"
+                        decoration-danger="parts_availability_state == 'late'"
                         decoration-success="parts_availability_state == 'available'"
-                        decoration-warning="parts_availability_state == 'expected'"
-                        decoration-danger="parts_availability_state == 'late'" />
+                        decoration-warning="parts_availability_state == 'expected'" />
                     <field
                         name="product_qty"
-                        optional="hide"
                         string="Quantity"
+                        optional="hide"
                         readonly="state != 'draft'" />
                     <field
                         name="product_uom_id"
-                        readonly="1"
-                        groups="uom.group_uom"
                         widget="many2one_uom"
-                        optional="hide" />
+                        optional="hide"
+                        groups="uom.group_uom"
+                        readonly="1" />
                     <field
                         name="user_id"
-                        optional="hide"
-                        widget="many2one_avatar_user" />
-                    <field name="partner_id" readonly="1" optional="show" />
+                        widget="many2one_avatar_user"
+                        optional="hide" />
+                    <field name="partner_id" optional="show" readonly="1" />
                     <field name="picking_id" optional="hide" />
                     <field name="sale_order_id" optional="show" />
                     <field name="location_id" optional="hide" />
                     <field
                         name="company_id"
+                        optional="show"
                         groups="base.group_multi_company"
-                        readonly="1"
-                        optional="show" />
+                        readonly="1" />
                     <field
                         name="state"
-                        optional="show"
                         widget="badge"
-                        decoration-success="state == 'done'"
-                        decoration-info="state == 'confirmed'"
-                        decoration-warning="state == 'under_repair'"
+                        optional="show"
                         decoration-danger="state == 'cancel'"
-                        decoration-muted="state == 'draft'" />
+                        decoration-info="state == 'confirmed'"
+                        decoration-muted="state == 'draft'"
+                        decoration-success="state == 'done'"
+                        decoration-warning="state == 'under_repair'" />
                     <field
                         name="activity_exception_decoration"
                         widget="activity_exception" />
@@ -105,38 +105,38 @@
                     <header>
                         <button
                             name="action_validate"
-                            invisible="state != 'draft'"
                             type="object"
                             string="Confirm Repair"
+                            invisible="state != 'draft'"
                             class="oe_highlight"
                             data-hotkey="v" />
                         <button
                             name="action_repair_start"
-                            invisible="state != 'confirmed'"
                             type="object"
                             string="Start Repair"
+                            invisible="state != 'confirmed'"
                             class="oe_highlight"
                             data-hotkey="q" />
                         <button
                             name="action_repair_end"
-                            invisible="state != 'under_repair' or not has_uncomplete_moves"
                             type="object"
                             string="End Repair"
+                            confirm="For some of the parts, there is a difference between the initial demand and the actual quantity that was used. Are you sure you want to confirm ?"
+                            invisible="state != 'under_repair' or not has_uncomplete_moves"
                             class="oe_highlight"
-                            data-hotkey="x"
-                            confirm="For some of the parts, there is a difference between the initial demand and the actual quantity that was used. Are you sure you want to confirm ?" />
+                            data-hotkey="x" />
                         <button
                             name="action_repair_end"
-                            invisible="state != 'under_repair' or has_uncomplete_moves"
                             type="object"
                             string="End Repair"
+                            invisible="state != 'under_repair' or has_uncomplete_moves"
                             class="oe_highlight"
                             data-hotkey="x" />
                         <button
                             name="action_assign"
-                            invisible="not reserve_visible"
+                            type="object"
                             string="Check availability"
-                            type="object" />
+                            invisible="not reserve_visible" />
                         <button
                             name="action_unreserve"
                             type="object"
@@ -150,15 +150,15 @@
                             invisible="not partner_id or (state == 'cancel' or sale_order_id)" />
                         <button
                             name="action_repair_cancel"
-                            string="Cancel Repair"
                             type="object"
+                            string="Cancel Repair"
                             invisible="state in ('done', 'cancel')"
                             data-hotkey="l" />
                         <button
                             name="action_repair_cancel_draft"
-                            invisible="state != 'cancel'"
-                            string="Set to Draft"
                             type="object"
+                            string="Set to Draft"
+                            invisible="state != 'cancel'"
                             data-hotkey="z" />
                         <field
                             name="state"
@@ -173,14 +173,13 @@
                                 type="object"
                                 string="Sale Order"
                                 icon="fa-dollar"
-                                class="oe_stat_button"
-                                invisible="not sale_order_id">
+                                invisible="not sale_order_id"
+                                class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_value">
                                         <field
                                             name="sale_order_id"
                                             widget="statinfo"
-                                            nolabel="1"
                                             class="mr4" />
                                     </span>
                                     <span class="o_stat_text">Sale Order</span>
@@ -190,12 +189,12 @@
                                 name="%(action_repair_move_lines)d"
                                 type="action"
                                 string="Product Moves"
-                                class="oe_stat_button"
                                 icon="fa-exchange"
-                                invisible="state not in ['done', 'cancel']" />
+                                invisible="state not in ['done', 'cancel']"
+                                class="oe_stat_button" />
                         </div>
                         <div class="oe_title">
-                            <label class="o_form_label" for="name" />
+                            <label for="name" class="o_form_label" />
                             <h1 class="d-flex">
                                 <field name="priority" widget="priority" class="me-3" />
                                 <field name="name" />
@@ -231,16 +230,16 @@
                                     <button
                                         name="action_generate_serial"
                                         type="object"
+                                        title="Creates a new serial/lot number"
+                                        invisible="lot_id"
                                         class="btn btn-primary fa-regular fa-square-plus"
                                         aria-label="Creates a new serial/lot number"
-                                        title="Creates a new serial/lot number"
-                                        role="img"
-                                        invisible="lot_id" />
+                                        role="img" />
                                 </div>
                                 <label
                                     for="product_qty"
-                                    invisible="not product_id"
-                                    groups="base.group_no_one" />
+                                    groups="base.group_no_one"
+                                    invisible="not product_id" />
                                 <div
                                     class="o_row"
                                     invisible="not product_id"
@@ -250,14 +249,14 @@
                                         readonly="tracking == 'serial' or state in ('done', 'cancel')" />
                                     <field
                                         name="product_uom_id"
-                                        groups="uom.group_uom"
                                         widget="many2one_uom"
+                                        groups="uom.group_uom"
                                         readonly="state != 'draft'" />
                                 </div>
                                 <field
                                     name="picking_id"
-                                    invisible="not picking_id"
-                                    options="{'no_create': True}" />
+                                    options="{'no_create': True}"
+                                    invisible="not picking_id" />
                                 <field
                                     name="under_warranty"
                                     readonly="state in ['cancel', 'done']" />
@@ -271,8 +270,8 @@
                                     domain="[('share', '=', False)]" />
                                 <field
                                     name="company_id"
-                                    groups="base.group_multi_company"
-                                    options="{'no_create': True}" />
+                                    options="{'no_create': True}"
+                                    groups="base.group_multi_company" />
                                 <field
                                     name="tag_ids"
                                     widget="many2many_tags"
@@ -283,14 +282,14 @@
                                 <field
                                     name="parts_availability"
                                     invisible="state not in ['confirmed', 'under_repair']"
+                                    decoration-danger="parts_availability_state == 'late'"
                                     decoration-success="parts_availability_state == 'available'"
-                                    decoration-warning="parts_availability_state == 'expected'"
-                                    decoration-danger="parts_availability_state == 'late'" />
+                                    decoration-warning="parts_availability_state == 'expected'" />
                                 <field
                                     name="picking_type_id"
                                     options="{'no_create': True}"
-                                    readonly="state in ('done', 'cancel')"
-                                    invisible="not picking_type_visible" />
+                                    invisible="not picking_type_visible"
+                                    readonly="state in ('done', 'cancel')" />
                             </group>
                             <field
                                 name="repair_properties"
@@ -299,20 +298,20 @@
                                 hideAddButton="1" />
                         </group>
                         <notebook>
-                            <page string="Parts" name="parts">
+                            <page name="parts" string="Parts">
                                 <field
                                     name="move_ids"
-                                    readonly="state == 'cancel' or state == 'done'"
-                                    context="{'default_repair_id': id, 'default_product_uom_qty': 1, 'default_company_id': company_id, 'default_date': schedule_date, 'default_repair_line_type': 'add', 'active_repair_id': id}">
+                                    context="{'default_repair_id': id, 'default_product_uom_qty': 1, 'default_company_id': company_id, 'default_date': schedule_date, 'default_repair_line_type': 'add', 'active_repair_id': id}"
+                                    readonly="state == 'cancel' or state == 'done'">
                                     <list string="Operations" editable="bottom">
                                         <control>
                                             <create string="Add a line" />
                                             <button
                                                 name="action_add_from_catalog_repair"
-                                                string="Catalog"
                                                 type="object"
-                                                class="px-4 btn-link"
-                                                context="{'order_id': parent.id}" />
+                                                string="Catalog"
+                                                context="{'order_id': parent.id}"
+                                                class="px-4 btn-link" />
                                         </control>
                                         <field
                                             name="company_id"
@@ -356,13 +355,13 @@
                                         <field
                                             name="product_id"
                                             context="{'default_is_storable': True}"
-                                            required="1"
-                                            readonly="(state != 'draft' and not additional) or move_lines_count &gt; 0" />
+                                            readonly="(state != 'draft' and not additional) or move_lines_count &gt; 0"
+                                            required="1" />
                                         <field
                                             name="forecast_availability"
                                             string=""
-                                            column_invisible="parent.state == 'done'"
-                                            widget="forecast_widget" />
+                                            widget="forecast_widget"
+                                            column_invisible="parent.state == 'done'" />
                                         <field
                                             name="description_picking"
                                             string="Description"
@@ -378,17 +377,17 @@
                                             column_invisible="True" />
                                         <field
                                             name="product_qty"
-                                            readonly="1"
-                                            column_invisible="True" />
+                                            column_invisible="True"
+                                            readonly="1" />
                                         <field
                                             name="quantity"
                                             string="Quantity"
                                             readonly="not product_id" />
                                         <field
                                             name="product_uom_id"
-                                            readonly="state != 'draft' and not additional"
+                                            widget="many2one_uom"
                                             options="{'no_open': True, 'no_create': True}"
-                                            widget="many2one_uom" />
+                                            readonly="state != 'draft' and not additional" />
                                         <field
                                             name="picked"
                                             string="Picked"
@@ -396,24 +395,24 @@
                                         <field
                                             name="lot_ids"
                                             widget="many2many_tags"
+                                            optional="hide"
+                                            domain="[('product_id','=',product_id)]"
+                                            context="{'default_product_id': product_id}"
                                             groups="stock.group_production_lot"
                                             invisible="not show_details_visible or has_tracking != 'serial'"
-                                            optional="hide"
-                                            context="{'default_product_id': product_id}"
-                                            domain="[('product_id','=',product_id)]"
                                             readonly="not id" />
                                         <button
                                             name="action_show_details"
                                             type="object"
                                             string="Details"
-                                            invisible="not show_details_visible"
+                                            context="{'default_location_dest_id': location_dest_id}"
                                             options="{&quot;warn&quot;: true}"
-                                            context="{'default_location_dest_id': location_dest_id}" />
+                                            invisible="not show_details_visible" />
                                     </list>
                                 </field>
                                 <div class="clearfix" />
                             </page>
-                            <page string="Repair Notes" name="repair_notes">
+                            <page name="repair_notes" string="Repair Notes">
                                 <field
                                     name="internal_notes"
                                     placeholder="Add internal notes." />
@@ -428,7 +427,7 @@
             <field name="name">repair.kanban</field>
             <field name="model">repair.order</field>
             <field name="arch" type="xml">
-                <kanban class="o_kanban_mobile" sample="1" quick_create="false">
+                <kanban sample="1" class="o_kanban_mobile" quick_create="false">
                     <progressbar
                         field="activity_state"
                         colors="{&quot;planned&quot;: &quot;success&quot;, &quot;today&quot;: &quot;warning&quot;, &quot;overdue&quot;: &quot;danger&quot;}" />
@@ -438,9 +437,9 @@
                                 <field name="name" class="col-6 fw-bolder mb-1" />
                                 <field
                                     name="state"
-                                    class="col-6 text-end mb-1"
                                     widget="label_selection"
-                                    options="{'classes': {'draft': 'info', 'cancel': 'danger', 'done': 'success', 'under_repair': 'secondary'}}" />
+                                    options="{'classes': {'draft': 'info', 'cancel': 'danger', 'done': 'success', 'under_repair': 'secondary'}}"
+                                    class="col-6 text-end mb-1" />
                                 <div class="col-6 text-muted">
                                     <field name="product_id" />
                                     <field
@@ -472,114 +471,114 @@
                         filter_domain="[('partner_id', 'child_of', self)]" />
                     <field name="sale_order_id" />
                     <filter
+                        name="filter_draft"
                         string="New"
-                        domain="[('state', '=', 'draft')]"
-                        name="filter_draft" />
+                        domain="[('state', '=', 'draft')]" />
                     <filter
+                        name="filter_confirmed"
                         string="Confirmed"
-                        domain="[('state', '=', 'confirmed')]"
-                        name="filter_confirmed" />
+                        domain="[('state', '=', 'confirmed')]" />
                     <filter
-                        string="Under Repair"
                         name="filter_under_repair"
+                        string="Under Repair"
                         domain="[('state', '=', 'under_repair')]" />
                     <filter
-                        string="Repaired"
                         name="filter_done"
+                        string="Repaired"
                         domain="[('state', '=', 'done')]" />
                     <filter
-                        string="Cancelled"
                         name="filter_cancel"
+                        string="Cancelled"
                         domain="[('state', '=', 'cancel')]" />
                     <filter
-                        string="Returned"
                         name="returned"
+                        string="Returned"
                         domain="[('picking_id', '!=', False), ('picking_id.state', '=', 'done')]" />
                     <separator />
                     <filter
-                        invisible="1"
                         name="before"
                         string="Before"
-                        domain="[('date_category', '=', 'before')]" />
+                        domain="[('date_category', '=', 'before')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="yesterday"
                         string="Yesterday"
-                        domain="[('date_category', '=', 'yesterday')]" />
+                        domain="[('date_category', '=', 'yesterday')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="today"
                         string="Today"
-                        domain="[('date_category', '=', 'today')]" />
+                        domain="[('date_category', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="day_1"
                         string="Tomorrow"
-                        domain="[('date_category', '=', 'day_1')]" />
+                        domain="[('date_category', '=', 'day_1')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="day_2"
                         string="The day after tomorrow"
-                        domain="[('date_category', '=', 'day_2')]" />
+                        domain="[('date_category', '=', 'day_2')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="after"
                         string="After"
-                        domain="[('date_category', '=', 'after')]" />
+                        domain="[('date_category', '=', 'after')]"
+                        invisible="1" />
                     <filter
-                        string="Ready"
                         name="ready"
+                        string="Ready"
                         domain="[('state', '=', 'confirmed'), ('is_parts_available', '=', True)]"
                         invisible="True" />
                     <filter
-                        string="Late"
                         name="filter_late"
+                        string="Late"
                         domain="[('state', '=', 'confirmed'), ('schedule_date', '&lt;', 'today')]" />
                     <filter name="filter_create_date" date="create_date" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                     <group>
                         <filter
-                            string="Customer"
                             name="partner"
+                            string="Customer"
                             context="{'group_by': 'partner_id'}" />
                         <filter
-                            string="Product"
                             name="product"
+                            string="Product"
                             context="{'group_by': 'product_id'}" />
                         <filter
-                            string="Status"
                             name="status"
+                            string="Status"
                             context="{'group_by': 'state'}" />
                         <filter
-                            string="Company"
                             name="company"
+                            string="Company"
                             context="{'group_by': 'company_id'}"
                             groups="base.group_multi_company" />
                         <filter
-                            string="Properties"
                             name="group_by_repair_properties"
+                            string="Properties"
                             context="{'group_by': 'repair_properties'}" />
                     </group>
                 </search>

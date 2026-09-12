@@ -41,8 +41,8 @@
                     class="mb-3" />
                 <field
                     name="user_ids"
-                    class="o_portal_wizard_user_one2many"
-                    widget="portal_wizard_user_one2many">
+                    widget="portal_wizard_user_one2many"
+                    class="o_portal_wizard_user_one2many">
                     <list
                         string="Contacts"
                         editable="bottom"
@@ -54,54 +54,54 @@
                         <button
                             name="action_refresh_modal"
                             type="object"
+                            title="Valid Email Address"
                             icon="fa-check text-success"
-                            invisible="email_state != 'ok'"
-                            title="Valid Email Address" />
+                            invisible="email_state != 'ok'" />
                         <button
                             name="action_refresh_modal"
                             type="object"
+                            title="Invalid Email Address"
                             icon="fa-times text-danger"
-                            invisible="email_state != 'ko'"
-                            title="Invalid Email Address" />
+                            invisible="email_state != 'ko'" />
                         <button
                             name="action_refresh_modal"
                             type="object"
+                            title="Email Address already taken by another user"
                             icon="fa-user-times text-danger"
-                            invisible="email_state != 'exist'"
-                            title="Email Address already taken by another user" />
+                            invisible="email_state != 'exist'" />
                         <field name="login_date" />
                         <field name="is_portal" column_invisible="True" />
                         <field name="is_internal" column_invisible="True" />
                         <button
-                            string="Grant Access"
                             name="action_grant_access"
                             type="object"
-                            class="btn-secondary"
-                            invisible="is_portal or is_internal or email_state != 'ok'" />
+                            string="Grant Access"
+                            invisible="is_portal or is_internal or email_state != 'ok'"
+                            class="btn-secondary" />
                         <button
-                            string="Revoke Access"
                             name="action_revoke_access"
                             type="object"
-                            class="btn-secondary"
-                            invisible="not is_portal or is_internal" />
+                            string="Revoke Access"
+                            invisible="not is_portal or is_internal"
+                            class="btn-secondary" />
                         <button
-                            string="Re-Invite"
                             name="action_invite_again"
                             type="object"
-                            class="btn-secondary"
-                            invisible="not is_portal or is_internal or email_state != 'ok'" />
+                            string="Re-Invite"
+                            invisible="not is_portal or is_internal or email_state != 'ok'"
+                            class="btn-secondary" />
                         <button
                             string="Internal User"
+                            title="This partner is linked to an internal User and already has access to the Portal."
                             invisible="not is_internal"
-                            disabled="True"
-                            title="This partner is linked to an internal User and already has access to the Portal." />
+                            disabled="True" />
                     </list>
                 </field>
                 <footer>
                     <button
+                        special="save"
                         string="Close"
                         class="btn-primary"
-                        special="save"
                         data-hotkey="v" />
                 </footer>
             </form>

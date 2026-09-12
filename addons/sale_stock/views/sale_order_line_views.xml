@@ -9,8 +9,8 @@
             <field name="price_subtotal" position="before">
                 <field
                     name="route_ids"
-                    groups="stock.group_adv_location"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="stock.group_adv_location" />
             </field>
         </field>
     </record>

@@ -5,7 +5,7 @@
         <field name="name">ai.use.case.tag.list</field>
         <field name="model">ai.use.case.tag</field>
         <field name="arch" type="xml">
-            <list string="AI Use Case Tags" create="1" delete="1" editable="bottom">
+            <list string="AI Use Case Tags" editable="bottom" create="1" delete="1">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field name="code" />
@@ -24,8 +24,8 @@
                     <widget
                         name="web_ribbon"
                         title="Inactive"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field name="name" />
@@ -55,12 +55,12 @@
                 <field name="name" />
                 <field name="code" />
                 <filter
-                    string="Active"
                     name="filter_active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Inactive"
                     name="filter_inactive"
+                    string="Inactive"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

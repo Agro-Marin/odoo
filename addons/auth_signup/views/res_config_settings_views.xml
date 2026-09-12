@@ -13,17 +13,17 @@
                     help="Let your customers log in to see their documents">
                     <field
                         name="auth_signup_uninvited"
-                        class="o_light_label"
                         widget="radio"
                         options="{'horizontal': true}"
-                        required="True" />
+                        required="True"
+                        class="o_light_label" />
                     <div
                         class="content-group"
                         invisible="auth_signup_uninvited == 'b2b'">
                         <div class="mt8">
                             <button
-                                type="object"
                                 name="action_view_template_user"
+                                type="object"
                                 string="Default Access Rights"
                                 icon="oi-arrow-right"
                                 class="btn-link" />
@@ -31,9 +31,9 @@
                     </div>
                 </setting>
                 <setting
+                    id="enable_password_reset"
                     string="Password Reset"
-                    help="Enable password reset from Login page"
-                    id="enable_password_reset">
+                    help="Enable password reset from Login page">
                     <field name="auth_signup_reset_password" />
                 </setting>
             </xpath>

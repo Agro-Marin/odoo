@@ -22,12 +22,12 @@
                 <field name="phone_blacklisted" invisible="1" />
                 <button
                     name="phone_action_blacklist_remove"
-                    class="fa-solid fa-ban text-danger"
-                    title="This phone number is blacklisted for SMS Marketing. Click to unblacklist."
                     type="object"
+                    title="This phone number is blacklisted for SMS Marketing. Click to unblacklist."
                     context="{'default_phone': phone_sanitized}"
                     groups="base.group_user"
-                    invisible="not phone_blacklisted" />
+                    invisible="not phone_blacklisted"
+                    class="fa-solid fa-ban text-danger" />
             </xpath>
         </field>
     </record>

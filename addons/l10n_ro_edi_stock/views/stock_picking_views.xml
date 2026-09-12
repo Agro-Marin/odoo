@@ -15,20 +15,20 @@
 
                 <button
                     name="action_l10n_ro_edi_stock_send_etransport"
-                    string="Send eTransport"
                     type="object"
+                    string="Send eTransport"
                     context="{'l10n_ro_edi_stock_send_type': 'send'}"
                     invisible="not l10n_ro_edi_stock_enable_send" />
                 <button
                     name="action_l10n_ro_edi_stock_send_etransport"
-                    string="Amend eTransport"
                     type="object"
+                    string="Amend eTransport"
                     context="{'l10n_ro_edi_stock_send_type': 'amend'}"
                     invisible="not l10n_ro_edi_stock_enable_amend" />
                 <button
                     name="action_l10n_ro_edi_stock_fetch_status"
-                    string="Fetch Status"
                     type="object"
+                    string="Fetch Status"
                     invisible="not l10n_ro_edi_stock_enable_fetch" />
             </xpath>
 
@@ -93,12 +93,12 @@
 
                             <field
                                 name="l10n_ro_edi_stock_start_bcp"
-                                readonly="l10n_ro_edi_stock_fields_readonly"
-                                invisible="l10n_ro_edi_stock_start_loc_type != 'bcp'" />
+                                invisible="l10n_ro_edi_stock_start_loc_type != 'bcp'"
+                                readonly="l10n_ro_edi_stock_fields_readonly" />
                             <field
                                 name="l10n_ro_edi_stock_start_customs_office"
-                                readonly="l10n_ro_edi_stock_fields_readonly"
-                                invisible="l10n_ro_edi_stock_start_loc_type != 'customs'" />
+                                invisible="l10n_ro_edi_stock_start_loc_type != 'customs'"
+                                readonly="l10n_ro_edi_stock_fields_readonly" />
                         </group>
 
                         <group string="End Location">
@@ -113,30 +113,30 @@
 
                             <field
                                 name="l10n_ro_edi_stock_end_bcp"
-                                readonly="l10n_ro_edi_stock_fields_readonly"
-                                invisible="l10n_ro_edi_stock_end_loc_type != 'bcp'" />
+                                invisible="l10n_ro_edi_stock_end_loc_type != 'bcp'"
+                                readonly="l10n_ro_edi_stock_fields_readonly" />
                             <field
                                 name="l10n_ro_edi_stock_end_customs_office"
-                                readonly="l10n_ro_edi_stock_fields_readonly"
-                                invisible="l10n_ro_edi_stock_end_loc_type != 'customs'" />
+                                invisible="l10n_ro_edi_stock_end_loc_type != 'customs'"
+                                readonly="l10n_ro_edi_stock_fields_readonly" />
                         </group>
                     </group>
                 </page>
 
                 <page
-                    id="l10n_ro_edi_stock_documents"
                     name="etransport_documents"
+                    id="l10n_ro_edi_stock_documents"
                     string="eTransport Documents"
                     invisible="not (l10n_ro_edi_stock_enable and l10n_ro_edi_stock_document_ids)">
                     <field name="l10n_ro_edi_stock_document_ids">
                         <list
                             create="false"
-                            delete="false"
                             edit="false"
-                            no_open="1"
+                            delete="false"
                             decoration-danger="state == 'stock_sending_failed'"
+                            decoration-success="state == 'stock_validated'"
                             decoration-warning="state == 'stock_sent'"
-                            decoration-success="state == 'stock_validated'">
+                            no_open="1">
                             <field name="message" column_invisible="1" />
                             <field name="attachment" column_invisible="1" />
                             <field name="datetime" />
@@ -160,8 +160,8 @@
             <xpath expr="//header/button[@name='action_assign']" position="after">
                 <button
                     name="action_l10n_ro_edi_stock_fetch_status"
-                    string="Fetch Status"
-                    type="object" />
+                    type="object"
+                    string="Fetch Status" />
             </xpath>
             <field name="state" position="before">
                 <field name="l10n_ro_edi_stock_state" optional="hide" />
@@ -179,23 +179,23 @@
 
             <filter name="available" position="after">
                 <filter
-                    string="eTransport Error"
                     name="l10n_ro_edi_stock_state_stock_sending_failed"
+                    string="eTransport Error"
                     domain="[('l10n_ro_edi_stock_state', '=', 'stock_sending_failed')]" />
                 <filter
-                    string="eTransport Sent"
                     name="l10n_ro_edi_stock_state_stock_sent"
+                    string="eTransport Sent"
                     domain="[('l10n_ro_edi_stock_state', '=', 'stock_sent')]" />
                 <filter
-                    string="eTransport Validated"
                     name="l10n_ro_edi_stock_state_stock_validated"
+                    string="eTransport Validated"
                     domain="[('l10n_ro_edi_stock_state', '=', 'stock_validated')]" />
             </filter>
 
             <xpath expr="//group/filter[@name='status']" position="after">
                 <filter
-                    string="eTransport Status"
                     name="l10n_ro_edi_stock_state_group"
+                    string="eTransport Status"
                     context="{'group_by': 'l10n_ro_edi_stock_state'}" />
             </xpath>
         </field>

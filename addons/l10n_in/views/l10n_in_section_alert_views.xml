@@ -27,33 +27,33 @@
                             <field name="name" />
                         </h1>
                     </div>
-                    <group class="w-50" string="Threshold limits">
+                    <group string="Threshold limits" class="w-50">
                         <field name="consider_amount" />
                         <label for="is_per_transaction_limit" />
                         <div>
                             <field
-                                class="w-25"
                                 name="is_per_transaction_limit"
-                                widget="boolean_toggle" />
+                                widget="boolean_toggle"
+                                class="w-25" />
                             <field
-                                class="w-25 text-center oe_inline"
                                 name="per_transaction_limit"
-                                invisible="not is_per_transaction_limit" />
+                                invisible="not is_per_transaction_limit"
+                                class="w-25 text-center oe_inline" />
                         </div>
                         <label for="is_aggregate_limit" />
                         <div>
                             <field
-                                class="w-25"
                                 name="is_aggregate_limit"
-                                widget="boolean_toggle" />
+                                widget="boolean_toggle"
+                                class="w-25" />
                             <field
-                                class="w-25 text-center oe_inline"
                                 name="aggregate_limit"
-                                invisible="not is_aggregate_limit" />
+                                invisible="not is_aggregate_limit"
+                                class="w-25 text-center oe_inline" />
                             <field
-                                class="w-25"
                                 name="aggregate_period"
-                                invisible="not is_aggregate_limit" />
+                                invisible="not is_aggregate_limit"
+                                class="w-25" />
                         </div>
                     </group>
                 </sheet>

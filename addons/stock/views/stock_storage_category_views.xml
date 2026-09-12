@@ -24,10 +24,10 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="%(action_stock_storage_category_locations)d"
-                            string="Locations"
                             type="action"
-                            class="oe_stat_button"
-                            icon="oi-arrows-v" />
+                            string="Locations"
+                            icon="oi-arrows-v"
+                            class="oe_stat_button" />
                     </div>
                     <group>
                         <group>
@@ -42,14 +42,14 @@
                             </div>
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                         </group>
                     </group>
                     <notebook>
                         <page
-                            string="Capacity by Package"
                             name="package_capacity"
+                            string="Capacity by Package"
                             groups="stock.group_tracking_lot">
                             <field
                                 name="package_capacity_ids"
@@ -61,21 +61,21 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Capacity by Product" name="product_capacity">
+                        <page name="product_capacity" string="Capacity by Product">
                             <field
                                 name="product_capacity_ids"
                                 context="{'default_storage_category_id': id, 'default_company_id': company_id}">
                                 <list editable="bottom">
                                     <field
                                         name="product_id"
-                                        required="1"
-                                        context="{'default_is_storable': True}" />
+                                        context="{'default_is_storable': True}"
+                                        required="1" />
                                     <field name="quantity" />
                                     <field
                                         name="product_uom_id"
-                                        groups="uom.group_uom"
+                                        widget="many2one_uom"
                                         options="{'no_create': True, 'no_open': True}"
-                                        widget="many2one_uom" />
+                                        groups="uom.group_uom" />
                                     <field name="company_id" column_invisible="True" />
                                 </list>
                             </field>
@@ -102,7 +102,7 @@
         <field name="name">stock.storage.category.capacity.list</field>
         <field name="model">stock.storage.category.capacity</field>
         <field name="arch" type="xml">
-            <list string="Storage Category Capacity" multi_edit="1" editable="bottom">
+            <list string="Storage Category Capacity" editable="bottom" multi_edit="1">
                 <field name="storage_category_id" />
                 <field
                     name="product_id"
@@ -111,16 +111,16 @@
                     required="not package_type_id" />
                 <field
                     name="package_type_id"
+                    groups="stock.group_tracking_lot"
                     column_invisible="context.get('hide_package_type', False)"
                     readonly="product_id"
-                    required="not product_id"
-                    groups="stock.group_tracking_lot" />
+                    required="not product_id" />
                 <field name="quantity" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
+                    widget="many2one_uom"
                     options="{'no_create': True, 'no_open': True}"
-                    widget="many2one_uom" />
+                    groups="uom.group_uom" />
                 <field name="company_id" column_invisible="True" />
                 <field name="package_type_id" column_invisible="True" />
             </list>

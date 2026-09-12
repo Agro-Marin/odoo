@@ -11,24 +11,24 @@
                 <div id="msg_module_google_gmail" position="replace">
                     <div class="row mt16" id="gmail_client_identifier">
                         <label
-                            string="ID"
                             for="google_gmail_client_identifier"
+                            string="ID"
                             class="col-lg-3 o_light_label" />
                         <field
                             name="google_gmail_client_identifier"
-                            class="ms-2"
-                            placeholder="ID of your Google app" />
+                            placeholder="ID of your Google app"
+                            class="ms-2" />
                     </div>
                     <div class="row mt16" id="gmail_client_secret">
                         <label
-                            string="Secret"
                             for="google_gmail_client_secret"
+                            string="Secret"
                             class="col-lg-3 o_light_label" />
                         <field
                             name="google_gmail_client_secret"
+                            placeholder="Secret of your Google app"
                             password="True"
-                            class="ms-2"
-                            placeholder="Secret of your Google app" />
+                            class="ms-2" />
                     </div>
                 </div>
             </field>

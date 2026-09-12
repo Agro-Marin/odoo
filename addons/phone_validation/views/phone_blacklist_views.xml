@@ -20,17 +20,17 @@
                 <header>
                     <button
                         name="phone_action_blacklist_remove"
-                        string="Unblacklist"
                         type="object"
-                        class="oe_highlight"
+                        string="Unblacklist"
                         context="{'default_phone': number}"
-                        invisible="not active or not number" />
+                        invisible="not active or not number"
+                        class="oe_highlight" />
                     <button
                         name="action_add"
-                        string="Blacklist"
                         type="object"
-                        class="oe_highlight"
-                        invisible="active or not number" />
+                        string="Blacklist"
+                        invisible="active or not number"
+                        class="oe_highlight" />
                 </header>
                 <sheet>
                     <div class="badge rounded-pill text-bg-danger float-end fs-6 border-0" invisible="active">Archived</div>
@@ -50,8 +50,8 @@
             <search>
                 <field name="number" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
             </search>
         </field>

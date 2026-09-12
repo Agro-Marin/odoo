@@ -13,17 +13,17 @@
                     string="Favorites"
                     domain="[('is_user_favorite', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
                 <group>
                     <filter
-                        string="Type of Operation"
                         name="groupby_code"
+                        string="Type of Operation"
                         context="{'group_by': 'code'}" />
                     <filter
-                        string="Warehouse"
                         name="groupby_warehouse_id"
+                        string="Warehouse"
                         context="{'group_by': 'warehouse_id'}" />
                 </group>
             </search>
@@ -56,13 +56,13 @@
         <field name="model">stock.picking.type</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
-                class="o_stock_kanban"
-                js_class="stock_dashboard_kanban"
-                records_draggable="0"
                 create="0"
+                class="o_stock_kanban"
+                can_open="0"
                 group_create="false"
-                can_open="0">
+                highlight_color="color"
+                js_class="stock_dashboard_kanban"
+                records_draggable="0">
                 <field name="color" />
                 <field name="code" readonly="1" />
                 <field name="count_move_ready" />
@@ -139,22 +139,22 @@
                                 t-if="!selection_mode"
                                 type="object"
                                 name="action_view_pickings">
-                                <field class="fw-bold fs-4" name="name" />
+                                <field name="name" class="fw-bold fs-4" />
                             </a>
                             <field
-                                t-if="selection_mode"
+                                name="name"
                                 class="fw-bold fs-4"
-                                name="name" />
+                                t-if="selection_mode" />
                             <field
                                 name="warehouse_id"
-                                class="d-block"
-                                groups="stock.group_stock_multi_warehouses" />
+                                groups="stock.group_stock_multi_warehouses"
+                                class="d-block" />
                             <div t-if="!selection_mode" class="row mt-3">
                                 <div class="col-6">
                                     <button
-                                        class="btn btn-primary"
                                         name="action_view_pickings_ready"
-                                        type="object">
+                                        type="object"
+                                        class="btn btn-primary">
                                         <span
                                             t-if="record.count_picking_ready.raw_value &gt; 0">
                                             <field name="count_picking_ready" />
@@ -177,8 +177,8 @@
                                             <div class="row">
                                                 <span class="col-6">Waiting</span>
                                                 <field
-                                                    class="col-2 text-end"
-                                                    name="count_picking_waiting" />
+                                                    name="count_picking_waiting"
+                                                    class="col-2 text-end" />
                                             </div>
                                         </a>
                                     </div>
@@ -193,8 +193,8 @@
                                             <div class="row">
                                                 <span class="col-6">Late</span>
                                                 <field
-                                                    class="col-2 text-end"
-                                                    name="count_picking_late" />
+                                                    name="count_picking_late"
+                                                    class="col-2 text-end" />
                                             </div>
                                         </a>
                                     </div>
@@ -210,8 +210,8 @@
                                             <div class="row">
                                                 <span class="col-6">Back Orders</span>
                                                 <field
-                                                    class="col-2 text-end"
-                                                    name="count_picking_backorders" />
+                                                    name="count_picking_backorders"
+                                                    class="col-2 text-end" />
                                             </div>
                                         </a>
                                     </div>
@@ -226,19 +226,19 @@
                                             <div class="row">
                                                 <span class="col-6">Operations</span>
                                                 <field
-                                                    class="col-2 text-end"
-                                                    name="count_move_ready" />
+                                                    name="count_move_ready"
+                                                    class="col-2 text-end" />
                                             </div>
                                         </a>
                                     </div>
                                 </div>
                             </div>
                             <field
-                                t-if="!selection_mode"
                                 name="kanban_dashboard_graph"
+                                widget="picking_type_dashboard_graph"
                                 class="mt-auto"
                                 graph_type="bar"
-                                widget="picking_type_dashboard_graph" />
+                                t-if="!selection_mode" />
                         </div>
                     </t>
                 </templates>
@@ -255,8 +255,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <label for="name" />
                     <h1>
                         <field name="name" placeholder="e.g. Receptions" />
@@ -278,12 +278,12 @@
                                     <field name="sequence_code" />
                                     <field
                                         name="warehouse_id"
-                                        groups="stock.group_stock_multi_warehouses"
-                                        force_save="1" />
+                                        force_save="1"
+                                        groups="stock.group_stock_multi_warehouses" />
                                     <field
                                         name="reservation_method"
-                                        invisible="hide_reservation_method"
-                                        widget="radio" />
+                                        widget="radio"
+                                        invisible="hide_reservation_method" />
                                     <span
                                         invisible="code == 'incoming' or reservation_method != 'by_date'" />
                                     <div
@@ -294,18 +294,18 @@
                                     </div>
                                     <field
                                         name="auto_show_reception_report"
-                                        invisible="code not in ['incoming', 'internal']"
-                                        groups="stock.group_reception_report" />
+                                        groups="stock.group_reception_report"
+                                        invisible="code not in ['incoming', 'internal']" />
                                 </group>
                                 <group>
                                     <field
                                         name="company_id"
-                                        groups="base.group_multi_company"
-                                        options="{'no_create': True}" />
+                                        options="{'no_create': True}"
+                                        groups="base.group_multi_company" />
                                     <field
-                                        invisible="code not in ['incoming', 'outgoing', 'internal']"
                                         name="return_picking_type_id"
-                                        string="Returns Type" />
+                                        string="Returns Type"
+                                        invisible="code not in ['incoming', 'outgoing', 'internal']" />
                                     <field name="create_backorder" />
                                     <field
                                         name="move_type"
@@ -315,28 +315,28 @@
                             </group>
                             <group name="second">
                                 <group
-                                    invisible="code not in ['incoming', 'outgoing', 'internal']"
+                                    name="stock_picking_type_lot"
                                     string="Lots/Serial Numbers"
                                     groups="stock.group_production_lot"
-                                    name="stock_picking_type_lot">
+                                    invisible="code not in ['incoming', 'outgoing', 'internal']">
                                     <field name="use_create_lots" string="Create New" />
                                     <field
                                         name="use_existing_lots"
                                         string="Use Existing ones" />
                                 </group>
                                 <group
-                                    invisible="code not in ['incoming', 'outgoing', 'internal']"
                                     string="Packages"
-                                    groups="stock.group_tracking_lot">
+                                    groups="stock.group_tracking_lot"
+                                    invisible="code not in ['incoming', 'outgoing', 'internal']">
                                     <field name="set_package_type" />
                                 </group>
                                 <group
+                                    name="locations"
                                     string="Locations"
-                                    groups="stock.group_stock_multi_locations"
-                                    name="locations">
+                                    groups="stock.group_stock_multi_locations">
                                     <label
-                                        for="default_location_src_id"
-                                        name="default_location_src_id_label" />
+                                        name="default_location_src_id_label"
+                                        for="default_location_src_id" />
                                     <div
                                         class="o_row"
                                         name="default_location_src_id_div">
@@ -346,8 +346,8 @@
                                             required="1" />
                                     </div>
                                     <label
-                                        for="default_location_dest_id"
-                                        name="default_location_dest_id_label" />
+                                        name="default_location_dest_id_label"
+                                        for="default_location_dest_id" />
                                     <div
                                         class="o_row"
                                         name="default_location_dest_id_div">
@@ -409,13 +409,13 @@
                                     <field
                                         name="auto_print_reception_report"
                                         string="Reception Report"
-                                        invisible="code == 'outgoing'"
-                                        groups="stock.group_reception_report" />
+                                        groups="stock.group_reception_report"
+                                        invisible="code == 'outgoing'" />
                                     <field
                                         name="auto_print_reception_report_labels"
                                         string="Reception Report Labels"
-                                        invisible="code == 'outgoing'"
-                                        groups="stock.group_reception_report" />
+                                        groups="stock.group_reception_report"
+                                        invisible="code == 'outgoing'" />
                                     <field
                                         name="auto_print_packages"
                                         string="Package Content"
@@ -429,9 +429,9 @@
                                         reports. <br />
                                         <widget
                                             name="documentation_link"
-                                            path="/applications/productivity/iot/devices/printer.html"
+                                            icon="fa-arrow-right"
                                             label=" Documentation"
-                                            icon="fa-arrow-right" />
+                                            path="/applications/productivity/iot/devices/printer.html" />
                                     </div>
                                 </group>
                                 <group

@@ -10,15 +10,15 @@
             <field name="arch" type="xml">
                 <xpath expr="//form" position="inside">
                     <app
-                        data-string="Events"
-                        string="Events"
                         name="event"
-                        groups="event.group_event_manager">
-                        <block title="Events" name="events_setting_container">
+                        string="Events"
+                        groups="event.group_event_manager"
+                        data-string="Events">
+                        <block name="events_setting_container" title="Events">
                             <setting
                                 id="manage_tracks"
-                                title="Add a navigation menu to your event web pages with schedule, tracks, a track proposal form, etc."
                                 string="Schedule &amp; Tracks"
+                                title="Add a navigation menu to your event web pages with schedule, tracks, a track proposal form, etc."
                                 help="Manage &amp; publish a schedule with tracks">
                                 <field name="module_website_event_track" />
                                 <div
@@ -28,7 +28,7 @@
                                         name="module_website_event_track_live"
                                         class="w-auto" />
                                     <div>
-                                        <label string="Live Broadcast" for="module_website_event_track_live" /><br />
+                                        <label for="module_website_event_track_live" string="Live Broadcast" /><br />
                                         <span class="text-muted">Air your tracks online through a Youtube integration</span>
                                     </div>
                                 </div>
@@ -39,7 +39,7 @@
                                         name="module_website_event_track_quiz"
                                         class="w-auto" />
                                     <div>
-                                        <label string="Event Gamification" for="module_website_event_track_quiz" /><br />
+                                        <label for="module_website_event_track_quiz" string="Event Gamification" /><br />
                                         <span class="text-muted">Share a quiz to your attendees once a track is over</span>
                                     </div>
                                 </div>
@@ -56,8 +56,8 @@
                             </setting>
                         </block>
                         <block
-                            title="Registration"
-                            name="registration_setting_container">
+                            name="registration_setting_container"
+                            title="Registration">
                             <setting
                                 id="sell_tickets"
                                 help="Sell tickets with sales orders">
@@ -74,11 +74,11 @@
                                 <field name="module_website_event_sale" />
                             </setting>
                         </block>
-                        <block title="Attendance" name="attendance_setting_container">
+                        <block name="attendance_setting_container" title="Attendance">
                             <setting
                                 id="event"
-                                company_dependent="1"
-                                help="Enable barcode scanning">
+                                help="Enable barcode scanning"
+                                company_dependent="1">
                                 <field name="use_event_barcode" />
                                 <div
                                     class="content-group row mt16"

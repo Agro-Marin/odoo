@@ -9,9 +9,9 @@
                 <group>
                     <field
                         name="appointment_resource_ids"
+                        placeholder="Select Resources"
                         widget="many2many_tags"
                         options="{'no_create': True}"
-                        placeholder="Select Resources"
                         required="1" />
                     <field
                         name="leave_start_dt"
@@ -25,14 +25,14 @@
                 </group>
                 <footer>
                     <button
-                        string="Create Closing Day(s)"
-                        class="btn-primary"
+                        name="action_create_leave"
                         type="object"
-                        name="action_create_leave" />
+                        string="Create Closing Day(s)"
+                        class="btn-primary" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="z" />
                 </footer>
             </form>

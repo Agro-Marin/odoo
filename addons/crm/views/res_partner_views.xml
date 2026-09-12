@@ -11,15 +11,15 @@
             <data>
                 <div name="button_box" position="inside">
                     <button
-                        class="oe_stat_button o_res_partner_tip_opp"
-                        type="object"
                         name="action_view_opportunity"
+                        type="object"
                         icon="fa-star"
+                        context="{'default_partner_id': id, 'default_type':'opportunity'}"
                         groups="sales_team.group_sale_salesman"
-                        context="{'default_partner_id': id, 'default_type':'opportunity'}">
+                        class="oe_stat_button o_res_partner_tip_opp">
                         <field
-                            string="Opportunities"
                             name="opportunity_count"
+                            string="Opportunities"
                             widget="statinfo" />
                     </button>
                 </div>

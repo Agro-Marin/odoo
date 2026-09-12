@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <form string="Export Translations">
                 <field name="name" invisible="1" />
-                <group invisible="state != 'choose'" string="Export Settings">
+                <group string="Export Settings" invisible="state != 'choose'">
                     <field name="lang" />
                     <field name="format" />
                     <field name="export_type" />
@@ -57,7 +57,7 @@
                         No file could be exported.
                     </div>
                     <div invisible="not data">
-                        <p>Here is the exported translation file: <field name="data" readonly="1" filename="name" /></p>
+                        <p>Here is the exported translation file: <field name="data" filename="name" readonly="1" /></p>
                         <p>This file was generated using the universal <strong>Unicode/UTF-8</strong> file encoding, please be sure to view and edit
                             using the same encoding.</p>
                         <p>The next step depends on the file format:
@@ -76,24 +76,22 @@
                 <footer invisible="state != 'choose'">
                     <button
                         name="action_export_language_file"
-                        data-hotkey="q"
-                        string="Export"
                         type="object"
-                        class="btn-primary" />
+                        string="Export"
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        type="object"
-                        class="btn-secondary" />
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
                 <footer invisible="state != 'get'">
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Close"
-                        type="object"
-                        class="btn-primary" />
+                        class="btn-primary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

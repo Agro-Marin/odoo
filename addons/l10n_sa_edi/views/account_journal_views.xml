@@ -61,8 +61,8 @@
                                 Success: Journal is onboarded and valid until
                                 <field
                                     name="l10n_sa_production_csid_validity"
-                                    readonly="1"
                                     nolabel="1"
+                                    readonly="1"
                                     class="fw-bold" />
                             </p>
                             <div>
@@ -70,18 +70,18 @@
                                     name="%(l10n_sa_edi_otp_wizard_act_window)d"
                                     type="action"
                                     icon="fa-refresh"
-                                    class="btn-info"
-                                    context="{'default_l10n_sa_renewal': True}">
+                                    context="{'default_l10n_sa_renewal': True}"
+                                    class="btn-info">
                                     Renew
                                 </button>
                                 <button
                                     name="%(l10n_sa_edi_otp_wizard_act_window)d"
                                     type="action"
+                                    confirm="Do you really want to re-onboard this Journal with ZATCA?"
                                     icon="fa-refresh"
                                     class="btn-warning ms-2"
-                                    confirm="Do you really want to re-onboard this Journal with ZATCA?"
-                                    confirm-title="Re-onboarding Confirmation"
-                                    confirm-label="Yes">
+                                    confirm-label="Yes"
+                                    confirm-title="Re-onboarding Confirmation">
                                     Re-Onboard
                                 </button>
                             </div>
@@ -107,9 +107,9 @@
                     <button
                         name="action_show_chain_head"
                         type="object"
-                        class="oe_link py-0 text-danger"
                         string="Blocking Invoice"
-                        invisible="not l10n_sa_edi_chain_head_id" />
+                        invisible="not l10n_sa_edi_chain_head_id"
+                        class="oe_link py-0 text-danger" />
                 </xpath>
             </field>
         </record>

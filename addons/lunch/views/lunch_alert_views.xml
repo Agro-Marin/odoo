@@ -55,8 +55,8 @@
                             <field name="mode" widget="radio" />
                             <field
                                 name="recipients"
-                                invisible="mode != 'chat'"
-                                widget="radio" />
+                                widget="radio"
+                                invisible="mode != 'chat'" />
                             <field
                                 name="location_ids"
                                 widget="many2many_tags"
@@ -75,8 +75,8 @@
                                 <div class="o_row" invisible="mode != 'chat'">
                                     <field
                                         name="notification_time"
-                                        required="mode == 'chat'"
-                                        widget="float_time" />
+                                        widget="float_time"
+                                        required="mode == 'chat'" />
                                     <field name="notification_moment" />
                                 </div>
                             </div>
@@ -98,7 +98,7 @@
             <kanban class="o_kanban_mobile">
                 <templates>
                     <t t-name="card">
-                        <field class="fw-bold fs-5" name="name" />
+                        <field name="name" class="fw-bold fs-5" />
                         <div>
                             <field name="mode" />
                             <span invisible="mode != 'chat'">

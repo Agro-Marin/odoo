@@ -14,8 +14,8 @@
                 <field
                     name="company_registry"
                     string="Siret"
-                    invisible="not l10n_fr_is_french"
-                    placeholder="33417522101010" />
+                    placeholder="33417522101010"
+                    invisible="not l10n_fr_is_french" />
             </field>
         </field>
     </record>

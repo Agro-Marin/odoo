@@ -9,18 +9,18 @@
             <!-- add state field in header -->
             <xpath expr="//header" position="inside">
                 <button
-                    string="Send an Invitation Email"
-                    type="object"
                     name="action_reset_password"
+                    type="object"
+                    string="Send an Invitation Email"
                     context="{'create_user': 1}"
                     invisible="state != 'new'" />
                 <field name="state" widget="statusbar" />
             </xpath>
             <xpath expr="//div[@name='auth']" position="inside">
                 <button
-                    string="Send Password Reset"
-                    type="object"
                     name="action_reset_password"
+                    type="object"
+                    string="Send Password Reset"
                     invisible="id == uid or state != 'active'"
                     class="btn btn-secondary h-100 ms-2 my-auto" />
             </xpath>

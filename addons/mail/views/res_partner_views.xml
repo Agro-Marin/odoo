@@ -12,12 +12,12 @@
                 <field name="is_blacklisted" invisible="1" />
                 <button
                     name="mail_action_blacklist_remove"
-                    class="fa-solid fa-ban text-danger"
-                    title="This email is blacklisted for mass mailings. Click to unblacklist."
                     type="object"
+                    title="This email is blacklisted for mass mailings. Click to unblacklist."
                     context="{'default_email': email}"
                     groups="base.group_user"
-                    invisible="not is_blacklisted" />
+                    invisible="not is_blacklisted"
+                    class="fa-solid fa-ban text-danger" />
             </xpath>
             <xpath expr="//sheet" position="after">
                 <chatter />
@@ -46,27 +46,27 @@
         <field name="arch" type="xml">
             <filter name="inactive" position="after">
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <separator />
             </filter>
         </field>
@@ -78,7 +78,7 @@
         <field name="inherit_id" ref="base.view_partner_tree" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='user_id']" position="after">
-                <field name="activity_ids" optional="show" widget="list_activity" />
+                <field name="activity_ids" widget="list_activity" optional="show" />
             </xpath>
         </field>
     </record>
@@ -100,9 +100,9 @@
                             <field name="name" display="full" class="o_text_block" />
                             <field
                                 name="parent_id"
-                                muted="1"
                                 display="full"
-                                class="o_text_block" />
+                                class="o_text_block"
+                                muted="1" />
                         </div>
                     </div>
                 </templates>

@@ -11,12 +11,12 @@
                 <field name="event_id" />
                 <group>
                     <filter
-                        string="Track"
                         name="groupby_event_track_id"
+                        string="Track"
                         context="{'group_by': 'event_track_id'}" />
                     <filter
-                        string="Event"
                         name="groupby_event_id"
+                        string="Event"
                         context="{'group_by': 'event_id'}" />
                 </group>
             </search>
@@ -44,8 +44,8 @@
                     <h1>
                         <field
                             name="name"
-                            default_focus="1"
-                            placeholder="e.g. Test your Knowledge" />
+                            placeholder="e.g. Test your Knowledge"
+                            default_focus="1" />
                     </h1>
                     <group>
                         <group>

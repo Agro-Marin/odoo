@@ -9,11 +9,11 @@
             <xpath expr="//div[hasclass('oe_button_box')]/button" position="before">
                 <button
                     name="action_view_tax_return"
-                    class="oe_stat_button"
-                    icon="fa-book"
                     type="object"
                     string="Tax Return"
-                    invisible="not closing_return_id" />
+                    icon="fa-book"
+                    invisible="not closing_return_id"
+                    class="oe_stat_button" />
             </xpath>
 
             <xpath
@@ -75,11 +75,11 @@
                 <groupby name="move_id">
                     <button
                         name="button_set_checked"
-                        class="btn-info"
                         type="object"
                         string="Set as Reviewed"
+                        groups="account.group_account_user"
                         invisible="checked or state == 'draft'"
-                        groups="account.group_account_user" />
+                        class="btn-info" />
                 </groupby>
             </groupby>
             <field name="invoice_date" position="attributes">
@@ -133,8 +133,8 @@
         <field name="arch" type="xml">
             <filter name="to_check" position="after">
                 <filter
-                    string="Draft To Review"
                     name="to_check_draft"
+                    string="Draft To Review"
                     domain="[('move_id.checked', '=', False), ('parent_state', '=', 'draft')]"
                     invisible="1" />
             </filter>
@@ -146,13 +146,13 @@
             </filter>
             <filter name="sales" position="before">
                 <filter
-                    string="Invoice lines"
                     name="invoices_lines"
+                    string="Invoice lines"
                     domain="[('display_type','=','product')]"
                     invisible="1" />
                 <filter
-                    string="Exclude Bank lines"
                     name="search_default_exclude_bank_lines"
+                    string="Exclude Bank lines"
                     domain="[('exclude_bank_lines','=', True)]"
                     invisible="1" />
             </filter>

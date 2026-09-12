@@ -16,20 +16,20 @@
                         invisible="module_state != 'installed'">
                         <button
                             name="action_toggle_is_published"
-                            invisible="not is_published"
-                            class="oe_stat_button"
                             type="object"
-                            icon="fa-globe">
+                            icon="fa-globe"
+                            invisible="not is_published"
+                            class="oe_stat_button">
                             <div class="o_stat_info o_field_widget">
                                 <span class="o_stat_text text-success">Published</span>
                             </div>
                         </button>
                         <button
                             name="action_toggle_is_published"
-                            invisible="is_published"
-                            class="oe_stat_button"
                             type="object"
-                            icon="fa-eye-slash">
+                            icon="fa-eye-slash"
+                            invisible="is_published"
+                            class="oe_stat_button">
                             <div class="o_stat_info o_field_widget">
                                 <span class="o_stat_text text-danger">Unpublished</span>
                             </div>
@@ -38,28 +38,28 @@
                     <field
                         name="image_128"
                         widget="image"
-                        class="oe_avatar"
-                        readonly="module_state != 'installed'" />
+                        readonly="module_state != 'installed'"
+                        class="oe_avatar" />
                     <widget
                         name="web_ribbon"
                         title="Disabled"
-                        bg_color="text-bg-danger"
-                        invisible="module_state != 'installed' or state != 'disabled'" />
+                        invisible="module_state != 'installed' or state != 'disabled'"
+                        bg_color="text-bg-danger" />
                     <widget
                         name="web_ribbon"
                         title="Test Mode"
-                        bg_color="text-bg-warning"
-                        invisible="module_state != 'installed' or state != 'test'" />
+                        invisible="module_state != 'installed' or state != 'test'"
+                        bg_color="text-bg-warning" />
                     <div class="oe_title">
                         <h1><field name="name" placeholder="Name" /></h1>
                         <div invisible="module_state == 'installed' or not module_id">
                             <a invisible="not module_to_buy" href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module" target="_blank" class="btn btn-info" role="button">Upgrade</a>
                             <button
-                                invisible="module_to_buy"
-                                type="object"
-                                class="btn btn-primary"
                                 name="button_immediate_install"
-                                string="Install" />
+                                type="object"
+                                string="Install"
+                                invisible="module_to_buy"
+                                class="btn btn-primary" />
                         </div>
                     </div>
                     <div
@@ -81,27 +81,27 @@
                             <field name="state" widget="radio" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                options="{&quot;no_open&quot;:True}" />
+                                options="{&quot;no_open&quot;:True}"
+                                groups="base.group_multi_company" />
                         </group>
                     </group>
                     <notebook invisible="module_id and module_state != 'installed'">
                         <page
-                            string="Credentials"
                             name="credentials"
+                            string="Credentials"
                             invisible="code == 'none'">
                             <group name="provider_credentials" />
                         </page>
-                        <page string="Configuration" name="configuration">
+                        <page name="configuration" string="Configuration">
                             <group name="provider_config">
-                                <group string="Payment Form" name="payment_form">
+                                <group name="payment_form" string="Payment Form">
                                     <field
                                         name="payment_method_ids"
                                         string="Payment Methods"
+                                        widget="many2many_tags"
                                         domain="[('is_primary', '=', True)]"
-                                        readonly="True"
                                         invisible="state == 'disabled'"
-                                        widget="many2many_tags" />
+                                        readonly="True" />
                                     <div colspan="2">
                                         <a
                                             type="object"
@@ -124,32 +124,32 @@
                                         name="allow_express_checkout"
                                         invisible="not support_express_checkout" />
                                 </group>
-                                <group string="Availability" name="availability">
+                                <group name="availability" string="Availability">
                                     <field name="maximum_amount" />
                                     <label for="available_currency_ids" />
                                     <!-- Use `o_row` to allow placing a button next to the field in overrides. -->
                                     <div name="available_currencies" class="o_row">
                                         <field
                                             name="available_currency_ids"
-                                            widget="many2many_tags"
                                             placeholder="Select currencies. Leave empty not to restrict any."
+                                            widget="many2many_tags"
                                             options="{'no_create': True}" />
                                     </div>
                                     <field
                                         name="available_country_ids"
-                                        widget="many2many_tags"
                                         placeholder="Select countries. Leave empty to make available everywhere."
+                                        widget="many2many_tags"
                                         options="{'no_create': True}" />
                                 </group>
                                 <group
-                                    string="Payment Followup"
                                     name="payment_followup"
+                                    string="Payment Followup"
                                     invisible="1" />
                             </group>
                         </page>
                         <page
-                            string="Messages"
                             name="messages"
+                            string="Messages"
                             invisible="module_id and module_state != 'installed'">
                             <group>
                                 <field name="pre_msg" />
@@ -182,8 +182,8 @@
                     optional="hide" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -214,8 +214,8 @@
                         <t t-set="to_upgrade" t-value="!installed and to_buy" />
                         <aside>
                             <field
-                                type="open"
                                 name="image_128"
+                                type="open"
                                 widget="image"
                                 class="mb-0 o_image_64_max"
                                 alt="provider" />
@@ -250,9 +250,9 @@
                                 <span t-if="to_upgrade" class="badge text-bg-primary">Enterprise</span>
                             </div>
                             <footer>
-                                <button t-if="!installed and !selection_mode and !to_buy" type="object" class="btn btn-sm btn-primary ms-auto" name="button_immediate_install">Install</button>
-                                <button t-if="installed and is_disabled and !selection_mode" type="open" class="btn btn-sm btn-secondary ms-auto">Activate</button>
-                                <button t-if="!installed and to_buy" href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module" target="_blank" class="btn btn-sm btn-primary ms-auto">Upgrade</button>
+                                <button name="button_immediate_install" type="object" class="btn btn-sm btn-primary ms-auto" t-if="!installed and !selection_mode and !to_buy">Install</button>
+                                <button type="open" class="btn btn-sm btn-secondary ms-auto" t-if="installed and is_disabled and !selection_mode">Activate</button>
+                                <button class="btn btn-sm btn-primary ms-auto" href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module" t-if="!installed and to_buy" target="_blank">Upgrade</button>
                             </footer>
                         </main>
                     </t>
@@ -273,24 +273,24 @@
                 <field
                     name="payment_method_ids"
                     string="payment method"
-                    context="{'active_test': False}"
-                    filter_domain="[                             '|',                             ('payment_method_ids.name', 'ilike', self),                             ('payment_method_ids.code', 'ilike', self),                        ]" />
+                    filter_domain="[                             '|',                             ('payment_method_ids.name', 'ilike', self),                             ('payment_method_ids.code', 'ilike', self),                        ]"
+                    context="{'active_test': False}" />
                 <filter
                     name="provider_installed"
                     string="Installed"
                     domain="[('module_state', '=', 'installed')]" />
                 <group>
                     <filter
-                        string="Provider"
                         name="code"
+                        string="Provider"
                         context="{'group_by': 'code'}" />
                     <filter
-                        string="State"
                         name="state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>

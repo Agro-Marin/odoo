@@ -10,10 +10,10 @@
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button
+                                name="go_to_website"
                                 type="object"
-                                class="oe_stat_button"
                                 icon="fa-globe"
-                                name="go_to_website">
+                                class="oe_stat_button">
                                 <div class="o_form_field o_stat_info">
                                     <span class="o_stat_text">Go to <br />Website</span>
                                 </div>
@@ -22,8 +22,8 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <label for="name" />
                         <h1>
                             <field
@@ -94,41 +94,41 @@
                     <field name="forum_id" />
                     <field name="tag_ids" string="Tag" />
                     <filter
-                        string="Posts"
                         name="posts"
+                        string="Posts"
                         domain="[('parent_id', '=', False)]" />
                     <filter
-                        string="Answers"
                         name="answers"
+                        string="Answers"
                         domain="[('parent_id', '!=', False)]" />
                     <filter
-                        string="Accepted Answer"
                         name="accepted_answer"
+                        string="Accepted Answer"
                         domain="[('is_correct' , '!=', False), ('parent_id', '!=', False)]" />
                     <filter
-                        string="Answered Posts"
                         name="answered_posts"
+                        string="Answered Posts"
                         domain="[('child_count', '!=', 0), ('parent_id', '=', False)]" />
                     <separator />
                     <filter name="filter_create_date" date="create_date" />
                     <filter name="filter_write_date" date="write_date" />
                     <separator />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                     <group>
                         <filter
-                            string="Forum"
                             name="forum"
+                            string="Forum"
                             context="{'group_by': 'forum_id'}" />
                         <filter
-                            string="Author"
                             name="author"
+                            string="Author"
                             context="{'group_by': 'create_uid'}" />
                         <filter
-                            string="Post"
                             name="post"
+                            string="Post"
                             context="{'group_by': 'parent_id'}" />
                     </group>
                 </search>
@@ -150,11 +150,11 @@
             <field name="priority">99</field>
             <field name="arch" type="xml">
                 <list
-                    js_class="website_pages_list"
-                    create="false"
                     type="object"
+                    create="false"
+                    multi_edit="1"
                     action="go_to_website"
-                    multi_edit="1">
+                    js_class="website_pages_list">
                     <field name="active" column_invisible="True" />
                     <field name="name" />
                     <field name="website_url" />
@@ -163,20 +163,20 @@
                     <field
                         name="views"
                         string="# Views"
-                        sum="Total Views"
-                        optional="hide" />
+                        optional="hide"
+                        sum="Total Views" />
                     <field
                         name="child_count"
                         string="# Answers"
-                        sum="Total Answers"
-                        optional="hide" />
+                        optional="hide"
+                        sum="Total Answers" />
                     <field
                         name="state"
                         widget="badge"
-                        decoration-success="state == 'active'"
+                        optional="show"
                         decoration-danger="state == 'close'"
-                        decoration-warning="state not in ('active', 'close')"
-                        optional="show" />
+                        decoration-success="state == 'active'"
+                        decoration-warning="state not in ('active', 'close')" />
 
                     <field name="is_seo_optimized" />
 
@@ -190,11 +190,11 @@
             <field name="priority">99</field>
             <field name="arch" type="xml">
                 <kanban
-                    js_class="website_pages_kanban"
-                    create="false"
-                    action="go_to_website"
                     type="object"
-                    sample="1">
+                    create="false"
+                    sample="1"
+                    action="go_to_website"
+                    js_class="website_pages_kanban">
                     <field name="parent_id" />
                     <templates>
                         <t t-name="card">

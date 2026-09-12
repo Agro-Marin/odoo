@@ -12,12 +12,12 @@
                     position="after">
                     <button
                         name="action_survey_see_leads"
-                        groups="sales_team.group_sale_salesman"
                         type="object"
-                        class="oe_stat_button"
+                        icon="fa-star"
+                        groups="sales_team.group_sale_salesman"
                         invisible="not (survey_type in ['survey', 'live_session', 'custom'] and lead_count != 0)"
-                        icon="fa-star">
-                        <field string="Leads" name="lead_count" widget="statinfo" />
+                        class="oe_stat_button">
+                        <field name="lead_count" string="Leads" widget="statinfo" />
                     </button>
                 </xpath>
 
@@ -31,8 +31,8 @@
                 <xpath expr="//list//field[@name='title']" position="after">
                     <button
                         type="button"
-                        icon="fa-star"
                         title="This question generates leads"
+                        icon="fa-star"
                         invisible="not (survey_type in ['survey', 'live_session', 'custom'] and generate_lead)" />
                 </xpath>
             </field>

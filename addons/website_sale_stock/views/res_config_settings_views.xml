@@ -7,10 +7,10 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="website_sale.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <setting id="automatic_invoice_generation_setting" position="after">
+            <setting position="after" id="automatic_invoice_generation_setting">
                 <setting
-                    string="Inventory Defaults"
                     id="product_availability_setting"
+                    string="Inventory Defaults"
                     info="This setting is common to all websites.">
                     <div class="content-group">
                         <div
@@ -41,8 +41,8 @@
                                         class=" w-auto" />
                                     <label
                                         for="default_allow_out_of_stock_order"
-                                        class="o_light_label"
-                                        string="Continue Selling" />
+                                        string="Continue Selling"
+                                        class="o_light_label" />
                                 </div>
                             </div>
                         </div>
@@ -55,13 +55,13 @@
                             <label
                                 for="default_available_threshold"
                                 string="only if below"
-                                class="o_light_label"
-                                invisible="not default_show_availability" />
+                                invisible="not default_show_availability"
+                                class="o_light_label" />
                             <field
                                 name="default_available_threshold"
-                                style="width: 30px;"
                                 digits="[42, 0]"
-                                invisible="not default_show_availability" />
+                                invisible="not default_show_availability"
+                                style="width: 30px;" />
                             <span invisible="not default_show_availability">units</span>
                         </div>
                     </div>

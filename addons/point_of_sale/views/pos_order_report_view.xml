@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <pivot string="Point of Sale Analysis" sample="1">
                 <field name="product_category_id" type="row" />
-                <field name="date_order" interval="month" type="col" />
+                <field name="date_order" type="col" interval="month" />
                 <field name="order_id" type="measure" />
                 <field name="product_uom_qty" type="measure" />
                 <field name="price_total" type="measure" />
@@ -55,16 +55,16 @@
                 <field name="date_order" />
                 <separator />
                 <filter
-                    string="Invoiced"
                     name="invoiced"
+                    string="Invoiced"
                     domain="[('invoiced','=',True)]" />
                 <filter
-                    string="Not Invoiced"
                     name="not_invoiced"
+                    string="Not Invoiced"
                     domain="[('invoiced','=',False)]" />
                 <filter
-                    string="Not Cancelled"
                     name="not_cancelled"
+                    string="Not Cancelled"
                     domain="[('state','!=','cancel')]" />
                 <separator />
                 <filter name="filter_date" date="date_order" />
@@ -74,33 +74,33 @@
                 <field name="product_category_id" />
                 <group>
                     <filter
-                        string="User"
                         name="User"
+                        string="User"
                         context="{'group_by':'user_id'}" />
                     <filter
-                        string="Point of Sale"
                         name="pos"
+                        string="Point of Sale"
                         context="{'group_by':'config_id'}" />
                     <filter
-                        string="Product"
                         name="product"
+                        string="Product"
                         context="{'group_by':'product_id'}" />
                     <filter
-                        string="Product Category"
                         name="product_category"
+                        string="Product Category"
                         context="{'group_by':'product_category_id'}" />
                     <filter
-                        string="Payment Method"
                         name="payment_method"
+                        string="Payment Method"
                         context="{'group_by':'payment_method_id'}" />
                     <filter
-                        string="Point of Sale Category"
                         name="pos_categ_id"
+                        string="Point of Sale Category"
                         context="{'group_by':'pos_categ_id'}" />
                     <separator />
                     <filter
-                        string="Order Date"
                         name="order_month"
+                        string="Order Date"
                         context="{'group_by':'date_order:month'}" />
                 </group>
             </search>

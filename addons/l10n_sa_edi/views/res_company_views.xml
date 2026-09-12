@@ -11,15 +11,15 @@
                     <field
                         name="l10n_sa_edi_building_number"
                         placeholder="Building Number"
+                        options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
                         invisible="country_code != 'SA'"
-                        class="o_address_building_number"
-                        options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
+                        class="o_address_building_number" />
                     <field
                         name="l10n_sa_edi_plot_identification"
                         placeholder="Plot Identification"
+                        options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
                         invisible="country_code != 'SA'"
-                        class="o_address_plot_identification"
-                        options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
+                        class="o_address_plot_identification" />
                 </xpath>
                 <xpath expr="//field[@name='vat']" position="before">
                     <field
@@ -34,13 +34,13 @@
                     <field
                         name="street2"
                         placeholder="District"
-                        class="o_address_street"
-                        invisible="country_code != 'SA'" />
+                        invisible="country_code != 'SA'"
+                        class="o_address_street" />
                     <field
                         name="street2"
                         placeholder="Street 2..."
-                        class="o_address_street"
-                        invisible="country_code == 'SA'" />
+                        invisible="country_code == 'SA'"
+                        class="o_address_street" />
                 </xpath>
             </field>
         </record>

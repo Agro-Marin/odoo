@@ -9,12 +9,12 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="filter_inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <filter
-                    string="Model"
                     name="group_by_model"
+                    string="Model"
                     context="{'group_by': 'res_model_id'}" />
             </search>
         </field>
@@ -30,8 +30,8 @@
                 <field name="steps_count" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -61,16 +61,16 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" string="Plan Name" />
                         <h1>
                             <field
                                 name="name"
                                 placeholder="e.g. Onboarding"
-                                options="{'line_breaks': False}"
-                                widget="text" />
+                                widget="text"
+                                options="{'line_breaks': False}" />
                         </h1>
                     </div>
                     <group name="group_plan_fields">
@@ -80,15 +80,14 @@
                         <group name="company_id" groups="base.group_multi_company">
                             <field
                                 name="company_id"
-                                domain="[('id', '=', allowed_company_ids)]"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                domain="[('id', '=', allowed_company_ids)]" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Activities To Create">
                             <field
                                 name="template_ids"
-                                nolabel="1"
                                 context="{'default_res_model': res_model}">
                                 <list>
                                     <field name="company_id" column_invisible="1" />
@@ -103,17 +102,17 @@
                                     <field name="responsible_type" />
                                     <field
                                         name="responsible_id"
-                                        readonly="responsible_type != 'other'"
-                                        widget="many2one_avatar_user" />
+                                        widget="many2one_avatar_user"
+                                        readonly="responsible_type != 'other'" />
                                     <field name="delay_count" />
                                     <field name="delay_unit" string="Unit" />
                                     <field name="delay_from" />
                                     <field
                                         name="next_activity_ids"
                                         widget="many2many_tags"
-                                        invisible="not next_activity_ids"
+                                        optional="hide"
                                         options="{                                             'no_quick_create': True,                                             'edit_tags': True,                                             }"
-                                        optional="hide" />
+                                        invisible="not next_activity_ids" />
                                 </list>
                                 <kanban class="o_kanban_mobile">
                                     <field name="icon" />
@@ -139,10 +138,10 @@
                                             <footer class="p-0">
                                                 <field name="responsible_type" />
                                                 <field
-                                                    class="ms-auto"
                                                     name="responsible_id"
                                                     widget="many2one_avatar_user"
-                                                    readonly="1" />
+                                                    readonly="1"
+                                                    class="ms-auto" />
                                             </footer>
                                         </t>
                                     </templates>

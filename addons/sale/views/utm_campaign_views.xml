@@ -54,21 +54,21 @@
                 <button
                     name="action_redirect_to_invoiced"
                     type="object"
-                    class="oe_stat_button order-1"
                     icon="fa-usd"
-                    groups="sales_team.group_sale_salesman">
-                    <field name="invoiced_amount" widget="statinfo" string="Revenues" />
+                    groups="sales_team.group_sale_salesman"
+                    class="oe_stat_button order-1">
+                    <field name="invoiced_amount" string="Revenues" widget="statinfo" />
                 </button>
                 <button
                     name="action_redirect_to_quotations"
                     type="object"
-                    class="oe_stat_button order-2"
                     icon="fa-money"
-                    groups="sales_team.group_sale_salesman">
+                    groups="sales_team.group_sale_salesman"
+                    class="oe_stat_button order-2">
                     <field
                         name="quotation_count"
-                        widget="statinfo"
-                        string="Quotations" />
+                        string="Quotations"
+                        widget="statinfo" />
                 </button>
             </xpath>
         </field>

@@ -10,8 +10,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="active" invisible="1" />
                     <field name="type" invisible="1" />
                     <field name="default_pos_receivable_account_name" invisible="1" />
@@ -20,35 +20,35 @@
                             <label for="name" />
                             <h1><field name="name" placeholder="e.g. Cash" class="oe_inline" /></h1>
                         </div>
-                        <field name="image" class="oe_avatar" widget="image" />
+                        <field name="image" widget="image" class="oe_avatar" />
                     </div>
                     <group name="Payment methods">
                         <group>
                             <field name="split_transactions" />
                             <field
                                 name="journal_id"
-                                required="not split_transactions"
-                                placeholder="Leave empty to use the receivable account of customer" />
+                                placeholder="Leave empty to use the receivable account of customer"
+                                required="not split_transactions" />
                             <field
                                 name="outstanding_account_id"
+                                placeholder="Selection of outstanding account is required"
                                 groups="account.group_account_readonly"
                                 invisible="type != 'bank'"
-                                required="type == 'bank'"
-                                placeholder="Selection of outstanding account is required" />
+                                required="type == 'bank'" />
                             <field
                                 name="receivable_account_id"
-                                groups="account.group_account_readonly"
-                                invisible="split_transactions"
                                 widget="many2one"
-                                options="{'placeholder_field': 'default_pos_receivable_account_name'}" />
+                                options="{'placeholder_field': 'default_pos_receivable_account_name'}"
+                                groups="account.group_account_readonly"
+                                invisible="split_transactions" />
                             <field
                                 name="company_id"
-                                readonly="1"
-                                groups="base.group_multi_company" />
+                                groups="base.group_multi_company"
+                                readonly="1" />
                             <field
                                 name="config_ids"
-                                widget="many2many_tags"
-                                placeholder="No Point of Sale" />
+                                placeholder="No Point of Sale"
+                                widget="many2many_tags" />
                         </group>
                         <div>
                             <group>
@@ -86,13 +86,13 @@
                 <field name="journal_id" required="not split_transactions" />
                 <field
                     name="outstanding_account_id"
-                    groups="account.group_account_readonly"
                     optional="hide"
+                    groups="account.group_account_readonly"
                     invisible="type != 'bank'" />
                 <field
                     name="receivable_account_id"
-                    groups="account.group_account_readonly"
                     optional="hide"
+                    groups="account.group_account_readonly"
                     invisible="split_transactions" />
                 <field name="company_id" groups="base.group_multi_company" />
                 <field name="config_ids" widget="many2many_tags" />
@@ -128,8 +128,8 @@
                         context="{'group_by':'journal_id'}" />
                 </group>
                 <filter
-                    string="Archived"
                     name="active"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

@@ -5,9 +5,9 @@
         <field name="model">account.journal</field>
         <field name="arch" type="xml">
             <kanban
+                class="o_account_kanban"
                 can_open="0"
                 highlight_color="color"
-                class="o_account_kanban"
                 js_class="account_dashboard_kanban">
                 <field name="id" />
                 <field name="type" />
@@ -288,9 +288,9 @@
                                 t-if="widget.editable"
                                 class="o_kanban_card_manage_settings row">
                                 <field
-                                    class="col-8"
                                     name="color"
-                                    widget="kanban_color_picker" />
+                                    widget="kanban_color_picker"
+                                    class="col-8" />
                             </div>
 
                             <div
@@ -334,11 +334,11 @@
                     <t t-name="JournalMiscelaneous">
                         <div id="dashboard_misc_left" class="col mb-3 mb-sm-0">
                             <button
+                                name="action_create_new"
                                 id="new_misc_entry_button"
                                 type="object"
-                                name="action_create_new"
-                                class="btn btn-primary float-start me-1"
-                                groups="account.group_account_user">
+                                groups="account.group_account_user"
+                                class="btn btn-primary float-start me-1">
                                 New
                             </button>
                         </div>
@@ -368,9 +368,9 @@
                                 <t
                                     t-set="bank_requires_setup"
                                     t-value="!record.bank_account_id.raw_value and ['undefined', 'online_sync'].includes(dashboard.bank_statements_source)" />
-                                <button t-if="journal_type == 'bank' and bank_requires_setup" name="action_configure_bank_journal" type="object" class="btn btn-primary" groups="account.group_account_basic">Bank
+                                <button name="action_configure_bank_journal" type="object" groups="account.group_account_basic" class="btn btn-primary" t-if="journal_type == 'bank' and bank_requires_setup">Bank
                                     Setup</button>
-                                <button id="all_transactions_btn" type="object" name="open_action" class="btn btn-primary">Transactions</button>
+                                <button name="open_action" id="all_transactions_btn" type="object" class="btn btn-primary">Transactions</button>
                             </div>
                         </div>
                         <div
@@ -459,10 +459,10 @@
                         <div class="col mb-3 mb-sm-0" name="kanban_primary_left">
                             <t t-if="journal_type == 'sale'">
                                 <button
-                                    type="object"
                                     name="action_create_new"
-                                    class="btn btn-primary"
-                                    groups="account.group_account_invoice">
+                                    type="object"
+                                    groups="account.group_account_invoice"
+                                    class="btn btn-primary">
                                     New
                                 </button>
                                 <widget
@@ -475,7 +475,7 @@
                                         name="account_file_uploader"
                                         btnClass="btn btn-primary oe_kanban_action" />
                                     <div class="ms-1">
-                                        <button type="object" name="action_create_new" class="btn-secondary " groups="account.group_account_invoice">New</button>
+                                        <button name="action_create_new" type="object" groups="account.group_account_invoice" class="btn-secondary ">New</button>
                                     </div>
                                 </div>
                                 <div t-else="">
@@ -583,8 +583,8 @@
                     <t t-name="JournalBodyGraph">
                         <field
                             name="kanban_dashboard_graph"
-                            t-att-graph_type="['cash', 'bank', 'credit'].includes(journal_type) ? 'line' : 'bar'"
-                            widget="dashboard_graph" />
+                            widget="dashboard_graph"
+                            t-att-graph_type="['cash', 'bank', 'credit'].includes(journal_type) ? 'line' : 'bar'" />
                     </t>
                 </templates>
             </kanban>

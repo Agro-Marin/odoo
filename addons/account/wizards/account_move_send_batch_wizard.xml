@@ -11,29 +11,28 @@
                 <div class="m-0" id="alerts" invisible="not alerts">
                     <field
                         name="alerts"
-                        class="o_field_html"
-                        widget="actionable_errors" />
+                        widget="actionable_errors"
+                        class="o_field_html" />
                 </div>
 
                 <field
                     name="summary_data"
-                    invisible="not summary_data"
                     widget="account_batch_sending_summary"
-                    nolabel="1" />
+                    invisible="not summary_data" />
 
                 <footer>
                     <button
-                        string="Send"
-                        data-hotkey="q"
                         name="action_send_and_print"
                         type="object"
-                        class="print btn-primary o_mail_send">
+                        string="Send"
+                        class="print btn-primary o_mail_send"
+                        data-hotkey="q">
                     </button>
                     <button
-                        string="Cancel"
-                        data-hotkey="x"
                         special="cancel"
-                        class="btn-secondary" />
+                        string="Cancel"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
 
             </form>

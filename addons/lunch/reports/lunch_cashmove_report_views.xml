@@ -51,7 +51,7 @@
                 <field name="date" />
                 <field name="user_id" widget="many2one_avatar_user" />
                 <field name="description" />
-                <field name="amount" sum="Total" widget="monetary" />
+                <field name="amount" widget="monetary" sum="Total" />
             </list>
         </field>
     </record>
@@ -64,7 +64,7 @@
                 <field name="currency_id" column_invisible="True" />
                 <field name="date" />
                 <field name="description" />
-                <field name="amount" sum="Total" widget="monetary" />
+                <field name="amount" widget="monetary" sum="Total" />
             </list>
         </field>
     </record>
@@ -77,7 +77,7 @@
                 <sheet>
                     <group>
                         <field name="currency_id" invisible="1" />
-                        <field name="user_id" required="1" widget="many2one_avatar" />
+                        <field name="user_id" widget="many2one_avatar" required="1" />
                         <field name="date" />
                         <field name="amount" widget="monetary" />
                     </group>

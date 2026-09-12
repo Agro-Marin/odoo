@@ -8,12 +8,12 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='account_vendor_bills']" position="after">
                 <block
-                    title="Malaysian Electronic Invoicing"
                     id="malaysian_edi"
+                    title="Malaysian Electronic Invoicing"
                     invisible="country_code != 'MY'">
                     <setting
-                        class="col-lg-12"
                         string="MyInvois mode"
+                        class="col-lg-12"
                         company_dependent="1">
                         <field name="l10n_my_edi_proxy_user_id" invisible="1" />
                         <div class="content-group">
@@ -48,9 +48,9 @@
                                 name="action_l10n_my_edi_allow_processing"
                                 type="object"
                                 string="Register"
+                                invisible="not l10n_my_accept_processing"
                                 class="btn btn-secondary mt-1"
-                                noSaveDialog="true"
-                                invisible="not l10n_my_accept_processing" />
+                                noSaveDialog="true" />
                         </div>
                         <div
                             class="mt8 text-success"

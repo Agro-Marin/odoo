@@ -13,8 +13,8 @@
                         <field
                             name="product_add_mode"
                             widget="radio"
-                            nolabel="1"
-                            colspan="2" />
+                            colspan="2"
+                            nolabel="1" />
                     </group>
                 </group>
             </xpath>

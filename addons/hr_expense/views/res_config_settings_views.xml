@@ -10,16 +10,16 @@
             <field name="arch" type="xml">
                 <xpath expr="//form" position="inside">
                     <app
-                        data-string="Expenses"
-                        string="Expenses"
                         name="hr_expense"
-                        groups="hr_expense.group_hr_expense_manager">
-                        <block title="Expenses" name="expenses_setting_container">
+                        string="Expenses"
+                        groups="hr_expense.group_hr_expense_manager"
+                        data-string="Expenses">
+                        <block name="expenses_setting_container" title="Expenses">
                             <setting
                                 id="create_expense_setting"
                                 string="Incoming Emails"
-                                help="Create expenses from incoming emails"
-                                title="Send an email to this email alias with the receipt in attachment to create an expense in one click. If the first word of the mail subject contains the category's internal reference or the category name, the corresponding category will automatically be set. Type the expense amount in the mail subject to set it on the expense too.">
+                                title="Send an email to this email alias with the receipt in attachment to create an expense in one click. If the first word of the mail subject contains the category's internal reference or the category name, the corresponding category will automatically be set. Type the expense amount in the mail subject to set it on the expense too."
+                                help="Create expenses from incoming emails">
                                 <field name="hr_expense_use_mailgateway" />
                                 <div
                                     class="content-group"
@@ -38,9 +38,9 @@
                                         <span>@</span>
                                         <field
                                             name="hr_expense_alias_domain_id"
-                                            class="oe_inline"
                                             placeholder="e.g. mycompany.com"
-                                            options="{'no_create': True, 'no_open': True}" />
+                                            options="{'no_create': True, 'no_open': True}"
+                                            class="oe_inline" />
                                     </div>
                                 </div>
                                 <div
@@ -52,9 +52,9 @@
                                 </div>
                             </setting>
                             <setting
+                                id="hr_payroll_accountant"
                                 string="Reimburse in Payslip"
-                                help="Refund employees via their payslips."
-                                id="hr_payroll_accountant">
+                                help="Refund employees via their payslips.">
                                 <field
                                     name="module_hr_payroll_expense"
                                     widget="upgrade_boolean" />
@@ -62,16 +62,16 @@
                             <setting
                                 id="expense_extract_settings"
                                 string="Expense Digitalization (OCR)"
-                                company_dependent="1"
+                                title="use OCR to fill data from a picture of the bill"
                                 help="Digitalize your receipts with OCR and Artificial Intelligence"
-                                title="use OCR to fill data from a picture of the bill">
+                                company_dependent="1">
                                 <field name="module_extract_hr_expense" />
                             </setting>
                             <setting
-                                string="Expense Card"
-                                company_dependent="True"
                                 id="expense_cards_stripe_issuing"
-                                help="Create prepaid virtual and physical cards for both one-time and recurring expenses, integrated into Odoo through Stripe Issuing.">
+                                string="Expense Card"
+                                help="Create prepaid virtual and physical cards for both one-time and recurring expenses, integrated into Odoo through Stripe Issuing."
+                                company_dependent="True">
                                 <field
                                     name="module_hr_expense_stripe"
                                     widget="upgrade_boolean" />
@@ -87,19 +87,19 @@
                         </block>
                         <block title="Accounting">
                             <setting
-                                company_dependent="1"
+                                string="Employee Expense Journal"
                                 help="Default accounting journal for expenses paid by employees."
-                                string="Employee Expense Journal">
+                                company_dependent="1">
                                 <field name="expense_journal_id" />
                             </setting>
                             <setting
-                                company_dependent="1"
                                 string="Payment methods"
-                                help="Payment method allowed for expenses paid by company.">
+                                help="Payment method allowed for expenses paid by company."
+                                company_dependent="1">
                                 <field
                                     name="company_expense_allowed_payment_channel_ids"
-                                    widget="many2many_tags"
                                     placeholder="All payment methods allowed"
+                                    widget="many2many_tags"
                                     options="{'no_create': True}" />
                             </setting>
                         </block>

@@ -9,11 +9,11 @@
             <field name="arch" type="xml">
                 <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
                     <button
-                        class="oe_stat_button"
                         name="action_view_equipments_records"
                         type="object"
                         icon="fa-wrench"
-                        invisible="equipment_count == 0">
+                        invisible="equipment_count == 0"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_value">
                                 <field name="equipment_count" />

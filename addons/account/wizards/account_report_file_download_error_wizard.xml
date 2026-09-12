@@ -16,28 +16,28 @@
                     <div>
                         <field
                             name="actionable_errors"
-                            class="o_field_html w-100"
-                            widget="actionable_errors" />
+                            widget="actionable_errors"
+                            class="o_field_html w-100" />
                         <p invisible="file_content"><i>Errors marked with <i class="fa-solid fa-triangle-exclamation" /> are critical and prevent the file generation.</i></p>
                     </div>
                     <footer>
                         <button
                             string="Download Anyway"
-                            class="btn btn-primary"
                             invisible="file_content"
+                            class="btn btn-primary"
                             disabled="" />
                         <button
-                            string="Download Anyway"
                             name="button_download"
                             type="object"
+                            string="Download Anyway"
+                            invisible="not file_content"
                             class="btn btn-primary"
                             close="1"
-                            data-hotkey="d"
-                            invisible="not file_content" />
+                            data-hotkey="d" />
                         <button
+                            special="cancel"
                             string="Close"
                             class="btn btn-secondary"
-                            special="cancel"
                             data-hotkey="z" />
                     </footer>
                 </form>

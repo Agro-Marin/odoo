@@ -18,16 +18,16 @@
                     <field name="source_id" />
                     <group>
                         <filter
-                            string="Campaign"
                             name="groupby_campaign_id"
+                            string="Campaign"
                             context="{'group_by': 'campaign_id'}" />
                         <filter
-                            string="Medium"
                             name="groupby_medium_id"
+                            string="Medium"
                             context="{'group_by': 'medium_id'}" />
                         <filter
-                            string="Source"
                             name="groupby_source_id"
+                            string="Source"
                             context="{'group_by': 'source_id'}" />
                     </group>
                 </search>
@@ -41,10 +41,10 @@
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button
-                                type="object"
-                                icon="fa-sign-out"
                                 name="action_visit_page"
+                                type="object"
                                 string="Visit Page"
+                                icon="fa-sign-out"
                                 class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_text">Visit Page</span>
@@ -52,10 +52,10 @@
                             </button>
 
                             <button
-                                type="object"
-                                class="oe_stat_button"
                                 name="action_view_statistics"
-                                icon="fa-mouse-pointer">
+                                type="object"
+                                icon="fa-mouse-pointer"
+                                class="oe_stat_button">
                                 <field name="count" string="Clicks" widget="statinfo" />
                             </button>
                         </div>
@@ -64,13 +64,10 @@
                             <h2 class="d-flex flex-wrap fw-normal">
                                 <field
                                     name="short_url_host"
-                                    nolabel="1"
                                     readonly="1"
                                     class="text-break w-auto me-1" />
                                 <field
                                     name="code"
-                                    nolabel="1"
-                                    readonly="not code"
                                     invisible="not code"
                                     class="o_input w-100 w-sm-50 w-lg-25" />
                             </h2>
@@ -143,12 +140,12 @@
                     <field name="country_id" />
                     <group>
                         <filter
-                            string="Link"
                             name="groupby_link_id"
+                            string="Link"
                             context="{'group_by': 'link_id'}" />
                         <filter
-                            string="Country"
                             name="groupby_country_id"
+                            string="Country"
                             context="{'group_by': 'country_id'}" />
                     </group>
                 </search>
@@ -186,7 +183,7 @@
             <field name="name">link.tracker.click.view.graph</field>
             <field name="model">link.tracker.click</field>
             <field name="arch" type="xml">
-                <graph string="Link Clicks" type="pie" sample="1">
+                <graph type="pie" string="Link Clicks" sample="1">
                     <field name="link_id" />
                     <field name="ip" />
                     <field name="country_id" />

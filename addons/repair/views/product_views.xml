@@ -20,10 +20,10 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='goods']" position="after">
                 <filter
-                    string="In the Repair Order"
-                    invisible="context.get('active_model') != 'stock.move' or                                 context.get('product_catalog_order_model') != 'repair.order'"
                     name="products_in_repair"
-                    domain="[('product_catalog_product_is_in_repair', '=', True)]" />
+                    string="In the Repair Order"
+                    domain="[('product_catalog_product_is_in_repair', '=', True)]"
+                    invisible="context.get('active_model') != 'stock.move' or                                 context.get('product_catalog_order_model') != 'repair.order'" />
                 <separator />
                 <filter
                     name="bom_parts"

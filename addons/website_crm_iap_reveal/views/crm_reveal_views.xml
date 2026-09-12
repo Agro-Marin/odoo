@@ -10,10 +10,10 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="action_get_opportunity_tree_view"
-                            class="oe_stat_button"
                             type="object"
                             icon="fa-star"
-                            invisible="lead_type != 'opportunity' and opportunity_count == 0">
+                            invisible="lead_type != 'opportunity' and opportunity_count == 0"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <field name="opportunity_count" />
                                 <span class="o_stat_text"> Opportunities </span>
@@ -21,11 +21,11 @@
                         </button>
                         <button
                             name="action_get_lead_tree_view"
-                            class="oe_stat_button"
                             type="object"
                             icon="fa-star"
                             groups="crm.group_use_lead"
-                            invisible="lead_type != 'lead' and lead_count == 0">
+                            invisible="lead_type != 'lead' and lead_count == 0"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <field name="lead_count" />
                                 <span class="o_stat_text"> Leads </span>
@@ -56,8 +56,8 @@
                                 <field
                                     name="state_ids"
                                     widget="many2many_tags"
-                                    invisible="not country_ids"
-                                    domain="[('country_id', 'in', country_ids)]" />
+                                    domain="[('country_id', 'in', country_ids)]"
+                                    invisible="not country_ids" />
                                 <field name="regex_url" placeholder="e.g. /page" />
                                 <field name="sequence" />
                             </group>
@@ -96,8 +96,8 @@
                             <field name="contact_filter_type" widget="radio" />
                             <field
                                 name="preferred_role_id"
-                                invisible="contact_filter_type != 'role'"
-                                options="{'no_create_edit': True, 'no_quick_create': True}" />
+                                options="{'no_create_edit': True, 'no_quick_create': True}"
+                                invisible="contact_filter_type != 'role'" />
                             <field
                                 name="other_role_ids"
                                 widget="many2many_tags"
@@ -105,15 +105,15 @@
                                 invisible="not preferred_role_id or contact_filter_type != 'role'" />
                             <field
                                 name="seniority_id"
-                                invisible="contact_filter_type != 'seniority'"
-                                options="{'no_create_edit': True, 'no_quick_create': True}" />
+                                options="{'no_create_edit': True, 'no_quick_create': True}"
+                                invisible="contact_filter_type != 'seniority'" />
                         </group>
                     </group>
                     <field name="lead_type" invisible="1" />
-                    <separator invisible="lead_type != 'lead'" string="Lead Data" />
+                    <separator string="Lead Data" invisible="lead_type != 'lead'" />
                     <separator
-                        invisible="lead_type != 'opportunity'"
-                        string="Opportunity Data" />
+                        string="Opportunity Data"
+                        invisible="lead_type != 'opportunity'" />
                     <group>
                         <group>
                             <field name="lead_type" groups="crm.group_use_lead" />
@@ -150,11 +150,11 @@
         <field name="model">crm.reveal.rule</field>
         <field name="arch" type="xml">
             <search string="Search CRM Reveal Rule">
-                <field string="Rule" name="name" />
+                <field name="name" string="Rule" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

@@ -11,14 +11,14 @@
             <data>
                 <xpath expr="//div[@name='anchor_buttons_meetings']" position="before">
                     <button
-                        class="oe_stat_button"
-                        type="object"
                         name="schedule_meeting"
+                        type="object"
                         icon="fa-calendar"
-                        context="{'partner_id': id, 'partner_name': name}">
+                        context="{'partner_id': id, 'partner_name': name}"
+                        class="oe_stat_button">
                         <field
-                            string="Meetings"
                             name="meeting_count"
+                            string="Meetings"
                             widget="statinfo" />
                     </button>
                 </xpath>

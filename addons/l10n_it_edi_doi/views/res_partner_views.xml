@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='supplier']" position="after">
                 <filter
-                    string="Exceeded Declaration of Intent"
                     name="l10n_it_edi_doi_declaration_of_intent_exceeded"
+                    string="Exceeded Declaration of Intent"
                     domain="[('l10n_it_edi_doi_ids','any', [('remaining', '&lt;', 0)])]" />
             </xpath>
         </field>
@@ -23,12 +23,12 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    groups="account.group_account_invoice"
-                    type="object"
-                    class="oe_stat_button"
                     name="l10n_it_edi_doi_action_view_declarations"
+                    type="object"
                     icon="fa-list"
-                    invisible="'IT' not in fiscal_country_codes">
+                    groups="account.group_account_invoice"
+                    invisible="'IT' not in fiscal_country_codes"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Declarations of Intent</span>
                     </div>

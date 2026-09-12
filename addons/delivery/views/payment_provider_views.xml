@@ -9,8 +9,8 @@
             <field name="qr_code" position="attributes">
                 <attribute
                     name="invisible"
-                    separator=" or "
-                    add="custom_mode == 'cash_on_delivery'" />
+                    add="custom_mode == 'cash_on_delivery'"
+                    separator=" or " />
             </field>
         </field>
     </record>

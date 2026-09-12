@@ -4,8 +4,8 @@
     <record id="hr_employee_skill_history_report_view_graph" model="ir.ui.view">
         <field name="model">hr.employee.skill.history.report</field>
         <field name="arch" type="xml">
-            <graph js_class="skills_graph" type="line" stacked="0" disable_linking="1">
-                <field name="date" interval="day" type="row" />
+            <graph type="line" disable_linking="1" js_class="skills_graph" stacked="0">
+                <field name="date" type="row" interval="day" />
                 <field name="skill_id" type="row" />
                 <field name="level_progress" type="measure" />
             </graph>
@@ -22,24 +22,24 @@
                 <field name="skill_type_id" />
                 <separator />
                 <filter
-                    string="Employee"
                     name="group_by_employee_id"
+                    string="Employee"
                     context="{'group_by': 'employee_id'}" />
                 <filter
-                    string="Department"
                     name="group_by_department_id"
+                    string="Department"
                     context="{'group_by': 'department_id'}" />
                 <filter
-                    string="Skill"
                     name="group_by_skill_id"
+                    string="Skill"
                     context="{'group_by': 'skill_id'}" />
                 <filter
-                    string="Skill Type"
                     name="group_by_skill_type_id"
+                    string="Skill Type"
                     context="{'group_by': 'skill_type_id'}" />
                 <filter
-                    string="Date"
                     name="group_by_date"
+                    string="Date"
                     context="{'group_by': 'date'}" />
             </search>
         </field>

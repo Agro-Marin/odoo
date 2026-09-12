@@ -27,13 +27,13 @@
                 <field
                     name="expiration_date"
                     column_invisible="not context.get('show_removal_date')"
-                    decoration-danger="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
-                    decoration-bf="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
+                    decoration-bf="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
+                    decoration-danger="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
                 <field
                     name="removal_date"
                     column_invisible="not context.get('show_removal_date')"
-                    decoration-danger="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
-                    decoration-bf="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
+                    decoration-bf="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
+                    decoration-danger="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
             </xpath>
         </field>
     </record>
@@ -50,14 +50,14 @@
                     name="expiration_date"
                     groups="stock.group_production_lot"
                     column_invisible="not context.get('show_removal_date')"
-                    decoration-danger="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
-                    decoration-bf="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
+                    decoration-bf="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
+                    decoration-danger="expiration_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
                 <field
                     name="removal_date"
                     groups="stock.group_production_lot"
                     column_invisible="not context.get('show_removal_date')"
-                    decoration-danger="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
-                    decoration-bf="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
+                    decoration-bf="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')"
+                    decoration-danger="removal_date &lt; (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d')" />
             </xpath>
         </field>
     </record>
@@ -70,12 +70,12 @@
             <xpath expr="//filter[@name='negative']" position="after">
                 <separator />
                 <filter
-                    string="Expired Lots"
                     name="expired_lots"
+                    string="Expired Lots"
                     domain="[('expiration_date', '&lt;', 'today')]" />
                 <filter
-                    string="Alert Lots"
                     name="alert_lots"
+                    string="Alert Lots"
                     domain="[('lot_id.alert_date', '&lt;=', 'today')]" />
             </xpath>
         </field>

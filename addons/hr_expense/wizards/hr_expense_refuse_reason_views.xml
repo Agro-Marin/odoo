@@ -8,19 +8,19 @@
             <form string="Expense refuse reason">
                 <field name="expense_ids" invisible="1" />
                 <group>
-                    <field string="Reason" name="reason" class="w-100" />
+                    <field name="reason" string="Reason" class="w-100" />
                 </group>
                 <footer>
                     <button
-                        string="Refuse"
                         name="action_refuse"
                         type="object"
+                        string="Refuse"
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="oe_link"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

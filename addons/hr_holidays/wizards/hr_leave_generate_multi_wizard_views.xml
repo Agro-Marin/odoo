@@ -16,10 +16,10 @@
                         groups="hr_holidays.group_hr_holidays_user" />
                     <field
                         name="employee_ids"
-                        invisible="allocation_mode != 'employee'"
-                        required="allocation_mode == 'employee'"
+                        placeholder="Everyone"
                         widget="many2many_avatar_employee"
-                        placeholder="Everyone" />
+                        invisible="allocation_mode != 'employee'"
+                        required="allocation_mode == 'employee'" />
                     <field name="company_id" invisible="allocation_mode != 'company'" />
                     <field
                         name="department_id"
@@ -33,23 +33,23 @@
                     <field
                         name="date_from"
                         widget="daterange"
+                        nolabel="1"
                         options="{'end_date_field': 'date_to'}"
-                        class="w-50"
-                        nolabel="1" />
+                        class="w-50" />
                     <field name="date_to" invisible="1" />
                 </group>
                 <field
                     name="name"
-                    widget="text"
-                    placeholder="e.g. Extra recuperation, Company unavailability, ..." />
+                    placeholder="e.g. Extra recuperation, Company unavailability, ..."
+                    widget="text" />
                 <footer>
                     <button
                         name="action_generate_time_off"
                         type="object"
-                        class="btn-primary"
                         string="Generate Time Off"
+                        class="btn-primary"
                         accesskey="c" />
-                    <button special="cancel" string="Discard" close="1" accesskey="j" />
+                    <button special="cancel" string="Discard" accesskey="j" close="1" />
                 </footer>
             </form>
         </field>

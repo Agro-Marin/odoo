@@ -44,12 +44,12 @@
                             widget="boolean_toggle"
                             options="{'autosave': False}" />
                         <button
-                            type="action"
                             name="%(website.open_custom_menu)d"
-                            context="{'xmlid': 'website.menu_edit_menu'}"
+                            type="action"
                             string="Edit Menu"
-                            class="btn-link"
-                            icon="oi-arrow-right" />
+                            icon="oi-arrow-right"
+                            context="{'xmlid': 'website.menu_edit_menu'}"
+                            class="btn-link" />
                     </div>
 
                     <field
@@ -91,8 +91,8 @@
                         <div class="o_row">
                             <widget
                                 name="form_page_dependencies"
-                                resModel="website.page"
-                                mode="popover" />
+                                mode="popover"
+                                resModel="website.page" />
                         </div>
                         <div class="o_row mt-4" invisible="not redirect_old_url">
                             <label for="redirect_type" string="Type" />
@@ -109,24 +109,24 @@
                 <div class="o_row">
                     <field
                         name="website_indexed"
+                        help="Hide this page from search results"
                         widget="boolean_toggle"
-                        options="{'autosave': False}"
-                        help="Hide this page from search results" />
+                        options="{'autosave': False}" />
                     <span invisible="website_indexed">Won't appear in search engine results</span>
                 </div>
 
                 <field name="visibility" />
                 <field
                     name="visibility_password_display"
-                    invisible="visibility != 'password'"
-                    required="visibility == 'password'"
+                    string="Password"
                     password="True"
-                    string="Password" />
+                    invisible="visibility != 'password'"
+                    required="visibility == 'password'" />
                 <field
                     name="group_ids"
-                    invisible="visibility != 'restricted_group'"
                     string="Authorized Groups"
-                    widget="many2many_tags" />
+                    widget="many2many_tags"
+                    invisible="visibility != 'restricted_group'" />
                 <field
                     name="is_new_page_template"
                     string="Is a Template"
@@ -142,11 +142,11 @@
         <field name="priority">99</field>
         <field name="arch" type="xml">
             <list
-                js_class="website_pages_list"
                 type="object"
-                action="open_website_url"
+                default_order="url asc, id asc"
                 multi_edit="1"
-                default_order="url asc, id asc">
+                action="open_website_url"
+                js_class="website_pages_list">
                 <field name="is_homepage" column_invisible="True" />
                 <field name="name" string="Page Title" />
                 <field name="website_url" string="Page URL" />
@@ -182,10 +182,10 @@
         <field name="priority">99</field>
         <field name="arch" type="xml">
             <kanban
-                js_class="website_pages_kanban"
-                action="open_website_url"
                 type="object"
-                sample="1">
+                sample="1"
+                action="open_website_url"
+                js_class="website_pages_kanban">
                 <field name="is_homepage" />
                 <templates>
                     <t t-name="card">
@@ -217,12 +217,12 @@
                             <t t-if="record.is_published.raw_value">Published</t>
                             <t t-else="">Not Published</t>
                             <button
-                                class="btn-link ms-auto p-0"
                                 name="action_page_debug_view"
-                                groups="base.group_no_one"
-                                title="Settings"
                                 type="object"
-                                icon="fa-bug" />
+                                title="Settings"
+                                icon="fa-bug"
+                                groups="base.group_no_one"
+                                class="btn-link ms-auto p-0" />
                         </div>
                     </t>
                 </templates>
@@ -237,26 +237,26 @@
             <search string="Website Pages">
                 <field name="url" />
                 <filter
-                    string="Published"
                     name="published"
+                    string="Published"
                     domain="[('website_published', '=', True)]" />
                 <filter
-                    string="Not published"
                     name="not_published"
+                    string="Not published"
                     domain="[('website_published', '=', False)]" />
                 <separator />
                 <filter
-                    string="Tracked"
                     name="tracked"
+                    string="Tracked"
                     domain="[('track', '=', True)]" />
                 <filter
-                    string="Not tracked"
                     name="not_tracked"
+                    string="Not tracked"
                     domain="[('track', '=', False)]" />
                 <separator />
                 <filter
-                    string="Not SEO optimized"
                     name="not_seo_optimized"
+                    string="Not SEO optimized"
                     domain="[('is_seo_optimized', '=', False)]" />
             </search>
         </field>
@@ -295,11 +295,11 @@
                 <div class="o_row">
                     <field name="key" />
                     <button
-                        title="Show site map"
-                        invisible="type != 'qweb'"
                         name="website.action_website_view_hierarchy"
-                        icon="fa-sitemap"
                         type="action"
+                        title="Show site map"
+                        icon="fa-sitemap"
+                        invisible="type != 'qweb'"
                         class="btn btn-link" />
                 </div>
                 <field name="page_ids" invisible="1" />
@@ -319,15 +319,15 @@
                 </div>
                 <field
                     name="visibility_password_display"
-                    invisible="visibility != 'password'"
+                    string="Visibility Password"
                     password="True"
-                    string="Visibility Password" />
+                    invisible="visibility != 'password'" />
             </field>
             <sheet position="before">
                 <header>
                     <button
-                        type="action"
                         name="website.action_website_pages_list"
+                        type="action"
                         string="Go to Page Manager"
                         invisible="not page_ids" />
                 </header>
@@ -335,8 +335,8 @@
             <field name="active" position="after">
                 <field
                     name="track"
-                    invisible="type != 'qweb'"
-                    widget="boolean_toggle" />
+                    widget="boolean_toggle"
+                    invisible="type != 'qweb'" />
             </field>
         </field>
     </record>

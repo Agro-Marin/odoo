@@ -48,18 +48,18 @@
                 <field name="sequence" widget="handle" />
                 <field
                     name="factor_percent"
-                    invisible="repartition_type == 'base'"
-                    widget="account_tax_repartition_line_factor_percent" />
+                    widget="account_tax_repartition_line_factor_percent"
+                    invisible="repartition_type == 'base'" />
                 <field name="repartition_type" />
                 <field
                     name="account_id"
-                    invisible="repartition_type == 'base'"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    invisible="repartition_type == 'base'" />
                 <field
                     name="tag_ids"
                     widget="many2many_tags"
-                    options="{'no_create': True}"
-                    domain="tag_ids_domain" />
+                    domain="tag_ids_domain"
+                    options="{'no_create': True}" />
                 <field
                     name="use_in_tax_closing"
                     optional="hide"
@@ -107,14 +107,14 @@
                     <t t-name="card">
                         <div class="row mb4">
                             <div class="col-6">
-                                <field class="fw-bolder" name="name" />
+                                <field name="name" class="fw-bolder" />
                             </div>
                             <div class="col-6 text-end">
-                                <field class="badge rounded-pill" name="type_tax_use" />
-                                <field class="badge rounded-pill" name="tax_scope" />
+                                <field name="type_tax_use" class="badge rounded-pill" />
+                                <field name="tax_scope" class="badge rounded-pill" />
                             </div>
                         </div>
-                        <field class="text-muted" name="description" />
+                        <field name="description" class="text-muted" />
                     </t>
                 </templates>
             </kanban>
@@ -135,54 +135,54 @@
                     groups="base.group_multi_company" />
                 <field name="fiscal_position_ids" />
                 <filter
-                    string="Sale"
                     name="sale"
+                    string="Sale"
                     domain="[('type_tax_use','=','sale')]" />
                 <filter
-                    string="Purchase"
                     name="purchase"
+                    string="Purchase"
                     domain="[('type_tax_use','=','purchase')]" />
                 <separator />
                 <filter
-                    string="Services"
                     name="service"
+                    string="Services"
                     domain="[('tax_scope','=','service')]" />
                 <filter
-                    string="Goods"
                     name="goods"
+                    string="Goods"
                     domain="[('tax_scope','=','consu')]" />
                 <separator />
                 <filter
-                    string="Domestic"
                     name="domestictax"
+                    string="Domestic"
                     domain="[('is_domestic', '=', True)]" />
                 <separator />
                 <filter
                     name="active"
                     string="Active"
-                    domain="[('active','=',True)]"
-                    help="Show active taxes" />
+                    help="Show active taxes"
+                    domain="[('active','=',True)]" />
                 <filter
                     name="inactive"
                     string="Inactive"
-                    domain="[('active','=',False)]"
-                    help="Show inactive taxes" />
+                    help="Show inactive taxes"
+                    domain="[('active','=',False)]" />
                 <group>
                     <filter
-                        string="Country"
                         name="country"
+                        string="Country"
                         context="{'group_by':'country_id'}" />
                     <filter
-                        string="Tax Type"
                         name="taxapp"
+                        string="Tax Type"
                         context="{'group_by':'type_tax_use'}" />
                     <filter
-                        string="Tax Scope"
                         name="taxscope"
+                        string="Tax Scope"
                         context="{'group_by':'tax_scope'}" />
                     <filter
-                        string="Fiscal Position"
                         name="groupfp"
+                        string="Fiscal Position"
                         context="{'group_by': 'fiscal_position_ids'}" />
                 </group>
             </search>
@@ -196,8 +196,8 @@
             <search string="Search Taxes">
                 <field
                     name="name"
-                    filter_domain="['|', '|', ('name', 'ilike', self), ('description', 'ilike', self), ('invoice_label', 'ilike', self)]"
-                    string="Tax" />
+                    string="Tax"
+                    filter_domain="['|', '|', ('name', 'ilike', self), ('description', 'ilike', self), ('invoice_label', 'ilike', self)]" />
                 <field
                     name="company_ids"
                     widget="many2many_tags"
@@ -228,22 +228,22 @@
                                 invisible="amount_type not in ('fixed', 'percent', 'division')" />
                             <div
                                 invisible="amount_type not in ('fixed', 'percent', 'division')">
-                                <field name="amount" class="oe_inline" nolabel="1" />
+                                <field name="amount" nolabel="1" class="oe_inline" />
                                 <span class="o_form_label oe_inline" invisible="amount_type == 'fixed'">%</span>
                             </div>
                             <field
                                 name="fiscal_position_ids"
-                                widget="many2many_tags"
-                                placeholder="all" />
+                                placeholder="all"
+                                widget="many2many_tags" />
                             <field
                                 name="original_tax_ids"
                                 widget="many2many_tags"
-                                invisible="not display_alternative_taxes_field"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                invisible="not display_alternative_taxes_field" />
                         </group>
                     </group>
                     <notebook>
-                        <page string="Definition" name="definition">
+                        <page name="definition" string="Definition">
                             <group invisible="amount_type == 'group'">
                                 <field name="country_code" invisible="1" />
                                 <group
@@ -251,20 +251,20 @@
                                     class="mw-100">
                                     <field
                                         name="invoice_repartition_line_ids"
-                                        nolabel="1"
-                                        colspan="2" />
+                                        colspan="2"
+                                        nolabel="1" />
                                 </group>
                                 <group string="Distribution for Refunds" class="mw-100">
                                     <field
                                         name="refund_repartition_line_ids"
-                                        nolabel="1"
-                                        colspan="2" />
+                                        colspan="2"
+                                        nolabel="1" />
                                 </group>
                             </group>
                             <field
                                 name="children_tax_ids"
-                                invisible="amount_type != 'group' or type_tax_use == 'none'"
-                                domain="[('type_tax_use','in',('none',type_tax_use)), ('amount_type','!=','group')]">
+                                domain="[('type_tax_use','in',('none',type_tax_use)), ('amount_type','!=','group')]"
+                                invisible="amount_type != 'group' or type_tax_use == 'none'">
                                 <list string="Children Taxes">
                                     <field name="sequence" widget="handle" />
                                     <field name="name" />
@@ -273,7 +273,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Advanced Options" name="advanced_options">
+                        <page name="advanced_options" string="Advanced Options">
                             <group>
                                 <group>
                                     <field name="invoice_label" />
@@ -284,8 +284,8 @@
                                         required="amount_type != 'group'" />
                                     <field
                                         name="analytic"
-                                        invisible="amount_type == 'group'"
-                                        groups="analytic.group_analytic_accounting" />
+                                        groups="analytic.group_analytic_accounting"
+                                        invisible="amount_type == 'group'" />
                                     <field
                                         name="company_ids"
                                         widget="many2many_tags"
@@ -298,15 +298,15 @@
                                     <field name="price_include" invisible="1" />
                                     <field
                                         name="price_include_override"
-                                        invisible="amount_type == 'group' or has_negative_factor"
-                                        placeholder="Default" />
+                                        placeholder="Default"
+                                        invisible="amount_type == 'group' or has_negative_factor" />
                                     <field
                                         name="include_base_amount"
                                         invisible="amount_type == 'group'" />
                                     <field
                                         name="is_base_affected"
-                                        invisible="amount_type == 'group' or price_include"
-                                        groups="base.group_no_one" />
+                                        groups="base.group_no_one"
+                                        invisible="amount_type == 'group' or price_include" />
                                     <field name="hide_tax_exigibility" invisible="1" />
                                     <field
                                         name="tax_exigibility"
@@ -315,9 +315,9 @@
                                     <field
                                         name="cash_basis_transition_account_id"
                                         options="{'no_create': True}"
+                                        groups="account.group_account_readonly"
                                         invisible="tax_exigibility == 'on_invoice'"
-                                        required="tax_exigibility == 'on_payment'"
-                                        groups="account.group_account_readonly" />
+                                        required="tax_exigibility == 'on_payment'" />
                                 </group>
                             </group>
                         </page>
@@ -353,8 +353,8 @@
                 <field name="country_id" />
                 <group>
                     <filter
-                        string="Country"
                         name="group_by_country"
+                        string="Country"
                         context="{'group_by': 'country_id'}" />
                 </group>
             </search>

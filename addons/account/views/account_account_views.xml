@@ -8,11 +8,11 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-                    class="oe_stat_button"
                     name="action_view_related_taxes"
                     type="object"
                     icon="fa-bars"
-                    invisible="related_taxes_amount == 0">
+                    invisible="related_taxes_amount == 0"
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_value">
                             <field name="related_taxes_amount" />
@@ -23,10 +23,10 @@
                     </div>
                 </button>
                 <button
-                    class="oe_stat_button"
                     name="account.action_move_line_select"
                     type="action"
-                    icon="fa-bars">
+                    icon="fa-bars"
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_value">
                             <field name="current_balance" />
@@ -41,8 +41,8 @@
                 <field
                     name="tax_ids"
                     widget="many2many_tax_tags"
-                    invisible="account_type == 'off_balance'"
-                    options="{'no_quick_create': True}" />
+                    options="{'no_quick_create': True}"
+                    invisible="account_type == 'off_balance'" />
             </xpath>
             <xpath expr="//field[@name='active']" position="after">
                 <field name="group_id" groups="base.group_no_one" />
@@ -62,7 +62,7 @@
                 <field name="group_id" optional="hide" />
             </xpath>
             <xpath expr="//field[@name='tag_ids']" position="before">
-                <field name="tax_ids" optional="hide" widget="many2many_tax_tags" />
+                <field name="tax_ids" widget="many2many_tax_tags" optional="hide" />
             </xpath>
         </field>
     </record>
@@ -74,8 +74,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='inactiveacc']" position="before">
                 <filter
-                    string="Account with Entries"
                     name="used"
+                    string="Account with Entries"
                     domain="[('used', '=', True)]" />
             </xpath>
         </field>

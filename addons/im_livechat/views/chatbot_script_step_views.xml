@@ -50,8 +50,8 @@
                             <group>
                                 <field
                                     name="answer_ids"
-                                    invisible="step_type != 'question_selection'"
-                                    nolabel="1">
+                                    nolabel="1"
+                                    invisible="step_type != 'question_selection'">
                                     <list editable="bottom">
                                         <field name="sequence" widget="handle" />
                                         <field

@@ -11,9 +11,9 @@
                 <button
                     name="action_cancel_peppol_documents"
                     type="object"
-                    class="btn btn-secondary"
                     string="Cancel PEPPOL"
-                    invisible="peppol_move_state != 'to_send' or state == 'draft'" />
+                    invisible="peppol_move_state != 'to_send' or state == 'draft'"
+                    class="btn btn-secondary" />
             </header>
             <sheet position="before">
                 <div
@@ -55,8 +55,8 @@
         <field name="arch" type="xml">
             <xpath expr="//search/group/filter[@name='status']" position="after">
                 <filter
-                    string="Peppol status"
                     name="peppol_move_state"
+                    string="Peppol status"
                     context="{'group_by': 'peppol_move_state'}" />
             </xpath>
             <xpath expr="//filter[@name='out_refund']" position="after">

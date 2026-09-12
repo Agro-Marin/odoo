@@ -13,11 +13,11 @@
                 <field
                     name="state"
                     widget="badge"
+                    decoration-danger="state == 'error'"
                     decoration-info="state == 'waiting'"
-                    decoration-success="state == 'ready'"
-                    decoration-primary="state == 'in_progress'"
                     decoration-muted="state == 'done'"
-                    decoration-danger="state == 'error'" />
+                    decoration-primary="state == 'in_progress'"
+                    decoration-success="state == 'ready'" />
                 <field name="created_record_ref" />
             </list>
         </field>
@@ -31,26 +31,26 @@
                 <header>
                     <button
                         name="action_mark_ready"
-                        string="Mark Ready"
                         type="object"
-                        class="btn-secondary"
-                        invisible="state != 'waiting'" />
+                        string="Mark Ready"
+                        invisible="state != 'waiting'"
+                        class="btn-secondary" />
                     <button
                         name="action_execute"
-                        string="Execute"
                         type="object"
-                        class="btn-primary"
-                        invisible="state != 'in_progress'" />
+                        string="Execute"
+                        invisible="state != 'in_progress'"
+                        class="btn-primary" />
                     <button
                         name="action_mark_done"
-                        string="Mark Done"
                         type="object"
-                        class="btn-success"
-                        invisible="state != 'in_progress'" />
+                        string="Mark Done"
+                        invisible="state != 'in_progress'"
+                        class="btn-success" />
                     <button
                         name="action_cancel"
-                        string="Cancel"
                         type="object"
+                        string="Cancel"
                         invisible="state in ['done', 'cancel']" />
                     <field
                         name="state"
@@ -62,9 +62,9 @@
                         <button
                             name="action_view_document"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-regular fa-file-lines"
-                            invisible="not created_record_ref">
+                            invisible="not created_record_ref"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">View Document</span>
                             </div>
@@ -84,14 +84,14 @@
                     <group
                         string="Dependencies"
                         invisible="not edge_in_ids and not edge_out_ids">
-                        <field name="edge_in_ids" nolabel="1" colspan="2" readonly="1">
+                        <field name="edge_in_ids" colspan="2" nolabel="1" readonly="1">
                             <list string="Waits For">
                                 <field name="source_line_id" />
                                 <field name="condition" />
                                 <field name="condition_expr" optional="hide" />
                             </list>
                         </field>
-                        <field name="edge_out_ids" nolabel="1" colspan="2" readonly="1">
+                        <field name="edge_out_ids" colspan="2" nolabel="1" readonly="1">
                             <list string="Enables">
                                 <field name="target_line_id" />
                                 <field name="condition" />

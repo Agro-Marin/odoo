@@ -12,61 +12,61 @@
                 <field name="original_journal_id" />
                 <field name="company_id" groups="base.group_multi_company" />
                 <separator />
-                <filter string="Payment Date" name="payment_date" date="payment_date" />
+                <filter name="payment_date" string="Payment Date" date="payment_date" />
                 <separator />
                 <filter
-                    string="Handed"
                     name="checks_on_hand"
+                    string="Handed"
                     domain="[('issue_state', '=', 'handed')]" />
                 <filter
-                    string="Voided"
                     name="checks_voided"
+                    string="Voided"
                     domain="[('issue_state', '=', 'voided')]" />
                 <filter
-                    string="Debited"
                     name="checks_debited"
+                    string="Debited"
                     domain="[('issue_state', '=', 'debited')]" />
                 <separator />
                 <filter
-                    string="Partner"
                     name="groupby_partner"
+                    string="Partner"
                     context="{'group_by': 'partner_id'}" />
                 <filter
-                    string="Payment Date"
                     name="groupby_date"
+                    string="Payment Date"
                     context="{'group_by': 'payment_date'}" />
                 <filter
-                    string="State"
                     name="groupby_issue_state"
+                    string="State"
                     context="{'group_by': 'issue_state'}" />
                 <filter
-                    string="Company"
                     name="groupby_company"
+                    string="Company"
                     context="{'group_by': 'company_id'}"
                     groups="base.group_multi_company" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
             </search>
         </field>
     </record>
@@ -82,8 +82,8 @@
             <filter name="checks_voided" position="replace" />
             <filter name="checks_debited" position="replace">
                 <filter
-                    string="On hand"
                     name="checks_on_hand"
+                    string="On hand"
                     domain="[('current_journal_id.inbound_payment_channel_ids.payment_method_id.code', '=', 'in_third_party_checks')]" />
             </filter>
             <field name="original_journal_id" position="before">
@@ -126,8 +126,8 @@
         <field name="arch" type="xml">
             <calendar
                 mode="month"
-                date_start="payment_date"
-                color="original_journal_id">
+                color="original_journal_id"
+                date_start="payment_date">
                 <field name="amount" />
             </calendar>
         </field>
@@ -154,47 +154,47 @@
                 <header>
                     <button
                         name="action_void"
-                        string="Void Check"
-                        invisible="issue_state != 'handed'"
                         type="object"
-                        class="oe_highlight"
+                        string="Void Check"
                         confirm="Marking a check as void will cancel the check and generate a new entry that will re-open the debt."
+                        invisible="issue_state != 'handed'"
+                        class="oe_highlight"
                         data-hotkey="v" />
                     <field
                         name="issue_state"
-                        statusbar_visible="issue_state"
-                        widget="statusbar" />
+                        widget="statusbar"
+                        statusbar_visible="issue_state" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            icon="fa-bars"
-                            type="object"
                             name="button_open_check_operations"
+                            type="object"
+                            icon="fa-bars"
                             invisible="payment_method_code != 'new_third_party_checks'">
                             <span>Operations</span>
                         </button>
                         <button
-                            icon="fa-bars"
-                            type="object"
                             name="button_open_payment"
+                            type="object"
+                            icon="fa-bars"
                             invisible="payment_method_code != 'own_checks'">
                             <span>Payment</span>
                         </button>
                         <button
-                            icon="fa-bars"
-                            type="object"
-                            invisible="not outstanding_line_id"
                             name="action_show_journal_entry"
-                            groups="account.group_account_user,account.group_account_readonly">
+                            type="object"
+                            icon="fa-bars"
+                            groups="account.group_account_user,account.group_account_readonly"
+                            invisible="not outstanding_line_id">
                             <span>Journal Entry</span>
                         </button>
                         <button
-                            icon="fa-bars"
-                            type="object"
-                            invisible="not issue_state or issue_state == 'handed'"
                             name="action_show_reconciled_move"
-                            groups="account.group_account_user,account.group_account_readonly">
+                            type="object"
+                            icon="fa-bars"
+                            groups="account.group_account_user,account.group_account_readonly"
+                            invisible="not issue_state or issue_state == 'handed'">
                             <span>Reconciled move</span>
                         </button>
                     </div>
@@ -228,8 +228,8 @@
         <field name="priority">100</field>
         <field name="arch" type="xml">
             <list
-                edit="false"
                 create="false"
+                edit="false"
                 delete="false"
                 duplicate="false"
                 sample="1"

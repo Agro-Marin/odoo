@@ -20,21 +20,21 @@
                 </group>
                 <footer>
                     <button
-                        string="Reverse"
                         name="refund_moves"
                         type="object"
+                        string="Reverse"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Reverse and Create Invoice"
                         name="modify_moves"
                         type="object"
-                        class="btn-secondary"
-                        invisible="move_type  == 'entry'" />
+                        string="Reverse and Create Invoice"
+                        invisible="move_type  == 'entry'"
+                        class="btn-secondary" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

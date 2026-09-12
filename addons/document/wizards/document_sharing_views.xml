@@ -38,10 +38,10 @@
                                 title="Invite people" />
                             <field
                                 name="invite_partner_ids"
-                                widget="many2many_tags_email"
                                 placeholder="Add people or email addresses"
-                                context="{'show_email': True, 'form_view_ref': 'base.view_partner_simple_form'}"
+                                widget="many2many_tags_email"
                                 nolabel="1"
+                                context="{'show_email': True, 'form_view_ref': 'base.view_partner_simple_form'}"
                                 readonly="is_readonly" />
                         </group>
                         <group invisible="not invite_partner_ids">
@@ -51,16 +51,16 @@
                         <group colspan="2" invisible="not invite_partner_ids">
                             <field
                                 name="invite_notify_message"
-                                invisible="not invite_notify"
+                                placeholder="Extra comments..."
                                 nolabel="1"
-                                placeholder="Extra comments..." />
+                                invisible="not invite_notify" />
                         </group>
                         <group colspan="2" invisible="not invite_partner_ids">
                             <field name="document_ids" nolabel="1">
                                 <kanban
                                     create="false"
-                                    can_open="false"
-                                    class="o_documents_sharing_documents_compact">
+                                    class="o_documents_sharing_documents_compact"
+                                    can_open="false">
                                     <field name="mimetype"/> <!-- Used by documents_type_icon -->
                                     <templates>
                                         <div
@@ -83,7 +83,7 @@
                         <group colspan="2">
                             <h4 invisible="not owner_id and not share_access_ids">People with access</h4>
                         </group>
-                        <group invisible="not owner_id" colspan="4" class="mb-1 pb-0">
+                        <group colspan="4" invisible="not owner_id" class="mb-1 pb-0">
                             <div class="d-flex m-0 border-0 gap-2 ps-2 pe-2">
                                 <div class="col-7 col-sm-7 pe-1">
                                     <field
@@ -101,8 +101,8 @@
                             <field name="share_access_ids" nolabel="1">
                                 <kanban
                                     create="false"
-                                    can_open="false"
-                                    class="o_documents_sharing_kanban">
+                                    class="o_documents_sharing_kanban"
+                                    can_open="false">
                                     <field name="documents_sharing_id" />
                                     <field name="has_warning_no_access" />
                                     <field name="has_user" />
@@ -135,32 +135,32 @@
                                                     <field
                                                         name="expiration_date"
                                                         string="Set Expiration Date"
-                                                        class="oe_inline"
                                                         widget="documents_datetime_btn"
                                                         options="{'btn_classes': 'btn-primary py-2'}"
-                                                        invisible="not is_on_single_document or expiration_date" />
+                                                        invisible="not is_on_single_document or expiration_date"
+                                                        class="oe_inline" />
                                                     <field
                                                         name="is_deleted"
-                                                        widget="documents_boolean_icon"
                                                         string="Remove Access"
-                                                        class="oe_inline"
+                                                        widget="documents_boolean_icon"
                                                         options="{'icon': 'fa-fw fa-sign-out', 'btn_false_class': 'btn btn-danger py-2'}"
-                                                        invisible="not partner_is_me" />
+                                                        invisible="not partner_is_me"
+                                                        class="oe_inline" />
                                                     <field
                                                         name="is_deleted"
-                                                        widget="documents_boolean_icon"
                                                         string="Remove Member"
-                                                        class="oe_inline"
+                                                        widget="documents_boolean_icon"
                                                         options="{'icon': 'fa-fw fa-times', 'btn_false_class': 'btn btn-danger py-2'}"
-                                                        invisible="partner_is_me" />
+                                                        invisible="partner_is_me"
+                                                        class="oe_inline" />
                                                 </div>
                                                 <div class="d-flex flex-column ms-1">
                                                     <field
                                                         name="role"
                                                         widget="documents_mixed_selection"
-                                                        class="o_input_12ch"
                                                         options="{'exclude_none': True}"
-                                                        readonly="is_readonly" />
+                                                        readonly="is_readonly"
+                                                        class="o_input_12ch" />
                                                     <div invisible="has_user or role != 'mixed'" class="ms-2">Links partially sent</div>
                                                 </div>
                                             </div>
@@ -186,8 +186,8 @@
                                             name="access_internal"
                                             widget="documents_mixed_selection"
                                             nolabel="1"
-                                            class="oe_inline ms-auto o_documents_sharing_form_owner o_documents_sharing_form"
-                                            readonly="is_readonly" />
+                                            readonly="is_readonly"
+                                            class="oe_inline ms-auto o_documents_sharing_form_owner o_documents_sharing_form" />
                                     </div>
                                 </div>
                                 <div class="row mb-2">
@@ -202,8 +202,8 @@
                                             name="access_via_link"
                                             widget="documents_mixed_selection"
                                             nolabel="1"
-                                            class="oe_inline ms-auto o_documents_sharing_form"
-                                            readonly="is_readonly" />
+                                            readonly="is_readonly"
+                                            class="oe_inline ms-auto o_documents_sharing_form" />
                                     </div>
                                 </div>
                                 <div
@@ -220,8 +220,8 @@
                                             name="access_via_link_mode"
                                             widget="documents_mixed_selection"
                                             nolabel="1"
-                                            class="oe_inline ms-auto o_documents_sharing_form"
-                                            readonly="is_readonly" />
+                                            readonly="is_readonly"
+                                            class="oe_inline ms-auto o_documents_sharing_form" />
                                     </div>
                                 </div>
                                 <!-- Only means anything while somebody can view:
@@ -242,8 +242,8 @@
                                             name="viewer_download_mode"
                                             widget="documents_mixed_selection"
                                             nolabel="1"
-                                            class="oe_inline ms-auto o_documents_sharing_form"
-                                            readonly="is_readonly" />
+                                            readonly="is_readonly"
+                                            class="oe_inline ms-auto o_documents_sharing_form" />
                                     </div>
                                 </div>
                             </div>
@@ -254,38 +254,38 @@
                     <!-- Invitation -->
                     <t invisible="not invite_partner_ids">
                         <button
-                            string="Share"
-                            type="object"
                             name="action_invite_members"
+                            type="object"
+                            string="Share"
                             class="btn-primary" />
                         <field
                             name="access_urls"
-                            widget="CopyClipboardButton"
                             string="Copy Links"
+                            widget="CopyClipboardButton"
                             options="{'btn_class': 'secondary'}" />
                         <button
-                            string="Discard"
                             special="cancel"
+                            string="Discard"
                             class="btn-secondary" />
                     </t>
                     <!-- Update access rights -->
                     <t invisible="invite_partner_ids">
                         <t invisible="is_access_modified">
                             <button
-                                string="Done"
                                 special="cancel"
+                                string="Done"
                                 class="btn-primary" />
                             <field
                                 name="access_urls"
-                                widget="CopyClipboardButton"
                                 string="Copy Links"
+                                widget="CopyClipboardButton"
                                 options="{'btn_class': 'secondary'}" />
                         </t>
                         <t invisible="not is_access_modified">
                             <button
-                                string="Save"
-                                type="object"
                                 name="action_update_rights"
+                                type="object"
+                                string="Save"
                                 class="btn-primary" />
                             <button class="btn btn-secondary disabled" aria-disabled="true">Save or Discard changes first</button>
                             <field

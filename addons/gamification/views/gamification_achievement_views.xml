@@ -61,17 +61,17 @@
         <field name="arch" type="xml">
             <list
                 string="Achievements"
-                decoration-muted="not active"
-                decoration-bf="rarity in ['epic', 'legendary']">
+                decoration-bf="rarity in ['epic', 'legendary']"
+                decoration-muted="not active">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
                 <field
                     name="rarity"
                     widget="badge"
-                    decoration-info="rarity == 'common'"
-                    decoration-warning="rarity == 'rare'"
                     decoration-danger="rarity == 'epic'"
-                    decoration-success="rarity == 'legendary'" />
+                    decoration-info="rarity == 'common'"
+                    decoration-success="rarity == 'legendary'"
+                    decoration-warning="rarity == 'rare'" />
                 <field name="hidden" widget="boolean_toggle" />
                 <field name="model_id" />
                 <field name="trigger_count" />
@@ -93,13 +93,13 @@
                         <button
                             name="%(achievement_unlock_list_action)d"
                             type="action"
-                            class="oe_stat_button"
                             icon="fa-trophy"
-                            context="{'search_default_achievement_id': id}">
+                            context="{'search_default_achievement_id': id}"
+                            class="oe_stat_button">
                             <field
                                 name="unlock_count"
-                                widget="statinfo"
-                                string="Unlocks" />
+                                string="Unlocks"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <field name="icon" widget="image" class="oe_avatar" />
@@ -124,12 +124,12 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field
                                 name="description"
                                 placeholder="Shown after unlock. Describe the achievement..." />
                         </page>
-                        <page string="Hint" name="hint">
+                        <page name="hint" string="Hint">
                             <field
                                 name="hint"
                                 placeholder="Optional hint shown before unlock. Leave empty for full mystery." />
@@ -148,22 +148,22 @@
                 <field name="name" />
                 <field name="model_id" />
                 <filter
-                    string="Hidden"
                     name="hidden"
+                    string="Hidden"
                     domain="[('hidden', '=', True)]" />
                 <filter
-                    string="Visible"
                     name="visible"
+                    string="Visible"
                     domain="[('hidden', '=', False)]" />
                 <separator />
                 <group>
                     <filter
-                        string="Rarity"
                         name="group_rarity"
+                        string="Rarity"
                         context="{'group_by': 'rarity'}" />
                     <filter
-                        string="Model"
                         name="group_model"
+                        string="Model"
                         context="{'group_by': 'model_id'}" />
                 </group>
             </search>
@@ -182,10 +182,10 @@
                 <field
                     name="rarity"
                     widget="badge"
-                    decoration-info="rarity == 'common'"
-                    decoration-warning="rarity == 'rare'"
                     decoration-danger="rarity == 'epic'"
-                    decoration-success="rarity == 'legendary'" />
+                    decoration-info="rarity == 'common'"
+                    decoration-success="rarity == 'legendary'"
+                    decoration-warning="rarity == 'rare'" />
             </list>
         </field>
     </record>
@@ -198,21 +198,21 @@
                 <field name="user_id" />
                 <field name="achievement_id" />
                 <filter
-                    string="My Unlocks"
                     name="my_unlocks"
+                    string="My Unlocks"
                     domain="[('user_id', '=', uid)]" />
                 <group>
                     <filter
-                        string="User"
                         name="group_user"
+                        string="User"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Achievement"
                         name="group_achievement"
+                        string="Achievement"
                         context="{'group_by': 'achievement_id'}" />
                     <filter
-                        string="Rarity"
                         name="group_rarity"
+                        string="Rarity"
                         context="{'group_by': 'rarity'}" />
                 </group>
             </search>

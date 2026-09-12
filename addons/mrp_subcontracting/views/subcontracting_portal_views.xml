@@ -7,15 +7,12 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <form
-                js_class="subcontracting_portal_picking_form_view"
-                string="Manufacturing Orders">
+                string="Manufacturing Orders"
+                js_class="subcontracting_portal_picking_form_view">
                 <sheet>
                     <div class="oe_title">
                         <h1>
-                            <field
-                                name="name"
-                                placeholder="Manufacturing Reference"
-                                nolabel="1" />
+                            <field name="name" placeholder="Manufacturing Reference" />
                         </h1>
                     </div>
                     <group>
@@ -24,21 +21,21 @@
                             name="date_planned"
                             readonly="state in ['cancel', 'done']"
                             required="id"
-                            decoration-warning="state not in ('done', 'cancel') and date_planned &lt; now"
+                            decoration-bf="state not in ('done', 'cancel') and (date_planned &lt; current_date or date_planned &lt; now)"
                             decoration-danger="state not in ('done', 'cancel') and date_planned &lt; current_date"
-                            decoration-bf="state not in ('done', 'cancel') and (date_planned &lt; current_date or date_planned &lt; now)" />
+                            decoration-warning="state not in ('done', 'cancel') and date_planned &lt; now" />
                         <field
                             name="date_deadline"
                             invisible="state in ('done', 'cancel') or not date_deadline"
-                            decoration-danger="date_deadline and date_deadline &lt; current_date"
-                            decoration-bf="date_deadline and date_deadline &lt; current_date" />
+                            decoration-bf="date_deadline and date_deadline &lt; current_date"
+                            decoration-danger="date_deadline and date_deadline &lt; current_date" />
                         <field
                             name="origin"
                             placeholder="e.g. PO0032"
                             readonly="state in ['cancel', 'done']" />
                     </group>
                     <notebook>
-                        <page string="Operations" name="operations">
+                        <page name="operations" string="Operations">
                             <field
                                 name="move_ids"
                                 mode="list"
@@ -46,8 +43,8 @@
                                 <list no_open="1">
                                     <field
                                         name="id"
-                                        readonly="1"
-                                        column_invisible="True" />
+                                        column_invisible="True"
+                                        readonly="1" />
                                     <field name="product_id" readonly="1" />
                                     <field
                                         name="show_details_visible"
@@ -64,27 +61,27 @@
                                         readonly="1" />
                                     <field
                                         name="product_qty"
-                                        readonly="1"
-                                        column_invisible="True" />
+                                        column_invisible="True"
+                                        readonly="1" />
                                     <field name="quantity" string="Done" />
                                     <field
                                         name="product_uom_id"
-                                        groups="uom.group_uom"
-                                        widget="many2one_uom" />
+                                        widget="many2one_uom"
+                                        groups="uom.group_uom" />
                                     <button
                                         name="action_show_details"
                                         type="object"
-                                        icon="fa-list"
                                         title="Details"
-                                        invisible="not show_details_visible"
-                                        context="{'is_subcontracting_portal': 1}" />
+                                        icon="fa-list"
+                                        context="{'is_subcontracting_portal': 1}"
+                                        invisible="not show_details_visible" />
                                     <field
                                         name="show_subcontracting_details_visible"
                                         column_invisible="True" />
                                     <button
                                         name="action_show_subcontract_details"
-                                        string="Register components for subcontracted product"
                                         type="object"
+                                        string="Register components for subcontracted product"
                                         icon="fa-sitemap"
                                         invisible="not show_subcontracting_details_visible" />
                                 </list>

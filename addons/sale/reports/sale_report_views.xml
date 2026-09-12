@@ -8,26 +8,26 @@
             <search string="Sales Analysis">
                 <field name="date_order" />
                 <filter
-                    string="Date"
                     name="year"
-                    invisible="1"
+                    string="Date"
                     date="date_order"
-                    default_period="year" />
+                    default_period="year"
+                    invisible="1" />
                 <filter
-                    string="Quotations"
                     name="Quotations"
+                    string="Quotations"
                     domain="[('state','=', 'draft')]" />
                 <filter
-                    string="Sales Orders"
                     name="Sales"
+                    string="Sales Orders"
                     domain="[('state','not in',('draft', 'cancel'))]" />
                 <separator />
                 <filter name="filter_date" date="date_order" default_period="month" />
                 <filter
                     name="filter_order_date"
-                    invisible="1"
                     string="Order Date: Last 365 Days"
-                    domain="[('date_order', '&gt;=', '-365d')]" />
+                    domain="[('date_order', '&gt;=', '-365d')]"
+                    invisible="1" />
                 <separator />
                 <field name="user_id" />
                 <field name="team_id" />
@@ -53,56 +53,56 @@
                 </group>
                 <group>
                     <filter
-                        string="Salesperson"
                         name="User"
+                        string="Salesperson"
                         context="{'group_by':'user_id'}" />
                     <filter
-                        string="Sales Team"
                         name="sales_channel"
+                        string="Sales Team"
                         context="{'group_by':'team_id'}" />
                     <filter
-                        string="Customer"
                         name="Customer"
+                        string="Customer"
                         context="{'group_by':'partner_id'}" />
                     <filter
-                        string="Customer Country"
                         name="country_id"
+                        string="Customer Country"
                         context="{'group_by':'country_id'}" />
                     <filter
-                        string="Customer Industry"
                         name="industry_id"
+                        string="Customer Industry"
                         context="{'group_by':'industry_id'}" />
                     <filter
-                        string="Product"
                         name="product_tmpl_id"
+                        string="Product"
                         context="{'group_by':'product_tmpl_id'}" />
                     <filter
-                        string="Product Variant"
                         name="product_id"
+                        string="Product Variant"
                         context="{'group_by':'product_id'}"
                         groups="product.group_product_variant" />
                     <filter
-                        string="Product Category"
                         name="Category"
+                        string="Product Category"
                         context="{'group_by':'product_category_id'}" />
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="Company"
                         name="company"
-                        groups="base.group_multi_company"
-                        context="{'group_by':'company_id'}" />
+                        string="Company"
+                        context="{'group_by':'company_id'}"
+                        groups="base.group_multi_company" />
                     <separator />
                     <filter
-                        string="Order Date"
                         name="group_by_date"
+                        string="Order Date"
                         context="{'group_by':'date_order'}"
                         invisible="context.get('sale_report_view_hide_date')" />
                     <filter
-                        string="Order Date"
                         name="group_by_date_day"
+                        string="Order Date"
                         context="{'group_by':'date_order:day'}"
                         invisible="not context.get('sale_report_view_hide_date')" />
                 </group>
@@ -116,7 +116,7 @@
         <field name="arch" type="xml">
             <pivot string="Sales Analysis" sample="1">
                 <field name="team_id" type="col" />
-                <field name="date_order" interval="month" type="row" />
+                <field name="date_order" type="row" interval="month" />
                 <field name="product_uom_qty" type="measure" />
             </pivot>
         </field>
@@ -126,7 +126,7 @@
         <field name="name">sale.report.graph</field>
         <field name="model">sale.report</field>
         <field name="arch" type="xml">
-            <graph string="Sales Analysis" type="line" sample="1">
+            <graph type="line" string="Sales Analysis" sample="1">
                 <field name="date_order" interval="month" />
                 <field name="product_uom_qty" type="measure" />
             </graph>
@@ -162,12 +162,12 @@
         <field name="name">sale.report.view.list</field>
         <field name="model">sale.report</field>
         <field name="arch" type="xml">
-            <list string="Sales Analysis" action="action_view_order" type="object">
+            <list type="object" string="Sales Analysis" action="action_view_order">
                 <field name="date_order" />
                 <field name="order_reference" optional="show" />
                 <field name="product_id" string="Product" optional="show" />
                 <field name="partner_id" />
-                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="team_id" optional="hide" />
                 <field
                     name="company_id"

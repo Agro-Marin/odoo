@@ -25,8 +25,8 @@
                                         <field name="product_id" class="col-6" />
                                         <field
                                             name="quantity"
-                                            class="col-6"
-                                            string="quantity" />
+                                            string="quantity"
+                                            class="col-6" />
                                     </div>
                                     <field name="location_dest_id" />
                                 </t>
@@ -46,16 +46,16 @@
                 </div>
                 <footer>
                     <button
-                        string="Confirm"
                         name="action_done"
                         type="object"
+                        string="Confirm"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Discard"
                         name="cancel_button"
-                        class="btn-secondary"
                         special="cancel"
+                        string="Discard"
+                        class="btn-secondary"
                         data-hotkey="x" />
                 </footer>
             </form>

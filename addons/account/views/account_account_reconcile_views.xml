@@ -38,10 +38,10 @@
                     <field name="reconcile" />
                     <button
                         name="action_view_reconcile"
-                        class="oe_link"
                         type="object"
                         string=" -&gt; Reconcile"
-                        invisible="not reconcile" />
+                        invisible="not reconcile"
+                        class="oe_link" />
                 </div>
             </field>
         </field>

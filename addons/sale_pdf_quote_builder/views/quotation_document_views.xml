@@ -25,16 +25,16 @@
                                     type="object"
                                     string="Configure dynamic fields"
                                     help="Mark fields as safe to fill in the quote."
-                                    class="btn btn-link"
                                     icon="fa-pencil"
                                     colspan="2"
                                     groups="base.group_system,base.group_no_one"
-                                    invisible="not (datas and form_field_ids)" />
+                                    invisible="not (datas and form_field_ids)"
+                                    class="btn btn-link" />
                             </div>
                             <field
                                 name="quotation_template_ids"
-                                options="{'no_create': True}"
-                                widget="many2many_tags" />
+                                widget="many2many_tags"
+                                options="{'no_create': True}" />
                             <field name="add_by_default" />
                         </group>
                     </group>
@@ -44,13 +44,13 @@
                         <field
                             name="company_id"
                             placeholder="Visible to all"
-                            groups="base.group_multi_company"
                             options="{'no_create': True}"
+                            groups="base.group_multi_company"
                             class="oe_inline" />
                         <field
                             name="form_field_ids"
-                            groups="base.group_no_one"
-                            widget="many2many_tags" />
+                            widget="many2many_tags"
+                            groups="base.group_no_one" />
                     </group>
                     <group
                         string="History"
@@ -88,8 +88,8 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <aside>
                             <div
                                 class="o_image o_kanban_previewer w-100 h-100"
@@ -101,8 +101,8 @@
                                 <span>Document type:</span>
                                 <field
                                     name="document_type"
-                                    class="ms-2"
-                                    widget="selection" />
+                                    widget="selection"
+                                    class="ms-2" />
                             </div>
                             <div
                                 t-if="!context.hide_template_ids                                       and !!record.quotation_template_ids.raw_value.length"
@@ -110,8 +110,8 @@
                                 <span class="pe-2">Templates:</span>
                                 <field
                                     name="quotation_template_ids"
-                                    class="d-inline-block"
-                                    widget="many2many_tags" />
+                                    widget="many2many_tags"
+                                    class="d-inline-block" />
                             </div>
                         </main>
                     </t>
@@ -132,8 +132,8 @@
                 <field name="add_by_default" widget="boolean_toggle" optional="show" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -147,12 +147,12 @@
                 <separator />
                 <group>
                     <filter
-                        string="Document type"
                         name="doc_type"
+                        string="Document type"
                         context="{'group_by': 'document_type'}" />
                     <filter
-                        string="Quotation Template"
                         name="quotation_template"
+                        string="Quotation Template"
                         context="{'group_by': 'quotation_template_ids'}" />
                     <filter name="all" string="All" />
                     <filter

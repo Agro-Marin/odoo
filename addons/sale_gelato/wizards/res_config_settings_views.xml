@@ -20,12 +20,12 @@
                 </div>
                 <div class="mt-2">
                     <button
-                        string="Manage Delivery Methods"
-                        type="action"
                         name="%(delivery.action_delivery_carrier_form)d"
+                        type="action"
+                        string="Manage Delivery Methods"
                         icon="oi-arrow-right"
-                        class="btn-link"
-                        context="{'search_default_delivery_type': 'gelato'}" />
+                        context="{'search_default_delivery_type': 'gelato'}"
+                        class="btn-link" />
                 </div>
             </div>
         </field>

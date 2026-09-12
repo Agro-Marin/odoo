@@ -5,15 +5,15 @@
         <field name="model">compliance.letter.wizard</field>
         <field name="arch" type="xml">
             <form string="Compliance Letter">
-                <label string="Company" for="company_id" />
+                <label for="company_id" string="Company" />
                 <field name="company_id" />
                 <footer>
                     <button
                         name="generate_letter"
-                        string="Print"
                         type="object"
+                        string="Print"
                         class="btn-primary" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

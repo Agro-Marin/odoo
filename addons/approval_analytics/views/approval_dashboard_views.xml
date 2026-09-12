@@ -24,8 +24,8 @@
                             <button
                                 name="action_refresh"
                                 type="object"
-                                class="btn btn-primary"
-                                string="Refresh">
+                                string="Refresh"
+                                class="btn btn-primary">
                                 <i class="fa-solid fa-arrows-rotate" /> Refresh Data </button>
                         </div>
                     </div>
@@ -136,8 +136,8 @@
                                 name="action_view_to_review"
                                 type="object"
                                 string="Review My Pending"
-                                class="btn btn-warning"
-                                icon="fa-check-circle" />
+                                icon="fa-check-circle"
+                                class="btn btn-warning" />
                         </group>
                     </group>
 
@@ -192,26 +192,26 @@
                         <group string="Average Response Time">
                             <field
                                 name="avg_response_hours_7d"
-                                widget="float_time"
-                                string="7-Day Avg" />
+                                string="7-Day Avg"
+                                widget="float_time" />
                             <field
                                 name="avg_response_hours_15d"
-                                widget="float_time"
-                                string="15-Day Avg" />
+                                string="15-Day Avg"
+                                widget="float_time" />
                             <field
                                 name="avg_response_hours_30d"
-                                widget="float_time"
-                                string="30-Day Avg" />
+                                string="30-Day Avg"
+                                widget="float_time" />
                         </group>
                         <group string="Overall Metrics">
                             <field
                                 name="median_approval_hours"
-                                widget="float_time"
-                                string="Median (90d)" />
+                                string="Median (90d)"
+                                widget="float_time" />
                             <field
                                 name="avg_approval_time_all_time"
-                                widget="float_time"
-                                string="Mean (All Time)" />
+                                string="Mean (All Time)"
+                                widget="float_time" />
                         </group>
                     </group>
 
@@ -228,10 +228,10 @@
                                     class="oe_inline" />
                                 <button
                                     name="action_view_slowest_category"
-                                    string="View Requests"
                                     type="object"
-                                    class="btn btn-sm btn-secondary ms-2"
-                                    icon="fa-eye" />
+                                    string="View Requests"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-secondary ms-2" />
                             </div>
                         </group>
                         <group
@@ -250,10 +250,10 @@
                                     class="oe_inline" />
                                 <button
                                     name="action_view_slowest_approver"
-                                    string="View Pending"
                                     type="object"
-                                    class="btn btn-sm btn-secondary ms-2"
-                                    icon="fa-eye" />
+                                    string="View Pending"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-secondary ms-2" />
                             </div>
                         </group>
                         <group
@@ -267,10 +267,10 @@
                                 <field name="most_pending_count" class="oe_inline" />
                                 <button
                                     name="action_view_overloaded_approver"
-                                    string="View Workload"
                                     type="object"
-                                    class="btn btn-sm btn-secondary ms-2"
-                                    icon="fa-eye" />
+                                    string="View Workload"
+                                    icon="fa-eye"
+                                    class="btn btn-sm btn-secondary ms-2" />
                             </div>
                         </group>
                     </group>
@@ -280,19 +280,19 @@
                             <div class="row g-2 mt-2" name="quick_action_buttons">
                                 <div class="col-md-3 col-sm-6">
                                     <button
-                                        type="object"
                                         name="action_view_to_review"
-                                        class="btn btn-primary w-100"
-                                        icon="fa-check">
+                                        type="object"
+                                        icon="fa-check"
+                                        class="btn btn-primary w-100">
                                         Review Pending
                                     </button>
                                 </div>
                                 <div class="col-md-3 col-sm-6">
                                     <button
-                                        type="action"
                                         name="%(approval.action_approval_request_all)d"
-                                        class="btn btn-secondary w-100"
-                                        icon="fa-list">
+                                        type="action"
+                                        icon="fa-list"
+                                        class="btn btn-secondary w-100">
                                         All Approvals
                                     </button>
                                 </div>

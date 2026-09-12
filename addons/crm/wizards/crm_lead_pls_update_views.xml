@@ -12,9 +12,9 @@
                 <p>
                     <field
                         name="pls_fields"
+                        placeholder="Extra fields..."
                         widget="many2many_tags"
-                        options="{'color_field': 'color', 'no_edit_color': True}"
-                        placeholder="Extra fields..." />
+                        options="{'color_field': 'color', 'no_edit_color': True}" />
                 </p>
                 <p>
                     Consider leads created as of the: <field name="pls_start_date" class="o_field_highlight" />
@@ -26,7 +26,7 @@
                         string="Update"
                         class="btn-primary"
                         data-hotkey="q" />
-                    <button special="cancel" data-hotkey="x" string="Discard" />
+                    <button special="cancel" string="Discard" data-hotkey="x" />
                 </footer>
             </form>
         </field>

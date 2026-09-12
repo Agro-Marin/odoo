@@ -9,8 +9,8 @@
             <xpath expr="//button[@name='action_reset_to_pending']" position="after">
                 <button
                     name="action_set_to_challan"
-                    string="Use as Challan"
                     type="object"
+                    string="Use as Challan"
                     invisible="state != 'pending' or not picking_id"
                     data-hotkey="n" />
             </xpath>
@@ -24,8 +24,8 @@
                 <group
                     name="fiscal_position"
                     string="Fiscal Position"
-                    readonly="state != 'pending'"
-                    invisible="not picking_id">
+                    invisible="not picking_id"
+                    readonly="state != 'pending'">
                     <group>
                         <field name="fiscal_position_id" />
                     </group>

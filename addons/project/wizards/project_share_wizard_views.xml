@@ -11,13 +11,13 @@
                 <group>
                     <field name="share_link" widget="CopyClipboardChar" />
                 </group>
-                <field name="collaborator_ids" nolabel="1">
+                <field name="collaborator_ids">
                     <list string="Collaborators" editable="bottom">
                         <field
                             name="partner_id"
-                            options="{'no_create': True, 'no_open': True}"
                             domain="[('id', 'not in', parent.existing_partner_ids), ('partner_share', '=', True)]"
-                            context="{'show_email': True}" />
+                            context="{'show_email': True}"
+                            options="{'no_create': True, 'no_open': True}" />
                         <field name="access_mode" />
                         <field name="send_invitation" />
                     </list>
@@ -30,22 +30,22 @@
                 </ul>
                 <footer>
                     <button
-                        string="Share Project"
                         name="action_share_record"
                         type="object"
+                        string="Share Project"
+                        invisible="not collaborator_ids"
                         class="btn-primary"
-                        data-hotkey="q"
-                        invisible="not collaborator_ids" />
+                        data-hotkey="q" />
                     <button
-                        string="Save"
-                        class="btn-primary"
                         special="save"
-                        data-hotkey="q"
-                        invisible="collaborator_ids" />
+                        string="Save"
+                        invisible="collaborator_ids"
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -62,15 +62,15 @@
                 <p>You have full control and can revoke portal access anytime. Are you ready to proceed?</p>
                 <footer>
                     <button
-                        string="Grant Portal Access"
                         name="action_send_mail"
                         type="object"
+                        string="Grant Portal Access"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

@@ -49,12 +49,12 @@
                 </group>
                 <footer>
                     <button
-                        string="Open Relationships"
                         name="action_view_path_relations"
                         type="object"
-                        class="btn-primary"
-                        invisible="not is_connected" />
-                    <button string="Close" class="btn-secondary" special="cancel" />
+                        string="Open Relationships"
+                        invisible="not is_connected"
+                        class="btn-primary" />
+                    <button special="cancel" string="Close" class="btn-secondary" />
                 </footer>
             </form>
         </field>

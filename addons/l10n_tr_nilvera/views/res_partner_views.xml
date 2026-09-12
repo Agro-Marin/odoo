@@ -16,10 +16,10 @@
                     <div class="col-8 pt-0">
                         <button
                             name="l10n_tr_check_nilvera_customer"
-                            class="btn btn-secondary"
                             type="object"
                             string="Verify"
-                            help="Verify partner on Nilvera" />
+                            help="Verify partner on Nilvera"
+                            class="btn btn-secondary" />
                     </div>
                     </div>
                 <field

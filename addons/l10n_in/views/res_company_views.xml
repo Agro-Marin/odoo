@@ -14,9 +14,9 @@
             </xpath>
             <xpath expr="//label[@for='name']" position="before">
                 <field
-                    class="o_form_label mb-0"
                     name="l10n_in_pan_type"
-                    invisible="not l10n_in_pan_type" />
+                    invisible="not l10n_in_pan_type"
+                    class="o_form_label mb-0" />
             </xpath>
             <xpath expr="//field[@name='vat']" position="after">
                 <field name="l10n_in_pan_entity_id" invisible="country_code != 'IN'" />

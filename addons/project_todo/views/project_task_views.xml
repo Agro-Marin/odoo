@@ -7,14 +7,14 @@
         <field name="priority">800</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
+                default_order="state, priority desc, date_end asc, sequence, id desc"
                 default_group_by="triage_id"
-                class="o_kanban_small_column"
-                on_create="quick_create"
-                quick_create_view="project_todo.project_task_view_todo_quick_create_form"
                 sample="1"
+                class="o_kanban_small_column"
+                highlight_color="color"
                 js_class="project_task_kanban"
-                default_order="state, priority desc, date_end asc, sequence, id desc">
+                on_create="quick_create"
+                quick_create_view="project_todo.project_task_view_todo_quick_create_form">
                 <field name="color" />
                 <field name="sequence" />
                 <field name="active" />
@@ -36,26 +36,26 @@
                             t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value)}">
                             <field
                                 name="name"
-                                class="fw-bold fs-5"
-                                widget="name_with_subtask_count" />
+                                widget="name_with_subtask_count"
+                                class="fw-bold fs-5" />
                             <field
-                                t-if="record.date_end.raw_value"
                                 name="date_end"
-                                widget="remaining_days" />
+                                widget="remaining_days"
+                                t-if="record.date_end.raw_value" />
                             <field
                                 name="tag_ids"
                                 widget="many2many_tags"
                                 options="{'color_field': 'color'}" />
                             <field
-                                t-if="record.displayed_image_id.value"
                                 name="displayed_image_id"
-                                widget="attachment_image" />
+                                widget="attachment_image"
+                                t-if="record.displayed_image_id.value" />
                         </div>
                         <div class="d-flex pt-2">
                             <div
                                 class="d-flex"
                                 t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value)}">
-                                <field name="priority" class="me-2" widget="priority" />
+                                <field name="priority" widget="priority" class="me-2" />
                                 <field name="activity_ids" widget="kanban_activity" />
                             </div>
                             <div class="d-flex ms-auto">
@@ -89,21 +89,21 @@
                 <field
                     name="state"
                     widget="todo_done_checkmark"
-                    nolabel="1"
-                    width="20px" />
+                    width="20px"
+                    nolabel="1" />
                 <field name="name" />
                 <field
                     name="user_ids"
+                    widget="many2many_avatar_user"
                     optional="show"
-                    required="1"
-                    widget="many2many_avatar_user" />
-                <field name="priority" widget="priority" optional="hide" width="70px" />
-                <field name="date_end" optional="show" widget="remaining_days" />
-                <field name="activity_ids" optional="show" widget="list_activity" />
+                    required="1" />
+                <field name="priority" widget="priority" width="70px" optional="hide" />
+                <field name="date_end" widget="remaining_days" optional="show" />
+                <field name="activity_ids" widget="list_activity" optional="show" />
                 <field
                     name="tag_ids"
-                    optional="show"
                     widget="many2many_tags"
+                    optional="show"
                     options="{'color_field': 'color', 'no_create_edit': True}" />
                 <field name="triage_id" string="Stage" optional="hide" />
             </list>
@@ -121,35 +121,35 @@
                 <header>
                     <field
                         name="triage_id"
-                        domain="[('user_id','=',uid)]"
                         widget="statusbar"
+                        domain="[('user_id','=',uid)]"
                         options="{'clickable': '1', 'fold_field': 'fold'}" />
                     <field name="active" invisible="1" />
                 </header>
                 <sheet class="o_todo_form_sheet_bg">
                     <widget
                         name="web_ribbon"
-                        class="todo_archived"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        class="todo_archived"
+                        bg_color="text-bg-danger" />
                     <div class="d-flex justify-content-between align-items-center">
                         <h1 class="d-flex w-100">
                             <field
                                 name="name"
+                                placeholder="Task Title..."
+                                widget="text"
                                 default_focus="1"
                                 options="{'line_breaks': False}"
-                                widget="text"
-                                class="o_task_name text-truncate w-md-75 w-100 pe-2"
-                                placeholder="Task Title..." />
+                                class="o_task_name text-truncate w-md-75 w-100 pe-2" />
                         </h1>
                         <div
                             class="d-flex justify-content-end align-items-center px-1"
                             invisible="not active">
                             <field
                                 name="priority"
-                                class="h3 pe-2"
-                                widget="priority_switch" />
+                                widget="priority_switch"
+                                class="h3 pe-2" />
                             <field
                                 name="state"
                                 widget="todo_done_checkmark"
@@ -161,8 +161,8 @@
                             invisible="active">
                             <field
                                 name="priority"
-                                class="h3 pe-2"
-                                widget="priority_switch" />
+                                widget="priority_switch"
+                                class="h3 pe-2" />
                             <field
                                 name="state"
                                 widget="todo_done_checkmark"
@@ -174,9 +174,9 @@
                         <group>
                             <field
                                 name="user_ids"
+                                placeholder="Assignees"
                                 widget="many2many_avatar_user"
-                                required="1"
-                                placeholder="Assignees" />
+                                required="1" />
                         </group>
                         <group>
                             <field
@@ -192,9 +192,9 @@
                     <field
                         name="description"
                         type="html"
-                        class="oe_description"
+                        placeholder="Type Here..."
                         options="{'resizable': false, 'collaborative': true}"
-                        placeholder="Type Here..." />
+                        class="oe_description" />
                 </sheet>
                 <widget name="todo_chatter_panel" />
             </form>
@@ -212,8 +212,8 @@
                         name="display_name"
                         string="To-do Title"
                         placeholder="e.g. Send Invitations"
-                        required="1"
-                        help="Use these keywords in the title to streamline your to-dos:&#10;&#10;                             #tags: Add tags to categorize the to-do&#10;                             @user: Assign the to-do to a specific user&#10;                             !: Mark the to-do as medium priority&#10;                             !!: Mark the to-do as high priority&#10;                             !!!: Mark the to-do as urgent&#10;&#10;                             Ensure you follow the correct format and order. For example: &quot;Send invitations #event @Mitchell !&quot;" />
+                        help="Use these keywords in the title to streamline your to-dos:&#10;&#10;                             #tags: Add tags to categorize the to-do&#10;                             @user: Assign the to-do to a specific user&#10;                             !: Mark the to-do as medium priority&#10;                             !!: Mark the to-do as high priority&#10;                             !!!: Mark the to-do as urgent&#10;&#10;                             Ensure you follow the correct format and order. For example: &quot;Send invitations #event @Mitchell !&quot;"
+                        required="1" />
                     <field
                         name="date_end"
                         decoration-danger="date_end &lt; current_date" />
@@ -231,27 +231,27 @@
                 <sheet>
                     <group>
                         <field name="company_id" invisible="1" />
-                        <field name="project_id" required="1" default_focus="1" />
+                        <field name="project_id" default_focus="1" required="1" />
                         <field
                             name="user_ids"
-                            class="o_task_user_field"
+                            widget="many2many_avatar_user"
                             options="{'no_open': True}"
-                            widget="many2many_avatar_user" />
+                            class="o_task_user_field" />
                         <field
                             name="tag_ids"
+                            placeholder="Choose tags from the selected project"
                             widget="many2many_tags"
-                            options="{'color_field': 'color', 'no_create_edit': True}"
                             context="{'project_id': project_id}"
-                            placeholder="Choose tags from the selected project" />
+                            options="{'color_field': 'color', 'no_create_edit': True}" />
                     </group>
                 </sheet>
                 <footer>
                     <button
                         name="action_convert_to_task"
-                        string="Convert to Task"
                         type="object"
+                        string="Convert to Task"
                         class="btn-primary" />
-                    <button string="Discard" special="cancel" />
+                    <button special="cancel" string="Discard" />
                 </footer>
             </form>
         </field>
@@ -263,14 +263,14 @@
         <field name="arch" type="xml">
             <calendar
                 string="To-dos"
-                date_start="date_end"
                 mode="month"
                 color="triage_id"
-                hide_time="true"
+                date_start="date_end"
                 event_open_popup="true"
+                hide_time="true"
                 quick_create="1"
-                show_unusual_days="True"
-                scales="day,week,month,year">
+                scales="day,week,month,year"
+                show_unusual_days="True">
                 <field name="name" />
                 <field name="priority" widget="priority" />
                 <field
@@ -337,8 +337,8 @@
                     string="Closed"
                     domain="[('is_closed', '=', True)]" />
                 <filter
-                    string="Closed On"
                     name="closed_on"
+                    string="Closed On"
                     domain="[('is_closed', '=', True)]"
                     date="date_last_stage_update" />
                 <separator />
@@ -353,49 +353,49 @@
                     string="Archived"
                     domain="[('active', '=', False)]" />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <group>
                     <filter
-                        string="Priority"
                         name="groupby_priority"
+                        string="Priority"
                         context="{'group_by': 'priority'}" />
                     <filter
-                        string="Tags"
                         name="tags"
+                        string="Tags"
                         help="By assigned tags"
                         context="{'group_by':'tag_ids'}" />
                     <filter
-                        string="Assignees"
                         name="user_ids"
+                        string="Assignees"
                         context="{'group_by': 'user_ids'}" />
                     <filter
-                        string="Stage"
                         name="stage"
+                        string="Stage"
                         help="By personal stages"
                         context="{'group_by':'triage_id'}" />
                     <filter
-                        string="Deadline"
                         name="deadline"
+                        string="Deadline"
                         context="{'group_by': 'date_end'}" />
                 </group>
             </search>

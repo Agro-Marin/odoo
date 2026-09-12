@@ -12,8 +12,8 @@
                 <field
                     name="level_progress"
                     type="measure"
-                    widget="percentage"
-                    string="Current Level" />
+                    string="Current Level"
+                    widget="percentage" />
             </pivot>
         </field>
     </record>
@@ -28,8 +28,8 @@
                 <field
                     name="level_progress"
                     type="measure"
-                    widget="percentage"
-                    string="Current Level" />
+                    string="Current Level"
+                    widget="percentage" />
             </graph>
         </field>
     </record>
@@ -37,7 +37,7 @@
     <record id="hr_employee_skill_report_view_list" model="ir.ui.view">
         <field name="model">hr.employee.skill.report</field>
         <field name="arch" type="xml">
-            <list expand="0" edit="1" editable="bottom">
+            <list editable="bottom" edit="1" expand="0">
                 <field
                     name="employee_id"
                     widget="many2one_avatar_employee"
@@ -67,27 +67,27 @@
                 <field name="skill_type_id" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <filter
-                    string="Employee"
                     name="employee"
+                    string="Employee"
                     context="{'group_by': 'employee_id'}" />
                 <filter
-                    string="Department"
                     name="department"
+                    string="Department"
                     context="{'group_by': 'department_id'}" />
-                <filter string="Jobs" name="jobs" context="{'group_by': 'job_id'}" />
+                <filter name="jobs" string="Jobs" context="{'group_by': 'job_id'}" />
                 <separator />
                 <filter
-                    string="Skill Type"
                     name="skill_type"
+                    string="Skill Type"
                     context="{'group_by': 'skill_type_id'}" />
                 <filter
-                    string="Skill"
                     name="skill"
+                    string="Skill"
                     context="{'group_by': 'skill_id'}" />
             </search>
         </field>

@@ -46,14 +46,14 @@
                     <footer>
                         <button
                             name="action_register_departure"
-                            string="Apply"
                             type="object"
+                            string="Apply"
                             class="oe_highlight"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

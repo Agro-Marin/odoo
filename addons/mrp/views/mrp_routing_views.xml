@@ -16,12 +16,12 @@
                     <field name="workcenter_id" />
                     <field
                         name="time_cycle"
-                        widget="float_time"
-                        string="Duration (minutes)" />
+                        string="Duration (minutes)"
+                        widget="float_time" />
                     <field
                         name="time_total"
-                        widget="float_time"
                         string="Total Duration (minutes)"
+                        widget="float_time"
                         optional="hide" />
                     <field
                         name="company_id"
@@ -32,8 +32,8 @@
                         column_invisible="True" />
                     <field
                         name="bom_product_template_attribute_value_ids"
-                        optional="hide"
                         widget="many2many_tags"
+                        optional="hide"
                         options="{'no_create': True}"
                         groups="product.group_product_variant" />
                     <field
@@ -55,16 +55,16 @@
                     <control>
                         <button
                             name="action_view_operation_form"
-                            class="btn-link"
                             type="object"
                             string="Add a line"
-                            context="{'default_bom_id': parent.id}" />
+                            context="{'default_bom_id': parent.id}"
+                            class="btn-link" />
                         <button
                             name="action_copy_existing_operations"
-                            class="btn-link"
                             type="object"
                             string="Copy Existing Operations"
-                            context="{'bom_id': parent.id}" />
+                            context="{'bom_id': parent.id}"
+                            class="btn-link" />
                     </control>
                 </xpath>
                 <xpath expr="//field[@name='name']" position="before">
@@ -124,16 +124,16 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <div class="d-flex">
                             <h1 class="d-flex w-100">
                                 <field
                                     name="name"
-                                    options="{'line_breaks': False}"
+                                    placeholder="Operation..."
                                     widget="text"
-                                    class="o_task_name text-truncate w-md-75 w-100 pe-2"
-                                    placeholder="Operation..." />
+                                    options="{'line_breaks': False}"
+                                    class="o_task_name text-truncate w-md-75 w-100 pe-2" />
                             </h1>
                         </div>
                         <group>
@@ -142,8 +142,8 @@
                                 <field name="company_id" invisible="1" />
                                 <field
                                     name="bom_id"
-                                    invisible="context.get('bom_id_invisible', False)"
                                     domain="[]"
+                                    invisible="context.get('bom_id_invisible', False)"
                                     readonly="context.get('default_bom_id', False)" />
                                 <field name="workcenter_id" />
                                 <field
@@ -179,20 +179,20 @@
                                     <field
                                         name="time_cycle_manual"
                                         widget="float_time"
-                                        class="oe_inline"
-                                        invisible="time_mode == 'auto' and workorder_count != 0" />
+                                        invisible="time_mode == 'auto' and workorder_count != 0"
+                                        class="oe_inline" />
                                     <span invisible="time_mode == 'auto' and workorder_count != 0">minutes</span>
                                     <span invisible="time_mode == 'manual'"> / last </span>
                                     <field
                                         name="time_mode_batch"
-                                        class="oe_inline o_small_integer"
-                                        invisible="time_mode == 'manual'" />
+                                        invisible="time_mode == 'manual'"
+                                        class="oe_inline o_small_integer" />
                                     <span invisible="time_mode == 'manual'">work orders</span>
                                 </div>
                                 <field
                                     name="cycle_number"
-                                    class="oe_inline"
-                                    invisible="cycle_number &lt; 2" />
+                                    invisible="cycle_number &lt; 2"
+                                    class="oe_inline" />
                                 <field name="show_time_total" invisible="1" />
                                 <label
                                     for="time_total"
@@ -275,17 +275,17 @@
                     <field name="bom_id" />
                     <field name="workcenter_id" />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active', '=', False)]" />
                     <group>
                         <filter
-                            string="Bill of Material"
                             name="bom"
+                            string="Bill of Material"
                             context="{'group_by': 'bom_id'}" />
                         <filter
-                            string="Workcenter"
                             name="workcenter"
+                            string="Workcenter"
                             context="{'group_by': 'workcenter_id'}" />
                     </group>
                 </search>

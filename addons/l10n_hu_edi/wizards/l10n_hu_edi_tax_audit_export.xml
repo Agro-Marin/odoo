@@ -27,14 +27,14 @@
                 </div>
                 <footer>
                     <button
-                        string="Export"
                         name="action_export"
                         type="object"
+                        string="Export"
                         default_focus="1"
                         class="btn-primary" />
                     <button
-                        string="Close"
                         special="cancel"
+                        string="Close"
                         default_focus="1"
                         class="btn-primary" />
                 </footer>

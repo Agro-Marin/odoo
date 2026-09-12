@@ -13,11 +13,11 @@
                 position="inside">
                 <div class="mt8">
                     <button
-                        type="action"
                         name="%(website_slides_survey.survey_survey_action_slides)d"
+                        type="action"
                         string="Manage Certifications"
-                        class="btn-link"
-                        icon="oi-arrow-right" />
+                        icon="oi-arrow-right"
+                        class="btn-link" />
                 </div>
             </xpath>
         </field>

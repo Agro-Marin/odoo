@@ -32,7 +32,7 @@
             <xpath expr="//main/div" position="inside">
                 <div class="d-flex mt-2">
                     <span>Sales visibility</span>
-                    <field name="attached_on_sale" class="ms-2" widget="selection" />
+                    <field name="attached_on_sale" widget="selection" class="ms-2" />
                 </div>
             </xpath>
         </field>

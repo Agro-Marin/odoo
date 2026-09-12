@@ -17,28 +17,28 @@
             </xpath>
             <xpath expr="//block[@id='files_centralization_section']" position="inside">
                 <setting
-                    company_dependent="1"
-                    help="Centralize files attached to products">
+                    help="Centralize files attached to products"
+                    company_dependent="1">
                     <field name="documents_product_settings" />
                     <div
                         class="content-group"
                         invisible="not documents_product_settings">
                         <div class="row mt16">
                             <label
-                                class="o_form_label col-lg-3"
                                 for="product_folder_id"
-                                string="Folder" />
+                                string="Folder"
+                                class="o_form_label col-lg-3" />
                             <field
                                 name="product_folder_id"
-                                required="documents_product_settings"
                                 widget="documents_folder_many2one"
-                                options="{'no_create': True, 'no_create_edit': True}" />
+                                options="{'no_create': True, 'no_create_edit': True}"
+                                required="documents_product_settings" />
                         </div>
                         <div class="row">
                             <label
-                                class="o_form_label col-lg-3"
                                 for="product_tag_ids"
-                                string="Tags" />
+                                string="Tags"
+                                class="o_form_label col-lg-3" />
                             <field name="product_tag_ids" widget="many2many_tags" />
                         </div>
                     </div>

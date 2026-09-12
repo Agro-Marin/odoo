@@ -12,35 +12,35 @@
                         <field
                             name="country_id"
                             placeholder="Country"
-                            class="o_address_country"
                             options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_country" />
                         <field
                             name="state_id"
-                            class="o_address_state"
                             placeholder="city/-do"
                             options="{&quot;no_open&quot;: True}"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_state" />
                         <field
                             name="city"
                             placeholder="-city/-gun/-gu, -eup/myun"
-                            class="o_address_city"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_city" />
                         <field
                             name="street2"
                             placeholder="Building number, Road name"
-                            class="o_address_street"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_street" />
                         <field
                             name="street"
                             placeholder="Apartment Name, -dong/-floor"
-                            class="o_address_street"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_street" />
                         <field
                             name="zip"
                             placeholder="ZIP"
-                            class="o_address_zip"
-                            readonly="type == 'contact' and parent_id" />
+                            readonly="type == 'contact' and parent_id"
+                            class="o_address_zip" />
                     </div>
                 </div>
             </form>

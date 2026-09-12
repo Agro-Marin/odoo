@@ -23,15 +23,15 @@
                     <field name="preview_data" widget="grouped_view_widget" />
                     <footer>
                         <button
-                            string="Create Entry"
                             name="create_entries"
                             type="object"
+                            string="Create Entry"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Cancel"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

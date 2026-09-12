@@ -13,11 +13,11 @@
                 <button
                     name="%(crm_lead_action_from_event)d"
                     type="action"
-                    groups="sales_team.group_sale_salesman"
-                    class="oe_stat_button"
                     icon="fa-star"
-                    invisible="lead_count == 0">
-                    <field name="lead_count" widget="statinfo" string="Leads" />
+                    groups="sales_team.group_sale_salesman"
+                    invisible="lead_count == 0"
+                    class="oe_stat_button">
+                    <field name="lead_count" string="Leads" widget="statinfo" />
                 </button>
             </xpath>
         </field>

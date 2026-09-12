@@ -19,15 +19,15 @@
                     <field
                         name="refusal_reason_id"
                         string="Reason"
-                        required="decision_type == 'refuse'"
+                        placeholder="Select a reason..."
                         domain="['|', ('category_ids', '=', False), ('category_ids', 'in', category_id)] if category_id else [('category_ids', '=', False)]"
-                        placeholder="Select a reason..." />
+                        required="decision_type == 'refuse'" />
                 </group>
 
                 <div
                     class="text-muted fst-italic small ms-1 mb-3"
                     invisible="decision_type != 'refuse' or not refusal_reason_description">
-                    <field name="refusal_reason_description" nolabel="1" readonly="1" />
+                    <field name="refusal_reason_description" readonly="1" />
                 </div>
 
                 <group invisible="decision_type != 'change'">
@@ -38,32 +38,32 @@
                 </group>
 
                 <group>
-                    <label for="note" class="o_form_label" string="Note" />
+                    <label for="note" string="Note" class="o_form_label" />
                     <field
                         name="note"
-                        nolabel="1"
+                        placeholder="Explain the decision. This message reaches the requester."
                         colspan="2"
-                        required="decision_type == 'change'"
-                        placeholder="Explain the decision. This message reaches the requester." />
+                        nolabel="1"
+                        required="decision_type == 'change'" />
                 </group>
 
                 <footer>
                     <button
-                        string="Refuse"
                         name="action_confirm_refuse"
                         type="object"
-                        class="btn-danger"
-                        invisible="decision_type != 'refuse'" />
+                        string="Refuse"
+                        invisible="decision_type != 'refuse'"
+                        class="btn-danger" />
                     <button
-                        string="Request Change"
                         name="action_confirm_change"
                         type="object"
-                        class="btn-primary"
-                        invisible="decision_type != 'change'" />
+                        string="Request Change"
+                        invisible="decision_type != 'change'"
+                        class="btn-primary" />
                     <button
-                        string="Close"
                         name="action_cancel"
                         type="object"
+                        string="Close"
                         class="btn-secondary" />
                 </footer>
             </form>

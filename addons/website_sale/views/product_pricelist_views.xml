@@ -12,8 +12,8 @@
                         <field name="company_id" invisible="1" />
                         <field
                             name="website_id"
-                            options="{'no_create': True}"
-                            placeholder="Select a website" />
+                            placeholder="Select a website"
+                            options="{'no_create': True}" />
                         <field name="selectable" />
                         <field name="code" />
                     </group>

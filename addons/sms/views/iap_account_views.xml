@@ -14,8 +14,8 @@
                         invisible="service_name != 'sms' or (state != 'unregistered' and state)">
                         <i class="fa-solid fa-triangle-exclamation" /> You cannot send SMS while your account is not registered.
                         <button
-                            type="object"
                             name="action_view_registration_wizard"
+                            type="object"
                             class="btn-link p-0">
                             <i class="oi oi-arrow-right" />
                             Register
@@ -36,18 +36,18 @@
                 <xpath expr="//group[@name='external']/*[1]" position="before">
                     <label
                         for="sender_name"
-                        class="oe_inline"
-                        invisible="service_name != 'sms' or not (state == 'registered' and state)" />
+                        invisible="service_name != 'sms' or not (state == 'registered' and state)"
+                        class="oe_inline" />
                     <div
                         invisible="service_name != 'sms'  or not (state == 'registered' and state)">
                         <field
                             name="sender_name"
-                            class="oe_inline"
-                            invisible="not sender_name" />
+                            invisible="not sender_name"
+                            class="oe_inline" />
                         <button
+                            name="action_view_sender_name_wizard"
                             type="object"
                             invisible="sender_name"
-                            name="action_view_sender_name_wizard"
                             class="btn-link p-0">
                             <i class="oi oi-arrow-right" />
                             Set Sender Name

@@ -36,8 +36,8 @@
                                 <div class="d-flex align-items-left">
                                     <field
                                         name="deadline_days_delay"
-                                        style="width: 15%"
-                                        class="o_form_field text-center" />
+                                        class="o_form_field text-center"
+                                        style="width: 15%" />
                                     <span style="width: 85%">days after tax period</span>
                                 </div>
                                 <field

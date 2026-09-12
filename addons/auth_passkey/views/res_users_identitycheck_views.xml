@@ -12,18 +12,18 @@
                 <div invisible="auth_method != 'webauthn'">
                     <h3><strong>Use your passkey to authenticate</strong></h3>
                     <p class="mb-0 mt-3">Or choose a different method:</p>
-                    <button type="object" name="action_use_password" class="btn btn-link" role="button">Use password</button>
+                    <button name="action_use_password" type="object" class="btn btn-link" role="button">Use password</button>
                 </div>
             </xpath>
             <xpath expr="//footer/button[@id='password_confirm']" position="before">
                 <button
-                    string="Use Passkey"
-                    type="object"
                     name="run_check"
-                    class="btn btn-primary"
-                    data-hotkey="q"
+                    type="object"
+                    string="Use Passkey"
+                    context="{'password': password}"
                     invisible="auth_method != 'webauthn'"
-                    context="{'password': password}" />
+                    class="btn btn-primary"
+                    data-hotkey="q" />
             </xpath>
         </field>
     </record>

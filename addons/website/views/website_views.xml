@@ -44,8 +44,8 @@
                         </group>
                         <notebook>
                             <page
-                                string="Custom Code"
                                 name="page_custom_code"
+                                string="Custom Code"
                                 groups="base.group_no_one">
                                 <label for="custom_code_head" />
                                 <field
@@ -79,9 +79,9 @@
                             class="btn btn-primary"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Cancel"
                             class="btn btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </xpath>
@@ -191,16 +191,16 @@
                     <field name="website_id" groups="website.group_multi_website" />
                     <group>
                         <filter
-                            string="Name"
                             name="group_by_name"
+                            string="Name"
                             context="{'group_by':'name'}" />
                         <filter
-                            string="Url"
                             name="group_by_url"
+                            string="Url"
                             context="{'group_by':'url'}" />
                         <filter
-                            string="Website"
                             name="group_by_website_id"
+                            string="Website"
                             context="{'group_by':'website_id'}" />
                     </group>
                 </search>
@@ -269,9 +269,9 @@
             <field name="model">ir.module.module</field>
             <field name="arch" type="xml">
                 <kanban
+                    default_order="state,sequence,name"
                     create="false"
                     can_open="0"
-                    default_order="state,sequence,name"
                     js_class="theme_preview_kanban">
                     <field name="icon" />
                     <field name="summary" />
@@ -307,19 +307,19 @@
                                     <div class="d-flex flex-column gap-2 w-50">
                                         <t
                                             t-if="record.is_installed_on_current_website.raw_value">
-                                            <button type="object" name="button_refresh_theme" class="btn btn-primary">Update theme</button>
-                                            <button type="object" name="button_remove_theme" class="btn btn-secondary">Remove theme</button>
+                                            <button name="button_refresh_theme" type="object" class="btn btn-primary">Update theme</button>
+                                            <button name="button_remove_theme" type="object" class="btn btn-secondary">Remove theme</button>
                                         </t>
                                         <t t-else="">
-                                            <button type="object" name="button_choose_theme" class="btn btn-primary">Use this theme</button>
+                                            <button name="button_choose_theme" type="object" class="btn btn-primary">Use this theme</button>
                                         </t>
                                     </div>
                                 </div>
                                 <t t-else="">
                                     <button
+                                        type="open"
                                         class="position-absolute top-0 start-0 h-100 w-100 opacity-0"
                                         role="button"
-                                        type="open"
                                         t-if="record.url.value" />
                                 </t>
                             </div>
@@ -346,20 +346,20 @@
                 <search>
                     <field
                         name="name"
-                        filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('name', 'ilike', self)]"
-                        string="Theme" />
+                        string="Theme"
+                        filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('name', 'ilike', self)]" />
                     <field
                         name="category_id"
-                        filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('category_id', 'ilike', self)]"
-                        string="Category" />
+                        string="Category"
+                        filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('category_id', 'ilike', self)]" />
                     <group>
                         <filter
-                            string="Author"
                             name="author"
+                            string="Author"
                             context="{'group_by':'author'}" />
                         <filter
-                            string="Category"
                             name="category"
+                            string="Category"
                             context="{'group_by':'category_id'}" />
                     </group>
                 </search>

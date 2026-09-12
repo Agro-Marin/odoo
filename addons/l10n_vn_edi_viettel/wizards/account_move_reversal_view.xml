@@ -15,12 +15,12 @@
                         required="country_code == 'VN'" />
                     <field
                         name="l10n_vn_edi_agreement_document_name"
-                        invisible="country_code != 'VN'"
-                        placeholder="Agreement document name..." />
+                        placeholder="Agreement document name..."
+                        invisible="country_code != 'VN'" />
                     <field
                         name="l10n_vn_edi_agreement_document_date"
-                        invisible="country_code != 'VN'"
-                        placeholder="Agreement document date..." />
+                        placeholder="Agreement document date..."
+                        invisible="country_code != 'VN'" />
                 </xpath>
             </field>
         </record>

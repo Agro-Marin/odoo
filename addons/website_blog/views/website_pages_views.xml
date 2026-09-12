@@ -13,8 +13,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group name="blog_details">
                         <field name="blog_id" />
                         <field name="active" invisible="1" />
@@ -59,16 +59,16 @@
         <field name="model">blog.post</field>
         <field name="arch" type="xml">
             <kanban
-                js_class="website_pages_kanban"
+                type="object"
+                sample="1"
                 class="o_kanban_mobile"
                 action="open_website_url"
-                type="object"
-                sample="1">
+                js_class="website_pages_kanban">
                 <templates>
                     <t t-name="card">
                         <div class="row mb-auto">
                             <div class="col-8 fw-bolder">
-                                <field class="d-block text-truncate" name="name" />
+                                <field name="name" class="d-block text-truncate" />
                                 <div
                                     class="text-muted"
                                     t-if="record.website_id.value"
@@ -110,8 +110,8 @@
         <field name="arch" type="xml">
             <search string="Blog Post">
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
                 <field
                     name="name"
@@ -121,16 +121,16 @@
                 <field name="blog_id" />
                 <group>
                     <filter
-                        string="Blog"
                         name="group_by_blog"
+                        string="Blog"
                         context="{'group_by': 'blog_id'}" />
                     <filter
-                        string="Author"
                         name="group_by_author"
+                        string="Author"
                         context="{'group_by': 'create_uid'}" />
                     <filter
-                        string="Last Contributor"
                         name="last_contributor"
+                        string="Last Contributor"
                         context="{'group_by': 'write_uid'}" />
                 </group>
             </search>
@@ -143,10 +143,10 @@
         <field name="priority">99</field>
         <field name="arch" type="xml">
             <list
-                js_class="website_pages_list"
                 type="object"
+                multi_edit="1"
                 action="open_website_url"
-                multi_edit="1">
+                js_class="website_pages_list">
                 <field name="active" column_invisible="True" />
                 <field name="name" />
                 <field name="website_url" />

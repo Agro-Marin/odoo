@@ -46,12 +46,12 @@
             <xpath expr="//button[@id='mail_activity_schedule']" position="before">
                 <field name="calendar_event_id" invisible="1" />
                 <button
-                    string="Schedule"
-                    close="1"
-                    invisible="activity_category != 'meeting' or calendar_event_id"
                     name="action_create_calendar_event"
                     type="object"
-                    class="btn-primary" />
+                    string="Schedule"
+                    invisible="activity_category != 'meeting' or calendar_event_id"
+                    class="btn-primary"
+                    close="1" />
             </xpath>
         </field>
     </record>

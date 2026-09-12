@@ -10,8 +10,8 @@
                 <xpath expr="//field[@name='website_id']" position="after">
                     <field
                         name="website_tag_ids"
-                        widget="many2many_tags"
-                        string="Website Tags" />
+                        string="Website Tags"
+                        widget="many2many_tags" />
                 </xpath>
             </data>
         </field>
@@ -56,8 +56,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

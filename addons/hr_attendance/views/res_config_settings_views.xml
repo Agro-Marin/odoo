@@ -9,15 +9,15 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Attendances"
-                    string="Attendances"
                     name="hr_attendance"
-                    groups="hr_attendance.group_hr_attendance_manager">
-                    <block title="Modes" name="kiosk_mode_setting_container">
+                    string="Attendances"
+                    groups="hr_attendance.group_hr_attendance_manager"
+                    data-string="Attendances">
+                    <block name="kiosk_mode_setting_container" title="Modes">
                         <setting
                             string="Kiosk Mode"
-                            company_dependent="1"
-                            help="Define the way the user will be identified by the application.">
+                            help="Define the way the user will be identified by the application."
+                            company_dependent="1">
                             <field
                                 name="attendance_kiosk_mode"
                                 required="1"
@@ -28,14 +28,14 @@
                         </setting>
                         <setting
                             string="Attendances from Backend"
-                            company_dependent="1"
-                            help="Allow Users to Check in/out from Odoo.">
+                            help="Allow Users to Check in/out from Odoo."
+                            company_dependent="1">
                             <field name="attendance_from_systray" required="1" />
                         </setting>
                         <setting
                             string="Automatic Check-Out"
-                            company_dependent="1"
-                            help="Automatically Check-Out Employees based on their working schedule with an additional tolerance. Does not apply to employees with a flexible working schedule.">
+                            help="Automatically Check-Out Employees based on their working schedule with an additional tolerance. Does not apply to employees with a flexible working schedule."
+                            company_dependent="1">
                             <field name="auto_check_out" />
                             <div invisible="not auto_check_out">
                                 <span class="me-2">Tolerance</span><field name="auto_check_out_tolerance" class="text-center" style="width: 5ch;" /><span class="ms-2">Hours</span>
@@ -43,35 +43,35 @@
                         </setting>
                         <setting
                             string="Absence Management"
-                            company_dependent="1"
-                            help="If checked, days not covered by an attendance will be visible in the Report. Does not apply to employees with a flexible working schedule.">
+                            help="If checked, days not covered by an attendance will be visible in the Report. Does not apply to employees with a flexible working schedule."
+                            company_dependent="1">
                             <field name="absence_management" />
                         </setting>
                         <setting
                             string="Device &amp; Location Tracking"
-                            company_dependent="1"
-                            help="Allow the collection of GPS location, IP address, and browser/device details used to track employee access and attendance">
+                            help="Allow the collection of GPS location, IP address, and browser/device details used to track employee access and attendance"
+                            company_dependent="1">
                             <field name="attendance_device_tracking" />
                         </setting>
                     </block>
                     <block title="Kiosk Settings">
                         <setting
+                            help="Define the camera used for the barcode scan."
                             invisible="attendance_kiosk_mode == 'manual'"
-                            company_dependent="1"
-                            help="Define the camera used for the barcode scan.">
+                            company_dependent="1">
                             <field name="attendance_barcode_source" required="1" />
                         </setting>
                         <setting
                             string="Display Time"
-                            company_dependent="1"
-                            help="Choose how long the greeting message will be displayed.">
+                            help="Choose how long the greeting message will be displayed."
+                            company_dependent="1">
                             <field name="attendance_kiosk_delay" required="1" class="text-center" style="width: 10%; min-width: 4rem;" /><span> seconds</span>
                         </setting>
                         <setting
                             title="Set PIN codes in the employee detail form (in HR Settings tab)."
-                            company_dependent="1"
+                            help="Use PIN codes (defined on the Employee's profile) to check-in."
                             invisible="attendance_kiosk_mode == 'barcode'"
-                            help="Use PIN codes (defined on the Employee's profile) to check-in.">
+                            company_dependent="1">
                             <field name="attendance_kiosk_use_pin" />
                         </setting>
                         <setting
@@ -79,30 +79,30 @@
                             help="Use this url to access your kiosk mode from any device.">
                             <field
                                 name="attendance_kiosk_url"
+                                widget="CopyClipboardURL"
                                 class="o_hr_kiosk_url_media w-100"
-                                style="width:100% !important;"
-                                widget="CopyClipboardURL" />
+                                style="width:100% !important;" />
                             <button
                                 name="regenerate_kiosk_key"
                                 type="object"
                                 string="Generate new URL"
-                                class="btn-link"
-                                icon="fa-refresh" />
+                                icon="fa-refresh"
+                                class="btn-link" />
                         </setting>
                     </block>
-                    <block title="Extra Hours" name="overtime_settings">
+                    <block name="overtime_settings" title="Extra Hours">
                         <setting
-                            title="Display Extra Hours."
                             string="Display Extra Hours"
-                            company_dependent="1"
-                            help="Display Extra Hours in Kiosk mode and on User profile.">
+                            title="Display Extra Hours."
+                            help="Display Extra Hours in Kiosk mode and on User profile."
+                            company_dependent="1">
                             <field name="hr_attendance_display_overtime" />
                         </setting>
                         <setting
-                            title="Extra Hours Validation"
                             string="Extra Hours Validation"
-                            company_dependent="1"
-                            help="Can be converted as Time Off (cfr Time Off configuration).">
+                            title="Extra Hours Validation"
+                            help="Can be converted as Time Off (cfr Time Off configuration)."
+                            company_dependent="1">
                             <field
                                 name="attendance_overtime_validation"
                                 widget="radio" />

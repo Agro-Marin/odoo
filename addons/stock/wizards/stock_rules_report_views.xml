@@ -12,24 +12,24 @@
                     <field
                         name="product_id"
                         domain="[('product_tmpl_id', '=', product_tmpl_id)]"
-                        readonly="not product_has_variants"
-                        options="{'no_create': True}" />
+                        options="{'no_create': True}"
+                        readonly="not product_has_variants" />
                     <field
                         name="warehouse_ids"
-                        groups="stock.group_stock_multi_warehouses"
-                        widget="many2many_tags" />
+                        widget="many2many_tags"
+                        groups="stock.group_stock_multi_warehouses" />
                 </group>
                 <footer>
                     <button
                         name="action_print_rules_report"
-                        string="Overview"
                         type="object"
-                        data-hotkey="q"
-                        class="btn-primary" />
+                        string="Overview"
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-default"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

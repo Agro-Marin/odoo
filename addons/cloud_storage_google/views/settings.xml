@@ -25,8 +25,8 @@
                     <field
                         name="cloud_storage_google_service_account_key"
                         widget="binary"
-                        class="o_field_binary_hide_download"
-                        options="{'accepted_file_extensions': '.json'}" />
+                        options="{'accepted_file_extensions': '.json'}"
+                        class="o_field_binary_hide_download" />
                     <field
                         name="cloud_storage_google_account_info"
                         widget="text"

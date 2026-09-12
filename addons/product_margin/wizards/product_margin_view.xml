@@ -6,7 +6,7 @@
         <field name="model">product.margin</field>
         <field name="arch" type="xml">
             <form string="Properties categories">
-                <group col="4" string="General Information">
+                <group string="General Information" col="4">
                     <field name="from_date" />
                     <field name="to_date" />
                     <field name="invoice_state" />
@@ -14,14 +14,14 @@
                 <footer>
                     <button
                         name="action_view_window"
-                        string="Open Margins"
                         type="object"
+                        string="Open Margins"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

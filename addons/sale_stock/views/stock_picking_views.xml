@@ -37,10 +37,10 @@
                 position="after">
                 <button
                     name="action_sale_matching"
-                    string="Match Sales"
                     type="object"
-                    invisible="picking_type_code != 'outgoing' or state == 'cancel'"
-                    groups="sales_team.group_sale_salesman" />
+                    string="Match Sales"
+                    groups="sales_team.group_sale_salesman"
+                    invisible="picking_type_code != 'outgoing' or state == 'cancel'" />
             </xpath>
         </field>
     </record>

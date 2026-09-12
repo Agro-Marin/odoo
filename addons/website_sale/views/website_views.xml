@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <notebook position="inside">
                 <page
-                    string="Product Page Extra Fields"
                     name="page_product_page_extra_fields"
+                    string="Product Page Extra Fields"
                     groups="base.group_no_one">
                     <field
                         name="shop_extra_field_ids"
@@ -18,8 +18,8 @@
                             <field name="sequence" widget="handle" />
                             <field
                                 name="field_id"
-                                required="1"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                required="1" />
                         </list>
                     </field>
                 </page>

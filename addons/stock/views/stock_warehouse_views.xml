@@ -8,8 +8,8 @@
             <search string="Warehouse">
                 <field name="name" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
             </search>
         </field>
@@ -39,10 +39,10 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="action_view_all_routes"
+                            type="object"
                             string="Routes"
                             icon="fa-refresh"
-                            class="oe_stat_button"
-                            type="object">
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Routes</span>
                             </div>
@@ -51,8 +51,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <label for="name" />
                     <h1>
                         <field
@@ -69,8 +69,8 @@
                         <group>
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company" />
                             <field name="partner_id" />
                         </group>
                     </group>
@@ -78,8 +78,8 @@
                         colspan="4"
                         groups="stock.group_adv_location,stock.group_stock_multi_warehouses">
                         <page
-                            string="Warehouse Configuration"
                             name="warehouse_config"
+                            string="Warehouse Configuration"
                             colspan="4">
                             <group colspan="4">
                                 <group
@@ -94,15 +94,15 @@
                                     groups="stock.group_stock_multi_warehouses">
                                     <field
                                         name="resupply_wh_ids"
-                                        domain="[('id', '!=', id), ('company_id', '=', company_id)]"
                                         widget="many2many_checkboxes"
+                                        domain="[('id', '!=', id), ('company_id', '=', company_id)]"
                                         groups="stock.group_stock_multi_warehouses" />
                                 </group>
                             </group>
                         </page>
                         <page
-                            string="Technical Information"
                             name="technical_info"
+                            string="Technical Information"
                             groups="base.group_no_one">
                             <group>
                                 <group string="Locations">

@@ -20,10 +20,10 @@
                 </t>
 
                 <app
-                    data-string="Point of sale"
-                    string="Point of Sale"
                     name="point_of_sale"
-                    groups="point_of_sale.group_pos_manager">
+                    string="Point of Sale"
+                    groups="point_of_sale.group_pos_manager"
+                    data-string="Point of sale">
                     <div class="pos_res_config_container">
                     <div class="sticky-top w-100 bg-white">
                         <setting
@@ -32,8 +32,8 @@
                             class="bg-warning">
                             <field
                                 name="pos_config_id"
-                                options="{'no_open': True, 'no_create': True}"
-                                title="Settings on this page will apply to this point of sale." />
+                                title="Settings on this page will apply to this point of sale."
+                                options="{'no_open': True, 'no_create': True}" />
                             <button
                                 name="action_pos_config_create_new"
                                 type="object"
@@ -54,7 +54,7 @@
                             invisible="not pos_has_active_session"
                             role="alert">
                             A session is currently opened for this PoS. Some settings can only be changed after the session is closed.
-                            <button class="btn-link" style="padding:0" name="pos_close_ui" type="object" context="{'pos_config_id': pos_config_id}">Click here to close the session</button>
+                            <button name="pos_close_ui" type="object" context="{'pos_config_id': pos_config_id}" class="btn-link" style="padding:0">Click here to close the session</button>
                         </div>
                         <div
                             class="o_notification_alert alert alert-warning"
@@ -63,7 +63,7 @@
                             There is no Chart of Accounts configured on the company. Please go to the invoicing settings to install a Chart of Accounts.
                         </div>
                         <div invisible="not pos_config_id">
-                            <block title="Point of Sale" id="restaurant_section">
+                            <block id="restaurant_section" title="Point of Sale">
                                 <setting id="is_restaurant">
                                     <field
                                         name="pos_module_pos_restaurant"
@@ -87,8 +87,8 @@
                                         <div class="row">
                                             <label
                                                 for="pos_available_preset_ids"
-                                                class="col-lg-3"
-                                                string="Available" />
+                                                string="Available"
+                                                class="col-lg-3" />
                                             <field
                                                 name="pos_available_preset_ids"
                                                 widget="many2many_tags"
@@ -97,26 +97,26 @@
                                         <div class="row">
                                             <label
                                                 for="pos_default_preset_id"
-                                                class="col-lg-3"
-                                                string="Default" />
+                                                string="Default"
+                                                class="col-lg-3" />
                                             <field
                                                 name="pos_default_preset_id"
+                                                domain="[('id', 'in', pos_available_preset_ids)]"
                                                 options="{'no_create': True}"
-                                                required="pos_use_presets"
-                                                domain="[('id', 'in', pos_available_preset_ids)]" />
+                                                required="pos_use_presets" />
                                         </div>
                                         <div>
                                             <button
                                                 name="%(action_pos_preset_form)d"
-                                                icon="oi-arrow-right"
                                                 type="action"
                                                 string="Configure Presets"
+                                                icon="oi-arrow-right"
                                                 class="btn-link" />
                                         </div>
                                     </div>
                                 </setting>
                             </block>
-                            <block title="Payment" id="pos_payment_section">
+                            <block id="pos_payment_section" title="Payment">
                                 <setting
                                     id="payment_methods_new"
                                     string="Payment Methods"
@@ -124,18 +124,18 @@
                                     documentation="/applications/sales/point_of_sale/payment_methods.html">
                                     <field
                                         name="pos_payment_method_ids"
-                                        colspan="4"
                                         widget="many2many_tags"
-                                        readonly="pos_has_active_session"
-                                        required="pos_company_has_template"
+                                        colspan="4"
+                                        context="{'default_config_ids': [pos_config_id], 'form_view_ref': 'point_of_sale.action_pos_payment_method_form' }"
                                         options="{'no_quick_create': True}"
-                                        context="{'default_config_ids': [pos_config_id], 'form_view_ref': 'point_of_sale.action_pos_payment_method_form' }" />
+                                        readonly="pos_has_active_session"
+                                        required="pos_company_has_template" />
                                     <div>
                                         <button
                                             name="%(action_payment_methods_tree)d"
-                                            icon="oi-arrow-right"
                                             type="action"
                                             string="Payment Methods"
+                                            icon="oi-arrow-right"
                                             class="btn-link" />
                                     </div>
                                 </setting>
@@ -146,9 +146,9 @@
                                 </setting>
                                 <setting
                                     string="Cash Rounding"
+                                    help="Define the smallest coinage of the currency used to pay by cash"
                                     invisible="is_kiosk_mode"
-                                    documentation="/applications/sales/point_of_sale/pricing/cash_rounding.html"
-                                    help="Define the smallest coinage of the currency used to pay by cash">
+                                    documentation="/applications/sales/point_of_sale/pricing/cash_rounding.html">
                                     <field
                                         name="pos_cash_rounding"
                                         readonly="pos_has_active_session" />
@@ -157,14 +157,14 @@
                                         invisible="not pos_cash_rounding">
                                         <div class="row mt16">
                                             <label
-                                                string="Rounding Method"
                                                 for="pos_rounding_method"
+                                                string="Rounding Method"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_rounding_method"
-                                                required="pos_cash_rounding"
+                                                options="{'no_quick_create': True}"
                                                 readonly="pos_has_active_session"
-                                                options="{'no_quick_create': True}" />
+                                                required="pos_cash_rounding" />
                                         </div>
                                         <div class="row mt16">
                                             <div class="col">
@@ -172,8 +172,8 @@
                                                     name="pos_only_round_cash_method"
                                                     readonly="pos_has_active_session" />
                                                 <label
-                                                    string="Only on cash methods"
                                                     for="pos_only_round_cash_method"
+                                                    string="Only on cash methods"
                                                     class="o_light_label" />
                                             </div>
                                         </div>
@@ -181,11 +181,11 @@
                                     <div class="mt8">
                                         <button
                                             name="%(account.rounding_list_action)d"
-                                            icon="oi-arrow-right"
                                             type="action"
                                             string="Cash Roundings"
-                                            class="btn-link"
-                                            invisible="not group_cash_rounding" />
+                                            icon="oi-arrow-right"
+                                            invisible="not group_cash_rounding"
+                                            class="btn-link" />
                                     </div>
                                 </setting>
                                 <setting
@@ -203,11 +203,11 @@
                                             class="fw-bold me-2" />
                                         <field
                                             name="pos_fast_payment_method_ids"
-                                            widget="many2many_tags"
                                             string="Payment Methods"
+                                            widget="many2many_tags"
+                                            domain="[('id', 'in', pos_payment_method_ids), ('use_payment_terminal', '=', False), ('split_transactions', '=', False)]"
                                             options="{'no_create': True}"
-                                            required="pos_use_fast_payment"
-                                            domain="[('id', 'in', pos_payment_method_ids), ('use_payment_terminal', '=', False), ('split_transactions', '=', False)]" />
+                                            required="pos_use_fast_payment" />
                                     </div>
                                 </setting>
                                 <setting
@@ -226,8 +226,8 @@
                                 </setting>
                                 <setting
                                     id="iface_tipproduct"
-                                    title="This product is used as reference on customer receipts."
                                     string="Tips"
+                                    title="This product is used as reference on customer receipts."
                                     help="Accept customer tips or convert their change to a tip"
                                     documentation="/applications/sales/point_of_sale/restaurant/tips.html">
                                     <field name="pos_iface_tipproduct" />
@@ -236,19 +236,19 @@
                                         invisible="not pos_iface_tipproduct">
                                         <div class="row mt16" id="tip_product">
                                             <label
-                                                string="Tip Product"
                                                 for="pos_tip_product_id"
+                                                string="Tip Product"
                                                 class="col-lg-3 o_light_label " />
                                             <field name="pos_tip_product_id" />
                                         </div>
                                     </div>
                                 </setting>
                             </block>
-                            <block title="PoS Interface" id="pos_interface_section">
+                            <block id="pos_interface_section" title="PoS Interface">
                                 <setting
                                     id="multiple_employee_session"
-                                    title="Employees can scan their badge or enter a PIN to log in to a PoS session. These credentials are configurable in the *HR Settings* tab of the employee form."
                                     string="Log in with Employees"
+                                    title="Employees can scan their badge or enter a PIN to log in to a PoS session. These credentials are configurable in the *HR Settings* tab of the employee form."
                                     help="Allow to log and switch between selected Employees"
                                     documentation="/applications/sales/point_of_sale/employee_login.html">
                                     <field name="pos_module_pos_hr" />
@@ -263,33 +263,33 @@
                                     </div>
                                 </setting>
                                 <setting
-                                    invisible="is_kiosk_mode"
-                                    help="Improve navigation for imprecise industrial touchscreens">
+                                    help="Improve navigation for imprecise industrial touchscreens"
+                                    invisible="is_kiosk_mode">
                                     <field name="pos_iface_big_scrollbars" />
                                 </setting>
                                 <setting
+                                    id="is_order_shared"
                                     string="Share Open Orders"
                                     help="Allow to access each other's active orders"
-                                    id="is_order_shared"
                                     invisible="pos_module_pos_restaurant or is_kiosk_mode">
                                     <div class="content-group">
                                         <div class="row mt16">
                                             <label
-                                                string="Trusted POS"
                                                 for="pos_trusted_config_ids"
+                                                string="Trusted POS"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_trusted_config_ids"
+                                                placeholder="Select PoS to start sharing orders"
                                                 widget="many2many_tags"
-                                                options="{'no_create':'true'}"
-                                                placeholder="Select PoS to start sharing orders" />
+                                                options="{'no_create':'true'}" />
                                         </div>
                                         <div>
                                             <button
                                                 name="%(point_of_sale.action_pos_config_tree)d"
-                                                icon="oi-arrow-right"
                                                 type="action"
                                                 string="Point of Sales"
+                                                icon="oi-arrow-right"
                                                 class="btn-link" />
                                         </div>
                                     </div>
@@ -331,8 +331,8 @@
                                     </div>
                                 </setting>
                                 <setting
-                                    invisible="is_kiosk_mode"
-                                    help="Display products grouped by categories.">
+                                    help="Display products grouped by categories."
+                                    invisible="is_kiosk_mode">
                                     <field name="pos_iface_group_by_categ" />
                                 </setting>
                             </block>
@@ -354,9 +354,9 @@
                                         invisible="not pos_limit_categories">
                                         <button
                                             name="%(product_pos_category_action)d"
-                                            icon="oi-arrow-right"
                                             type="action"
                                             string="PoS Product Categories"
+                                            icon="oi-arrow-right"
                                             class="btn-link" />
                                     </div>
                                 </setting>
@@ -368,14 +368,14 @@
                                         name="pos_is_margins_costs_accessible_to_every_user" />
                                 </setting>
                             </block>
-                            <block title="Accounting" id="pos_accounting_section">
+                            <block id="pos_accounting_section" title="Accounting">
                                 <setting
                                     id="default_sales_tax_setting"
                                     title="This tax is applied to any new product created in the catalog."
                                     documentation="/applications/finance/accounting/taxation/taxes/default_taxes.html">
                                     <label
-                                        string="Default Sales Tax"
-                                        for="sale_tax_id" />
+                                        for="sale_tax_id"
+                                        string="Default Sales Tax" />
                                     <i
                                         class="fa-solid fa-info-circle me-1"
                                         title="This setting is common to all PoS."
@@ -393,16 +393,16 @@
                                     <div class="mt8">
                                         <button
                                             name="%(account.action_tax_form)d"
-                                            icon="oi-arrow-right"
                                             type="action"
                                             string="Taxes"
+                                            icon="oi-arrow-right"
                                             class="btn-link" />
                                     </div>
                                 </setting>
                                 <setting groups="account.group_account_readonly">
                                     <label
-                                        string="Default POS Receivable Account"
-                                        for="account_default_pos_receivable_account_id" />
+                                        for="account_default_pos_receivable_account_id"
+                                        string="Default POS Receivable Account" />
                                     <i
                                         class="fa-solid fa-info-circle me-1"
                                         title="This setting is common to all PoS."
@@ -423,10 +423,10 @@
                                 </setting>
                                 <setting
                                     id="flexible_taxes"
-                                    invisible="pos_use_presets"
-                                    title="Choose a specific fiscal position at the order depending on the kind of customer (tax exempt, onsite vs. takeaway, etc.)."
                                     string="Flexible Taxes"
+                                    title="Choose a specific fiscal position at the order depending on the kind of customer (tax exempt, onsite vs. takeaway, etc.)."
                                     help="Use fiscal positions to get different taxes by order"
+                                    invisible="pos_use_presets"
                                     documentation="/applications/sales/point_of_sale/pricing/fiscal_position.html">
                                     <field name="pos_tax_regime_selection" />
                                     <div
@@ -434,16 +434,16 @@
                                         invisible="not pos_tax_regime_selection">
                                         <div class="row">
                                             <label
-                                                string="Default"
                                                 for="pos_default_fiscal_position_id"
+                                                string="Default"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_default_fiscal_position_id" />
                                         </div>
                                         <div class="row">
                                             <label
-                                                string="Allowed"
                                                 for="pos_fiscal_position_ids"
+                                                string="Allowed"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_fiscal_position_ids"
@@ -453,26 +453,26 @@
                                         <div>
                                             <button
                                                 name="%(account.action_account_fiscal_position_form)d"
-                                                icon="oi-arrow-right"
                                                 type="action"
                                                 string="Fiscal Positions"
+                                                icon="oi-arrow-right"
                                                 class="btn-link" />
                                         </div>
                                     </div>
                                 </setting>
                                 <setting
-                                    string="Default Journals"
                                     id="pos_default_journals"
+                                    string="Default Journals"
                                     help="Default journals for orders and invoices">
                                     <div class="content-group mt16">
                                         <div
                                             class="row"
                                             title="Whenever you close a session, one entry is generated in the following accounting journal for all the orders not invoiced. Invoices are recorded in accounting separately.">
                                             <label
-                                                string="Orders"
                                                 for="pos_journal_id"
-                                                class="col-lg-3 o_light_label"
-                                                options="{'no_open': True, 'no_create': True}" />
+                                                string="Orders"
+                                                options="{'no_open': True, 'no_create': True}"
+                                                class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_journal_id"
                                                 domain="[('company_id', '=', company_id), ('type', 'in', ('general', 'sale'))]"
@@ -481,8 +481,8 @@
                                         </div>
                                         <div class="row">
                                             <label
-                                                string="Invoices"
                                                 for="pos_invoice_journal_id"
+                                                string="Invoices"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_invoice_journal_id"
@@ -492,8 +492,8 @@
                                     </div>
                                 </setting>
                                 <setting
-                                    string="Closing Entry by product"
                                     id="pos_closeing_entry_by_product"
+                                    string="Closing Entry by product"
                                     help="Display the breakdown of sales lines by product in the automatically generated closing entry.">
                                     <field name="pos_is_closing_entry_by_product" />
                                 </setting>
@@ -504,7 +504,7 @@
                                 </setting>
                             </block>
 
-                            <block title="Pricing" id="pos_pricing_section">
+                            <block id="pos_pricing_section" title="Pricing">
                                 <setting
                                     id="multiple_prices_setting"
                                     string="Flexible Pricelists"
@@ -516,8 +516,8 @@
                                         invisible="not pos_use_pricelist">
                                         <div class="row mt16">
                                             <label
-                                                string="Available"
                                                 for="pos_available_pricelist_ids"
+                                                string="Available"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_available_pricelist_ids"
@@ -526,8 +526,8 @@
                                         </div>
                                         <div class="row mt16">
                                             <label
-                                                string="Default"
                                                 for="pos_pricelist_id"
+                                                string="Default"
                                                 class="col-lg-3 o_light_label" />
                                             <field
                                                 name="pos_pricelist_id"
@@ -537,9 +537,9 @@
                                         <div class="mt8">
                                             <button
                                                 name="%(product.action_product_pricelist_2)d"
-                                                icon="oi-arrow-right"
                                                 type="action"
                                                 string="Pricelists"
+                                                icon="oi-arrow-right"
                                                 groups="product.group_product_pricelist"
                                                 class="btn-link" />
                                         </div>
@@ -547,10 +547,10 @@
                                 </setting>
                                 <setting
                                     id="price_control"
-                                    class="price_control"
-                                    title="Only users with Manager access rights for PoS app can modify the product prices on orders."
                                     string="Price Control"
-                                    help="Restrict price modification to managers">
+                                    title="Only users with Manager access rights for PoS app can modify the product prices on orders."
+                                    help="Restrict price modification to managers"
+                                    class="price_control">
                                     <field name="pos_restrict_price_control" />
                                 </setting>
                                 <setting
@@ -559,15 +559,15 @@
                                     help="Product prices on receipts">
                                     <field
                                         name="pos_iface_tax_included"
-                                        class="o_light_label"
-                                        widget="radio" />
+                                        widget="radio"
+                                        class="o_light_label" />
                                     <div class="content-group">
                                         <widget
-                                            class="oe-link"
                                             name="documentation_link"
-                                            path="/applications/finance/accounting/taxation/taxes/B2B_B2C.html"
+                                            icon="oi oi-fw oi-arrow-right"
+                                            class="oe-link"
                                             label="How to manage tax-included prices"
-                                            icon="oi oi-fw oi-arrow-right" />
+                                            path="/applications/finance/accounting/taxation/taxes/B2B_B2C.html" />
                                     </div>
                                 </setting>
                                 <setting
@@ -600,8 +600,8 @@
                                 </setting>
                                 <setting
                                     id="pos-loyalty"
-                                    title="Boost your sales with multiple kinds of programs: Coupons, Promotions, Gift Card, Loyalty. Specific conditions can be set (products, customers, minimum purchase amount, period). Rewards can be discounts (% or amount) or free products."
                                     string="Promotions, Coupons, Gift Card &amp; Loyalty Program"
+                                    title="Boost your sales with multiple kinds of programs: Coupons, Promotions, Gift Card, Loyalty. Specific conditions can be set (products, customers, minimum purchase amount, period). Rewards can be discounts (% or amount) or free products."
                                     help="Manage promotion that will grant customers discounts or gifts"
                                     documentation="/applications/sales/point_of_sale/pricing/loyalty.html">
                                     <field name="module_loyalty" />
@@ -609,8 +609,8 @@
                             </block>
 
                             <block
-                                title="Bills &amp; Receipts"
-                                id="pos_bills_and_receipts_section">
+                                id="pos_bills_and_receipts_section"
+                                title="Bills &amp; Receipts">
                                 <setting
                                     help="Add a custom message to header and footer"
                                     documentation="/applications/sales/point_of_sale/receipts_invoices.html">
@@ -620,8 +620,8 @@
                                         invisible="not pos_is_header_or_footer">
                                         <div>
                                             <label
-                                                string="Header"
                                                 for="pos_receipt_header"
+                                                string="Header"
                                                 class="col-lg-2 o_light_label" />
                                             <field
                                                 name="pos_receipt_header"
@@ -629,8 +629,8 @@
                                         </div>
                                         <div>
                                             <label
-                                                string="Footer"
                                                 for="pos_receipt_footer"
+                                                string="Footer"
                                                 class="col-lg-2 o_light_label" />
                                             <field
                                                 name="pos_receipt_footer"
@@ -670,9 +670,9 @@
                                     </div>
                                 </setting>
                                 <setting
+                                    id="pos_use_ticket_qr_code"
                                     help="Print information on the receipt to allow the customer to easily access the invoice anytime, from Odoo's portal."
-                                    documentation="/applications/sales/point_of_sale/receipts_invoices.html"
-                                    id="pos_use_ticket_qr_code">
+                                    documentation="/applications/sales/point_of_sale/receipts_invoices.html">
                                     <field name="point_of_sale_use_ticket_qr_code" />
                                     <div
                                         class="content-group mt16"
@@ -681,8 +681,8 @@
                                             <div class="content-group row">
                                                 <label
                                                     for="point_of_sale_ticket_portal_url_display_mode"
-                                                    class="col-lg-2"
-                                                    string="Print" />
+                                                    string="Print"
+                                                    class="col-lg-2" />
                                                 <field
                                                     name="point_of_sale_ticket_portal_url_display_mode" />
                                             </div>
@@ -697,122 +697,122 @@
                             </block>
 
                             <block
+                                id="pos_payment_terminals_section"
                                 title="Payment Terminals"
-                                help="Those settings are common to all PoS."
-                                id="pos_payment_terminals_section">
+                                help="Those settings are common to all PoS.">
                                 <setting
                                     id="adyen_payment_terminal_setting"
-                                    title="The transactions are processed by Adyen. Set your Adyen credentials on the related payment method."
                                     string="Adyen"
+                                    title="The transactions are processed by Adyen. Set your Adyen credentials on the related payment method."
                                     help="Accept payments with an Adyen payment terminal"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/adyen.html">
                                     <field name="module_pos_adyen" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'adyen', 'config_ids': [pos_config_id], 'provider_name': 'Adyen'}"
-                                        invisible="not module_pos_adyen" />
+                                        invisible="not module_pos_adyen"
+                                        class="btn-link" />
                                 </setting>
                                 <setting
                                     id="stripe_payment_terminal_setting"
-                                    title="The transactions are processed by Stripe. Set your Stripe credentials on the related payment method."
                                     string="Stripe"
+                                    title="The transactions are processed by Stripe. Set your Stripe credentials on the related payment method."
                                     help="Accept payments with a Stripe payment terminal"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/stripe.html">
                                     <field name="module_pos_stripe" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'stripe', 'config_ids': [pos_config_id], 'provider_name': 'Stripe'}"
-                                        invisible="not module_pos_stripe" />
+                                        invisible="not module_pos_stripe"
+                                        class="btn-link" />
                                 </setting>
                                 <setting
-                                    title="The transactions are processed by Viva.com on terminal or tap on phone."
                                     string="Viva.com"
+                                    title="The transactions are processed by Viva.com on terminal or tap on phone."
                                     help="Accept payments with Viva.com on a terminal or tap on phone"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/viva_com.html">
                                     <field name="module_pos_viva_com" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'viva_com', 'config_ids': [pos_config_id], 'provider_name': 'Viva.com'}"
-                                        invisible="not module_pos_viva_com" />
+                                        invisible="not module_pos_viva_com"
+                                        class="btn-link" />
                                 </setting>
                                 <setting
                                     id="pos_razorpay_setting"
-                                    title="The transactions are processed by Razorpay. Set your Razorpay credentials on the related payment method."
                                     string="Razorpay"
+                                    title="The transactions are processed by Razorpay. Set your Razorpay credentials on the related payment method."
                                     help="Accept payments with a Razorpay payment terminal"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/razorpay.html">
                                     <field name="module_pos_razorpay" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'razorpay', 'config_ids': [pos_config_id], 'provider_name': 'Razorpay'}"
-                                        invisible="not module_pos_razorpay" />
+                                        invisible="not module_pos_razorpay"
+                                        class="btn-link" />
                                 </setting>
                                 <setting
-                                    title="The transactions are processed by Mercado Pago on terminal"
                                     string="Mercado Pago"
+                                    title="The transactions are processed by Mercado Pago on terminal"
                                     help="Accept payments with Mercado Pago on a terminal"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/mercado_pago.html">
                                     <field name="module_pos_mercado_pago" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'mercado_pago', 'config_ids': [pos_config_id], 'provider_name': 'Mercado Pago'}"
-                                        invisible="not module_pos_mercado_pago" />
+                                        invisible="not module_pos_mercado_pago"
+                                        class="btn-link" />
                                 </setting>
                                 <setting
-                                    title="The transactions are processed by Pine Labs on the terminal."
                                     string="Pine Labs"
+                                    title="The transactions are processed by Pine Labs on the terminal."
                                     help="Accept payments with a Pine Labs payment terminal"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/pine_labs.html">
                                     <field name="module_pos_pine_labs" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'pine_labs', 'config_ids': [pos_config_id], 'provider_name': 'Pine Labs'}"
-                                        invisible="not module_pos_pine_labs" />
+                                        invisible="not module_pos_pine_labs"
+                                        class="btn-link" />
                                 </setting>
                                 <setting
-                                    title="The transactions are processed by QFPay on the terminal."
                                     string="QFPay"
+                                    title="The transactions are processed by QFPay on the terminal."
                                     help="Accept payments with a QFPay payment terminal"
                                     documentation="/applications/sales/point_of_sale/payment_methods/terminals/qfpay.html">
                                     <field name="module_pos_qfpay" />
                                     <button
                                         name="action_open_payment_method_form"
-                                        icon="oi-arrow-right"
                                         type="object"
                                         string="Payment method"
-                                        class="btn-link"
+                                        icon="oi-arrow-right"
                                         context="{'selection': 'qfpay', 'config_ids': [pos_config_id], 'provider_name': 'QFPay'}"
-                                        invisible="not module_pos_qfpay" />
+                                        invisible="not module_pos_qfpay"
+                                        class="btn-link" />
                                 </setting>
                             </block>
 
                             <block
-                                title="Connected Devices"
-                                id="pos_connected_devices_section">
+                                id="pos_connected_devices_section"
+                                title="Connected Devices">
                                 <setting
                                     id="pos_other_devices"
                                     string="ePos Printer"
@@ -834,8 +834,8 @@
                                                 class="row"
                                                 invisible="pos_epson_printer_ip in [False, '']">
                                                 <label
-                                                    string="Link Cashdrawer"
                                                     for="pos_iface_cashdrawer"
+                                                    string="Link Cashdrawer"
                                                     class="col-lg-4 o_light_label" />
                                                 <field
                                                     name="pos_iface_cashdrawer"
@@ -858,8 +858,8 @@
                                     <label for="pos_customer_display_bg_img" />
                                     <field
                                         name="pos_customer_display_bg_img"
-                                        class="w-100"
-                                        filename="pos_customer_display_bg_img_name" />
+                                        filename="pos_customer_display_bg_img_name"
+                                        class="w-100" />
                                 </setting>
                                 <setting
                                     string="IoT Box"
@@ -870,29 +870,29 @@
                                         invisible="not pos_is_posbox">
                                         <div class="row">
                                             <label
-                                                string="IoT Box IP Address"
                                                 for="pos_proxy_ip"
+                                                string="IoT Box IP Address"
                                                 class="col-lg-4 o_light_label" />
                                             <field name="pos_proxy_ip" />
                                         </div>
                                         <div class="row iot_barcode_scanner">
                                             <label
-                                                string="Barcode Scanner/Card Reader"
                                                 for="pos_iface_scan_via_proxy"
+                                                string="Barcode Scanner/Card Reader"
                                                 class="col-lg-4 o_light_label" />
                                             <field name="pos_iface_scan_via_proxy" />
                                         </div>
                                         <div class="row">
                                             <label
-                                                string="Electronic Scale"
                                                 for="pos_iface_electronic_scale"
+                                                string="Electronic Scale"
                                                 class="col-lg-4 o_light_label" />
                                             <field name="pos_iface_electronic_scale" />
                                         </div>
                                         <div class="row">
                                             <label
-                                                string="Receipt Printer"
                                                 for="pos_iface_print_via_proxy"
+                                                string="Receipt Printer"
                                                 class="col-lg-4 o_light_label" />
                                             <field name="pos_iface_print_via_proxy" />
                                         </div>
@@ -900,8 +900,8 @@
                                             class="row"
                                             invisible="not pos_iface_print_via_proxy">
                                             <label
-                                                string="Cashdrawer"
                                                 for="pos_iface_cashdrawer"
+                                                string="Cashdrawer"
                                                 class="col-lg-4 o_light_label" />
                                             <field name="pos_iface_cashdrawer" />
                                         </div>
@@ -909,19 +909,19 @@
                                 </setting>
                             </block>
 
-                            <block title="Preparation" id="pos_preparation_section">
+                            <block id="pos_preparation_section" title="Preparation">
                                 <setting
+                                    id="is_order_printer"
                                     string="Preparation Printers"
-                                    help="Print orders at the kitchen, at the bar, etc."
-                                    id="is_order_printer">
+                                    help="Print orders at the kitchen, at the bar, etc.">
                                     <field name="pos_is_order_printer" />
                                     <div
                                         class="content-group"
                                         invisible="not pos_is_order_printer">
                                         <div class="mt16 mb-1">
                                             <label
-                                                string="Printers"
                                                 for="pos_printer_ids"
+                                                string="Printers"
                                                 class="o_light_label me-2" />
                                             <field
                                                 name="pos_printer_ids"
@@ -930,54 +930,54 @@
                                         <div>
                                             <button
                                                 name="action_pos_printer_dialog"
-                                                context="{'default_pos_config_ids': [pos_config_id]}"
-                                                icon="oi-arrow-right"
                                                 type="object"
                                                 string="Add Printer"
+                                                icon="oi-arrow-right"
+                                                context="{'default_pos_config_ids': [pos_config_id]}"
                                                 class="btn-link" />
                                         </div>
                                         <div>
                                             <button
                                                 name="%(point_of_sale.action_pos_printer_form)d"
-                                                icon="oi-arrow-right"
                                                 type="action"
                                                 string="Manage Printers"
+                                                icon="oi-arrow-right"
                                                 class="btn-link" />
                                         </div>
                                     </div>
                                 </setting>
                                 <setting
+                                    id="iface_orderline_notes"
                                     string="Internal Notes"
-                                    help="Add internal notes on order lines for the kitchen"
-                                    id="iface_orderline_notes">
+                                    help="Add internal notes on order lines for the kitchen">
                                     <div class="content-group">
                                         <div class="mt16">
                                             <label
-                                                string="Note Models"
                                                 for="pos_note_ids"
+                                                string="Note Models"
                                                 class="o_light_label me-2" />
                                             <field
                                                 name="pos_note_ids"
+                                                placeholder="All notes"
                                                 widget="many2many_tags"
-                                                readonly="pos_has_active_session"
-                                                placeholder="All notes" />
+                                                readonly="pos_has_active_session" />
                                         </div>
                                         <div>
                                             <button
                                                 name="%(point_of_sale.action_pos_note_model)d"
-                                                icon="oi-arrow-right"
                                                 type="action"
                                                 string="Notes"
+                                                icon="oi-arrow-right"
                                                 class="btn-link" />
                                         </div>
                                     </div>
                                 </setting>
                             </block>
 
-                            <block title="Inventory" id="pos_inventory_section">
+                            <block id="pos_inventory_section" title="Inventory">
                                 <setting
-                                    title="Operation types show up in the Inventory dashboard."
                                     string="Operation Type"
+                                    title="Operation types show up in the Inventory dashboard."
                                     help="Used to record product pickings. Products are consumed from its default source location.">
                                     <field
                                         name="pos_picking_type_id"
@@ -1046,14 +1046,14 @@
                                 </setting>
                                 <setting
                                     id="update_quantities_stock_setting"
-                                    groups="base.group_no_one"
                                     string="Inventory Management"
-                                    company_dependent="1"
-                                    help="Update quantities in stock">
+                                    help="Update quantities in stock"
+                                    groups="base.group_no_one"
+                                    company_dependent="1">
                                     <field
                                         name="update_stock_quantities"
-                                        colspan="4"
-                                        widget="radio" />
+                                        widget="radio"
+                                        colspan="4" />
                                 </setting>
                             </block>
                         </div>

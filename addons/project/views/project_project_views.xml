@@ -45,47 +45,47 @@
                 <header>
                     <button
                         name="action_view_share_project_wizard"
-                        string="Share Project"
                         type="object"
-                        class="oe_highlight"
+                        string="Share Project"
+                        context="{'default_access_mode': 'read'}"
                         groups="project.group_project_manager"
                         invisible="privacy_visibility in ['followers', 'employees'] or is_template"
-                        context="{'default_access_mode': 'read'}"
+                        class="oe_highlight"
                         data-hotkey="r" />
                     <button
                         name="action_compute_critical_path"
-                        string="Compute Critical Path"
                         type="object"
+                        string="Compute Critical Path"
                         groups="project.group_project_manager"
                         invisible="is_template or not allow_dependencies" />
                     <button
                         name="action_level_resources"
-                        string="Level Resources"
                         type="object"
+                        string="Level Resources"
+                        confirm="This will run CPM and then shift non-critical tasks to reduce resource overallocation. Planned dates will be modified. Continue?"
                         groups="project.group_project_manager"
-                        invisible="is_template or not allow_dependencies"
-                        confirm="This will run CPM and then shift non-critical tasks to reduce resource overallocation. Planned dates will be modified. Continue?" />
+                        invisible="is_template or not allow_dependencies" />
                     <button
                         name="action_archive_to_history"
-                        string="Archive to History"
                         type="object"
+                        string="Archive to History"
+                        confirm="This will create a historical snapshot of this project. Continue?"
                         groups="project.group_project_manager"
-                        invisible="is_template"
-                        confirm="This will create a historical snapshot of this project. Continue?" />
+                        invisible="is_template" />
                     <field
                         name="phase_id"
                         widget="statusbar_duration"
+                        domain="[('company_id', 'in', (company_id, False))]"
                         options="{'clickable': '1', 'fold_field': 'fold'}"
-                        groups="project.group_project_stages"
-                        domain="[('company_id', 'in', (company_id, False))]" />
+                        groups="project.group_project_stages" />
                 </header>
             <sheet string="Project">
                 <div class="oe_button_box" name="button_box" groups="base.group_user">
                     <button
-                        class="oe_stat_button"
-                        type="object"
                         name="action_view_tasks"
-                        icon="fa-check">
+                        type="object"
+                        icon="fa-check"
+                        class="oe_stat_button">
                         <div class="o_field_widget o_stat_info">
                             <field name="label_tasks" readonly="1" />
                             <span class="o_stat_value">
@@ -95,10 +95,10 @@
                         </div>
                     </button>
                     <button
-                        class="oe_stat_button"
-                        type="object"
                         name="action_view_tasks"
-                        invisible="is_template">
+                        type="object"
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field name="health_status" invisible="1" />
                         <div class="o_stat_info">
                             <span class="o_stat_text">Health</span>
@@ -106,147 +106,146 @@
                             <field
                                 name="health_status"
                                 widget="badge"
-                                decoration-success="health_status == 'healthy'"
+                                decoration-danger="health_status == 'critical'"
                                 decoration-info="health_status == 'attention'"
-                                decoration-warning="health_status == 'warning'"
-                                decoration-danger="health_status == 'critical'" />
+                                decoration-success="health_status == 'healthy'"
+                                decoration-warning="health_status == 'warning'" />
                         </div>
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_retrospective_from_project)d"
                         type="action"
                         icon="fa-comments"
-                        invisible="is_template">
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field
                             name="retrospective_count"
                             string="Retros"
                             widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_risk_from_project)d"
                         type="action"
                         icon="fa-exclamation-triangle"
-                        invisible="is_template">
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field name="risk_count" string="Risks" widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_benefit_from_project)d"
                         type="action"
                         icon="fa-bullseye"
-                        invisible="is_template">
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field
                             name="benefit_count"
                             string="Benefits"
                             widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_gate_from_project)d"
                         type="action"
                         icon="fa-flag-checkered"
-                        invisible="is_template">
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field name="gate_count" string="Gates" widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_sprint_from_project)d"
                         type="action"
                         icon="fa-refresh"
-                        invisible="is_template or not use_sprints">
+                        invisible="is_template or not use_sprints"
+                        class="oe_stat_button">
                         <field name="sprint_count" string="Sprints" widget="statinfo" />
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_baseline_from_project)d"
                         type="action"
                         icon="fa-camera"
-                        invisible="is_template">
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field name="current_baseline_id" invisible="1" />
                         <div class="o_stat_info">
                             <span class="o_stat_text">Baselines</span>
                         </div>
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="%(action_project_cfd_report)d"
                         type="action"
                         icon="fa-area-chart"
-                        invisible="is_template"
                         context="{'search_default_project_id': id}"
-                        groups="project.group_project_user">
+                        groups="project.group_project_user"
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">CFD</span>
                         </div>
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="action_view_scatter_plot"
                         type="object"
                         icon="fa-braille"
+                        groups="project.group_project_user"
                         invisible="is_template"
-                        groups="project.group_project_user">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Scatter</span>
                         </div>
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="action_find_similar_projects"
                         type="object"
                         icon="fa-search"
+                        groups="project.group_project_user"
                         invisible="is_template or not tag_ids"
-                        groups="project.group_project_user">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Find Similar</span>
                         </div>
                     </button>
                     <button
-                        class="oe_stat_button"
                         name="action_view_project_updates"
                         type="object"
-                        groups="project.group_project_user"
                         context="{'active_id': id}"
-                        invisible="is_template">
+                        groups="project.group_project_user"
+                        invisible="is_template"
+                        class="oe_stat_button">
                         <field name="last_update_color" invisible="1" />
                         <div class="o_stat_info">
                             <field name="update_count" invisible="1" />
                             <field
                                 name="last_update_status"
-                                readonly="1"
                                 widget="status_with_color"
-                                status_label="Dashboard"
-                                hideStatusName="True" />
+                                readonly="1"
+                                hideStatusName="True"
+                                status_label="Dashboard" />
                         </div>
                     </button>
                 </div>
                 <widget
                     name="web_ribbon"
                     title="Archived"
-                    bg_color="text-bg-danger"
-                    invisible="active" />
+                    invisible="active"
+                    bg_color="text-bg-danger" />
                 <widget
                     name="web_ribbon"
                     title="Template"
-                    bg_color="text-bg-info"
-                    invisible="not (is_template and active)" />
+                    invisible="not (is_template and active)"
+                    bg_color="text-bg-info" />
 
                 <div class="oe_title">
                     <h1 class="d-flex flex-row">
                         <field
                             name="is_user_favorite"
-                            nolabel="1"
                             widget="project_is_user_favorite"
-                            class="me-2"
-                            options="{'autosave': False}" />
+                            options="{'autosave': False}"
+                            class="me-2" />
                         <field
                             name="name"
-                            options="{'line_breaks': False}"
+                            placeholder="e.g. Office Party"
                             widget="text"
-                            class="o_text_overflow"
-                            placeholder="e.g. Office Party" />
+                            options="{'line_breaks': False}"
+                            class="o_text_overflow" />
                     </h1>
                 </div>
                 <group>
@@ -262,9 +261,9 @@
                             options="{'color_field': 'color'}" />
                         <field
                             name="company_id"
-                            groups="base.group_multi_company"
+                            placeholder="Visible to all"
                             options="{'no_create': True}"
-                            placeholder="Visible to all" />
+                            groups="base.group_multi_company" />
                     </group>
                     <group>
                         <field name="active" invisible="1" />
@@ -272,8 +271,8 @@
                             name="user_id"
                             string="Project Manager"
                             widget="many2one_avatar_user"
-                            readonly="not active"
-                            domain="[('share', '=', False)]" />
+                            domain="[('share', '=', False)]"
+                            readonly="not active" />
                         <field
                             name="date_start"
                             string="Planned Date"
@@ -287,8 +286,8 @@
                     <page name="description" string="Description">
                         <field
                             name="description"
-                            options="{'resizable': false}"
-                            placeholder="Project description..." />
+                            placeholder="Project description..."
+                            options="{'resizable': false}" />
                     </page>
                     <page name="settings" string="Settings">
                         <group>
@@ -301,10 +300,10 @@
                                 <field
                                     name="alias_email"
                                     widget="email"
-                                    readonly="1"
                                     nolabel="1"
                                     groups="!project.group_project_manager"
-                                    invisible="is_template" />
+                                    invisible="is_template"
+                                    readonly="1" />
                                 <div
                                     class="d-inline-flex"
                                     groups="project.group_project_manager"
@@ -317,21 +316,21 @@
                                 </div>
                                 <field
                                     name="alias_contact"
-                                    class="oe_inline"
                                     string="Accept Emails From"
-                                    invisible="not alias_email" />
+                                    invisible="not alias_email"
+                                    class="oe_inline" />
                                 <field name="privacy_visibility" widget="radio" />
                                 <span
                                     colspan="2"
                                     class="text-muted o_row ps-1"
                                     invisible="access_instruction_message == ''">
-                                    <i class="fa-regular fa-lightbulb pe-2" title="Info" /><field class="d-inline" name="access_instruction_message" nolabel="1" />
+                                    <i class="fa-regular fa-lightbulb pe-2" title="Info" /><field name="access_instruction_message" nolabel="1" class="d-inline" />
                                 </span>
                                 <span
                                     colspan="2"
                                     class="text-muted o_row ps-1"
                                     invisible="privacy_visibility_warning == ''">
-                                    <i class="fa-solid fa-triangle-exclamation pe-2" title="Warning" /><field class="d-inline" name="privacy_visibility_warning" nolabel="1" />
+                                    <i class="fa-solid fa-triangle-exclamation pe-2" title="Warning" /><field name="privacy_visibility_warning" nolabel="1" class="d-inline" />
                                 </span>
                             </group>
                             <group
@@ -351,27 +350,27 @@
                                 class="row mt16 o_settings_container">
                                 <div>
                                     <setting
-                                        class="col-lg-12"
                                         id="recurring_tasks_setting"
-                                        help="Auto-generate tasks for regular activities">
+                                        help="Auto-generate tasks for regular activities"
+                                        class="col-lg-12">
                                         <field name="allow_recurring_tasks" />
                                     </setting>
                                     <setting
-                                        class="col-lg-12"
                                         id="task_dependencies_setting"
-                                        help="Determine the order in which to perform tasks">
+                                        help="Determine the order in which to perform tasks"
+                                        class="col-lg-12">
                                         <field name="allow_dependencies" />
                                     </setting>
                                     <setting
-                                        class="col-lg-12"
                                         id="project_milestone_setting"
-                                        help="Track major progress points that must be reached to achieve success">
+                                        help="Track major progress points that must be reached to achieve success"
+                                        class="col-lg-12">
                                         <field name="allow_milestones" />
                                     </setting>
                                     <setting
-                                        class="col-lg-12"
                                         id="project_sprint_setting"
-                                        help="Plan work in time-boxed iterations with velocity tracking">
+                                        help="Plan work in time-boxed iterations with velocity tracking"
+                                        class="col-lg-12">
                                         <field name="use_sprints" />
                                     </setting>
                                 </div>
@@ -379,8 +378,8 @@
                             <group
                                 name="group_time_managment"
                                 string="Time Management"
-                                invisible="1"
                                 col="1"
+                                invisible="1"
                                 class="row mt16 o_settings_container" />
                         </group>
                     </page>
@@ -402,8 +401,8 @@
                         </group>
                         <field
                             name="premortem_notes"
-                            invisible="not premortem_done"
-                            placeholder="'Imagine this project has failed 6 months from now. Why?' — List every failure mode the team can identify..." />
+                            placeholder="'Imagine this project has failed 6 months from now. Why?' — List every failure mode the team can identify..."
+                            invisible="not premortem_done" />
                     </page>
                     <page name="flow_metrics" string="Metrics" invisible="is_template">
                         <group>
@@ -412,22 +411,22 @@
                                 <field
                                     name="health_status"
                                     widget="badge"
-                                    decoration-success="health_status == 'healthy'"
+                                    decoration-danger="health_status == 'critical'"
                                     decoration-info="health_status == 'attention'"
-                                    decoration-warning="health_status == 'warning'"
-                                    decoration-danger="health_status == 'critical'" />
+                                    decoration-success="health_status == 'healthy'"
+                                    decoration-warning="health_status == 'warning'" />
                                 <field name="high_risk_count" />
                             </group>
                             <group string="Flow">
                                 <field name="wip_count" />
                                 <field
                                     name="avg_lead_time"
-                                    widget="float_time"
-                                    string="Avg Lead Time" />
+                                    string="Avg Lead Time"
+                                    widget="float_time" />
                                 <field
                                     name="avg_cycle_time"
-                                    widget="float_time"
-                                    string="Avg Cycle Time" />
+                                    string="Avg Cycle Time"
+                                    widget="float_time" />
                                 <field name="throughput_week" />
                             </group>
                             <group string="Quality">
@@ -461,95 +460,95 @@
                 <field name="activity_user_id" string="Activities of" />
                 <field name="activity_type_id" string="Activity type" />
                 <filter
-                    string="My Projects"
                     name="own_projects"
+                    string="My Projects"
                     domain="[('user_id', '=', uid)]"
                     invisible="context.get('default_is_template')" />
                 <filter
-                    string="My Favorites"
                     name="my_projects"
+                    string="My Favorites"
                     domain="[('favorite_user_ids', 'in', uid)]" />
                 <filter
-                    string="Unassigned"
                     name="unassigned_projects"
+                    string="Unassigned"
                     domain="[('user_id', '=', False)]" />
                 <separator invisible="context.get('default_is_template')" />
                 <filter
-                    string="Late Milestones"
                     name="late_milestones"
+                    string="Late Milestones"
                     domain="[('is_milestone_exceeded', '=', True)]"
                     groups="project.group_project_milestone"
                     invisible="context.get('default_is_template') or not context.get('allow_milestones', True)" />
                 <separator invisible="context.get('default_is_template')" />
                 <filter
-                    string="Start Date"
                     name="start_date"
+                    string="Start Date"
                     date="date_start"
                     end_month="1"
                     end_year="1" />
                 <filter
-                    string="End Date"
                     name="end_date"
+                    string="End Date"
                     date="date"
                     end_month="1"
                     end_year="1" />
                 <separator />
                 <filter
-                    string="Templates"
-                    context="{'render_project_templates': True}"
                     name="templates"
+                    string="Templates"
                     domain="[('is_template', '=', True)]"
+                    context="{'render_project_templates': True}"
                     invisible="not context.get('display_milestone_deadline')" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <group>
                     <filter
-                        string="Project Manager"
                         name="Manager"
+                        string="Project Manager"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Stage"
                         name="groupby_stage"
+                        string="Stage"
                         context="{'group_by': 'phase_id'}"
                         groups="project.group_project_stages" />
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by': 'last_update_status'}"
                         invisible="context.get('default_is_template')" />
                     <filter
-                        string="Tags"
                         name="tags"
+                        string="Tags"
                         context="{'group_by': 'tag_ids'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -562,11 +561,11 @@
         <field name="model">project.project</field>
         <field name="arch" type="xml">
             <list
-                decoration-muted="active == False"
                 string="Projects"
+                default_order="is_user_favorite desc, sequence, name, id"
                 multi_edit="1"
                 sample="1"
-                default_order="is_user_favorite desc, sequence, name, id"
+                decoration-muted="active == False"
                 js_class="project_project_list">
                 <field name="sequence" column_invisible="True" />
                 <field name="message_needaction" column_invisible="True" />
@@ -578,76 +577,76 @@
                 <field
                     name="is_user_favorite"
                     string="Favorite"
-                    nolabel="1"
                     widget="project_is_user_favorite"
+                    nolabel="1"
                     optional="hide" />
                 <field name="name" class="fw-bold" />
                 <field
                     name="partner_id"
-                    optional="show"
                     string="Customer"
+                    optional="show"
                     invisible="is_template" />
                 <field
                     name="company_id"
                     optional="show"
-                    groups="base.group_multi_company"
-                    options="{'no_create': True, 'no_open': True}" />
+                    options="{'no_create': True, 'no_open': True}"
+                    groups="base.group_multi_company" />
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="date_start"
                     string="Planned Date"
                     widget="daterange"
-                    options="{'end_date_field': 'date', 'always_range': '1'}"
-                    optional="hide" />
+                    optional="hide"
+                    options="{'end_date_field': 'date', 'always_range': '1'}" />
                 <field name="date" column_invisible="True" />
                 <field
                     name="milestone_progress"
                     widget="progressbar"
-                    invisible="milestone_progress == 0 or not allow_milestones or is_template"
-                    optional="hide" />
+                    optional="hide"
+                    invisible="milestone_progress == 0 or not allow_milestones or is_template" />
                 <field
                     name="next_milestone_id"
-                    decoration-danger="is_milestone_deadline_exceeded"
-                    decoration-success="can_mark_milestone_as_done"
                     optional="hide"
-                    invisible="not allow_milestones or is_template" />
+                    invisible="not allow_milestones or is_template"
+                    decoration-danger="is_milestone_deadline_exceeded"
+                    decoration-success="can_mark_milestone_as_done" />
                 <field
                     name="user_id"
-                    optional="show"
                     string="Project Manager"
                     widget="many2one_avatar_user"
+                    optional="show"
                     options="{'no_open':True, 'no_create': True}" />
                 <field name="last_update_color" column_invisible="True" />
                 <field
                     name="tag_ids"
                     widget="many2many_tags"
-                    options="{'color_field': 'color'}"
-                    optional="hide" />
+                    optional="hide"
+                    options="{'color_field': 'color'}" />
                 <field
                     name="last_update_status"
                     string="Status"
-                    nolabel="1"
-                    width="20px"
-                    optional="show"
                     widget="project_state_selection"
+                    width="20px"
+                    nolabel="1"
+                    optional="show"
                     invisible="is_template" />
                 <field
                     name="health_status"
                     widget="badge"
                     optional="hide"
                     invisible="is_template"
-                    decoration-success="health_status == 'healthy'"
+                    decoration-danger="health_status == 'critical'"
                     decoration-info="health_status == 'attention'"
-                    decoration-warning="health_status == 'warning'"
-                    decoration-danger="health_status == 'critical'" />
+                    decoration-success="health_status == 'healthy'"
+                    decoration-warning="health_status == 'warning'" />
                 <field name="phase_color" column_invisible="1" />
                 <field
                     name="phase_id"
-                    domain="[('company_id', 'in', (company_id, False))]"
-                    optional="show"
                     widget="badge"
+                    optional="show"
+                    domain="[('company_id', 'in', (company_id, False))]"
                     options="{'no_open': True, 'color_field': 'phase_color'}" />
-                <button string="View Tasks" name="action_view_tasks" type="object" />
+                <button name="action_view_tasks" type="object" string="View Tasks" />
             </list>
         </field>
     </record>
@@ -715,13 +714,13 @@
             <kanban class="o_kanban_mobile">
                 <templates>
                     <t t-name="card">
-                        <field name="name" class="fw-bolder" string="Project Name" />
+                        <field name="name" string="Project Name" class="fw-bolder" />
                         <div class="d-flex">
                             <field name="partner_id" string="Contact" />
                             <field
                                 name="user_id"
-                                class="ms-auto"
-                                widget="many2one_avatar_user" />
+                                widget="many2one_avatar_user"
+                                class="ms-auto" />
                         </div>
                     </t>
                 </templates>
@@ -739,8 +738,8 @@
                     <h1>
                         <field
                             name="name"
-                            class="o_project_name"
-                            placeholder="e.g. Office Party" />
+                            placeholder="e.g. Office Party"
+                            class="o_project_name" />
                     </h1>
                 </div>
                 <field name="user_id" invisible="1" />
@@ -752,9 +751,9 @@
                         <field name="alias_name" placeholder="e.g. office-party" />@
                         <field
                             name="alias_domain_id"
-                            class="oe_inline"
                             placeholder="e.g. mycompany.com"
-                            options="{'no_create': True, 'no_open': True}" />
+                            options="{'no_create': True, 'no_open': True}"
+                            class="oe_inline" />
                     </span>
                 </div>
             </form>
@@ -770,15 +769,15 @@
             <xpath expr="//div[@name='alias_def']" position="after">
                 <footer>
                     <button
-                        string="Create project"
                         name="action_view_tasks"
                         type="object"
+                        string="Create project"
                         class="btn-primary o_open_tasks"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </xpath>
@@ -798,15 +797,15 @@
         <field name="model">project.project</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
+                type="object"
+                default_order="is_user_favorite desc, sequence, name, id"
+                sample="1"
                 class="o_project_kanban"
+                action="action_view_tasks"
+                highlight_color="color"
                 js_class="project_project_kanban"
                 on_create="project.open_create_project"
-                action="action_view_tasks"
-                type="object"
-                quick_create_view="project.quick_create_project_form"
-                sample="1"
-                default_order="is_user_favorite desc, sequence, name, id">
+                quick_create_view="project.quick_create_project_form">
                 <field name="allow_milestones" />
                 <field name="rating_child_count" />
                 <field name="show_ratings" />
@@ -918,7 +917,7 @@
                                     name="partner_name"
                                     class="text-muted d-flex align-items-baseline"
                                     t-if="record.partner_id.value">
-                                    <span class="fa-solid fa-user me-2" aria-label="Partner" title="Partner" /><field class="text-truncate" name="partner_id" />
+                                    <span class="fa-solid fa-user me-2" aria-label="Partner" title="Partner" /><field name="partner_id" class="text-truncate" />
                                 </span>
                                 <div
                                     t-if="record.date.raw_value or record.date_start.raw_value"
@@ -964,15 +963,15 @@
                                         t-if="record.rating_child_avg.raw_value % 1 == 0">
                                         <field
                                             name="rating_child_avg"
-                                            nolabel="1"
                                             widget="float"
+                                            nolabel="1"
                                             digits="[1, 0]" />
                                     </t>
                                     <t t-else="">
                                         <field
                                             name="rating_child_avg"
-                                            nolabel="1"
                                             widget="float"
+                                            nolabel="1"
                                             digits="[1, 1]" />
                                     </t> / 5
                                 </div>
@@ -1021,9 +1020,9 @@
                                     domain="[('share', '=', False)]"
                                     class="me-1" />
                                 <field
-                                    t-if="record.last_update_status.value &amp;&amp; widget.editable &amp;&amp; !record.is_template.raw_value"
                                     name="last_update_status"
-                                    widget="project_state_selection" />
+                                    widget="project_state_selection"
+                                    t-if="record.last_update_status.value &amp;&amp; widget.editable &amp;&amp; !record.is_template.raw_value" />
                                 <span
                                     t-if="record.last_update_status.value &amp;&amp; !widget.editable"
                                     t-att-class="'o_status_bubble mx-0 o_color_bubble_' + record.last_update_color.value"
@@ -1077,15 +1076,15 @@
         <field name="model">project.project</field>
         <field name="arch" type="xml">
             <calendar
-                date_start="date_start"
-                date_stop="date"
                 string="Projects"
                 mode="month"
-                scales="month,year"
-                event_open_popup="true"
-                quick_create="0"
                 color="phase_color"
-                js_class="project_project_calendar">
+                date_start="date_start"
+                date_stop="date"
+                event_open_popup="true"
+                js_class="project_project_calendar"
+                quick_create="0"
+                scales="month,year">
                 <field name="partner_id" invisible="not partner_id" />
                 <field
                     name="user_id"
@@ -1093,9 +1092,9 @@
                     invisible="not user_id" />
                 <field
                     name="is_user_favorite"
+                    string="Favorite"
                     widget="project_is_user_favorite"
-                    nolabel="1"
-                    string="Favorite" />
+                    nolabel="1" />
                 <field name="phase_color" invisible="1" />
                 <field
                     name="phase_id"

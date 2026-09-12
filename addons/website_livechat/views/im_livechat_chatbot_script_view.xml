@@ -11,9 +11,9 @@
                     <button
                         name="action_test_script"
                         type="object"
-                        class="btn btn-secondary"
                         string="Test"
-                        invisible="not active or not script_step_ids" />
+                        invisible="not active or not script_step_ids"
+                        class="btn btn-secondary" />
                 </xpath>
             </field>
         </record>

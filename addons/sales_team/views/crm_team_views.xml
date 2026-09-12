@@ -8,21 +8,21 @@
             <field name="arch" type="xml">
                 <search string="Salesteams Search">
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                     <field name="name" />
                     <field name="user_id" />
                     <field name="member_ids" />
                     <group>
                         <filter
-                            string="Company"
                             name="company"
+                            string="Company"
                             context="{'group_by': 'company_id'}"
                             groups="base.group_multi_company" />
                         <filter
-                            string="Team Leader"
                             name="team_leader"
+                            string="Team Leader"
                             context="{'group_by': 'user_id'}" />
                     </group>
                 </search>
@@ -34,8 +34,8 @@
             <field name="arch" type="xml">
                 <form
                     string="Sales Team"
-                    js_class="crm_team_form"
-                    class="o_crm_team_form_view">
+                    class="o_crm_team_form_view"
+                    js_class="crm_team_form">
                     <div
                         class="alert alert-info text-center d-flex flex-wrap justify-content-center gap-1"
                         role="alert"
@@ -62,15 +62,15 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <div class="oe_title">
                             <label for="name" string="Sales Team" />
                             <h1>
                                 <field
-                                    class="text-break"
                                     name="name"
-                                    placeholder="e.g. North America" />
+                                    placeholder="e.g. North America"
+                                    class="text-break" />
                             </h1>
                             <div name="options_active" class="o_row" />
                         </div>
@@ -85,9 +85,9 @@
                                     domain="[('share', '=', False)]" />
                                 <field
                                     name="company_id"
+                                    placeholder="Visible to all"
                                     options="{'no_create': True}"
-                                    groups="base.group_multi_company"
-                                    placeholder="Visible to all" />
+                                    groups="base.group_multi_company" />
                                 <field name="currency_id" invisible="1" />
                                 <field name="member_company_ids" invisible="1" />
                             </group>
@@ -95,12 +95,12 @@
                             </group>
                         </group>
                         <notebook>
-                            <page string="Members" name="members_users">
+                            <page name="members_users" string="Members">
                                 <field
                                     name="member_ids"
                                     mode="kanban"
-                                    class="w-100"
-                                    invisible="is_membership_multi">
+                                    invisible="is_membership_multi"
+                                    class="w-100">
                                     <kanban>
                                         <templates>
                                             <t t-name="card" class="flex-row">
@@ -127,9 +127,9 @@
                                 <field
                                     name="crm_team_member_ids"
                                     mode="kanban"
-                                    class="w-100"
+                                    context="{                                     'kanban_view_ref': 'sales_team.crm_team_member_view_kanban_from_team',                                     'form_view_ref': 'sales_team.crm_team_member_view_form_from_team',                                     'list_view_ref': 'sales_team.crm_team_member_view_tree_from_team',                                     'default_crm_team_id': id,                                 }"
                                     invisible="not is_membership_multi"
-                                    context="{                                     'kanban_view_ref': 'sales_team.crm_team_member_view_kanban_from_team',                                     'form_view_ref': 'sales_team.crm_team_member_view_form_from_team',                                     'list_view_ref': 'sales_team.crm_team_member_view_tree_from_team',                                     'default_crm_team_id': id,                                 }" />
+                                    class="w-100" />
                             </page>
                         </notebook>
                     </sheet>
@@ -142,14 +142,14 @@
             <field name="name">crm.team.list</field>
             <field name="model">crm.team</field>
             <field name="arch" type="xml">
-                <list string="Sales Team" sample="1" multi_edit="1">
+                <list string="Sales Team" multi_edit="1" sample="1">
                     <field name="sequence" widget="handle" />
                     <field name="name" readonly="1" />
                     <field name="active" column_invisible="True" />
                     <field
                         name="user_id"
-                        domain="[('share', '=', False)]"
-                        widget="many2one_avatar_user" />
+                        widget="many2one_avatar_user"
+                        domain="[('share', '=', False)]" />
                     <field name="company_id" groups="base.group_multi_company" />
                 </list>
             </field>
@@ -158,7 +158,7 @@
             <field name="name">crm.team.view.kanban</field>
             <field name="model">crm.team</field>
             <field name="arch" type="xml">
-                <kanban class="o_kanban_mobile" sample="1">
+                <kanban sample="1" class="o_kanban_mobile">
                     <templates>
                         <t t-name="card" class="row g-0">
                             <field name="name" class="col-6 fw-bold" />
@@ -177,13 +177,13 @@
             <field name="priority">10</field>
             <field name="arch" type="xml">
                 <kanban
-                    class="o_crm_team_kanban"
-                    highlight_color="color"
-                    create="0"
-                    can_open="0"
-                    action="action_primary_channel_button"
                     type="object"
-                    sample="1">
+                    create="0"
+                    sample="1"
+                    class="o_crm_team_kanban"
+                    action="action_primary_channel_button"
+                    can_open="0"
+                    highlight_color="color">
                     <templates>
                         <t t-name="menu">
                             <div class="container">

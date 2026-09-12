@@ -18,8 +18,8 @@
                 <xpath expr="//header" position="inside">
                     <button
                         name="l10n_es_tbai_retry_post"
-                        string="Send to TicketBAI"
                         type="object"
+                        string="Send to TicketBAI"
                         invisible="l10n_es_tbai_state != 'to_send'" />
                 </xpath>
                 <xpath expr="//notebook" position="inside">

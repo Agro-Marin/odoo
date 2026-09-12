@@ -24,9 +24,9 @@
                     <field name="consolidated_billing" invisible="count == 1" />
                     <field
                         name="advance_payment_method"
-                        class="oe_inline"
                         widget="radio"
-                        invisible="count &gt; 1" />
+                        invisible="count &gt; 1"
+                        class="oe_inline" />
                 </group>
                 <group
                     name="down_payment_specification"
@@ -59,15 +59,15 @@
                 <footer>
                     <button
                         name="create_invoices"
-                        type="object"
                         id="create_invoice_open"
+                        type="object"
                         string="Create Draft"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

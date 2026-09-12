@@ -75,27 +75,27 @@
                     <field name="end_sale_datetime" optional="show" />
                     <field
                         name="seats_max"
-                        sum="Total"
-                        width="120px"
                         string="Maximum"
+                        width="120px"
+                        sum="Total"
                         column_invisible="context.get('is_event_multi_slots')" />
                     <field
                         name="seats_max"
-                        sum="Total"
-                        width="120px"
                         string="Maximum per slot"
+                        width="120px"
+                        sum="Total"
                         column_invisible="not context.get('is_event_multi_slots')" />
                     <field
                         name="seats_taken"
-                        sum="Total"
-                        width="120px"
                         string="Registration"
+                        width="120px"
+                        sum="Total"
                         column_invisible="context.get('is_event_multi_slots')" />
                     <field
                         name="seats_taken"
-                        sum="Total"
-                        width="120px"
                         string="Total Registration"
+                        width="120px"
+                        sum="Total"
                         column_invisible="not context.get('is_event_multi_slots')" />
                     <field name="limit_max_per_order" optional="hide" />
                     <field name="color" widget="color" optional="hide" />
@@ -133,7 +133,7 @@
                     <templates>
                         <t t-name="card">
                             <div class="d-flex">
-                                <field class="fw-bolder" name="name" />
+                                <field name="name" class="fw-bolder" />
                             </div>
                             <i><field name="seats_reserved" /> reserved</i>
                         </t>

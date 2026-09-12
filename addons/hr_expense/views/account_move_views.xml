@@ -10,11 +10,11 @@
                 <xpath expr="//div[@name='button_box']" position="inside">
                     <button
                         name="action_view_expense"
-                        class="oe_stat_button"
-                        icon="fa-regular fa-file-lines"
                         type="object"
-                        invisible="nb_expenses == 0">
-                        <field string="Expenses" name="nb_expenses" widget="statinfo" />
+                        icon="fa-regular fa-file-lines"
+                        invisible="nb_expenses == 0"
+                        class="oe_stat_button">
+                        <field name="nb_expenses" string="Expenses" widget="statinfo" />
                     </button>
                 </xpath>
             </field>
@@ -24,17 +24,17 @@
             <field name="model">account.move</field>
             <field name="arch" type="xml">
                 <list
-                    js_class="account_tree"
+                    sample="1"
                     decoration-info="state == 'draft'"
                     decoration-muted="state == 'cancel'"
-                    sample="1">
+                    js_class="account_tree">
                     <field name="made_sequence_gap" column_invisible="True" />
                     <field
                         name="name"
-                        decoration-bf="1"
-                        decoration-danger="made_sequence_gap and state == 'posted'"
+                        placeholder="/"
                         widget="char_with_placeholder_field"
-                        placeholder="/" />
+                        decoration-bf="1"
+                        decoration-danger="made_sequence_gap and state == 'posted'" />
                     <field
                         name="partner_id"
                         string="Partner"
@@ -42,8 +42,8 @@
                         readonly="True" />
                     <field
                         name="date"
-                        optional="hide"
                         string="Accounting Date"
+                        optional="hide"
                         readonly="state in ['cancel', 'posted']" />
                     <field
                         name="invoice_date_due"
@@ -52,16 +52,16 @@
                         invisible="payment_state in ('paid', 'in_payment', 'reversed') or state == 'cancel'" />
                     <field
                         name="invoice_origin"
-                        optional="hide"
-                        string="Source Document" />
+                        string="Source Document"
+                        optional="hide" />
                     <field name="payment_reference" optional="hide" />
                     <field name="ref" optional="hide" />
                     <field name="activity_ids" widget="list_activity" optional="hide" />
                     <field
                         name="company_id"
-                        groups="base.group_multi_company"
+                        optional="hide"
                         options="{'no_create': True}"
-                        optional="hide" />
+                        groups="base.group_multi_company" />
                     <field
                         name="company_id"
                         groups="!base.group_multi_company"
@@ -69,50 +69,50 @@
                     <field
                         name="amount_untaxed_in_currency_signed"
                         string="Tax Excluded"
-                        sum="Total"
-                        optional="show" />
+                        optional="show"
+                        sum="Total" />
                     <field
                         name="amount_tax_signed"
                         string="Tax"
-                        sum="Total"
-                        optional="hide" />
-                    <field
-                        name="amount_total_in_currency_signed"
-                        string="Total"
-                        sum="Total"
-                        optional="show"
-                        decoration-bf="1"
-                        decoration-warning="abnormal_amount_warning"
-                        groups="base.group_multi_currency" />
-                    <field
-                        name="amount_total_in_currency_signed"
-                        string="Total"
-                        sum="Total"
                         optional="hide"
+                        sum="Total" />
+                    <field
+                        name="amount_total_in_currency_signed"
+                        string="Total"
+                        optional="show"
+                        sum="Total"
+                        groups="base.group_multi_currency"
                         decoration-bf="1"
-                        decoration-warning="abnormal_amount_warning"
-                        groups="!base.group_multi_currency" />
+                        decoration-warning="abnormal_amount_warning" />
+                    <field
+                        name="amount_total_in_currency_signed"
+                        string="Total"
+                        optional="hide"
+                        sum="Total"
+                        groups="!base.group_multi_currency"
+                        decoration-bf="1"
+                        decoration-warning="abnormal_amount_warning" />
                     <field
                         name="amount_residual_signed"
                         string="Amount Due"
-                        sum="Amount Due"
-                        optional="hide" />
+                        optional="hide"
+                        sum="Amount Due" />
                     <field
                         name="currency_id"
                         optional="hide"
                         readonly="state in ['cancel', 'posted']" />
                     <field name="company_currency_id" column_invisible="True" />
-                    <field name="checked" optional="hide" widget="boolean_toggle" />
+                    <field name="checked" widget="boolean_toggle" optional="hide" />
                     <field
                         name="display_state"
                         string="Status"
                         widget="badge"
-                        decoration-info="display_state == 'draft'"
-                        decoration-danger="display_state == 'cancel'"
-                        decoration-muted="display_state in ('posted', 'sent', 'partial')"
-                        decoration-success="display_state in ('in_payment', 'paid', 'reversed')"
+                        optional="show"
                         invisible="payment_state == 'invoicing_legacy' or move_type == 'entry'"
-                        optional="show" />
+                        decoration-danger="display_state == 'cancel'"
+                        decoration-info="display_state == 'draft'"
+                        decoration-muted="display_state in ('posted', 'sent', 'partial')"
+                        decoration-success="display_state in ('in_payment', 'paid', 'reversed')" />
                 </list>
             </field>
         </record>

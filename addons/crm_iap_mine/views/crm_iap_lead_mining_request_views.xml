@@ -11,19 +11,19 @@
                         name="action_submit"
                         type="object"
                         string="Submit"
-                        class="oe_highlight"
-                        invisible="context.get('is_modal') or state != 'draft'" />
+                        invisible="context.get('is_modal') or state != 'draft'"
+                        class="oe_highlight" />
                     <button
                         name="action_submit"
                         type="object"
                         string="Retry"
-                        class="oe_highlight"
-                        invisible="context.get('is_modal') or state != 'error'" />
+                        invisible="context.get('is_modal') or state != 'error'"
+                        class="oe_highlight" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="draft,done"
-                        invisible="context.get('is_modal')" />
+                        invisible="context.get('is_modal')"
+                        statusbar_visible="draft,done" />
                 </header>
                 <div
                     class="alert alert-danger text-center"
@@ -42,11 +42,11 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="action_get_opportunity_action"
-                            class="oe_stat_button"
                             type="object"
                             icon="fa-star"
                             context="{'create': False}"
-                            invisible="lead_type != 'opportunity' or state != 'done'">
+                            invisible="lead_type != 'opportunity' or state != 'done'"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <field name="lead_count" />
                                 <span class="o_stat_text">Opportunities</span>
@@ -54,12 +54,12 @@
                         </button>
                         <button
                             name="action_get_lead_action"
-                            class="oe_stat_button"
                             type="object"
                             icon="fa-star"
-                            groups="crm.group_use_lead"
                             context="{'create': False}"
-                            invisible="lead_type != 'lead' or state != 'done'">
+                            groups="crm.group_use_lead"
+                            invisible="lead_type != 'lead' or state != 'done'"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <field name="lead_count" />
                                 <span class="o_stat_text">Leads</span>
@@ -85,14 +85,14 @@
                             <div class="o_row py-3">
                                 <field
                                     name="lead_number"
-                                    readonly="state == 'done'"
                                     nolabel="1"
+                                    readonly="state == 'done'"
                                     class="oe_inline pe-2 o_input_3ch o_field_highlight" />
                                 <field
                                     name="search_type"
                                     widget="selection"
-                                    readonly="state == 'done'"
                                     nolabel="1"
+                                    readonly="state == 'done'"
                                     class="oe_inline o_field_highlight" />
                             </div>
                         </group>
@@ -103,25 +103,25 @@
                             <field
                                 name="country_ids"
                                 widget="many2many_tags"
-                                required="True"
+                                options="{'no_create': True, 'no_open': True}"
                                 readonly="state == 'done'"
-                                options="{'no_create': True, 'no_open': True}" />
+                                required="True" />
                             <field name="available_state_ids" invisible="1" />
                             <field
                                 name="state_ids"
-                                widget="many2many_tags"
                                 placeholder="Pick States..."
-                                invisible="not country_ids or not available_state_ids"
-                                readonly="state == 'done'"
+                                widget="many2many_tags"
                                 domain="[('id', 'in', available_state_ids)]"
-                                options="{'no_create': True, 'no_open': True}" />
+                                options="{'no_create': True, 'no_open': True}"
+                                invisible="not country_ids or not available_state_ids"
+                                readonly="state == 'done'" />
                             <field
                                 name="industry_ids"
                                 widget="many2many_tags"
                                 options="{'no_create': True, 'no_open': True}"
-                                class="o_industry o_field_highlight"
+                                readonly="state == 'done'"
                                 required="1"
-                                readonly="state == 'done'" />
+                                class="o_industry o_field_highlight" />
                             <field name="filter_on_size" readonly="state == 'done'" />
                             <label
                                 for="company_size_min"
@@ -130,15 +130,15 @@
                                 From
                                 <field
                                     name="company_size_min"
-                                    class="oe_inline px-2 o_input_5ch"
                                     readonly="state == 'done'"
-                                    required="filter_on_size" />
+                                    required="filter_on_size"
+                                    class="oe_inline px-2 o_input_5ch" />
                                 to
                                 <field
                                     name="company_size_max"
-                                    class="oe_inline px-2 o_input_7ch"
                                     readonly="state == 'done'"
-                                    required="filter_on_size" />
+                                    required="filter_on_size"
+                                    class="oe_inline px-2 o_input_7ch" />
                                 employees
                             </div>
 
@@ -151,16 +151,16 @@
                                 readonly="state == 'done'" />
                             <field
                                 name="team_id"
-                                no_create="1"
-                                no_open="1"
+                                context="{'kanban_view_ref': 'sales_team.crm_team_view_kanban'}"
                                 readonly="state == 'done'"
-                                context="{'kanban_view_ref': 'sales_team.crm_team_view_kanban'}" />
+                                no_create="1"
+                                no_open="1" />
                             <field
                                 name="user_id"
-                                no_create="1"
-                                no_open="1"
+                                widget="many2one_avatar_user"
                                 readonly="state == 'done'"
-                                widget="many2one_avatar_user" />
+                                no_create="1"
+                                no_open="1" />
                             <field
                                 name="tag_ids"
                                 string="Default Tags"
@@ -174,9 +174,9 @@
                         <div colspan="2" class="py-3">
                             <field
                                 name="contact_number"
+                                nolabel="1"
                                 readonly="state == 'done'"
                                 required="search_type == 'people'"
-                                nolabel="1"
                                 class="oe_inline pe-2 col-md-1 o_input_2ch" />
                             <span class="col-md-6">Extra contacts per Company</span>
                         </div>
@@ -186,8 +186,8 @@
                             <field
                                 name="contact_filter_type"
                                 widget="radio"
-                                readonly="state == 'done'"
-                                options="{'horizontal': true}" />
+                                options="{'horizontal': true}"
+                                readonly="state == 'done'" />
                             <field
                                 name="preferred_role_id"
                                 options="{'no_create_edit': True, 'no_quick_create': True, 'no_open': True}"
@@ -210,19 +210,19 @@
                     </group>
                     <footer>
                         <button
-                            string="Generate Leads"
                             name="action_submit"
                             type="object"
+                            string="Generate Leads"
                             default_focus="1"
-                            class="btn-primary"
                             invisible="not context.get('is_modal')"
+                            class="btn-primary"
                             data-hotkey="q" />
                         <button
-                            string="Cancel"
-                            class="btn-secondary"
                             special="cancel"
-                            data-hotkey="x"
-                            invisible="not context.get('is_modal')" />
+                            string="Cancel"
+                            invisible="not context.get('is_modal')"
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </footer>
                 </sheet>
             </form>
@@ -240,19 +240,19 @@
                 <field name="country_ids" widget="many2many_tags" />
                 <field name="industry_ids" widget="many2many_tags" />
                 <field name="team_id" optional="hide" />
-                <field name="user_id" optional="hide" widget="many2one_avatar_user" />
+                <field name="user_id" widget="many2one_avatar_user" optional="hide" />
                 <field
                     name="tag_ids"
                     widget="many2many_tags"
-                    options="{'color_field': 'color'}"
-                    optional="hide" />
+                    optional="hide"
+                    options="{'color_field': 'color'}" />
                 <field
                     name="state"
+                    widget="badge"
                     readonly="1"
-                    decoration-info="state == 'draft'"
-                    decoration-success="state == 'done'"
                     decoration-danger="state == 'error'"
-                    widget="badge" />
+                    decoration-info="state == 'draft'"
+                    decoration-success="state == 'done'" />
             </list>
         </field>
     </record>
@@ -291,16 +291,16 @@
                     domain="[('lead_type', '=', 'opportunity')]" />
                 <group>
                     <filter
-                        string="Type"
                         name="groupby_lead_type"
+                        string="Type"
                         context="{'group_by':'lead_type'}" />
                     <filter
-                        string="Sales Team"
                         name="groupby_team_id"
+                        string="Sales Team"
                         context="{'group_by':'team_id'}" />
                     <filter
-                        string="Salesperson"
                         name="groupby_user_id"
+                        string="Salesperson"
                         context="{'group_by':'user_id'}" />
                 </group>
             </search>

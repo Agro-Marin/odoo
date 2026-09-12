@@ -36,7 +36,7 @@
             <field name="arch" type="xml">
                 <form string="Tax Office">
                     <sheet>
-                        <h1><field name="name" options="{'line_breaks': False}" widget="text" placeholder="Tax office name" class="text-break" default_focus="1" /></h1>
+                        <h1><field name="name" placeholder="Tax office name" widget="text" default_focus="1" options="{'line_breaks': False}" class="text-break" /></h1>
                         <group>
                             <field name="workplace_code" />
                             <field name="code" />

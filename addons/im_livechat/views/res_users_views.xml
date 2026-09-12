@@ -19,8 +19,8 @@
                     <field
                         name="livechat_lang_ids"
                         string="Spoken Languages"
-                        options="{'no_create': True, 'no_edit': True, 'no_create_edit': True}"
                         widget="many2many_tags"
+                        options="{'no_create': True, 'no_edit': True, 'no_create_edit': True}"
                         invisible="not has_access_livechat" />
                     <field
                         name="livechat_expertise_ids"
@@ -48,8 +48,8 @@
                     <field
                         name="livechat_lang_ids"
                         string="Spoken Languages"
-                        options="{'no_create': True, 'no_edit': True}"
                         widget="many2many_tags"
+                        options="{'no_create': True, 'no_edit': True}"
                         invisible="not has_access_livechat" />
                     <field
                         name="livechat_expertise_ids"

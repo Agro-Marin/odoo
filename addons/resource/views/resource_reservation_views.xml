@@ -39,10 +39,10 @@
                         <button
                             name="action_view_origin"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-external-link"
                             string="Source Record"
-                            invisible="not res_model" />
+                            icon="fa-external-link"
+                            invisible="not res_model"
+                            class="oe_stat_button" />
                     </div>
                     <div class="oe_title">
                         <h1>
@@ -151,10 +151,10 @@
         <field name="arch" type="xml">
             <calendar
                 string="Reservations"
+                mode="week"
+                color="resource_id"
                 date_start="date_start"
                 date_stop="date_end"
-                color="resource_id"
-                mode="week"
                 event_open_popup="1">
                 <field name="name" />
                 <field name="resource_id" avatar_field="avatar_128" filters="1" />

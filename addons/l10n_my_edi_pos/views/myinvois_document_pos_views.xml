@@ -13,8 +13,8 @@
                         name="action_view_linked_orders"
                         type="object"
                         icon="fa-shopping-basket"
-                        class="oe_stat_button"
-                        invisible="linked_order_count == 0">
+                        invisible="linked_order_count == 0"
+                        class="oe_stat_button">
                         <field
                             name="linked_order_count"
                             string="PoS Orders"
@@ -37,8 +37,8 @@
                 <header position="inside">
                     <button
                         name="action_view_consolidate_invoice_wizard"
-                        string="Consolidate Orders"
                         type="object"
+                        string="Consolidate Orders"
                         display="always"
                         class="btn-primary" />
                 </header>

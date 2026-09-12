@@ -9,7 +9,7 @@
         <field name="inherit_id" ref="sale.product_template_view_form" />
         <field name="arch" type="xml">
             <field name="invoice_policy" position="attributes">
-                <attribute name="invisible" separator="or" add="type == 'service'" />
+                <attribute name="invisible" add="type == 'service'" separator="or" />
             </field>
             <field name="service_tracking" position="attributes">
                 <attribute name="invisible" remove="1" separator="or" />
@@ -22,10 +22,10 @@
                 </div>
                 <field
                     name="project_id"
-                    context="{'default_allow_billable': True}"
-                    invisible="service_tracking != 'task_global_project'"
+                    placeholder="Defined on quotation"
                     nolabel="1"
-                    placeholder="Defined on quotation" />
+                    context="{'default_allow_billable': True}"
+                    invisible="service_tracking != 'task_global_project'" />
                 <div
                     class="o_td_label d-inline-flex"
                     invisible="service_tracking not in ['task_in_project', 'project_only']">
@@ -33,10 +33,10 @@
                 </div>
                 <field
                     name="project_template_id"
-                    context="{'active_test': False, 'default_allow_billable': True, 'default_is_template': True}"
-                    invisible="service_tracking not in ['task_in_project', 'project_only']"
+                    placeholder="Empty project"
                     nolabel="1"
-                    placeholder="Empty project" />
+                    context="{'active_test': False, 'default_allow_billable': True, 'default_is_template': True}"
+                    invisible="service_tracking not in ['task_in_project', 'project_only']" />
                 <div
                     class="o_td_label d-inline-flex"
                     invisible="not project_id or service_tracking != 'task_global_project'">
@@ -44,16 +44,16 @@
                 </div>
                 <field
                     name="task_template_id"
-                    groups="project.group_project_manager"
+                    nolabel="1"
                     context="{'default_is_template': True, 'default_project_id': project_id or project_template_id}"
-                    invisible="not project_id or service_tracking != 'task_global_project'"
-                    nolabel="1" />
+                    groups="project.group_project_manager"
+                    invisible="not project_id or service_tracking != 'task_global_project'" />
                 <field
                     name="task_template_id"
-                    groups="!project.group_project_manager"
+                    nolabel="1"
                     options="{'no_open': True, 'no_create_edit': True, 'no_create': True}"
-                    invisible="not project_id or service_tracking != 'task_global_project'"
-                    nolabel="1" />
+                    groups="!project.group_project_manager"
+                    invisible="not project_id or service_tracking != 'task_global_project'" />
                 <field
                     name="service_policy"
                     string="Invoicing Policy"

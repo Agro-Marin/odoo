@@ -12,26 +12,26 @@
                 <field name="active" />
                 <separator />
                 <filter
-                    string="All"
                     name="all"
+                    string="All"
                     domain="['|', ('active', '=', False), ('active', '=', True)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="User"
                         name="user"
+                        string="User"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Execution"
                         name="execution"
+                        string="Execution"
                         context="{'group_by': 'nextcall'}" />
                     <filter
-                        string="Model"
                         name="groupby_model_id"
+                        string="Model"
                         context="{'group_by': 'model_id'}" />
                 </group>
             </search>
@@ -57,7 +57,7 @@
         <field name="model">ir.cron</field>
         <field name="priority" eval="2" />
         <field name="arch" type="xml">
-            <calendar string="Scheduled Actions" date_start="nextcall" color="user_id">
+            <calendar string="Scheduled Actions" color="user_id" date_start="nextcall">
                 <field name="name" />
             </calendar>
         </field>
@@ -74,8 +74,8 @@
                     name="method_direct_trigger"
                     type="object"
                     string="Run Manually"
-                    class="oe_highlight"
-                    invisible="state != 'code'" />
+                    invisible="state != 'code'"
+                    class="oe_highlight" />
             </xpath>
             <xpath expr="//button[@name='unlink_action']" position="replace" />
             <xpath expr="//button[@name='run']" position="replace" />

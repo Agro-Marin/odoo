@@ -8,13 +8,13 @@
             <search string="Search Quotation Template">
                 <field name="name" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=', False)]" />
                 <group>
                     <filter
-                        string="Company"
                         name="company_id"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -32,8 +32,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title" name="sale_order_template_title">
                         <label for="name" id="sale_order_template_title" />
                         <h1>
@@ -56,9 +56,9 @@
                                 context="{'default_model': 'sale.order'}" />
                             <field
                                 name="company_id"
+                                placeholder="Visible to all"
                                 options="{'no_create': True}"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                groups="base.group_multi_company" />
                             <field name="journal_id" />
                         </group>
                         <group name="so_confirmation">
@@ -69,14 +69,14 @@
                                 <span invisible="not require_payment">of</span>
                                 <field
                                     name="prepayment_percent"
-                                    invisible="not require_payment"
                                     widget="percentage"
+                                    invisible="not require_payment"
                                     class="oe_inline" />
                             </div>
                         </group>
                     </group>
                     <notebook name="main_book">
-                        <page string="Lines" name="order_lines">
+                        <page name="order_lines" string="Lines">
                         <field
                             name="sale_order_template_line_ids"
                             widget="so_template_line_o2m"
@@ -97,22 +97,22 @@
                                         </div>
                                     </group>
                                 </group>
-                                <notebook colspan="4" name="description">
+                                <notebook name="description" colspan="4">
                                     <page
-                                        string="Description"
                                         name="order_description"
+                                        string="Description"
                                         invisible="display_type">
                                         <field name="name" />
                                     </page>
                                     <page
-                                        string="Section"
                                         name="order_section"
+                                        string="Section"
                                         invisible="display_type != 'line_section'">
                                         <field name="name" />
                                     </page>
                                     <page
-                                        string="Note"
                                         name="order_note"
+                                        string="Note"
                                         invisible="display_type != 'line_note'">
                                         <field name="name" />
                                     </page>
@@ -146,11 +146,10 @@
                         </field>
                     </page>
                         <page
-                            string="Terms &amp; Conditions"
-                            name="terms_and_conditions">
+                            name="terms_and_conditions"
+                            string="Terms &amp; Conditions">
                             <field
                                 name="note"
-                                nolabel="1"
                                 placeholder="The Administrator can set default Terms &amp; Conditions in Sales Settings. Terms set here will show up instead if you select this quotation template." />
                         </page>
                     </notebook>

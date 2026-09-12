@@ -8,23 +8,23 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='peppol']" position="after">
                 <block
-                    title="Nemhandel E-Delivery"
                     id="nemhandel"
+                    title="Nemhandel E-Delivery"
                     invisible="country_code != 'DK'">
                     <div id="l10n_dk_nemhandel" class="col-12 o_setting_box">
                         <div class="o_setting_right_pane border-0">
 
                             <div
                                 invisible="l10n_dk_nemhandel_proxy_state != 'receiver'">
-                                You are sending and receiving your e-invoices via Odoo with this Nemhandel ID <field name="nemhandel_edi_identification" class="oe_inline o_form_label" readonly="1" />.
+                                You are sending and receiving your e-invoices via Odoo with this Nemhandel ID <field name="nemhandel_edi_identification" readonly="1" class="oe_inline o_form_label" />.
                             </div>
                             <div
                                 invisible="l10n_dk_nemhandel_proxy_state != 'receiver'"
                                 class="mt-4">
                                 <div class="row" name="nemhandel_journal_config">
                                     <label
-                                        string="Incoming Invoices Journal"
                                         for="nemhandel_purchase_journal_id"
+                                        string="Incoming Invoices Journal"
                                         class="col-lg-3" />
                                     <field
                                         name="nemhandel_purchase_journal_id"
@@ -32,8 +32,8 @@
                                 </div>
                                 <div class="row" name="nemhandel_contact_email">
                                     <label
-                                        string="Contact Email"
                                         for="nemhandel_contact_email"
+                                        string="Contact Email"
                                         class="col-lg-3" />
                                     <field
                                         name="nemhandel_contact_email"
@@ -54,8 +54,8 @@
                                 <button
                                     name="button_update_nemhandel_user_data"
                                     type="object"
-                                    class="btn btn-primary me-1"
-                                    string="Update contact details" />
+                                    string="Update contact details"
+                                    class="btn btn-primary me-1" />
                                 <button
                                     name="button_deregister_nemhandel_participant"
                                     type="object"

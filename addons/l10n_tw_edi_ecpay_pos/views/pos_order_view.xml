@@ -15,25 +15,25 @@
                             <group>
                                 <field
                                     name="l10n_tw_edi_is_print"
-                                    readonly="account_move"
-                                    invisible="l10n_tw_edi_is_b2b" />
+                                    invisible="l10n_tw_edi_is_b2b"
+                                    readonly="account_move" />
                                 <field
                                     name="l10n_tw_edi_love_code"
-                                    readonly="account_move"
-                                    invisible="l10n_tw_edi_is_print or l10n_tw_edi_is_b2b or l10n_tw_edi_carrier_type" />
+                                    invisible="l10n_tw_edi_is_print or l10n_tw_edi_is_b2b or l10n_tw_edi_carrier_type"
+                                    readonly="account_move" />
                                 <field
                                     name="l10n_tw_edi_carrier_type"
-                                    readonly="account_move"
-                                    invisible="l10n_tw_edi_is_print or l10n_tw_edi_is_b2b or l10n_tw_edi_love_code" />
+                                    invisible="l10n_tw_edi_is_print or l10n_tw_edi_is_b2b or l10n_tw_edi_love_code"
+                                    readonly="account_move" />
                                 <field
                                     name="l10n_tw_edi_carrier_number"
-                                    readonly="account_move"
                                     invisible="l10n_tw_edi_carrier_type not in ['2', '3', '4', '5'] or l10n_tw_edi_is_print or l10n_tw_edi_is_b2b or l10n_tw_edi_love_code"
+                                    readonly="account_move"
                                     required="l10n_tw_edi_carrier_type in ['2', '3', '4', '5'] and not l10n_tw_edi_is_print and not l10n_tw_edi_is_b2b" />
                                 <field
                                     name="l10n_tw_edi_carrier_number_2"
-                                    readonly="account_move"
                                     invisible="l10n_tw_edi_carrier_type not in ['4', '5'] or l10n_tw_edi_is_print or l10n_tw_edi_is_b2b or l10n_tw_edi_love_code"
+                                    readonly="account_move"
                                     required="l10n_tw_edi_carrier_type in ['4', '5'] and not l10n_tw_edi_is_print and not l10n_tw_edi_is_b2b" />
                             </group>
                         </group>

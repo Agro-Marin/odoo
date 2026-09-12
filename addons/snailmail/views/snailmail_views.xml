@@ -6,9 +6,9 @@
         <field name="model">snailmail.letter</field>
         <field name="arch" type="xml">
             <list
+                string="Letters"
                 decoration-danger="state=='error'"
-                decoration-muted="state=='sent'"
-                string="Letters">
+                decoration-muted="state=='sent'">
                 <field name="attachment_id" string="Document" />
                 <field name="partner_id" />
                 <field name="user_id" />
@@ -27,14 +27,14 @@
                 <header>
                     <button
                         name="snailmail_print"
-                        string="Send Now"
                         type="object"
+                        string="Send Now"
                         invisible="state not in ('pending', 'error')"
                         class="oe_highlight" />
                     <button
                         name="cancel"
-                        string="Cancel"
                         type="object"
+                        string="Cancel"
                         invisible="state not in ('pending', 'error')" />
                     <field
                         name="state"

@@ -9,9 +9,9 @@
             <xpath expr="//field[@name='mail_template_id']" position="after">
                 <field
                     name="sms_template_id"
+                    context="{'default_model': 'calendar.event'}"
                     invisible="alarm_type != 'sms'"
-                    required="alarm_type == 'sms'"
-                    context="{'default_model': 'calendar.event'}" />
+                    required="alarm_type == 'sms'" />
             </xpath>
         </field>
     </record>
@@ -35,9 +35,9 @@
             <xpath expr="//div[@name='send_buttons']" position="inside">
                 <button
                     name="action_send_sms"
-                    help="Send SMS to attendees"
                     type="object"
                     string="SMS"
+                    help="Send SMS to attendees"
                     icon="fa-mobile"
                     invisible="not user_can_edit" />
             </xpath>

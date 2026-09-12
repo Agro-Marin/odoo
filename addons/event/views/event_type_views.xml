@@ -38,22 +38,22 @@
                         </group>
 
                         <notebook>
-                            <page string="Tickets" name="page_tickets">
+                            <page name="page_tickets" string="Tickets">
                                 <field
                                     name="event_type_ticket_ids"
-                                    class="w-100"
-                                    context="{                                      'list_view_ref': 'event.event_type_ticket_view_tree_from_type',                                      'form_view_ref': 'event.event_type_ticket_view_form_from_type'                                   }" />
+                                    context="{                                      'list_view_ref': 'event.event_type_ticket_view_tree_from_type',                                      'form_view_ref': 'event.event_type_ticket_view_form_from_type'                                   }"
+                                    class="w-100" />
                             </page>
                             <page
-                                string="Communication"
-                                name="event_type_communication">
+                                name="event_type_communication"
+                                string="Communication">
                                 <field name="event_type_mail_ids" class="w-100">
                                     <list string="Communication" editable="bottom">
                                         <field
                                             name="template_ref"
-                                            options="{'no_quick_create': True}"
+                                            widget="EventMailTemplateReferenceField"
                                             context="{'filter_template_on_event': True, 'default_model': 'event.registration'}"
-                                            widget="EventMailTemplateReferenceField" />
+                                            options="{'no_quick_create': True}" />
                                         <field
                                             name="interval_nbr"
                                             readonly="interval_unit == 'now'" />
@@ -62,12 +62,12 @@
                                     </list>
                                 </field>
                             </page>
-                                <page string="Questions" name="page_questions">
+                                <page name="page_questions" string="Questions">
                                     <field
                                         name="question_ids"
-                                        class="w-100"
                                         domain="[('is_reusable', '=', True)]"
-                                        context="{'list_view_ref': 'event.event_question_view_list_add'}">
+                                        context="{'list_view_ref': 'event.event_question_view_list_add'}"
+                                        class="w-100">
                                         <list sample="1">
                                             <field name="title" />
                                             <field
@@ -86,24 +86,24 @@
                                         </list>
                                     </field>
                                 </page>
-                            <page string="Notes" name="notes">
+                            <page name="notes" string="Notes">
                                 <group>
                                     <label for="note" string="Note" />
                                     <br />
                                     <field
-                                        nolabel="1"
-                                        colspan="2"
                                         name="note"
-                                        placeholder="Add some internal notes (to do lists, contact info, ...)" />
+                                        placeholder="Add some internal notes (to do lists, contact info, ...)"
+                                        colspan="2"
+                                        nolabel="1" />
                                     <label
                                         for="ticket_instructions"
                                         string="Ticket Instructions" />
                                     <br />
                                     <field
-                                        nolabel="1"
-                                        colspan="2"
                                         name="ticket_instructions"
-                                        placeholder="e.g. How to get to your event, door closing time, ..." />
+                                        placeholder="e.g. How to get to your event, door closing time, ..."
+                                        colspan="2"
+                                        nolabel="1" />
                                     </group>
                             </page>
                         </notebook>

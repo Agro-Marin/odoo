@@ -10,9 +10,9 @@
             <div name="sale_pdf_module_settings" position="inside">
                 <button
                     name="%(sale_pdf_quote_builder.quotation_document_action)d"
-                    icon="oi-arrow-right"
                     type="action"
                     string="Headers/Footers"
+                    icon="oi-arrow-right"
                     class="btn-link" />
             </div>
         </field>

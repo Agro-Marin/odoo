@@ -113,8 +113,8 @@
             <xpath expr="//filter[@name='responsible']" position="after">
                 <filter name="rating_text" position="move" />
                 <filter
-                    string="Project"
                     name="groupby_project"
+                    string="Project"
                     context="{'group_by': 'parent_res_name'}" />
                 <filter name="resource" position="move" />
                 <filter name="customer" position="move" />

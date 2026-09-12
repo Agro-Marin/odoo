@@ -37,8 +37,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="active"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -82,7 +82,7 @@
                                 options="{'img_class': 'object-fit-contain'}" />
                         </aside>
                         <main class="ms-2 mt-1">
-                            <field class="fw-bold fs-5" name="name" />
+                            <field name="name" class="fw-bold fs-5" />
                             <a
                                 type="object"
                                 name="action_view_manufacturer_products"
@@ -107,12 +107,12 @@
                             name="action_view_manufacturer_products"
                             type="object"
                             icon="fa-cubes"
-                            class="oe_stat_button"
-                            invisible="count_manufactured_products == 0">
+                            invisible="count_manufactured_products == 0"
+                            class="oe_stat_button">
                             <field
                                 name="count_manufactured_products"
-                                widget="statinfo"
-                                string="Products" />
+                                string="Products"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <group>

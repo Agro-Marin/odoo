@@ -11,17 +11,17 @@
                     <button
                         name="action_view_maintenance"
                         type="object"
-                        class="oe_stat_button"
-                        icon="fa-wrench">
+                        icon="fa-wrench"
+                        class="oe_stat_button">
                         <field
                             name="maintenance_count"
-                            widget="statinfo"
-                            string="Maintenance" />
+                            string="Maintenance"
+                            widget="statinfo" />
                     </button>
                 </div>
             </sheet>
             <page name="lifecycle" position="before">
-                <page string="Maintenance" name="maintenance">
+                <page name="maintenance" string="Maintenance">
                     <group>
                         <group>
                             <field name="maintenance_team_id" />

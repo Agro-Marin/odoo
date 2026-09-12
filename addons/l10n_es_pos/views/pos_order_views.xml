@@ -10,8 +10,8 @@
             <field name="name" position="after">
                 <field
                     name="l10n_es_simplified_invoice_number"
-                    readonly="1"
-                    invisible="not l10n_es_simplified_invoice_number" />
+                    invisible="not l10n_es_simplified_invoice_number"
+                    readonly="1" />
             </field>
         </field>
     </record>

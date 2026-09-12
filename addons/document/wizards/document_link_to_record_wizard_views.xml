@@ -11,28 +11,28 @@
                     <field name="document_ids" widget="many2many_tags" />
                     <field
                         name="model_id"
-                        readonly="is_readonly_model"
-                        options="{'no_open': True, 'no_create': True}" />
+                        options="{'no_open': True, 'no_create': True}"
+                        readonly="is_readonly_model" />
                     <field
                         name="resource_ref"
                         options="{'model_field': 'model_id', 'no_create': True}"
-                        invisible="not model_id"
-                        groups="base.group_erp_manager" />
+                        groups="base.group_erp_manager"
+                        invisible="not model_id" />
                     <field
                         name="resource_ref"
                         options="{'hide_model': True, 'no_create': True}"
-                        invisible="not model_id"
-                        groups="!base.group_erp_manager" />
+                        groups="!base.group_erp_manager"
+                        invisible="not model_id" />
                 </group>
                 <footer>
                     <button
                         name="link_to"
                         type="object"
-                        data-hotkey="q"
                         string="Link"
+                        invisible="not resource_ref"
                         class="oe_highlight"
-                        invisible="not resource_ref" />
-                    <button special="cancel" data-hotkey="x" string="Cancel" />
+                        data-hotkey="q" />
+                    <button special="cancel" string="Cancel" data-hotkey="x" />
                 </footer>
             </form>
         </field>

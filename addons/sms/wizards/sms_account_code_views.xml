@@ -12,14 +12,14 @@
                     </group>
                     <footer>
                         <button
-                            string="Register"
                             name="action_register"
                             type="object"
+                            string="Register"
                             class="btn btn-primary" />
                         <button
+                            special="cancel"
                             string="Cancel"
-                            class="btn-secondary"
-                            special="cancel" />
+                            class="btn-secondary" />
                     </footer>
                 </sheet>
             </form>

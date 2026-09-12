@@ -10,16 +10,16 @@
                 expr="//div[hasclass('oe_button_box')]/button[@name='action_view_picking']"
                 position="before">
                 <button
-                    type="object"
                     name="action_view_dropship"
-                    class="oe_stat_button"
+                    type="object"
                     icon="fa-truck"
+                    groups="stock.group_stock_user"
                     invisible="dropship_picking_count == 0"
-                    groups="stock.group_stock_user">
+                    class="oe_stat_button">
                     <field
                         name="dropship_picking_count"
-                        widget="statinfo"
-                        string="Dropship" />
+                        string="Dropship"
+                        widget="statinfo" />
                 </button>
             </xpath>
             <xpath expr="//field[@name='picking_type_id']" position="attributes">

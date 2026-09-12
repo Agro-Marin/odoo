@@ -24,8 +24,8 @@
                     <button
                         name="set_employee_location"
                         type="object"
-                        class="btn-primary"
-                        string="Set Location" />
+                        string="Set Location"
+                        class="btn-primary" />
                 </footer>
             </form>
         </field>

@@ -8,17 +8,17 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    type="object"
                     name="action_view_batch"
-                    class="oe_stat_button"
-                    icon="fa-truck"
+                    type="object"
                     string="Batch"
-                    invisible="not batch_id" />
+                    icon="fa-truck"
+                    invisible="not batch_id"
+                    class="oe_stat_button" />
             </div>
             <xpath
                 expr="//page[@name='extra']//field[@name='company_id']"
                 position="after">
-                <field name="batch_id" readonly="1" options="{'no_create': True}" />
+                <field name="batch_id" options="{'no_create': True}" readonly="1" />
             </xpath>
         </field>
     </record>

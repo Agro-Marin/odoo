@@ -14,8 +14,8 @@
                 <widget
                     name="web_ribbon"
                     title="Published"
-                    bg_color="text-bg-success"
-                    invisible="not website_published" />
+                    invisible="not website_published"
+                    bg_color="text-bg-success" />
             </xpath>
             <xpath
                 expr="//button[@name='%(hr_recruitment.action_hr_job_applications)d']"
@@ -43,8 +43,8 @@
         <field name="arch" type="xml">
             <xpath expr="//page[@name='job_description_page']" position="after">
                 <page
-                    string="Application Info"
                     name="recruitment_page"
+                    string="Application Info"
                     groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user">
                     <separator string="Process Details" />
                     <field name="job_details" nolabel="1" />
@@ -77,8 +77,8 @@
             </xpath>
             <xpath expr="//group" position="inside">
                 <filter
-                    string="Published"
                     name="groupby_published"
+                    string="Published"
                     context="{'group_by': 'is_published'}" />
             </xpath>
         </field>

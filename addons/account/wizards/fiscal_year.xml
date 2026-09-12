@@ -11,8 +11,8 @@
                 <field
                     name="account_return_periodicity"
                     string="Tax Periodicity"
-                    class="o_stat_value"
-                    nolabel="1" />
+                    nolabel="1"
+                    class="o_stat_value" />
             </xpath>
         </field>
     </record>

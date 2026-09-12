@@ -9,17 +9,17 @@
                 <field name="source" />
                 <field name="substitution" />
                 <filter
-                    string="Private"
                     name="filter_create_uid"
+                    string="Private"
                     domain="[('is_shared', '=', False)]" />
                 <filter
-                    string="Shared"
                     name="filter_is_shared"
+                    string="Shared"
                     domain="[('is_shared', '=', True)]" />
                 <group>
                     <filter
-                        string="Authorized Groups"
                         name="group_by_group_ids"
+                        string="Authorized Groups"
                         context="{'group_by': 'group_ids'}" />
                 </group>
             </search>
@@ -32,8 +32,8 @@
         <field name="arch" type="xml">
             <list
                 string="Canned responses"
-                editable="bottom"
                 default_order="is_shared"
+                editable="bottom"
                 sample="1">
                 <field
                     name="source"
@@ -51,9 +51,9 @@
                 <field
                     name="group_ids"
                     widget="many2many_tags"
-                    readonly="not is_editable"
-                    optional="hide" />
-                <field name="last_used" readonly="1" optional="hide" />
+                    optional="hide"
+                    readonly="not is_editable" />
+                <field name="last_used" optional="hide" readonly="1" />
                 <field name="is_editable" column_invisible="True" />
                 <field name="is_shared" column_invisible="True" />
             </list>
@@ -90,7 +90,7 @@
         <field name="name">mail.canned.response.kanban</field>
         <field name="model">mail.canned.response</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" sample="1">
+            <kanban sample="1" class="o_kanban_mobile">
                 <templates>
                     <t t-name="card">
                         <div

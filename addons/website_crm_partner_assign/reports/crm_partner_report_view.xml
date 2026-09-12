@@ -13,21 +13,21 @@
                 <filter name="filter_date_review" date="date_review" />
                 <group>
                     <filter
-                        string="Salesperson"
                         name="user"
+                        string="Salesperson"
                         context="{'group_by':'user_id'}" />
                     <filter
-                        string="Partner"
                         name="partner"
+                        string="Partner"
                         context="{'group_by':'partner_id'}" />
                     <separator />
                     <filter
-                        string="Date Partnership"
                         name="group_date_partnership"
+                        string="Date Partnership"
                         context="{'group_by':'date_partnership'}" />
                     <filter
-                        string="Date Review"
                         name="group_date_review"
+                        string="Date Review"
                         context="{'group_by':'date_review'}" />
                 </group>
             </search>

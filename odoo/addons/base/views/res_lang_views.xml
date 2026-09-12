@@ -19,20 +19,20 @@
                 <field name="active" />
                 <button
                     name="%(base.action_view_base_language_install)d"
-                    string="Activate"
                     type="action"
+                    string="Activate"
                     icon="fa-check"
                     invisible="active" />
                 <button
                     name="%(base.action_view_base_language_install)d"
-                    string="Update"
                     type="action"
+                    string="Update"
                     icon="fa-refresh"
                     invisible="not active" />
                 <button
                     name="action_archive"
-                    string="Disable"
                     type="object"
+                    string="Disable"
                     icon="fa-times"
                     invisible="not active" />
             </list>
@@ -49,8 +49,8 @@
                         <button
                             name="%(base.action_view_base_language_install)d"
                             type="action"
-                            class="oe_stat_button"
-                            icon="fa-refresh">
+                            icon="fa-refresh"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Activate and Translate</span>
                             </div>
@@ -96,8 +96,8 @@
                 <field name="direction" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
             </search>
         </field>

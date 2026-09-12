@@ -14,11 +14,11 @@
                 <field name="feedback" optional="hide" />
                 <field
                     name="rating_text"
-                    decoration-danger="rating_text == 'ko'"
-                    decoration-warning="rating_text == 'ok'"
-                    decoration-success="rating_text == 'top'"
+                    widget="badge"
                     class="fw-bold"
-                    widget="badge" />
+                    decoration-danger="rating_text == 'ko'"
+                    decoration-success="rating_text == 'top'"
+                    decoration-warning="rating_text == 'ok'" />
             </list>
         </field>
     </record>
@@ -60,7 +60,7 @@
                             <field name="rated_on" />
                         </group>
                     </group>
-                    <group class="mw-100" invisible="not feedback">
+                    <group invisible="not feedback" class="mw-100">
                         <field name="feedback" />
                     </group>
                 </sheet>
@@ -79,10 +79,10 @@
                 <field
                     name="rating_text"
                     string="Rating"
+                    widget="badge"
                     decoration-danger="rating_text == 'ko'"
-                    decoration-warning="rating_text == 'ok'"
                     decoration-success="rating_text == 'top'"
-                    widget="badge" />
+                    decoration-warning="rating_text == 'ok'" />
             </xpath>
         </field>
     </record>
@@ -200,7 +200,7 @@
         <field name="name">rating.rating.pivot</field>
         <field name="model">rating.rating</field>
         <field name="arch" type="xml">
-            <pivot string="Ratings" display_quantity="1" sample="1">
+            <pivot string="Ratings" sample="1" display_quantity="1">
                 <field name="rated_partner_id" type="row" />
                 <field name="rated_on" type="col" />
                 <field name="rating" type="measure" string="Rating (/5)" />
@@ -237,21 +237,21 @@
                     name="parent_res_name"
                     filter_domain="[('parent_res_name','ilike',self)]" />
                 <filter
-                    string="My Ratings"
                     name="my_ratings"
+                    string="My Ratings"
                     domain="[('rated_partner_id.user_ids', 'in', [uid])]" />
                 <separator />
                 <filter
-                    string="Happy"
                     name="rating_happy"
+                    string="Happy"
                     domain="[('rating_text', '=', 'top')]" />
                 <filter
-                    string="Neutral"
                     name="rating_okay"
+                    string="Neutral"
                     domain="[('rating_text', '=', 'ok')]" />
                 <filter
-                    string="Unhappy"
                     name="rating_unhappy"
+                    string="Unhappy"
                     domain="[('rating_text', '=', 'ko')]" />
                 <separator />
                 <filter name="filter_rated_on" string="Rated On" date="rated_on">
@@ -270,24 +270,24 @@
                 </filter>
                 <group>
                     <filter
-                        string="Rated Operator"
                         name="responsible"
+                        string="Rated Operator"
                         context="{'group_by':'rated_partner_id'}" />
                     <filter
-                        string="Customer"
                         name="customer"
+                        string="Customer"
                         context="{'group_by':'partner_id'}" />
                     <filter
-                        string="Rating"
                         name="rating_text"
+                        string="Rating"
                         context="{'group_by':'rating_text'}" />
                     <filter
-                        string="Resource"
                         name="resource"
+                        string="Resource"
                         context="{'group_by':'res_name'}" />
                     <filter
-                        string="Submitted on"
                         name="month"
+                        string="Submitted on"
                         context="{'group_by': 'rated_on:month'}" />
                 </group>
             </search>

@@ -28,28 +28,28 @@
                     </div>
                     <field
                         name="sms_twilio_auth_token"
-                        password="True"
                         placeholder="abcde12345abcde12345abcde12345ab"
+                        password="True"
                         required="1" />
                     <label for="test_number" />
                     <div class="d-flex align-items-center">
                         <field name="test_number" placeholder="+1 555-123-4567" />
                         <button
                             name="action_send_test"
+                            type="object"
                             string="Send test SMS"
                             icon="fa-send"
-                            type="object"
                             class="btn btn-link w-25 ms-1" />
                     </div>
                 </group>
                 <group string="Phone Numbers">
                     <button
-                        class="btn btn-secondary"
-                        colspan="2"
-                        type="object"
                         name="action_reload_numbers"
+                        type="object"
                         string="Reload Numbers from Twilio"
-                        icon="fa-refresh" />
+                        icon="fa-refresh"
+                        colspan="2"
+                        class="btn btn-secondary" />
                     <field name="sms_twilio_number_ids" colspan="2" nolabel="1">
                         <list editable="bottom" delete="0">
                             <field name="sequence" widget="handle" />
@@ -57,23 +57,23 @@
                             <field name="number" placeholder="+1 555-123-4567" />
                             <button
                                 name="action_unlink"
+                                type="object"
                                 title="Delete"
-                                icon="fa-solid fa-trash-can"
-                                type="object" />
+                                icon="fa-solid fa-trash-can" />
                         </list>
                     </field>
                 </group>
                 <footer>
                     <button
-                        string="Update Account"
-                        type="object"
                         name="action_save"
+                        type="object"
+                        string="Update Account"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

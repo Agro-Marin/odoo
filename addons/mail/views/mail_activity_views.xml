@@ -10,16 +10,16 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <label for="name" class="oe_edit_only" />
                         <h1>
                             <field
                                 name="name"
                                 placeholder="e.g. Schedule a meeting"
-                                options="{'line_breaks': False}"
-                                widget="text" />
+                                widget="text"
+                                options="{'line_breaks': False}" />
                         </h1>
                     </div>
                     <group>
@@ -28,13 +28,13 @@
                             <field name="category" />
                             <field
                                 name="default_user_id"
-                                options="{'no_create': True}"
+                                widget="many2one_avatar_user"
                                 domain="[('share', '=', False)]"
-                                widget="many2one_avatar_user" />
+                                options="{'no_create': True}" />
                             <field
                                 name="res_model"
-                                invisible="context.get('default_res_model')"
-                                placeholder="Available everywhere" />
+                                placeholder="Available everywhere"
+                                invisible="context.get('default_res_model')" />
                             <field
                                 name="summary"
                                 placeholder="e.g. &quot;Discuss proposal&quot;" />
@@ -43,10 +43,10 @@
                             <label for="delay_count" />
                             <div>
                                 <field
-                                    class="oe_inline pe-1 o_input_3ch"
-                                    name="delay_count" />
-                                <field class="oe_inline ps-1 pe-2" name="delay_unit" />
-                                <field class="oe_inline" name="delay_from" />
+                                    name="delay_count"
+                                    class="oe_inline pe-1 o_input_3ch" />
+                                <field name="delay_unit" class="oe_inline ps-1 pe-2" />
+                                <field name="delay_from" class="oe_inline" />
                             </div>
                         </group>
                         <group name="activity_planning" string="Next Activity">
@@ -55,8 +55,8 @@
                                 invisible="category == 'upload_file'" />
                             <field
                                 name="triggered_next_type_id"
-                                options="{'no_open': True}"
                                 context="{'default_res_model': res_model}"
+                                options="{'no_open': True}"
                                 invisible="chaining_type == 'suggest' and category != 'upload_file'"
                                 required="chaining_type == 'trigger' and category != 'upload_file'" />
                             <field
@@ -68,13 +68,12 @@
                                 name="mail_template_ids"
                                 widget="many2many_tags"
                                 domain="[('model_id.model', '=', res_model)]"
-                                invisible="not res_model"
-                                context="{'default_model': res_model}" />
+                                context="{'default_model': res_model}"
+                                invisible="not res_model" />
                         </group>
                     </group>
                     <label for="default_note" class="fw-bold" />
                     <field
-                        nolabel="1"
                         name="default_note"
                         placeholder="e.g. &quot;Go over the offer and discuss details&quot;"
                         class="oe-bordered-editor" />
@@ -90,9 +89,9 @@
             <search string="Activities">
                 <field name="name" />
                 <filter
+                    name="archived"
                     string="Archived"
-                    domain="[('active', '=', False)]"
-                    name="archived" />
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>
@@ -113,13 +112,13 @@
                 <field name="icon" groups="base.group_no_one" />
                 <field
                     name="triggered_next_type_id"
-                    optional="hide"
-                    string="Triggered Next" />
+                    string="Triggered Next"
+                    optional="hide" />
                 <field
                     name="suggested_next_type_ids"
-                    optional="hide"
+                    string="Suggested Next"
                     widget="many2many_tags"
-                    string="Suggested Next" />
+                    optional="hide" />
             </list>
         </field>
     </record>
@@ -141,15 +140,15 @@
                                 title="Activity Type Name" />
                             <field name="name" />
                         </div>
-                        <field t-if="record.res_model.value" name="res_model" />
+                        <field name="res_model" t-if="record.res_model.value" />
                         <div t-if="record.summary.raw_value"> Default Summary: <field name="summary" />
                         </div>
                         <footer>
                             <field
-                                class="ms-auto"
                                 name="default_user_id"
                                 widget="many2one_avatar_user"
-                                readonly="1" />
+                                readonly="1"
+                                class="ms-auto" />
                         </footer>
                     </t>
                 </templates>
@@ -184,9 +183,9 @@
                         <button
                             name="action_view_document"
                             type="object"
-                            class="oe_link"
                             icon="fa-regular fa-file-lines"
-                            invisible="not res_model or res_id == 0">
+                            invisible="not res_model or res_id == 0"
+                            class="oe_link">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Open Document</span>
                             </div>
@@ -204,18 +203,18 @@
                     <group invisible="not has_recommended_activities">
                         <field
                             name="recommended_activity_type_id"
+                            string="Recommended Activities"
                             widget="selection_badge"
-                            domain="[('previous_type_ids', '=', previous_activity_type_id)]"
-                            string="Recommended Activities" />
+                            domain="[('previous_type_ids', '=', previous_activity_type_id)]" />
                     </group>
 
                     <group>
                         <field
                             name="activity_type_id"
-                            required="1"
                             widget="selection_badge_icons"
-                            iconField="icon"
-                            nolabel="1" />
+                            nolabel="1"
+                            required="1"
+                            iconField="icon" />
                         <field
                             name="summary"
                             placeholder="e.g. Discuss Proposal"
@@ -227,40 +226,40 @@
                     </group>
                     <field
                         name="note"
-                        class="oe-bordered-editor embedded-editor-height-4"
                         placeholder="Log a note..."
-                        options="{'embedded_components': false}" />
+                        options="{'embedded_components': false}"
+                        class="oe-bordered-editor embedded-editor-height-4" />
                     <footer>
                         <field name="id" invisible="1" />
                         <button
+                            name="action_close_dialog"
                             id="mail_activity_schedule"
+                            type="object"
                             string="Schedule"
-                            close="1"
-                            name="action_close_dialog"
-                            type="object"
-                            class="btn-primary"
                             invisible="id"
-                            data-hotkey="q" />
-                        <button
-                            id="mail_activity_save"
-                            string="Save"
-                            name="action_close_dialog"
-                            type="object"
                             class="btn-primary"
-                            invisible="not id"
+                            close="1"
                             data-hotkey="q" />
                         <button
-                            invisible="chaining_type == 'trigger'"
-                            string="Mark Done"
+                            name="action_close_dialog"
+                            id="mail_activity_save"
+                            type="object"
+                            string="Save"
+                            invisible="not id"
+                            class="btn-primary"
+                            data-hotkey="q" />
+                        <button
                             name="action_done"
                             type="object"
+                            string="Mark Done"
+                            context="{'mail_activity_quick_update': True}"
+                            invisible="chaining_type == 'trigger'"
                             class="btn-secondary"
-                            data-hotkey="w"
-                            context="{'mail_activity_quick_update': True}" />
+                            data-hotkey="w" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </sheet>
@@ -276,7 +275,7 @@
         <field name="priority">21</field>
         <field name="arch" type="xml">
             <field name="activity_type_id" position="before">
-                <field name="res_name" readonly="1" string="Document" />
+                <field name="res_name" string="Document" readonly="1" />
             </field>
             <footer position="replace" />
             <xpath expr="//div[hasclass('oe_button_box')]" position="attributes">
@@ -293,20 +292,20 @@
             <form string="Log an Activity" create="false" delete="false">
                 <header>
                     <button
-                        string="Mark Done"
-                        class="btn-primary"
                         name="action_done_redirect_to_other"
-                        type="object" />
+                        type="object"
+                        string="Mark Done"
+                        class="btn-primary" />
                 </header>
                 <sheet string="Activity">
                     <field name="display_name" invisible="1" />
                     <group>
                         <field
                             name="activity_type_id"
-                            required="1"
                             widget="selection_badge_icons"
-                            iconField="icon"
-                            nolabel="1" />
+                            nolabel="1"
+                            required="1"
+                            iconField="icon" />
                         <field name="summary" placeholder="e.g. Discuss proposal" />
                         <group>
                             <field name="date_deadline" />
@@ -314,9 +313,9 @@
                     </group>
                     <field
                         name="note"
-                        class="oe-bordered-editor embedded-editor-height-4"
                         placeholder="Log a note..."
-                        options="{'embedded_components': false}" />
+                        options="{'embedded_components': false}"
+                        class="oe-bordered-editor embedded-editor-height-4" />
                 </sheet>
             </form>
         </field>
@@ -344,54 +343,54 @@
                 <separator />
                 <separator invisible="1" />
                 <filter
-                    string="Overdue"
                     name="filter_date_deadline_past"
-                    domain="[('state', '=', 'overdue')]"
-                    help="Show all records whose next activity date is past" />
+                    string="Overdue"
+                    help="Show all records whose next activity date is past"
+                    domain="[('state', '=', 'overdue')]" />
                 <filter
-                    string="Today"
                     name="filter_date_deadline_today"
+                    string="Today"
                     domain="[('state', '=', 'today')]" />
                 <filter
-                    string="Tomorrow"
                     name="filter_date_deadline_tomorrow"
+                    string="Tomorrow"
                     help="Show all records whose next action date is tomorrow"
                     domain="[('date_deadline', '=', 'today +1d')]" />
                 <filter
-                    string="This week"
                     name="filter_date_deadline_week"
+                    string="This week"
                     help="Show all records whose next action date is this week"
                     domain="[                         ('date_deadline', '&gt;=', '=week_start'),                         ('date_deadline', '&lt;', '=week_start +1w')                         ]" />
                 <filter
-                    string="Future"
                     name="filter_date_deadline_future"
+                    string="Future"
                     domain="[('state', '=', 'planned')]" />
                 <separator />
                 <filter
-                    string="Done"
                     name="filter_archived"
+                    string="Done"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <group>
                     <filter
-                        string="Deadline"
                         name="date_deadline"
+                        string="Deadline"
                         context="{'group_by': 'date_deadline'}" />
                     <filter
-                        string="Document Model"
                         name="group_by_res_model_id"
+                        string="Document Model"
                         context="{'group_by': 'res_model_id'}" />
                     <filter
-                        string="Assigned To"
                         name="group_by_user_id"
+                        string="Assigned To"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Created By"
                         name="createdby"
+                        string="Created By"
                         context="{'group_by': 'create_uid'}" />
                     <filter
-                        string="Activity Type"
                         name="activittype"
+                        string="Activity Type"
                         context="{'group_by': 'activity_type_id'}" />
                 </group>
             </search>
@@ -449,8 +448,8 @@
                     type="object"
                     string="Cancel"
                     icon="fa-times"
-                    class="text-danger"
-                    invisible="active == False" />
+                    invisible="active == False"
+                    class="text-danger" />
             </list>
         </field>
     </record>
@@ -495,9 +494,9 @@
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
             <kanban
+                type="object"
                 string="Activity"
                 action="action_view_document"
-                type="object"
                 js_class="mail_activity_my_kanban">
                 <templates>
                     <field name="active" invisible="1" />
@@ -505,11 +504,11 @@
                     <t t-name="card">
                         <div class="d-flex justify-content-between">
                             <span class="text-truncate" invisible="not res_name">
-                                <field name="res_name" class="fw-bold" /> (<field class="text-muted" name="res_model_id" />) </span>
+                                <field name="res_name" class="fw-bold" /> (<field name="res_model_id" class="text-muted" />) </span>
                             <field
                                 name="summary"
-                                class="text-truncate"
-                                invisible="res_name" />
+                                invisible="res_name"
+                                class="text-truncate" />
                             <span class="badge rounded-pill text-bg-300">
                                 <i
                                     t-if="record.icon"
@@ -518,9 +517,9 @@
                             </span>
                         </div>
                         <field
-                            class="text-truncate"
                             name="summary"
-                            invisible="not res_name" />
+                            invisible="not res_name"
+                            class="text-truncate" />
                         <footer class="align-items-center">
                             <field name="user_id" widget="many2one_avatar_user" />
                             <field
@@ -528,14 +527,14 @@
                                 widget="remaining_days"
                                 class="ms-2" />
                             <button
-                                type="object"
                                 name="action_done"
-                                class="btn btn-link btn-sm ms-auto me-1"
-                                invisible="active == False">
+                                type="object"
+                                invisible="active == False"
+                                class="btn btn-link btn-sm ms-auto me-1">
                                 <i class="fa-solid fa-check" /> Done </button>
                             <button
-                                type="object"
                                 name="unlink"
+                                type="object"
                                 class="btn btn-link text-danger btn-sm">
                                 <i class="fa-solid fa-times" /> Cancel </button>
                         </footer>
@@ -603,16 +602,16 @@
         <field name="arch" type="xml">
             <calendar
                 string="Activity"
-                date_start="date_deadline"
-                color="activity_type_id"
-                js_class="activity_calendar"
+                mode="month"
                 create="0"
-                mode="month">
+                color="activity_type_id"
+                date_start="date_deadline"
+                js_class="activity_calendar">
                 <field name="user_id" avatar_field="avatar_128" />
                 <field name="res_name" string="Name" />
                 <field name="date_deadline" />
                 <field name="summary" />
-                <field name="activity_type_id" filters="1" invisible="1" />
+                <field name="activity_type_id" invisible="1" filters="1" />
             </calendar>
         </field>
     </record>

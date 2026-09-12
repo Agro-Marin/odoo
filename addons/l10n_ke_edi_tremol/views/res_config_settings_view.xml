@@ -8,7 +8,7 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='account_vendor_bills']" position="after">
                 <div invisible="country_code != 'KE'">
-                    <block title="Kenya TIMS Integration" id="l10n_ke_cu_details">
+                    <block id="l10n_ke_cu_details" title="Kenya TIMS Integration">
                         <setting
                             string="Tremol Device Settings"
                             help="The tremol device makes use of a proxy server, which can be running locally on your computer or on an IoT Box. The proxy server must be on the same network as the fiscal device."

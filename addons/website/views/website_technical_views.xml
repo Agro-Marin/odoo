@@ -5,7 +5,7 @@
         <field name="name">website.technical.page.list</field>
         <field name="model">website.technical.page</field>
         <field name="arch" type="xml">
-            <list type="object" action="open_website_url" create="false">
+            <list type="object" create="false" action="open_website_url">
                 <field name="name" />
                 <field name="website_url" />
             </list>

@@ -9,15 +9,15 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    class="oe_stat_button"
-                    type="object"
                     name="action_view_purchase_orders"
+                    type="object"
                     icon="fa-credit-card"
+                    groups="purchase.group_purchase_user"
                     invisible="purchase_order_count == 0"
-                    groups="purchase.group_purchase_user">
+                    class="oe_stat_button">
                     <field
-                        string="Purchase Orders"
                         name="purchase_order_count"
+                        string="Purchase Orders"
                         widget="statinfo" />
                 </button>
             </div>

@@ -21,7 +21,7 @@
             <field name="name">Sponsor Levels</field>
             <field name="model">event.sponsor.type</field>
             <field name="arch" type="xml">
-                <list editable="bottom" string="Event Sponsor Level">
+                <list string="Event Sponsor Level" editable="bottom">
                     <field name="sequence" widget="handle" />
                     <field name="name" />
                     <field name="display_ribbon_style" />
@@ -50,31 +50,31 @@
                     <field name="email" />
                     <field name="phone_ids" widget="many2many_tags" />
                     <filter
-                        string="Published"
                         name="filter_published"
+                        string="Published"
                         domain="[('website_published', '=', True)]" />
                     <separator />
                     <filter
-                        string="Archived"
                         name="archived"
+                        string="Archived"
                         domain="[('active', '=', False)]" />
                     <separator />
                     <filter
-                        string="Exhibitors"
                         name="filter_is_exhibitor"
+                        string="Exhibitors"
                         domain="[('exhibitor_type', 'in', ['exhibitor', 'online'])]" />
                     <filter
+                        name="filter_is_online"
                         string="Online"
-                        name="filter_is_exhibitor"
                         domain="[('exhibitor_type', '=', 'online')]" />
                     <group>
                         <filter
-                            string="Event"
                             name="group_by_event_id"
+                            string="Event"
                             context="{'group_by': 'event_id'}" />
                         <filter
-                            string="Level"
                             name="group_by_sponsor_type_id"
+                            string="Level"
                             context="{'group_by': 'sponsor_type_id'}" />
                     </group>
                 </search>
@@ -96,8 +96,8 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field name="active" invisible="1" />
                         <field name="image_512" widget="image" class="oe_avatar" />
                         <div class="oe_title">
@@ -115,18 +115,18 @@
                                 <field name="partner_id" string="Partner" />
                                 <field
                                     name="email"
-                                    widget="email"
                                     string="Email"
-                                    placeholder="e.g. : open.wood.decoration@example.com" />
+                                    placeholder="e.g. : open.wood.decoration@example.com"
+                                    widget="email" />
                                 <field
                                     name="phone_ids"
-                                    widget="many2many_tags"
-                                    string="Phone" />
+                                    string="Phone"
+                                    widget="many2many_tags" />
                                 <field
                                     name="url"
-                                    widget="url"
                                     string="Website"
-                                    placeholder="e.g. : https://www.odoo.com" />
+                                    placeholder="e.g. : https://www.odoo.com"
+                                    widget="url" />
                             </group>
                             <group>
                                 <field name="event_id" placeholder="All Events" />
@@ -134,8 +134,8 @@
                                 <field name="exhibitor_type" required="1" />
                                 <field
                                     name="website_published"
-                                    widget="boolean_toggle"
                                     string="Display on website footer"
+                                    widget="boolean_toggle"
                                     invisible="exhibitor_type != 'sponsor'" />
                                 <label
                                     for="hour_from"
@@ -168,14 +168,13 @@
                         </group>
                         <notebook>
                             <page
-                                string="Description"
                                 name="page_description"
+                                string="Description"
                                 invisible="exhibitor_type == 'sponsor'">
                                 <field
                                     name="website_description"
-                                    nolabel="1"
-                                    options="{'allowVideo': True}"
-                                    placeholder="e.g. &quot;Openwood specializes in home decoration...&quot;" />
+                                    placeholder="e.g. &quot;Openwood specializes in home decoration...&quot;"
+                                    options="{'allowVideo': True}" />
                             </page>
                         </notebook>
                     </sheet>
@@ -211,8 +210,8 @@
                             <widget
                                 name="web_ribbon"
                                 title="Published"
-                                bg_color="text-bg-success"
-                                invisible="not is_published or not active" />
+                                invisible="not is_published or not active"
+                                bg_color="text-bg-success" />
                             <aside class="col-3 o_kanban_aside_full ms-1">
                                 <field
                                     name="image_128"

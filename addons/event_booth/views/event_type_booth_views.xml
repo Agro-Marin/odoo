@@ -9,7 +9,7 @@
                 <form string="Event Type Booth">
                     <sheet>
                         <div class="oe_title">
-                            <label for="name" class="oe_edit_only" string="Name" />
+                            <label for="name" string="Name" class="oe_edit_only" />
                             <h1><field name="name" placeholder="e.g. First Booth Alley 1" /></h1>
                         </div>
                         <group>
@@ -63,8 +63,8 @@
                     <field name="name" />
                     <group>
                         <filter
-                            string="Booth Type"
                             name="booth_category"
+                            string="Booth Type"
                             context="{'group_by': 'booth_category_id'}" />
                     </group>
                 </search>

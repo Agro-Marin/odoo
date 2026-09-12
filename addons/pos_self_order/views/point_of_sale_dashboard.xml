@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='inactive']" position="after">
                 <filter
-                    string="Kiosk"
                     name="filter_kiosk_only"
+                    string="Kiosk"
                     domain="[('self_ordering_mode', '=', 'kiosk')]" />
             </xpath>
         </field>
@@ -30,10 +30,10 @@
             <xpath expr="//div[@name='card_left']" position="inside">
                 <field name="self_ordering_mode" invisible="1" />
                     <button
-                        invisible="not self_ordering_mode == 'mobile' and not self_ordering_mode == 'consultation'"
-                        class="btn btn-secondary"
                         name="preview_self_order_app"
-                        type="object">
+                        type="object"
+                        invisible="not self_ordering_mode == 'mobile' and not self_ordering_mode == 'consultation'"
+                        class="btn btn-secondary">
                         Mobile Menu
                     </button>
             </xpath>
@@ -44,24 +44,24 @@
                     class="col-6 d-flex flex-wrap align-items-center gap-2"
                     invisible="not self_ordering_mode == 'kiosk'">
                     <button
-                        t-if="!record.current_session_id.raw_value"
-                        class="btn btn-primary pos_open_session_btn"
                         name="action_view_wizard"
-                        type="object">
+                        type="object"
+                        class="btn btn-primary pos_open_session_btn"
+                        t-if="!record.current_session_id.raw_value">
                         Start Kiosk
                     </button>
                     <button
-                        t-else=""
                         name="action_close_kiosk_session"
+                        type="object"
                         class="btn btn-secondary"
-                        type="object">
+                        t-else="">
                         Close Session
                     </button>
                     <button
-                        t-if="record.current_session_id.raw_value"
-                        class="btn btn-secondary"
                         name="action_view_wizard"
-                        type="object">
+                        type="object"
+                        class="btn btn-secondary"
+                        t-if="record.current_session_id.raw_value">
                         Open Kiosk
                     </button>
                 </div>

@@ -21,22 +21,22 @@
                         options="{'string': 'Copy Link'}" />
                     <field
                         name="partner_ids"
-                        widget="many2many_tags_email"
-                        placeholder="Add contacts to share the document..." />
+                        placeholder="Add contacts to share the document..."
+                        widget="many2many_tags_email" />
                     <field name="note" placeholder="Add a note" />
                 </group>
                 <footer>
                     <button
-                        string="Send"
                         name="action_send_mail"
-                        invisible="access_warning != ''"
                         type="object"
+                        string="Send"
+                        invisible="access_warning != ''"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-default"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

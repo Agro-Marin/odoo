@@ -26,9 +26,9 @@
                 <field
                     name="public_categ_ids"
                     string="Website Category"
-                    class="oe_inline"
+                    placeholder="Unpublished"
                     widget="many2many_tags"
-                    placeholder="Unpublished" />
+                    class="oe_inline" />
             </div>
         </field>
     </record>

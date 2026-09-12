@@ -7,20 +7,20 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="stock.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <setting id="warning_info" position="after">
+            <setting position="after" id="warning_info">
                 <setting help="When to start shipping">
                     <field
                         name="default_picking_policy"
-                        class="o_light_label w-auto"
-                        widget="selection" />
+                        widget="selection"
+                        class="o_light_label w-auto" />
                 </setting>
             </setting>
             <div id="sale_security_lead" position="replace">
                 <setting
-                    company_dependent="1"
+                    title="Margin of error for dates promised to customers. Products will be scheduled for procurement and delivery that many days earlier than the actual promised date, to cope with unexpected delays in the supply chain."
                     help="Schedule deliveries earlier to avoid delays"
-                    documentation="/applications/inventory_and_mrp/inventory/management/planning/scheduled_dates.html"
-                    title="Margin of error for dates promised to customers. Products will be scheduled for procurement and delivery that many days earlier than the actual promised date, to cope with unexpected delays in the supply chain.">
+                    company_dependent="1"
+                    documentation="/applications/inventory_and_mrp/inventory/management/planning/scheduled_dates.html">
                     <field name="use_security_lead" />
                     <div class="content-group">
                         <div class="mt16" invisible="not use_security_lead">

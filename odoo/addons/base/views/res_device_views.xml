@@ -14,8 +14,8 @@
                 <field name="country" optional="hide" />
                 <field name="city" optional="hide" />
                 <button
-                    type="object"
                     name="revoke"
+                    type="object"
                     string="Revoke"
                     class="btn btn-secondary" />
             </list>
@@ -27,9 +27,9 @@
         <field name="model">res.device</field>
         <field name="arch" type="xml">
             <kanban
+                default_order="is_current desc, last_activity desc"
                 create="0"
-                can_open="0"
-                default_order="is_current desc, last_activity desc">
+                can_open="0">
                 <field name="id" />
                 <field name="device_type" />
                 <field name="last_activity" />

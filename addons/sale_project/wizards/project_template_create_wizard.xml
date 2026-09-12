@@ -12,10 +12,10 @@
                 <field
                     name="partner_id"
                     string="Customer"
-                    invisible="not allow_billable"
                     placeholder="Select who to bill..."
                     widget="res_partner_many2one"
-                    options="{'no_create_edit': True, 'no_open': True}" />
+                    options="{'no_create_edit': True, 'no_open': True}"
+                    invisible="not allow_billable" />
             </field>
         </field>
     </record>

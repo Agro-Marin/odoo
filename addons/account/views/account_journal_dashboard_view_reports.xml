@@ -49,8 +49,8 @@
                         <div class="row">
                             <div>
                                 <button
-                                    type="action"
                                     name="account.action_server_open_view_account_return"
+                                    type="action"
                                     groups="account.group_account_user"
                                     t-att-class="'me-1 btn ' + (dashboard['tax_return_button_primary'] ? 'btn-primary' : 'btn-secondary')">
                                     Tax Returns
@@ -60,9 +60,9 @@
 
                         <div class="row">
                             <widget
-                                t-if="!record.has_posted_entries.raw_value and dashboard['onboarding']"
                                 name="account_onboarding"
-                                groups="account.group_account_manager" />
+                                groups="account.group_account_manager"
+                                t-if="!record.has_posted_entries.raw_value and dashboard['onboarding']" />
                         </div>
                     </div>
                     <div id="dashboard_return_right" class="col-auto">

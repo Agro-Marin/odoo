@@ -16,17 +16,17 @@
                     <field name="available_return_type_ids" invisible="1" />
                     <field
                         name="return_type_id"
-                        required="1"
                         widget="selection_badge"
                         options="{'no_open': True, 'no_create_edit': True}"
+                        required="1"
                         class="w-100" />
                     <label for="date_from" string="Dates" />
                     <div class="d-flex align-items-center col-10 col-lg-6">
                         <field name="date_to" invisible="1" />
                         <field
                             name="date_from"
-                            nolabel="1"
                             widget="daterange"
+                            nolabel="1"
                             options="{'end_date_field': 'date_to'}" />
                         <span
                             invisible="not show_warning_existing_return"
@@ -58,32 +58,32 @@
                 </group>
                 <footer>
                     <button
-                        string="Generate Return"
                         name="action_create_manual_account_returns"
                         type="object"
+                        string="Generate Return"
+                        invisible="not is_create_disabled"
                         class="btn-primary"
                         data-hotkey="q"
-                        disabled="1"
-                        invisible="not is_create_disabled" />
+                        disabled="1" />
                     <button
-                        string="Generate Return"
                         name="action_create_manual_account_returns"
                         type="object"
+                        string="Generate Return"
+                        invisible="is_create_disabled or show_warning_wrong_dates"
                         class="btn-primary"
-                        data-hotkey="q"
-                        invisible="is_create_disabled or show_warning_wrong_dates" />
+                        data-hotkey="q" />
                     <button
+                        name="action_create_manual_account_returns"
+                        type="object"
                         string="Generate Return Anyway"
-                        name="action_create_manual_account_returns"
-                        type="object"
-                        class="btn-primary"
-                        data-hotkey="q"
+                        context="{'force_periodicity_violation': 1}"
                         invisible="is_create_disabled or not show_warning_wrong_dates"
-                        context="{'force_periodicity_violation': 1}" />
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

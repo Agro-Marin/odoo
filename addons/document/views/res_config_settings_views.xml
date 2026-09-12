@@ -9,10 +9,10 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Documents"
-                    string="Documents"
                     name="documents"
+                    string="Documents"
                     groups="document.group_documents_manager"
+                    data-string="Documents"
                     notApp="1">
                     <block title="Trash Management">
                         <setting
@@ -21,14 +21,14 @@
                             help="Time before documents in the Trash are permanently deleted.">
                             <div class="content-group">
                                 <div class="row mt16">
-                                    <field class="w-50" name="deletion_delay" />
+                                    <field name="deletion_delay" class="w-50" />
                                 </div>
                             </div>
                         </setting>
                     </block>
                     <block
-                        title="Files Centralization"
                         id="files_centralization_section"
+                        title="Files Centralization"
                         invisible="1" />
                 </app>
             </xpath>

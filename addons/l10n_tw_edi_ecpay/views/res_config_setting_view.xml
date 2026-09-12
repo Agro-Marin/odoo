@@ -9,8 +9,8 @@
             <field name="arch" type="xml">
                 <xpath expr="//app[@name='account']" position="inside">
                     <block
-                        title="Taiwan Electronic Invoicing"
                         id="taiwan_edi"
+                        title="Taiwan Electronic Invoicing"
                         invisible="country_code != 'TW'">
                         <setting string="Ecpay Setting" company_dependent="1">
                             <div class="content-group">
@@ -36,8 +36,8 @@
                                         class="col-lg-4 o_light_label" />
                                     <field
                                         name="l10n_tw_edi_ecpay_hashkey"
-                                        class="w-50"
-                                        password="True" />
+                                        password="True"
+                                        class="w-50" />
                                 </div>
                                 <div class="row">
                                     <label
@@ -45,8 +45,8 @@
                                         class="col-lg-4 o_light_label" />
                                     <field
                                         name="l10n_tw_edi_ecpay_hashIV"
-                                        class="w-50"
-                                        password="True" />
+                                        password="True"
+                                        class="w-50" />
                                 </div>
                             </div>
                         </setting>

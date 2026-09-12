@@ -9,9 +9,9 @@
             <xpath expr="//field[@name='task_id']" position="after">
                 <field
                     name="so_line"
+                    placeholder="Non-billable"
                     optional="show"
-                    options="{'no_open': True}"
-                    placeholder="Non-billable" />
+                    options="{'no_open': True}" />
                 <field name="timesheet_invoice_type" optional="hide" />
                 <field name="timesheet_invoice_id" optional="hide" />
                 <field name="timesheet_revenues" optional="hide" sum="Total" />
@@ -28,8 +28,8 @@
             <xpath expr="//sheet/group/group" position="inside">
                 <field
                     name="so_line"
-                    widget="so_line_field"
-                    placeholder="Non-billable" />
+                    placeholder="Non-billable"
+                    widget="so_line_field" />
             </xpath>
         </field>
     </record>
@@ -137,7 +137,7 @@
         <field name="model">timesheets.analysis.report</field>
         <field name="arch" type="xml">
             <pivot string="Timesheets Analysis" sample="1">
-                <field name="date" interval="month" type="row" />
+                <field name="date" type="row" interval="month" />
                 <field name="timesheet_invoice_type" type="col" />
                 <field name="amount" string="Timesheet Costs" />
                 <field name="unit_amount" type="measure" widget="timesheet_uom" />
@@ -175,8 +175,8 @@
             </xpath>
             <xpath expr="//filter[@name='groupby_sale_order_item']" position="before">
                 <filter
-                    string="Sales Order"
                     name="groupby_sale_order"
+                    string="Sales Order"
                     context="{'group_by': 'order_id'}"
                     groups="sales_team.group_sale_salesman" />
             </xpath>

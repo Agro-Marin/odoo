@@ -17,15 +17,15 @@
                 </group>
                 <footer>
                     <button
-                        string="Send Test"
                         name="action_send_sms"
                         type="object"
+                        string="Send Test"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

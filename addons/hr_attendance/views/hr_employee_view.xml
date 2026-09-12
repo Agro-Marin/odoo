@@ -32,11 +32,11 @@
                     invisible="1" />
                 <button
                     name="action_view_this_month_attendances"
-                    class="oe_stat_button"
-                    icon="fa-regular fa-clock"
                     type="object"
+                    help="Worked hours this month"
+                    icon="fa-regular fa-clock"
                     groups="hr_attendance.group_hr_attendance_officer"
-                    help="Worked hours this month">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="hours_this_month" widget="float_time" />
@@ -58,12 +58,12 @@
                 </button>
                 <button
                     name="action_view_this_month_attendances"
-                    class="oe_stat_button"
-                    icon="fa-regular fa-clock"
                     type="object"
-                    groups="!hr_attendance.group_hr_attendance_officer,hr_attendance.group_hr_attendance_own_reader"
                     help="Worked hours this month"
-                    invisible="user_id != uid">
+                    icon="fa-regular fa-clock"
+                    groups="!hr_attendance.group_hr_attendance_officer,hr_attendance.group_hr_attendance_own_reader"
+                    invisible="user_id != uid"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field name="hours_this_month" widget="float_time" />
@@ -99,10 +99,10 @@
                 position="after">
                 <button
                     name="open_barcode_scanner"
-                    string="Read a badge"
                     type="object"
-                    class="btn btn-link"
-                    invisible="barcode" />
+                    string="Read a badge"
+                    invisible="barcode"
+                    class="btn btn-link" />
             </xpath>
             <group name="identification_group" position="inside">
                 <field
@@ -121,8 +121,8 @@
             <xpath expr="//field[@name='work_location_id']" position="after">
                 <field
                     name="attendance_manager_id"
-                    optional="hide"
                     widget="many2one_avatar_user"
+                    optional="hide"
                     groups="hr_attendance.group_hr_attendance_user" />
             </xpath>
         </field>
@@ -145,11 +145,11 @@
                     name="overtime_status"
                     string="Status"
                     widget="badge"
-                    decoration-warning="overtime_status == 'to_approve'"
-                    decoration-success="overtime_status == 'approved'"
-                    decoration-danger="overtime_status == 'refused'"
+                    optional="hide"
                     column_invisible="not context.get('display_extra_hours')"
-                    optional="hide" />
+                    decoration-danger="overtime_status == 'refused'"
+                    decoration-success="overtime_status == 'approved'"
+                    decoration-warning="overtime_status == 'to_approve'" />
             </list>
         </field>
     </record>

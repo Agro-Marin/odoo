@@ -12,9 +12,9 @@
                 <field name="need_vehicle" column_invisible="True" />
                 <field
                     name="vehicle_id"
+                    optional="hide"
                     column_invisible="parent.move_type not in ('in_invoice', 'in_refund', 'in_receipt')"
-                    required="need_vehicle and parent.move_type in ('in_invoice', 'in_refund')"
-                    optional="hide" />
+                    required="need_vehicle and parent.move_type in ('in_invoice', 'in_refund')" />
             </xpath>
             <xpath
                 expr="//field[@name='invoice_line_ids']//field[@name='account_id']"
@@ -22,9 +22,9 @@
                 <field name="need_vehicle" column_invisible="True" />
                 <field
                     name="vehicle_id"
+                    optional="hide"
                     column_invisible="parent.move_type not in ('in_invoice', 'in_refund', 'in_receipt')"
-                    required="need_vehicle and parent.move_type in ('in_invoice', 'in_refund')"
-                    optional="hide" />
+                    required="need_vehicle and parent.move_type in ('in_invoice', 'in_refund')" />
             </xpath>
         </field>
     </record>

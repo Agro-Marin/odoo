@@ -24,19 +24,19 @@
                 <group>
                     <field name="share_status" />
                     <filter
-                        string="Shared"
                         name="filter_shared"
+                        string="Shared"
                         domain="[('share_status', '=', 'shared')]" />
                     <filter
-                        string="Visited"
                         name="filter_visited"
+                        string="Visited"
                         domain="[('share_status', '=', 'visited')]" />
                 </group>
                 <group>
                     <field name="campaign_id" />
                     <filter
-                        string="Campaign"
                         name="by_campaign"
+                        string="Campaign"
                         context="{'group_by': 'campaign_id'}" />
                 </group>
             </search>

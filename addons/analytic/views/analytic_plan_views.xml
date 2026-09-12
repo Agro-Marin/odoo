@@ -11,18 +11,18 @@
                         <button
                             name="action_view_children_plans"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-bars">
+                            icon="fa-bars"
+                            class="oe_stat_button">
                             <field
-                                string="Subplans"
                                 name="children_count"
+                                string="Subplans"
                                 widget="statinfo" />
                         </button>
                         <button
                             name="action_view_analytical_accounts"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-bars">
+                            icon="fa-bars"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_value"><field name="all_account_count" /></span>
                                 <span class="o_stat_text">Analytic Accounts</span>
@@ -49,16 +49,16 @@
 
                     <notebook>
                         <page
-                            string="Applicability"
                             name="applicability"
+                            string="Applicability"
                             invisible="parent_id">
                             <field name="applicability_ids">
                                 <list editable="bottom">
                                     <field name="business_domain" />
                                     <field
                                         name="company_id"
-                                        groups="base.group_multi_company"
-                                        placeholder="Visible to all" />
+                                        placeholder="Visible to all"
+                                        groups="base.group_multi_company" />
                                     <field name="applicability" />
                                 </list>
                             </field>

@@ -46,17 +46,17 @@
                         <field name="quantity" />
                         <field name="price_unit" />
                         <field name="subtotal" readonly="1" />
-                        <field name="read_by" readonly="1" optional="show" />
-                        <field name="confidence" readonly="1" optional="hide" />
+                        <field name="read_by" optional="show" readonly="1" />
+                        <field name="confidence" optional="hide" readonly="1" />
                     </list>
                 </field>
                 <footer>
                     <button
                         name="action_apply"
-                        string="Add the accepted lines"
                         type="object"
+                        string="Add the accepted lines"
                         class="btn-primary" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

@@ -10,17 +10,17 @@
                 <field name="company_id" groups="base.group_multi_company" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <filter
-                    string="Partial working schedules"
                     name="partial_working_schedules"
+                    string="Partial working schedules"
                     domain="[('work_time_rate', '&lt;', 100)]" />
                 <group>
                     <filter
-                        string="Flexible"
                         name="groupby_flexible_hours"
+                        string="Flexible"
                         context="{'group_by': 'flexible_hours'}" />
                     <filter
                         name="groupby_company"
@@ -40,15 +40,15 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="%(resource_calendar_leaves_action_from_calendar)d"
                             type="action"
                             icon="fa-plane"
-                            class="oe_stat_button"
-                            groups="base.group_no_one">
+                            groups="base.group_no_one"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Time Off</span>
                             </div>
@@ -57,8 +57,8 @@
                             name="%(resource_resource_action_from_calendar)d"
                             type="action"
                             icon="fa-cogs"
-                            class="oe_stat_button"
-                            groups="base.group_user">
+                            groups="base.group_user"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">
                                     <field
@@ -84,21 +84,21 @@
                                 class="o_form_label" />
                             <button
                                 name="switch_based_on_duration"
-                                invisible="duration_based or flexible_hours"
                                 type="object"
-                                icon="fa-regular fa-square"
                                 title="Switch to Duration based attendance"
-                                class="btn p-0"
                                 confirm="If checked, the working schedule will be based on an amount of hours (defined for each day) and not a start &amp; end time anymore.Do you confirm ?"
+                                icon="fa-regular fa-square"
+                                invisible="duration_based or flexible_hours"
+                                class="btn p-0"
                                 confirm-label="Confirm" />
                             <button
                                 name="switch_based_on_duration"
-                                invisible="not duration_based or flexible_hours"
                                 type="object"
-                                icon="fa-solid fa-square-check"
                                 title="Switch to fixed attendance"
-                                class="btn p-0"
                                 confirm="If unchecked, the working schedule will be based on a defined start and end hours.Do you confirm ?"
+                                icon="fa-solid fa-square-check"
+                                invisible="not duration_based or flexible_hours"
+                                class="btn p-0"
                                 confirm-label="Confirm" />
                             <label
                                 for="full_time_required_hours"
@@ -110,9 +110,9 @@
                             <div>
                                 <field
                                     name="full_time_required_hours"
-                                    style="width: 6ch;"
                                     widget="float_time"
-                                    readonly="company_id" />
+                                    readonly="company_id"
+                                    style="width: 6ch;" />
                                 <span>hours/week</span>
                             </div>
                             <label for="work_time_rate" string="Work Time Rate" />
@@ -134,24 +134,24 @@
                             </group>
                             <group
                                 name="flex_details"
-                                invisible="not flexible_hours"
-                                colspan="2">
+                                colspan="2"
+                                invisible="not flexible_hours">
                                 <label for="hours_per_day" string="Avg" />
                                 <div class="d-flex">
                                     <field
                                         name="hours_per_day"
+                                        widget="float_time"
                                         nolabel="1"
-                                        style="width: 6ch;"
-                                        widget="float_time" />
+                                        style="width: 6ch;" />
                                     <span class="ms-2">hours/day</span>
                                 </div>
                                 <label for="hours_per_week" string="Total" />
                                 <div class="d-flex">
                                     <field
                                         name="hours_per_week"
+                                        widget="float_time"
                                         nolabel="1"
-                                        style="width: 6ch;"
-                                        widget="float_time" />
+                                        style="width: 6ch;" />
                                     <span class="ms-2">hours/week</span>
                                 </div>
                             </group>
@@ -162,29 +162,29 @@
                                     class="o_form_label" />
                                 <button
                                     name="switch_calendar_type"
-                                    invisible="two_weeks_calendar"
                                     type="object"
-                                    icon="fa-regular fa-square"
                                     title="Switch to 2-weeks calendar"
-                                    class="btn p-0"
                                     confirm="Are you sure you want to switch to a 2-week calendar? All work entries will be lost."
+                                    icon="fa-regular fa-square"
+                                    invisible="two_weeks_calendar"
+                                    class="btn p-0"
                                     confirm-label="Switch" />
                                 <button
                                     name="switch_calendar_type"
-                                    invisible="not two_weeks_calendar"
                                     type="object"
-                                    icon="fa-solid fa-square-check"
                                     title="Switch to 1-week calendar"
-                                    class="btn p-0"
                                     confirm="Are you sure you want to switch to a 1-week calendar? All work entries will be lost."
+                                    icon="fa-solid fa-square-check"
+                                    invisible="not two_weeks_calendar"
+                                    class="btn p-0"
                                     confirm-label="Switch" />
                             </group>
                         </group>
                     </group>
                     <notebook>
                         <page
-                            string="Working Hours"
                             name="working_hours"
+                            string="Working Hours"
                             invisible="flexible_hours or two_weeks_calendar">
                             <group>
                                 <group>
@@ -192,10 +192,10 @@
                                     <div class="d-flex">
                                         <field
                                             name="hours_per_day"
-                                            nolabel="1"
-                                            style="width: 6ch;"
                                             widget="float_time"
-                                            readonly="1" />
+                                            nolabel="1"
+                                            readonly="1"
+                                            style="width: 6ch;" />
                                         <span class="ms-2">hours/day</span>
                                     </div>
                                 </group>
@@ -204,10 +204,10 @@
                                     <div class="d-flex">
                                         <field
                                             name="hours_per_week"
-                                            nolabel="1"
-                                            style="width: 6ch;"
                                             widget="float_time"
-                                            readonly="1" />
+                                            nolabel="1"
+                                            readonly="1"
+                                            style="width: 6ch;" />
                                         <span class="ms-2">hours/week</span>
                                     </div>
                                 </group>
@@ -215,8 +215,8 @@
                             <field name="attendance_ids" widget="section_one2many" />
                         </page>
                         <page
-                            string="Week 1 Working Hours"
                             name="working_hours_week_1"
+                            string="Week 1 Working Hours"
                             invisible="flexible_hours or not two_weeks_calendar">
                             <field name="two_weeks_explanation" />
                             <group>
@@ -225,10 +225,10 @@
                                     <div class="d-flex">
                                         <field
                                             name="hours_per_day"
-                                            nolabel="1"
-                                            style="width: 6ch;"
                                             widget="float_time"
-                                            readonly="1" />
+                                            nolabel="1"
+                                            readonly="1"
+                                            style="width: 6ch;" />
                                         <span class="ms-2">hours/day</span>
                                     </div>
                                 </group>
@@ -237,10 +237,10 @@
                                     <div class="d-flex">
                                         <field
                                             name="hours_per_week"
-                                            nolabel="1"
-                                            style="width: 6ch;"
                                             widget="float_time"
-                                            readonly="1" />
+                                            nolabel="1"
+                                            readonly="1"
+                                            style="width: 6ch;" />
                                         <span class="ms-2">hours/week</span>
                                     </div>
                                 </group>
@@ -251,8 +251,8 @@
                                 context="{'default_week_type':'0'}" />
                         </page>
                         <page
-                            string="Week 2 Working Hours"
                             name="working_hours_week_2"
+                            string="Week 2 Working Hours"
                             invisible="flexible_hours or not two_weeks_calendar">
                             <field name="two_weeks_explanation" />
                             <group>
@@ -261,10 +261,10 @@
                                     <div class="d-flex">
                                         <field
                                             name="hours_per_day"
-                                            nolabel="1"
-                                            style="width: 6ch;"
                                             widget="float_time"
-                                            readonly="1" />
+                                            nolabel="1"
+                                            readonly="1"
+                                            style="width: 6ch;" />
                                         <span class="ms-2">hours/day</span>
                                     </div>
                                 </group>
@@ -273,10 +273,10 @@
                                     <div class="d-flex">
                                         <field
                                             name="hours_per_week"
-                                            nolabel="1"
-                                            style="width: 6ch;"
                                             widget="float_time"
-                                            readonly="1" />
+                                            nolabel="1"
+                                            readonly="1"
+                                            style="width: 6ch;" />
                                         <span class="ms-2">hours/week</span>
                                     </div>
                                 </group>
@@ -314,8 +314,8 @@
                     optional="hide" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>

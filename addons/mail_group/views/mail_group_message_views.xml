@@ -15,41 +15,41 @@
                 <field name="is_group_moderated" column_invisible="True" />
                 <button
                     name="action_moderate_accept"
+                    type="object"
                     string="Accept"
                     title="Accept"
-                    type="object"
-                    class="btn btn-primary"
-                    invisible="moderation_status != 'pending_moderation' or not is_group_moderated" />
+                    invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
+                    class="btn btn-primary" />
                 <button
                     name="%(mail_group_message_reject_action)d"
+                    type="action"
                     string="Reject"
                     title="Remove message with explanation"
-                    type="action"
-                    class="btn btn-secondary"
+                    context="{'default_mail_group_message_id': id, 'default_action': 'reject'}"
                     invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
-                    context="{'default_mail_group_message_id': id, 'default_action': 'reject'}" />
+                    class="btn btn-secondary" />
                 <button
                     name="action_moderate_allow"
+                    type="object"
                     string="Whitelist"
                     title="Add this email address to white list of people and accept all pending messages from the same author."
-                    type="object"
-                    class="btn btn-secondary"
-                    invisible="moderation_status != 'pending_moderation' or not is_group_moderated" />
+                    invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
+                    class="btn btn-secondary" />
                 <button
                     name="%(mail_group_message_reject_action)d"
+                    type="action"
                     string="Ban"
                     title="Ban this email address and reject all pending messages from the same author and send an email to the author"
-                    type="action"
-                    class="btn btn-secondary"
+                    context="{'default_mail_group_message_id': id, 'default_action': 'ban'}"
                     invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
-                    context="{'default_mail_group_message_id': id, 'default_action': 'ban'}" />
+                    class="btn btn-secondary" />
                 <button
                     name="action_moderate_accept"
+                    type="object"
                     string="Send"
                     title="Send"
-                    type="object"
-                    class="btn btn-primary"
-                    invisible="moderation_status != 'pending_moderation' or is_group_moderated" />
+                    invisible="moderation_status != 'pending_moderation' or is_group_moderated"
+                    class="btn btn-primary" />
             </list>
         </field>
     </record>
@@ -62,53 +62,53 @@
                 <header>
                     <button
                         name="action_moderate_accept"
+                        type="object"
                         string="Accept"
                         title="Accept"
-                        type="object"
-                        class="btn btn-primary"
-                        invisible="moderation_status != 'pending_moderation' or not is_group_moderated" />
+                        invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
+                        class="btn btn-primary" />
                     <button
                         name="%(mail_group_message_reject_action)d"
+                        type="action"
                         string="Reject"
                         title="Remove message with explanation"
-                        type="action"
-                        class="btn btn-secondary"
+                        context="{'default_mail_group_message_id': id, 'default_action': 'reject'}"
                         invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
-                        context="{'default_mail_group_message_id': id, 'default_action': 'reject'}" />
+                        class="btn btn-secondary" />
                     <button
                         name="action_moderate_allow"
+                        type="object"
                         string="Whitelist"
                         title="Add this email address to white list of people and accept all pending messages from the same author."
-                        type="object"
-                        class="btn btn-secondary"
-                        invisible="not is_group_moderated" />
+                        invisible="not is_group_moderated"
+                        class="btn btn-secondary" />
                     <button
                         name="%(mail_group_message_reject_action)d"
+                        type="action"
                         string="Ban"
                         title="Ban this email address and reject all pending messages from the same author and send an email to the author"
-                        type="action"
-                        class="btn btn-secondary"
+                        context="{'default_mail_group_message_id': id, 'default_action': 'ban'}"
                         invisible="moderation_status != 'pending_moderation' or not is_group_moderated"
-                        context="{'default_mail_group_message_id': id, 'default_action': 'ban'}" />
+                        class="btn btn-secondary" />
                     <button
                         name="action_moderate_accept"
+                        type="object"
                         string="Send"
                         title="Send"
-                        type="object"
-                        class="btn btn-primary"
-                        invisible="moderation_status != 'pending_moderation' or is_group_moderated" />
+                        invisible="moderation_status != 'pending_moderation' or is_group_moderated"
+                        class="btn btn-primary" />
                 </header>
                 <sheet>
                     <widget
                         name="web_ribbon"
                         title="Rejected"
-                        bg_color="text-bg-danger"
-                        invisible="moderation_status != 'rejected'" />
+                        invisible="moderation_status != 'rejected'"
+                        bg_color="text-bg-danger" />
                     <widget
                         name="web_ribbon"
                         title="Accepted"
-                        bg_color="text-bg-success"
-                        invisible="moderation_status != 'accepted'" />
+                        invisible="moderation_status != 'accepted'"
+                        bg_color="text-bg-success" />
                     <group>
                         <field name="mail_message_id" invisible="1" />
                         <field name="moderation_status" invisible="1" />
@@ -144,8 +144,8 @@
                 <separator />
                 <group>
                     <filter
-                        string="group"
                         name="group_by_group"
+                        string="group"
                         context="{'group_by': 'mail_group_id'}" />
                 </group>
             </search>

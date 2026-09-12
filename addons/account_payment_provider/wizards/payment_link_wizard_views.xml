@@ -20,9 +20,9 @@
             <div name="no_partner_email" position="before">
                 <field
                     name="epd_info"
+                    invisible="not epd_info"
                     class="alert alert-info fw-bold w-100 mb-3"
-                    role="alert"
-                    invisible="not epd_info" />
+                    role="alert" />
             </div>
 
             <field name="amount" position="after">

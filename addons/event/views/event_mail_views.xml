@@ -14,9 +14,9 @@
                                 <field name="event_id" placeholder="All Events" />
                                 <field
                                     name="template_ref"
-                                    options="{'no_quick_create': True}"
+                                    widget="EventMailTemplateReferenceField"
                                     context="{'filter_template_on_event': True, 'default_model': 'event.registration'}"
-                                    widget="EventMailTemplateReferenceField" />
+                                    options="{'no_quick_create': True}" />
                                 <field name="mail_state" />
                             </group>
                             <group>
@@ -24,8 +24,7 @@
                                 <div class="o_row">
                                     <field
                                         name="interval_nbr"
-                                        invisible="interval_unit == 'now'"
-                                        readonly="interval_unit == 'now'" />
+                                        invisible="interval_unit == 'now'" />
                                     <field name="interval_unit" />
                                 </div>
                                 <field name="interval_type" />
@@ -33,7 +32,7 @@
                             </group>
                         </group>
                         <notebook groups="base.group_no_one">
-                            <page string="Registration Mails" name="registration_mails">
+                            <page name="registration_mails" string="Registration Mails">
                                 <field name="mail_registration_ids">
                                     <list string="Registration mail" editable="bottom">
                                         <field name="registration_id" />
@@ -55,15 +54,15 @@
                     <field name="event_id" />
                     <field
                         name="template_ref"
-                        options="{'no_quick_create': True}"
+                        widget="EventMailTemplateReferenceField"
                         context="{'filter_template_on_event': True, 'default_model': 'event.registration'}"
-                        widget="EventMailTemplateReferenceField" />
+                        options="{'no_quick_create': True}" />
                     <field name="scheduled_date" />
                     <field name="mail_count_done" />
                     <field
                         name="mail_state"
-                        widget="event_icon_selection"
                         string=" "
+                        widget="event_icon_selection"
                         nolabel="1"
                         options="{'sent': 'fa-solid fa-check', 'scheduled': 'fa-solid fa-hourglass-half', 'running': 'fa-solid fa-cogs', 'cancelled': 'fa-solid fa-times-circle'}" />
                 </list>

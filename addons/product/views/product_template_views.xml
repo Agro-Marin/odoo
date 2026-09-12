@@ -16,76 +16,76 @@
                     filter_domain="[('categ_id', 'child_of', raw_value)]" />
                 <field name="product_tag_ids" string="Tags" />
                 <separator />
-                <filter string="Goods" name="goods" domain="[('type', '=', 'consu')]" />
+                <filter name="goods" string="Goods" domain="[('type', '=', 'consu')]" />
                 <filter
-                    string="Services"
                     name="services"
+                    string="Services"
                     domain="[('type','=','service')]" />
-                <filter string="Combo" name="combo" domain="[('type', '=', 'combo')]" />
+                <filter name="combo" string="Combo" domain="[('type', '=', 'combo')]" />
                 <separator />
                 <filter
-                    string="Favorites"
                     name="favorites"
+                    string="Favorites"
                     domain="[('is_favorite', '=', True)]" />
                 <filter
-                    string="My Favorites"
                     name="my_favorites"
+                    string="My Favorites"
                     domain="[('is_user_favorite', '=', True)]" />
                 <separator />
                 <filter
-                    string="Sales"
                     name="filter_to_sell"
+                    string="Sales"
                     domain="[('sale_ok','=',True)]" />
                 <separator />
                 <field
-                    string="Attributes"
                     name="attribute_line_ids"
+                    string="Attributes"
                     groups="product.group_product_variant" />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <separator />
                 <separator />
                 <filter
-                    string="Warnings"
                     name="activities_exception"
+                    string="Warnings"
                     domain="[('activity_exception_decoration', '!=', False)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
                 <group>
                     <filter
-                        string="Product Type"
                         name="group_by_type"
+                        string="Product Type"
                         context="{'group_by':'type'}" />
                     <filter
-                        string="Product Category"
                         name="group_by_categ_id"
+                        string="Product Category"
                         context="{'group_by':'categ_id'}" />
                     <filter
-                        string="Product Properties"
                         name="group_by_product_properties"
+                        string="Product Properties"
                         context="{'group_by': 'product_properties'}" />
                 </group>
             </search>
@@ -105,8 +105,8 @@
                 <field
                     name="is_favorite"
                     widget="boolean_favorite"
-                    optional="show"
-                    nolabel="1" />
+                    nolabel="1"
+                    optional="show" />
                 <field name="name" string="Product Name" />
                 <field name="default_code" optional="show" />
                 <field name="product_tag_ids" widget="many2many_tags" optional="hide" />
@@ -116,29 +116,29 @@
                     readonly="product_variant_count != 1" />
                 <field
                     name="company_id"
+                    optional="hide"
                     options="{'no_create': True}"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    groups="base.group_multi_company" />
                 <field
                     name="list_price"
                     string="Sales Price"
                     widget="monetary"
-                    options="{'currency_field': 'currency_id'}"
                     optional="show"
+                    options="{'currency_field': 'currency_id'}"
                     decoration-muted="not sale_ok" />
                 <field
                     name="standard_price"
                     widget="monetary"
-                    options="{'currency_field': 'cost_currency_id'}"
                     optional="show"
+                    options="{'currency_field': 'cost_currency_id'}"
                     readonly="1" />
                 <field name="categ_id" optional="hide" />
                 <field name="type" optional="hide" readonly="1" />
                 <field
                     name="uom_id"
-                    readonly="1"
                     optional="show"
-                    groups="uom.group_uom" />
+                    groups="uom.group_uom"
+                    readonly="1" />
                 <field name="active" column_invisible="True" />
                 <field
                     name="activity_exception_decoration"
@@ -177,8 +177,8 @@
         <field name="arch" type="xml">
             <list string="Product Templates" editable="bottom">
                 <field name="name" readonly="1" />
-                <field name="default_code" readonly="1" optional="show" />
-                <field name="description" readonly="1" optional="show" />
+                <field name="default_code" optional="show" readonly="1" />
+                <field name="description" optional="show" readonly="1" />
             </list>
         </field>
     </record>
@@ -200,10 +200,10 @@
                             <div class="mb-1">
                                 <div class="d-flex mb-0 h5">
                                     <field
-                                        class="me-1"
                                         name="is_favorite"
                                         widget="boolean_favorite"
-                                        nolabel="1" />
+                                        nolabel="1"
+                                        class="me-1" />
                                     <field name="name" />
                                 </div>
                                 <span t-if="record.default_code.value"> [<field name="default_code" />
@@ -220,9 +220,9 @@
                             <field
                                 name="image_128"
                                 widget="image"
-                                alt="Product"
                                 options="{'img_class': 'w-100 object-fit-contain'}"
-                                invisible="not image_128" />
+                                invisible="not image_128"
+                                alt="Product" />
                         </aside>
                     </t>
                 </templates>
@@ -248,12 +248,12 @@
                         <span id="button_documents_before" invisible="1" />
                         <span id="button_documents_after" invisible="1" />
                         <button
-                            class="oe_stat_button"
-                            icon="fa-barcode"
-                            type="object"
                             name="action_open_packaging_barcodes"
+                            type="object"
+                            icon="fa-barcode"
                             groups="uom.group_uom"
-                            invisible="not uom_ids">
+                            invisible="not uom_ids"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Packaging</span>
                                 <span class="o_stat_text">Barcodes</span>
@@ -263,14 +263,14 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="id" invisible="True" />
                     <field
                         name="image_1920"
                         widget="image"
-                        class="oe_avatar"
-                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}" />
+                        options="{'convert_to_webp': True, 'preview_image': 'image_128'}"
+                        class="oe_avatar" />
                     <div class="oe_title">
                         <label for="name" string="Product" />
                         <h1>
@@ -278,14 +278,13 @@
                                 <field
                                     name="is_favorite"
                                     widget="boolean_favorite"
-                                    class="me-2"
-                                    nolabel="1" />
+                                    class="me-2" />
                                 <field
-                                    class="text-break"
                                     name="name"
-                                    options="{'line_breaks': False}"
+                                    placeholder="e.g. Cheese Burger"
                                     widget="text"
-                                    placeholder="e.g. Cheese Burger" />
+                                    options="{'line_breaks': False}"
+                                    class="text-break" />
                             </div>
                         </h1>
                     </div>
@@ -296,7 +295,7 @@
                         </span>
                     </div>
                     <notebook>
-                        <page string="General Information" name="general_information">
+                        <page name="general_information" string="General Information">
                             <group>
                                 <group name="group_general">
                                     <field name="active" invisible="1" />
@@ -306,51 +305,51 @@
                                         options="{'horizontal': True}" />
                                     <field
                                         name="combo_ids"
-                                        widget="many2many_tags"
                                         placeholder="e.g. Starter - Meal - Desert"
-                                        invisible="type != 'combo'"
-                                        options="{'no_quick_create': True, 'edit_tags': True}" />
+                                        widget="many2many_tags"
+                                        options="{'no_quick_create': True, 'edit_tags': True}"
+                                        invisible="type != 'combo'" />
                                     <field
                                         name="service_tracking"
                                         invisible="1 or type != 'service'" />
                                     <field
                                         name="product_tooltip"
-                                        class="fst-italic text-muted"
                                         string=""
-                                        invisible="not product_tooltip" />
+                                        invisible="not product_tooltip"
+                                        class="fst-italic text-muted" />
                                 </group>
                                 <group name="group_standard_price">
                                     <label for="list_price" />
                                     <div name="list_price_uom">
                                         <field
                                             name="list_price"
-                                            class="oe_inline"
                                             widget="monetary"
-                                            options="{'currency_field': 'currency_id', 'field_digits': True}" />
-                                        <span name="uom_span" groups="uom.group_uom" invisible="type == 'combo'"> per <field name="uom_id" widget="many2one_uom" class="oe_inline" style="max-width:136px" options="{'no_quick_create': True}" />
+                                            options="{'currency_field': 'currency_id', 'field_digits': True}"
+                                            class="oe_inline" />
+                                        <span name="uom_span" groups="uom.group_uom" invisible="type == 'combo'"> per <field name="uom_id" widget="many2one_uom" options="{'no_quick_create': True}" class="oe_inline" style="max-width:136px" />
                                         </span>
                                     </div>
                                     <label
                                         for="standard_price"
-                                        invisible="type == 'combo' or (not is_product_variant and (product_variant_count &gt; 1 or (product_variant_count == 0 and is_dynamically_created)))"
-                                        id="standard_price_label" />
+                                        id="standard_price_label"
+                                        invisible="type == 'combo' or (not is_product_variant and (product_variant_count &gt; 1 or (product_variant_count == 0 and is_dynamically_created)))" />
                                     <div
                                         name="standard_price_uom"
                                         invisible="type == 'combo' or (not is_product_variant and (product_variant_count &gt; 1 or (product_variant_count == 0 and is_dynamically_created)))">
                                         <field
                                             name="standard_price"
-                                            class="oe_inline"
                                             widget="monetary"
-                                            options="{'currency_field': 'cost_currency_id', 'field_digits': True}" />
-                                        <span groups="uom.group_uom"> per <field name="uom_id" widget="many2one_uom" class="oe_inline" style="max-width:136px" options="{'no_quick_create': True}" />
+                                            options="{'currency_field': 'cost_currency_id', 'field_digits': True}"
+                                            class="oe_inline" />
+                                        <span groups="uom.group_uom"> per <field name="uom_id" widget="many2one_uom" options="{'no_quick_create': True}" class="oe_inline" style="max-width:136px" />
                                         </span>
                                     </div>
                                     <field name="categ_id" string="Category" />
                                     <field
                                         name="company_id"
-                                        groups="base.group_multi_company"
+                                        placeholder="Visible to all"
                                         options="{'no_create': True}"
-                                        placeholder="Visible to all" />
+                                        groups="base.group_multi_company" />
                                     <field name="currency_id" invisible="1" />
                                     <field name="cost_currency_id" invisible="1" />
                                     <field name="product_variant_id" invisible="1" />
@@ -358,25 +357,25 @@
                             </group>
                             <group name="internal_notes" string="Internal Notes">
                                 <field
-                                    colspan="2"
                                     name="description"
-                                    nolabel="1"
-                                    placeholder="This note is only for internal purposes." />
+                                    placeholder="This note is only for internal purposes."
+                                    colspan="2"
+                                    nolabel="1" />
                             </group>
                         </page>
-                        <page string="Sales" name="sales" invisible="1 or not sale_ok">
+                        <page name="sales" string="Sales" invisible="1 or not sale_ok">
                             <group name="sale">
                                 <group
-                                    string="Upsell &amp; Cross-Sell"
                                     name="upsell"
+                                    string="Upsell &amp; Cross-Sell"
                                     invisible="1">
                                     <field
                                         name="uom_ids"
                                         widget="many2many_uom_tags"
-                                        options="{'no_quick_create': True, 'edit_tags': True}"
-                                        groups="uom.group_uom"
                                         force_save="1"
-                                        context="{'product_id': product_variant_id if product_variant_count == 1 else False, 'product_ids': product_variant_ids, 'show_variant_name': product_variant_count &gt; 1}" />
+                                        context="{'product_id': product_variant_id if product_variant_count == 1 else False, 'product_ids': product_variant_ids, 'show_variant_name': product_variant_count &gt; 1}"
+                                        options="{'no_quick_create': True, 'edit_tags': True}"
+                                        groups="uom.group_uom" />
                                 </group>
                                 <group name="extra_info" string="Extra Info">
                                     <field
@@ -387,19 +386,19 @@
                             </group>
                             <group>
                                 <group
-                                    string="Quotation Description"
-                                    name="description">
+                                    name="description"
+                                    string="Quotation Description">
                                     <field
-                                        colspan="2"
                                         name="description_sale"
-                                        nolabel="1"
-                                        placeholder="This note is added to sales orders and invoices." />
+                                        placeholder="This note is added to sales orders and invoices."
+                                        colspan="2"
+                                        nolabel="1" />
                                 </group>
                             </group>
                         </page>
                         <page
-                            string="Prices"
                             name="sales_price"
+                            string="Prices"
                             groups="product.group_product_pricelist"
                             invisible="not sale_ok">
                             <field
@@ -424,8 +423,8 @@
                                     <field name="date_end" optional="hide" />
                                     <field
                                         name="company_id"
-                                        groups="base.group_multi_company"
-                                        optional="hide" />
+                                        optional="hide"
+                                        groups="base.group_multi_company" />
 
                                     <!-- Needed for rule edition & creation on product.product form -->
                                     <field
@@ -435,18 +434,18 @@
                             </field>
                         </page>
                         <page
-                            string="Purchase"
                             name="purchase"
-                            invisible="1 or not purchase_ok or type == 'combo'"
-                            groups="uom.group_uom">
+                            string="Purchase"
+                            groups="uom.group_uom"
+                            invisible="1 or not purchase_ok or type == 'combo'">
                             <group name="purchase">
-                                <group string="Vendor Bills" name="bill">
+                                <group name="bill" string="Vendor Bills">
                                 </group>
                             </group>
                         </page>
                         <page
-                            string="Inventory"
                             name="inventory"
+                            string="Inventory"
                             groups="uom.group_uom"
                             invisible="type in ['service', 'combo']">
                             <group name="inventory">
@@ -484,13 +483,13 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Manufacturer" name="manufacturer">
+                        <page name="manufacturer" string="Manufacturer">
                             <group name="manufacturer">
                                 <group>
                                     <field
                                         name="manufacturer_id"
-                                        context="{'default_is_manufacturer': True}"
-                                        domain="[('is_manufacturer', '=', True)]" />
+                                        domain="[('is_manufacturer', '=', True)]"
+                                        context="{'default_is_manufacturer': True}" />
                                     <field name="manufacturer_pname" />
                                 </group>
                                 <group>
@@ -554,12 +553,12 @@
                     name="%(product.product_variant_action)d"
                     type="action"
                     icon="fa-sitemap"
-                    class="oe_stat_button"
+                    groups="product.group_product_variant"
                     invisible="product_variant_count &lt;= 1"
-                    groups="product.group_product_variant">
+                    class="oe_stat_button">
                     <field
-                        string="Variants"
                         name="product_variant_count"
+                        string="Variants"
                         widget="statinfo" />
                 </button>
             </span>
@@ -573,8 +572,8 @@
                     <field
                         name="attribute_line_ids"
                         widget="one2many"
-                        context="{'show_attribute': False}"
-                        force_save="1">
+                        force_save="1"
+                        context="{'show_attribute': False}">
                         <list
                             string="Variants"
                             editable="bottom"
@@ -585,14 +584,14 @@
                             <field
                                 name="value_ids"
                                 widget="many2many_tags"
-                                options="{'no_create_edit': True, 'color_field': 'color'}"
-                                context="{'default_attribute_id': attribute_id, 'show_attribute': False}" />
+                                context="{'default_attribute_id': attribute_id, 'show_attribute': False}"
+                                options="{'no_create_edit': True, 'color_field': 'color'}" />
                             <button
-                                string="Configure"
-                                class="float-end btn-secondary"
-                                type="object"
                                 name="action_view_attribute_values"
-                                groups="product.group_product_variant" />
+                                type="object"
+                                string="Configure"
+                                groups="product.group_product_variant"
+                                class="float-end btn-secondary" />
                         </list>
                     </field>
                     <p class="opacity-50 oe_edit_only">

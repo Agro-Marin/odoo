@@ -26,10 +26,10 @@
                 <footer>
                     <button
                         name="process"
-                        string="Print"
                         type="object"
+                        string="Print"
                         class="btn-primary" />
-                    <button string="Discard" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Discard" class="btn-secondary" />
                 </footer>
             </form>
         </field>

@@ -7,46 +7,46 @@
         <field name="arch" type="xml">
             <list
                 string="Applicants"
-                class="o_search_matching_applicant"
+                default_order="stage_id"
                 multi_edit="1"
                 sample="1"
-                decoration-danger="application_status == 'refused'"
-                default_order="stage_id">
+                class="o_search_matching_applicant"
+                decoration-danger="application_status == 'refused'">
                 <header>
                     <button
                         name="action_job_add_applicants"
+                        type="object"
                         string="Create Applications"
-                        invisible="context.get('default_job_id') or context.get('no_create_application_button')"
-                        type="object" />
+                        invisible="context.get('default_job_id') or context.get('no_create_application_button')" />
                     <button
                         name="action_talent_pool_add_applicants"
                         type="object"
-                        class="btn-primary"
                         string="Add Applicants "
                         display="always"
+                        groups="hr_recruitment.group_hr_recruitment_user"
                         invisible="not context.get('default_talent_pool_ids')"
-                        groups="hr_recruitment.group_hr_recruitment_user" />
+                        class="btn-primary" />
                     <button
-                        type="object"
                         name="archive_applicant"
+                        type="object"
                         string="Refuse"
                         class="btn btn-secondary" />
                 </header>
                 <field name="message_needaction" column_invisible="True" />
                 <field name="last_stage_id" column_invisible="True" />
                 <field name="date_last_stage_update" column_invisible="True" />
-                <field name="partner_name" string="Name" readonly="1" optional="show" />
+                <field name="partner_name" string="Name" optional="show" readonly="1" />
                 <field
                     name="create_date"
-                    readonly="1"
                     optional="show"
-                    options="{'show_time': False}" />
-                <field name="email_from" readonly="1" optional="hide" />
+                    options="{'show_time': False}"
+                    readonly="1" />
+                <field name="email_from" optional="hide" readonly="1" />
                 <field
                     name="phone_ids"
                     widget="many2many_tags"
-                    readonly="1"
-                    optional="hide" />
+                    optional="hide"
+                    readonly="1" />
                 <field
                     name="job_id"
                     optional="show"
@@ -55,14 +55,14 @@
                     name="stage_id"
                     widget="badge_rotting"
                     optional="show"
-                    column_invisible="context.get('default_talent_pool_ids')"
-                    options="{'no_open': True}" />
+                    options="{'no_open': True}"
+                    column_invisible="context.get('default_talent_pool_ids')" />
                 <field name="priority" widget="priority" nolabel="1" optional="show" />
                 <field
                     name="categ_ids"
                     widget="many2many_tags"
-                    options="{'color_field': 'color'}"
-                    optional="show" />
+                    optional="show"
+                    options="{'color_field': 'color'}" />
                 <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="is_rotting" column_invisible="True" />
                 <field name="rotting_days" column_invisible="True" />
@@ -79,21 +79,21 @@
                     widget="many2many_avatar_user"
                     optional="hide" />
                 <field name="medium_id" optional="hide" />
-                <field name="source_id" readonly="1" optional="hide" />
+                <field name="source_id" optional="hide" readonly="1" />
                 <field name="salary_expected" optional="hide" />
                 <field name="salary_proposed" optional="hide" />
                 <field name="availability" optional="hide" />
                 <field
                     name="department_id"
-                    readonly="1"
+                    optional="hide"
                     column_invisible="context.get('invisible_department', True)"
-                    optional="hide" />
+                    readonly="1" />
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="company_id"
+                    optional="hide"
                     groups="base.group_multi_company"
-                    readonly="1"
-                    optional="hide" />
+                    readonly="1" />
             </list>
         </field>
     </record>
@@ -104,8 +104,8 @@
         <field name="arch" type="xml">
             <list
                 string="Next Activities"
-                decoration-danger="activity_date_deadline &lt; current_date"
-                default_order="activity_date_deadline">
+                default_order="activity_date_deadline"
+                decoration-danger="activity_date_deadline &lt; current_date">
                 <field name="partner_id" />
                 <field name="activity_date_deadline" />
                 <field name="activity_type_id" />
@@ -135,23 +135,23 @@
                 <field name="rotting_days" invisible="1" />
                 <header>
                     <button
-                        string="Create Employee"
                         name="create_employee_from_applicant"
                         type="object"
-                        data-hotkey="q"
+                        string="Create Employee"
                         groups="hr.group_hr_user"
+                        invisible="employee_id or not active or not date_closed"
                         class="o_create_employee"
-                        invisible="employee_id or not active or not date_closed" />
+                        data-hotkey="q" />
                     <button
-                        string="Refuse"
                         name="archive_applicant"
                         type="object"
+                        string="Refuse"
                         invisible="not active or is_pool_applicant"
                         data-hotkey="p" />
                     <button
-                        string="Restore"
                         name="action_unarchive"
                         type="object"
+                        string="Restore"
                         invisible="active"
                         data-hotkey="x" />
                     <field
@@ -160,14 +160,14 @@
                         options="{'clickable': '1'}"
                         invisible="(not active and not employee_id) or is_pool_applicant" />
                     <button
-                        string="Create Applications"
                         name="action_job_add_applicants"
                         type="object"
+                        string="Create Applications"
                         invisible="not is_pool_applicant" />
                     <button
-                        string="Add to Pool"
                         name="action_talent_pool_add_applicants"
                         type="object"
+                        string="Add to Pool"
                         invisible="is_pool_applicant or is_applicant_in_pool" />
                 </header>
                 <sheet>
@@ -175,10 +175,10 @@
                         <button
                             name="action_view_employee"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-regular fa-id-card"
                             groups="hr.group_hr_user"
-                            invisible="not (employee_id or emp_is_active)">
+                            invisible="not (employee_id or emp_is_active)"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_value"><field name="employee_name" readonly="1" /></span>
                                 <span class="o_stat_text">Employee</span>
@@ -186,22 +186,22 @@
                         </button>
                         <button
                             name="action_view_applications"
-                            class="oe_stat_button"
-                            icon="fa-pencil"
                             type="object"
+                            icon="fa-pencil"
                             context="{'active_test': False}"
-                            invisible="not application_count or (application_count &lt;= 1 and not is_pool_applicant)">
+                            invisible="not application_count or (application_count &lt;= 1 and not is_pool_applicant)"
+                            class="oe_stat_button">
                             <field
                                 name="application_count"
-                                widget="statinfo"
-                                string="Applications" />
+                                string="Applications"
+                                widget="statinfo" />
                         </button>
                         <button
                             name="action_create_meeting"
-                            class="oe_stat_button"
-                            icon="fa-calendar"
                             type="object"
-                            invisible="not id">
+                            icon="fa-calendar"
+                            invisible="not id"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text"><field name="meeting_display_text" /></span>
                                 <span class="o_stat_value"><field name="meeting_display_date" readonly="1" /></span>
@@ -209,27 +209,27 @@
                         </button>
                         <button
                             name="action_talent_pool_stat_button"
-                            class="oe_stat_button"
-                            icon="fa-users"
                             type="object"
+                            icon="fa-users"
+                            groups="hr_recruitment.group_hr_recruitment_user"
                             invisible="not id or is_pool_applicant or not is_applicant_in_pool"
-                            groups="hr_recruitment.group_hr_recruitment_user">
+                            class="oe_stat_button">
                             <field
                                 name="talent_pool_count"
-                                widget="statinfo"
-                                string="Talent Pools" />
+                                string="Talent Pools"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Refused"
-                        bg_color="text-bg-danger"
-                        invisible="application_status != 'refused'" />
+                        invisible="application_status != 'refused'"
+                        bg_color="text-bg-danger" />
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-secondary"
-                        invisible="application_status != 'archived'" />
+                        invisible="application_status != 'archived'"
+                        bg_color="text-bg-secondary" />
                     <widget
                         name="web_ribbon"
                         title="Hired"
@@ -247,20 +247,20 @@
                     <div class="oe_title pe-0">
                         <label
                             for="partner_name"
-                            class="oe_edit_only"
                             string="Applicant"
-                            invisible="is_pool_applicant" />
+                            invisible="is_pool_applicant"
+                            class="oe_edit_only" />
                         <label
                             for="partner_name"
-                            class="oe_edit_only"
                             string="Talent"
-                            invisible="not is_pool_applicant" />
+                            invisible="not is_pool_applicant"
+                            class="oe_edit_only" />
                         <h1
                             class="d-flex justify-content-between align-items-center me-4">
                             <field
                                 name="partner_name"
-                                options="{'line_breaks': False}"
                                 context="{'default_company_id': company_id}"
+                                options="{'line_breaks': False}"
                                 required="1" />
                         </h1>
                     </div>
@@ -283,8 +283,8 @@
                             <field name="priority" widget="priority" />
                             <field
                                 name="job_id"
-                                invisible="is_pool_applicant"
-                                placeholder="Spontaneous application" />
+                                placeholder="Spontaneous application"
+                                invisible="is_pool_applicant" />
                             <field
                                 name="talent_pool_ids"
                                 widget="many2many_tags"
@@ -292,14 +292,14 @@
                                 invisible="not is_pool_applicant" />
                             <field
                                 name="user_id"
-                                widget="many2one_avatar_user"
-                                placeholder="Unassigned" />
+                                placeholder="Unassigned"
+                                widget="many2one_avatar_user" />
                             <field
                                 name="interviewer_ids"
-                                options="{'no_create': True}"
+                                placeholder="Who can access applicants"
                                 widget="many2many_avatar_user"
-                                invisible="is_pool_applicant"
-                                placeholder="Who can access applicants" />
+                                options="{'no_create': True}"
+                                invisible="is_pool_applicant" />
                             <field name="date_closed" invisible="not date_closed" />
                             <field
                                 name="categ_ids"
@@ -310,14 +310,14 @@
                     </group>
                     <field name="applicant_properties" columns="2" />
                     <notebook>
-                        <page string="Note" name="application_note">
+                        <page name="application_note" string="Note">
                             <field
                                 name="applicant_notes"
                                 type="html"
-                                options="{'collaborative': true, 'resizable': false}"
-                                placeholder="Add private notes about this applicant..." />
+                                placeholder="Add private notes about this applicant..."
+                                options="{'collaborative': true, 'resizable': false}" />
                         </page>
-                        <page string="Details" name="application_details">
+                        <page name="application_details" string="Details">
                             <group>
                                 <group string="Applicant">
                                     <field
@@ -329,15 +329,15 @@
                                     <field name="department_id" />
                                     <field
                                         name="company_id"
-                                        groups="base.group_multi_company"
+                                        placeholder="Visible to all"
                                         options="{&quot;no_open&quot;:True}"
-                                        placeholder="Visible to all" />
+                                        groups="base.group_multi_company" />
                                 </group>
                             </group>
                             <group>
                                 <group
-                                    string="Salary Package"
                                     name="recruitment_contract"
+                                    string="Salary Package"
                                     groups="hr_recruitment.group_hr_recruitment_user">
                                     <label for="salary_expected" />
                                     <div class="o_row">
@@ -423,12 +423,12 @@
         <field name="arch" type="xml">
             <search string="Search Applicants">
                 <field
-                    string="Applicant"
                     name="partner_name"
+                    string="Applicant"
                     filter_domain="['|', ('partner_name', 'ilike', self), ('email_from', 'ilike', self)]" />
                 <field
-                    string="Email"
                     name="email_from"
+                    string="Email"
                     filter_domain="[('email_from', 'ilike', self)]" />
                 <field name="job_id" />
                 <field name="department_id" operator="child_of" />
@@ -443,148 +443,148 @@
                 <field name="activity_type_id" string="Activity type" />
                 <field
                     name="attachment_ids"
-                    filter_domain="[('attachment_ids', 'any', [('index_content', 'ilike', self), ('res_model', '=', 'hr.applicant')])]"
-                    string="Resume's content" />
+                    string="Resume's content"
+                    filter_domain="[('attachment_ids', 'any', [('index_content', 'ilike', self), ('res_model', '=', 'hr.applicant')])]" />
                 <filter
-                    string="My Applications"
                     name="my_applications"
+                    string="My Applications"
                     domain="[('user_id', '=', uid)]" />
                 <filter
-                    string="Unassigned"
                     name="unassigned"
+                    string="Unassigned"
                     domain="[('user_id', '=', False)]" />
                 <separator />
                 <filter
-                    string="Applicants"
                     name="applicants"
+                    string="Applicants"
                     domain="[('talent_pool_ids', '=', False)]" />
                 <filter
-                    string="Talents"
                     name="talents"
+                    string="Talents"
                     domain="[('talent_pool_ids', '!=', False)]" />
                 <separator />
                 <filter
-                    string="In Progress"
                     name="ongoing"
+                    string="In Progress"
                     domain="[('date_closed', '=', False), ('active', '=', True), ('refuse_reason_id', '=', False)]" />
                 <filter
-                    string="Hired"
                     name="hired"
+                    string="Hired"
                     domain="[('date_closed', '!=', False)]" />
                 <separator />
                 <filter
-                    string="Ready for Next Stage"
                     name="done"
+                    string="Ready for Next Stage"
                     domain="[('kanban_state', '=', 'done')]" />
                 <filter
-                    string="Waiting"
                     name="waiting"
+                    string="Waiting"
                     domain="[('kanban_state', '=', 'waiting')]" />
                 <filter
-                    string="Blocked"
                     name="blocked"
+                    string="Blocked"
                     domain="[('kanban_state', '=', 'blocked')]" />
                 <filter
-                    string="Rotting"
                     name="filter_rotting"
+                    string="Rotting"
                     domain="[('is_rotting', '=', True)]" />
                 <separator />
                 <filter
-                    string="Directly Available"
                     name="applicant_availability"
+                    string="Directly Available"
                     domain="['|',('availability', '&lt;=', 'today'),('availability','=', False)]" />
                 <separator />
                 <filter
-                    string="Creation Date"
                     name="filter_create"
+                    string="Creation Date"
                     date="create_date" />
                 <filter
-                    string="Last Stage Update"
                     name="filter_date_last_stage_update"
+                    string="Last Stage Update"
                     date="date_last_stage_update" />
                 <separator />
                 <filter
-                    string="Unread Messages"
                     name="message_needaction"
+                    string="Unread Messages"
                     domain="[('message_needaction', '=', True)]"
                     groups="mail.group_mail_notification_type_inbox" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False), ('refuse_reason_id', '=', False)]" />
                 <filter
-                    string="Refused"
                     name="refused"
+                    string="Refused"
                     domain="[('active', '=', False), ('refuse_reason_id', '!=', False)]" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="Running Applicants"
                     name="running_applicant_activities"
-                    domain="[('stage_id.hired_stage', '=', False)]" />
+                    string="Running Applicants"
+                    domain="[('stage_id.hired_stage', '=', False)]"
+                    invisible="1" />
                 <separator />
                 <group>
-                    <filter string="Job" name="job" context="{'group_by': 'job_id'}" />
+                    <filter name="job" string="Job" context="{'group_by': 'job_id'}" />
                     <filter
-                        string="Stage"
                         name="stage"
+                        string="Stage"
                         context="{'group_by': 'stage_id'}" />
                     <filter
-                        string="Responsible"
                         name="responsible"
+                        string="Responsible"
                         context="{'group_by': 'user_id'}" />
                     <filter
-                        string="Talent Pool"
                         name="talent_pool"
+                        string="Talent Pool"
                         context="{'group_by': 'talent_pool_ids'}" />
                     <filter
-                        string="Creation Date"
                         name="creation_date"
+                        string="Creation Date"
                         context="{'group_by': 'create_date'}" />
                     <filter
-                        string="Hiring Date"
                         name="hired_date"
+                        string="Hiring Date"
                         context="{'group_by': 'date_closed'}" />
                     <filter
-                        string="Last Stage Update"
                         name="last_stage_update"
+                        string="Last Stage Update"
                         context="{'group_by': 'date_last_stage_update'}" />
                     <filter
-                        string="Refuse Reason"
                         name="refuse_reason_id"
+                        string="Refuse Reason"
                         context="{'group_by': 'refuse_reason_id'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by':'company_id'}"
                         groups="base.group_multi_company" />
                     <filter
-                        string="Properties"
                         name="group_by_applicant_properties"
+                        string="Properties"
                         context="{'group_by': 'applicant_properties'}" />
                 </group>
             </search>
@@ -599,15 +599,15 @@
             <calendar
                 string="Applicants"
                 mode="month"
-                date_start="activity_date_deadline"
                 color="user_id"
+                date_start="activity_date_deadline"
                 event_limit="5"
                 hide_time="true"
                 quick_create="0">
                 <field name="partner_name" />
                 <field name="job_id" />
                 <field name="priority" widget="priority" />
-                <field name="user_id" filters="1" invisible="1" />
+                <field name="user_id" invisible="1" filters="1" />
                 <field name="activity_summary" />
             </calendar>
         </field>
@@ -622,8 +622,8 @@
                 <group>
                     <field
                         name="partner_name"
-                        options="{'no_create_edit': True}"
-                        placeholder="e.g. John Doe" />
+                        placeholder="e.g. John Doe"
+                        options="{'no_create_edit': True}" />
                     <field name="job_id" options="{'no_open': True}" />
                     <field name="company_id" invisible="1" />
                 </group>
@@ -636,21 +636,21 @@
         <field name="model">hr.applicant</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
                 default_group_by="stage_id"
-                class="o_kanban_applicant o_search_matching_applicant"
-                quick_create_view="hr_recruitment.quick_create_applicant_form"
                 sample="1"
-                js_class="rotting_kanban">
+                class="o_kanban_applicant o_search_matching_applicant"
+                highlight_color="color"
+                js_class="rotting_kanban"
+                quick_create_view="hr_recruitment.quick_create_applicant_form">
                 <header>
                     <button
                         name="action_talent_pool_add_applicants"
                         type="object"
-                        class="btn-primary"
                         string="Add Applicants "
                         display="always"
+                        groups="hr_recruitment.group_hr_recruitment_user"
                         invisible="not context.get('default_talent_pool_ids')"
-                        groups="hr_recruitment.group_hr_recruitment_user" />
+                        class="btn-primary" />
                 </header>
                 <field
                     name="stage_id"
@@ -681,22 +681,22 @@
                         <widget
                             name="web_ribbon"
                             title="Hired"
-                            bg_color="text-bg-success"
-                            invisible="not date_closed" />
+                            invisible="not date_closed"
+                            bg_color="text-bg-success" />
                         <widget
                             name="web_ribbon"
                             title="Refused"
-                            bg_color="text-bg-danger"
-                            invisible="application_status != 'refused'" />
+                            invisible="application_status != 'refused'"
+                            bg_color="text-bg-danger" />
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-secondary"
-                            invisible="application_status != 'archived'" />
+                            invisible="application_status != 'archived'"
+                            bg_color="text-bg-secondary" />
                         <field
-                            t-if="record.partner_name.raw_value"
+                            name="partner_name"
                             class="fw-bold fs-5"
-                            name="partner_name" />
+                            t-if="record.partner_name.raw_value" />
                         <field
                             name="job_id"
                             invisible="context.get('search_default_job_id', False) or is_pool_applicant" />
@@ -708,14 +708,14 @@
                         <footer>
                             <field name="priority" widget="priority" />
                             <field
-                                class="ms-1 align-items-center"
                                 name="activity_ids"
-                                widget="kanban_activity" />
+                                widget="kanban_activity"
+                                class="ms-1 align-items-center" />
                             <field name="is_rotting" invisible="1" />
                             <field
                                 name="rotting_days"
-                                class="d-flex"
-                                widget="rotting" />
+                                widget="rotting"
+                                class="d-flex" />
                             <div class="d-flex ms-auto align-items-center">
                                 <a name="action_view_attachments" type="object">
                                     <i
@@ -726,8 +726,8 @@
                                 </a>
                                 <field
                                     name="kanban_state"
-                                    class="mx-1"
-                                    widget="hr_applicant_state_selection" />
+                                    widget="hr_applicant_state_selection"
+                                    class="mx-1" />
                                 <field name="user_id" widget="many2one_avatar_user" />
                             </div>
                         </footer>
@@ -748,9 +748,9 @@
                         <div class="flex-grow-1 ms-1">
                             <field
                                 name="partner_name"
-                                muted="1"
                                 display="full"
-                                class="o_text_block" />
+                                class="o_text_block"
+                                muted="1" />
                         </div>
                     </div>
                 </templates>
@@ -926,33 +926,33 @@
                 <field name="department_id" operator="child_of" />
                 <field name="user_id" />
                 <filter
-                    string="Creation Date"
                     name="year"
+                    string="Creation Date"
                     date="create_date"
                     default_period="year" />
                 <separator />
                 <filter
-                    string="Unassigned"
                     name="unassigned"
+                    string="Unassigned"
                     domain="[('user_id', '=', False)]" />
                 <separator />
                 <filter
-                    string="New"
                     name="new"
+                    string="New"
                     domain="[('stage_id.sequence', '=', 1)]" />
                 <separator />
                 <filter
-                    string="Ongoing"
                     name="ongoing"
+                    string="Ongoing"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Refused"
                     name="refused"
+                    string="Refused"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <group>
@@ -964,33 +964,33 @@
                 </group>
                 <group>
                     <filter
-                        string="Responsible"
                         name="User"
+                        string="Responsible"
                         context="{'group_by':'user_id'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by':'company_id'}"
                         groups="base.group_multi_company" />
-                    <filter string="Jobs" name="job" context="{'group_by':'job_id'}" />
+                    <filter name="job" string="Jobs" context="{'group_by':'job_id'}" />
                     <filter
-                        string="Department"
                         name="department"
+                        string="Department"
                         context="{'group_by':'department_id'}" />
                     <filter
-                        string="Tags"
                         name="group_by_categ_ids"
+                        string="Tags"
                         context="{'group_by':'categ_ids'}" />
                     <filter
-                        string="Stage"
                         name="stage"
+                        string="Stage"
                         context="{'group_by':'stage_id'}" />
                     <separator />
                     <filter
-                        string="Creation Date"
                         name="creation_month"
-                        context="{'group_by':'create_date:month'}"
-                        help="Creation Date" />
+                        string="Creation Date"
+                        help="Creation Date"
+                        context="{'group_by':'create_date:month'}" />
                 </group>
             </search>
         </field>

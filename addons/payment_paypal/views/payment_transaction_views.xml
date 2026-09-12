@@ -9,9 +9,9 @@
             <field name="provider_reference" position="after">
                 <field
                     name="paypal_type"
-                    readonly="1"
+                    groups="base.group_no_one"
                     invisible="provider_code != 'paypal'"
-                    groups="base.group_no_one" />
+                    readonly="1" />
             </field>
         </field>
     </record>

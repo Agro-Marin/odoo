@@ -30,16 +30,14 @@
             <group name="purchase" position="before">
                 <field
                     name="seller_ids"
-                    context="{'default_product_tmpl_id': id, 'default_price': standard_price, 'product_template_invisible_variant': True, 'list_view_ref':'purchase.view_product_supplierinfo_list2'}"
                     nolabel="1"
-                    invisible="product_variant_count &gt; 1"
-                    readonly="product_variant_count &gt; 1" />
+                    context="{'default_product_tmpl_id': id, 'default_price': standard_price, 'product_template_invisible_variant': True, 'list_view_ref':'purchase.view_product_supplierinfo_list2'}"
+                    invisible="product_variant_count &gt; 1" />
                 <field
                     name="variant_seller_ids"
-                    context="{'model': 'product.template', 'active_id': id, 'list_view_ref':'purchase.view_product_supplierinfo_list2'}"
                     nolabel="1"
-                    invisible="product_variant_count &lt;= 1"
-                    readonly="product_variant_count &lt;= 1" />
+                    context="{'model': 'product.template', 'active_id': id, 'list_view_ref':'purchase.view_product_supplierinfo_list2'}"
+                    invisible="product_variant_count &lt;= 1" />
             </group>
             <group name="bill" position="attributes">
                 <attribute name="groups">purchase.group_purchase_manager</attribute>
@@ -52,9 +50,9 @@
                     <group string="Purchase Description">
                         <field
                             name="description_purchase"
-                            nolabel="1"
+                            placeholder="This note is added to purchase orders."
                             colspan="2"
-                            placeholder="This note is added to purchase orders." />
+                            nolabel="1" />
                     </group>
                     <group
                         string="Warning on Purchase Orders"
@@ -62,8 +60,8 @@
                         <field
                             name="purchase_line_warn_msg"
                             placeholder="e.g. There is a newer version of this product."
-                            nolabel="1"
-                            colspan="2" />
+                            colspan="2"
+                            nolabel="1" />
                     </group>
                 </group>
             </group>
@@ -77,13 +75,13 @@
         <field name="arch" type="xml">
             <span id="button_documents_after" position="after">
                 <button
-                    class="oe_stat_button"
                     name="action_view_po"
-                    groups="purchase.group_purchase_user"
                     type="object"
+                    help="Purchased in the last 365 days"
                     icon="fa-credit-card"
+                    groups="purchase.group_purchase_user"
                     invisible="not purchase_ok"
-                    help="Purchased in the last 365 days">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value d-flex gap-1">
                             <field
@@ -93,8 +91,8 @@
                                 class="oe_inline" />
                             <field
                                 name="uom_name"
-                                class="oe_inline"
-                                groups="uom.group_uom" />
+                                groups="uom.group_uom"
+                                class="oe_inline" />
                         </span>
                         <span class="o_stat_text">Purchased</span>
                     </div>

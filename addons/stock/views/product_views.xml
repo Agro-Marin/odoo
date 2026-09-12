@@ -11,12 +11,12 @@
                 <separator />
                 <field
                     name="location_id"
-                    context="{'search_location': self}"
-                    filter_domain="[]" />
+                    filter_domain="[]"
+                    context="{'search_location': self}" />
                 <field
                     name="warehouse_id"
-                    context="{'search_warehouse': self}"
-                    filter_domain="[]" />
+                    filter_domain="[]"
+                    context="{'search_warehouse': self}" />
             </field>
         </field>
     </record>
@@ -39,25 +39,25 @@
             <field name="uom_id" position="before">
                 <field
                     name="show_on_hand_qty_status_button"
-                    column_invisible="True"
-                    groups="stock.group_stock_user" />
+                    groups="stock.group_stock_user"
+                    column_invisible="True" />
                 <field
                     name="qty_available"
-                    invisible="not show_on_hand_qty_status_button"
                     string="On Hand"
                     optional="show"
-                    decoration-danger="qty_available &lt; 0"
+                    sum="Total On Hand"
                     groups="stock.group_stock_user"
-                    sum="Total On Hand" />
+                    invisible="not show_on_hand_qty_status_button"
+                    decoration-danger="qty_available &lt; 0" />
                 <field
                     name="qty_available_virtual"
-                    invisible="not show_on_hand_qty_status_button"
                     string="Forecasted"
                     optional="show"
-                    decoration-danger="qty_available_virtual &lt; 0"
-                    decoration-bf="1"
+                    sum="Total Forecasted"
                     groups="stock.group_stock_user"
-                    sum="Total Forecasted" />
+                    invisible="not show_on_hand_qty_status_button"
+                    decoration-bf="1"
+                    decoration-danger="qty_available_virtual &lt; 0" />
             </field>
             <field name="default_code" position="after">
                 <field
@@ -91,21 +91,21 @@
             <field name="product_tooltip" position="after">
                 <label
                     for="is_storable"
-                    class="oe_inline"
-                    invisible="type != 'consu'" />
+                    invisible="type != 'consu'"
+                    class="oe_inline" />
                 <div class="o_row w-100" invisible="type != 'consu'">
                     <field name="is_storable" />
                     <field
                         name="tracking"
-                        invisible="not is_storable"
-                        groups="stock.group_production_lot" />
+                        groups="stock.group_production_lot"
+                        invisible="not is_storable" />
                 </div>
                 <field name="show_qty_update_button" invisible="1" />
                 <label
                     for="qty_available"
-                    class="oe_inline"
+                    groups="stock.group_stock_user"
                     invisible="not is_storable or not product_variant_id"
-                    groups="stock.group_stock_user" />
+                    class="oe_inline" />
                 <div
                     class="o_row"
                     invisible="not is_storable or not product_variant_id"
@@ -119,13 +119,13 @@
                     </a>
                     <field
                         name="qty_available"
-                        invisible="show_qty_update_button"
                         groups="stock.group_stock_manager"
+                        invisible="show_qty_update_button"
                         style="max-width: fit-content;" />
                     <field
                         name="qty_available"
-                        readonly="True"
                         groups="!stock.group_stock_manager"
+                        readonly="True"
                         style="max-width: fit-content;" />
                     <span name="uom_span" groups="uom.group_uom">
                         <field name="uom_name" class="oe_inline" />
@@ -144,23 +144,23 @@
             <xpath expr="//group[@name='group_lots_and_weight']" position="before">
                 <field name="has_available_route_ids" invisible="1" />
                 <group
-                    string="Operations"
                     name="operations"
+                    string="Operations"
                     invisible="not (has_available_route_ids or route_from_categ_ids)">
                     <label for="route_ids" invisible="not has_available_route_ids" />
                     <div invisible="not has_available_route_ids">
                         <field
                             name="route_ids"
-                            class="mb-0"
-                            widget="many2many_checkboxes" />
+                            widget="many2many_checkboxes"
+                            class="mb-0" />
                         <button
-                            id="stock.view_diagram_button"
-                            string="View Diagram"
-                            type="action"
                             name="%(action_open_routes)d"
+                            id="stock.view_diagram_button"
+                            type="action"
+                            string="View Diagram"
                             icon="oi-arrow-right"
-                            class="btn btn-link pt-0"
-                            context="{'default_product_tmpl_id': id}" />
+                            context="{'default_product_tmpl_id': id}"
+                            class="btn btn-link pt-0" />
                     </div>
                     <field
                         name="route_from_categ_ids"
@@ -170,8 +170,8 @@
             </xpath>
             <xpath expr="//group[@name='group_lots_and_weight']" position="after">
                 <group
-                    string="Traceability"
                     name="traceability"
+                    string="Traceability"
                     groups="stock.group_production_lot"
                     invisible="tracking == 'none'">
                     <label
@@ -187,8 +187,8 @@
                         placeholder="Leave empty to name lots from the sequence" />
                 </group>
                 <group
-                    string="Counterpart Locations"
                     name="stock_property"
+                    string="Counterpart Locations"
                     groups="base.group_no_one">
                     <field name="property_stock_production" />
                     <field name="property_stock_inventory" />
@@ -199,25 +199,25 @@
                     <group string="Description for Receipts">
                         <field
                             name="description_pickingin"
-                            nolabel="1"
+                            placeholder="This note is added to receipt orders (e.g. where to store the product in the warehouse)."
                             colspan="2"
-                            placeholder="This note is added to receipt orders (e.g. where to store the product in the warehouse)." />
+                            nolabel="1" />
                     </group>
                     <group string="Description for Delivery Orders">
                         <field
                             name="description_pickingout"
-                            nolabel="1"
+                            placeholder="This note is added to delivery orders."
                             colspan="2"
-                            placeholder="This note is added to delivery orders." />
+                            nolabel="1" />
                     </group>
                     <group
                         string="Description for Internal Transfers"
                         groups="stock.group_stock_multi_locations">
                         <field
                             name="description_picking"
-                            nolabel="1"
+                            placeholder="This note is added to internal transfer orders (e.g. where to pick the product in the warehouse)."
                             colspan="2"
-                            placeholder="This note is added to internal transfer orders (e.g. where to pick the product in the warehouse)." />
+                            nolabel="1" />
                     </group>
                 </group>
             </page>
@@ -258,10 +258,10 @@
                     <button
                         name="action_product_tmpl_forecast_report"
                         type="object"
-                        class="oe_stat_button"
                         icon="fa-area-chart"
                         context="{'default_product_tmpl_id': id}"
-                        invisible="not show_forecasted_qty_status_button">
+                        invisible="not show_forecasted_qty_status_button"
+                        class="oe_stat_button">
                         <div class="d-flex flex-row gap-1 ms-1">
                             <div
                                 class="o_field_widget o_stat_info flex-column align-items-end gap-1">
@@ -308,11 +308,11 @@
             <span id="button_documents_after" position="after">
                 <t groups="stock.group_stock_user">
                     <button
-                        type="object"
                         name="action_view_orderpoints"
+                        type="object"
+                        icon="fa-refresh"
                         invisible="not is_storable or count_reordering_rules != 1"
-                        class="oe_stat_button"
-                        icon="fa-refresh">
+                        class="oe_stat_button">
                         <div class="d-flex flex-column">
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
@@ -331,20 +331,20 @@
                         </div>
                     </button>
                     <button
-                        type="object"
                         name="action_view_orderpoints"
+                        type="object"
+                        icon="fa-refresh"
                         invisible="not is_storable or count_reordering_rules == 1"
-                        class="oe_stat_button"
-                        icon="fa-refresh">
+                        class="oe_stat_button">
                         <field name="count_reordering_rules" widget="statinfo" />
                     </button>
                     <button
-                        type="object"
                         name="action_view_stock_move_lines"
-                        invisible="type != 'consu'"
-                        class="oe_stat_button"
+                        type="object"
                         icon="fa-exchange"
-                        groups="stock.group_stock_user">
+                        groups="stock.group_stock_user"
+                        invisible="type != 'consu'"
+                        class="oe_stat_button">
                         <div class="d-flex flex-column">
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
@@ -363,12 +363,12 @@
                         </div>
                     </button>
                     <button
-                        type="object"
                         name="action_view_product_lot"
-                        invisible="tracking == 'none'"
-                        class="oe_stat_button"
+                        type="object"
                         icon="fa-bars"
-                        groups="stock.group_production_lot">
+                        groups="stock.group_production_lot"
+                        invisible="tracking == 'none'"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_value">
                                 <field name="count_lot_ids" />
@@ -377,24 +377,24 @@
                         </div>
                     </button>
                     <button
-                        type="object"
                         name="action_view_related_putaway_rules"
-                        class="oe_stat_button"
+                        type="object"
                         icon="fa-random"
+                        context="{                                 'invisible_handle': True,                                 'single_product': product_variant_count == 1,                             }"
                         groups="stock.group_stock_multi_locations"
                         invisible="type == 'service'"
-                        context="{                                 'invisible_handle': True,                                 'single_product': product_variant_count == 1,                             }">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Putaway Rules</span>
                         </div>
                     </button>
                     <button
-                        type="object"
                         name="action_view_storage_category_capacity"
+                        type="object"
+                        icon="fa-cubes"
                         groups="stock.group_stock_multi_locations"
                         invisible="type == 'service'"
-                        class="oe_stat_button"
-                        icon="fa-cubes">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Storage Capacities</span>
                         </div>
@@ -404,8 +404,8 @@
             <xpath expr="//label[@for='weight']" position="before">
                 <field
                     name="responsible_id"
-                    domain="[('share', '=', False)]"
                     widget="many2one_avatar_user"
+                    domain="[('share', '=', False)]"
                     groups="stock.group_stock_user" />
             </xpath>
         </field>
@@ -488,8 +488,8 @@
                 <searchpanel>
                     <field
                         name="categ_id"
-                        icon="fa-filter"
                         string="Category"
+                        icon="fa-filter"
                         enable_counters="1" />
                 </searchpanel>
             </filter>
@@ -504,13 +504,13 @@
             <filter name="activities_overdue" position="after">
                 <field
                     name="location_id"
-                    options="{'no_create': True}"
+                    filter_domain="[]"
                     context="{'search_location': self}"
-                    filter_domain="[]" />
+                    options="{'no_create': True}" />
                 <field
                     name="warehouse_id"
-                    context="{'search_warehouse': self}"
-                    filter_domain="[]" />
+                    filter_domain="[]"
+                    context="{'search_warehouse': self}" />
             </filter>
         </field>
     </record>
@@ -523,23 +523,23 @@
             <field name="type" position="after">
                 <field
                     name="qty_available"
-                    invisible="not is_storable"
                     string="On Hand"
                     optional="show"
-                    decoration-danger="qty_available_virtual &lt; 0"
-                    decoration-warning="qty_available_virtual == 0"
-                    decoration-bf="1"
+                    sum="Total On Hand"
                     groups="stock.group_stock_user"
-                    sum="Total On Hand" />
+                    invisible="not is_storable"
+                    decoration-bf="1"
+                    decoration-danger="qty_available_virtual &lt; 0"
+                    decoration-warning="qty_available_virtual == 0" />
                 <field
                     name="qty_available_virtual"
-                    invisible="not is_storable"
                     string="Forecasted"
                     optional="show"
-                    decoration-danger="qty_available_virtual &lt; 0"
-                    decoration-warning="qty_available_virtual == 0"
+                    sum="Total Forecasted"
                     groups="stock.group_stock_user"
-                    sum="Total Forecasted" />
+                    invisible="not is_storable"
+                    decoration-danger="qty_available_virtual &lt; 0"
+                    decoration-warning="qty_available_virtual == 0" />
             </field>
         </field>
     </record>
@@ -591,18 +591,18 @@
         <field name="priority" eval="100" />
         <field name="arch" type="xml">
             <list
-                sample="1"
-                js_class="stock_report_list_view"
+                default_order="is_favorite desc, default_code, name, id"
                 duplicate="0"
-                default_order="is_favorite desc, default_code, name, id">
+                sample="1"
+                js_class="stock_report_list_view">
                 <header>
                     <button
                         name="%(action_inventory_at_date)d"
-                        invisible="((context.get('inventory_mode') and not context.get('inventory_report_mode')) or context.get('no_at_date'))"
-                        string="Inventory at Date"
                         type="action"
-                        class="btn-primary ms-1"
-                        display="always" />
+                        string="Inventory at Date"
+                        display="always"
+                        invisible="((context.get('inventory_mode') and not context.get('inventory_report_mode')) or context.get('no_at_date'))"
+                        class="btn-primary ms-1" />
                 </header>
                 <field name="id" column_invisible="True" />
                 <field name="display_name" string="Product" />
@@ -610,10 +610,10 @@
                 <field
                     name="qty_available"
                     string="On Hand"
-                    sum="Total On Hand"
                     widget="stock_action_field"
-                    options="{ 'action_name': 'stock.action_view_inventory_tree' }"
-                    context="{ 'search_default_product_id': id, 'default_product_id': id }" />
+                    sum="Total On Hand"
+                    context="{ 'search_default_product_id': id, 'default_product_id': id }"
+                    options="{ 'action_name': 'stock.action_view_inventory_tree' }" />
                 <field name="qty_free" string="Free to Use" sum="Total Free to Use" />
                 <field name="qty_incoming" optional="show" sum="Total Incoming" />
                 <field name="qty_outgoing" optional="show" sum="Total Outgoing" />
@@ -625,39 +625,39 @@
                 <field
                     name="uom_id"
                     widget="many2one_uom"
-                    groups="uom.group_uom"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="uom.group_uom" />
                 <button
                     name="%(stock_move_line_action)d"
-                    string="History"
                     type="action"
-                    class="btn-link"
+                    string="History"
                     icon="fa-history"
-                    context="{'search_default_product_id': id, 'default_product_id': id}" />
+                    context="{'search_default_product_id': id, 'default_product_id': id}"
+                    class="btn-link" />
                 <button
                     name="action_view_orderpoints"
-                    string="Replenishment"
                     type="object"
-                    class="btn-link"
+                    string="Replenishment"
                     icon="fa-refresh"
-                    context="{'search_default_product_id': id, 'is_stock_report': True}" />
+                    context="{'search_default_product_id': id, 'is_stock_report': True}"
+                    class="btn-link" />
                 <button
                     name="%(action_view_quants)d"
-                    string="Locations"
                     type="action"
-                    class="btn-link"
-                    groups="stock.group_stock_multi_locations"
+                    string="Locations"
                     icon="fa-cubes"
                     context="{'search_default_product_id': id, 'default_product_id': id}"
-                    invisible="qty_available == 0" />
+                    groups="stock.group_stock_multi_locations"
+                    invisible="qty_available == 0"
+                    class="btn-link" />
                 <button
                     name="action_product_forecast_report"
-                    string="Forecast"
                     type="object"
-                    class="btn-link"
+                    string="Forecast"
                     icon="fa-area-chart"
                     context="{'default_product_id': id}"
-                    invisible="qty_incoming == 0 and qty_outgoing == 0" />
+                    invisible="qty_incoming == 0 and qty_outgoing == 0"
+                    class="btn-link" />
             </list>
         </field>
     </record>
@@ -673,12 +673,12 @@
                     <field name="show_on_hand_qty_status_button" invisible="1" />
                     <field name="show_forecasted_qty_status_button" invisible="1" />
                     <button
-                        type="object"
                         name="action_product_forecast_report"
-                        invisible="not show_forecasted_qty_status_button"
+                        type="object"
+                        icon="fa-area-chart"
                         context="{'default_product_id': id, 'active_model': 'product.template'}"
-                        class="oe_stat_button"
-                        icon="fa-area-chart">
+                        invisible="not show_forecasted_qty_status_button"
+                        class="oe_stat_button">
                         <div class="d-flex flex-row gap-1 ms-1">
                             <div
                                 class="o_field_widget o_stat_info flex-column align-items-end gap-1">
@@ -723,10 +723,10 @@
                     <button
                         name="action_view_stock_move_lines"
                         type="object"
-                        class="oe_stat_button"
                         icon="fa-exchange"
+                        groups="stock.group_stock_user"
                         invisible="type != 'consu'"
-                        groups="stock.group_stock_user">
+                        class="oe_stat_button">
                         <div class="d-flex flex-column">
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
@@ -747,9 +747,9 @@
                     <button
                         name="action_view_orderpoints"
                         type="object"
+                        icon="fa-refresh"
                         invisible="type != 'consu' or count_reordering_rules != 1"
-                        class="oe_stat_button"
-                        icon="fa-refresh">
+                        class="oe_stat_button">
                         <div class="d-flex flex-column">
                             <div
                                 class="o_field_widget o_stat_info align-items-baseline flex-row gap-1 me-1">
@@ -768,20 +768,20 @@
                         </div>
                     </button>
                     <button
-                        type="object"
                         name="action_view_orderpoints"
+                        type="object"
+                        icon="fa-refresh"
                         invisible="not is_storable or count_reordering_rules == 1"
-                        class="oe_stat_button"
-                        icon="fa-refresh">
+                        class="oe_stat_button">
                         <field name="count_reordering_rules" widget="statinfo" />
                     </button>
                     <button
-                        type="object"
                         name="action_view_product_lot"
-                        invisible="tracking == 'none'"
-                        class="oe_stat_button"
+                        type="object"
                         icon="fa-bars"
-                        groups="stock.group_production_lot">
+                        groups="stock.group_production_lot"
+                        invisible="tracking == 'none'"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_value">
                                 <field name="count_lot_ids" />
@@ -790,25 +790,25 @@
                         </div>
                     </button>
                     <button
-                        type="object"
                         name="action_view_related_putaway_rules"
-                        class="oe_stat_button"
+                        type="object"
                         icon="fa-random"
+                        context="{                             'invisible_handle': True,                             'single_product': product_variant_count == 1,                             }"
                         groups="stock.group_stock_multi_locations"
                         invisible="type == 'service'"
-                        context="{                             'invisible_handle': True,                             'single_product': product_variant_count == 1,                             }">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Putaway Rules</span>
                         </div>
                     </button>
                     <button
                         name="action_view_storage_category_capacity"
-                        string="Storage Capacities"
                         type="object"
-                        class="oe_stat_button"
+                        string="Storage Capacities"
+                        icon="fa-cubes"
                         groups="stock.group_stock_multi_locations"
                         invisible="type == 'service'"
-                        icon="fa-cubes" />
+                        class="oe_stat_button" />
                 </t>
             </div>
             <xpath

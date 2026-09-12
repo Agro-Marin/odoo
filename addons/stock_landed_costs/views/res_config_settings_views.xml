@@ -12,8 +12,8 @@
                     <div class="mt16">
                         <label
                             for="lc_journal_id"
-                            class="mr8"
-                            string="Default Journal" />
+                            string="Default Journal"
+                            class="mr8" />
                         <field name="lc_journal_id" />
                     </div>
                 </div>

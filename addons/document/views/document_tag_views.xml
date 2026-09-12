@@ -14,15 +14,15 @@
                         </h1>
                     </div>
                     <group>
-                        <field name="color" required="True" widget="color_picker" />
+                        <field name="color" widget="color_picker" required="True" />
                     </group>
-                    <group string="Tooltip" name="tooltip" invisible="1">
+                    <group name="tooltip" string="Tooltip" invisible="1">
                         <field name="tooltip" />
                     </group>
                 </sheet>
                 <footer>
-                    <button class="btn btn-primary" special="save" data-hotkey="q">Save</button>
-                    <button class="btn btn-secondary" special="cancel" data-hotkey="x">Discard</button>
+                    <button special="save" class="btn btn-primary" data-hotkey="q">Save</button>
+                    <button special="cancel" class="btn btn-secondary" data-hotkey="x">Discard</button>
                 </footer>
             </form>
         </field>
@@ -34,7 +34,7 @@
         <field name="arch" type="xml">
             <list default_order="sequence">
                 <field name="name" />
-                <field name="color" required="True" widget="color_picker" />
+                <field name="color" widget="color_picker" required="True" />
                 <field name="tooltip" invisible="1" />
             </list>
         </field>

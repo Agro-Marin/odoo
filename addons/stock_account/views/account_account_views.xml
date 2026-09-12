@@ -12,8 +12,8 @@
                     invisible="account_type != 'asset_current'" />
                 <field
                     name="account_stock_expense_id"
-                    invisible="account_type != 'asset_current'"
-                    placeholder="For Perpetual Continental Only" />
+                    placeholder="For Perpetual Continental Only"
+                    invisible="account_type != 'asset_current'" />
             </field>
         </field>
     </record>

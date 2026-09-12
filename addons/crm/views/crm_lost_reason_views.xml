@@ -8,12 +8,12 @@
             <search string="Search Opportunities">
                 <field name="name" />
                 <filter
-                    string="Active"
                     name="filter_active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -29,8 +29,8 @@
                         <button
                             name="action_lost_leads"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-star">
+                            icon="fa-star"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <field name="leads_count" class="o_stat_value" />
                                 <span class="o_stat_text"> Leads</span>
@@ -40,8 +40,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <div>
                             <label for="name" />

@@ -19,10 +19,10 @@
                         <h2 colspan="2">There are no more contacts to merge for this request</h2>
                         <button
                             name="%(action_partner_deduplicate)d"
-                            string="Deduplicate the other Contacts"
-                            class="oe_highlight"
                             type="action"
-                            colspan="2" />
+                            string="Deduplicate the other Contacts"
+                            colspan="2"
+                            class="oe_highlight" />
                     </group>
                     <p class="opacity-50" invisible="state != 'option'">
                         Select the list of fields used to search for
@@ -64,7 +64,7 @@
                     <separator
                         string="Merge the following contacts"
                         invisible="state in ('option', 'finished')" />
-                    <group invisible="state in ('option', 'finished')" col="1">
+                    <group col="1" invisible="state in ('option', 'finished')">
                         <p class="opacity-50">
                             Selected contacts will be merged together.
                             All documents linked to one of these contacts
@@ -75,8 +75,8 @@
                             <field
                                 name="dst_partner_id"
                                 domain="[('id', 'in', partner_ids or False)]"
-                                required="state == 'selection'"
-                                context="{'partner_show_db_id': True}" />
+                                context="{'partner_show_db_id': True}"
+                                required="state == 'selection'" />
                         </group>
                         <field name="partner_ids" nolabel="1">
                             <list string="Partners">
@@ -93,52 +93,50 @@
                 <footer>
                     <button
                         name="action_merge"
-                        string="Merge Contacts"
-                        class="oe_highlight"
                         type="object"
-                        data-hotkey="q"
-                        invisible="state in ('option', 'finished')" />
+                        string="Merge Contacts"
+                        invisible="state in ('option', 'finished')"
+                        class="oe_highlight"
+                        data-hotkey="q" />
                     <button
                         name="action_skip"
-                        string="Skip these contacts"
                         type="object"
+                        string="Skip these contacts"
                         invisible="state != 'selection'" />
                     <button
                         name="action_start_manual_process"
-                        string="Merge with Manual Check"
-                        data-hotkey="w"
                         type="object"
+                        string="Merge with Manual Check"
+                        invisible="state != 'option'"
                         class="oe_highlight"
-                        invisible="state != 'option'" />
+                        data-hotkey="w" />
                     <button
                         name="action_start_automatic_process"
-                        string="Merge Automatically"
-                        data-hotkey="l"
                         type="object"
-                        class="oe_highlight"
+                        string="Merge Automatically"
                         confirm="Are you sure to execute the automatic merge of your contacts?"
-                        invisible="state != 'option'" />
+                        invisible="state != 'option'"
+                        class="oe_highlight"
+                        data-hotkey="l" />
                     <button
                         name="action_update_all_process"
+                        type="object"
                         string="Merge Automatically all process"
-                        type="object"
-                        data-hotkey="y"
                         confirm="Are you sure to execute the list of automatic merges of your contacts?"
-                        invisible="state != 'option'" />
+                        invisible="state != 'option'"
+                        data-hotkey="y" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        type="object"
+                        invisible="state == 'finished'"
                         class="btn btn-secondary oe_inline"
-                        invisible="state == 'finished'" />
+                        data-hotkey="x" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Close"
-                        type="object"
+                        invisible="state != 'finished'"
                         class="btn btn-secondary oe_inline"
-                        invisible="state != 'finished'" />
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

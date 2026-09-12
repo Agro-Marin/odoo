@@ -20,10 +20,10 @@
                 <button
                     name="action_view_refunds"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-money"
-                    invisible="refunds_count == 0">
-                    <field name="refunds_count" widget="statinfo" string="Refunds" />
+                    invisible="refunds_count == 0"
+                    class="oe_stat_button">
+                    <field name="refunds_count" string="Refunds" widget="statinfo" />
                 </button>
             </xpath>
             <xpath expr="//group[@name='group2']" position="inside">

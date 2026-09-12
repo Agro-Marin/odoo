@@ -11,20 +11,20 @@
                         <field name="attachment_id" invisible="1" />
                         <button
                             name="action_download"
-                            string="Download"
-                            class="btn-primary"
                             type="object"
+                            string="Download"
                             groups="account.group_account_invoice"
-                            data-hotkey="q"
-                            invisible="not invoice_ids" />
+                            invisible="not invoice_ids"
+                            class="btn-primary"
+                            data-hotkey="q" />
                         <button
                             name="action_regenerate"
-                            string="Regenerate File"
-                            class="btn-secondary"
                             type="object"
+                            string="Regenerate File"
                             groups="account.group_account_invoice"
-                            data-hotkey="q"
-                            invisible="not invoice_ids or not attachment_id" />
+                            invisible="not invoice_ids or not attachment_id"
+                            class="btn-secondary"
+                            data-hotkey="q" />
                     </header>
                     <sheet>
                         <div class="oe_title">
@@ -38,32 +38,32 @@
                             </group>
                         </group>
                         <notebook>
-                            <page id="invoice_tab" name="invoice_tab" string="Invoices">
+                            <page name="invoice_tab" id="invoice_tab" string="Invoices">
                                 <field
                                     name="invoice_ids"
-                                    force_save="1"
-                                    widget="many2many">
+                                    widget="many2many"
+                                    force_save="1">
                                     <list create="False" edit="False">
                                         <field name="name" />
                                         <field
                                             name="invoice_date"
-                                            optional="show"
-                                            string="Accounting Date" />
+                                            string="Accounting Date"
+                                            optional="show" />
                                         <field
                                             name="amount_untaxed_in_currency_signed"
                                             string="Tax Excluded"
-                                            sum="Total"
-                                            optional="show" />
+                                            optional="show"
+                                            sum="Total" />
                                         <field
                                             name="amount_tax_signed"
                                             string="Tax"
-                                            sum="Total"
-                                            optional="hide" />
+                                            optional="hide"
+                                            sum="Total" />
                                         <field
                                             name="amount_total_in_currency_signed"
                                             string="Total"
-                                            sum="Total"
-                                            optional="show" />
+                                            optional="show"
+                                            sum="Total" />
                                         <field name="currency_id" optional="hide" />
                                         <field
                                             name="display_state"
@@ -87,8 +87,8 @@
                     <field name="name" />
                     <field
                         name="invoice_ids"
-                        options="{'no_quick_create': True}"
-                        widget="many2many_tags" />
+                        widget="many2many_tags"
+                        options="{'no_quick_create': True}" />
                 </list>
             </field>
         </record>
@@ -98,12 +98,12 @@
             <field name="arch" type="xml">
                 <search string="Search Document">
                     <filter
-                        string="Active"
                         name="active"
+                        string="Active"
                         domain="[('active', '=', True)]" />
                     <filter
-                        string="Inactive"
                         name="inactive"
+                        string="Inactive"
                         domain="[('active', '=', False)]" />
                 </search>
             </field>

@@ -5,7 +5,7 @@
         <field name="name">hr.leave.attendance.report.list</field>
         <field name="model">hr.leave.attendance.report</field>
         <field name="arch" type="xml">
-            <list sample="1" default_order="date desc">
+            <list default_order="date desc" sample="1">
                 <field name="employee_id" />
                 <field name="date" />
                 <field name="schedule_id" optional="hide" />
@@ -19,9 +19,9 @@
                 <field
                     name="difference_hours"
                     widget="float_time"
+                    decoration-bf="True"
                     decoration-danger="difference_hours &lt; 0"
-                    decoration-success="difference_hours &gt;= 0"
-                    decoration-bf="True" />
+                    decoration-success="difference_hours &gt;= 0" />
             </list>
         </field>
     </record>
@@ -32,7 +32,7 @@
         <field name="arch" type="xml">
             <pivot sample="1">
                 <field name="employee_id" type="row" />
-                <field name="date" interval="month" type="col" />
+                <field name="date" type="col" interval="month" />
                 <field name="expected_hours" type="measure" widget="float_time" />
                 <field name="worked_hours" type="measure" widget="float_time" />
                 <field name="leave_hours" type="measure" widget="float_time" />
@@ -60,9 +60,9 @@
                             <field
                                 name="difference_hours"
                                 widget="float_time"
+                                decoration-bf="True"
                                 decoration-danger="difference_hours &lt; 0"
-                                decoration-success="difference_hours &gt;= 0"
-                                decoration-bf="True" />
+                                decoration-success="difference_hours &gt;= 0" />
                         </group>
                     </group>
                     <notebook>
@@ -115,36 +115,36 @@
                 <separator />
                 <filter name="date" string="Date" date="date" />
                 <filter
-                    string="Last 2 Months"
                     name="last_two_months"
-                    invisible="1"
-                    domain="[('date', '&gt;', '-2m =1d')]" />
+                    string="Last 2 Months"
+                    domain="[('date', '&gt;', '-2m =1d')]"
+                    invisible="1" />
                 <separator />
                 <filter
-                    string="Archived Employees"
                     name="archived_employees"
+                    string="Archived Employees"
                     domain="[('active', '=', False)]" />
                 <group name="groupby">
                     <filter
-                        string="Date"
                         name="group_by_date"
+                        string="Date"
                         context="{'group_by': 'date'}" />
                     <filter
-                        string="Employees"
                         name="group_by_employees"
+                        string="Employees"
                         context="{'group_by': 'employee_id'}" />
                     <separator />
                     <filter
-                        string="Department"
                         name="group_by_departments"
+                        string="Department"
                         context="{'group_by': 'department_id'}" />
                     <filter
-                        string="Job Position"
                         name="group_by_jobs"
+                        string="Job Position"
                         context="{'group_by': 'job_id'}" />
                     <filter
-                        string="Working Schedule"
                         name="group_by_schedule"
+                        string="Working Schedule"
                         context="{'group_by': 'schedule_id'}" />
                 </group>
             </search>

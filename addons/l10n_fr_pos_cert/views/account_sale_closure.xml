@@ -21,7 +21,7 @@
         <field name="name">Sales Closings</field>
         <field name="model">account.sale.closing</field>
         <field name="arch" type="xml">
-            <form create="false" edit="false" string="Account Closing">
+            <form string="Account Closing" create="false" edit="false">
                 <sheet>
                     <div class="oe_title">
                         <h1>

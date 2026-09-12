@@ -24,24 +24,24 @@
             <form string="Challenge">
                 <header>
                     <button
-                        string="Start Challenge"
-                        type="object"
                         name="action_start"
-                        invisible="state != 'draft'"
+                        type="object"
+                        string="Start Challenge"
                         groups="gamification.group_gamification_manager"
+                        invisible="state != 'draft'"
                         class="oe_highlight" />
                     <button
-                        string="Refresh Challenge"
-                        type="object"
                         name="action_check"
-                        invisible="state != 'inprogress'"
-                        groups="gamification.group_gamification_manager" />
-                    <button
-                        string="Send Report"
                         type="object"
+                        string="Refresh Challenge"
+                        groups="gamification.group_gamification_manager"
+                        invisible="state != 'inprogress'" />
+                    <button
                         name="action_report_progress"
-                        invisible="state not in ('inprogress', 'done')"
-                        groups="base.group_no_one" />
+                        type="object"
+                        string="Send Report"
+                        groups="base.group_no_one"
+                        invisible="state not in ('inprogress', 'done')" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -51,21 +51,21 @@
                     <!-- action buttons -->
                     <div class="oe_button_box" name="button_box">
                         <button
-                            type="object"
                             name="action_view_users"
-                            class="oe_stat_button"
-                            icon="fa-users">
+                            type="object"
+                            icon="fa-users"
+                            class="oe_stat_button">
                             <field
                                 name="user_count"
                                 string="Participants"
                                 widget="statinfo" />
                         </button>
                         <button
-                            type="action"
                             name="%(goals_from_challenge_act)d"
-                            class="oe_stat_button"
+                            type="action"
                             icon="fa-gift"
-                            invisible="state == 'draft'">
+                            invisible="state == 'draft'"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Related Goals</span>
                             </div>
@@ -88,14 +88,12 @@
                             <field
                                 name="manual_user_ids"
                                 widget="many2many_tags"
-                                options="{'no_create': True}"
-                                nolabel="1" />
+                                options="{'no_create': True}" />
                             <label for="user_ids" string="Taking part" />
                             <field
                                 name="user_ids"
                                 widget="many2many_tags"
-                                readonly="1"
-                                nolabel="1" />
+                                readonly="1" />
                         </div>
                     </div>
                     <group>
@@ -110,8 +108,8 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Goals" name="goals">
-                            <field name="line_ids" nolabel="1" colspan="4">
+                        <page name="goals" string="Goals">
+                            <field name="line_ids" colspan="4">
                                 <list string="Line List" editable="bottom">
                                     <field name="sequence" widget="handle" />
                                     <field name="definition_id" />
@@ -124,7 +122,7 @@
                                 name="description"
                                 placeholder="Describe the challenge: what is does, who it targets, why it matters..." />
                         </page>
-                        <page string="Reward" name="reward">
+                        <page name="reward" string="Reward">
                             <group>
                                 <field name="reward_id" required="reward_realtime" />
                                 <field name="reward_first_id" />
@@ -143,7 +141,7 @@
                                 <p>Badges are granted when a challenge is finished. This is either at the end of a running period (eg: end of the month for a monthly challenge), at the end date of a challenge (if no periodicity is set) or when the challenge is manually closed.</p>
                             </div>
                         </page>
-                        <page string="Advanced Options" name="advanced_options">
+                        <page name="advanced_options" string="Advanced Options">
                             <group string="Subscriptions">
                                 <field
                                     name="invited_user_ids"
@@ -155,14 +153,14 @@
                                 name="accept_challenge"
                                 type="object"
                                 string="Join this challenge"
-                                class="btn-link"
-                                invisible="id not in invited_user_ids" />
+                                invisible="id not in invited_user_ids"
+                                class="btn-link" />
                             <button
                                 name="discard_challenge"
                                 type="object"
                                 string="No thanks"
-                                class="btn-link"
-                                invisible="id not in invited_user_ids" />
+                                invisible="id not in invited_user_ids"
+                                class="btn-link" />
                             </group>
                             <group string="Notification Messages">
                                 <div class="opacity-50" colspan="4">
@@ -204,7 +202,7 @@
                 <field name="line_ids" />
                 <templates>
                     <t t-name="card" class="fw-bold">
-                        <field class="fs-5" name="name" />
+                        <field name="name" class="fs-5" />
                         <a
                             type="action"
                             name="%(goals_from_challenge_act)d"
@@ -273,12 +271,12 @@
                 <field name="name" />
                 <group>
                     <filter
-                        string="State"
                         name="state"
+                        string="State"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="Period"
                         name="period"
+                        string="Period"
                         context="{'group_by':'period'}" />
                 </group>
             </search>

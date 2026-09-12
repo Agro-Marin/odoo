@@ -30,7 +30,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Criteria" name="criteria">
+                        <page name="criteria" string="Criteria">
                             <field name="criterion_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
@@ -40,12 +40,12 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Decision" name="decision">
+                        <page name="decision" string="Decision">
                             <field
                                 name="decision_notes"
                                 placeholder="Record the go/no-go decision and rationale..." />
                         </page>
-                        <page string="Kill Criteria" name="kill_criteria">
+                        <page name="kill_criteria" string="Kill Criteria">
                             <field
                                 name="kill_criteria"
                                 placeholder="Under what conditions should this project be cancelled?" />
@@ -72,9 +72,9 @@
                 <field
                     name="state"
                     widget="badge"
+                    decoration-danger="state == 'failed'"
                     decoration-info="state == 'pending'"
                     decoration-success="state == 'passed'"
-                    decoration-danger="state == 'failed'"
                     decoration-warning="state == 'deferred'" />
             </list>
         </field>

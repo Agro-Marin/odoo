@@ -9,15 +9,15 @@
             <sheet position="inside">
                 <div name="button_box" class="oe_button_box">
                     <button
-                        type="action"
                         name="partnership.action_pricelist_partners"
-                        class="oe_stat_button"
-                        icon="fa-users">
+                        type="action"
+                        icon="fa-users"
+                        class="oe_stat_button">
                         <field
                             name="partners_count"
                             widget="statinfo"
-                            class="oe_inline me-1"
-                            nolabel="1" />
+                            nolabel="1"
+                            class="oe_inline me-1" />
                         <field name="partners_label" widget="statinfo" nolabel="1" />
                     </button>
                 </div>

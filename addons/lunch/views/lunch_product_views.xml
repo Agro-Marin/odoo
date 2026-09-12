@@ -62,17 +62,17 @@
                 <searchpanel>
                     <field
                         name="category_id"
-                        select="multi"
                         string="Categories"
                         icon="fa-cutlery"
                         color="#875A7B"
-                        enable_counters="1" />
+                        enable_counters="1"
+                        select="multi" />
                     <field
                         name="supplier_id"
-                        select="multi"
                         string="Vendors"
                         icon="fa-truck"
-                        enable_counters="1" />
+                        enable_counters="1"
+                        select="multi" />
                 </searchpanel>
             </search>
         </field>
@@ -118,13 +118,13 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field
                         name="image_1920"
                         widget="image"
-                        class="oe_avatar"
-                        options="{'preview_image': 'image_128'}" />
+                        options="{'preview_image': 'image_128'}"
+                        class="oe_avatar" />
                     <div class="oe_title">
                         <label for="name" class="oe-edit-only" />
                         <h1>
@@ -142,8 +142,8 @@
                             <field name="new_until" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                         </group>
                         <label for="description" />
                         <field name="description" />
@@ -159,11 +159,11 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <kanban
-                js_class="lunch_kanban"
                 create="0"
                 edit="0"
+                class="o_kanban_mobile"
                 group_create="0"
-                class="o_kanban_mobile">
+                js_class="lunch_kanban">
                 <field name="currency_id" />
                 <field name="is_new" />
                 <templates>
@@ -171,17 +171,17 @@
                         <aside class="col-4">
                             <field
                                 name="image_128"
-                                options="{'placeholder': '/lunch/static/img/lunch.png', 'size': [94, 94], 'img_class': 'w-100 h-100'}"
-                                widget="image" />
+                                widget="image"
+                                options="{'placeholder': '/lunch/static/img/lunch.png', 'size': [94, 94], 'img_class': 'w-100 h-100'}" />
                         </aside>
                         <main class="col">
                             <div class="d-flex">
                                 <div class="d-flex">
                                     <field
-                                        class="pe-1 pt-1"
                                         name="is_user_favorite"
                                         widget="lunch_is_user_favorite"
-                                        nolabel="1" />
+                                        nolabel="1"
+                                        class="pe-1 pt-1" />
                                     <field name="name" class="fw-bolder fs-5" />
                                 </div>
                                 <div class="text-primary ms-auto">
@@ -279,23 +279,23 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
-                            type="action"
                             name="%(lunch.lunch_product_action_statbutton)d"
+                            type="action"
+                            icon="fa-cutlery"
                             context="{'search_default_category_id': id,'default_category_id': id}"
                             invisible="product_count == 0"
-                            icon="fa-cutlery">
+                            class="oe_stat_button">
                             <field
-                                string="Products"
                                 name="product_count"
+                                string="Products"
                                 widget="statinfo" />
                         </button>
                     </div>
                     <field
                         name="image_1920"
                         widget="image"
-                        class="oe_avatar"
-                        options="{'preview_image': 'image_128'}" />
+                        options="{'preview_image': 'image_128'}"
+                        class="oe_avatar" />
                     <div class="oe_title">
                         <label for="name" class="oe-edit-only" />
                         <h1>
@@ -305,8 +305,8 @@
                     <label for="company_id" groups="base.group_multi_company" />
                     <field
                         name="company_id"
-                        groups="base.group_multi_company"
-                        placeholder="Visible to all" />
+                        placeholder="Visible to all"
+                        groups="base.group_multi_company" />
                 </sheet>
             </form>
         </field>
@@ -324,14 +324,14 @@
                         </aside>
                         <main>
                             <button
-                                class="badge text-bg-primary ms-auto"
-                                type="action"
                                 name="%(lunch.lunch_product_action_statbutton)d"
+                                type="action"
                                 context="{'search_default_category_id': id,'default_category_id': id}"
-                                invisible="product_count == 0">
+                                invisible="product_count == 0"
+                                class="badge text-bg-primary ms-auto">
                                 <field
-                                    string="Products"
                                     name="product_count"
+                                    string="Products"
                                     widget="statinfo" />
                             </button>
                             <field name="name" class="fw-bold" />
@@ -352,8 +352,8 @@
             <search>
                 <field name="name" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

@@ -26,21 +26,21 @@
                         <field
                             name="preview_moves"
                             widget="account_resequence_widget"
-                            nolabel="1"
-                            colspan="2" />
+                            colspan="2"
+                            nolabel="1" />
                     </group>
                     <footer>
                         <button
-                            string="Confirm"
                             name="resequence"
                             type="object"
+                            string="Confirm"
                             default_focus="1"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Cancel"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

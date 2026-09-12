@@ -10,43 +10,43 @@
                 <field name="code" />
                 <field name="default_model_id" />
                 <filter
-                    string="Active"
                     name="filter_active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Inactive"
                     name="filter_inactive"
+                    string="Inactive"
                     domain="[('active', '=', False)]" />
                 <separator />
                 <filter
-                    string="Has Vision"
                     name="filter_vision"
+                    string="Has Vision"
                     domain="[('has_vision', '=', True)]" />
                 <filter
-                    string="Has Embeddings"
                     name="filter_embeddings"
+                    string="Has Embeddings"
                     domain="[('has_embeddings', '=', True)]" />
                 <filter
-                    string="Has Free Tier"
                     name="filter_free"
+                    string="Has Free Tier"
                     domain="[('has_free_tier', '=', True)]" />
                 <separator />
                 <filter
-                    string="High Accuracy"
                     name="filter_high_accuracy"
+                    string="High Accuracy"
                     domain="[('default_model_id.accuracy_rating', 'in', ['4', '5'])]" />
                 <filter
-                    string="Fast"
                     name="filter_fast"
+                    string="Fast"
                     domain="[('default_model_id.speed_rating', 'in', ['4', '5'])]" />
                 <group>
                     <filter
-                        string="Category"
                         name="group_by_category"
+                        string="Category"
                         context="{'group_by': 'category'}" />
                     <filter
-                        string="Default Model"
                         name="group_by_default_model"
+                        string="Default Model"
                         context="{'group_by': 'default_model_id'}" />
                 </group>
             </search>
@@ -118,8 +118,8 @@
                 <header>
                     <button
                         name="action_view_request_logs"
-                        string="View Request Logs"
                         type="object"
+                        string="View Request Logs"
                         class="btn-primary" />
                 </header>
                 <sheet>
@@ -127,19 +127,19 @@
                         <button
                             name="action_view_request_logs"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-history">
+                            icon="fa-history"
+                            class="oe_stat_button">
                             <field
                                 name="total_requests"
-                                widget="statinfo"
-                                string="Requests" />
+                                string="Requests"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Inactive"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group name="basic_info">
                             <field name="name" />
@@ -157,7 +157,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Models" name="models">
+                        <page name="models" string="Models">
                             <field name="model_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
@@ -172,7 +172,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Capabilities" name="capabilities">
+                        <page name="capabilities" string="Capabilities">
                             <group>
                                 <group string="Derived from the models">
                                     <field name="has_vision" />
@@ -187,7 +187,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Quality &amp; Performance" name="quality">
+                        <page name="quality" string="Quality &amp; Performance">
                             <group>
                                 <group string="Ratings (1-5)">
                                     <field
@@ -200,7 +200,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Use Cases" name="use_cases">
+                        <page name="use_cases" string="Use Cases">
                             <group>
                                 <field
                                     name="best_for_tag_ids"
@@ -208,7 +208,7 @@
                                     options="{'color_field': 'color'}" />
                             </group>
                         </page>
-                        <page string="API Configuration" name="api_config">
+                        <page name="api_config" string="API Configuration">
                             <group>
                                 <group string="Authentication">
                                     <field name="auth_type" />

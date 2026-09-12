@@ -21,9 +21,9 @@
                 <field
                     name="sla_compliance_rate"
                     optional="show"
+                    decoration-danger="sla_compliance_rate &lt; 70"
                     decoration-success="sla_compliance_rate &gt;= 90"
-                    decoration-warning="sla_compliance_rate &gt;= 70 and sla_compliance_rate &lt; 90"
-                    decoration-danger="sla_compliance_rate &lt; 70" />
+                    decoration-warning="sla_compliance_rate &gt;= 70 and sla_compliance_rate &lt; 90" />
             </list>
         </field>
     </record>
@@ -50,7 +50,7 @@
         <field name="name">approval.metrics.graph</field>
         <field name="model">approval.metrics</field>
         <field name="arch" type="xml">
-            <graph string="Approval Metrics" type="bar">
+            <graph type="bar" string="Approval Metrics">
                 <field name="category_id" />
                 <field name="approval_rate" type="measure" />
                 <field name="avg_approval_hours" type="measure" />

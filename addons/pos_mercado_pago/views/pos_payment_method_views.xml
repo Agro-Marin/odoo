@@ -26,13 +26,13 @@
                     invisible="use_payment_terminal != 'mercado_pago'"
                     required="use_payment_terminal == 'mercado_pago'" />
                 <button
-                    string="Force PDV"
-                    type="object"
                     name="force_pdv"
+                    type="object"
+                    string="Force PDV"
                     groups="base.group_no_one"
-                    class="oe_highlight"
                     invisible="use_payment_terminal != 'mercado_pago'"
-                    required="use_payment_terminal == 'mercado_pago'" />
+                    required="use_payment_terminal == 'mercado_pago'"
+                    class="oe_highlight" />
             </xpath>
         </field>
     </record>

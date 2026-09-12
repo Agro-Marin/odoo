@@ -12,29 +12,29 @@
                 <field name="resource_ids" />
                 <field name="category" />
                 <filter
-                    string="My Appointments"
                     name="my_appointments"
+                    string="My Appointments"
                     domain="['|', ('staff_user_ids', 'in', [uid]), ('create_uid', '=', uid)]" />
                 <filter
-                    string="My Calendar Link"
                     name="my_calendar_link"
+                    string="My Calendar Link"
                     domain="[('category', '=', 'anytime'), ('staff_user_ids', 'in', [uid])]" />
                 <separator />
                 <filter
-                    string="Weekly Schedule"
                     name="filter_category_recurring"
+                    string="Weekly Schedule"
                     domain="[('category', '=', 'recurring')]" />
                 <filter
-                    string="Flexible Schedule"
                     name="filter_category_custom"
+                    string="Flexible Schedule"
                     domain="[('category', '=', 'custom')]" />
                 <filter
-                    string="Date-limited"
                     name="filter_category_punctual"
+                    string="Date-limited"
                     domain="[('category', '=', 'punctual')]" />
                 <filter
-                    string="Calendar Links"
                     name="filter_category_anytime"
+                    string="Calendar Links"
                     domain="[('category', '=', 'anytime')]" />
                 <separator />
                 <filter
@@ -43,12 +43,12 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Category"
                         name="group_by_category"
+                        string="Category"
                         context="{'group_by': 'category'}" />
                     <filter
-                        string="Timezone"
                         name="group_by_timezone"
+                        string="Timezone"
                         context="{'group_by': 'appointment_tz'}" />
                 </group>
             </search>
@@ -60,11 +60,11 @@
         <field name="model">appointment.type</field>
         <field name="arch" type="xml">
             <kanban
-                class="o_appointment_kanban"
-                js_class="appointment_type_kanban"
                 type="object"
-                action="action_calendar_meetings">
-                <field name="category" readonly="true" />
+                class="o_appointment_kanban"
+                action="action_calendar_meetings"
+                js_class="appointment_type_kanban">
+                <field name="category" readonly="True" />
                 <field name="schedule_based_on" />
                 <field
                     name="sequence"
@@ -76,8 +76,8 @@
                             <widget
                                 name="web_ribbon"
                                 title="Archived"
-                                bg_color="text-bg-danger"
-                                invisible="active" />
+                                invisible="active"
+                                bg_color="text-bg-danger" />
                             <div
                                 class="col-lg-3 col-sm-5 col-11 py-0 my-auto text-large o_appointment_kanban_name text-truncate">
                                 <span class="fw-bold" t-att-title="record.name.value"><field name="name" /></span><br />
@@ -86,20 +86,20 @@
                                 class="col-lg-4 col-sm-7 col-12 py-0 mt-3 mb-2 my-lg-auto d-flex">
                                 <div
                                     class="align-self-center me-sm-0 me-3 text-large w-50 text-nowrap">
-                                    <field class="fw-normal" name="appointment_duration_formatted" /><br />
+                                    <field name="appointment_duration_formatted" class="fw-normal" /><br />
                                     <span class="fw-light">Duration</span>
                                 </div>
                                 <div class="my-sm-auto w-50 w-sm-75">
                                     <field
                                         name="staff_user_ids"
                                         widget="many2many_avatar_user"
-                                        readonly="True"
-                                        invisible="schedule_based_on != 'users'" />
+                                        invisible="schedule_based_on != 'users'"
+                                        readonly="True" />
                                     <field
                                         name="resource_ids"
                                         widget="many2many_tags_avatar"
-                                        readonly="True"
-                                        invisible="schedule_based_on == 'users'" />
+                                        invisible="schedule_based_on == 'users'"
+                                        readonly="True" />
                                 </div>
                             </div>
                             <div
@@ -155,9 +155,9 @@
         <field name="arch" type="xml">
             <list
                 string="Appointment Type"
+                multi_edit="1"
                 class="o_appointment_type_view_list"
-                js_class="appointment_type_list"
-                multi_edit="1">
+                js_class="appointment_type_list">
                 <header>
                     <button name="action_share_invite" type="object" string="Share" />
                 </header>
@@ -181,8 +181,8 @@
                 <field
                     name="country_ids"
                     widget="many2many_tags"
-                    groups="base.group_no_one"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_no_one" />
             </list>
         </field>
     </record>
@@ -197,16 +197,16 @@
                 <header>
                     <button
                         name="action_share_invite"
-                        string="Share"
                         type="object"
-                        class="btn btn-primary"
-                        invisible="not active" />
+                        string="Share"
+                        invisible="not active"
+                        class="btn btn-primary" />
                     <button
                         name="action_customer_preview"
-                        string="Preview"
                         type="object"
-                        class="btn btn-secondary"
-                        invisible="not active" />
+                        string="Preview"
+                        invisible="not active"
+                        class="btn btn-secondary" />
                 </header>
                 <div
                     class="o_appointment_cal_sync_alert alert alert-info d-flex flex-wrap gap-2 align-items-center"
@@ -218,56 +218,56 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="image_1920" widget="image" class="oe_avatar" />
                     <div
                         class="oe_button_box"
                         name="button_box"
                         groups="base.group_user">
                         <button
-                            class="oe_stat_button"
-                            type="action"
                             name="calendar.appointment_invite_action_stat"
+                            type="action"
                             icon="fa-link"
                             context="{ 'schedule_based_on': 'users' }"
-                            invisible="appointment_invite_count == 0 or schedule_based_on == 'resources'">
+                            invisible="appointment_invite_count == 0 or schedule_based_on == 'resources'"
+                            class="oe_stat_button">
                             <field
-                                string="Shared Links"
                                 name="appointment_invite_count"
+                                string="Shared Links"
                                 widget="statinfo" />
                         </button>
                         <button
-                            class="oe_stat_button"
-                            type="action"
                             name="calendar.appointment_invite_action_stat"
+                            type="action"
                             icon="fa-link"
                             context="{ 'schedule_based_on': 'resources' }"
-                            invisible="appointment_invite_count == 0 or schedule_based_on == 'users'">
+                            invisible="appointment_invite_count == 0 or schedule_based_on == 'users'"
+                            class="oe_stat_button">
                             <field
-                                string="Shared Links"
                                 name="appointment_invite_count"
+                                string="Shared Links"
                                 widget="statinfo" />
                         </button>
                         <button
-                            class="oe_stat_button"
-                            type="action"
                             name="calendar.appointment_resource_action_stat"
+                            type="action"
                             icon="fa-cubes"
-                            invisible="schedule_based_on == 'users'">
+                            invisible="schedule_based_on == 'users'"
+                            class="oe_stat_button">
                             <field
-                                string="Resources"
                                 name="resource_count"
+                                string="Resources"
                                 widget="statinfo" />
                         </button>
                         <button
-                            class="oe_stat_button"
-                            type="object"
                             name="action_calendar_meetings"
-                            icon="fa-calendar">
+                            type="object"
+                            icon="fa-calendar"
+                            class="oe_stat_button">
                             <field
-                                string="Appointments"
                                 name="appointment_count"
+                                string="Appointments"
                                 widget="statinfo" />
                         </button>
                     </div>
@@ -279,19 +279,19 @@
                         <group name="left_details">
                             <label for="appointment_duration" />
                             <div invisible="category == 'custom'">
-                                <field name="appointment_duration" class="oe_inline me-1 o_input_5ch" widget="float_time" /><span> hours</span>
+                                <field name="appointment_duration" widget="float_time" class="oe_inline me-1 o_input_5ch" /><span> hours</span>
                             </div>
                             <span class="text-muted" invisible="category != 'custom'">Depending on the Slots</span>
                             <label for="location_id" />
                             <div>
                                 <field
                                     name="location_id"
-                                    context="{'show_address': True, 'default_is_company': True}"
-                                    placeholder="Online Meeting" />
+                                    placeholder="Online Meeting"
+                                    context="{'show_address': True, 'default_is_company': True}" />
                                 <button
                                     name="add_videocall_source"
-                                    class="btn btn-link p-0"
-                                    invisible="not location_id or event_videocall_source">
+                                    invisible="not location_id or event_videocall_source"
+                                    class="btn btn-link p-0">
                                     <i class="oi oi-plus o_button_icon" /> Add Video
                                 </button>
                             </div>
@@ -307,23 +307,23 @@
                                 name="schedule_based_on"
                                 widget="radio"
                                 options="{'horizontal': true}"
-                                required="1"
-                                readonly="category == 'anytime'" />
+                                readonly="category == 'anytime'"
+                                required="1" />
                             <!-- Users Details -->
                             <field
                                 name="staff_user_ids"
+                                placeholder="Select Users..."
                                 widget="many2many_avatar_user"
-                                invisible="schedule_based_on == 'resources'"
                                 options="{'no_open': False}"
-                                placeholder="Select Users..." />
+                                invisible="schedule_based_on == 'resources'" />
                             <!-- Resources Details-->
                             <field
                                 name="resource_ids"
                                 string="Resources"
+                                placeholder="Select Resources..."
                                 widget="many2many_tags"
                                 options="{'no_quick_create': True, 'edit_tags': True}"
-                                invisible="schedule_based_on == 'users'"
-                                placeholder="Select Resources..." />
+                                invisible="schedule_based_on == 'users'" />
                             <field name="is_auto_assign" invisible="1" />
                             <field name="is_date_first" invisible="1" />
                             <field
@@ -369,7 +369,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Availabilities" name="slots">
+                        <page name="slots" string="Availabilities">
                             <field name="category" invisible="1" />
                             <field name="slot_ids">
                                 <list
@@ -386,9 +386,9 @@
                                         column_invisible="parent.category == 'custom'" />
                                     <button
                                         name="durationArrow"
-                                        class="fa-solid fa-right-long text-center text-secondary"
                                         title="Until (max)"
-                                        column_invisible="parent.category == 'custom'" />
+                                        column_invisible="parent.category == 'custom'"
+                                        class="fa-solid fa-right-long text-center text-secondary" />
                                     <field
                                         name="end_hour"
                                         string="To"
@@ -402,26 +402,26 @@
                                         column_invisible="parent.category != 'custom'" />
                                     <field
                                         name="allday"
-                                        column_invisible="parent.category != 'custom'"
-                                        groups="base.group_no_one" />
+                                        groups="base.group_no_one"
+                                        column_invisible="parent.category != 'custom'" />
                                     <field
                                         name="restrict_to_user_ids"
                                         widget="many2many_avatar_user"
+                                        optional="hide"
                                         domain="[('id', 'in', parent.staff_user_ids)]"
-                                        column_invisible="parent.schedule_based_on != 'users'"
                                         options="{'no_create': True}"
-                                        optional="hide" />
+                                        column_invisible="parent.schedule_based_on != 'users'" />
                                     <field
                                         name="restrict_to_resource_ids"
                                         widget="many2many_tags_avatar"
+                                        optional="hide"
                                         domain="[('id', 'in', parent.resource_ids)]"
-                                        column_invisible="parent.schedule_based_on == 'users'"
                                         options="{'no_create': True}"
-                                        optional="hide" />
+                                        column_invisible="parent.schedule_based_on == 'users'" />
                                 </list>
                             </field>
                         </page>
-                        <page string="Questions" name="questions">
+                        <page name="questions" string="Questions">
                             <field
                                 name="question_ids"
                                 domain="[('survey_id', '=', False), ('is_reusable', '=', True)]"
@@ -431,39 +431,39 @@
                                     <field name="question_type" />
                                     <field
                                         name="suggested_answer_ids"
-                                        widget="many2many_tags"
-                                        string="Answers" />
+                                        string="Answers"
+                                        widget="many2many_tags" />
                                     <field name="constr_mandatory" string="Mandatory" />
                                     <field name="is_default" optional="hide" />
                                     <field name="is_reusable" optional="hide" />
                                     <button
                                         name="action_view_question_answer_inputs"
-                                        context="{'search_default_appointment_type_id': parent.id}"
                                         type="object"
-                                        class="fa-solid fa-chart-column p-0"
-                                        title="Answer Breakdown" />
+                                        title="Answer Breakdown"
+                                        context="{'search_default_appointment_type_id': parent.id}"
+                                        class="fa-solid fa-chart-column p-0" />
                                 </list>
                             </field>
                         </page>
-                        <page string="Communication" name="messages">
+                        <page name="messages" string="Communication">
                             <group>
                                 <group>
                                     <separator string="Introduction Page" />
                                     <field
-                                        colspan="2"
                                         name="message_intro"
-                                        class="border border-1 rounded"
+                                        placeholder="e.g. &quot;During this meeting, we will...&quot;"
+                                        colspan="2"
                                         nolabel="1"
                                         options="{'height': 120}"
-                                        placeholder="e.g. &quot;During this meeting, we will...&quot;" />
+                                        class="border border-1 rounded" />
                                     <separator string="Confirmation Page" />
                                     <field
-                                        colspan="2"
                                         name="message_confirmation"
-                                        class="border border-1 rounded"
+                                        placeholder="e.g. &quot;Thank you for your trust, we look forward to meeting you!&quot;"
+                                        colspan="2"
                                         nolabel="1"
                                         options="{'height': 120}"
-                                        placeholder="e.g. &quot;Thank you for your trust, we look forward to meeting you!&quot;" />
+                                        class="border border-1 rounded" />
                                 </group>
                                 <group string="Emails &amp; SMS">
                                     <field
@@ -480,7 +480,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Options" name="options">
+                        <page name="options" string="Options">
                             <group>
                                 <group name="options_left_details">
                                     <label for="allow_guests" />
@@ -498,8 +498,8 @@
                                                 up to
                                                 <field
                                                     name="manual_confirmation_percentage"
-                                                    class="oe_inline o_input_4ch mx-1"
-                                                    widget="percentage" />
+                                                    widget="percentage"
+                                                    class="oe_inline o_input_4ch mx-1" />
                                                 of total capacity
                                             </span>
                                         </div>
@@ -509,10 +509,10 @@
                                 <group name="options_right_details">
                                     <field
                                         name="category_slot_scheduling"
-                                        class="mb-0"
                                         widget="radio"
                                         options="{'horizontal': true}"
-                                        invisible="category == 'anytime'" />
+                                        invisible="category == 'anytime'"
+                                        class="mb-0" />
                                     <label
                                         for="category_time_display"
                                         string="Allow Bookings" />
@@ -520,9 +520,9 @@
                                         <div invisible="category == 'custom'">
                                             <field
                                                 name="category_time_display"
-                                                class="oe_inline"
                                                 invisible="category == 'anytime'"
-                                                required="1" />
+                                                required="1"
+                                                class="oe_inline" />
                                             <span
                                                 invisible="category_time_display != 'recurring_fields'">
                                                 <field name="max_schedule_days" class="oe_inline mx-1 o_input_5ch" /> days,
@@ -535,7 +535,7 @@
                                                 required="category_time_display == 'punctual_fields'" />
                                             <field name="end_datetime" invisible="1" />
                                             <div>
-                                                at least <field name="min_schedule_hours" class="oe_inline mx-1 o_input_5ch" widget="float_time" />
+                                                at least <field name="min_schedule_hours" widget="float_time" class="oe_inline mx-1 o_input_5ch" />
                                                 hour(s) before start time
                                             </div>
                                         </div>
@@ -544,7 +544,7 @@
                                                 Within availabilities,
                                             </div>
                                             <div>
-                                                at least <field name="min_schedule_hours" class="oe_inline mx-1 o_input_5ch" widget="float_time" />
+                                                at least <field name="min_schedule_hours" widget="float_time" class="oe_inline mx-1 o_input_5ch" />
                                                 hour(s) before start time
                                             </div>
                                         </div>
@@ -553,13 +553,13 @@
                                         for="slot_creation_interval"
                                         invisible="category == 'custom'" />
                                     <div invisible="category == 'custom'">
-                                        <field name="slot_creation_interval" class="oe_inline me-1 o_input_5ch" widget="float_time" /><span>hours</span>
+                                        <field name="slot_creation_interval" widget="float_time" class="oe_inline me-1 o_input_5ch" /><span>hours</span>
                                     </div>
                                     <label
                                         for="min_cancellation_hours"
                                         string="Cancellation" />
                                     <div>
-                                        <span>up to<field name="min_cancellation_hours" class="oe_inline mx-1 o_input_5ch" widget="float_time" />hour(s) before the booking</span>
+                                        <span>up to<field name="min_cancellation_hours" widget="float_time" class="oe_inline mx-1 o_input_5ch" />hour(s) before the booking</span>
                                     </div>
                                     <field name="appointment_tz" />
                                     <field
@@ -608,9 +608,9 @@
                             required="1" />
                         <field
                             name="location_id"
-                            context="{'show_address': True, 'default_is_company': True}"
+                            placeholder="Online Meeting"
                             domain="[('is_company', '=', True)]"
-                            placeholder="Online Meeting" />
+                            context="{'show_address': True, 'default_is_company': True}" />
                         <field name="event_videocall_source" placeholder="None" />
                         <field name="allow_guests" />
                     </group>
@@ -621,18 +621,18 @@
                             colspan="2" />
                         <field
                             name="message_intro"
-                            nolabel="1"
+                            placeholder="e.g. &quot;During this meeting, we will...&quot;"
                             colspan="2"
-                            placeholder="e.g. &quot;During this meeting, we will...&quot;" />
+                            nolabel="1" />
                         <label
                             for="message_confirmation"
                             string="Extra Message on Confirmation"
                             colspan="2" />
                         <field
                             name="message_confirmation"
-                            nolabel="1"
+                            placeholder="e.g. &quot;Thank you for your trust, we look forward to meeting you!&quot;"
                             colspan="2"
-                            placeholder="e.g. &quot;Thank you for your trust, we look forward to meeting you!&quot;" />
+                            nolabel="1" />
                     </group>
                 </sheet>
             </form>

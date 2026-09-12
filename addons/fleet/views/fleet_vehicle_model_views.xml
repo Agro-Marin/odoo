@@ -9,9 +9,9 @@
                 <sheet>
                     <widget
                         name="web_ribbon"
-                        text="Archived"
+                        invisible="active"
                         bg_color="text-bg-danger"
-                        invisible="active" />
+                        text="Archived" />
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="action_model_vehicle"
@@ -20,8 +20,8 @@
                             class="oe_stat_button">
                             <field
                                 name="vehicle_count"
-                                widget="statinfo"
                                 string="Vehicles"
+                                widget="statinfo"
                                 invisible="not vehicle_count" />
                             <div class="o_stat_info" invisible="vehicle_count">
                                 <span class="o_stat_value">New</span>
@@ -50,7 +50,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Information" name="information">
+                        <page name="information" string="Information">
                             <group>
                                 <group string="Model" invisible="vehicle_type != 'car'">
                                     <field name="model_year" />
@@ -66,9 +66,9 @@
                                     <field name="electric_assistance" />
                                 </group>
                                 <group
+                                    name="group_engine"
                                     string="Engine"
-                                    invisible="vehicle_type != 'car'"
-                                    name="group_engine">
+                                    invisible="vehicle_type != 'car'">
                                     <field name="default_fuel_type" required="1" />
                                     <field name="transmission" />
                                     <field name="drive_type" />
@@ -109,9 +109,9 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Vendors" name="vendors">
+                        <page name="vendors" string="Vendors">
                             <field name="vendors">
-                                <kanban quick_create="false" create="true">
+                                <kanban create="true" quick_create="false">
                                     <templates>
                                         <t t-name="card" class="flex-row fw-bold">
                                             <field name="name" />
@@ -153,7 +153,7 @@
             <kanban string="Models">
                 <templates>
                     <t t-name="card">
-                        <field class="fw-bold" name="name" />
+                        <field name="name" class="fw-bold" />
                         <field name="brand_id" />
                     </t>
                 </templates>
@@ -169,26 +169,26 @@
                 <field name="name" string="Model" />
                 <field name="brand_id" />
                 <filter
-                    string="Contains Vehicle"
                     name="contains_vehicle"
+                    string="Contains Vehicle"
                     domain="[('vehicle_count', '!=', 0)]" />
                 <group>
                     <filter
                         name="groupby_brand"
-                        context="{'group_by' : 'brand_id'}"
-                        string="Manufacturers" />
+                        string="Manufacturers"
+                        context="{'group_by' : 'brand_id'}" />
                     <filter
                         name="groupby_category"
-                        context="{'group_by' : 'category_id'}"
-                        string="Category" />
+                        string="Category"
+                        context="{'group_by' : 'category_id'}" />
                     <filter
                         name="groupby_vehicle_type"
-                        context="{'group_by' : 'vehicle_type'}"
-                        string="Vehicle Type" />
+                        string="Vehicle Type"
+                        context="{'group_by' : 'vehicle_type'}" />
                 </group>
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
             </search>
         </field>
@@ -244,12 +244,12 @@
                             name="action_brand_model"
                             type="object"
                             icon="fa-car"
-                            class="oe_stat_button"
-                            invisible="model_count == 0">
+                            invisible="model_count == 0"
+                            class="oe_stat_button">
                             <field
                                 name="model_count"
-                                widget="statinfo"
-                                string="Models" />
+                                string="Models"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <group>
@@ -270,7 +270,7 @@
         <field name="name">fleet.vehicle.model.brandkanban</field>
         <field name="model">fleet.vehicle.model.brand</field>
         <field name="arch" type="xml">
-            <kanban action="action_brand_model" type="object" default_order="name">
+            <kanban type="object" default_order="name" action="action_brand_model">
                 <field name="active" />
                 <templates>
                     <t t-name="menu">
@@ -289,7 +289,7 @@
                             </a>
                         </aside>
                         <main class="ms-2 mt-1">
-                            <field class="fw-bold fs-5" name="name" />
+                            <field name="name" class="fw-bold fs-5" />
                             <span class="mt-2 text-black">
                                 <field name="model_count" /> MODELS
                             </span>
@@ -307,13 +307,13 @@
             <search>
                 <field name="name" />
                 <filter
-                    string="With Models"
                     name="with_models"
+                    string="With Models"
                     domain="[('model_count', '&gt;', 0)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="active"
+                    string="Archived"
                     domain="[('active','=',False)]" />
             </search>
         </field>

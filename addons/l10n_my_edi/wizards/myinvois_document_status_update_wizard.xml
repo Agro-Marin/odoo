@@ -17,12 +17,12 @@
                 </sheet>
                 <footer>
                     <button
-                        string="Update Document"
                         name="button_request_update"
                         type="object"
+                        string="Update Document"
                         default_focus="1"
                         class="btn-primary" />
-                    <button string="Close" special="cancel" />
+                    <button special="cancel" string="Close" />
                 </footer>
             </form>
         </field>

@@ -19,8 +19,8 @@
                 <field
                     name="owner_user_id"
                     placeholder="Restrict usage to a user"
-                    groups="base.group_no_one"
-                    widget="many2one_avatar_user" />
+                    widget="many2one_avatar_user"
+                    groups="base.group_no_one" />
             </xpath>
         </field>
     </record>

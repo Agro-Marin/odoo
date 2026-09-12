@@ -21,17 +21,17 @@
                 </group>
                 <field
                     name="result_text"
+                    widget="text"
                     invisible="not result_text"
                     readonly="1"
-                    widget="text"
                     class="font-monospace" />
                 <footer>
                     <button
-                        string="Run Forecast"
                         name="action_run_forecast"
                         type="object"
+                        string="Run Forecast"
                         class="oe_highlight" />
-                    <button string="Close" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Close" class="btn-secondary" />
                 </footer>
             </form>
         </field>

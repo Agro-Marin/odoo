@@ -10,9 +10,9 @@
                 <xpath expr="//field[@name='enroll']" position="after">
                     <field
                         name="product_id"
+                        context="{                         'default_type': 'service',                         'default_service_tracking': 'course',                         'default_invoice_policy': 'ordered',                         'default_purchase_ok': False,                         'default_sale_ok': True,                         'default_website_published': True,                     }"
                         invisible="enroll != 'payment'"
-                        required="enroll == 'payment'"
-                        context="{                         'default_type': 'service',                         'default_service_tracking': 'course',                         'default_invoice_policy': 'ordered',                         'default_purchase_ok': False,                         'default_sale_ok': True,                         'default_website_published': True,                     }" />
+                        required="enroll == 'payment'" />
                 </xpath>
                 <xpath
                     expr="//button[@name='action_redirect_to_members']"
@@ -21,9 +21,9 @@
                         name="action_view_sales"
                         type="object"
                         icon="fa-usd"
-                        class="oe_stat_button"
+                        groups="sales_team.group_sale_salesman"
                         invisible="enroll != 'payment'"
-                        groups="sales_team.group_sale_salesman">
+                        class="oe_stat_button">
                         <field
                             name="product_sale_revenues"
                             string="Sales"
@@ -45,8 +45,8 @@
                     <field
                         name="product_sale_revenues"
                         string="Total Revenues"
-                        sum="Total Revenues"
-                        widget="monetary" />
+                        widget="monetary"
+                        sum="Total Revenues" />
                 </field>
             </field>
         </record>
@@ -59,10 +59,10 @@
                     <div class="d-flex" invisible="enroll != 'payment'">
                         <label for="product_sale_revenues" class="mb0 me-auto">Sales</label>
                         <field
-                            class="text-nowrap"
                             name="product_sale_revenues"
                             widget="monetary"
-                            options="{'currency_field': 'currency_id'}" />
+                            options="{'currency_field': 'currency_id'}"
+                            class="text-nowrap" />
                         <field name="currency_id" invisible="True" />
                     </div>
                 </xpath>
@@ -76,14 +76,14 @@
                 <xpath expr="//field[@name='allow_comment']" position="after">
                     <field
                         name="enroll"
+                        string="Enroll Policy"
                         widget="radio"
-                        options="{'horizontal': true}"
-                        string="Enroll Policy" />
+                        options="{'horizontal': true}" />
                     <field
                         name="product_id"
+                        context="{                         'default_type': 'service',                         'default_service_tracking': 'course',                         'default_invoice_policy': 'ordered',                         'default_purchase_ok': False,                         'default_sale_ok': True,                         'default_website_published': True,                     }"
                         invisible="enroll != 'payment'"
-                        required="enroll == 'payment'"
-                        context="{                         'default_type': 'service',                         'default_service_tracking': 'course',                         'default_invoice_policy': 'ordered',                         'default_purchase_ok': False,                         'default_sale_ok': True,                         'default_website_published': True,                     }" />
+                        required="enroll == 'payment'" />
                 </xpath>
             </field>
         </record>

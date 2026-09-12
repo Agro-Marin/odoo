@@ -14,9 +14,9 @@
                 <field name="lang" />
                 <field
                     name="transifex_url"
+                    string="Transifex"
                     widget="url"
-                    text="Contribute"
-                    string="Transifex" />
+                    text="Contribute" />
             </list>
         </field>
     </record>
@@ -32,13 +32,13 @@
                 <field name="value" />
                 <separator />
                 <filter
-                    string="Not Translated"
                     name="not_translated"
+                    string="Not Translated"
                     domain="[('value', '=', '')]" />
                 <group>
                     <filter
-                        string="Module"
                         name="group_by_module"
+                        string="Module"
                         context="{'group_by': 'module'}" />
                 </group>
             </search>

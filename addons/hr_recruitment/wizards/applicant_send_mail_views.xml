@@ -18,19 +18,18 @@
                 </group>
                 <field
                     name="body"
-                    nolabel="1"
-                    class="oe-bordered-editor"
-                    widget="html_mail"
                     placeholder="Write your message here..."
+                    widget="html_mail"
+                    force_save="1"
                     options="{'codeview': true, 'dynamic_placeholder': true}"
-                    force_save="1" />
+                    class="oe-bordered-editor" />
                 <group>
                     <field
                         name="attachment_ids"
-                        widget="many2many_binary"
                         string="Attach a file"
-                        nolabel="1"
-                        colspan="2" />
+                        widget="many2many_binary"
+                        colspan="2"
+                        nolabel="1" />
                     <field
                         name="template_id"
                         string="Load template"
@@ -39,14 +38,14 @@
                 <footer>
                     <button
                         name="action_send"
-                        string="Send"
                         type="object"
+                        string="Send"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

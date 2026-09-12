@@ -9,12 +9,12 @@
             <xpath expr="//app[@name='account']/block" position="after">
                 <field name="country_code" invisible="1" />
                 <block
-                    title="Saudi Arabia Electronic Invoicing"
                     name="zatca_einvoicing_setting_container"
+                    title="Saudi Arabia Electronic Invoicing"
                     invisible="country_code != 'SA'">
                     <setting
-                        class="col-lg-12"
                         string="ZATCA API Modes"
+                        class="col-lg-12"
                         company_dependent="1">
                         <div class="text-muted">
                             <div>1. There are three modes available:</div>

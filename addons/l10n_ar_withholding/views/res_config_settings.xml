@@ -10,8 +10,8 @@
                 <setting
                     id="withholding_tax"
                     string="Withholding"
-                    company_dependent="1"
-                    title="Account that will be set on lines created to represent the tax base amounts.">
+                    title="Account that will be set on lines created to represent the tax base amounts."
+                    company_dependent="1">
                     <div class="content-group" invisible="country_code != 'AR'">
                         <div class="row mt16">
                             <label

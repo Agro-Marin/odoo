@@ -10,17 +10,17 @@
                 <xpath expr="//field[@name='project_id']" position="after">
                     <field
                         name="allocated_hours"
-                        widget="timesheet_uom"
-                        type="measure" />
+                        type="measure"
+                        widget="timesheet_uom" />
                     <field
                         name="effective_hours"
-                        widget="timesheet_uom"
-                        type="measure" />
+                        type="measure"
+                        widget="timesheet_uom" />
                     <field name="overtime" widget="timesheet_uom" />
                     <field
                         name="remaining_hours"
-                        widget="timesheet_uom"
-                        type="measure" />
+                        type="measure"
+                        widget="timesheet_uom" />
                     <field name="remaining_hours_percentage" invisible="1" />
                 </xpath>
             </field>
@@ -33,17 +33,17 @@
                 <pivot position="inside">
                     <field
                         name="allocated_hours"
-                        widget="timesheet_uom"
-                        type="measure" />
+                        type="measure"
+                        widget="timesheet_uom" />
                     <field
                         name="effective_hours"
-                        widget="timesheet_uom"
-                        type="measure" />
+                        type="measure"
+                        widget="timesheet_uom" />
                     <field
                         name="remaining_hours"
-                        widget="timesheet_uom"
-                        type="measure" />
-                    <field name="overtime" widget="timesheet_uom" type="measure" />
+                        type="measure"
+                        widget="timesheet_uom" />
+                    <field name="overtime" type="measure" widget="timesheet_uom" />
                     <field name="remaining_hours_percentage" invisible="1" />
                 </pivot>
             </field>

@@ -11,11 +11,11 @@
                     name="action_redirect_to_leads_and_opportunities"
                     type="object"
                     icon="fa-star"
-                    class="oe_stat_button"
-                    invisible="state == 'draft'">
+                    invisible="state == 'draft'"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <field name="use_leads" invisible="1" />
-                        <span class="o_stat_value"><field nolabel="1" name="crm_lead_count" /></span>
+                        <span class="o_stat_value"><field name="crm_lead_count" nolabel="1" /></span>
                         <span class="o_stat_text" invisible="not use_leads">Leads</span>
                         <span class="o_stat_text" invisible="use_leads">Opportunities</span>
                     </div>

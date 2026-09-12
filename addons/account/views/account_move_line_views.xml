@@ -37,15 +37,15 @@
                 <field name="reconcile_model_id" />
                 <separator />
                 <filter
-                    string="Unposted"
                     name="unposted"
-                    domain="[('parent_state', '=', 'draft')]"
-                    help="Unposted Journal Items" />
+                    string="Unposted"
+                    help="Unposted Journal Items"
+                    domain="[('parent_state', '=', 'draft')]" />
                 <filter
-                    string="Posted"
                     name="posted"
-                    domain="[('parent_state', '=', 'posted')]"
-                    help="Posted Journal Items" />
+                    string="Posted"
+                    help="Posted Journal Items"
+                    domain="[('parent_state', '=', 'posted')]" />
                 <separator groups="account.group_account_secured,base.group_no_one" />
                 <filter
                     name="not_secured"
@@ -54,153 +54,153 @@
                     groups="account.group_account_secured,base.group_no_one" />
                 <separator />
                 <filter
-                    string="To Review"
                     name="to_check"
+                    string="To Review"
                     domain="[('move_id.checked', '=', False), ('parent_state', '!=', 'draft')]" />
                 <separator />
                 <filter
-                    string="Unreconciled"
                     name="reconcilable_account"
-                    domain="[('balance', '!=', 0), ('account_id.reconcile', '=', True), '|', ('matching_number', '=', False), ('matching_number', '=like', 'P%')]"
-                    help="Journal items where matching number isn't set" />
+                    string="Unreconciled"
+                    help="Journal items where matching number isn't set"
+                    domain="[('balance', '!=', 0), ('account_id.reconcile', '=', True), '|', ('matching_number', '=', False), ('matching_number', '=like', 'P%')]" />
                 <filter
+                    name="unreconciled"
                     string="With residual"
-                    domain="[('amount_residual', '!=', 0), ('account_id.reconcile', '=', True)]"
                     help="Journal items where the account allows reconciliation and the residual amount is not zero"
-                    name="unreconciled" />
+                    domain="[('amount_residual', '!=', 0), ('account_id.reconcile', '=', True)]" />
                 <separator />
                 <filter
-                    string="Sales"
                     name="sales"
+                    string="Sales"
                     domain="[('journal_id.type', '=', 'sale')]"
                     context="{'default_journal_type': 'sale'}" />
                 <filter
-                    string="Purchases"
                     name="purchases"
+                    string="Purchases"
                     domain="[('journal_id.type', '=', 'purchase')]"
                     context="{'default_journal_type': 'purchase'}" />
                 <filter
-                    string="Bank"
                     name="bank"
+                    string="Bank"
                     domain="[('journal_id.type', '=', 'bank')]"
                     context="{'default_journal_type': 'bank'}" />
                 <filter
-                    string="Cash"
                     name="cash"
+                    string="Cash"
                     domain="[('journal_id.type', '=', 'cash')]"
                     context="{'default_journal_type': 'cash'}" />
                 <filter
-                    string="Credit"
                     name="credit"
+                    string="Credit"
                     domain="[('journal_id.type', '=', 'credit')]"
                     context="{'default_journal_type': 'credit'}" />
                 <filter
+                    name="misc_filter"
                     string="Miscellaneous"
                     domain="[('journal_id.type', '=', 'general')]"
-                    name="misc_filter"
                     context="{'default_journal_type': 'general'}" />
                 <filter
-                    string="Journals"
                     name="journal_ids"
+                    string="Journals"
                     domain="[('journal_id', 'in', context.get('journal_ids'))]"
                     invisible="not context.get('journal_ids')" />
                 <separator />
                 <filter
+                    name="trade_payable"
                     string="Payable"
-                    domain="[('account_id.account_type', '=', 'liability_payable'), ('account_id.non_trade', '=', False)]"
                     help="From Trade Payable accounts"
-                    name="trade_payable" />
+                    domain="[('account_id.account_type', '=', 'liability_payable'), ('account_id.non_trade', '=', False)]" />
                 <filter
+                    name="trade_receivable"
                     string="Receivable"
-                    domain="[('account_id.account_type', '=', 'asset_receivable'), ('account_id.non_trade', '=', False)]"
                     help="From Trade Receivable accounts"
-                    name="trade_receivable" />
+                    domain="[('account_id.account_type', '=', 'asset_receivable'), ('account_id.non_trade', '=', False)]" />
                 <filter
-                    string="Non Trade Payable"
-                    domain="[('account_id.account_type', '=', 'liability_payable'), ('account_id.non_trade', '=', True)]"
-                    help="From Non Trade Receivable accounts"
                     name="non_trade_payable"
-                    invisible="1" />
-                <filter
-                    string="Non Trade Receivable"
-                    domain="[('account_id.account_type', '=', 'asset_receivable'), ('account_id.non_trade', '=', True)]"
+                    string="Non Trade Payable"
                     help="From Non Trade Receivable accounts"
-                    name="non_trade_receivable"
+                    domain="[('account_id.account_type', '=', 'liability_payable'), ('account_id.non_trade', '=', True)]"
                     invisible="1" />
                 <filter
+                    name="non_trade_receivable"
+                    string="Non Trade Receivable"
+                    help="From Non Trade Receivable accounts"
+                    domain="[('account_id.account_type', '=', 'asset_receivable'), ('account_id.non_trade', '=', True)]"
+                    invisible="1" />
+                <filter
+                    name="pl_accounts"
                     string="P&amp;L Accounts"
-                    domain="[('account_id.internal_group', 'in', ('income', 'expense'))]"
                     help="From P&amp;L accounts"
-                    name="pl_accounts" />
+                    domain="[('account_id.internal_group', 'in', ('income', 'expense'))]" />
                 <filter
-                    string="No Bank Transaction"
                     name="no_st_line_id"
-                    invisible="1"
-                    domain="[('statement_line_id', '=', False), ('payment_id', '=', False)]" />
+                    string="No Bank Transaction"
+                    domain="[('statement_line_id', '=', False), ('payment_id', '=', False)]"
+                    invisible="1" />
                 <separator />
-                <filter string="Date" name="date" date="date" />
-                <filter string="Invoice Date" name="invoice_date" date="invoice_date" />
+                <filter name="date" string="Date" date="date" />
+                <filter name="invoice_date" string="Invoice Date" date="invoice_date" />
                 <separator />
                 <filter
-                    string="Report Dates"
                     name="date_between"
+                    string="Report Dates"
                     domain="[('date', '&gt;=', context.get('date_from')), ('date', '&lt;=', context.get('date_to'))]"
                     invisible="1" />
                 <filter
-                    string="Report Dates"
                     name="date_before"
+                    string="Report Dates"
                     domain="[('date', '&lt;=', context.get('date_to'))]"
                     invisible="1" />
                 <separator />
                 <filter
-                    string="Analytic Accounts"
                     name="analytic_accounts"
+                    string="Analytic Accounts"
                     domain="[('analytic_distribution', 'in', context.get('analytic_ids'))]"
                     invisible="1" />
                 <group>
                     <filter
-                        string="Journal Entry"
                         name="group_by_move"
+                        string="Journal Entry"
                         context="{'group_by': 'move_name'}" />
                     <filter
-                        string="Account"
                         name="group_by_account"
+                        string="Account"
                         context="{'group_by': 'account_id'}" />
                     <filter
-                        string="Partner"
                         name="group_by_partner"
+                        string="Partner"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Journal"
                         name="journal"
+                        string="Journal"
                         context="{'group_by': 'journal_id'}" />
                     <filter
-                        string="Date"
                         name="groupby_date"
+                        string="Date"
                         context="{'group_by': 'date'}" />
                     <filter
-                        string="Invoice Date"
                         name="groupby_invoice_date"
+                        string="Invoice Date"
                         context="{'group_by': 'invoice_date'}" />
                     <filter
-                        string="Taxes"
                         name="group_by_taxes"
+                        string="Taxes"
                         context="{'group_by': 'tax_ids'}" />
                     <filter
-                        string="Tax Grid"
                         name="group_by_tax_tags"
+                        string="Tax Grid"
                         context="{'group_by': 'tax_tag_ids'}" />
                     <filter
-                        string="Matching"
                         name="group_by_matching"
+                        string="Matching"
                         context="{'group_by': 'matching_number'}" />
                 </group>
                 <searchpanel class="account_root w-auto">
                     <field
                         name="account_root_id"
                         icon="fa-filter"
-                        groupby="account_id"
-                        limit="false" />
+                        limit="false"
+                        groupby="account_id" />
                 </searchpanel>
             </search>
         </field>
@@ -229,79 +229,79 @@
                 <field name="company_currency_id" invisible="1" />
                 <separator />
                 <filter
-                    string="Posted"
                     name="posted"
-                    domain="[('parent_state', '=', 'posted')]"
+                    string="Posted"
                     help="Posted Journal Items"
+                    domain="[('parent_state', '=', 'posted')]"
                     invisible="1" />
                 <separator />
                 <filter
-                    string="Invoices"
                     name="invoices"
+                    string="Invoices"
                     domain="[('amount_residual', '&gt;', '0')]"
                     invisible="context.get('journal_type') != 'sale'" />
                 <filter
-                    string="Credit Notes"
                     name="credit_notes"
+                    string="Credit Notes"
                     domain="[('amount_residual', '&lt;', '0')]"
                     invisible="context.get('journal_type') != 'sale'" />
                 <filter
-                    string="Bills"
                     name="bills"
+                    string="Bills"
                     domain="[('amount_residual', '&lt;', '0')]"
                     invisible="context.get('journal_type') != 'purchase'" />
                 <filter
-                    string="Refunds"
                     name="refunds"
+                    string="Refunds"
                     domain="[('amount_residual', '&gt;', '0')]"
                     invisible="context.get('journal_type') != 'purchase'" />
                 <separator />
-                <filter string="Invoice Date" name="invoice_date" date="invoice_date" />
+                <filter name="invoice_date" string="Invoice Date" date="invoice_date" />
                 <filter
-                    string="Next Payment Date"
                     name="payment_date"
+                    string="Next Payment Date"
                     date="payment_date" />
                 <filter
-                    string="Overdue"
                     name="late"
-                    domain="[('date_maturity', '&lt;', 'today')]"
-                    help="Overdue payments, due date passed" />
+                    string="Overdue"
+                    help="Overdue payments, due date passed"
+                    domain="[('date_maturity', '&lt;', 'today')]" />
                 <filter
-                    string="Early Discount"
                     name="early_discount"
+                    string="Early Discount"
                     domain="[('discount_date', '!=', False), ('discount_date', '&gt;', 'today')]" />
                 <separator />
                 <filter
-                    string="Report Dates"
                     name="date_between"
+                    string="Report Dates"
                     domain="[('date', '&gt;=', context.get('date_from')), ('date', '&lt;=', context.get('date_to'))]"
                     invisible="1" />
                 <filter
-                    string="Report Dates"
                     name="date_before"
+                    string="Report Dates"
                     domain="[('date', '&lt;=', context.get('date_to'))]"
                     invisible="1" />
                 <separator />
                 <group>
                     <filter
-                        string="Currency"
                         name="group_by_currencies"
+                        string="Currency"
                         context="{'group_by': 'currency_id'}" />
                     <filter
-                        string="Partner"
                         name="group_by_partner"
+                        string="Partner"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Journal"
                         name="journal"
+                        string="Journal"
                         context="{'group_by': 'journal_id'}" />
                     <filter
-                        string="Invoice Date"
                         name="groupby_invoice_date"
+                        string="Invoice Date"
                         context="{'group_by': 'invoice_date'}" />
                     <filter
-                        string="Next Payment Date"
                         name="groupby_payment_date"
+                        string="Next Payment Date"
                         context="{'group_by': 'payment_date'}" />
                 </group>
             </search>
@@ -312,7 +312,7 @@
         <field name="name">account.move.line.kanban</field>
         <field name="model">account.move.line</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" create="false" group_create="false">
+            <kanban create="false" class="o_kanban_mobile" group_create="false">
                 <field name="company_currency_id" />
                 <templates>
                     <t t-name="card">
@@ -393,7 +393,7 @@
         <field name="arch" type="xml">
             <graph string="Account Statistics" sample="1">
                 <field name="date" />
-                <field name="balance" operator="+" type="measure" />
+                <field name="balance" type="measure" operator="+" />
             </graph>
         </field>
     </record>
@@ -406,47 +406,47 @@
             <list
                 name="move_line_tree"
                 string="Journal Items"
-                decoration-info="parent_state == 'draft'"
                 create="false"
                 edit="true"
-                expand="context.get('expand', False)"
-                multi_edit="1">
+                multi_edit="1"
+                decoration-info="parent_state == 'draft'"
+                expand="context.get('expand', False)">
                 <field name="move_id" column_invisible="True" />
                 <field name="invoice_date" string="Invoice Date" optional="hide" />
                 <field name="date" readonly="1" />
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="company_id"
+                    optional="hide"
                     groups="base.group_multi_company"
-                    readonly="1"
-                    optional="hide" />
+                    readonly="1" />
                 <field
                     name="journal_id"
-                    readonly="1"
+                    optional="hide"
                     options="{&quot;no_open&quot;:True}"
-                    optional="hide" />
+                    readonly="1" />
                 <field
                     name="move_name"
                     string="Journal Entry"
                     widget="open_move_widget" />
                 <field
                     name="account_id"
-                    options="{'no_open': True, 'no_create': True}"
                     domain="[('company_ids', 'parent_of', company_id)]"
+                    options="{'no_open': True, 'no_create': True}"
                     groups="account.group_account_readonly" />
                 <field
                     name="partner_id"
                     optional="show"
                     readonly="move_type != 'entry'" />
                 <field name="ref" optional="hide" readonly="False" />
-                <field name="product_id" readonly="1" optional="hide" />
+                <field name="product_id" optional="hide" readonly="1" />
                 <field name="name" optional="show" />
                 <field
                     name="analytic_distribution"
                     widget="analytic_distribution"
-                    groups="analytic.group_analytic_accounting"
                     optional="hide"
-                    options="{'product_field': 'product_id', 'account_field': 'account_id', 'force_applicability': 'optional', 'multi_edit': true}" />
+                    options="{'product_field': 'product_id', 'account_field': 'account_id', 'force_applicability': 'optional', 'multi_edit': true}"
+                    groups="analytic.group_analytic_accounting" />
                 <field
                     name="tax_ids"
                     widget="many2many_tax_tags"
@@ -455,17 +455,17 @@
                 <field
                     name="amount_currency"
                     string="In Currency"
-                    groups="base.group_multi_currency"
                     optional="hide"
-                    readonly="1"
-                    invisible="is_same_currency" />
+                    groups="base.group_multi_currency"
+                    invisible="is_same_currency"
+                    readonly="1" />
                 <field
                     name="currency_id"
-                    groups="base.group_multi_currency"
-                    optional="hide"
                     string="Currency"
-                    readonly="1"
-                    invisible="is_same_currency" />
+                    optional="hide"
+                    groups="base.group_multi_currency"
+                    invisible="is_same_currency"
+                    readonly="1" />
                 <field
                     name="debit"
                     sum="Total Debit"
@@ -479,10 +479,10 @@
                 <field
                     name="tax_tag_ids"
                     string="Tax Grids"
-                    options="{'no_create': True, 'no_create_edit': True}"
-                    domain="[('applicability', '=', 'taxes')]"
                     widget="many2many_tags"
-                    optional="hide" />
+                    optional="hide"
+                    domain="[('applicability', '=', 'taxes')]"
+                    options="{'no_create': True, 'no_create_edit': True}" />
                 <field name="discount_date" string="Discount Date" optional="hide" />
                 <field
                     name="discount_amount_currency"
@@ -495,34 +495,34 @@
                     readonly="1" />
                 <field
                     name="date_maturity"
-                    readonly="1"
                     optional="hide"
+                    readonly="1"
                     decoration-danger="not reconciled and date_maturity &lt; context_today().strftime('%Y-%m-%d')" />
                 <field
                     name="balance"
-                    sum="Total Balance"
                     optional="hide"
+                    sum="Total Balance"
                     readonly="1" />
                 <field
                     name="matching_number"
                     string="Matching"
-                    readonly="1"
-                    optional="show" />
+                    optional="show"
+                    readonly="1" />
                 <field
                     name="amount_residual"
-                    sum="Total Residual"
                     string="Residual"
                     optional="hide"
-                    readonly="1"
-                    invisible="not is_account_reconcile" />
+                    sum="Total Residual"
+                    invisible="not is_account_reconcile"
+                    readonly="1" />
                 <field
                     name="amount_residual_currency"
-                    sum="Total Residual in Currency"
                     string="Residual in Currency"
                     optional="hide"
-                    readonly="1"
+                    sum="Total Residual in Currency"
+                    groups="base.group_multi_currency"
                     invisible="is_same_currency or not is_account_reconcile"
-                    groups="base.group_multi_currency" />
+                    readonly="1" />
                 <field name="move_type" column_invisible="True" />
                 <field name="parent_state" column_invisible="True" />
                 <field name="account_type" column_invisible="True" />
@@ -533,24 +533,24 @@
                 <field name="sequence" column_invisible="True" />
                 <field name="deductible_amount" optional="hide" />
                 <groupby name="partner_id">
-                    <button name="edit" type="edit" icon="fa-edit" title="Edit" />
+                    <button name="edit" type="edit" title="Edit" icon="fa-edit" />
                 </groupby>
                 <groupby name="move_id">
                     <button
                         name="action_post"
                         type="object"
                         string="Post"
-                        class="btn-primary"
+                        groups="account.group_account_user"
                         invisible="state != 'draft'"
-                        groups="account.group_account_user" />
+                        class="btn-primary" />
                     <button
                         name="set_moves_checked"
                         type="object"
                         string="Review"
-                        class="btn-primary"
+                        groups="account.group_account_user"
                         invisible="state != 'posted' or checked"
-                        groups="account.group_account_user" />
-                    <button name="edit_move" type="edit" icon="fa-edit" string="Edit" />
+                        class="btn-primary" />
+                    <button name="edit_move" type="edit" string="Edit" icon="fa-edit" />
                 </groupby>
             </list>
         </field>
@@ -660,13 +660,13 @@
         <field name="arch" type="xml">
             <list
                 string="Payment Items"
-                decoration-info="parent_state == 'draft'"
+                default_order="payment_date asc, id asc"
                 create="false"
                 edit="true"
-                expand="context.get('expand', False)"
                 multi_edit="1"
                 sample="1"
-                default_order="payment_date asc, id asc">
+                decoration-info="parent_state == 'draft'"
+                expand="context.get('expand', False)">
                 <header>
                     <button
                         name="action_payment_items_register_payment"
@@ -676,25 +676,25 @@
                 </header>
                 <field name="move_id" column_invisible="True" />
                 <field name="invoice_date" string="Bill Date" />
-                <field name="date" readonly="1" optional="hide" />
+                <field name="date" optional="hide" readonly="1" />
                 <field
                     name="date_maturity"
                     string="Invoice Due Date"
-                    readonly="1"
-                    optional="hide" />
+                    optional="hide"
+                    readonly="1" />
                 <field name="discount_date" string="Discount Date" optional="hide" />
                 <field name="payment_date" readonly="1" />
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="company_id"
+                    optional="hide"
                     groups="base.group_multi_company"
-                    readonly="1"
-                    optional="hide" />
+                    readonly="1" />
                 <field
                     name="journal_id"
-                    readonly="1"
+                    optional="hide"
                     options="{&quot;no_open&quot;:True}"
-                    optional="hide" />
+                    readonly="1" />
                 <field
                     name="move_name"
                     string="Journal Entry"
@@ -712,31 +712,31 @@
                     invisible="not discount_amount_currency" />
                 <field
                     name="amount_residual"
-                    sum="Total Residual"
                     string="Residual"
-                    readonly="1"
-                    invisible="not is_account_reconcile" />
+                    sum="Total Residual"
+                    invisible="not is_account_reconcile"
+                    readonly="1" />
                 <field
                     name="amount_residual_currency"
                     string="Residual in Currency"
                     optional="hide"
-                    readonly="1"
+                    groups="base.group_multi_currency"
                     invisible="is_same_currency or not is_account_reconcile"
-                    groups="base.group_multi_currency" />
+                    readonly="1" />
                 <field
                     name="currency_id"
-                    groups="base.group_multi_currency"
-                    optional="hide"
                     string="Currency"
-                    readonly="1"
-                    invisible="is_same_currency" />
+                    optional="hide"
+                    groups="base.group_multi_currency"
+                    invisible="is_same_currency"
+                    readonly="1" />
                 <field name="company_currency_id" column_invisible="True" />
                 <field name="move_type" column_invisible="True" />
                 <field name="is_same_currency" column_invisible="True" />
                 <field name="is_account_reconcile" column_invisible="True" />
                 <field name="parent_state" column_invisible="True" />
                 <groupby name="partner_id">
-                    <button name="edit" type="edit" icon="fa-edit" title="Edit" />
+                    <button name="edit" type="edit" title="Edit" icon="fa-edit" />
                 </groupby>
             </list>
         </field>
@@ -759,13 +759,13 @@
                             readonly="1" />
                     </group>
                     <notebook colspan="4">
-                        <page string="Information" name="information">
+                        <page name="information" string="Information">
                             <group>
                                 <group string="Amount">
                                     <field
                                         name="account_id"
-                                        options="{'no_create': True}"
                                         domain="[('company_ids', 'parent_of', company_id)]"
+                                        options="{'no_create': True}"
                                         readonly="1" />
                                     <field name="debit" readonly="1" />
                                     <field name="credit" readonly="1" />
@@ -784,13 +784,13 @@
                                     invisible="not tax_line_id and not tax_ids">
                                     <field
                                         name="tax_line_id"
-                                        readonly="1"
-                                        invisible="not tax_line_id" />
+                                        invisible="not tax_line_id"
+                                        readonly="1" />
                                     <field
                                         name="tax_ids"
                                         widget="many2many_tax_tags"
-                                        readonly="1"
-                                        invisible="not tax_ids" />
+                                        invisible="not tax_ids"
+                                        readonly="1" />
                                 </group>
                                 <group
                                     string="Matching"
@@ -806,10 +806,10 @@
                                             invisible="1" />
                                         <button
                                             name="open_reconcile_view"
-                                            class="oe_link"
                                             type="object"
                                             string="-&gt; View partially reconciled entries"
-                                            invisible="full_reconcile_id or not matched_debit_ids and not matched_credit_ids">
+                                            invisible="full_reconcile_id or not matched_debit_ids and not matched_credit_ids"
+                                            class="oe_link">
                                         </button>
                                     </div>
                                 </group>
@@ -837,8 +837,8 @@
                             </group>
                         </page>
                         <page
-                            string="Analytic Lines"
                             name="analytic_lines"
+                            string="Analytic Lines"
                             groups="analytic.group_analytic_accounting">
                             <field name="date" invisible="1" />
                             <field
@@ -846,11 +846,11 @@
                                 context="{'list_view_ref':'analytic.view_account_analytic_line_tree', 'default_general_account_id':account_id, 'default_name': name, 'default_date':date, 'amount': (debit or 0.0)-(credit or 0.0)}" />
                         </page>
                         <page
-                            string="Accounting documents"
-                            name="page_accounting_documents">
+                            name="page_accounting_documents"
+                            string="Accounting documents">
                             <label for="move_id" string="Journal Entry" />
-                            <field name="move_id" readonly="1" nolabel="1" />
-                            <group readonly="1" invisible="not statement_line_id">
+                            <field name="move_id" readonly="1" />
+                            <group invisible="not statement_line_id" readonly="1">
                                 <label
                                     for="statement_line_id"
                                     string="Originator Statement Line" />

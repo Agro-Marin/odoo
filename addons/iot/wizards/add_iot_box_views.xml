@@ -16,11 +16,11 @@
                     <div class="d-flex justify-content-between w-100">
                         <div class="d-flex gap-1">
                             <button
-                                class="btn btn-secondary"
-                                string="Discard"
-                                data-hotkey="x"
                                 name="cancel"
-                                special="cancel" />
+                                special="cancel"
+                                string="Discard"
+                                class="btn btn-secondary"
+                                data-hotkey="x" />
                         </div>
                     </div>
                 </footer>
@@ -46,24 +46,24 @@
                     <div class="d-flex justify-content-between w-100">
                         <div class="d-flex gap-1">
                             <button
-                                id="pair_button"
-                                class="btn btn-primary"
-                                type="object"
                                 name="add_iot_box_wizard_action"
-                                string="Connect" />
+                                id="pair_button"
+                                type="object"
+                                string="Connect"
+                                class="btn btn-primary" />
                             <button
-                                class="btn btn-secondary"
-                                string="Discard"
-                                data-hotkey="x"
                                 name="cancel"
-                                special="cancel" />
+                                special="cancel"
+                                string="Discard"
+                                class="btn btn-secondary"
+                                data-hotkey="x" />
                         </div>
                         <button
-                            class="btn btn-secondary"
-                            string="Offline Pairing"
                             name="pair_offline"
+                            type="object"
+                            string="Offline Pairing"
                             groups="base.group_no_one"
-                            type="object" />
+                            class="btn btn-secondary" />
                     </div>
                 </footer>
             </form>
@@ -92,16 +92,16 @@
                     <div class="d-flex justify-content-between w-100">
                         <div class="d-flex gap-1">
                             <button
-                                class="btn btn-primary"
-                                string="Standard Pairing"
                                 name="pair_offline"
-                                type="object" />
+                                type="object"
+                                string="Standard Pairing"
+                                class="btn btn-primary" />
                             <button
-                                class="btn btn-secondary"
-                                string="Discard"
-                                data-hotkey="x"
                                 name="cancel"
-                                special="cancel" />
+                                special="cancel"
+                                string="Discard"
+                                class="btn btn-secondary"
+                                data-hotkey="x" />
                         </div>
                     </div>
                 </footer>
@@ -121,18 +121,18 @@
                     <field
                         name="iot_box_to_connect"
                         widget="radio"
-                        required="1"
-                        domain="[['id', 'in', discovered_box_ids]]" />
+                        domain="[['id', 'in', discovered_box_ids]]"
+                        required="1" />
                 </group>
                 <footer>
                     <div class="d-flex justify-content-between w-100">
                         <div class="d-flex gap-1">
                             <button
-                                id="pair_button"
-                                class="btn btn-primary"
-                                type="object"
                                 name="add_iot_box_wizard_action"
-                                string="Connect" />
+                                id="pair_button"
+                                type="object"
+                                string="Connect"
+                                class="btn btn-primary" />
                         </div>
                     </div>
                 </footer>
@@ -187,29 +187,29 @@
                     <div class="d-flex justify-content-between w-100">
                         <div class="d-flex gap-1">
                             <button
-                                id="pair_code_button"
-                                class="btn btn-primary"
-                                type="object"
                                 name="add_iot_box_wizard_action"
-                                string="Use Pairing Code" />
+                                id="pair_code_button"
+                                type="object"
+                                string="Use Pairing Code"
+                                class="btn btn-primary" />
                             <button
-                                class="btn btn-secondary"
                                 name="open_documentation_url"
                                 type="object"
-                                string="Documentation" />
+                                string="Documentation"
+                                class="btn btn-secondary" />
                             <button
-                                class="btn btn-secondary"
-                                string="Discard"
-                                data-hotkey="x"
                                 name="cancel"
-                                special="cancel" />
+                                special="cancel"
+                                string="Discard"
+                                class="btn btn-secondary"
+                                data-hotkey="x" />
                         </div>
                         <button
-                            class="btn btn-secondary"
-                            string="Offline Pairing"
                             name="pair_offline"
                             type="object"
-                            groups="base.group_no_one" />
+                            string="Offline Pairing"
+                            groups="base.group_no_one"
+                            class="btn btn-secondary" />
                     </div>
                 </footer>
             </form>

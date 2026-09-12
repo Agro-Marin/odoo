@@ -12,8 +12,8 @@
                     name="%(l10n_it_stock_ddt.action_report_ddt)d"
                     type="action"
                     string="Print"
-                    invisible="not l10n_it_show_print_ddt_button"
-                    groups="base.group_user" />
+                    groups="base.group_user"
+                    invisible="not l10n_it_show_print_ddt_button" />
             </xpath>
             <xpath
                 expr="//button[@name='%(stock.action_report_delivery)d']"

@@ -32,8 +32,8 @@
                     <div class="o_row">
                         <field
                             name="amount_to_capture"
-                            class="oe_inline"
-                            readonly="support_partial_capture == 'full_only'" />
+                            readonly="support_partial_capture == 'full_only'"
+                            class="oe_inline" />
                         <i
                             class="fa-solid fa-info-circle oe_inline"
                             invisible="support_partial_capture != 'full_only'"
@@ -49,15 +49,15 @@
                     class="alert alert-warning mb-2"
                     invisible="is_amount_to_capture_valid">
                     <strong>Warning!</strong> You can not capture a negative amount nor more
-                    than <field name="available_amount" class="oe_inline" widget="monetary" />.
+                    than <field name="available_amount" widget="monetary" class="oe_inline" />.
                 </div>
                 <footer>
                     <button
-                        string="Capture"
-                        type="object"
                         name="action_capture"
+                        type="object"
+                        string="Capture"
                         class="btn-primary" />
-                    <button string="Close" special="cancel" class="btn-secondary" />
+                    <button special="cancel" string="Close" class="btn-secondary" />
                 </footer>
             </form>
         </field>

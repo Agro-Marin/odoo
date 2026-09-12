@@ -30,9 +30,9 @@
                 <filter
                     name="activities_overdue"
                     string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    invisible="1"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
                     name="activities_today"
                     string="Today Activities"
@@ -138,13 +138,13 @@
                 <filter
                     name="not_invoiced"
                     string="Waiting Bills"
-                    domain="[('invoice_state', 'in', ['to do', 'partial'])]"
-                    help="Purchase orders that include lines not invoiced." />
+                    help="Purchase orders that include lines not invoiced."
+                    domain="[('invoice_state', 'in', ['to do', 'partial'])]" />
                 <filter
                     name="invoiced"
                     string="Bills Received"
-                    domain="[('invoice_state', '=', 'done')]"
-                    help="Purchase orders that have been invoiced." />
+                    help="Purchase orders that have been invoiced."
+                    domain="[('invoice_state', '=', 'done')]" />
                 <separator />
                 <filter
                     name="activities_exception"
@@ -163,20 +163,20 @@
         <field name="arch" type="xml">
             <calendar
                 string="Purchase Orders"
-                date_start="date_calendar_start"
                 mode="month"
+                create="0"
                 color="partner_id"
+                date_start="date_calendar_start"
                 event_limit="5"
                 hide_time="true"
-                create="0"
                 quick_create="0">
                 <field name="currency_id" invisible="1" />
-                <field name="state" filters="1" invisible="1" />
+                <field name="state" invisible="1" filters="1" />
                 <field name="partner_ref" />
                 <field
                     name="partner_id"
-                    avatar_field="avatar_128"
-                    options="{'icon': 'fa-solid fa-users'}" />
+                    options="{'icon': 'fa-solid fa-users'}"
+                    avatar_field="avatar_128" />
                 <field name="amount_total" widget="monetary" />
                 <field name="payment_term_id" />
             </calendar>
@@ -187,7 +187,7 @@
         <field name="name">purchase.order.pivot</field>
         <field name="model">purchase.order</field>
         <field name="arch" type="xml">
-            <pivot string="Purchase Orders" display_quantity="1" sample="1">
+            <pivot string="Purchase Orders" sample="1" display_quantity="1">
                 <field name="date_order" type="row" />
                 <field name="amount_total" type="measure" />
             </pivot>
@@ -198,7 +198,7 @@
         <field name="name">purchase.order.graph</field>
         <field name="model">purchase.order</field>
         <field name="arch" type="xml">
-            <graph string="Purchase Orders" sample="1" type="bar" stacked="1">
+            <graph type="bar" string="Purchase Orders" sample="1" stacked="1">
                 <field name="date_order" />
                 <field name="state" />
                 <field name="amount_untaxed" type="measure" />
@@ -212,9 +212,9 @@
         <field name="model">purchase.order</field>
         <field name="arch" type="xml">
             <kanban
+                sample="1"
                 class="o_kanban_mobile"
                 js_class="purchase_dashboard_kanban"
-                sample="1"
                 quick_create="false">
                 <field name="currency_id" />
                 <progressbar
@@ -284,13 +284,13 @@
                     decoration-info="state == 'draft'" />
                 <field
                     name="date_order"
+                    optional="show"
                     column_invisible="not context.get('quotation_only', False)"
-                    readonly="state in ['done', 'cancel']"
-                    optional="show" />
+                    readonly="state in ['done', 'cancel']" />
                 <field
                     name="date_confirmed"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
+                    optional="show"
+                    column_invisible="context.get('quotation_only', False)" />
                 <field name="partner_id" readonly="1" />
                 <field name="origin" optional="hide" />
                 <field name="partner_ref" optional="hide" />
@@ -304,15 +304,15 @@
                 <field name="user_id" optional="show" />
                 <field
                     name="amount_untaxed"
-                    sum="Total Untaxed amount"
                     string="Untaxed"
                     widget="monetary"
-                    optional="hide" />
+                    optional="hide"
+                    sum="Total Untaxed amount" />
                 <field
                     name="amount_total"
-                    sum="Total amount"
                     widget="monetary"
-                    optional="show" />
+                    optional="show"
+                    sum="Total amount" />
                 <field
                     name="currency_id"
                     column_invisible="True"
@@ -320,33 +320,33 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-success="state == 'done'"
+                    optional="show"
                     decoration-info="state == 'draft'"
-                    optional="show" />
+                    decoration-success="state == 'done'" />
                 <field
                     name="date_commitment"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
+                    optional="show"
+                    column_invisible="context.get('quotation_only', False)" />
                 <field
                     name="invoice_state"
                     widget="badge"
-                    decoration-warning="invoice_state == 'to do'"
+                    optional="hide"
+                    column_invisible="context.get('quotation_only', False)"
+                    decoration-danger="invoice_state == 'over done'"
                     decoration-info="invoice_state == 'partial'"
                     decoration-success="invoice_state == 'done'"
-                    decoration-danger="invoice_state == 'over done'"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="hide" />
+                    decoration-warning="invoice_state == 'to do'" />
                 <field
                     name="tag_ids"
                     widget="many2many_tags"
-                    options="{'color_field': 'color'}"
-                    optional="hide" />
+                    optional="hide"
+                    options="{'color_field': 'color'}" />
                 <field
                     name="company_id"
-                    readonly="1"
+                    optional="show"
                     options="{'no_create': True}"
                     groups="base.group_multi_company"
-                    optional="show" />
+                    readonly="1" />
             </list>
         </field>
     </record>
@@ -358,17 +358,17 @@
         <field name="arch" type="xml">
             <list
                 string="Purchase Orders"
-                class="o_purchase_order"
-                js_class="purchase_dashboard_list"
-                sample="1"
                 multi_edit="1"
+                sample="1"
+                class="o_purchase_order"
                 decoration-info="state == 'draft'"
-                decoration-muted="state == 'cancel'">
+                decoration-muted="state == 'cancel'"
+                js_class="purchase_dashboard_list">
                 <header>
                     <button
                         name="action_cancel"
-                        string="Cancel"
                         type="object"
+                        string="Cancel"
                         confirm="Are you sure you want to cancel the selected RFQs/Orders?" />
                 </header>
                 <field
@@ -376,58 +376,58 @@
                     column_invisible="True"
                     readonly="state in ['done', 'cancel']" />
 
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field name="priority" widget="priority" nolabel="1" optional="show" />
                 <field name="name" string="Reference" readonly="1" decoration-bf="1" />
                 <field
                     name="date_order"
+                    widget="remaining_days"
+                    optional="show"
                     invisible="state == 'done' or state == 'cancel'"
                     column_invisible="not context.get('quotation_only', False)"
-                    readonly="state in ['done', 'cancel']"
-                    widget="remaining_days"
-                    optional="show" />
+                    readonly="state in ['done', 'cancel']" />
                 <field
                     name="date_confirmed"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
+                    optional="show"
+                    column_invisible="context.get('quotation_only', False)" />
                 <field
                     name="date_commitment"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
+                    optional="show"
+                    column_invisible="context.get('quotation_only', False)" />
                 <field name="partner_id" readonly="1" />
                 <field name="origin" optional="hide" />
                 <field name="partner_ref" optional="hide" />
-                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="activity_ids" widget="list_activity" optional="show" />
                 <field
                     name="amount_untaxed"
                     string="Untaxed"
                     widget="monetary"
-                    sum="Total Untaxed amount"
-                    optional="hide" />
+                    optional="hide"
+                    sum="Total Untaxed amount" />
                 <field
                     name="amount_total"
                     widget="monetary"
+                    optional="show"
                     sum="Total amount"
-                    decoration-bf="state == 'done'"
-                    optional="show" />
+                    decoration-bf="state == 'done'" />
                 <field
                     name="state"
                     widget="badge"
-                    decoration-success="state == 'done'"
+                    optional="show"
                     decoration-info="state == 'draft'"
-                    optional="show" />
+                    decoration-success="state == 'done'" />
                 <field name="invoice_state" optional="hide" />
                 <field
                     name="company_id"
-                    readonly="1"
+                    optional="show"
                     options="{'no_create': True}"
                     groups="base.group_multi_company"
-                    optional="show" />
+                    readonly="1" />
                 <field
                     name="company_id"
                     groups="!base.group_multi_company"
-                    readonly="state in ['done', 'cancel']"
-                    column_invisible="True" />
+                    column_invisible="True"
+                    readonly="state in ['done', 'cancel']" />
             </list>
         </field>
     </record>
@@ -437,12 +437,12 @@
         <field name="model">purchase.order</field>
         <field name="arch" type="xml">
             <list
-                decoration-muted="state == 'cancel'"
-                decoration-info="invoice_state == 'to do'"
                 string="Purchase Order"
-                class="o_purchase_order"
                 multi_edit="1"
-                sample="1">
+                sample="1"
+                class="o_purchase_order"
+                decoration-info="invoice_state == 'to do'"
+                decoration-muted="state == 'cancel'">
                 <header>
                     <button name="create_invoice" type="object" string="Create Bills" />
                     <button
@@ -451,7 +451,7 @@
                         string="Cancel"
                         confirm="Are you sure you want to cancel the selected RFQs/Orders?" />
                 </header>
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field name="priority" widget="priority" nolabel="1" optional="show" />
                 <field name="partner_ref" optional="hide" />
                 <field
                     name="name"
@@ -461,14 +461,14 @@
                     decoration-info="state == 'draft'" />
                 <field
                     name="date_confirmed"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
+                    optional="show"
+                    column_invisible="context.get('quotation_only', False)" />
                 <field name="partner_id" readonly="state in ['done', 'cancel']" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    options="{'no_create': True}"
                     optional="show"
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company"
                     readonly="state in ['done', 'cancel']" />
                 <field
                     name="company_id"
@@ -478,22 +478,22 @@
                 <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field
                     name="date_order"
+                    optional="show"
                     column_invisible="not context.get('quotation_only', False)"
-                    readonly="state in ['done', 'cancel']"
-                    optional="show" />
+                    readonly="state in ['done', 'cancel']" />
                 <field name="activity_ids" widget="list_activity" optional="show" />
                 <field name="origin" optional="show" />
                 <field
                     name="amount_untaxed"
-                    sum="Total Untaxed amount"
                     string="Untaxed"
                     widget="monetary"
-                    optional="hide" />
+                    optional="hide"
+                    sum="Total Untaxed amount" />
                 <field
                     name="amount_total"
-                    sum="Total amount"
                     widget="monetary"
                     optional="show"
+                    sum="Total amount"
                     decoration-bf="1" />
                 <field
                     name="currency_id"
@@ -503,13 +503,13 @@
                 <field
                     name="invoice_state"
                     widget="badge"
-                    decoration-success="invoice_state == 'done'"
+                    optional="show"
                     decoration-info="invoice_state == 'to do'"
-                    optional="show" />
+                    decoration-success="invoice_state == 'done'" />
                 <field
                     name="date_commitment"
-                    column_invisible="context.get('quotation_only', False)"
-                    optional="show" />
+                    optional="show"
+                    column_invisible="context.get('quotation_only', False)" />
             </list>
         </field>
     </record>
@@ -523,86 +523,86 @@
                     <field name="locked" invisible="1" />
                     <button
                         name="action_send_rfq"
-                        groups="purchase.group_purchase_user"
+                        type="object"
                         string="Send RFQ"
-                        type="object"
-                        class="btn-primary"
                         context="{'send_rfq':True}"
-                        data-hotkey="g"
-                        invisible="state != 'draft'" />
-                    <button
-                        id="confirm_button"
-                        name="action_confirm"
                         groups="purchase.group_purchase_user"
-                        string="Confirm"
-                        type="object"
+                        invisible="state != 'draft'"
                         class="btn-primary"
-                        data-hotkey="q"
+                        data-hotkey="g" />
+                    <button
+                        name="action_confirm"
+                        id="confirm_button"
+                        type="object"
+                        string="Confirm"
                         context="{'validate_analytic': True}"
-                        invisible="state != 'draft'" />
+                        groups="purchase.group_purchase_user"
+                        invisible="state != 'draft'"
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <widget name="purchase_file_uploader" invisible="state != 'done'" />
                     <button
                         name="action_send_rfq"
-                        groups="purchase.group_purchase_user"
-                        string="Send PO"
-                        invisible="state != 'done'"
                         type="object"
+                        string="Send PO"
                         context="{'send_rfq':False}"
+                        groups="purchase.group_purchase_user"
+                        invisible="state != 'done'"
                         data-hotkey="g" />
                     <button
                         name="action_acknowledge"
-                        groups="purchase.group_purchase_user"
-                        string="Acknowledge"
                         type="object"
+                        string="Acknowledge"
+                        groups="purchase.group_purchase_user"
                         invisible="acknowledged or state != 'done'" />
                     <button
                         name="action_print_quotation"
-                        string="Print"
                         type="object"
+                        string="Print"
                         groups="base.group_user"
-                        data-hotkey="k"
-                        invisible="state == 'done'" />
+                        invisible="state == 'done'"
+                        data-hotkey="k" />
                     <button
                         name="%(purchase.action_report_purchase_order)d"
-                        string="Print"
                         type="action"
+                        string="Print"
                         groups="base.group_user"
-                        data-hotkey="k"
-                        invisible="state != 'done'" />
+                        invisible="state != 'done'"
+                        data-hotkey="k" />
                     <button
                         name="action_lock"
-                        string="Lock"
                         type="object"
-                        data-hotkey="l"
+                        string="Lock"
+                        groups="purchase.group_order_lock"
                         invisible="locked or state != 'done'"
-                        groups="purchase.group_order_lock" />
+                        data-hotkey="l" />
                     <button
                         name="action_unlock"
-                        string="Unlock"
                         type="object"
-                        data-hotkey="l"
+                        string="Unlock"
+                        groups="purchase.group_order_unlock"
                         invisible="not locked"
-                        groups="purchase.group_order_unlock" />
+                        data-hotkey="l" />
                     <button
                         name="action_cancel"
-                        groups="purchase.group_purchase_user"
+                        type="object"
                         string="Cancel"
                         confirm="Are you sure you want to cancel this order?"
-                        type="object"
+                        groups="purchase.group_purchase_user"
                         invisible="state not in ['draft', 'done']"
                         data-hotkey="x" />
                     <button
                         name="action_draft"
-                        groups="purchase.group_purchase_user"
-                        string="Set to Draft"
                         type="object"
+                        string="Set to Draft"
+                        groups="purchase.group_purchase_user"
                         invisible="state != 'cancel'"
                         data-hotkey="w" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="draft,done"
-                        readonly="1" />
+                        readonly="1"
+                        statusbar_visible="draft,done" />
                 </header>
                 <div
                     class="alert alert-warning"
@@ -631,9 +631,9 @@
                         <button
                             name="action_view_invoice"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-regular fa-pen-to-square"
-                            invisible="invoice_count == 0 or state == 'draft'">
+                            invisible="invoice_count == 0 or state == 'draft'"
+                            class="oe_stat_button">
                             <field
                                 name="invoice_count"
                                 string="Vendor Bills"
@@ -643,10 +643,10 @@
                         <button
                             name="action_bill_matching"
                             type="object"
-                            class="oe_stat_button"
-                            groups="account.group_account_invoice"
                             icon="fa-bullseye"
-                            invisible="not partner_id or state != 'done' or not partner_bill_count or invoice_state == 'done'">
+                            groups="account.group_account_invoice"
+                            invisible="not partner_id or state != 'done' or not partner_bill_count or invoice_state == 'done'"
+                            class="oe_stat_button">
                             <div class="o_field_statinfo">
                                 <span class="o_stat_text">Bill Matching</span>
                             </div>
@@ -654,9 +654,9 @@
                         <button
                             name="action_price_comparison"
                             type="object"
-                            class="oe_stat_button"
+                            icon="fa-dollar"
                             invisible="not show_comparison"
-                            icon="fa-dollar">
+                            class="oe_stat_button">
                             <div class="o_field_statinfo">
                                 <span class="o_stat_text">Price Comparison</span>
                             </div>
@@ -679,16 +679,16 @@
                         <group name="partner_details">
                             <field
                                 name="partner_id"
+                                placeholder="Type to find a vendor..."
                                 widget="res_partner_many2one"
                                 context="{'res_partner_search_mode': 'supplier', 'show_address': 1, 'show_vat': True}"
-                                placeholder="Type to find a vendor..."
                                 readonly="state in ['done', 'cancel']" />
                             <field name="partner_ref" />
                             <field name="id" invisible="1" />
                             <field
                                 name="company_id"
-                                readonly="state in ['done', 'cancel']"
-                                invisible="1" />
+                                invisible="1"
+                                readonly="state in ['done', 'cancel']" />
                         </group>
                         <group name="order_details">
                             <field
@@ -711,21 +711,21 @@
                             <field
                                 name="currency_id"
                                 force_save="1"
-                                readonly="state in ['done', 'cancel']"
-                                groups="base.group_multi_currency" />
+                                groups="base.group_multi_currency"
+                                readonly="state in ['done', 'cancel']" />
                             <field
                                 name="currency_id"
-                                readonly="state in ['done', 'cancel']"
+                                groups="!base.group_multi_currency"
                                 invisible="1"
-                                groups="!base.group_multi_currency" />
+                                readonly="state in ['done', 'cancel']" />
                             <field
                                 name="payment_term_id"
-                                readonly="invoice_state == 'done' or locked"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                readonly="invoice_state == 'done' or locked" />
                             <label
                                 for="receipt_reminder_email"
-                                class="d-none"
-                                groups="purchase.group_send_reminder" />
+                                groups="purchase.group_send_reminder"
+                                class="d-none" />
                             <div
                                 name="reminder"
                                 class="o_row"
@@ -736,7 +736,7 @@
                                 <div
                                     class="o_row oe_inline"
                                     invisible="not receipt_reminder_email">
-                                    <field name="reminder_date_before_receipt" class="oe_inline" style="max-width: 30px;" /> day(s) before <widget name="toaster_button" button_name="send_reminder_preview" title="Preview the reminder email by sending it to yourself." invisible="not id" />
+                                    <field name="reminder_date_before_receipt" class="oe_inline" style="max-width: 30px;" /> day(s) before <widget name="toaster_button" title="Preview the reminder email by sending it to yourself." invisible="not id" button_name="send_reminder_preview" />
                                 </div>
                             </div>
                         </group>
@@ -748,12 +748,12 @@
                                 widget="product_label_section_and_note_field_o2m"
                                 mode="list,kanban"
                                 context="{'default_state': 'draft'}"
-                                readonly="state == 'cancel' or locked"
-                                options="{ 'subsections': True }">
+                                options="{ 'subsections': True }"
+                                readonly="state == 'cancel' or locked">
                                 <list
                                     string="Purchase Order Lines"
-                                    editable="bottom"
                                     limit="200"
+                                    editable="bottom"
                                     decoration-warning="(state == 'draft' and product_is_archived) or purchase_line_warn_msg">
                                     <control>
                                         <create
@@ -769,10 +769,10 @@
                                             context="{'default_display_type': 'line_note'}" />
                                         <button
                                             name="action_add_from_catalog"
-                                            string="Catalog"
                                             type="object"
-                                            class="px-4 btn-link"
-                                            context="{'order_id': parent.id}" />
+                                            string="Catalog"
+                                            context="{'order_id': parent.id}"
+                                            class="px-4 btn-link" />
                                     </control>
 
                                     <field
@@ -790,13 +790,13 @@
                                     <field
                                         name="product_id"
                                         widget="product_label_section_and_note_field"
-                                        readonly="state in ['done', 'cancel'] or is_downpayment"
-                                        required="not display_type and not is_downpayment"
+                                        optional="show"
                                         force_save="1"
+                                        domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]"
                                         context="{                                             'company_id': parent.company_id,                                             'partner_id': partner_id,                                             'quantity': product_qty,                                         }"
                                         options="{'show_label_warning': True}"
-                                        domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]"
-                                        optional="show" />
+                                        readonly="state in ['done', 'cancel'] or is_downpayment"
+                                        required="not display_type and not is_downpayment" />
                                     <field
                                         name="name"
                                         widget="section_and_note_text"
@@ -804,8 +804,8 @@
                                     <field
                                         name="analytic_distribution"
                                         widget="analytic_distribution"
-                                        options="{                                             'product_field': 'product_id',                                             'business_domain': 'purchase_order',                                             'amount_field': 'price_subtotal'                                         }"
                                         optional="hide"
+                                        options="{                                             'product_field': 'product_id',                                             'business_domain': 'purchase_order',                                             'amount_field': 'price_subtotal'                                         }"
                                         groups="analytic.group_analytic_accounting" />
                                     <field
                                         name="product_qty"
@@ -813,30 +813,30 @@
                                     <field
                                         name="qty_transferred"
                                         string="Received"
-                                        decoration-info="not display_type and qty_transferred == 0"
-                                        decoration-warning="not display_type and qty_transferred &gt; 0 and qty_transferred &lt; product_qty"
-                                        decoration-success="not display_type and qty_transferred == product_qty"
-                                        decoration-danger="not display_type and qty_transferred &gt; product_qty"
-                                        readonly="qty_transferred_method != 'manual' or is_downpayment"
+                                        optional="show"
                                         column_invisible="parent.state != 'done'"
-                                        optional="show" />
+                                        readonly="qty_transferred_method != 'manual' or is_downpayment"
+                                        decoration-danger="not display_type and qty_transferred &gt; product_qty"
+                                        decoration-info="not display_type and qty_transferred == 0"
+                                        decoration-success="not display_type and qty_transferred == product_qty"
+                                        decoration-warning="not display_type and qty_transferred &gt; 0 and qty_transferred &lt; product_qty" />
                                     <field
                                         name="qty_invoiced"
                                         string="Billed"
-                                        decoration-danger="not display_type and invoice_state == 'over done'"
-                                        decoration-warning="not display_type and invoice_state == 'to do'"
-                                        decoration-success="not display_type and invoice_state == 'done'"
+                                        optional="show"
                                         column_invisible="parent.state != 'done'"
-                                        optional="show" />
+                                        decoration-danger="not display_type and invoice_state == 'over done'"
+                                        decoration-success="not display_type and invoice_state == 'done'"
+                                        decoration-warning="not display_type and invoice_state == 'to do'" />
                                     <field
                                         name="product_uom_id"
                                         widget="many2one_uom"
-                                        force_save="1"
-                                        readonly="state in ['done', 'cancel'] or is_downpayment"
-                                        required="not display_type and not is_downpayment"
-                                        options="{'no_create': True, 'no_open': True, 'quantity_field': 'product_qty'}"
                                         optional="show"
-                                        groups="uom.group_uom" />
+                                        force_save="1"
+                                        options="{'no_create': True, 'no_open': True, 'quantity_field': 'product_qty'}"
+                                        groups="uom.group_uom"
+                                        readonly="state in ['done', 'cancel'] or is_downpayment"
+                                        required="not display_type and not is_downpayment" />
                                     <field
                                         name="price_unit"
                                         readonly="qty_invoiced != 0" />
@@ -846,24 +846,24 @@
                                     <field
                                         name="tax_ids"
                                         widget="many2many_tax_tags"
-                                        options="{'no_create': True}"
-                                        context="{'default_type_tax_use': 'purchase', 'search_view_ref': 'account.account_tax_view_search'}"
-                                        readonly="is_downpayment"
+                                        optional="show"
                                         domain="[('type_tax_use', '=', 'purchase'), ('company_ids', 'parent_of', parent.company_id), ('country_id', '=', parent.tax_country_id), ('active', '=', True)]"
-                                        optional="show" />
+                                        context="{'default_type_tax_use': 'purchase', 'search_view_ref': 'account.account_tax_view_search'}"
+                                        options="{'no_create': True}"
+                                        readonly="is_downpayment" />
                                     <field
                                         name="discount"
                                         string="Disc.%"
                                         width="50px"
-                                        readonly="qty_invoiced != 0"
-                                        optional="hide" />
+                                        optional="hide"
+                                        readonly="qty_invoiced != 0" />
                                     <field name="price_subtotal" string="Amount" />
                                     <field
                                         name="date_commitment"
                                         optional="hide"
-                                        required="not display_type and not is_downpayment"
                                         force_save="1"
-                                        readonly="is_downpayment" />
+                                        readonly="is_downpayment"
+                                        required="not display_type and not is_downpayment" />
                                 </list>
                                 <form string="Purchase Order Line">
                                     <field name="sequence" invisible="1" />
@@ -879,21 +879,21 @@
                                                 <field
                                                     name="product_id"
                                                     widget="many2one_barcode"
-                                                    context="{'partner_id': parent.partner_id}"
+                                                    force_save="1"
                                                     domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]"
+                                                    context="{'partner_id': parent.partner_id}"
                                                     readonly="state in ['done', 'cancel'] or is_downpayment"
-                                                    required="not display_type and not is_downpayment"
-                                                    force_save="1" />
+                                                    required="not display_type and not is_downpayment" />
                                             </div>
                                             <label for="product_qty" />
                                             <div class="o_row" name="ordered_qty">
                                                 <field name="product_qty" />
                                                 <field
                                                     name="product_uom_id"
+                                                    widget="many2one_uom"
                                                     groups="uom.group_uom"
                                                     readonly="state in ['done', 'cancel'] or is_downpayment"
-                                                    required="not display_type and not is_downpayment"
-                                                    widget="many2one_uom" />
+                                                    required="not display_type and not is_downpayment" />
                                             </div>
                                             <label
                                                 for="qty_transferred"
@@ -926,18 +926,18 @@
                                                 readonly="is_downpayment" />
                                             <label for="discount" />
                                             <div name="discount">
-                                                <field name="discount" class="oe_inline" readonly="qty_invoiced != 0" /> % </div>
+                                                <field name="discount" readonly="qty_invoiced != 0" class="oe_inline" /> % </div>
                                         </group>
                                         <group invisible="display_type">
                                             <field
                                                 name="date_commitment"
-                                                required="not display_type and not is_downpayment"
-                                                readonly="is_downpayment" />
+                                                readonly="is_downpayment"
+                                                required="not display_type and not is_downpayment" />
                                             <field
                                                 name="analytic_distribution"
                                                 widget="analytic_distribution"
-                                                groups="analytic.group_analytic_accounting"
-                                                options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}" />
+                                                options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}"
+                                                groups="analytic.group_analytic_accounting" />
                                         </group>
                                     </group>
                                     <label
@@ -979,10 +979,10 @@
                                             context="{'default_display_type': 'line_note'}" />
                                         <button
                                             name="action_add_from_catalog"
-                                            string="Catalog"
                                             type="object"
-                                            class="btn-secondary"
-                                            context="{'order_id': parent.id}" />
+                                            string="Catalog"
+                                            context="{'order_id': parent.id}"
+                                            class="btn-secondary" />
                                     </control>
                                     <templates>
                                         <t t-name="card" class="row g-0 ps-0 pe-0">
@@ -1010,8 +1010,8 @@
                                                         <div class="col-auto">
                                                             <field
                                                                 name="price_subtotal"
-                                                                class="fw-bolder float-end pe-1"
-                                                                widget="monetary" />
+                                                                widget="monetary"
+                                                                class="fw-bolder float-end pe-1" />
                                                         </div>
                                                     </div>
                                                     <div class="text-muted"> Quantity: <field name="product_qty" /> <field name="product_uom_id" />
@@ -1039,14 +1039,14 @@
                                 <group colspan="4" class="order-1 order-lg-0">
                                     <field
                                         name="notes"
+                                        placeholder="Terms and conditions..."
                                         colspan="2"
-                                        nolabel="1"
-                                        placeholder="Terms and conditions..." />
+                                        nolabel="1" />
                                 </group>
                                 <group
                                     name="order_total"
-                                    class="oe_subtotal_footer d-flex order-0 order-lg-1 flex-column gap-0 gap-sm-3"
-                                    colspan="2">
+                                    colspan="2"
+                                    class="oe_subtotal_footer d-flex order-0 order-lg-1 flex-column gap-0 gap-sm-3">
                                     <field
                                         name="tax_totals"
                                         widget="account-tax-totals-field"
@@ -1061,16 +1061,16 @@
                                 <group name="responsible_info" string="Purchasing">
                                     <field
                                         name="user_id"
-                                        domain="[('share', '=', False)]"
-                                        widget="many2one_avatar_user" />
+                                        widget="many2one_avatar_user"
+                                        domain="[('share', '=', False)]" />
                                     <field
                                         name="tag_ids"
                                         widget="many2many_tags"
                                         options="{'color_field': 'color'}" />
                                     <field
                                         name="company_id"
-                                        groups="base.group_multi_company"
                                         options="{'no_create': True}"
+                                        groups="base.group_multi_company"
                                         readonly="state in ['done', 'cancel']" />
                                 </group>
                                 <group name="invoice_info" string="Invoicing">
@@ -1116,15 +1116,15 @@
                         <div class="d-flex justify-content-between">
                             <field
                                 name="partner_id"
-                                muted="1"
                                 display="full"
-                                class="o_text_block" />
+                                class="o_text_block"
+                                muted="1" />
                             <div class="m-1" />
                             <field
                                 name="state"
                                 widget="badge"
-                                decoration-success="state == 'done'"
-                                decoration-info="state == 'draft'" />
+                                decoration-info="state == 'draft'"
+                                decoration-success="state == 'done'" />
                         </div>
                     </div>
                 </templates>

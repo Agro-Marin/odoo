@@ -26,9 +26,9 @@
             <form>
                 <header>
                     <button
-                        string="Swap Direction"
                         name="action_swap"
                         type="object"
+                        string="Swap Direction"
                         help="The two contacts were entered the wrong way round" />
                 </header>
                 <sheet>
@@ -55,8 +55,8 @@
                     <group name="note" string="Notes">
                         <field
                             name="note"
-                            nolabel="1"
-                            placeholder="How this tie is known, and anything qualifying it." />
+                            placeholder="How this tie is known, and anything qualifying it."
+                            nolabel="1" />
                     </group>
                 </sheet>
             </form>
@@ -70,52 +70,52 @@
             <search>
                 <field
                     name="partner_id"
-                    filter_domain="['|', ('partner_id', 'ilike', self), ('other_partner_id', 'ilike', self)]"
-                    string="Contact" />
+                    string="Contact"
+                    filter_domain="['|', ('partner_id', 'ilike', self), ('other_partner_id', 'ilike', self)]" />
                 <field name="type_id" />
                 <filter
-                    string="Blood"
                     name="blood"
+                    string="Blood"
                     domain="[('category', '=', 'blood')]" />
                 <filter
-                    string="Affinity"
                     name="affinity"
+                    string="Affinity"
                     domain="[('category', '=', 'affinity')]" />
                 <filter
-                    string="Ritual"
                     name="ritual"
+                    string="Ritual"
                     domain="[('category', '=', 'ritual')]" />
                 <filter
-                    string="Business"
                     name="business"
+                    string="Business"
                     domain="[('category', '=', 'business')]" />
                 <filter
-                    string="Agricultural"
                     name="agricultural"
+                    string="Agricultural"
                     domain="[('category', '=', 'agricultural')]" />
                 <separator />
                 <filter
-                    string="Strong Ties"
                     name="strong_ties"
-                    domain="[('weight_risk', '&gt;=', 0.7)]"
-                    help="Ties implying a shared economic interest" />
+                    string="Strong Ties"
+                    help="Ties implying a shared economic interest"
+                    domain="[('weight_risk', '&gt;=', 0.7)]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Type"
                         name="group_type"
+                        string="Type"
                         context="{'group_by': 'type_id'}" />
                     <filter
-                        string="Category"
                         name="group_category"
+                        string="Category"
                         context="{'group_by': 'category'}" />
                     <filter
-                        string="Contact"
                         name="group_partner"
+                        string="Contact"
                         context="{'group_by': 'partner_id'}" />
                 </group>
             </search>

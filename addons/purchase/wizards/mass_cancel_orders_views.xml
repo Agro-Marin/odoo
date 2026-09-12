@@ -21,11 +21,11 @@
                 <div invisible="orders_count == 1"> So, are you sure you want to cancel these <field name="orders_count" /> items? </div>
                 <footer>
                     <button
-                        class="btn-primary"
                         name="action_mass_cancel"
                         type="object"
-                        string="Cancel" />
-                    <button string="Discard" special="cancel" />
+                        string="Cancel"
+                        class="btn-primary" />
+                    <button special="cancel" string="Discard" />
                 </footer>
             </form>
         </field>

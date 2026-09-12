@@ -8,9 +8,9 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button
-                    string="Send Payment Status"
                     name="action_l10n_vn_edi_update_payment_status"
                     type="object"
+                    string="Send Payment Status"
                     groups="account.group_account_invoice"
                     invisible="not l10n_vn_edi_invoice_number or l10n_vn_edi_invoice_state != 'payment_state_to_update'" />
             </xpath>
@@ -65,8 +65,8 @@
                 <separator />
                 <field name="l10n_vn_edi_invoice_state" />
                 <filter
-                    string="Need payment state update"
                     name="pay_state_to_update"
+                    string="Need payment state update"
                     domain="[('l10n_vn_edi_invoice_state', '=', 'payment_state_to_update')]" />
             </filter>
         </field>
@@ -81,10 +81,10 @@
                 <field
                     name="l10n_vn_edi_invoice_state"
                     widget="badge"
-                    decoration-success="l10n_vn_edi_invoice_state == 'sent'"
-                    decoration-warning="l10n_vn_edi_invoice_state == 'ready_to_send'"
+                    optional="show"
                     decoration-info="l10n_vn_edi_invoice_state == 'payment_state_to_update'"
-                    optional="show" />
+                    decoration-success="l10n_vn_edi_invoice_state == 'sent'"
+                    decoration-warning="l10n_vn_edi_invoice_state == 'ready_to_send'" />
             </field>
         </field>
     </record>

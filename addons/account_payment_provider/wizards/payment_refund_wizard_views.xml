@@ -36,11 +36,11 @@
                 </group>
                 <footer>
                     <button
-                        string="Refund"
-                        type="object"
                         name="action_refund"
+                        type="object"
+                        string="Refund"
                         class="btn-primary" />
-                    <button string="Close" special="cancel" class="btn-secondary" />
+                    <button special="cancel" string="Close" class="btn-secondary" />
                 </footer>
             </form>
         </field>

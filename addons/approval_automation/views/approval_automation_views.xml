@@ -27,16 +27,16 @@
         <field name="arch" type="xml">
             <page name="documents" position="before">
                 <page
-                    string="Automation Details"
                     name="automation_details"
+                    string="Automation Details"
                     invisible="has_automation == 'no'">
                     <group>
                         <group string="Operation Generation">
                             <field
                                 name="automation_id"
                                 invisible="has_automation == 'no'"
-                                required="has_automation == 'required'"
-                                readonly="state != 'new' and state != 'pending'" />
+                                readonly="state != 'new' and state != 'pending'"
+                                required="has_automation == 'required'" />
                             <field name="automation_runtime_id" readonly="1" />
                         </group>
                     </group>

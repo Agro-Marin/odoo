@@ -33,29 +33,29 @@
                     <field name="url" />
                     <field name="visit_datetime" />
                     <filter
-                        string="Pages"
                         name="type_page"
+                        string="Pages"
                         domain="[('page_id', '!=', False)]" />
                     <filter
-                        string="Urls &amp; Pages"
                         name="type_url"
+                        string="Urls &amp; Pages"
                         domain="[('url', '!=', False)]" />
                     <group>
                         <filter
-                            string="Visitor"
                             name="group_by_visitor"
+                            string="Visitor"
                             context="{'group_by': 'visitor_id'}" />
                         <filter
-                            string="Page"
                             name="group_by_page"
+                            string="Page"
                             context="{'group_by': 'page_id'}" />
                         <filter
-                            string="Url"
                             name="group_by_url"
+                            string="Url"
                             context="{'group_by': 'url'}" />
                         <filter
-                            string="Date"
                             name="group_by_date"
+                            string="Date"
                             context="{'group_by': 'visit_datetime'}" />
                     </group>
                 </search>
@@ -91,7 +91,7 @@
             <field name="name">website.visitor.view.kanban</field>
             <field name="model">website.visitor</field>
             <field name="arch" type="xml">
-                <kanban class="o_wvisitor_kanban" sample="1">
+                <kanban sample="1" class="o_wvisitor_kanban">
                     <field name="country_id" />
                     <field name="country_flag" />
                     <field name="email" />
@@ -103,12 +103,12 @@
                                 <div class="col-lg-2 col-sm-8 col-12 py-0 my-2">
                                     <div class="d-flex">
                                         <field
-                                            t-if="record.partner_image.raw_value"
                                             name="partner_id"
                                             widget="image"
                                             options="{'preview_image': 'image_128', 'size': [54, 54]}"
+                                            class="me-3"
                                             alt="Visitor"
-                                            class="me-3" />
+                                            t-if="record.partner_image.raw_value" />
                                         <img
                                             t-else=""
                                             t-attf-src="/base/static/img/avatar_grey.png"
@@ -174,8 +174,8 @@
                                     <button
                                         name="action_send_mail"
                                         type="object"
-                                        class="btn btn-secondary"
-                                        invisible="not email">
+                                        invisible="not email"
+                                        class="btn btn-secondary">
                                         Email
                                     </button>
                                 </div>
@@ -194,16 +194,16 @@
                         <button
                             name="action_send_mail"
                             type="object"
-                            class="btn btn-primary"
+                            string="Send Email"
                             invisible="not email"
-                            string="Send Email" />
+                            class="btn btn-primary" />
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button
+                                invisible="not is_connected"
                                 class="oe_stat_button o_stat_button_info"
-                                disabled="1"
-                                invisible="not is_connected">
+                                disabled="1">
                                 <i
                                     class="fa-solid fa-circle o_button_icon text-success"
                                     title="Connected" />
@@ -212,9 +212,9 @@
                                 </div>
                             </button>
                             <button
+                                invisible="is_connected"
                                 class="oe_stat_button o_stat_button_info"
-                                disabled="1"
-                                invisible="is_connected">
+                                disabled="1">
                                 <i
                                     class="fa-solid fa-circle o_button_icon text-danger"
                                     title="Offline" />
@@ -224,23 +224,23 @@
                             </button>
                             <button
                                 id="w_visitor_visit_counter"
+                                icon="fa-globe"
                                 class="oe_stat_button o_stat_button_info"
-                                disabled="1"
-                                icon="fa-globe">
+                                disabled="1">
                                 <field
                                     name="visit_count"
-                                    widget="statinfo"
-                                    string="Visits" />
+                                    string="Visits"
+                                    widget="statinfo" />
                             </button>
                             <button
                                 name="%(website.website_visitor_page_action)d"
                                 type="action"
-                                class="oe_stat_button"
-                                icon="fa-tags">
+                                icon="fa-tags"
+                                class="oe_stat_button">
                                 <field
                                     name="visitor_page_count"
-                                    widget="statinfo"
-                                    string="Page Views" />
+                                    string="Page Views"
+                                    widget="statinfo" />
                             </button>
                         </div>
                         <div class="float-end" invisible="not country_id">
@@ -283,21 +283,21 @@
             <field name="arch" type="xml">
                 <list
                     string="Web Visitors"
-                    decoration-success="is_connected"
-                    sample="1">
+                    sample="1"
+                    decoration-success="is_connected">
                     <field
                         name="country_flag"
                         widget="image_url"
-                        options="{&quot;size&quot;: [20, 20]}"
+                        width="20px"
                         nolabel="1"
-                        width="20px" />
+                        options="{&quot;size&quot;: [20, 20]}" />
                     <field name="display_name" string="Name" />
                     <field name="create_date" optional="hide" />
                     <field name="last_connection_datetime" />
                     <field name="lang_id" />
                     <field name="country_id" optional="hide" />
                     <field name="visit_count" />
-                    <field name="page_ids" widget="many2many_tags" string="Pages" />
+                    <field name="page_ids" string="Pages" widget="many2many_tags" />
                     <field
                         name="last_visited_page_id"
                         string="Last Page"
@@ -305,9 +305,9 @@
                     <field name="is_connected" column_invisible="True" />
                     <field name="email" column_invisible="True" />
                     <button
-                        string="Email"
                         name="action_send_mail"
                         type="object"
+                        string="Email"
                         icon="fa-envelope"
                         invisible="not email" />
                 </list>
@@ -324,53 +324,53 @@
                     <field name="visit_count" />
                     <field name="page_ids" />
                     <filter
-                        string="Last 7 Days"
                         name="filter_last_7_days"
+                        string="Last 7 Days"
                         domain="[('last_connection_datetime', '&gt;', '-7d')]" />
                     <separator />
                     <filter
-                        string="Unregistered"
                         name="filter_type_visitor"
+                        string="Unregistered"
                         domain="[('partner_id', '=', False)]" />
                     <filter
-                        string="Contacts"
                         name="filter_type_customer"
+                        string="Contacts"
                         domain="[('partner_id', '!=', False)]" />
                     <separator />
                     <filter
-                        string="Connected"
                         name="filter_is_connected"
+                        string="Connected"
                         domain="[('last_connection_datetime', '&gt;', '-5M')]" />
                     <separator />
                     <group>
                         <filter
-                            string="Country"
                             name="group_by_country"
+                            string="Country"
                             context="{'group_by': 'country_id'}" />
                         <filter
-                            string="Timezone"
                             name="group_by_timezone"
+                            string="Timezone"
                             context="{'group_by': 'timezone'}" />
                         <filter
-                            string="Language"
                             name="group_by_lang"
+                            string="Language"
                             context="{'group_by': 'lang_id'}" />
                         <filter
-                            string="# Visits"
                             name="group_by_visit_count"
+                            string="# Visits"
                             context="{'group_by': 'visit_count'}" />
                         <filter
-                            string="Website"
                             name="group_by_website_id"
+                            string="Website"
                             context="{'group_by': 'website_id'}"
                             groups="website.group_multi_website" />
                         <filter
-                            string="First Connection"
                             name="group_by_create_date"
+                            string="First Connection"
                             context="{'group_by': 'create_date'}" />
                         <filter
-                            string="Last Connection"
                             name="group_by_last_connection_datetime"
+                            string="Last Connection"
                             context="{'group_by': 'last_connection_datetime'}" />
                     </group>
                 </search>
@@ -380,7 +380,7 @@
             <field name="name">website.visitor.view.graph</field>
             <field name="model">website.visitor</field>
             <field name="arch" type="xml">
-                <graph string="Visitors" type="line" sample="1">
+                <graph type="line" string="Visitors" sample="1">
                     <field name="last_connection_datetime" interval="day" />
                 </graph>
             </field>

@@ -25,12 +25,12 @@
                     groups="hr_timesheet.group_hr_timesheet_user"
                     invisible="1" />
                 <button
-                    invisible="not has_timesheet"
-                    class="oe_stat_button"
-                    type="object"
                     name="action_timesheet_from_employee"
+                    type="object"
                     icon="fa-calendar"
-                    groups="hr_timesheet.group_hr_timesheet_user">
+                    groups="hr_timesheet.group_hr_timesheet_user"
+                    invisible="not has_timesheet"
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Timesheets</span>
                     </div>

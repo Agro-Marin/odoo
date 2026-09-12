@@ -10,17 +10,17 @@
                     <field name="employee_id" invisible="1" />
                     <field
                         name="allocation_ids"
-                        context="{'default_wizard_id': id}"
-                        nolabel="1">
+                        nolabel="1"
+                        context="{'default_wizard_id': id}">
                     </field>
                 </group>
                 <footer>
                     <button
-                        string="Save"
-                        type="object"
                         name="action_save"
+                        type="object"
+                        string="Save"
                         class="btn-primary" />
-                    <button string="Cancel" special="cancel" class="btn-secondary" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

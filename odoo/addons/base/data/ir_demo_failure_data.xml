@@ -38,10 +38,10 @@ action = {
                 </field>
                 <footer>
                     <button
+                        name="done"
+                        type="object"
                         string="Ok"
                         class="oe_highlight"
-                        type="object"
-                        name="done"
                         data-hotkey="q" />
                 </footer>
             </form>

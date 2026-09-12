@@ -8,28 +8,28 @@
             <form string="Baseline">
                 <header>
                     <button
-                        string="Capture Snapshot"
                         name="action_capture_snapshot"
                         type="object"
-                        class="oe_highlight"
-                        invisible="line_ids" />
+                        string="Capture Snapshot"
+                        invisible="line_ids"
+                        class="oe_highlight" />
                     <button
-                        string="Set as Current"
                         name="action_set_current"
                         type="object"
+                        string="Set as Current"
                         invisible="is_current" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button class="oe_stat_button" icon="fa-tasks" disabled="1">
+                        <button icon="fa-tasks" class="oe_stat_button" disabled="1">
                             <field name="line_count" string="Tasks" widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Current"
-                        bg_color="text-bg-success"
-                        invisible="not is_current" />
+                        invisible="not is_current"
+                        bg_color="text-bg-success" />
                     <group>
                         <group>
                             <field name="name" />

@@ -10,19 +10,19 @@
                     <field name="message_type" invisible="1" />
                     <button
                         name="action_send_and_close"
-                        string="Send &amp; Close"
                         type="object"
-                        class="oe_highlight"
-                        invisible="state != 'outgoing' or message_type == 'user_notification'" />
+                        string="Send &amp; Close"
+                        invisible="state != 'outgoing' or message_type == 'user_notification'"
+                        class="oe_highlight" />
                     <button
                         name="mark_outgoing"
-                        string="Retry"
                         type="object"
+                        string="Retry"
                         invisible="state not in ('exception', 'cancel')" />
                     <button
                         name="cancel"
-                        string="Cancel"
                         type="object"
+                        string="Cancel"
                         invisible="state != 'outgoing'" />
                     <field
                         name="state"
@@ -36,26 +36,26 @@
                         <button
                             name="action_view_document"
                             type="object"
-                            class="oe_link"
                             icon="fa-regular fa-file-lines"
-                            invisible="not model or res_id == 0">
+                            invisible="not model or res_id == 0"
+                            class="oe_link">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Open Document</span>
                             </div>
                         </button>
                     </div>
-                    <field name="mail_message_id_int" required="0" invisible="1" />
+                    <field name="mail_message_id_int" invisible="1" required="0" />
                     <div class="oe_title">
                         <label for="subject" class="oe_edit_only" />
                         <h2>
                             <field name="subject" />
                         </h2>
                     </div>
-                    <div style="vertical-align: top;"> by <field name="author_id" class="oe_inline" string="User" /> on <field name="date" readonly="1" class="oe_inline" />
+                    <div style="vertical-align: top;"> by <field name="author_id" string="User" class="oe_inline" /> on <field name="date" readonly="1" class="oe_inline" />
                         <button
                             name="%(action_email_compose_message_wizard)d"
-                            string="Reply"
                             type="action"
+                            string="Reply"
                             icon="fa-reply text-warning"
                             context="{'default_composition_mode':'comment', 'default_parent_id': mail_message_id_int}"
                             invisible="state not in ('sent', 'exception', 'cancel')" />
@@ -74,12 +74,12 @@
                             placeholder="YYYY-MM-DD HH:MM:SS" />
                     </group>
                     <notebook>
-                        <page string="Body" name="body">
+                        <page name="body" string="Body">
                             <field name="body_content" />
                         </page>
                         <page
-                            string="Advanced"
                             name="advanced"
+                            string="Advanced"
                             groups="base.group_no_one">
                             <group>
                                 <group string="Status">
@@ -100,7 +100,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Attachments" name="attachments">
+                        <page name="attachments" string="Attachments">
                             <div class="alert alert-warning" role="alert" invisible="restricted_attachment_count == 0"> You do not have access
                                 to <field name="restricted_attachment_count" /> attachment(s) of
                                 this email. </div>
@@ -109,8 +109,8 @@
                                 domain="[('res_field','=', False)]" />
                         </page>
                         <page
-                            string="Failure Reason"
                             name="failure_reason"
+                            string="Failure Reason"
                             invisible="state != 'exception'">
                             <field name="failure_reason" />
                         </page>
@@ -126,7 +126,7 @@
         <field name="arch" type="xml">
             <list string="Emails">
                 <header>
-                    <button name="action_retry" string="Retry" type="object" />
+                    <button name="action_retry" type="object" string="Retry" />
                 </header>
                 <field name="date" />
                 <field name="subject" />
@@ -140,25 +140,25 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-muted="state in ('sent', 'cancel')"
+                    decoration-danger="state=='exception'"
                     decoration-info="state=='outgoing'"
-                    decoration-danger="state=='exception'" />
+                    decoration-muted="state in ('sent', 'cancel')" />
                 <button
                     name="send"
-                    string="Send Now"
                     type="object"
+                    string="Send Now"
                     icon="fa-paper-plane"
                     invisible="state != 'outgoing' or message_type == 'user_notification'" />
                 <button
                     name="mark_outgoing"
-                    string="Retry"
                     type="object"
+                    string="Retry"
                     icon="fa-repeat"
                     invisible="state not in ('exception', 'cancel')" />
                 <button
                     name="cancel"
-                    string="Cancel Email"
                     type="object"
+                    string="Cancel Email"
                     icon="fa-times-circle"
                     invisible="state != 'outgoing'" />
             </list>
@@ -172,8 +172,8 @@
             <search string="Email Search">
                 <field
                     name="email_from"
-                    filter_domain="['|', '|',('email_from','ilike',self), ('email_to','ilike',self), ('subject','ilike',self)]"
-                    string="Email" />
+                    string="Email"
+                    filter_domain="['|', '|',('email_from','ilike',self), ('email_to','ilike',self), ('subject','ilike',self)]" />
                 <field name="date" />
                 <filter
                     name="outgoing"
@@ -209,20 +209,20 @@
                 </group>
                 <group>
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="Author"
                         name="author"
+                        string="Author"
                         context="{'group_by':'author_id'}" />
                     <filter
-                        string="Thread"
                         name="thread"
+                        string="Thread"
                         context="{'group_by':'message_id'}" />
                     <filter
-                        string="Date"
                         name="month"
+                        string="Date"
                         help="Creation Date"
                         context="{'group_by':'date'}" />
                 </group>

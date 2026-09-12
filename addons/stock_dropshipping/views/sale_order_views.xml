@@ -11,14 +11,14 @@
                     <button
                         name="action_view_dropship"
                         type="object"
-                        class="oe_stat_button"
                         icon="fa-truck"
+                        groups="stock.group_stock_user"
                         invisible="dropship_picking_count == 0"
-                        groups="stock.group_stock_user">
+                        class="oe_stat_button">
                         <field
                             name="dropship_picking_count"
-                            widget="statinfo"
-                            string="Dropship" />
+                            string="Dropship"
+                            widget="statinfo" />
                     </button>
                 </t>
             </button>

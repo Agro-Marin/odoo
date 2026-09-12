@@ -10,10 +10,10 @@
                 <button
                     name="action_view_po"
                     type="object"
-                    class="oe_stat_button"
+                    help="Purchase Orders"
                     icon="fa-credit-card"
                     invisible="purchase_order_count == 0 or not display_complete"
-                    help="Purchase Orders">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">
                             <field

@@ -7,11 +7,11 @@
         <field name="model">test.model.multi.website</field>
         <field name="arch" type="xml">
             <kanban
-                js_class="website_pages_kanban"
+                type="object"
+                sample="1"
                 class="o_kanban_mobile"
                 action="open_website_url"
-                type="object"
-                sample="1">
+                js_class="website_pages_kanban">
                 <templates>
                     <t t-name="card">
                         <field name="name" class="text-truncate fw-bolder mb-auto" />
@@ -41,10 +41,10 @@
         <field name="priority">99</field>
         <field name="arch" type="xml">
             <list
-                js_class="website_pages_list"
                 type="object"
+                multi_edit="1"
                 action="open_website_url"
-                multi_edit="1">
+                js_class="website_pages_list">
                 <field name="name" />
                 <field name="website_url" />
                 <field name="website_id" groups="website.group_multi_website" />
@@ -68,7 +68,7 @@
         <field name="priority">99</field>
         <!-- Omitting `website_pages_list` on purpose to test it does not crash -->
         <field name="arch" type="xml">
-            <list type="object" action="open_website_url" multi_edit="1">
+            <list type="object" multi_edit="1" action="open_website_url">
                 <field name="name" />
                 <field name="website_url" />
                 <field name="website_id" groups="website.group_multi_website" />

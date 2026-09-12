@@ -12,7 +12,7 @@
                 </header>
                 <sheet>
                     <div class="oe_title">
-                        <h1><field class="text-break" options="{'line_breaks': False}" widget="text" name="name" placeholder="e.g. My_Tour" /></h1>
+                        <h1><field name="name" placeholder="e.g. My_Tour" widget="text" options="{'line_breaks': False}" class="text-break" /></h1>
                     </div>
                     <group>
                         <group>
@@ -37,9 +37,9 @@
                             </page>
                         </notebook>
                         <field
-                            colspan="2"
                             name="rainbow_man_message"
-                            placeholder="Rainbow Man Message..." />
+                            placeholder="Rainbow Man Message..."
+                            colspan="2" />
                     </group>
                 </sheet>
             </form>
@@ -54,7 +54,7 @@
                 <field name="name" />
                 <field name="url" />
                 <field name="custom" />
-                <field name="rainbow_man_message" column_invisible="1" />                <field name="name" widget="tour_start_widget" options="{'link': true}" string="" />
+                <field name="rainbow_man_message" column_invisible="1" />                <field name="name" string="" widget="tour_start_widget" options="{'link': true}" />
             </list>
         </field>
     </record>

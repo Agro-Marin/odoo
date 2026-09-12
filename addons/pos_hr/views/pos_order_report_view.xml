@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='User']" position="after">
                 <filter
-                    string="Employee"
                     name="employee_id"
+                    string="Employee"
                     context="{'group_by':'employee_id'}" />
             </xpath>
         </field>

@@ -10,10 +10,10 @@
                     <header>
                         <button
                             name="action_view_approval_request"
-                            string="Approval Request"
                             type="object"
-                            class="btn-primary"
-                            invisible="not approval_request_id" />
+                            string="Approval Request"
+                            invisible="not approval_request_id"
+                            class="btn-primary" />
                         <field name="approval_state" widget="statusbar" />
                     </header>
                     <sheet>
@@ -27,12 +27,12 @@
                                 <field
                                     name="pending_approver_ids"
                                     widget="many2many_tags"
-                                    readonly="1"
-                                    invisible="approval_state not in ['new', 'pending']" />
+                                    invisible="approval_state not in ['new', 'pending']"
+                                    readonly="1" />
                                 <field
                                     name="date_approval_granted"
-                                    readonly="1"
-                                    invisible="approval_state != 'approved'" />
+                                    invisible="approval_state != 'approved'"
+                                    readonly="1" />
                             </group>
                         </group>
                         <group>
@@ -42,35 +42,35 @@
                                     <field
                                         name="private_street"
                                         placeholder="Street..."
-                                        class="o_address_street"
-                                        readonly="approval_state not in ['new', 'pending']" />
+                                        readonly="approval_state not in ['new', 'pending']"
+                                        class="o_address_street" />
                                     <field
                                         name="private_street2"
                                         placeholder="Street 2..."
-                                        class="o_address_street"
-                                        readonly="approval_state not in ['new', 'pending']" />
+                                        readonly="approval_state not in ['new', 'pending']"
+                                        class="o_address_street" />
                                     <field
                                         name="private_city"
                                         placeholder="City"
-                                        class="o_address_city"
-                                        readonly="approval_state not in ['new', 'pending']" />
+                                        readonly="approval_state not in ['new', 'pending']"
+                                        class="o_address_city" />
                                     <field
                                         name="private_state_id"
-                                        class="o_address_state"
                                         placeholder="State"
                                         options="{'no_open': True, 'no_create': True}"
-                                        readonly="approval_state not in ['new', 'pending']" />
+                                        readonly="approval_state not in ['new', 'pending']"
+                                        class="o_address_state" />
                                     <field
                                         name="private_zip"
                                         placeholder="ZIP"
-                                        class="o_address_zip"
-                                        readonly="approval_state not in ['new', 'pending']" />
+                                        readonly="approval_state not in ['new', 'pending']"
+                                        class="o_address_zip" />
                                     <field
                                         name="private_country_id"
                                         placeholder="Country"
-                                        class="o_address_country"
                                         options="{'no_open': True, 'no_create': True}"
-                                        readonly="approval_state not in ['new', 'pending']" />
+                                        readonly="approval_state not in ['new', 'pending']"
+                                        class="o_address_country" />
                                 </div>
                                 <field
                                     name="private_email"

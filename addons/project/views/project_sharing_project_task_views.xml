@@ -29,16 +29,16 @@
             eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
-                class="o_kanban_small_column o_kanban_project_tasks"
+                default_order="priority desc, sequence, state, date_end asc, id desc"
                 default_group_by="step_id"
-                on_create="quick_create"
-                quick_create_view="project.project_sharing_quick_create_task_form"
-                archivable="0"
                 import="0"
-                groups_draggable="0"
+                class="o_kanban_small_column o_kanban_project_tasks"
+                archivable="0"
                 group_edit="0"
-                default_order="priority desc, sequence, state, date_end asc, id desc">
+                groups_draggable="0"
+                highlight_color="color"
+                on_create="quick_create"
+                quick_create_view="project.project_sharing_quick_create_task_form">
                 <field name="state" />
                 <field name="allow_milestones" />
                 <field name="has_late_and_unreached_milestone" />
@@ -55,8 +55,8 @@
                         t-att-class="{'opacity-50': ['done', 'canceled'].includes(record.state.raw_value)}">
                         <field
                             name="name"
-                            class="fw-bolder fs-5"
-                            widget="name_with_subtask_count" />
+                            widget="name_with_subtask_count"
+                            class="fw-bolder fs-5" />
                         <field
                             name="project_id"
                             invisible="context.get('default_project_id', False)"
@@ -68,20 +68,20 @@
                             <field name="milestone_id" class="text-muted" />
                         </span>
                         <field
-                            t-if="record.partner_id.value"
                             name="partner_id"
-                            class="text-truncate text-muted d-block" />
+                            class="text-truncate text-muted d-block"
+                            t-if="record.partner_id.value" />
                     </div>
                     <field
                         name="tag_ids"
                         widget="many2many_tags"
-                        options="{'color_field': 'color'}"
-                        context="{'project_id': project_id}" />
+                        context="{'project_id': project_id}"
+                        options="{'color_field': 'color'}" />
                     <field
-                        t-if="record.date_end.raw_value"
                         name="date_end"
+                        widget="remaining_days"
                         invisible="date_start or not date_end or state in ['done', 'canceled']"
-                        widget="remaining_days" />
+                        t-if="record.date_end.raw_value" />
                     <div
                         invisible="not date_start"
                         t-att-class="(luxon.DateTime.fromISO(record.date_end.raw_value) &lt; luxon.DateTime.local() and !['done', 'canceled'].includes(record.state.raw_value)) ? 'text-danger' : ''">
@@ -91,12 +91,12 @@
                             options="{'end_date_field': 'date_end'}" />
                     </div>
                     <field
-                        t-if="record.displayed_image_id.value"
-                        groups="base.group_user"
                         name="displayed_image_id"
-                        widget="attachment_image" />
+                        widget="attachment_image"
+                        groups="base.group_user"
+                        t-if="record.displayed_image_id.value" />
                     <footer t-if="!selection_mode">
-                        <field name="priority" class="pt-1" widget="priority" />
+                        <field name="priority" widget="priority" class="pt-1" />
                         <div class="d-flex ms-auto text-truncate">
                             <span
                                 t-if="record.portal_user_names.raw_value.length &gt; 0"
@@ -106,7 +106,7 @@
                                     t-set="user_count"
                                     t-value="record.portal_user_names.raw_value.split(',').length" />
                                 <t t-if="user_count &gt; 1"><t t-out="user_count" /> assignees</t>
-                                <field t-else="" name="portal_user_names" />
+                                <field name="portal_user_names" t-else="" />
                             </span>
                             <field
                                 name="state"
@@ -184,9 +184,9 @@
                         <button
                             name="action_project_sharing_view_parent_task"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-tasks"
-                            invisible="not display_parent_task_button">
+                            invisible="not display_parent_task_button"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Parent Task</span>
                             </div>
@@ -194,41 +194,38 @@
                         <button
                             name="action_project_sharing_recurring_tasks"
                             type="object"
-                            invisible="not active or not recurrence_id or not allow_recurring_tasks"
-                            class="oe_stat_button"
                             icon="fa-repeat"
-                            context="{'default_user_ids': [(6, 0, [uid])]}">
+                            context="{'default_user_ids': [(6, 0, [uid])]}"
+                            invisible="not active or not recurrence_id or not allow_recurring_tasks"
+                            class="oe_stat_button">
                             <field
                                 name="recurring_count"
-                                widget="statinfo"
-                                string="Recurring Tasks" />
+                                string="Recurring Tasks"
+                                widget="statinfo" />
                         </button>
                         <button
                             name="action_project_sharing_open_subtasks"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-check"
+                            context="{                                 'default_user_ids': [(6, 0, [uid])],                                 'default_project_id': project_id,                             }"
                             invisible="not id or subtask_count == 0"
-                            context="{                                 'default_user_ids': [(6, 0, [uid])],                                 'default_project_id': project_id,                             }">
+                            class="oe_stat_button">
                             <field
                                 name="subtask_count"
-                                widget="statinfo"
-                                string="Sub-tasks" />
+                                string="Sub-tasks"
+                                widget="statinfo" />
                             <field name="display_in_project" invisible="True" />
                         </button>
                         <button
                             name="action_project_sharing_open_blocking"
                             type="object"
+                            icon="fa-tasks"
                             invisible="not successor_count or not allow_dependencies"
-                            class="oe_stat_button"
-                            icon="fa-tasks">
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Blocked Tasks</span>
                                 <span class="o_stat_value ">
-                                    <field
-                                        name="successor_count"
-                                        widget="statinfo"
-                                        nolabel="1" />
+                                    <field name="successor_count" widget="statinfo" />
                                 </span>
                             </div>
                         </button>
@@ -236,21 +233,21 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="d-flex justify-content-between align-items-center">
                         <h1 class="d-flex w-100">
                             <field
                                 name="name"
-                                options="{'line_breaks': False}"
+                                placeholder="Task Title..."
                                 widget="text"
-                                class="o_task_name text-truncate w-md-75 w-100 pe-2"
-                                placeholder="Task Title..." />
+                                options="{'line_breaks': False}"
+                                class="o_task_name text-truncate w-md-75 w-100 pe-2" />
                         </h1>
                         <div
                             class="d-flex justify-content-end align-items-center px-1"
                             invisible="not active or is_template">
-                            <field name="priority" class="h3 pe-2" widget="priority" />
+                            <field name="priority" widget="priority" class="h3 pe-2" />
                             <field
                                 name="state"
                                 widget="project_task_state_selection"
@@ -259,7 +256,7 @@
                         <div
                             class="d-flex justify-content-start align-items-center w-100 w-md-50 w-lg-25"
                             invisible="active and not is_template">
-                            <field name="priority" class="h3 pe-2" widget="priority" />
+                            <field name="priority" widget="priority" class="h3 pe-2" />
                             <field
                                 name="state"
                                 widget="project_task_state_selection"
@@ -273,9 +270,9 @@
                             <field
                                 name="milestone_id"
                                 placeholder="e.g. Product Launch"
+                                options="{'no_open': True}"
                                 invisible="not allow_milestones"
-                                readonly="1"
-                                options="{'no_open': True}" />
+                                readonly="1" />
                             <field name="user_ids" invisible="1" />
                             <field
                                 name="portal_user_names"
@@ -294,14 +291,14 @@
                                 invisible="1" />
                             <field
                                 name="tag_ids"
-                                context="{'project_id': project_id}"
                                 widget="many2many_tags"
+                                context="{'project_id': project_id}"
                                 options="{'color_field': 'color', 'no_create': True, 'no_edit': True, 'no_edit_color': True}" />
                             <field
                                 name="partner_id"
-                                readonly="not current_user_same_company_partner"
                                 options="{'no_open': True, 'no_create': True, 'no_edit': True}"
-                                invisible="not project_id" />
+                                invisible="not project_id"
+                                readonly="not current_user_same_company_partner" />
                             <label
                                 for="date_end"
                                 invisible="date_start"
@@ -314,18 +311,18 @@
                             <field name="date_start" invisible="1" />
                             <field
                                 name="date_end"
-                                nolabel="1"
                                 widget="daterange"
+                                nolabel="1"
                                 options="{'start_date_field': 'date_start'}"
                                 decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" />
                             <field
                                 name="recurring_task"
-                                invisible="not allow_recurring_tasks or not active or parent_id"
-                                groups="project.group_project_recurring_tasks" />
+                                groups="project.group_project_recurring_tasks"
+                                invisible="not allow_recurring_tasks or not active or parent_id" />
                             <label
                                 for="repeat_interval"
-                                invisible="not recurring_task or not allow_recurring_tasks"
-                                groups="project.group_project_recurring_tasks" />
+                                groups="project.group_project_recurring_tasks"
+                                invisible="not recurring_task or not allow_recurring_tasks" />
                             <div
                                 invisible="not recurring_task or not allow_recurring_tasks"
                                 class="d-flex"
@@ -378,8 +375,8 @@
                                     <field
                                         name="state"
                                         widget="project_task_state_selection"
-                                        nolabel="1"
-                                        width="20px" />
+                                        width="20px"
+                                        nolabel="1" />
                                     <field name="subtask_count" column_invisible="1" />
                                     <field
                                         name="closed_subtask_count"
@@ -394,14 +391,14 @@
                                         name="milestone_id"
                                         optional="hide"
                                         options="{'no_open': True}"
-                                        readonly="1"
+                                        invisible="not allow_milestones"
                                         column_invisible="not parent.allow_milestones"
-                                        invisible="not allow_milestones" />
+                                        readonly="1" />
                                     <field name="company_id" column_invisible="True" />
                                     <field
                                         name="partner_id"
-                                        options="{'no_open': True, 'no_create': True, 'no_edit': True}"
-                                        optional="hide" />
+                                        optional="hide"
+                                        options="{'no_open': True, 'no_create': True, 'no_edit': True}" />
                                     <field name="user_ids" column_invisible="True" />
                                     <field
                                         name="portal_user_names"
@@ -410,32 +407,32 @@
                                     <field
                                         name="date_end"
                                         widget="daterange"
+                                        optional="show"
                                         options="{'start_date_field': 'date_start'}"
-                                        decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']"
-                                        optional="show" />
+                                        decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" />
                                     <field name="date_start" column_invisible="True" />
                                     <field
                                         name="priority"
                                         widget="priority"
-                                        optional="show"
+                                        width="20px"
                                         nolabel="1"
-                                        width="20px" />
+                                        optional="show" />
                                     <field
                                         name="tag_ids"
                                         widget="many2many_tags"
-                                        options="{'color_field': 'color'}"
-                                        optional="hide" />
+                                        optional="hide"
+                                        options="{'color_field': 'color'}" />
                                     <field
                                         name="step_id"
                                         domain="[('project_ids', 'in', [project_id])]" />
                                     <button
                                         name="action_view_task"
                                         type="object"
-                                        title="View Task"
                                         string="View Task"
-                                        class="btn btn-link float-end"
+                                        title="View Task"
                                         context="{'form_view_ref': 'project.project_sharing_project_task_view_form', 'search_view_ref': 'project.project_sharing_project_task_view_search'}"
-                                        invisible="project_id != context.get('active_id')" />
+                                        invisible="project_id != context.get('active_id')"
+                                        class="btn btn-link float-end" />
                                 </list>
                             </field>
                         </page>
@@ -446,10 +443,9 @@
                             <field
                                 name="predecessor_ids"
                                 widget="predecessor_ids_one2many"
-                                nolabel="1"
+                                context="{                                     'predecessor_count': predecessor_count,                                     'list_view_ref': 'project.open_view_blocked_by_list_view',                                     'search_view_ref': 'project.project_sharing_project_task_view_search',                                     'search_default_project_id': project_id,                             }"
                                 options="{'link': false}"
-                                readonly="1"
-                                context="{                                     'predecessor_count': predecessor_count,                                     'list_view_ref': 'project.open_view_blocked_by_list_view',                                     'search_view_ref': 'project.project_sharing_project_task_view_search',                                     'search_default_project_id': project_id,                             }">
+                                readonly="1">
                                 <list
                                     editable="bottom"
                                     decoration-muted="state in ['done','canceled']">
@@ -458,8 +454,8 @@
                                     <field
                                         name="state"
                                         widget="project_task_state_selection"
-                                        nolabel="1"
                                         width="20px"
+                                        nolabel="1"
                                         readonly="1" />
                                     <field name="subtask_count" column_invisible="1" />
                                     <field
@@ -480,8 +476,8 @@
                                     <field name="company_id" column_invisible="True" />
                                     <field
                                         name="partner_id"
-                                        options="{'no_open': True, 'no_create': True, 'no_edit': True}"
                                         optional="hide"
+                                        options="{'no_open': True, 'no_create': True, 'no_edit': True}"
                                         invisible="not project_id" />
                                     <field
                                         name="portal_user_names"
@@ -490,31 +486,31 @@
                                     <field
                                         name="date_end"
                                         widget="daterange"
+                                        optional="show"
                                         options="{'start_date_field': 'date_start'}"
-                                        decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']"
-                                        optional="show" />
+                                        decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" />
                                     <field name="date_start" column_invisible="True" />
                                     <field
                                         name="priority"
                                         widget="priority"
-                                        optional="show"
-                                        nolabel="1"
                                         width="20px"
+                                        nolabel="1"
+                                        optional="show"
                                         readonly="1" />
                                     <field
                                         name="tag_ids"
                                         widget="many2many_tags"
-                                        options="{'color_field': 'color'}"
-                                        optional="hide" />
+                                        optional="hide"
+                                        options="{'color_field': 'color'}" />
                                     <field name="step_id" optional="show" />
                                     <button
                                         name="action_view_task"
                                         type="object"
-                                        title="View Task"
                                         string="View Task"
-                                        class="btn btn-link float-end"
+                                        title="View Task"
                                         context="{'form_view_ref': 'project.project_sharing_project_task_view_form'}"
-                                        invisible="project_id != context.get('active_id')" />
+                                        invisible="project_id != context.get('active_id')"
+                                        class="btn btn-link float-end" />
                                 </list>
                             </field>
                         </page>
@@ -535,7 +531,7 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <filter name="creation_date_filter" position="after">
-                <filter string="Deadline" name="date_end" date="date_end">
+                <filter name="date_end" string="Deadline" date="date_end">
                     <filter
                         name="deadline_future"
                         string="Future"
@@ -556,8 +552,8 @@
             </filter>
             <filter name="create_date" position="after">
                 <filter
-                    string="Deadline"
                     name="deadline"
+                    string="Deadline"
                     context="{'group_by': 'date_end'}" />
             </filter>
         </field>

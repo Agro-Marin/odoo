@@ -17,15 +17,15 @@
                 <footer>
                     <button
                         name="upgrade_module"
-                        string="Confirm"
                         type="object"
+                        string="Confirm"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Cancel"
-                        class="btn-secondary"
                         name="upgrade_module_cancel"
                         type="object"
+                        string="Cancel"
+                        class="btn-secondary"
                         data-hotkey="x" />
                 </footer>
             </form>

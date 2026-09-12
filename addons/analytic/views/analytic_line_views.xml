@@ -16,14 +16,14 @@
                     optional="hide"
                     options="{'multi_edit': true}" />
                 <field name="currency_id" column_invisible="True" />
-                <field name="unit_amount" sum="Quantity" optional="hide" />
+                <field name="unit_amount" optional="hide" sum="Quantity" />
                 <field name="product_uom_id" optional="hide" />
                 <field name="partner_id" optional="hide" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
-                <field name="amount" sum="Total" optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
+                <field name="amount" optional="show" sum="Total" />
             </list>
         </field>
     </record>
@@ -40,8 +40,8 @@
                 <group name="groupby">
                     <separator />
                     <filter
-                        string="Date"
                         name="group_date"
+                        string="Date"
                         context="{'group_by': 'date'}" />
                 </group>
             </search>
@@ -121,7 +121,7 @@
         <field name="arch" type="xml">
             <pivot string="Analytic Items" sample="1" js_class="analytic_pivot">
                 <field name="account_id" />
-                <field name="date" interval="month" type="col" />
+                <field name="date" type="col" interval="month" />
                 <field name="amount" type="measure" />
             </pivot>
         </field>
@@ -137,15 +137,15 @@
                 <templates>
                     <t t-name="card">
                         <div class="d-flex justify-content-between">
-                            <field class="fw-bold fs-5" name="name" />
-                            <field class="text-end fw-bold fs-5" name="date" />
+                            <field name="name" class="fw-bold fs-5" />
+                            <field name="date" class="text-end fw-bold fs-5" />
                         </div>
                         <div class="d-flex justify-content-between">
-                            <field class="text-muted" name="account_id" />
+                            <field name="account_id" class="text-muted" />
                             <field
-                                class="justify-content-end"
                                 name="amount"
-                                widget="monetary" />
+                                widget="monetary"
+                                class="justify-content-end" />
                         </div>
                     </t>
                 </templates>

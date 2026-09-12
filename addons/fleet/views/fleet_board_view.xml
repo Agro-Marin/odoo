@@ -12,12 +12,12 @@
                     filter_domain="[('driver_id', 'ilike', self)]" />
                 <field name="date_start" />
                 <filter
-                    string="Service"
                     name="service"
+                    string="Service"
                     domain="[('cost_type', '=', 'service')]" />
                 <filter
-                    string="Contract"
                     name="contract"
+                    string="Contract"
                     domain="[('cost_type', '=', 'contract')]" />
                 <separator />
                 <filter
@@ -26,12 +26,12 @@
                     default_period="year" />
                 <group>
                     <filter
-                        string="Vehicle"
                         name="vehicle"
+                        string="Vehicle"
                         context="{'group_by':'vehicle_id'}" />
                     <filter
-                        string="Driver"
                         name="driver"
+                        string="Driver"
                         context="{'group_by':'driver_id'}" />
                 </group>
             </search>
@@ -92,8 +92,8 @@
                             <field name="fuel_type" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                         </group>
                         <group>
                             <field name="date_start" />

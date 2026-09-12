@@ -11,9 +11,9 @@
                         <h1 class="d-flex flex-row justify-content-between">
                             <field
                                 name="name"
-                                class="text-truncate"
                                 placeholder="Template Name"
-                                required="1" />
+                                required="1"
+                                class="text-truncate" />
                         </h1>
                     </div>
                     <group name="top_info">
@@ -30,10 +30,10 @@
                     </group>
                     <notebook>
                         <page
-                            string="Salary Information"
                             name="information"
-                            class="o_hr_contract_salary_information"
-                            groups="hr.group_hr_manager">
+                            string="Salary Information"
+                            groups="hr.group_hr_manager"
+                            class="o_hr_contract_salary_information">
                             <field name="currency_id" invisible="1" />
                             <group name="salary_info">
                                 <group
@@ -84,9 +84,9 @@
                 <field name="resource_calendar_id" optional="show" />
                 <field
                     name="company_id"
+                    optional="hide"
                     groups="base.group_multi_company"
-                    readonly="1"
-                    optional="hide" />
+                    readonly="1" />
                 <field name="create_uid" optional="hide" />
                 <field name="create_date" optional="hide" />
             </list>

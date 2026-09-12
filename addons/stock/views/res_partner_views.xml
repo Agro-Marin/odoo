@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="mail.res_partner_view_form_inherit_mail" />
         <field name="arch" type="xml">
             <xpath expr="//group[@name='sales_purchases_columns']" position="inside">
-                <group string="Inventory" name="inventory" groups="base.group_no_one">
+                <group name="inventory" string="Inventory" groups="base.group_no_one">
                     <field name="property_stock_customer" />
                     <field name="property_stock_supplier" />
                 </group>
@@ -27,7 +27,7 @@
                     separator="," />
             </page>
             <group name="warnings" position="inside">
-                <group name="stock_warning" groups="stock.group_warning_stock" col="2">
+                <group name="stock_warning" col="2" groups="stock.group_warning_stock">
                     <separator
                         name="stock_warning_separator"
                         string="Instructions on the Stock Operations"
@@ -35,18 +35,18 @@
                     <field
                         name="picking_warn_msg"
                         placeholder="e.g. The delivery area is at the back of the building."
-                        nolabel="1"
-                        colspan="2" />
+                        colspan="2"
+                        nolabel="1" />
                 </group>
             </group>
             <xpath expr="//div[@name='anchor_buttons_inventory']" position="before">
                 <button
-                    type="object"
                     name="action_view_stock_serial"
-                    context="{'create': False}"
-                    class="oe_stat_button"
+                    type="object"
                     icon="fa-bars"
-                    groups="stock.group_production_lot">
+                    context="{'create': False}"
+                    groups="stock.group_production_lot"
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Lots/Serial Numbers</span>
                     </div>

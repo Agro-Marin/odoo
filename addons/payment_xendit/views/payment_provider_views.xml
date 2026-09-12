@@ -15,13 +15,13 @@
                     <field
                         name="xendit_secret_key"
                         string="Secret Key"
-                        required="code == 'xendit' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'xendit' and state != 'disabled'" />
                     <field
                         name="xendit_webhook_token"
                         string="Webhook Token"
-                        required="code == 'xendit' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'xendit' and state != 'disabled'" />
                 </group>
             </group>
         </field>

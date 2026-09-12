@@ -26,19 +26,19 @@
             <form string="Incoming Mail Server">
                 <header invisible="server_type == 'local'">
                     <button
-                        string="Test &amp; Confirm"
-                        type="object"
                         name="button_confirm_login"
+                        type="object"
+                        string="Test &amp; Confirm"
                         invisible="state != 'draft'" />
                     <button
-                        string="Fetch Now"
-                        type="object"
                         name="action_poll_mailbox"
+                        type="object"
+                        string="Fetch Now"
                         invisible="state != 'done'" />
                     <button
-                        string="Reset Confirmation"
-                        type="object"
                         name="set_draft"
+                        type="object"
+                        string="Reset Confirmation"
                         invisible="state != 'done'" />
                     <field name="state" widget="statusbar" />
                 </header>
@@ -47,8 +47,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field name="name" />
@@ -71,25 +71,25 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Server &amp; Login" name="server_login_details">
+                        <page name="server_login_details" string="Server &amp; Login">
                             <group>
                                 <group
-                                    invisible="server_type == 'local'"
-                                    string="Server Information">
+                                    string="Server Information"
+                                    invisible="server_type == 'local'">
                                     <field
                                         name="server"
                                         readonly="state != 'draft'"
                                         required="server_type != 'local'" />
                                     <field
                                         name="port"
-                                        required="1"
+                                        options="{'enable_formatting': false}"
                                         readonly="state != 'draft'"
-                                        options="{'enable_formatting': false}" />
+                                        required="1" />
                                     <field name="encryption" />
                                 </group>
                                 <group
-                                    invisible="server_type == 'local'"
-                                    string="Login Information">
+                                    string="Login Information"
+                                    invisible="server_type == 'local'">
                                     <field
                                         name="user"
                                         readonly="state != 'draft'"
@@ -105,16 +105,16 @@
                                     <field name="object_id" />
                                 </group>
                                 <group
-                                    invisible="server_type != 'local'"
-                                    string="Configuration">
+                                    string="Configuration"
+                                    invisible="server_type != 'local'">
                                     <field name="configuration" />
                                     <field name="script" widget="url" />
                                 </group>
                             </group>
                         </page>
                         <page
-                            string="Advanced"
                             name="advanced_options"
+                            string="Advanced"
                             groups="base.group_no_one">
                             <group>
                                 <group string="Advanced Options">
@@ -140,30 +140,30 @@
                 <field name="name" string="Incoming Mail Server" />
                 <field name="user" />
                 <filter
-                    string="IMAP"
                     name="imap"
-                    domain="[('server_type', '=', 'imap')]"
-                    help="Server type IMAP." />
+                    string="IMAP"
+                    help="Server type IMAP."
+                    domain="[('server_type', '=', 'imap')]" />
                 <filter
-                    string="POP"
                     name="pop"
-                    domain="[('server_type', '=', 'pop')]"
-                    help="Server type POP." />
+                    string="POP"
+                    help="Server type POP."
+                    domain="[('server_type', '=', 'pop')]" />
                 <separator />
                 <filter
-                    string="Encrypted"
                     name="encrypted"
-                    domain="[('encryption', '!=', 'none')]"
-                    help="Connection is encrypted." />
+                    string="Encrypted"
+                    help="Connection is encrypted."
+                    domain="[('encryption', '!=', 'none')]" />
                 <filter
-                    string="Unencrypted"
                     name="unencrypted"
-                    domain="[('encryption', '=', 'none')]"
-                    help="Credentials travel in cleartext." />
+                    string="Unencrypted"
+                    help="Credentials travel in cleartext."
+                    domain="[('encryption', '=', 'none')]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

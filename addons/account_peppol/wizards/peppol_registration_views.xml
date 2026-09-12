@@ -13,8 +13,8 @@
                     <div class="m-0" name="warnings" invisible="not peppol_warnings">
                         <field
                             name="peppol_warnings"
-                            class="o_field_html"
-                            widget="actionable_errors" />
+                            widget="actionable_errors"
+                            class="o_field_html" />
                     </div>
 
                     <div name="peppol_registration">
@@ -22,8 +22,8 @@
                             This branch company will use the active Peppol connection found on
                             <field
                                 name="parent_company_name"
-                                class="oe_inline o_form_label"
-                                readonly="1" />
+                                readonly="1"
+                                class="oe_inline o_form_label" />
                             and send invoices via Peppol on their behalf.
                         </p>
                         <p class="text-muted" invisible="use_parent_connection">
@@ -43,9 +43,9 @@
                                 <field
                                     name="peppol_eas"
                                     placeholder="Peppol ID"
+                                    widget="peppol_non_focusable_selection"
                                     nolabel="1"
                                     readonly="use_parent_connection"
-                                    widget="peppol_non_focusable_selection"
                                     class="o_field_peppol_eas_selection" />
                                 <field
                                     name="peppol_endpoint"
@@ -54,13 +54,13 @@
                                     readonly="use_parent_connection" />
                                 <field
                                     name="contact_email"
-                                    readonly="use_parent_connection"
-                                    string="Email" />
+                                    string="Email"
+                                    readonly="use_parent_connection" />
                                 <field
                                     name="phone_number"
-                                    required="edi_mode not in ('demo', 'test')"
+                                    string="Phone"
                                     readonly="use_parent_connection"
-                                    string="Phone" />
+                                    required="edi_mode not in ('demo', 'test')" />
                             </group>
                         </group>
                         <div class="text-muted col" invisible="edi_mode != 'prod'">
@@ -84,10 +84,10 @@
 
                     <!-- itsme auth button -->
                     <button
-                        class="btn btn-secondary itsme_button"
                         name="button_register_with_itsme"
                         type="object"
-                        invisible="not display_itsme_login">
+                        invisible="not display_itsme_login"
+                        class="btn btn-secondary itsme_button">
                         <img
                             src="/account_peppol/static/img/itsme.svg"
                             id="itsme_logo"
@@ -97,30 +97,30 @@
 
                     <!-- No auth buttons -->
                     <button
+                        name="button_register_peppol_participant"
+                        type="object"
                         string="Activate Peppol"
+                        invisible="edi_mode != 'prod' or not display_no_auth_buttons"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
                         name="button_register_peppol_participant"
                         type="object"
-                        class="btn-primary"
-                        data-hotkey="q"
-                        invisible="edi_mode != 'prod' or not display_no_auth_buttons" />
-                    <button
                         string="Activate Peppol (Test)"
+                        invisible="edi_mode != 'test' or not display_no_auth_buttons"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
                         name="button_register_peppol_participant"
                         type="object"
-                        class="btn-primary"
-                        data-hotkey="q"
-                        invisible="edi_mode != 'test' or not display_no_auth_buttons" />
-                    <button
                         string="Activate Peppol (Demo)"
-                        name="button_register_peppol_participant"
-                        type="object"
+                        invisible="edi_mode != 'demo' or not display_no_auth_buttons"
                         class="btn-primary"
-                        data-hotkey="q"
-                        invisible="edi_mode != 'demo' or not display_no_auth_buttons" />
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

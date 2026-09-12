@@ -11,8 +11,8 @@
                     name="action_redirect_to_quotations"
                     type="object"
                     icon="fa-regular fa-pen-to-square"
-                    class="oe_stat_button"
-                    invisible="state == 'draft'">
+                    invisible="state == 'draft'"
+                    class="oe_stat_button">
                     <field
                         name="sale_quotation_count"
                         string="Quotations"
@@ -22,8 +22,8 @@
                     name="action_redirect_to_invoiced"
                     type="object"
                     icon="fa-dollar"
-                    class="oe_stat_button"
-                    invisible="state == 'draft'">
+                    invisible="state == 'draft'"
+                    class="oe_stat_button">
                     <field
                         name="sale_invoiced_amount"
                         string="Invoiced"

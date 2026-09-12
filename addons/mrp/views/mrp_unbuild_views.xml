@@ -34,36 +34,36 @@
                         string="Done"
                         domain="[('state', '=', 'done')]" />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                 </group>
                 <group>
                     <filter
-                        string="Product"
                         name="productgroup"
+                        string="Product"
                         context="{'group_by': 'product_id'}" />
                     <filter
-                        string="Manufacturing Order"
                         name="mogroup"
+                        string="Manufacturing Order"
                         context="{'group_by': 'mo_id'}" />
                 </group>
             </search>
@@ -74,7 +74,7 @@
         <field name="name">mrp.unbuild.kanban</field>
         <field name="model">mrp.unbuild</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" sample="1">
+            <kanban sample="1" class="o_kanban_mobile">
                 <progressbar
                     field="activity_state"
                     colors="{&quot;planned&quot;: &quot;success&quot;, &quot;today&quot;: &quot;warning&quot;, &quot;overdue&quot;: &quot;danger&quot;}" />
@@ -85,17 +85,17 @@
                             <field name="product_qty" class="ms-auto me-1 fs-6" />
                             <field
                                 name="product_uom_id"
-                                class="small"
-                                groups="uom.group_uom" />
+                                groups="uom.group_uom"
+                                class="small" />
                         </div>
                         <div class="d-flex text-muted">
                             <field name="product_id" />
                             <field
                                 name="state"
-                                class="ms-auto"
                                 widget="label_selection"
                                 options="{'classes': {'draft': 'default', 'done': 'success'}}"
-                                readonly="1" />
+                                readonly="1"
+                                class="ms-auto" />
                         </div>
                     </t>
                 </templates>
@@ -112,8 +112,8 @@
                 <header>
                     <button
                         name="action_validate"
-                        string="Unbuild"
                         type="object"
+                        string="Unbuild"
                         invisible="state != 'draft'"
                         class="oe_highlight"
                         data-hotkey="v" />
@@ -125,32 +125,32 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
                             name="%(action_mrp_unbuild_moves)d"
                             type="action"
                             icon="fa-exchange"
-                            invisible="state != 'done'">
+                            invisible="state != 'done'"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Product Moves</span>
                             </div>
                         </button>
                     </div>
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="Unbuild Order" nolabel="1" /></h1>
+                        <h1><field name="name" placeholder="Unbuild Order" /></h1>
                     </div>
                     <group>
                         <group>
                             <field
                                 name="product_id"
-                                readonly="mo_id or state == 'done'"
-                                force_save="1" />
+                                force_save="1"
+                                readonly="mo_id or state == 'done'" />
                             <field name="mo_bom_id" invisible="1" />
                             <field
                                 name="bom_id"
+                                force_save="1"
                                 invisible="mo_id and not mo_bom_id"
                                 readonly="mo_id or state == 'done'"
-                                required="not mo_id"
-                                force_save="1" />
+                                required="not mo_id" />
                             <label for="product_qty" />
                             <div class="o_row">
                                 <field
@@ -158,11 +158,11 @@
                                     readonly="has_tracking == 'serial' or state == 'done'" />
                                 <field
                                     name="product_uom_id"
+                                    widget="many2one_uom"
+                                    force_save="1"
                                     options="{'no_open': True, 'no_create': True}"
                                     groups="uom.group_uom"
-                                    widget="many2one_uom"
-                                    readonly="mo_id or state == 'done'"
-                                    force_save="1" />
+                                    readonly="mo_id or state == 'done'" />
                             </div>
                         </group>
                         <group>
@@ -180,11 +180,11 @@
                             <field name="has_tracking" invisible="1" />
                             <field
                                 name="lot_id"
+                                force_save="1"
+                                groups="stock.group_production_lot"
                                 invisible="has_tracking == 'none'"
                                 readonly="state == 'done'"
-                                required="has_tracking != 'none'"
-                                groups="stock.group_production_lot"
-                                force_save="1" />
+                                required="has_tracking != 'none'" />
                             <field
                                 name="company_id"
                                 groups="base.group_multi_company"
@@ -225,11 +225,11 @@
                                     readonly="has_tracking == 'serial'" />
                                 <field
                                     name="product_uom_id"
+                                    widget="many2one_uom"
+                                    force_save="1"
                                     options="{'no_open': True, 'no_create': True}"
                                     groups="uom.group_uom"
-                                    widget="many2one_uom"
-                                    readonly="mo_id"
-                                    force_save="1" />
+                                    readonly="mo_id" />
                             </div>
                         </group>
                         <group>
@@ -250,9 +250,9 @@
                             <field name="has_tracking" invisible="1" />
                             <field
                                 name="lot_id"
+                                groups="stock.group_production_lot"
                                 invisible="has_tracking == 'none'"
-                                required="has_tracking != 'none'"
-                                groups="stock.group_production_lot" />
+                                required="has_tracking != 'none'" />
                             <field
                                 name="company_id"
                                 groups="base.group_multi_company"
@@ -263,12 +263,12 @@
                 <footer class="oe_edit_only">
                     <button
                         name="action_validate"
-                        string="Unbuild"
                         type="object"
+                        string="Unbuild"
                         invisible="state != 'draft'"
                         class="oe_highlight"
                         data-hotkey="q" />
-                    <button string="Discard" special="cancel" data-hotkey="x" />
+                    <button special="cancel" string="Discard" data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -287,8 +287,8 @@
                 <field name="product_qty" readonly="state == 'done'" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
                     widget="many2one_uom"
+                    groups="uom.group_uom"
                     readonly="state == 'done'" />
                 <field
                     name="location_id"
@@ -305,8 +305,8 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-success="state == 'done'"
-                    decoration-info="state == 'draft'" />
+                    decoration-info="state == 'draft'"
+                    decoration-success="state == 'done'" />
             </list>
         </field>
     </record>

@@ -10,25 +10,25 @@
                 <field name="project_id" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active_sprint"
+                    string="Active"
                     domain="[('state', '=', 'active')]" />
                 <filter
-                    string="Planning"
                     name="planning"
+                    string="Planning"
                     domain="[('state', '=', 'planning')]" />
                 <filter
-                    string="Closed"
                     name="closed"
+                    string="Closed"
                     domain="[('state', '=', 'closed')]" />
                 <group>
                     <filter
-                        string="Project"
                         name="group_project"
+                        string="Project"
                         context="{'group_by': 'project_id'}" />
                     <filter
-                        string="State"
                         name="group_state"
+                        string="State"
                         context="{'group_by': 'state'}" />
                 </group>
             </search>
@@ -42,17 +42,17 @@
             <form string="Sprint">
                 <header>
                     <button
-                        string="Start Sprint"
                         name="action_start"
                         type="object"
-                        class="oe_highlight"
-                        invisible="state != 'planning'" />
+                        string="Start Sprint"
+                        invisible="state != 'planning'"
+                        class="oe_highlight" />
                     <button
-                        string="Close Sprint"
                         name="action_close"
                         type="object"
-                        invisible="state != 'review'"
-                        confirm="Close this sprint? Incomplete tasks will remain in the backlog." />
+                        string="Close Sprint"
+                        confirm="Close this sprint? Incomplete tasks will remain in the backlog."
+                        invisible="state != 'review'" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -60,7 +60,7 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button class="oe_stat_button" icon="fa-tasks" disabled="1">
+                        <button icon="fa-tasks" class="oe_stat_button" disabled="1">
                             <div class="o_stat_info">
                                 <span class="o_stat_value">
                                     <field name="completed_count" /> / <field name="task_count" />
@@ -125,16 +125,16 @@
                 <field name="completion_pct" widget="progressbar" />
                 <field
                     name="velocity"
+                    string="Velocity"
                     widget="float_time"
-                    optional="show"
-                    string="Velocity" />
+                    optional="show" />
                 <field
                     name="state"
                     widget="badge"
                     decoration-info="state == 'planning'"
+                    decoration-muted="state == 'closed'"
                     decoration-success="state == 'active'"
-                    decoration-warning="state == 'review'"
-                    decoration-muted="state == 'closed'" />
+                    decoration-warning="state == 'review'" />
             </list>
         </field>
     </record>

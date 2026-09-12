@@ -20,8 +20,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='inactive']" position="before">
                 <filter
-                    string="Subcontractors"
                     name="type_subcontractors"
+                    string="Subcontractors"
                     domain="[('is_subcontractor', '=', True)]"
                     groups="mrp.group_mrp_user" />
                 <separator groups="mrp.group_mrp_user" />

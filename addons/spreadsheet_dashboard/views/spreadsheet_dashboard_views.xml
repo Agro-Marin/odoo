@@ -5,22 +5,22 @@
         <field name="name">spreadsheet.dashboard.view.list</field>
         <field name="model">spreadsheet.dashboard</field>
         <field name="arch" type="xml">
-            <list create="false" editable="bottom">
+            <list editable="bottom" create="false">
                 <field name="sequence" widget="handle" groups="base.group_system" />
                 <field name="name" />
                 <field name="group_ids" widget="many2many_tags" required="1" />
                 <field
                     name="company_ids"
-                    options="{'no_create': True}"
+                    placeholder="Visible to all"
                     widget="many2many_tags"
-                    groups="base.group_multi_company"
-                    placeholder="Visible to all" />
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
                 <field
                     name="spreadsheet_binary_data"
-                    groups="base.group_no_one"
+                    string="Data"
                     widget="binary_spreadsheet"
                     filename="spreadsheet_file_name"
-                    string="Data" />
+                    groups="base.group_no_one" />
                 <field name="is_published" widget="boolean_toggle" />
                 <field name="dashboard_group_id" optional="hide" />
             </list>
@@ -50,7 +50,7 @@
                         </h1>
                     </div>
                     <notebook>
-                        <page string="Spreadsheets" name="spreadsheets">
+                        <page name="spreadsheets" string="Spreadsheets">
                             <field
                                 name="dashboard_ids"
                                 context="{'list_view_ref': 'spreadsheet_dashboard.spreadsheet_dashboard_view_list'}" />
@@ -71,10 +71,10 @@
                     <field name="dashboard_group_id" />
                     <field
                         name="company_ids"
-                        options="{'no_create': True}"
+                        placeholder="Visible to all"
                         widget="many2many_tags"
-                        groups="base.group_multi_company"
-                        placeholder="Visible to all" />
+                        options="{'no_create': True}"
+                        groups="base.group_multi_company" />
                     <field name="group_ids" widget="many2many_tags" />
                     <field name="spreadsheet_binary_data" />
                 </group>

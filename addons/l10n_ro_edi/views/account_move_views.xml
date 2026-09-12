@@ -25,12 +25,12 @@
                     <field name="l10n_ro_edi_document_ids">
                         <list
                             create="false"
-                            delete="false"
                             edit="false"
-                            no_open="1"
+                            delete="false"
                             decoration-danger="state == 'invoice_refused'"
+                            decoration-success="state == 'invoice_validated'"
                             decoration-warning="state == 'invoice_sent'"
-                            decoration-success="state == 'invoice_validated'">
+                            no_open="1">
                             <field name="datetime" />
                             <field name="state" widget="account_document_state" />
                             <field name="key_download" optional="hide" />
@@ -100,22 +100,22 @@
             </xpath>
             <xpath expr="//filter[@name='out_refund']" position="after">
                 <filter
-                    string="Sent E-Factura"
                     name="l10n_ro_edi_state_invoice_sent"
+                    string="Sent E-Factura"
                     domain="[('l10n_ro_edi_state', 'in', ['invoice_not_indexed', 'invoice_sent'])]" />
                 <filter
-                    string="Refused E-Factura"
                     name="l10n_ro_edi_state_invoice_refused"
+                    string="Refused E-Factura"
                     domain="[('l10n_ro_edi_state', '=', 'invoice_refused')]" />
                 <filter
-                    string="Validated E-Factura"
                     name="l10n_ro_edi_state_invoice_validated"
+                    string="Validated E-Factura"
                     domain="[('l10n_ro_edi_state', '=', 'invoice_validated')]" />
             </xpath>
             <xpath expr="//group" position="inside">
                 <filter
-                    string="E-Factura Status"
                     name="l10n_ro_edi_state_group"
+                    string="E-Factura Status"
                     context="{'group_by':'l10n_ro_edi_state'}" />
             </xpath>
         </field>

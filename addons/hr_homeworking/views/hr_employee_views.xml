@@ -63,9 +63,9 @@
             <xpath expr="//field[@name='work_email']" position="after">
             <field
                 name="work_location_name"
-                readonly="0"
                 string="Work Location"
-                optional="hide" />
+                optional="hide"
+                readonly="0" />
             </xpath>
             <xpath expr="//field[@name='work_location_id']" position="attributes">
                 <attribute name="column_invisible">1</attribute>

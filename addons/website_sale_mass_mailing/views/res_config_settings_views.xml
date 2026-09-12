@@ -7,7 +7,7 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="website_sale.res_config_settings_view_form" />
         <field name="arch" type="xml">
-            <setting id="abandoned_carts_setting" position="after">
+            <setting position="after" id="abandoned_carts_setting">
                 <setting
                     id="newsletter_address"
                     string="Newsletter"
@@ -18,8 +18,8 @@
                         <label for="newsletter_id" class="o_light_label me-2" />
                         <field
                             name="newsletter_id"
-                            class="oe_inline"
-                            required="is_newsletter_enabled" />
+                            required="is_newsletter_enabled"
+                            class="oe_inline" />
                     </div>
                 </setting>
             </setting>

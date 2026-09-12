@@ -11,12 +11,12 @@
                 <field name="company_id" groups="base.group_multi_company" />
                 <group>
                     <filter
-                        string="User"
                         name="groupby_user"
+                        string="User"
                         context="{'group_by':'user_id'}" />
                     <filter
-                        string="Company"
                         name="groupby_company"
+                        string="Company"
                         context="{'group_by':'company_id'}" />
                 </group>
             </search>

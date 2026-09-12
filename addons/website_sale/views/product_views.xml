@@ -8,14 +8,14 @@
         <field name="arch" type="xml">
             <filter name="favorites" position="after">
                 <filter
-                    string="Published"
                     name="published"
+                    string="Published"
                     domain="[('is_published', '=', True)]" />
             </filter>
             <filter name="group_by_categ_id" position="after">
                 <filter
-                    string="eCommerce Category"
                     name="groupby_public_category"
+                    string="eCommerce Category"
                     context="{'group_by':'public_categ_ids'}" />
             </filter>
         </field>
@@ -29,20 +29,20 @@
             <field name="name" position="after">
                 <field
                     name="website_id"
-                    groups="website.group_multi_website"
-                    optional="show" />
+                    optional="show"
+                    groups="website.group_multi_website" />
                 <field name="is_published" string="Is Published" optional="hide" />
             </field>
             <field name="additional_product_tag_ids" position="after">
                 <field
                     name="website_ribbon_id"
-                    invisible="variant_ribbon_id"
                     optional="hide"
+                    invisible="variant_ribbon_id"
                     readonly="1" />
                 <field
                     name="variant_ribbon_id"
-                    options="{'no_quick_create': True}"
-                    optional="hide" />
+                    optional="hide"
+                    options="{'no_quick_create': True}" />
             </field>
         </field>
     </record>
@@ -55,8 +55,8 @@
             <field name="default_code" position="after">
                 <field
                     name="website_id"
-                    groups="website.group_multi_website"
-                    optional="hide" />
+                    optional="hide"
+                    groups="website.group_multi_website" />
             </field>
             <field name="product_tag_ids" position="after">
                 <field name="website_ribbon_id" optional="hide" />
@@ -79,8 +79,8 @@
             <field name="website_id" position="after">
                 <field
                     name="public_categ_ids"
-                    widget="many2many_tags"
                     string="Categories"
+                    widget="many2many_tags"
                     optional="show" />
                 <field name="is_published" string="Is Published" optional="hide" />
             </field>
@@ -134,14 +134,14 @@
                     <del class="oe_read_only">
                         <field
                             name="compare_list_price"
-                            nolabel="1"
                             widget="monetary"
+                            nolabel="1"
                             options="{'currency_field': 'currency_id', 'field_digits': True}" />
                     </del>
                     <field
                         name="compare_list_price"
-                        nolabel="1"
                         widget="monetary"
+                        nolabel="1"
                         options="{'currency_field': 'currency_id', 'field_digits': True}"
                         class="oe_edit_only" />
                 </div>
@@ -158,9 +158,9 @@
                         style="width: 4rem;" />
                     <field
                         name="base_unit_id"
+                        placeholder="Specify unit"
                         options="{'no_open': True}"
                         invisible="product_variant_count &gt; 1"
-                        placeholder="Specify unit"
                         style="width: 10rem;" />
                     <div
                         class="d-flex flex-row"
@@ -189,8 +189,8 @@
                     <field name="base_unit_count" style="width: 4rem;" />
                     <field
                         name="base_unit_id"
-                        options="{'no_open': True}"
                         placeholder="Specify unit"
+                        options="{'no_open': True}"
                         style="width: 10rem;" />
                     <div class="d-flex flex-row" invisible="base_unit_price == 0">
                         (<field name="base_unit_price" class="oe_inline" /> / <field name="base_unit_name" class="oe_inline" />)
@@ -217,46 +217,46 @@
             <group name="upsell" position="inside">
                 <field
                     name="accessory_product_ids"
+                    placeholder="Suggested accessories in the eCommerce cart"
                     widget="many2many_tags"
                     domain="[('sale_ok', '=', True)]"
-                    invisible="not sale_ok"
-                    placeholder="Suggested accessories in the eCommerce cart" />
+                    invisible="not sale_ok" />
                 <field
                     name="alternative_product_ids"
+                    placeholder="Displayed in bottom of product pages"
                     widget="many2many_tags"
                     domain="[('id', '!=', id), '|', ('company_id', '=', company_id), ('company_id', '=', False)]"
                     context="{'search_product_product': True}"
-                    invisible="not sale_ok"
-                    placeholder="Displayed in bottom of product pages" />
+                    invisible="not sale_ok" />
                 <field name="description_ecommerce" invisible="1" />
             </group>
             <xpath expr="//page[@name='sales']/group[@name='sale']" position="inside">
                 <group
-                    colspan="2"
                     name="product_template_images"
                     string="eCommerce Media"
+                    colspan="2"
                     invisible="not sale_ok">
                     <field
-                        colspan="2"
                         name="product_template_image_ids"
-                        class="o_website_sale_image_list"
-                        context="{'default_name': name}"
-                        mode="kanban"
-                        add-label="Add Media"
-                        nolabel="1"
                         widget="x2_many_media_viewer"
-                        options="{'convert_to_webp': True}" />
+                        mode="kanban"
+                        colspan="2"
+                        nolabel="1"
+                        context="{'default_name': name}"
+                        options="{'convert_to_webp': True}"
+                        class="o_website_sale_image_list"
+                        add-label="Add Media" />
                 </group>
             </xpath>
             <xpath
                 expr="//page[@name='sales']//group[@name='description']"
                 position="before">
-                <group string="Ecommerce Description" name="ecom_description">
+                <group name="ecom_description" string="Ecommerce Description">
                     <field
-                        colspan="2"
                         name="description_ecommerce"
-                        nolabel="1"
-                        placeholder="A detailed,formatted description to promote your product on                                      this page. Use '/' to discover more features." />
+                        placeholder="A detailed,formatted description to promote your product on                                      this page. Use '/' to discover more features."
+                        colspan="2"
+                        nolabel="1" />
                 </group>
             </xpath>
             <xpath
@@ -264,17 +264,17 @@
                 position="before">
                 <field
                     name="website_id"
+                    placeholder="All"
                     options="{'no_create': True}"
-                    groups="website.group_multi_website"
-                    placeholder="All" />
+                    groups="website.group_multi_website" />
             </xpath>
             <group name="extra_info" position="inside">
                 <field name="is_published" widget="boolean_toggle" />
                 <field name="website_sequence" groups="base.group_no_one" />
                 <field
                     name="public_categ_ids"
-                    widget="many2many_tags"
-                    string="Categories" />
+                    string="Categories"
+                    widget="many2many_tags" />
                 <field name="website_ribbon_id" options="{'no_quick_create': True}" />
             </group>
             <group name="extra_info" position="attributes">
@@ -299,8 +299,8 @@
                     <field name="base_unit_count" style="width: 4rem;" />
                     <field
                         name="base_unit_id"
-                        options="{'no_open': True}"
                         placeholder="Specify unit"
+                        options="{'no_open': True}"
                         style="width: 10rem;" />
                     <div class="d-flex flex-row" invisible="base_unit_price == 0">
                         (<field name="base_unit_price" class="oe_inline" /> / <field name="base_unit_name" class="oe_inline" />)
@@ -316,18 +316,18 @@
             </group>
             <group name="sales" position="after">
                 <group
-                    colspan="2"
                     name="product_variant_images"
-                    string="Extra Variant Media">
+                    string="Extra Variant Media"
+                    colspan="2">
                     <field
                         name="product_variant_image_ids"
-                        class="o_website_sale_image_list"
-                        context="{'default_name': name}"
-                        mode="kanban"
-                        add-label="Add Media"
-                        nolabel="1"
                         widget="x2_many_media_viewer"
-                        options="{'convert_to_webp': True}" />
+                        mode="kanban"
+                        nolabel="1"
+                        context="{'default_name': name}"
+                        options="{'convert_to_webp': True}"
+                        class="o_website_sale_image_list"
+                        add-label="Add Media" />
                 </group>
             </group>
         </field>

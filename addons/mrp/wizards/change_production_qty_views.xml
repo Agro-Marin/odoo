@@ -20,15 +20,15 @@
                     <footer>
                         <button
                             name="change_prod_qty"
-                            string="Set Quantity"
-                            data-hotkey="q"
-                            colspan="1"
                             type="object"
-                            class="btn-primary" />
+                            string="Set Quantity"
+                            colspan="1"
+                            class="btn-primary"
+                            data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

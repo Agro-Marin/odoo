@@ -15,12 +15,12 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -45,8 +45,8 @@
             <form string="Skill Tree">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button class="oe_stat_button" icon="fa-puzzle-piece">
-                            <field name="node_count" widget="statinfo" string="Nodes" />
+                        <button icon="fa-puzzle-piece" class="oe_stat_button">
+                            <field name="node_count" string="Nodes" widget="statinfo" />
                         </button>
                     </div>
                     <field name="icon" widget="image" class="oe_avatar" />
@@ -88,12 +88,12 @@
                 <separator />
                 <group>
                     <filter
-                        string="Tree"
                         name="group_tree"
+                        string="Tree"
                         context="{'group_by': 'tree_id'}" />
                     <filter
-                        string="Level"
                         name="group_level"
+                        string="Level"
                         context="{'group_by': 'level'}" />
                 </group>
             </search>

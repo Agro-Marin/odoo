@@ -22,8 +22,8 @@
                     editable="bottom"
                     create="1"
                     delete="1"
-                    decoration-muted="not active"
-                    open_form_view="True">
+                    open_form_view="True"
+                    decoration-muted="not active">
                     <field name="sequence" widget="handle" />
                     <field name="name" readonly="1" />
                     <field name="country_id" readonly="1" />
@@ -40,17 +40,17 @@
                     <field name="name" />
                     <field name="root_report_id" />
                     <filter
-                        string="Inactive"
                         name="inactive"
+                        string="Inactive"
                         domain="[('active', '=', False)]" />
                     <group>
                         <filter
-                            string="Country"
                             name="country_id"
+                            string="Country"
                             context="{'group_by':'country_id'}" />
                         <filter
-                            string="Root Report"
                             name="root_report_id"
+                            string="Root Report"
                             context="{'group_by':'root_report_id'}" />
                     </group>
                 </search>
@@ -66,8 +66,8 @@
                     <field name="company_ids" column_invisible="True" />
                     <field name="account_type" />
                     <field name="current_balance" />
-                    <field name="tax_ids" optional="hide" widget="many2many_tax_tags" />
-                    <field name="tag_ids" optional="hide" widget="many2many_tags" />
+                    <field name="tax_ids" widget="many2many_tax_tags" optional="hide" />
+                    <field name="tag_ids" widget="many2many_tags" optional="hide" />
                 </list>
             </field>
         </record>
@@ -81,11 +81,11 @@
                             name="is_account_coverage_report_available"
                             invisible="1" />
                         <button
-                            class="btn btn-secondary float-end"
-                            invisible="not is_account_coverage_report_available"
                             name="action_download_xlsx_accounts_coverage_report"
                             type="object"
-                            string="Accounts Coverage Report" />
+                            string="Accounts Coverage Report"
+                            invisible="not is_account_coverage_report_available"
+                            class="btn btn-secondary float-end" />
                     </header>
 
                     <field name="custom_handler_model_id" invisible="1" />
@@ -111,8 +111,8 @@
                                     domain="[('root_report_id', '=', None)]" />
                                 <field
                                     name="availability_condition"
-                                    required="1"
-                                    invisible="not root_report_id" />
+                                    invisible="not root_report_id"
+                                    required="1" />
                                 <field name="use_sections" invisible="line_ids" />
                             </group>
                             <group>
@@ -130,14 +130,14 @@
 
                         <notebook>
                             <page
-                                string="Lines"
                                 name="page_lines"
+                                string="Lines"
                                 invisible="use_sections">
                                 <field
-                                    class="w-100"
                                     name="line_ids"
-                                    no_label="1"
-                                    widget="account_report_lines_list_x2many">
+                                    widget="account_report_lines_list_x2many"
+                                    class="w-100"
+                                    no_label="1">
                                     <list limit="2000">
                                         <field name="id" column_invisible="1" />
                                         <field name="sequence" column_invisible="1" />
@@ -159,20 +159,20 @@
                             </page>
 
                             <page
-                                string="Sections"
                                 name="page_sections"
+                                string="Sections"
                                 invisible="not use_sections">
                                 <field
                                     name="section_report_ids"
-                                    no_label="1"
-                                    options="{'no_create': True, 'no_quick_create': True}"
                                     domain="[('section_report_ids', '=', False)]"
-                                    context="{'list_view_ref': 'account.account_report_add_sections_tree', 'active_test': False}" />
+                                    context="{'list_view_ref': 'account.account_report_add_sections_tree', 'active_test': False}"
+                                    options="{'no_create': True, 'no_quick_create': True}"
+                                    no_label="1" />
                             </page>
 
                             <page
-                                string="Columns"
                                 name="page_columns"
+                                string="Columns"
                                 invisible="use_sections">
                                 <field name="column_ids">
                                     <list editable="bottom">
@@ -187,8 +187,8 @@
                             </page>
 
                             <page
-                                string="Options"
                                 name="page_options"
+                                string="Options"
                                 invisible="use_sections">
                                 <group>
                                     <group>
@@ -225,8 +225,8 @@
                                             placeholder="None" />
                                         <field
                                             name="currency_translation"
-                                            required="1"
-                                            groups="base.group_multi_currency" />
+                                            groups="base.group_multi_currency"
+                                            required="1" />
                                     </group>
                                     <group string="Filters" class="oe_edit_only">
                                         <field name="filter_account_type" />
@@ -266,14 +266,14 @@
                                     invisible="1" />
                                 <field name="action_id" />
                                 <field name="hierarchy_level" />
-                                <field string="Group By" name="user_groupby" />
+                                <field name="user_groupby" string="Group By" />
                                 <div
                                     colspan="2"
                                     class="alert alert-warning"
                                     role="alert"
                                     invisible="not display_custom_groupby_warning">
                                     This line uses a custom user-defined 'Group By' value.
-                                    <button class="oe_link" type="object" name="action_reset_custom_groupby">Reset to Standard</button>
+                                    <button name="action_reset_custom_groupby" type="object" class="oe_link">Reset to Standard</button>
                                 </div>
                             </group>
                             <group>
@@ -310,7 +310,7 @@
                         </div>
 
                         <notebook>
-                            <page string="Definition" name="page_definition">
+                            <page name="page_definition" string="Definition">
                                 <group>
                                     <field name="engine" />
                                     <field name="formula" />
@@ -319,7 +319,7 @@
                                         required="engine == 'domain'" />
                                 </group>
                             </page>
-                            <page string="Options" name="page_options">
+                            <page name="page_options" string="Options">
                                 <group>
                                     <group>
                                         <field name="date_scope" />
@@ -428,15 +428,15 @@
                         </div>
 
                         <notebook>
-                            <page string="Budget Items" name="budget_items">
-                                <field name="item_ids" nolabel="1">
+                            <page name="budget_items" string="Budget Items">
+                                <field name="item_ids">
                                     <list editable="bottom">
                                         <field name="account_id" width="40%" />
                                         <field
                                             name="date"
                                             string="Months"
-                                            options="{'min_precision': 'months'}"
-                                            width="30%" />
+                                            width="30%"
+                                            options="{'min_precision': 'months'}" />
                                         <field name="amount" width="30%" />
                                     </list>
                                 </field>

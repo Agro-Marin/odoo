@@ -11,11 +11,11 @@
                     <button
                         name="%(website_crm.crm_lead_action_from_visitor)d"
                         type="action"
-                        class="oe_stat_button"
                         icon="fa-star"
                         groups="sales_team.group_sale_salesman"
-                        invisible="lead_count == 0">
-                        <field name="lead_count" widget="statinfo" string="Leads" />
+                        invisible="lead_count == 0"
+                        class="oe_stat_button">
+                        <field name="lead_count" string="Leads" widget="statinfo" />
                     </button>
                 </xpath>
             </field>
@@ -42,8 +42,8 @@
                 </xpath>
                 <xpath expr="//filter[@name='filter_type_visitor']" position="after">
                     <filter
-                        string="Leads"
                         name="filter_type_lead"
+                        string="Leads"
                         domain="[('partner_id', '=', False), ('lead_ids', '!=', False)]" />
                 </xpath>
             </field>

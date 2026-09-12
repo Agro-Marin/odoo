@@ -22,8 +22,8 @@
         <field name="arch" type="xml">
             <xpath expr="//group" position="inside">
                 <filter
-                    string="GİB e-Dispatch State"
                     name="l10n_tr_nilvera_dispatch_state"
+                    string="GİB e-Dispatch State"
                     context="{'group_by': 'l10n_tr_nilvera_dispatch_state'}" />
             </xpath>
         </field>
@@ -38,8 +38,8 @@
                 <button
                     name="action_generate_l10n_tr_edispatch_xml"
                     type="object"
-                    invisible="country_code != 'TR' or picking_type_code != 'outgoing' or state != 'done' or not partner_id"
-                    string="Generate GİB e-Dispatch (XML)" />
+                    string="Generate GİB e-Dispatch (XML)"
+                    invisible="country_code != 'TR' or picking_type_code != 'outgoing' or state != 'done' or not partner_id" />
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <page
@@ -94,9 +94,9 @@
                             <field
                                 name="l10n_tr_nilvera_driver_ids"
                                 widget="many2many_tags"
+                                domain="[('is_company', '=', False)]"
                                 create="0"
-                                group_create="0"
-                                domain="[('is_company', '=', False)]" />
+                                group_create="0" />
                         </group>
                     </group>
                 </page>
@@ -109,8 +109,8 @@
                     invisible="not l10n_tr_nilvera_edispatch_warnings or (state == 'done' and not partner_id)">
                     <field
                         name="l10n_tr_nilvera_edispatch_warnings"
-                        class="o_field_html"
-                        widget="actionable_errors" />
+                        widget="actionable_errors"
+                        class="o_field_html" />
                 </div>
             </xpath>
         </field>

@@ -9,16 +9,16 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='anchor_buttons_pos']" position="before">
                 <button
-                    class="oe_stat_button"
-                    type="object"
                     name="action_view_pos_order"
-                    groups="point_of_sale.group_pos_user"
+                    type="object"
+                    icon="fa-shopping-bag"
                     context="{'default_partner_id': id}"
+                    groups="point_of_sale.group_pos_user"
                     invisible="pos_order_count == 0"
-                    icon="fa-shopping-bag">
+                    class="oe_stat_button">
                     <field
-                        string="PoS Orders"
                         name="pos_order_count"
+                        string="PoS Orders"
                         widget="statinfo" />
                 </button>
             </xpath>

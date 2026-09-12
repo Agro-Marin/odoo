@@ -13,16 +13,16 @@
                 <field name="automation_rule_id" column_invisible="1" />
                 <field
                     name="edge_in_ids"
+                    string="Waits For"
                     widget="many2many_tags"
-                    readonly="1"
                     optional="show"
-                    string="Waits For" />
+                    readonly="1" />
                 <field
                     name="edge_out_ids"
+                    string="Enables"
                     widget="many2many_tags"
-                    readonly="1"
                     optional="hide"
-                    string="Enables" />
+                    readonly="1" />
             </list>
         </field>
     </record>
@@ -36,9 +36,9 @@
                 <button
                     name="action_view_automation"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-bolt"
-                    invisible="not automation_rule_id">
+                    invisible="not automation_rule_id"
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Automation</span>
                     </div>
@@ -55,10 +55,10 @@
 
             <xpath expr="//notebook" position="inside">
                 <page
-                    string="Dependencies"
                     name="dependencies"
-                    invisible="usage != 'automation' or not automation_rule_id"
-                    groups="base.group_user">
+                    string="Dependencies"
+                    groups="base.group_user"
+                    invisible="usage != 'automation' or not automation_rule_id">
 
                     <group>
                         <group string="Step Type">
@@ -66,7 +66,7 @@
                             <label for="wait_delay" invisible="node_type != 'wait'" />
                             <div invisible="node_type != 'wait'">
                                 <field name="wait_delay" class="oe_inline" /> 
-                                <field name="wait_unit" class="oe_inline" nolabel="1" />
+                                <field name="wait_unit" nolabel="1" class="oe_inline" />
                             </div>
                             <field
                                 name="approval_user_ids"
@@ -78,16 +78,16 @@
                                 invisible="node_type != 'approval'" />
                             <field
                                 name="subflow_automation_id"
+                                options="{'no_create': True}"
                                 invisible="node_type != 'subflow'"
-                                required="node_type == 'subflow'"
-                                options="{'no_create': True}" />
+                                required="node_type == 'subflow'" />
                         </group>
 
                         <group string="Dependency Info" colspan="2">
                             <field
                                 name="edge_in_ids"
-                                nolabel="1"
                                 colspan="2"
+                                nolabel="1"
                                 context="{'default_target_node_id': id}">
                                 <list editable="bottom">
                                     <field
@@ -110,8 +110,8 @@
 
                             <field
                                 name="edge_out_ids"
-                                nolabel="1"
                                 colspan="2"
+                                nolabel="1"
                                 readonly="1">
                                 <list string="Enables">
                                     <field name="target_node_id" />

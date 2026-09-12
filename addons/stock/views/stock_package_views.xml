@@ -11,23 +11,23 @@
                 <field name="location_id" groups="stock.group_stock_multi_locations" />
                 <field name="package_type_id" />
                 <filter
-                    string="In internal locations"
                     name="internal"
+                    string="In internal locations"
                     domain="['|', ('location_id.usage', '=', 'internal'), ('location_id', '=', False)]"
                     groups="stock.group_stock_multi_locations" />
                 <filter
-                    string="Main Packages"
                     name="main_packages"
+                    string="Main Packages"
                     domain="[('package_dest_id', '=', False)]" />
                 <group>
                     <filter
-                        string="Location"
                         name="location"
+                        string="Location"
                         context="{'group_by' : 'location_id'}"
                         groups="stock.group_stock_multi_locations" />
                     <filter
-                        string="Package Type"
                         name="package_type"
+                        string="Package Type"
                         context="{'group_by' : 'package_type_id'}" />
                 </group>
             </search>
@@ -50,8 +50,8 @@
                 <field name="location_id" options="{'no_create': True}" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -61,30 +61,30 @@
         <field name="model">stock.package</field>
         <field name="arch" type="xml">
             <list
-                create="0"
                 editable="bottom"
-                js_class="stock_add_package_list_view"
-                open_form_view="1">
+                create="0"
+                open_form_view="1"
+                js_class="stock_add_package_list_view">
                 <header>
                     <button
-                        class="btn-primary"
                         name="action_put_in_pack"
                         type="object"
-                        string="Put in Pack" />
+                        string="Put in Pack"
+                        class="btn-primary" />
                     <button
-                        class="btn-secondary"
                         name="action_remove_package"
                         type="object"
-                        string="Remove" />
+                        string="Remove"
+                        class="btn-secondary" />
                 </header>
                 <field name="name" string="Package" />
                 <field name="package_type_id" />
                 <field
                     name="json_popover"
                     widget="popover_widget"
+                    width="18px"
                     nolabel="1"
-                    invisible="not json_popover"
-                    width="18px" />
+                    invisible="not json_popover" />
                 <field name="location_dest_id" options="{'no_create': True}" />
                 <field
                     name="parent_package_id"
@@ -95,8 +95,8 @@
                     domain="[('id', '!=', id), '|', '|', '|', ('location_id', '=', False), ('location_id', '=', location_dest_id), ('id', '=', parent_package_id), ('location_dest_id', '=', location_dest_id)]" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -110,8 +110,8 @@
                 <field
                     name="parent_package_id"
                     string="Container"
-                    context="{'show_src_package': 1}"
-                    widget="package_m2o" />
+                    widget="package_m2o"
+                    context="{'show_src_package': 1}" />
                 <field name="package_type_id" string="Type" optional="hide" />
                 <field name="location_id" groups="stock.group_stock_multi_locations" />
                 <field name="content_description" width="500px" />
@@ -141,26 +141,26 @@
         <field name="arch" type="xml">
             <form string="Package">
                 <header>
-                    <button name="action_unpack" string="Unpack" type="object" />
+                    <button name="action_unpack" type="object" string="Unpack" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            class="oe_stat_button"
                             name="action_view_picking"
-                            string="Package Transfers"
                             type="object"
+                            string="Package Transfers"
                             widget="statinfo"
-                            icon="oi-arrows-v" />
+                            icon="oi-arrows-v"
+                            class="oe_stat_button" />
                     </div>
                     <div class="oe_title">
                         <label for="name" string="Package Reference" />
                         <h1>
                             <field
                                 name="name"
-                                class="oe_inline"
+                                placeholder="e.g. PACK0000007"
                                 required="0"
-                                placeholder="e.g. PACK0000007" />
+                                class="oe_inline" />
                         </h1>
                     </div>
                     <group>
@@ -172,8 +172,8 @@
                             <field name="location_id" options="{'no_create': True}" />
                             <field
                                 name="parent_package_id"
-                                domain="[('id', '!=', id), '|', ('location_id', '=', location_id), ('location_id', '=', False)]"
                                 widget="package_m2o"
+                                domain="[('id', '!=', id), '|', ('location_id', '=', location_id), ('location_id', '=', False)]"
                                 context="{'show_src_package': 1}" />
                         </group>
                         <group>
@@ -203,9 +203,9 @@
                                     <div class="d-flex">
                                         <field name="quantity" />
                                         <field
-                                            class="mx-2"
                                             name="product_uom_id"
-                                            groups="uom.group_uom" />
+                                            groups="uom.group_uom"
+                                            class="mx-2" />
                                     </div>
                                 </t>
                             </templates>

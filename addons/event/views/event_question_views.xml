@@ -10,21 +10,21 @@
                 <field name="question_type" />
                 <field name="answer_ids" />
                 <filter
-                    string="Mandatory"
                     name="filter_is_mandatory_answer"
+                    string="Mandatory"
                     domain="[('is_mandatory_answer', '=', True)]" />
                 <filter
-                    string="Not mandatory"
                     name="filter_is_not mandatory_answer"
+                    string="Not mandatory"
                     domain="[('is_mandatory_answer', '=', False)]" />
                 <separator />
                 <filter
-                    string="Once per order"
                     name="filter_once_per_order"
+                    string="Once per order"
                     domain="[('once_per_order', '=', True)]" />
                 <filter
-                    string="For each attendee"
                     name="filter_for_each_attendee"
+                    string="For each attendee"
                     domain="[('once_per_order', '=', False)]" />
                 <separator />
                 <filter
@@ -46,8 +46,8 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Event"
                         name="group_by_event"
+                        string="Event"
                         context="{'group_by': 'event_ids'}" />
                 </group>
             </search>
@@ -64,9 +64,9 @@
                         <button
                             name="action_view_question_answers"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-line-chart"
-                            invisible="question_type not in ['simple_choice', 'text_box']">
+                            invisible="question_type not in ['simple_choice', 'text_box']"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">
                                     Attendee answers
@@ -80,9 +80,9 @@
                         invisible="event_count == 0">
                         This question is used by
                         <button
-                            class="oe_link p-0 align-baseline"
+                            name="action_event_view"
                             type="object"
-                            name="action_event_view">
+                            class="oe_link p-0 align-baseline">
                             <field name="event_count" />
                             events
                         </button>.
@@ -101,7 +101,7 @@
                         </group>
                     </group>
                     <notebook invisible="question_type != 'simple_choice'">
-                        <page string="Answers" name="answers">
+                        <page name="answers" string="Answers">
                             <field name="answer_ids">
                                 <list editable="bottom">
                                     <!-- 'display_name' is necessary for the many2many_tags to work on the event view -->
@@ -138,11 +138,11 @@
                 <button
                     name="action_view_question_answers"
                     type="object"
-                    class="p-0"
-                    icon="fa-bar-chart pe-1"
                     string="Stats"
                     title="Answer Breakdown"
-                    invisible="question_type not in ['simple_choice', 'text_box']" />
+                    icon="fa-bar-chart pe-1"
+                    invisible="question_type not in ['simple_choice', 'text_box']"
+                    class="p-0" />
             </list>
         </field>
     </record>

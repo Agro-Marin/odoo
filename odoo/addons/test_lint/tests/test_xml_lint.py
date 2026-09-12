@@ -148,6 +148,29 @@ class TestXmlRules(BaseCase):
             [],
         )
 
+    def test_an_inheritance_locator_is_not_a_definition(self):
+        self.assertEqual(
+            self._run(
+                "duplicate-arch-name",
+                _view(
+                    '<group name="g" position="before"><field name="a"/></group>'
+                    '<group name="g" position="inside"><field name="b"/></group>'
+                ),
+            ),
+            [],
+        )
+
+    def test_a_kanban_field_carries_no_label_to_drop(self):
+        self.assertEqual(
+            self._run(
+                "nolabel-outside-group",
+                _view(
+                    '<kanban><templates><t t-name="card"><field name="a" nolabel="1"/></t></templates></kanban>'
+                ),
+            ),
+            [],
+        )
+
     def test_the_command_helper_is_not_a_legacy_tuple(self):
         self.assertEqual(
             self._run(
@@ -288,6 +311,46 @@ _CASES: tuple[tuple, ...] = (
         "unknown-model",
         '<odoo><record id="r" model="res.partnerr"/></odoo>',
         '<odoo><record id="r" model="res.partner"/></odoo>',
+    ),
+    (
+        "duplicate-arch-name",
+        _view(
+            '<search><filter name="done" string="Done" domain="[]"/>'
+            '<filter name="done" string="Ready" domain="[]"/></search>'
+        ),
+        _view(
+            '<search><filter name="done" string="Done" domain="[]"/>'
+            '<filter name="ready" string="Ready" domain="[]"/></search>'
+        ),
+    ),
+    (
+        "special-button-type",
+        _view('<form><footer><button special="cancel" type="object"/></footer></form>'),
+        _view(
+            '<form><footer><button special="cancel" string="Cancel"/></footer></form>'
+        ),
+    ),
+    (
+        "readonly-duplicates-invisible",
+        _view('<form><field name="a" invisible="b" readonly="b"/></form>'),
+        _view('<form><field name="a" invisible="b" readonly="c"/></form>'),
+    ),
+    (
+        "nolabel-outside-group",
+        _view('<form><sheet><field name="a" nolabel="1"/></sheet></form>'),
+        _view('<form><group><field name="a" nolabel="1"/></group></form>'),
+    ),
+    (
+        "column-invisible-outside-list",
+        _view('<form><field name="a" column_invisible="b"/></form>'),
+        _view(
+            '<form><field name="l"><list><field name="a" column_invisible="b"/></list></field></form>'
+        ),
+    ),
+    (
+        "boolean-spelling",
+        _view('<form><field name="a" invisible="true"/></form>'),
+        _view('<form><field name="a" invisible="True"/></form>'),
     ),
     (
         "optional-value",

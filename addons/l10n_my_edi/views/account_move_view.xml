@@ -11,9 +11,9 @@
                 <button
                     name="action_show_myinvois_documents"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-regular fa-file-lines"
-                    invisible="not l10n_my_edi_document_ids">
+                    invisible="not l10n_my_edi_document_ids"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">MyInvois<br />Documents</span>
                     </div>
@@ -23,29 +23,29 @@
                 <widget
                     name="web_ribbon"
                     title="Processing"
-                    bg_color="text-bg-info"
-                    invisible="l10n_my_edi_state != 'in_progress'" />
+                    invisible="l10n_my_edi_state != 'in_progress'"
+                    bg_color="text-bg-info" />
                 <widget
                     name="web_ribbon"
                     title="Rejected"
-                    bg_color="text-bg-warning"
-                    invisible="l10n_my_edi_state != 'rejected'" />
+                    invisible="l10n_my_edi_state != 'rejected'"
+                    bg_color="text-bg-warning" />
             </xpath>
             <!-- We want the CTA to be primary only on invoices, and secondary on vendor bills. -->
             <button name="action_invoice_sent" position="before">
                 <button
                     name="action_l10n_my_edi_send_invoice"
-                    string="Send To MyInvois"
                     type="object"
+                    string="Send To MyInvois"
                     groups="account.group_account_invoice"
-                    class="oe_highlight"
-                    invisible="not l10n_my_invoice_need_edi or l10n_my_edi_state or move_type not in ('out_invoice', 'out_refund')" />
+                    invisible="not l10n_my_invoice_need_edi or l10n_my_edi_state or move_type not in ('out_invoice', 'out_refund')"
+                    class="oe_highlight" />
             </button>
             <button name="action_register_payment" position="after">
                 <button
                     name="action_l10n_my_edi_send_invoice"
-                    string="Send To MyInvois"
                     type="object"
+                    string="Send To MyInvois"
                     groups="account.group_account_invoice"
                     invisible="not l10n_my_invoice_need_edi or l10n_my_edi_state or move_type not in ('in_invoice', 'in_refund')" />
             </button>
@@ -54,8 +54,8 @@
                 <!-- This button is not needed on rejected invoices as it expects an action from the user -->
                 <button
                     name="action_l10n_my_edi_update_status"
-                    string="Update MyInvois Status"
                     type="object"
+                    string="Update MyInvois Status"
                     groups="account.group_account_invoice"
                     invisible="not l10n_my_edi_state or (l10n_my_edi_state not in ['in_progress', 'valid']) or (l10n_my_edi_state == 'rejected' and move_type not in ('out_invoice', 'out_refund'))" />
             </xpath>

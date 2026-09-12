@@ -8,9 +8,9 @@
         <field name="arch" type="xml">
             <xpath expr="//block[@id='account_vendor_bills']" position="after">
                 <block
+                    id="l10n_it_edi"
                     title="Italian Electronic Invoicing"
-                    invisible="country_code != 'IT' or use_root_proxy_user"
-                    id="l10n_it_edi">
+                    invisible="country_code != 'IT' or use_root_proxy_user">
                     <setting
                         id="l10n_it_edi_setting"
                         string="Fattura Electronica (FatturaPA)">
@@ -39,9 +39,9 @@
                     </setting>
                 </block>
                 <block
+                    id="account_edi_branch"
                     title="Italian Electronic Invoicing"
-                    invisible="(country_code != 'IT') or not use_root_proxy_user"
-                    id="account_edi_branch">
+                    invisible="(country_code != 'IT') or not use_root_proxy_user">
                     <span class="o_form_label">
                         This branch shares the same VAT number and Codice Fiscale as its parent company. Select the parent company to configure the EDI settings.
                     </span>

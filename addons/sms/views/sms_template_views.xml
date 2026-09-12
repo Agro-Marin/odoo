@@ -10,9 +10,9 @@
                     <header>
                         <field name="template_fs" invisible="1" />
                         <button
-                            string="Reset Template"
                             name="%(sms_template_reset_action)d"
                             type="action"
+                            string="Reset Template"
                             groups="base.group_system"
                             invisible="not template_fs" />
                     </header>
@@ -22,11 +22,11 @@
                             <button
                                 name="action_create_sidebar_action"
                                 type="object"
-                                groups="base.group_no_one"
-                                class="oe_stat_button"
-                                invisible="sidebar_action_id"
+                                help="Add a contextual action on the related model to open a sms composer with this template"
                                 icon="fa-plus"
-                                help="Add a contextual action on the related model to open a sms composer with this template">
+                                groups="base.group_no_one"
+                                invisible="sidebar_action_id"
+                                class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_text">Add</span>
                                     <span class="o_stat_text">Context Action</span>
@@ -35,22 +35,22 @@
                             <button
                                 name="action_unlink_sidebar_action"
                                 type="object"
-                                groups="base.group_no_one"
-                                class="oe_stat_button"
-                                icon="fa-minus"
-                                invisible="not sidebar_action_id"
                                 help="Remove the contextual action of the related model"
-                                widget="statinfo">
+                                widget="statinfo"
+                                icon="fa-minus"
+                                groups="base.group_no_one"
+                                invisible="not sidebar_action_id"
+                                class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_text">Remove</span>
                                     <span class="o_stat_text">Context Action</span>
                                 </div>
                             </button>
                             <button
-                                class="oe_stat_button"
                                 name="%(sms_template_preview_action)d"
-                                icon="fa-search-plus"
                                 type="action"
+                                icon="fa-search-plus"
+                                class="oe_stat_button"
                                 target="new">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_text">Preview</span>
@@ -64,17 +64,17 @@
                                 <field
                                     name="model_id"
                                     placeholder="e.g. Contact"
-                                    required="1"
-                                    options="{'no_create': True}" />
+                                    options="{'no_create': True}"
+                                    required="1" />
                                 <field name="model" invisible="1" />
                                 <field
                                     name="lang"
-                                    groups="base.group_no_one"
-                                    placeholder="e.g. en_US or {{ object.partner_id.lang }}" />
+                                    placeholder="e.g. en_US or {{ object.partner_id.lang }}"
+                                    groups="base.group_no_one" />
                             </group>
                         </div>
                         <notebook>
-                            <page string="Content" name="content">
+                            <page name="content" string="Content">
                                 <group>
                                     <field
                                         name="body"

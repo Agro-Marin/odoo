@@ -16,18 +16,18 @@
                     filter_domain="[('partner_id', 'child_of', self)]" />
                 <separator />
                 <filter
-                    string="My Tasks"
                     name="my_tasks"
+                    string="My Tasks"
                     domain="[('user_ids', 'in', uid)]" />
                 <filter
-                    string="Unassigned"
                     name="unassigned"
+                    string="Unassigned"
                     domain="[('user_ids', '=', False)]" />
                 <separator />
                 <filter
                     name="filter_date"
-                    date="date"
                     string="Date"
+                    date="date"
                     default_period="year,year-1" />
                 <filter
                     name="filter_last_stage_update"
@@ -36,12 +36,12 @@
                 <separator />
                 <group>
                     <filter
-                        string="Date"
                         name="date"
+                        string="Date"
                         context="{'group_by': 'date:week'}" />
                     <filter
-                        string="Workflow Step"
                         name="stage"
+                        string="Workflow Step"
                         context="{'group_by': 'step_id'}" />
                 </group>
             </search>
@@ -53,11 +53,11 @@
         <field name="model">project.cfd.report</field>
         <field name="arch" type="xml">
             <graph
-                string="Cumulative Flow Diagram"
                 type="line"
-                stacked="True"
+                string="Cumulative Flow Diagram"
                 sample="1"
-                disable_linking="1">
+                disable_linking="1"
+                stacked="True">
                 <field name="date" string="Date" interval="week" />
                 <field name="step_id" />
             </graph>

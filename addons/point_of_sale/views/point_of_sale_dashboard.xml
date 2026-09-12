@@ -55,8 +55,8 @@
         <field name="arch" type="xml">
             <kanban
                 create="false"
-                can_open="0"
                 class="o_pos_kanban"
+                can_open="0"
                 js_class="pos_config_kanban_view">
                 <field name="cash_control" />
                 <field name="current_session_id" />
@@ -123,14 +123,14 @@
                                 name="card_left"
                                 class="col-12 col-md-6 d-flex flex-wrap align-items-center gap-2 mb-2 mb-md-0">
                                 <button
-                                    t-if="record.current_session_state.raw_value != 'closing_control'"
-                                    class="btn btn-primary"
                                     name="open_ui"
-                                    type="object">
+                                    type="object"
+                                    class="btn btn-primary"
+                                    t-if="record.current_session_state.raw_value != 'closing_control'">
                                     <t t-if="record.current_session_state.raw_value === 'opened'">Continue Selling</t>
                                     <t t-else="">Open Register</t>
                                 </button>
-                                <button t-else="" class="btn btn-secondary" name="action_view_current_session" type="object">Close</button>
+                                <button name="action_view_current_session" type="object" class="btn btn-secondary" t-else="">Close</button>
                             </div>
                             <div class="col-12 col-md-6">
                                 <t

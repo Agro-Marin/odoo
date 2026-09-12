@@ -7,14 +7,14 @@
             <search string="Outgoing Mail Servers">
                 <field
                     name="name"
-                    filter_domain="['|', '|',('name', 'ilike', self),('smtp_host', 'ilike', self),('smtp_user', 'ilike', self)]"
-                    string="Outgoing Mail Server" />
+                    string="Outgoing Mail Server"
+                    filter_domain="['|', '|',('name', 'ilike', self),('smtp_host', 'ilike', self),('smtp_user', 'ilike', self)]" />
                 <field name="smtp_encryption" />
                 <field name="from_filter" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -40,17 +40,17 @@
             <form string="Outgoing Mail Servers">
                 <header>
                     <button
-                        string="Test Connection"
-                        type="object"
                         name="test_smtp_connection"
+                        type="object"
+                        string="Test Connection"
                         class="btn-primary" />
                 </header>
                 <sheet>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field name="name" placeholder="e.g. My Outgoing Server" />
@@ -71,9 +71,9 @@
                                     <span class="o_form_label">MB</span>
                                 </div>
                                 <button
-                                    class="btn btn-link pt-0"
+                                    name="action_update_max_email_size"
                                     type="object"
-                                    name="action_update_max_email_size">
+                                    class="btn btn-link pt-0">
                                     <i class="fa-solid fa-gear" /> Detect Max Limit
                                 </button>
                             </div>
@@ -116,22 +116,22 @@
                                         invisible="smtp_authentication == 'certificate'" />
                                     <field
                                         name="smtp_user"
-                                        invisible="smtp_authentication == 'certificate'"
+                                        nolabel="1"
                                         force_save="1"
-                                        nolabel="1" />
+                                        invisible="smtp_authentication == 'certificate'" />
                                     <field
                                         name="smtp_pass"
-                                        invisible="smtp_authentication != 'login'"
                                         password="True"
-                                        force_save="1" />
+                                        force_save="1"
+                                        invisible="smtp_authentication != 'login'" />
                                     <field
                                         name="smtp_ssl_certificate"
-                                        invisible="smtp_authentication != 'certificate'"
-                                        force_save="1" />
+                                        force_save="1"
+                                        invisible="smtp_authentication != 'certificate'" />
                                     <field
                                         name="smtp_ssl_private_key"
-                                        invisible="smtp_authentication != 'certificate'"
-                                        force_save="1" />
+                                        force_save="1"
+                                        invisible="smtp_authentication != 'certificate'" />
                                 </group>
                             </group>
                         </page>

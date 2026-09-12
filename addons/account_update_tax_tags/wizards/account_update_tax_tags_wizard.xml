@@ -24,12 +24,12 @@
                 </group>
                 <footer>
                     <button
-                        string="Update"
-                        class="btn-primary"
                         name="update_amls_tax_tags"
                         type="object"
+                        string="Update"
+                        class="btn-primary"
                         data-hotkey="v" />
-                    <button string="Discard" special="cancel" data-hotkey="z" />
+                    <button special="cancel" string="Discard" data-hotkey="z" />
                 </footer>
             </form>
         </field>

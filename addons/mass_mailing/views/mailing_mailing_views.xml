@@ -16,29 +16,29 @@
                     string="Campaign"
                     groups="mass_mailing.group_mass_mailing_campaign" />
                 <filter
-                    string="My Mailings"
                     name="assigned_to_me"
-                    domain="[('user_id', '=', uid)]"
-                    help="Mailings that are assigned to me" />
+                    string="My Mailings"
+                    help="Mailings that are assigned to me"
+                    domain="[('user_id', '=', uid)]" />
                 <separator />
                 <filter
-                    string="Favorites"
                     name="filter_favorite"
+                    string="Favorites"
                     domain="[('is_favorite', '=', True)]" />
                 <filter
-                    string="My Favorites"
                     name="filter_my_favorite"
+                    string="My Favorites"
                     domain="[('is_user_favorite', '=', True)]" />
                 <separator />
                 <filter name="filter_sent_date" date="sent_date" />
                 <separator />
                 <filter
-                    string="A/B Tests"
                     name="filter_ab_test"
+                    string="A/B Tests"
                     domain="[('ab_testing_enabled', '=', True)]" />
                 <filter
-                    string="A/B Tests to review"
                     name="filter_ab_test_to_review"
+                    string="A/B Tests to review"
                     domain="[('ab_testing_enabled', '=', True), ('ab_testing_winner_selection', '=', 'manual'), ('ab_testing_completed', '=', False)]" />
                 <separator />
                 <filter
@@ -47,21 +47,21 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Status"
                         name="group_state"
+                        string="Status"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Sent By"
                         name="sent_by"
+                        string="Sent By"
                         context="{'group_by': 'email_from'}" />
                     <filter
-                        string="Mailing List"
                         name="group_by_contact_list_ids"
+                        string="Mailing List"
                         context="{'group_by': 'contact_list_ids'}" />
                     <separator />
                     <filter
-                        string="Sent Period"
                         name="sent_date"
+                        string="Sent Period"
                         context="{'group_by': 'sent_date'}" />
                 </group>
                 </search>
@@ -85,21 +85,21 @@
                 <field
                     name="campaign_id"
                     string="Campaign"
-                    groups="mass_mailing.group_mass_mailing_campaign"
-                    optional="hide" />
+                    optional="hide"
+                    groups="mass_mailing.group_mass_mailing_campaign" />
                 <field name="sent" sum="Total" />
                 <field
                     name="received_ratio"
-                    class="d-flex align-items-center ps-0 ps-lg-5"
-                    widget="progressbar"
                     string="Delivered (%)"
-                    avg="Average" />
+                    widget="progressbar"
+                    avg="Average"
+                    class="d-flex align-items-center ps-0 ps-lg-5" />
                 <field
                     name="opened_ratio"
-                    class="d-flex align-items-center ps-0 ps-lg-5"
-                    widget="progressbar"
                     string="Opened (%)"
-                    avg="Average" />
+                    widget="progressbar"
+                    avg="Average"
+                    class="d-flex align-items-center ps-0 ps-lg-5" />
                 <field
                     name="bounced_ratio"
                     string="Bounced (%)"
@@ -109,9 +109,9 @@
                 <field name="replied_ratio" string="Replied (%)" avg="Average" />
                 <field
                     name="state"
+                    widget="badge"
                     decoration-info="state in ['draft', 'in_queue']"
-                    decoration-success="state == 'sending' or state == 'done'"
-                    widget="badge" />
+                    decoration-success="state == 'sending' or state == 'done'" />
             </list>
         </field>
     </record>
@@ -126,63 +126,63 @@
                     <button
                         name="action_launch"
                         type="object"
-                        class="oe_highlight"
                         string="Send"
-                        invisible="state in ('in_queue', 'sending', 'done')"
-                        data-hotkey="q"
                         confirm="Once you send these emails, they'll be making a grand entrance in all the inboxes, creating quite the buzz!"
+                        invisible="state in ('in_queue', 'sending', 'done')"
+                        class="oe_highlight"
+                        confirm-label="Send to all"
                         confirm-title="Ready to unleash emails?"
-                        confirm-label="Send to all" />
+                        data-hotkey="q" />
                     <button
                         name="action_schedule"
                         type="object"
-                        class="btn-secondary"
                         string="Schedule"
                         invisible="state in ('in_queue', 'sending', 'done')"
+                        class="btn-secondary"
                         data-hotkey="v" />
                     <button
                         name="action_duplicate"
                         type="object"
-                        class="btn-secondary"
                         string="Duplicate"
-                        data-hotkey="p"
-                        invisible="state != 'done'" />
+                        invisible="state != 'done'"
+                        class="btn-secondary"
+                        data-hotkey="p" />
                     <button
                         name="action_test"
                         type="object"
-                        class="btn-secondary"
                         string="Test"
+                        class="btn-secondary"
                         data-hotkey="k" />
                     <button
                         name="action_cancel"
                         type="object"
+                        string="Cancel"
                         invisible="state != 'in_queue'"
                         class="btn-secondary"
-                        string="Cancel"
                         data-hotkey="x" />
                     <button
                         name="action_retry_failed"
                         type="object"
+                        string="Retry"
                         invisible="state != 'done' or failed == 0"
                         class="oe_highlight"
-                        string="Retry"
                         data-hotkey="y" />
                     <button
-                        type="object"
                         name="action_set_favorite"
-                        class="btn-secondary"
-                        invisible="is_favorite"
-                        string="Add to Templates" />
-                    <button
                         type="object"
+                        string="Add to Templates"
+                        invisible="is_favorite"
+                        class="btn-secondary" />
+                    <button
                         name="action_remove_favorite"
-                        class="btn-secondary"
+                        type="object"
+                        string="Remove from Templates"
                         invisible="not is_favorite"
-                        string="Remove from Templates" />
+                        class="btn-secondary" />
                     <field
                         name="state"
-                        readonly="1"
                         widget="statusbar"
+                        readonly="1"
                         statusbar_visible="draft,in_queue,sending,done" />
                 </header>
                 <div
@@ -191,9 +191,9 @@
                     invisible="state not in ['in_queue', 'done'] and sent == 0 and canceled == 0 and scheduled == 0 and failed == 0 and not warning_message">
                     <div class="o_mails_canceled" invisible="canceled == 0">
                         <button
-                            class="btn btn-link py-0"
                             name="action_view_traces_canceled"
-                            type="object">
+                            type="object"
+                            class="btn btn-link py-0">
                             <strong>
                                 <field name="canceled" class="oe_inline me-2" />
                                 <span name="canceled_text">emails have been cancelled and will not be sent.</span>
@@ -202,9 +202,9 @@
                     </div>
                     <div class="o_mails_scheduled" invisible="scheduled == 0">
                         <button
-                            class="btn btn-link py-0"
                             name="action_view_traces_scheduled"
-                            type="object">
+                            type="object"
+                            class="btn btn-link py-0">
                             <strong>
                                 <field name="scheduled" class="oe_inline me-2" />
                                 <span name="scheduled_text">emails are in queue and will be sent soon.</span>
@@ -213,9 +213,9 @@
                     </div>
                     <div class="o_mails_process" invisible="process == 0">
                         <button
-                            class="btn btn-link py-0"
                             name="action_view_traces_process"
-                            type="object">
+                            type="object"
+                            class="btn btn-link py-0">
                             <strong>
                                 <field name="process" class="oe_inline me-2" />
                                 <span name="process_text">emails are being processed.</span>
@@ -226,9 +226,9 @@
                         class="o_mails_sent"
                         invisible="sent == 0 and state in ('draft', 'test', 'in_queue')">
                         <button
-                            class="btn btn-link py-0"
                             name="action_view_traces_sent"
-                            type="object">
+                            type="object"
+                            class="btn btn-link py-0">
                             <strong>
                                 <field name="sent" class="oe_inline me-2" />
                                 <span name="sent">emails have been sent.</span>
@@ -244,9 +244,9 @@
                         class="o_mails_failed"
                         invisible="state != 'done' or failed == 0">
                         <button
-                            class="btn btn-link py-0"
                             name="action_view_traces_failed"
-                            type="object">
+                            type="object"
+                            class="btn btn-link py-0">
                             <strong>
                                 <field name="failed" class="oe_inline me-2" />
                                 <span name="failed_text">emails could not be sent.</span>
@@ -350,38 +350,38 @@
                         </button>
                         <button
                             name="action_view_link_trackers"
-                            invisible="state != 'done'"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-link">
+                            icon="fa-link"
+                            invisible="state != 'done'"
+                            class="oe_stat_button">
                             <field
                                 name="link_trackers_count"
-                                widget="statinfo"
-                                string="Link Trackers" />
+                                string="Link Trackers"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group class="o_mass_mailing_mailing_group">
                         <field name="active" invisible="1" />
                         <field name="create_uid" invisible="1" />
                         <field
                             name="mailing_type"
                             widget="radio"
+                            force_save="1"
                             options="{'horizontal': true}"
                             invisible="1"
-                            readonly="state != 'draft'"
-                            force_save="1" />
+                            readonly="state != 'draft'" />
                         <field
-                            class="text-break"
                             name="subject"
+                            placeholder="e.g. New Sale on all T-shirts"
+                            widget="char_emojis"
                             options="{'dynamic_placeholder': true}"
                             readonly="state in ('sending', 'done')"
-                            widget="char_emojis"
-                            placeholder="e.g. New Sale on all T-shirts" />
+                            class="text-break" />
                         <label for="mailing_model_id" string="Recipients" />
                         <div name="mailing_model_id_container">
                             <div class="row">
@@ -402,18 +402,18 @@
                                         class="d-inline-flex flex-row align-items-center">
                                         <field
                                             name="contact_list_ids"
-                                            widget="many2many_tags"
                                             placeholder="Select recipients..."
-                                            class="oe_inline mb-0"
+                                            widget="many2many_tags"
                                             context="{'form_view_ref': 'mass_mailing.mailing_list_view_form_simplified'}"
-                                            readonly="state in ('sending', 'done')" />
+                                            readonly="state in ('sending', 'done')"
+                                            class="oe_inline mb-0" />
                                         <button
-                                            icon="fa-user-plus"
-                                            type="object"
-                                            class="btn btn-secondary py-0 px-1 ms-1"
-                                            invisible="not contact_list_ids or not contact_list_ids or state in ('sending', 'done')"
                                             name="action_view_mailing_contacts"
-                                            title="Add Mailing Contacts" />
+                                            type="object"
+                                            title="Add Mailing Contacts"
+                                            icon="fa-user-plus"
+                                            invisible="not contact_list_ids or not contact_list_ids or state in ('sending', 'done')"
+                                            class="btn btn-secondary py-0 px-1 ms-1" />
                                     </div>
                                 </div>
                                 <div
@@ -422,10 +422,10 @@
                                     <field
                                         name="mailing_filter_id"
                                         placeholder="Reload a favorite filter"
-                                        class="o_mailing_filter_readonly_width"
                                         widget="mailing_filter"
                                         options="{'no_create': 1, 'no_open': 1, 'domain_field': 'mailing_domain', 'model_field': 'mailing_model_id'}"
-                                        readonly="state in ('sending', 'done')" />
+                                        readonly="state in ('sending', 'done')"
+                                        class="o_mailing_filter_readonly_width" />
                                 </div>
                                 <field name="mailing_filter_count" invisible="1" />
                             </div>
@@ -442,30 +442,30 @@
                         </div>
                     </group>
                     <notebook>
-                        <page string="Mail Body" name="mail_body">
+                        <page name="mail_body" string="Mail Body">
                             <div class="position-relative">
                                 <field
                                     name="body_arch"
-                                    class="o_mail_body_mailing"
                                     widget="mass_mailing_html"
                                     options="{                                             'inline_field': 'body_html',                                             'dynamic_placeholder': true,                                         }"
-                                    readonly="state in ('sending', 'done')" />
+                                    readonly="state in ('sending', 'done')"
+                                    class="o_mail_body_mailing" />
                                 <field name="is_body_empty" invisible="1" />
                             </div>
                         </page>
-                        <page string="A/B Tests" name="ab_testing">
+                        <page name="ab_testing" string="A/B Tests">
                             <group>
                                 <group>
                                     <label for="ab_testing_enabled" />
                                     <span class="d-flex">
                                         <field
                                             name="ab_testing_enabled"
-                                            readonly="state != 'draft'"
-                                            force_save="1" />
+                                            force_save="1"
+                                            readonly="state != 'draft'" />
                                         <span
                                             class="d-flex"
                                             invisible="not ab_testing_enabled">
-                                            on <field name="ab_testing_pc" class="mx-1 text-center" readonly="state != 'draft'" /> %
+                                            on <field name="ab_testing_pc" readonly="state != 'draft'" class="mx-1 text-center" /> %
                                         </span>
                                     </span>
                                     <field
@@ -498,15 +498,15 @@
                                         <button
                                             name="action_duplicate"
                                             type="object"
-                                            class="btn btn-link d-block"
-                                            invisible="ab_testing_completed">
+                                            invisible="ab_testing_completed"
+                                            class="btn btn-link d-block">
                                             <i class="fa-solid fa-copy" /> Create an Alternative
                                         </button>
                                         <button
                                             name="action_send_winner_mailing"
                                             type="object"
-                                            class="btn btn-link d-block"
-                                            invisible="not is_ab_test_sent or ab_testing_completed or ab_testing_winner_selection == 'manual'">
+                                            invisible="not is_ab_test_sent or ab_testing_completed or ab_testing_winner_selection == 'manual'"
+                                            class="btn btn-link d-block">
                                             <i class="fa-solid fa-envelope" /><span name="ab_test_auto">
                                                 Send Winner Now
                                             </span>
@@ -514,35 +514,35 @@
                                         <button
                                             name="action_select_as_winner"
                                             type="object"
-                                            class="btn btn-link d-block"
-                                            invisible="ab_testing_completed or ab_testing_winner_selection != 'manual'">
+                                            invisible="ab_testing_completed or ab_testing_winner_selection != 'manual'"
+                                            class="btn btn-link d-block">
                                             <i class="fa-solid fa-envelope" /> Send this as winner
                                         </button>
                                     </div>
                                     <button
                                         name="action_duplicate"
                                         type="object"
-                                        class="btn btn-primary"
-                                        invisible="ab_testing_mailings_count &gt;= 2 or not ab_testing_enabled">
+                                        invisible="ab_testing_mailings_count &gt;= 2 or not ab_testing_enabled"
+                                        class="btn btn-primary">
                                         Create an Alternative Version
                                     </button>
                                 </div>
                             </group>
                         </page>
-                        <page string="Settings" name="settings">
+                        <page name="settings" string="Settings">
                             <group>
                                 <group
-                                    string="Email Content"
                                     name="email_content"
+                                    string="Email Content"
                                     invisible="mailing_type != 'mail'">
                                     <field
-                                        class="o_text_overflow"
                                         name="preview"
                                         string="Preview Text"
+                                        placeholder="e.g. Check it out before it's too late!"
+                                        widget="char_emojis"
                                         options="{'dynamic_placeholder': true}"
                                         readonly="state in ('sending', 'done')"
-                                        widget="char_emojis"
-                                        placeholder="e.g. Check it out before it's too late!" />
+                                        class="o_text_overflow" />
                                     <field
                                         name="email_from"
                                         readonly="state in ('sending', 'done')" />
@@ -571,8 +571,8 @@
                                     <div name="attachment_ids_details">
                                         <field
                                             name="attachment_ids"
-                                            widget="many2many_binary"
                                             string="Attach a file"
+                                            widget="many2many_binary"
                                             readonly="state in ('sending', 'done')" />
                                     </div>
                                 </group>
@@ -580,22 +580,22 @@
                                     <field
                                         name="campaign_id"
                                         string="Campaign"
-                                        groups="mass_mailing.group_mass_mailing_campaign"
                                         options="{'create_name_field': 'title'}"
+                                        groups="mass_mailing.group_mass_mailing_campaign"
                                         readonly="state in ('sending', 'done')" />
                                     <field
                                         name="medium_id"
                                         string="Medium"
                                         groups="base.group_no_one"
-                                        required="True"
-                                        readonly="state in ('sending', 'done')" />
+                                        readonly="state in ('sending', 'done')"
+                                        required="True" />
                                     <field
                                         name="source_id"
                                         string="Source"
-                                        class="o_text_overflow"
                                         groups="base.group_no_one"
                                         readonly="1"
-                                        required="False" />
+                                        required="False"
+                                        class="o_text_overflow" />
                                     <field
                                         name="user_id"
                                         widget="many2one_avatar_user"
@@ -606,8 +606,8 @@
                                     <field
                                         name="name"
                                         string="Name"
-                                        required="False"
-                                        readonly="state in ('sending', 'done')" />
+                                        readonly="state in ('sending', 'done')"
+                                        required="False" />
                                     <field
                                         name="mail_server_id"
                                         invisible="not mail_server_available"
@@ -635,10 +635,10 @@
         <field name="model">mailing.mailing</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
                 default_group_by="state"
-                quick_create="false"
-                sample="1">
+                sample="1"
+                highlight_color="color"
+                quick_create="false">
                 <field name="mailing_on_mailing_list" />
                 <field name="next_departure" />
                 <field name="active" />
@@ -655,9 +655,9 @@
                         <field name="subject" class="my-1 text-truncate fs-3 fw-bold" />
                         <field
                             name="campaign_id"
+                            groups="mass_mailing.group_mass_mailing_campaign"
                             invisible="not sent_date"
-                            class="fw-bold fs-5"
-                            groups="mass_mailing.group_mass_mailing_campaign" />
+                            class="fw-bold fs-5" />
                         <div>
                             <i
                                 class="fa-solid fa-bullseye me-2"
@@ -721,18 +721,18 @@
         <field name="model">mailing.mailing</field>
         <field name="arch" type="xml">
             <calendar
-                date_start="calendar_date"
                 string="Mailings"
-                hide_time="true"
                 mode="month"
                 color="state"
+                date_start="calendar_date"
+                hide_time="true"
                 quick_create="0">
                 <field
                     name="mailing_model_id"
                     string="Recipient"
                     options="{'no_open': True}" />
-                <field name="user_id" filters="1" invisible="1" />
-                <field name="state" filters="1" invisible="1" />
+                <field name="user_id" invisible="1" filters="1" />
+                <field name="state" invisible="1" filters="1" />
             </calendar>
         </field>
     </record>

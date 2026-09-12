@@ -11,9 +11,9 @@
             <xpath expr="//filter[@name='internal']" position="after">
                 <filter
                     name="dropships"
-                    invisible="1"
                     string="Dropships"
-                    domain="[('picking_type_code', '=', 'dropship')]" />
+                    domain="[('picking_type_code', '=', 'dropship')]"
+                    invisible="1" />
             </xpath>
         </field>
     </record>

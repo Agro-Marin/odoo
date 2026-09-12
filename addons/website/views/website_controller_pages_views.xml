@@ -7,8 +7,8 @@
         <field name="arch" type="xml">
             <form string="Website Model Page Settings">
                 <sheet>
-                    <group col="2" string="Page Details">
-                        <group colspan="1" string="Page">
+                    <group string="Page Details" col="2">
+                        <group string="Page" colspan="1">
                             <field
                                 name="website_id"
                                 options="{'no_create': True}"
@@ -20,13 +20,13 @@
                                 <field
                                     name="name_slugified"
                                     nolabel="1"
-                                    class="d-inline bg-300"
-                                    force_save="True" />
+                                    force_save="True"
+                                    class="d-inline bg-300" />
                                 <span invisible="name_slugified" class="bg-300">...</span>
                             </div>
                             <field name="website_published" />
                         </group>
-                        <group colspan="1" string="Settings">
+                        <group string="Settings" colspan="1">
                             <field name="model_id" readonly="id" />
                             <field name="model" invisible="1" />
                             <field
@@ -79,13 +79,13 @@
                     <field name="website_published" invisible="1" />
                     <widget
                         name="web_ribbon"
-                        text="Published"
-                        invisible="not website_published" />
+                        invisible="not website_published"
+                        text="Published" />
                     <widget
                         name="web_ribbon"
-                        text="Unpublished"
                         invisible="website_published"
-                        bg_color="text-bg-danger" />
+                        bg_color="text-bg-danger"
+                        text="Unpublished" />
                         <div data-section="data" class="d-flex align-items-center">
                             <div class="fw-bold me-2" data-section="title"><field name="name" /></div>
                             <div data-section="name">
@@ -113,16 +113,16 @@
             <search>
                 <field
                     name="model"
-                    filter_domain="[('model','=', self)]"
-                    string="Model" />
+                    string="Model"
+                    filter_domain="[('model','=', self)]" />
                 <group colspan="4">
                     <filter
-                        string="Model"
                         name="page_model"
+                        string="Model"
                         context="{'group_by':'model'}" />
                     <filter
-                        string="Website"
                         name="page_website_id"
+                        string="Website"
                         context="{'group_by':'website_id'}" />
                 </group>
             </search>

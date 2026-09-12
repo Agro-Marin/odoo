@@ -10,12 +10,12 @@
                 <t groups="stock.group_stock_manager">
                     <field name="landed_costs_ids" invisible="1" />
                     <button
-                        string="Landed Costs"
-                        type="object"
                         name="action_view_landed_costs"
-                        class="oe_stat_button"
+                        type="object"
+                        string="Landed Costs"
                         icon="fa-solid fa-square-plus"
-                        invisible="not landed_costs_ids" />
+                        invisible="not landed_costs_ids"
+                        class="oe_stat_button" />
                 </t>
             </xpath>
 
@@ -24,12 +24,12 @@
                     <field name="landed_costs_visible" invisible="1" />
                     <button
                         name="button_create_landed_costs"
-                        class="oe_highlight"
-                        string="Create Landed Costs"
-                        data-hotkey="l"
                         type="object"
+                        string="Create Landed Costs"
                         groups="account.group_account_invoice"
-                        invisible="not landed_costs_visible" />
+                        invisible="not landed_costs_visible"
+                        class="oe_highlight"
+                        data-hotkey="l" />
                 </t>
             </field>
 
@@ -38,15 +38,15 @@
                 position="before">
                 <field
                     name="product_type"
-                    column_invisible="True"
-                    groups="stock.group_stock_manager" />
+                    groups="stock.group_stock_manager"
+                    column_invisible="True" />
                 <field
                     name="is_landed_costs_line"
                     string="Landed Costs"
-                    column_invisible="parent.move_type not in ('in_invoice', 'in_receipt')"
-                    readonly="product_type != 'service'"
                     optional="hide"
-                    groups="stock.group_stock_manager" />
+                    groups="stock.group_stock_manager"
+                    column_invisible="parent.move_type not in ('in_invoice', 'in_receipt')"
+                    readonly="product_type != 'service'" />
             </xpath>
 
             <xpath
@@ -54,12 +54,12 @@
                 position="after">
                 <field
                     name="product_type"
-                    column_invisible="True"
-                    groups="stock.group_stock_manager" />
+                    groups="stock.group_stock_manager"
+                    column_invisible="True" />
                 <field
                     name="is_landed_costs_line"
-                    column_invisible="True"
-                    groups="stock.group_stock_manager" />
+                    groups="stock.group_stock_manager"
+                    column_invisible="True" />
             </xpath>
         </field>
     </record>

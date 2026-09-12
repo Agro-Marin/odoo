@@ -24,8 +24,8 @@
                 <field
                     name="assignation_lines"
                     invisible="forward_type in ['single', False]">
-                    <list create="false" editable="bottom">
-                        <field name="lead_id" readonly="1" force_save="1" />
+                    <list editable="bottom" create="false">
+                        <field name="lead_id" force_save="1" readonly="1" />
                         <field name="lead_location" readonly="1" />
                         <field name="partner_assigned_id" />
                         <field name="partner_location" readonly="1" />
@@ -33,22 +33,22 @@
                     </list>
                 </field>
                 <notebook colspan="4" groups="base.group_no_one">
-                    <page string="Email Template" name="email_template">
-                        <field name="body" readonly="1" widget="html_mail" />
+                    <page name="email_template" string="Email Template">
+                        <field name="body" widget="html_mail" readonly="1" />
                     </page>
                 </notebook>
                 <footer>
                     <button
                         name="action_forward"
-                        string="Send"
                         type="object"
+                        string="Send"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Cancel"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Cancel"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

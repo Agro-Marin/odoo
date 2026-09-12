@@ -283,6 +283,115 @@ def unknown_model(file: DataFile, ctx: Context):
             yield from judge(record, _field_text(record, "res_model"), "res_model")
 
 
+_LIST_ROOTS = frozenset({"list", "tree"})
+
+_NAMED_ARCH_TAGS = frozenset({"filter", "page", "group", "notebook"})
+
+_LABEL_OWNERS = frozenset({"group", "setting"})
+
+_TRUE = frozenset({"1", "True"})
+
+
+def _under(element: etree._Element, tags: frozenset[str], stop: etree._Element) -> bool:
+    parent = element.getparent()
+    while parent is not None and parent is not stop:
+        if parent.tag in tags:
+            return True
+        parent = parent.getparent()
+    return False
+
+
+def _arch_root(arch: etree._Element) -> str | None:
+    return next((c.tag for c in arch if not callable(c.tag)), None)
+
+
+def duplicate_arch_name(file: DataFile, ctx: Context):
+    for record, arch in file.model_view_archs():
+        seen: dict[tuple[str, str], etree._Element] = {}
+        for element in arch.iter(*_NAMED_ARCH_TAGS):
+            if callable(element.tag) or element.get("position") is not None:
+                continue
+            name = element.get("name")
+            if not name:
+                continue
+            key = (element.tag, name)
+            if key in seen:
+                first = seen[key].sourceline
+                message = f"{record.get('id')}: <{element.tag} name={name!r}> again"
+                yield element.sourceline, f"{message} (first at line {first})"
+            else:
+                seen[key] = element
+
+
+def special_button_type(file: DataFile, ctx: Context):
+    for record, arch in file.model_view_archs():
+        for element in arch.iter("button"):
+            if callable(element.tag) or not element.get("special"):
+                continue
+            if element.get("type"):
+                special, kind = element.get("special"), element.get("type")
+                where = f"{record.get('id')}: special={special!r}"
+                yield element.sourceline, f"{where} with type={kind!r}"
+
+
+def readonly_duplicates_invisible(file: DataFile, ctx: Context):
+    for record, arch in file.model_view_archs():
+        for element in arch.iter("field"):
+            if callable(element.tag):
+                continue
+            invisible, readonly = element.get("invisible"), element.get("readonly")
+            if invisible and readonly and invisible.strip() == readonly.strip():
+                field = f"{record.get('id')}: {element.get('name')}"
+                yield (
+                    element.sourceline,
+                    f"{field} invisible == readonly == {invisible!r}",
+                )
+
+
+def nolabel_outside_group(file: DataFile, ctx: Context):
+    for record, arch in file.model_view_archs():
+        if _arch_root(arch) != "form":
+            continue
+        for element in arch.iter("field"):
+            if callable(element.tag) or element.get("nolabel") not in _TRUE:
+                continue
+            if _under(element, _LIST_ROOTS | {"kanban"}, arch):
+                continue
+            if not _under(element, _LABEL_OWNERS, arch):
+                yield element.sourceline, f"{record.get('id')}: {element.get('name')}"
+
+
+def column_invisible_outside_list(file: DataFile, ctx: Context):
+    for record, arch in file.model_view_archs():
+        if _arch_root(arch) != "form":
+            continue
+        for element in arch.iter("field"):
+            if callable(element.tag):
+                continue
+            value = element.get("column_invisible")
+            if value is None or _under(element, _LIST_ROOTS, arch):
+                continue
+            what = "write invisible=" if value.strip() in _TRUE else "never evaluated"
+            field = f"{record.get('id')}: {element.get('name')}"
+            yield element.sourceline, f"{field} column_invisible={value!r} ({what})"
+
+
+_BOOLEAN_SPELLING = {"true": "True", "false": "False"}
+
+
+def boolean_spelling(file: DataFile, ctx: Context):
+    for _record, arch in file.model_view_archs():
+        for element in arch.iter():
+            if callable(element.tag):
+                continue
+            for name in EXPRESSION_ATTRIBUTES.intersection(element.attrib):
+                value = element.get(name).strip()
+                if value in _BOOLEAN_SPELLING:
+                    spelled = _BOOLEAN_SPELLING[value]
+                    where = f"{name}={value!r} on <{element.tag}>"
+                    yield element.sourceline, f"{where}, write {spelled}"
+
+
 def optional_value(file: DataFile, ctx: Context):
     for element in file.elements():
         value = element.get("optional")
@@ -417,6 +526,44 @@ RULES: tuple[XmlRule, ...] = (
         "no Python class declares this _name; a typo here fails the install "
         "of every module that loads the file",
         unknown_model,
+    ),
+    XmlRule(
+        "duplicate-arch-name",
+        "two definitions with one name in one arch: an xpath by that name reaches "
+        "only the first, and two filters with one name are toggled together by "
+        "search_default_<name> -- rename the second",
+        duplicate_arch_name,
+    ),
+    XmlRule(
+        "special-button-type",
+        "a special= button is handled before type= is read, so the type is dead "
+        "-- drop it (name= stays: it is an xpath and tour target)",
+        special_button_type,
+    ),
+    XmlRule(
+        "readonly-duplicates-invisible",
+        "a field that is readonly exactly when it is invisible is never edited "
+        "either way; the readonly= is dead -- drop it",
+        readonly_duplicates_invisible,
+    ),
+    XmlRule(
+        "nolabel-outside-group",
+        "the form compiler reads nolabel= only on the children of a <group> or a "
+        "<setting>; anywhere else in a form it is dead -- drop it",
+        nolabel_outside_group,
+    ),
+    XmlRule(
+        "column-invisible-outside-list",
+        "column_invisible= is a list attribute: a literal is promoted to "
+        "invisible=, an expression is never evaluated and the field shows -- "
+        "write invisible=",
+        column_invisible_outside_list,
+    ),
+    XmlRule(
+        "boolean-spelling",
+        "a view condition is a Python expression: True and False, not the "
+        "JavaScript spelling py.js happens to accept",
+        boolean_spelling,
     ),
     XmlRule(
         "optional-value",

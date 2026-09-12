@@ -24,9 +24,9 @@
         <field name="arch" type="xml">
             <list
                 string="Document Type"
-                decoration-muted="(not active)"
                 create="0"
-                edit="0">
+                edit="0"
+                decoration-muted="(not active)">
                 <field name="code" />
                 <field name="name" />
                 <field name="doc_code_prefix" />
@@ -50,21 +50,21 @@
                 <filter
                     name="active"
                     string="Active"
-                    domain="[('active','=',True)]"
-                    help="Show active document types" />
+                    help="Show active document types"
+                    domain="[('active','=',True)]" />
                 <filter
                     name="inactive"
                     string="Archived"
-                    domain="[('active','=',False)]"
-                    help="Show archived document types" />
+                    help="Show archived document types"
+                    domain="[('active','=',False)]" />
                 <group>
                     <filter
-                        string="Internal Type"
                         name="group_by_internal_type"
+                        string="Internal Type"
                         context="{'group_by':'internal_type'}" />
                     <filter
-                        string="Localization"
                         name="group_by_localization"
+                        string="Localization"
                         context="{'group_by':'country_id'}" />
                 </group>
             </search>

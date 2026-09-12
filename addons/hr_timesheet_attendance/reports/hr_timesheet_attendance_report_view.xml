@@ -9,12 +9,12 @@
                 <search string="Timesheet Attendance">
                     <field name="employee_id" string="Employee" />
                     <filter
-                        string="My Team"
                         name="my_team"
+                        string="My Team"
                         domain="[('employee_id.parent_id.user_id', '=', uid)]" />
                     <filter
-                        string="My Department"
                         name="my_department"
+                        string="My Department"
                         domain="[('employee_id.member_of_department', '=', True)]" />
                     <separator />
                     <filter name="month" string="Date" date="date">
@@ -38,8 +38,8 @@
                     <filter
                         name="group_by_month"
                         string="Date"
-                        date="date"
-                        context="{'group_by': 'date'}" />
+                        context="{'group_by': 'date'}"
+                        date="date" />
                 </search>
             </field>
         </record>
@@ -47,8 +47,8 @@
             <field name="name">HR timesheet attendance report: Pivot</field>
             <field name="model">hr.timesheet.attendance.report</field>
             <field name="arch" type="xml">
-                <pivot string="Timesheet Attendance" disable_linking="1" sample="1">
-                    <field name="date" interval="month" type="row" />
+                <pivot string="Timesheet Attendance" sample="1" disable_linking="1">
+                    <field name="date" type="row" interval="month" />
                     <field
                         name="total_attendance"
                         type="measure"

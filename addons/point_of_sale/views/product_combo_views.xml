@@ -34,8 +34,8 @@
                     <field
                         name="company_id"
                         placeholder="Visible to all"
-                        groups="base.group_multi_company"
                         options="{'no_create': True}"
+                        groups="base.group_multi_company"
                         class="oe_inline" />
                 </group>
             </xpath>

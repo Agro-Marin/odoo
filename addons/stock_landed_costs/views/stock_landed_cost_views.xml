@@ -11,15 +11,15 @@
                     <header>
                         <button
                             name="button_validate"
+                            type="object"
                             string="Validate"
                             invisible="state != 'draft'"
-                            class="oe_highlight"
-                            type="object" />
+                            class="oe_highlight" />
                         <button
                             name="button_cancel"
+                            type="object"
                             string="Cancel"
-                            invisible="state != 'draft'"
-                            type="object" />
+                            invisible="state != 'draft'" />
                         <field
                             name="state"
                             widget="statusbar"
@@ -43,10 +43,10 @@
                                 <field
                                     name="picking_ids"
                                     widget="many2many_tags"
+                                    domain="[('company_id', '=', company_id), '|', ('move_ids.is_in', '!=', False), ('move_ids.is_out', '!=', False)]"
                                     options="{'no_create_edit': True}"
                                     invisible="target_model != 'picking'"
-                                    readonly="state == 'done'"
-                                    domain="[('company_id', '=', company_id), '|', ('move_ids.is_in', '!=', False), ('move_ids.is_out', '!=', False)]" />
+                                    readonly="state == 'done'" />
                             </group>
                             <group>
                                 <label for="account_journal_id" string="Journal" />
@@ -64,7 +64,7 @@
                             </group>
                         </group>
                         <notebook>
-                            <page string="Additional Costs" name="additional_costs">
+                            <page name="additional_costs" string="Additional Costs">
                                 <field name="cost_lines" readonly="state == 'done'">
                                     <form string="Cost Lines">
                                         <group>
@@ -108,17 +108,17 @@
                                     <field name="currency_id" invisible="1" />
                                     <field name="amount_total" />
                                     <button
-                                        colspan="2"
                                         name="compute_landed_cost"
-                                        string="Compute"
                                         type="object"
-                                        class="float-end btn-secondary"
-                                        invisible="state != 'draft'" />
+                                        string="Compute"
+                                        colspan="2"
+                                        invisible="state != 'draft'"
+                                        class="float-end btn-secondary" />
                                 </group>
                             </page>
                             <page
-                                string="Valuation Adjustments"
-                                name="valuation_adjustments">
+                                name="valuation_adjustments"
+                                string="Valuation Adjustments">
                                 <field
                                     name="valuation_adjustment_lines"
                                     readonly="state == 'done'">
@@ -145,12 +145,12 @@
                                         <field name="product_id" readonly="1" />
                                         <field
                                             name="weight"
-                                            readonly="1"
-                                            optional="hide" />
+                                            optional="hide"
+                                            readonly="1" />
                                         <field
                                             name="volume"
-                                            readonly="1"
-                                            optional="hide" />
+                                            optional="hide"
+                                            readonly="1" />
                                         <field name="quantity" readonly="1" />
                                         <field
                                             name="currency_id"
@@ -181,8 +181,8 @@
                     <field
                         name="state"
                         widget="badge"
-                        decoration-success="state == 'done'"
-                        decoration-info="state == 'draft'" />
+                        decoration-info="state == 'draft'"
+                        decoration-success="state == 'done'" />
                     <field
                         name="activity_exception_decoration"
                         widget="activity_exception" />
@@ -225,8 +225,8 @@
                                 </div>
                                 <field
                                     name="account_journal_id"
-                                    class="col-6 text-end"
-                                    readonly="state == 'done'" />
+                                    readonly="state == 'done'"
+                                    class="col-6 text-end" />
                             </div>
                         </t>
                     </templates>
@@ -242,46 +242,46 @@
                     <field name="picking_ids" string="Picking" />
                     <separator />
                     <filter
-                        string="Draft"
                         name="draft"
+                        string="Draft"
                         domain="[('state', '=', 'draft')]" />
                     <filter
-                        string="Done"
                         name="done"
+                        string="Done"
                         domain="[('state', '=', 'done')]" />
                     <separator />
-                    <filter string="Date" name="date" date="date" />
+                    <filter name="date" string="Date" date="date" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                     <group>
                         <filter
-                            string="Status"
                             name="status"
+                            string="Status"
                             context="{'group_by': 'state'}" />
                         <filter
-                            string="Date"
                             name="group_by_month"
+                            string="Date"
                             context="{'group_by': 'date'}" />
                     </group>
                 </search>

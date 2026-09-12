@@ -11,8 +11,8 @@
                 <div>
                     <field
                         name="survey_id"
-                        context="{'default_access_mode': 'token'}"
-                        domain="[('survey_type', '=', 'recruitment')]" />
+                        domain="[('survey_type', '=', 'recruitment')]"
+                        context="{'default_access_mode': 'token'}" />
                 </div>
             </field>
         </field>

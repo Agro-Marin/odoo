@@ -8,20 +8,20 @@
             <form string="Privacy Lookup">
                 <header>
                     <button
-                        string="Lookup"
                         name="action_lookup"
                         type="object"
+                        string="Lookup"
+                        invisible="line_ids"
                         class="oe_highlight"
-                        data-hotkey="q"
-                        invisible="line_ids" />
+                        data-hotkey="q" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="action_view_lines"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-regular fa-file-lines">
+                            icon="fa-regular fa-file-lines"
+                            class="oe_stat_button">
                             <field
                                 name="line_count"
                                 string="References"
@@ -71,9 +71,9 @@
                 <button
                     name="action_view_record"
                     type="object"
+                    title="Open Record"
                     icon="fa-external-link"
-                    invisible="not resource_ref"
-                    title="Open Record" />
+                    invisible="not resource_ref" />
                 <field name="res_id" string="ID" />
                 <field name="has_active" column_invisible="True" />
                 <field name="execution_details" column_invisible="True" />
@@ -84,11 +84,11 @@
                 <field name="is_unlinked" column_invisible="True" />
                 <button
                     name="action_unlink"
-                    string="Delete"
                     type="object"
+                    string="Delete"
+                    confirm="This operation is irreversible. Do you wish to proceed to the record deletion?"
                     icon="fa-solid fa-trash-can"
-                    invisible="is_unlinked"
-                    confirm="This operation is irreversible. Do you wish to proceed to the record deletion?" />
+                    invisible="is_unlinked" />
             </list>
         </field>
     </record>
@@ -102,17 +102,17 @@
                 <field name="has_active" invisible="1" />
                 <field name="is_active" invisible="1" />
                 <filter
-                    string="Can be archived"
                     name="can_be_archived"
+                    string="Can be archived"
                     domain="[('has_active', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('is_active', '=', False)]" />
                 <group>
                     <filter
-                        string="Model"
                         name="group_by_res_model_id"
+                        string="Model"
                         context="{'group_by': 'res_model_id'}" />
                 </group>
             </search>

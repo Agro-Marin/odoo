@@ -37,10 +37,10 @@
                 <kanban>
                     <templates>
                         <t t-name="card">
-                            <field class="fw-bolder" name="name" />
+                            <field name="name" class="fw-bolder" />
                             <div class="d-flex">
                                 Folded in Recruitment Pipe:
-                                <field name="fold" class="ms-1" widget="boolean" />
+                                <field name="fold" widget="boolean" class="ms-1" />
                             </div>
                         </t>
                     </templates>

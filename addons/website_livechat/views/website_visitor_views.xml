@@ -77,8 +77,8 @@
                     <button
                         name="action_send_chat_request"
                         type="object"
-                        class="btn btn-secondary"
-                        invisible="livechat_operator_id or not is_connected">
+                        invisible="livechat_operator_id or not is_connected"
+                        class="btn btn-secondary">
                         Chat
                     </button>
                 </xpath>
@@ -93,10 +93,10 @@
                 <xpath expr="//header" position="inside">
                     <button
                         name="action_send_chat_request"
-                        string="Send chat request"
                         type="object"
-                        class="oe_highlight"
-                        invisible="livechat_operator_id or not is_connected" />
+                        string="Send chat request"
+                        invisible="livechat_operator_id or not is_connected"
+                        class="oe_highlight" />
                 </xpath>
                 <xpath expr="//group[@id='general_info']" position="before">
                     <group id="livechat_info" invisible="not livechat_operator_id">
@@ -107,10 +107,10 @@
                     <button
                         name="%(website_visitor_livechat_session_action)d"
                         type="action"
-                        class="oe_stat_button"
                         icon="fa-comment"
-                        invisible="session_count == 0">
-                        <field name="session_count" widget="statinfo" string="Chats" />
+                        invisible="session_count == 0"
+                        class="oe_stat_button">
+                        <field name="session_count" string="Chats" widget="statinfo" />
                     </button>
                 </xpath>
             </field>
@@ -125,8 +125,8 @@
                     <field name="livechat_operator_id" optional="hide" />
                     <button
                         name="action_send_chat_request"
-                        string="Chat"
                         type="object"
+                        string="Chat"
                         icon="fa-comments"
                         invisible="livechat_operator_id or not is_connected" />
                 </xpath>
@@ -140,12 +140,12 @@
                 <xpath expr="//filter[@name='filter_is_connected']" position="after">
                     <separator />
                     <filter
-                        string="Available"
                         name="filter_not_in_conversation"
+                        string="Available"
                         domain="[('livechat_operator_id', '=', False)]" />
                     <filter
-                        string="In Conversation"
                         name="filter_in_conversation"
+                        string="In Conversation"
                         domain="[('livechat_operator_id', '!=', False)]" />
                 </xpath>
             </field>

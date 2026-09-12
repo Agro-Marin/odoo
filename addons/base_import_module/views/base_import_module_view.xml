@@ -11,9 +11,8 @@
                     import data modules (.xml files, i18n files and static assets)</p>
                 <field
                     name="modules_dependencies"
-                    readonly="1"
-                    nolabel="1"
-                    invisible="state == 'done'" />
+                    invisible="state == 'done'"
+                    readonly="1" />
                 <group invisible="state != 'init'">
                     <field
                         name="module_file"
@@ -30,22 +29,22 @@
                     <div invisible="state != 'init'">
                         <button
                             name="import_module"
-                            string="Install"
                             type="object"
+                            string="Install"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
                             special="cancel"
-                            data-hotkey="x"
                             string="Cancel"
-                            class="btn-secondary" />
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </div>
                     <div invisible="state != 'done'">
                         <button
                             special="cancel"
-                            data-hotkey="x"
                             string="Close"
-                            class="btn-secondary" />
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </div>
                 </footer>
             </form>

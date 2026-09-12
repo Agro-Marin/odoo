@@ -10,33 +10,33 @@
                 <filter
                     name="in_location"
                     string="Internal"
-                    domain="[('usage', '=', 'internal')]"
-                    help="Internal Locations" />
+                    help="Internal Locations"
+                    domain="[('usage', '=', 'internal')]" />
                 <filter
                     name="customer"
                     string="Customer"
-                    domain="[('usage', '=', 'customer')]"
-                    help="Customer Locations" />
+                    help="Customer Locations"
+                    domain="[('usage', '=', 'customer')]" />
                 <filter
                     name="inventory"
                     string="Inventory Loss"
-                    domain="[('usage', '=', 'inventory')]"
-                    help="Inventory Loss Locations" />
+                    help="Inventory Loss Locations"
+                    domain="[('usage', '=', 'inventory')]" />
                 <filter
                     name="prod_inv_location"
                     string="Production"
-                    domain="[('usage', '=', 'production')]"
-                    help="Production Locations" />
+                    help="Production Locations"
+                    domain="[('usage', '=', 'production')]" />
                 <filter
                     name="supplier"
                     string="Vendor"
-                    domain="[('usage', '=', 'supplier')]"
-                    help="Vendor Locations" />
+                    help="Vendor Locations"
+                    domain="[('usage', '=', 'supplier')]" />
                 <filter
                     name="view"
                     string="Virtual"
-                    domain="[('usage', '=', 'view')]"
-                    help="Virtual Locations" />
+                    help="Virtual Locations"
+                    domain="[('usage', '=', 'view')]" />
                 <separator />
                 <filter
                     name="empty_location"
@@ -47,34 +47,34 @@
                 <field name="warehouse_id" string="Warehouse" />
                 <separator />
                 <filter
-                    string="Blocked Locations"
                     name="blocked"
+                    string="Blocked Locations"
                     domain="[('effective_block_type', '!=', 'none')]" />
                 <filter
-                    string="Soft Blocked"
                     name="soft_blocked"
+                    string="Soft Blocked"
                     domain="[('effective_block_type', 'in', ['soft_in', 'soft_out', 'soft_both'])]" />
                 <filter
-                    string="Hard Blocked"
                     name="hard_blocked"
+                    string="Hard Blocked"
                     domain="[('effective_block_type', '=', 'hard')]" />
                 <filter
-                    string="Blocked Here (not inherited)"
                     name="blocked_own"
+                    string="Blocked Here (not inherited)"
                     domain="[('block_type', '!=', 'none')]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active','=',False)]" />
                 <group>
                     <filter
-                        string="Warehouse"
                         name="warehouse"
+                        string="Warehouse"
                         context="{'group_by': 'warehouse_id'}" />
                     <filter
-                        string="Location Type"
                         name="usage"
+                        string="Location Type"
                         context="{'group_by': 'usage'}" />
                 </group>
             </search>
@@ -88,33 +88,33 @@
         <field name="arch" type="xml">
             <list
                 string="Stock Location"
-                decoration-info="usage=='view'"
-                multi_edit="1">
+                multi_edit="1"
+                decoration-info="usage=='view'">
                 <field name="company_id" column_invisible="True" />
                 <field name="active" column_invisible="True" />
                 <field name="complete_name" string="Location" />
                 <field name="usage" />
                 <field
                     name="effective_block_type"
-                    optional="show"
                     widget="badge"
-                    decoration-warning="effective_block_type in ('soft_in', 'soft_out', 'soft_both')"
-                    decoration-danger="effective_block_type == 'hard'" />
+                    optional="show"
+                    decoration-danger="effective_block_type == 'hard'"
+                    decoration-warning="effective_block_type in ('soft_in', 'soft_out', 'soft_both')" />
                 <field
                     name="block_type"
                     string="Blocked Here"
-                    optional="hide"
                     widget="badge"
-                    decoration-warning="block_type in ('soft_in', 'soft_out', 'soft_both')"
-                    decoration-danger="block_type == 'hard'" />
+                    optional="hide"
+                    decoration-danger="block_type == 'hard'"
+                    decoration-warning="block_type in ('soft_in', 'soft_out', 'soft_both')" />
                 <field
                     name="is_empty"
                     optional="hide"
                     invisible="usage not in ['internal', 'transit']" />
                 <field
                     name="storage_category_id"
-                    readonly="usage != 'internal'"
-                    groups="stock.group_stock_multi_locations" />
+                    groups="stock.group_stock_multi_locations"
+                    readonly="usage != 'internal'" />
                 <field name="company_id" groups="base.group_multi_company" />
             </list>
         </field>
@@ -153,24 +153,24 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="%(action_view_stock_putaway_rule_3)d"
-                            string="Putaway Rules"
                             type="action"
-                            class="oe_stat_button"
+                            string="Putaway Rules"
                             icon="fa-random"
                             context="{'default_company_id': company_id}"
-                            groups="stock.group_stock_multi_locations" />
+                            groups="stock.group_stock_multi_locations"
+                            class="oe_stat_button" />
                         <button
                             name="stock.act_product_location_open"
-                            string="Products"
                             type="action"
-                            class="oe_stat_button"
-                            icon="fa-th-list" />
+                            string="Products"
+                            icon="fa-th-list"
+                            class="oe_stat_button" />
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_location_header">
                         <div>
                             <label for="name" />
@@ -188,30 +188,30 @@
                     </div>
 
                     <group>
-                        <group string="Additional Information" name="additional_info">
+                        <group name="additional_info" string="Additional Information">
                             <field name="active" invisible="1" />
                             <field name="usage" />
                             <field
                                 name="block_type"
-                                invisible="usage != 'internal'"
-                                widget="radio" />
+                                widget="radio"
+                                invisible="usage != 'internal'" />
                             <field
                                 name="block_reason"
+                                placeholder="Explain why this location is blocked..."
                                 invisible="block_type == 'none' or usage != 'internal'"
-                                required="block_type != 'none' and usage == 'internal'"
-                                placeholder="Explain why this location is blocked..." />
+                                required="block_type != 'none' and usage == 'internal'" />
                             <field
                                 name="effective_block_type"
                                 invisible="effective_block_type == block_type" />
                             <field
                                 name="storage_category_id"
-                                invisible="usage != 'internal'"
-                                groups="stock.group_stock_multi_locations" />
+                                groups="stock.group_stock_multi_locations"
+                                invisible="usage != 'internal'" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
+                                placeholder="Visible to all"
                                 options="{'no_create': True}"
-                                placeholder="Visible to all" />
+                                groups="base.group_multi_company" />
                             <field
                                 name="replenish_location"
                                 invisible="usage != 'internal'" />
@@ -240,10 +240,10 @@
                                 widget="radio"
                                 options="{'no_create': True}" />
                             <group
-                                string="Blocking Information"
-                                invisible="effective_block_type == 'none'"
                                 name="blocking_info"
-                                colspan="2">
+                                string="Blocking Information"
+                                colspan="2"
+                                invisible="effective_block_type == 'none'">
                                 <group>
                                     <field name="blocked_date" readonly="1" />
                                     <field name="blocked_by_user_id" readonly="1" />
@@ -254,12 +254,12 @@
                                         readonly="1" />
                                     <button
                                         name="action_unreserve_stock"
-                                        string="Unreserve All Stock"
                                         type="object"
-                                        class="oe_highlight"
+                                        string="Unreserve All Stock"
+                                        confirm="This will unreserve all stock in this location and its children. Are you sure?"
                                         groups="stock.group_override_hard_block"
                                         invisible="effective_block_type != 'hard'"
-                                        confirm="This will unreserve all stock in this location and its children. Are you sure?" />
+                                        class="oe_highlight" />
                                 </group>
                             </group>
                         </group>

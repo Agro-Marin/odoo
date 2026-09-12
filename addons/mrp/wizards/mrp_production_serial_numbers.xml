@@ -20,27 +20,26 @@
                                 name="action_generate_serial_numbers"
                                 type="object"
                                 string="Generate"
-                                class="btn btn-secondary"
-                                title="Generate Serial Numbers" />
+                                title="Generate Serial Numbers"
+                                class="btn btn-secondary" />
                         </group>
                     </group>
                 </group>
                 <field
                     name="serial_numbers"
-                    nolabel="1"
                     placeholder="copy paste a list and/or use Generate" />
                 <footer>
                     <button
                         name="action_apply"
-                        string="Apply"
                         type="object"
+                        string="Apply"
                         class="btn-primary" />
                     <button
                         name="action_split_and_assign_serials"
-                        string="Prepare MO"
                         type="object"
+                        string="Prepare MO"
                         class="btn-secondary" />
-                    <button string="Discard" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Discard" class="btn-secondary" />
                 </footer>
             </form>
         </field>

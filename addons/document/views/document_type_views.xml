@@ -10,26 +10,26 @@
                 <field name="code" />
                 <separator />
                 <filter
-                    string="Has Expiration"
                     name="has_expiration"
+                    string="Has Expiration"
                     domain="[('has_expiration', '=', True)]" />
                 <filter
-                    string="Renewable"
                     name="renewable"
+                    string="Renewable"
                     domain="[('is_renewable', '=', True)]" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Has Expiration"
                         name="group_has_expiration"
+                        string="Has Expiration"
                         context="{'group_by': 'has_expiration'}" />
                 </group>
             </search>
@@ -51,15 +51,15 @@
                 <field
                     name="expired_document_count"
                     string="Expired"
+                    optional="hide"
                     sum="Total"
-                    decoration-danger="expired_document_count &gt; 0"
-                    optional="hide" />
+                    decoration-danger="expired_document_count &gt; 0" />
                 <field
                     name="expiring_soon_count"
                     string="Expiring Soon"
+                    optional="hide"
                     sum="Total"
-                    decoration-warning="expiring_soon_count &gt; 0"
-                    optional="hide" />
+                    decoration-warning="expiring_soon_count &gt; 0" />
                 <field name="active" widget="boolean_toggle" />
             </list>
         </field>
@@ -75,8 +75,8 @@
                         <button
                             name="action_view_documents"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-regular fa-file-lines">
+                            icon="fa-regular fa-file-lines"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_value">
                                     <field name="document_count" />
@@ -87,10 +87,10 @@
                         <button
                             name="action_view_documents"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-solid fa-triangle-exclamation"
                             context="{'expiration_filter': 'expired'}"
-                            invisible="expired_document_count == 0">
+                            invisible="expired_document_count == 0"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info text-danger">
                                 <span class="o_stat_value">
                                     <field name="expired_document_count" />
@@ -101,10 +101,10 @@
                         <button
                             name="action_view_documents"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-regular fa-clock"
                             context="{'expiration_filter': 'expiring_soon'}"
-                            invisible="expiring_soon_count == 0">
+                            invisible="expiring_soon_count == 0"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info text-warning">
                                 <span class="o_stat_value">
                                     <field name="expiring_soon_count" />
@@ -136,14 +136,14 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Organization" name="organization">
+                        <page name="organization" string="Organization">
                             <group>
                                 <field name="folder_id" />
                                 <field name="tag_ids" widget="many2many_tags" />
                             </group>
                         </page>
-                        <page string="Description" name="description">
-                            <field name="description" nolabel="1" />
+                        <page name="description" string="Description">
+                            <field name="description" />
                         </page>
                     </notebook>
                 </sheet>

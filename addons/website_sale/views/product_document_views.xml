@@ -27,8 +27,8 @@
                     <span>Publish on website</span>
                     <field
                         name="shown_on_product_page"
-                        class="ms-2"
-                        widget="boolean_toggle" />
+                        widget="boolean_toggle"
+                        class="ms-2" />
                 </div>
             </xpath>
         </field>

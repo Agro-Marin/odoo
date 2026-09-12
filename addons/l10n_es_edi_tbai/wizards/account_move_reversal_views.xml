@@ -9,9 +9,9 @@
             <xpath expr="//field[@name='journal_id']" position="after">
                 <field name="l10n_es_tbai_is_required" invisible="1" />
                 <field
-                    invisible="not l10n_es_tbai_is_required"
                     name="l10n_es_tbai_refund_reason"
-                    widget="selection" />
+                    widget="selection"
+                    invisible="not l10n_es_tbai_is_required" />
             </xpath>
         </field>
     </record>

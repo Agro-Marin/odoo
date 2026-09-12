@@ -31,17 +31,17 @@
                             <div>
                                 <field
                                     name="tax_id"
-                                    class="oe_inline"
                                     domain="[('l10n_in_tax_type', '=', l10n_in_tds_tax_type)]"
+                                    options="{'no_create': True, 'no_open': True}"
                                     required="True"
-                                    options="{'no_create': True, 'no_open': True}" />
+                                    class="oe_inline" />
                                 <field
                                     name="tds_deduction"
+                                    invisible="tds_deduction == 'normal'"
                                     class="oe_inline"
-                                    decoration-success="tds_deduction == 'lower'"
                                     decoration-danger="tds_deduction == 'higher'"
-                                    decoration-warning="tds_deduction == 'no'"
-                                    invisible="tds_deduction == 'normal'" />
+                                    decoration-success="tds_deduction == 'lower'"
+                                    decoration-warning="tds_deduction == 'no'" />
                             </div>
                             <field
                                 name="base"
@@ -66,11 +66,11 @@
                 </sheet>
                 <footer>
                     <button
-                        string="Apply TDS"
-                        type="object"
                         name="action_create_and_post_withhold"
+                        type="object"
+                        string="Apply TDS"
                         class="btn-primary" />
-                    <button string="Discard" special="cancel" class="btn-secondary" />
+                    <button special="cancel" string="Discard" class="btn-secondary" />
                 </footer>
             </form>
         </field>

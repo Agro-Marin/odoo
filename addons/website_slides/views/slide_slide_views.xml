@@ -43,62 +43,59 @@
             <field name="arch" type="xml">
                 <form string="Lesson">
                     <sheet>
-                        <field name="channel_type" invisible="1" readonly="1" />
-                        <field
-                            name="channel_allow_comment"
-                            invisible="1"
-                            readonly="1" />
+                        <field name="channel_type" invisible="1" />
+                        <field name="channel_allow_comment" invisible="1" />
                         <div class="oe_button_box" name="button_box">
                             <button
                                 name="%(slide_slide_partner_action_from_slide)d"
-                                class="oe_stat_button"
                                 type="action"
                                 icon="fa-graduation-cap"
-                                invisible="slide_views == 0">
+                                invisible="slide_views == 0"
+                                class="oe_stat_button">
                                 <field
                                     name="slide_views"
-                                    widget="statinfo"
-                                    string="Attendees" />
+                                    string="Attendees"
+                                    widget="statinfo" />
                             </button>
                             <button
-                                disabled="1"
                                 icon="fa-thumbs-up"
+                                invisible="channel_type == 'training' or likes == 0"
                                 class="oe_stat_button"
-                                invisible="channel_type == 'training' or likes == 0">
+                                disabled="1">
                                 <field
-                                    class="ms-1"
                                     name="likes"
+                                    string="Likes"
                                     widget="statinfo"
-                                    string="Likes" />
+                                    class="ms-1" />
                                 </button>
                                 <button
-                                    disabled="1"
                                     icon="fa-thumbs-down"
+                                    invisible="channel_type == 'training' or dislikes == 0"
                                     class="oe_stat_button"
-                                    invisible="channel_type == 'training' or dislikes == 0">
+                                    disabled="1">
                                     <field
-                                        class="ms-1"
                                         name="dislikes"
+                                        string="Dislikes"
                                         widget="statinfo"
-                                        string="Dislikes" />
+                                        class="ms-1" />
                                 </button>
                                 <button
-                                    disabled="1"
                                     icon="fa-comments"
+                                    invisible="not channel_allow_comment or comments_count == 0"
                                     class="oe_stat_button"
-                                    invisible="not channel_allow_comment or comments_count == 0">
+                                    disabled="1">
                                     <field
-                                        class="ms-1"
                                         name="comments_count"
+                                        string="Comments"
                                         widget="statinfo"
-                                        string="Comments" />
+                                        class="ms-1" />
                             </button>
                             <button
                                 name="action_view_embeds"
-                                class="oe_stat_button"
                                 type="object"
                                 icon="fa-share-alt"
-                                invisible="embed_count == 0">
+                                invisible="embed_count == 0"
+                                class="oe_stat_button">
                                 <div class="o_stat_info">
                                     <span class="o_stat_value"><field name="embed_count" /></span>
                                     <span class="o_stat_text">Embed Views</span>
@@ -112,14 +109,14 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field
                             name="image_1920"
                             widget="image"
-                            class="oe_avatar"
                             options="{&quot;preview_image&quot;: &quot;image_256&quot;}"
-                            invisible="is_category" />
+                            invisible="is_category"
+                            class="oe_avatar" />
                         <div class="oe_title pe-xl-0">
                             <div>
                                 <label for="name" string="Content Title" />
@@ -127,16 +124,16 @@
                             <h1>
                                 <field
                                     name="name"
-                                    default_focus="1"
                                     placeholder="e.g. Setting up your computer"
+                                    default_focus="1"
                                     class="me-0" />
                                 <field name="is_category" invisible="1" />
                             </h1>
                             <field
                                 name="tag_ids"
-                                invisible="is_category"
+                                placeholder="Tags..."
                                 widget="many2many_tags"
-                                placeholder="Tags..." />
+                                invisible="is_category" />
                         </div>
                         <notebook invisible="is_category">
                             <page name="document" string="Document">
@@ -165,42 +162,37 @@
                                             invisible="slide_category not in ['infographic', 'document']" />
                                         <field
                                             name="video_url"
-                                            invisible="slide_category != 'video'"
-                                            readonly="slide_category != 'video'"
-                                            required="slide_category == 'video'"
                                             placeholder="e.g &quot;www.youtube.com/watch?v=ebBez6bcSEc&quot;"
-                                            widget="url" />
+                                            widget="url"
+                                            invisible="slide_category != 'video'"
+                                            required="slide_category == 'video'" />
                                         <field
                                             name="document_google_url"
-                                            invisible="source_type != 'external' or slide_category != 'document'"
-                                            readonly="source_type != 'external' or slide_category != 'document'"
                                             placeholder="e.g &quot;https://drive.google.com/file/...&quot;"
-                                            widget="url" />
+                                            widget="url"
+                                            invisible="source_type != 'external' or slide_category != 'document'" />
                                         <field
                                             name="image_google_url"
-                                            invisible="source_type != 'external' or slide_category != 'infographic'"
-                                            readonly="source_type != 'external' or slide_category != 'infographic'"
                                             placeholder="e.g &quot;https://drive.google.com/file/...&quot;"
-                                            widget="url" />
+                                            widget="url"
+                                            invisible="source_type != 'external' or slide_category != 'infographic'" />
                                         <field
                                             name="document_binary_content"
                                             string=""
                                             options="{'accepted_file_extensions': '.pdf'}"
-                                            invisible="source_type == 'external' or slide_category != 'document'"
-                                            readonly="source_type == 'external' or slide_category != 'document'" />
+                                            invisible="source_type == 'external' or slide_category != 'document'" />
                                         <field
                                             name="image_binary_content"
                                             string=""
                                             options="{'accepted_file_extensions': 'image/*'}"
-                                            invisible="source_type == 'external' or slide_category != 'infographic'"
-                                            readonly="source_type == 'external' or slide_category != 'infographic'" />
+                                            invisible="source_type == 'external' or slide_category != 'infographic'" />
                                     </group>
                                     <group name="related_details">
                                         <field
                                             name="user_id"
                                             string="Responsible"
-                                            domain="[('share', '=', False)]"
-                                            widget="many2one_avatar" />
+                                            widget="many2one_avatar"
+                                            domain="[('share', '=', False)]" />
                                         <label for="completion_time" />
                                         <div>
                                             <field
@@ -215,8 +207,8 @@
                                         <field
                                             name="date_published"
                                             string="Published Date"
-                                            invisible="not date_published"
-                                            groups="base.group_no_one" />
+                                            groups="base.group_no_one"
+                                            invisible="not date_published" />
                                         <field name="is_preview" />
                                         <field name="public_views" />
                                         <field name="total_views" />
@@ -226,10 +218,10 @@
                             <page name="description" string="Description">
                                 <field
                                     name="description"
-                                    options="{'embedded_components': false}"
-                                    placeholder="e.g. In this video, we'll give you the keys on how Odoo can help you to grow your business. At the end, we'll propose you a quiz to test your knowledge." />
+                                    placeholder="e.g. In this video, we'll give you the keys on how Odoo can help you to grow your business. At the end, we'll propose you a quiz to test your knowledge."
+                                    options="{'embedded_components': false}" />
                             </page>
-                            <page string="Additional Resources" name="external_links">
+                            <page name="external_links" string="Additional Resources">
                                 <group>
                                     <field
                                         name="slide_resource_ids"
@@ -244,8 +236,8 @@
                                                 column_invisible="True" />
                                             <field
                                                 name="data"
-                                                readonly="resource_type == 'url'"
-                                                filename="file_name" />
+                                                filename="file_name"
+                                                readonly="resource_type == 'url'" />
                                             <field
                                                 name="link"
                                                 string="Link"
@@ -260,17 +252,17 @@
                                     <group name="quiz_rewards" string="Points Rewards">
                                         <group>
                                             <field
-                                                string="First Try"
-                                                name="quiz_first_attempt_reward" />
+                                                name="quiz_first_attempt_reward"
+                                                string="First Try" />
                                             <field
-                                                string="Second Try"
-                                                name="quiz_second_attempt_reward" />
+                                                name="quiz_second_attempt_reward"
+                                                string="Second Try" />
                                             <field
-                                                string="Third Try"
-                                                name="quiz_third_attempt_reward" />
+                                                name="quiz_third_attempt_reward"
+                                                string="Third Try" />
                                             <field
-                                                string="Fourth Try &amp; More"
-                                                name="quiz_fourth_attempt_reward" />
+                                                name="quiz_fourth_attempt_reward"
+                                                string="Fourth Try &amp; More" />
                                         </group>
                                     </group>
                                     <group name="questions" string="Questions">
@@ -303,10 +295,10 @@
             <field name="arch" type="xml">
                 <kanban
                     edit="false"
-                    group_create="0"
-                    records_draggable="0"
+                    sample="1"
                     class="o_slide_kanban"
-                    sample="1">
+                    group_create="0"
+                    records_draggable="0">
                     <templates>
                         <t t-name="card" class="flex-row">
                             <aside class="o_kanban_aside_full">
@@ -315,14 +307,14 @@
                                         class="o_kanban_image_fill position-relative w-100">
                                         <field
                                             name="image_128"
-                                            class="h-100"
                                             widget="image"
-                                            options="{'img_class': 'object-fit-cover'}" />
+                                            options="{'img_class': 'object-fit-cover'}"
+                                            class="h-100" />
                                         <field
                                             name="channel_id"
-                                            class="o_website_slides_inner_image position-absolute bottom-0 end-0 bg-light"
                                             widget="image"
-                                            options="{'preview_image': 'image_128', 'img_class': 'object-fit-contain'}" />
+                                            options="{'preview_image': 'image_128', 'img_class': 'object-fit-contain'}"
+                                            class="o_website_slides_inner_image position-absolute bottom-0 end-0 bg-light" />
                                     </div>
                                 </t>
                                 <t t-else="">
@@ -401,18 +393,18 @@
             <field name="name">slide.slide.list</field>
             <field name="model">slide.slide</field>
             <field name="arch" type="xml">
-                <list string="Contents" sample="1" multi_edit="1">
+                <list string="Contents" multi_edit="1" sample="1">
                     <field name="name" readonly="1" />
                     <field name="channel_id" readonly="1" />
-                    <field name="category_id" readonly="1" optional="hide" />
+                    <field name="category_id" optional="hide" readonly="1" />
                     <field name="user_id" widget="many2one_avatar_user" />
                     <field name="is_published" />
                     <field name="date_published" readonly="1" />
                     <field
                         name="completion_time"
+                        widget="float_time"
                         sum="Total"
-                        readonly="1"
-                        widget="float_time" />
+                        readonly="1" />
                 </list>
             </field>
         </record>
@@ -434,8 +426,8 @@
                         sum="Total Questions" />
                     <field
                         name="completion_time"
-                        sum="Total Duration"
-                        widget="float_time" />
+                        widget="float_time"
+                        sum="Total Duration" />
                 </list>
             </field>
         </record>
@@ -463,21 +455,21 @@
                         domain="[('is_published', '=', False)]" />
                     <separator />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                     <group>
                         <filter
-                            string="Course"
                             name="groupby_channel"
+                            string="Course"
                             context="{'group_by': 'channel_id'}" />
                         <filter
-                            string="Category"
                             name="groupby_category"
+                            string="Category"
                             context="{'group_by': 'category_id'}" />
                         <filter
-                            string="Type"
                             name="groupby_type"
+                            string="Type"
                             context="{'group_by': 'slide_category'}" />
                     </group>
                 </search>
@@ -487,7 +479,7 @@
             <field name="name">slide.slide.view.graph</field>
             <field name="model">slide.slide</field>
             <field name="arch" type="xml">
-                <graph string="Graph of Contents" stacked="0" sample="1">
+                <graph string="Graph of Contents" sample="1" stacked="0">
                     <field name="channel_id" />
                     <field name="slide_category" />
                     <field name="total_views" type="measure" />

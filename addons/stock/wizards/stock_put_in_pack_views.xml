@@ -13,10 +13,10 @@
                         options="{'no_create': True}" />
                     <field
                         name="result_package_id"
-                        domain="[('package_type_id', '=?', package_type_id), '|', '|', ('location_id', '=', location_dest_id), ('id', 'in', origin_package_ids), '&amp;', ('location_id', '=', False), '|', ('move_line_ids', '=', False), ('move_line_ids.location_dest_id', '=', location_dest_id)]"
-                        context="{'default_package_type_id': package_type_id, 'show_src_package': 1}"
+                        placeholder="Leave empty to create new"
                         widget="package_m2o"
-                        placeholder="Leave empty to create new" />
+                        domain="[('package_type_id', '=?', package_type_id), '|', '|', ('location_id', '=', location_dest_id), ('id', 'in', origin_package_ids), '&amp;', ('location_id', '=', False), '|', ('move_line_ids', '=', False), ('move_line_ids.location_dest_id', '=', location_dest_id)]"
+                        context="{'default_package_type_id': package_type_id, 'show_src_package': 1}" />
                 </group>
                 <footer>
                     <button
@@ -26,10 +26,10 @@
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Discard"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

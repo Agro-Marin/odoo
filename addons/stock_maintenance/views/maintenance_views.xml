@@ -10,12 +10,12 @@
                 name="%(maintenance.hr_equipment_request_action_from_equipment)d"
                 position="before">
                 <button
-                    type="object"
                     name="action_view_matched_serial"
+                    type="object"
                     icon="fa-bars"
-                    class="oe_stat_button"
-                    invisible="not match_serial">
-                    <field string="Serial Number" name="serial_no" widget="statinfo" />
+                    invisible="not match_serial"
+                    class="oe_stat_button">
+                    <field name="serial_no" string="Serial Number" widget="statinfo" />
                 </button>
             </button>
             <xpath

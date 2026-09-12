@@ -21,9 +21,9 @@
                     required="use_payment_terminal == 'pine_labs'" />
                 <field
                     name="pine_labs_security_token"
+                    password="True"
                     invisible="use_payment_terminal != 'pine_labs'"
-                    required="use_payment_terminal == 'pine_labs'"
-                    password="True" />
+                    required="use_payment_terminal == 'pine_labs'" />
                 <field
                     name="pine_labs_allowed_payment_mode"
                     invisible="use_payment_terminal != 'pine_labs'"

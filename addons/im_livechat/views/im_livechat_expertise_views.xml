@@ -11,8 +11,8 @@
                     <field
                         name="user_ids"
                         widget="many2many_tags"
-                        options="{'no_create': True}"
-                        domain="[['all_group_ids', 'in', %(im_livechat.im_livechat_group_user)d]]" />
+                        domain="[['all_group_ids', 'in', %(im_livechat.im_livechat_group_user)d]]"
+                        options="{'no_create': True}" />
                 </list>
             </field>
         </record>
@@ -27,8 +27,8 @@
                             <field
                                 name="user_ids"
                                 widget="many2many_tags"
-                                options="{'no_create': True}"
-                                domain="[['all_group_ids', 'in', %(im_livechat.im_livechat_group_user)d]]" />
+                                domain="[['all_group_ids', 'in', %(im_livechat.im_livechat_group_user)d]]"
+                                options="{'no_create': True}" />
                         </group>
                     </sheet>
                 </form>

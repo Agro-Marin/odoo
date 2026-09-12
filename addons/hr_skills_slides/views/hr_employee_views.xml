@@ -10,19 +10,19 @@
             <button name="action_view_versions" position="before">
                 <field
                     name="has_subscribed_courses"
-                    invisible="1"
-                    groups="website_slides.group_website_slides_officer" />
+                    groups="website_slides.group_website_slides_officer"
+                    invisible="1" />
                 <button
                     name="action_view_courses"
-                    class="oe_stat_button"
-                    groups="website_slides.group_website_slides_officer"
-                    icon="fa-graduation-cap"
                     type="object"
-                    invisible="not user_id or not has_subscribed_courses">
+                    icon="fa-graduation-cap"
+                    groups="website_slides.group_website_slides_officer"
+                    invisible="not user_id or not has_subscribed_courses"
+                    class="oe_stat_button">
                     <field
                         name="courses_completion_text"
-                        widget="statinfo"
-                        string="Courses" />
+                        string="Courses"
+                        widget="statinfo" />
                 </button>
             </button>
         </field>

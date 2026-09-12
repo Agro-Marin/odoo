@@ -43,13 +43,13 @@
             <field name="arch" type="xml">
                 <xpath expr="//sheet" position="inside">
                     <notebook>
-                        <page string="Lead Assignment" name="lead_assign">
+                        <page name="lead_assign" string="Lead Assignment">
                             <group>
                                 <label
                                     for="assignment_max"
-                                    class="o_form_label text-900"
                                     string="Capacity"
-                                    invisible="assignment_optout" />
+                                    invisible="assignment_optout"
+                                    class="o_form_label text-900" />
                                 <span invisible="assignment_optout">
                                     <field name="lead_month_count" class="oe_inline" />
                                     <span> leads assigned the last 30 days out of a maximum of </span>

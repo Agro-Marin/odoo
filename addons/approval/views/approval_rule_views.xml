@@ -35,8 +35,8 @@
                     invisible="action_type != 'set_approvers'" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -50,8 +50,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group string="Rule">
                             <field name="name" placeholder="e.g. High-Value Purchase" />
@@ -80,14 +80,14 @@
                                 invisible="condition_type != 'threshold' or operator != 'between'" />
                             <field
                                 name="currency_id"
-                                invisible="condition_type != 'threshold' or condition_field != 'amount'"
                                 options="{'no_create': True, 'no_open': True}"
-                                groups="base.group_multi_currency" />
+                                groups="base.group_multi_currency"
+                                invisible="condition_type != 'threshold' or condition_field != 'amount'" />
                             <field
                                 name="subject_model_id"
+                                options="{'no_create': True}"
                                 invisible="condition_type == 'threshold'"
-                                required="condition_type != 'threshold'"
-                                options="{'no_create': True}" />
+                                required="condition_type != 'threshold'" />
                             <field name="subject_model_name" invisible="1" />
                             <field
                                 name="subject_domain"

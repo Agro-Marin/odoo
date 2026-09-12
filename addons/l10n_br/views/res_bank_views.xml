@@ -10,8 +10,8 @@
                 <p invisible="country_code != 'BR'">
                     <widget
                         name="documentation_link"
-                        path="/applications/finance/fiscal_localizations/brazil.html"
-                        label="Documentation" />
+                        label="Documentation"
+                        path="/applications/finance/fiscal_localizations/brazil.html" />
                 </p>
             </field>
         </field>

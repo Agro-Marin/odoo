@@ -23,8 +23,8 @@
                                 style="grid-template-columns:max-content 1fr">
                                 <field
                                     name="base_off"
-                                    widget="radio"
-                                    string="The rule is based on" />
+                                    string="The rule is based on"
+                                    widget="radio" />
                                 <span
                                     colspan="2"
                                     class="d-flex gap-1"
@@ -33,18 +33,18 @@
                                         for="quantity_period"
                                         string="If the worked hours on a" />
                                     <field
-                                        style="width:10ch"
+                                        name="quantity_period"
                                         nolabel="1"
-                                        name="quantity_period" />
+                                        style="width:10ch" />
                                     <label
                                         for="expected_hours_from_contract"
                                         string="differs" />
                                     <field
-                                        class="w-auto"
                                         name="expected_hours_from_contract"
-                                        nolabel="1"
                                         widget="boolean_radio"
-                                        options="{                                         'yes_label_element_id': 'expected_hours_from_contract_yes',                                         'no_label_element_id': 'expected_hours_from_contract_no'                                     }" />
+                                        nolabel="1"
+                                        options="{                                         'yes_label_element_id': 'expected_hours_from_contract_yes',                                         'no_label_element_id': 'expected_hours_from_contract_no'                                     }"
+                                        class="w-auto" />
                                     <template id="expected_hours_from_contract_yes">from the amount defined on the contract</template>
                                     <template id="expected_hours_from_contract_no">from a specific duration</template>
                                 </span>
@@ -64,31 +64,31 @@
                                 </span>
                                 <field
                                     name="employer_tolerance"
-                                    widget="float_time"
-                                    string="With a tolerance in favor of the employer of" />
+                                    string="With a tolerance in favor of the employer of"
+                                    widget="float_time" />
                                 <field
                                     name="employee_tolerance"
-                                    widget="float_time"
-                                    string="With a tolerance in favor of the employee of" />
+                                    string="With a tolerance in favor of the employee of"
+                                    widget="float_time" />
                                 <field
                                     name="timing_type"
-                                    widget="radio"
                                     string="If the employee works"
+                                    widget="radio"
                                     invisible="base_off != 'timing'" />
                                 <span class="fw-bold" invisible="base_off != 'timing' or timing_type not in ['work_days', 'non_work_days']">Between</span>
                                 <span
                                     class="d-flex gap-1"
                                     invisible="base_off != 'timing' or timing_type not in ['work_days', 'non_work_days']">
                                     <field
-                                        nolabel="1"
                                         name="timing_start"
                                         widget="float_time"
+                                        nolabel="1"
                                         style="width:10ch" />
                                     <label for="timing_stop" string="and" />
                                     <field
-                                        nolabel="1"
                                         name="timing_stop"
                                         widget="float_time"
+                                        nolabel="1"
                                         style="width:10ch" />
                                 </span>
                                 <field
@@ -103,16 +103,16 @@
                                 <span colspan="2" class="mb-3 fw-bold">The hours will be considered extra and submitted to approval.</span>
                                     <label for="paid" string="Pay extra hours" />
                                 <span class="d-flex gap-1" name="paid">
-                                    <field class="w-auto" nolabel="1" name="paid" />
+                                    <field name="paid" nolabel="1" class="w-auto" />
                                     <label
                                         for="amount_rate"
                                         string="with a rate of"
                                         invisible="not paid" />
                                     <field
                                         name="amount_rate"
-                                        style="width:10ch"
                                         widget="percentage"
-                                        invisible="not paid" />
+                                        invisible="not paid"
+                                        style="width:10ch" />
                                 </span>
                             </group>
                         </page>
@@ -154,11 +154,11 @@
                 <header>
                     <button
                         name="action_regenerate_overtimes"
-                        class="btn"
-                        string="Regenerate overtimes"
-                        icon="fa-regular fa-clock"
                         type="object"
-                        help="Regenerate overtimes for this ruleset" />
+                        string="Regenerate overtimes"
+                        help="Regenerate overtimes for this ruleset"
+                        icon="fa-regular fa-clock"
+                        class="btn" />
                 </header>
                 <sheet>
                     <header>
@@ -181,8 +181,8 @@
                     <group colspan="4">
                         <field
                             name="description"
-                            colspan="4"
-                            placeholder="Provide a description or sources for this ruleset." />
+                            placeholder="Provide a description or sources for this ruleset."
+                            colspan="4" />
                     </group>
                     <notebook colspan="4">
                         <page name="overtime_rules" string="Overtime Rules">
@@ -210,8 +210,8 @@
                 <field name="name" />
                 <field
                     name="country_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field name="rate_combination_mode" string="Rate Mode" />
                 <field name="rules_count" />
             </list>
@@ -224,22 +224,22 @@
         <field name="arch" type="xml">
             <search string="Ruleset Search">
                 <filter
-                    string="At least one rule"
                     name="has_rules"
+                    string="At least one rule"
                     domain="[('rule_ids', '!=', False)]" />
                 <separator invisible="1" />
                 <filter
-                    string="Archived"
                     name="archived_rulesets"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Rate Mode"
                         name="rate_mode"
+                        string="Rate Mode"
                         context="{'group_by': 'rate_combination_mode'}" />
                     <filter
-                        string="Country"
                         name="country"
+                        string="Country"
                         context="{'group_by': 'country_id'}"
                         groups="base.group_multi_company" />
                 </group>

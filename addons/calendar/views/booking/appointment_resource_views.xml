@@ -16,8 +16,8 @@
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Available In"
                         name="group_by_appointment_type"
+                        string="Available In"
                         context="{'group_by': 'appointment_type_ids'}" />
                 </group>
             </search>
@@ -34,23 +34,23 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="bg-danger" />
                     <field name="company_id" invisible="1" />
                     <field name="resource_id" invisible="1" />
                     <field
                         name="image_1920"
-                        class="oe_avatar"
                         widget="image"
-                        options="{'preview_image': 'image_128'}" />
+                        options="{'preview_image': 'image_128'}"
+                        class="oe_avatar" />
                     <div class="oe_title">
                         <label for="name" />
                         <h1>
                             <div class="d-flex">
                                 <field
-                                    class="text-break"
                                     name="name"
-                                    placeholder="e.g. Tennis Court 1" />
+                                    placeholder="e.g. Tennis Court 1"
+                                    class="text-break" />
                             </div>
                         </h1>
                     </div>
@@ -62,10 +62,10 @@
                             <field name="shareable" invisible="capacity &lt;= 1" />
                             <field
                                 name="linked_resource_ids"
+                                placeholder="Does not combine"
                                 widget="many2many_tags"
-                                options="{'no_create': True}"
                                 domain="[('id', '!=', id)]"
-                                placeholder="Does not combine" />
+                                options="{'no_create': True}" />
                         </group>
                         <group>
                             <field
@@ -76,7 +76,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field name="description" />
                         </page>
                     </notebook>

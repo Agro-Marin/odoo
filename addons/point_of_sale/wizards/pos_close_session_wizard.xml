@@ -15,15 +15,15 @@
                 <footer>
                     <button
                         name="action_close_session"
-                        string="Close Session"
                         type="object"
+                        string="Close Session"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        class="btn-secondary" />
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

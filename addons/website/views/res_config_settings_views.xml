@@ -18,29 +18,29 @@
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
                 <app
-                    data-string="Website"
-                    string="Website"
                     name="website"
-                    groups="website.group_website_designer">
+                    string="Website"
+                    groups="website.group_website_designer"
+                    data-string="Website">
                     <setting
                         id="website_creation_settings"
-                        class="bg-secondary"
-                        type="header">
+                        type="header"
+                        class="bg-secondary">
                         <field
                             name="website_id"
-                            options="{'no_open': True, 'no_create': True}"
-                            title="Settings on this page will apply to this website" />
+                            title="Settings on this page will apply to this website"
+                            options="{'no_open': True, 'no_create': True}" />
                         <button
                             name="action_website_create_new"
                             type="object"
                             string="+ New Website"
                             class="btn btn-secondary mx-2 rounded-2" />
                     </setting>
-                    <block title="General" id="website_info_settings">
+                    <block id="website_info_settings" title="General">
                         <setting
                             string="Domain"
-                            help="Display this website for this web address"
                             title="Display this website when users visit this domain"
+                            help="Display this website for this web address"
                             documentation="/applications/websites/website/configuration/domain_names.html#domain-name-website-map">
                             <field
                                 name="website_domain"
@@ -60,9 +60,9 @@
                                 invisible="website_language_count &lt; 2">
                                 <field name="website_language_count" invisible="1" />
                                 <label
-                                    class="col-lg-3"
+                                    for="website_default_lang_id"
                                     string="Default"
-                                    for="website_default_lang_id" />
+                                    class="col-lg-3" />
                                 <field
                                     name="website_default_lang_id"
                                     options="{'no_open': True, 'no_create': True}"
@@ -70,11 +70,11 @@
                             </div>
                             <div class="mt8">
                                 <button
-                                    type="action"
                                     name="%(base.action_view_base_language_install)d"
+                                    type="action"
                                     string="Install new languages"
-                                    class="btn-link"
-                                    icon="oi-arrow-right" />
+                                    icon="oi-arrow-right"
+                                    class="btn-link" />
                             </div>
                         </setting>
                         <setting
@@ -83,16 +83,16 @@
                             <div class="content-group">
                                 <div class="row mt8">
                                     <label
-                                        class="col-lg-3"
+                                        for="website_name"
                                         string="Name"
-                                        for="website_name" />
+                                        class="col-lg-3" />
                                     <field name="website_name" required="website_id" />
                                 </div>
                                 <div class="row mt8">
                                     <label
-                                        class="col-lg-3"
+                                        for="favicon"
                                         string="Favicon"
-                                        for="favicon" />
+                                        class="col-lg-3" />
                                     <field
                                         name="favicon"
                                         widget="image"
@@ -109,8 +109,8 @@
                         <setting
                             id="shared_user_account_setting"
                             help="Accounts are usable across all your multiple websites"
-                            info="This setting is common to all websites."
-                            groups="website.group_multi_website">
+                            groups="website.group_multi_website"
+                            info="This setting is common to all websites.">
                             <field name="shared_user_account" />
                         </setting>
                         <setting
@@ -119,17 +119,17 @@
                             help="Let your customers log in to see their documents">
                             <field
                                 name="auth_signup_uninvited"
-                                class="o_light_label"
                                 widget="radio"
                                 options="{'horizontal': true}"
-                                required="True" />
+                                required="True"
+                                class="o_light_label" />
                             <div
                                 class="content-group"
                                 invisible="auth_signup_uninvited == 'b2b'">
                                 <div class="mt8">
                                     <button
-                                        type="object"
                                         name="action_view_template_user"
+                                        type="object"
                                         string="Default Access Rights"
                                         icon="oi-arrow-right"
                                         class="btn-link" />
@@ -144,8 +144,8 @@
                         </setting>
                     </block>
                     <block
-                        title="Tracking &amp; SEO"
                         id="website_settings"
+                        title="Tracking &amp; SEO"
                         invisible="not website_id">
                         <setting
                             id="plausible_setting"
@@ -157,18 +157,18 @@
                                 invisible="not has_plausible_shared_key">
                                 <div class="row mt16">
                                     <label
-                                        class="col-lg-3 o_light_label"
+                                        for="plausible_shared_key"
                                         string="Shared Link Auth"
-                                        for="plausible_shared_key" />
+                                        class="col-lg-3 o_light_label" />
                                     <field
                                         name="plausible_shared_key"
                                         required="has_plausible_shared_key" />
                                 </div>
                                 <div class="row mt16">
                                     <label
-                                        class="col-lg-3 o_light_label"
+                                        for="plausible_site"
                                         string="Site"
-                                        for="plausible_site" />
+                                        class="col-lg-3 o_light_label" />
                                     <field
                                         name="plausible_site"
                                         required="has_plausible_shared_key" />
@@ -176,19 +176,19 @@
                             </div>
                             <div invisible="not has_plausible_shared_key">
                                 <button
-                                    type="action"
                                     name="%(website.backend_dashboard)d"
+                                    type="action"
                                     string=" See Analytics Report"
-                                    class="btn-link fw-normal border-0"
-                                    icon="oi-arrow-right d-inline me-auto" />
+                                    icon="oi-arrow-right d-inline me-auto"
+                                    class="btn-link fw-normal border-0" />
                             </div>
                             <div invisible="not has_plausible_shared_key">
                                 <widget
-                                    class="oe_link"
                                     name="documentation_link"
-                                    path="/applications/websites/website/reporting/analytics.html#analytics-plausible"
+                                    icon="oi oi-arrow-right"
+                                    class="oe_link"
                                     label=" How to create my Plausible Shared Link"
-                                    icon="oi oi-arrow-right" />
+                                    path="/applications/websites/website/reporting/analytics.html#analytics-plausible" />
                             </div>
                         </setting>
                         <setting
@@ -201,9 +201,9 @@
                                 invisible="not has_google_analytics">
                                 <div class="row mt16">
                                     <label
-                                        class="col-lg-3 o_light_label"
+                                        for="google_analytics_key"
                                         string="Measurement ID or Tag"
-                                        for="google_analytics_key" />
+                                        class="col-lg-3 o_light_label" />
                                     <field
                                         name="google_analytics_key"
                                         placeholder="G-XXXXXXXXXX or GTM-XXXXXXX"
@@ -212,39 +212,39 @@
                             </div>
                             <div invisible="not has_google_analytics">
                                 <widget
-                                    class="oe_link"
                                     name="documentation_link"
-                                    path="/applications/websites/website/reporting/analytics.html#analytics-google-analytics"
+                                    icon="oi oi-arrow-right"
+                                    class="oe_link"
                                     label=" How to get my Measurement ID"
-                                    icon="oi oi-arrow-right" />
+                                    path="/applications/websites/website/reporting/analytics.html#analytics-google-analytics" />
                             </div>
                         </setting>
                         <setting
                             id="cdn_setting"
                             title="A CDN helps you serve your website’s content with high availability and high performance to any visitor wherever they are located."
-                            groups="base.group_no_one"
                             help="Use a CDN to optimize the availability of your website's content"
+                            groups="base.group_no_one"
                             documentation="/applications/websites/website/configuration/cdn.html">
                             <field name="cdn_activated" />
                             <div class="content-group" invisible="not cdn_activated">
                                 <div class="row mt16">
                                     <label
-                                        class="col-lg-3 o_light_label"
-                                        for="cdn_url" />
+                                        for="cdn_url"
+                                        class="col-lg-3 o_light_label" />
                                     <field
                                         name="cdn_url"
-                                        required="cdn_activated"
                                         placeholder="//mycompany.mycdn.com/"
+                                        required="cdn_activated"
                                         t-translation="off" />
                                 </div>
                                 <div class="row">
                                     <label
-                                        class="col-lg-3 o_light_label"
-                                        for="cdn_filters" />
+                                        for="cdn_filters"
+                                        class="col-lg-3 o_light_label" />
                                     <field
                                         name="cdn_filters"
-                                        class="oe_inline"
-                                        required="cdn_activated" />
+                                        required="cdn_activated"
+                                        class="oe_inline" />
                                 </div>
                             </div>
                         </setting>
@@ -255,11 +255,11 @@
                             groups="base.group_no_one">
                             <div class="mt4">
                                 <button
-                                    type="object"
                                     name="action_view_robots"
+                                    type="object"
                                     string="Edit robots.txt"
-                                    class="btn-link"
                                     icon="fa-android"
+                                    class="btn-link"
                                     noSaveDialog="true" />
                             </div>
                         </setting>
@@ -271,8 +271,8 @@
                             <field
                                 name="social_default_image"
                                 widget="image"
-                                class="w-25 mt-2"
-                                invisible="not has_default_share_image" />
+                                invisible="not has_default_share_image"
+                                class="w-25 mt-2" />
                         </setting>
                         <setting
                             id="google_console_setting"
@@ -284,9 +284,9 @@
                                 invisible="not has_google_search_console">
                                 <div class="row mt16">
                                     <label
-                                        class="col-lg-3 o_light_label"
+                                        for="google_search_console"
                                         string="Code"
-                                        for="google_search_console" />
+                                        class="col-lg-3 o_light_label" />
                                     <field
                                         name="google_search_console"
                                         placeholder="google1234567890123456.html"
@@ -295,11 +295,11 @@
                             </div>
                             <div invisible="not has_google_search_console">
                                 <widget
-                                    class="oe_link"
                                     name="documentation_link"
-                                    path="/applications/websites/website/configuration/google_search_console.html"
+                                    icon="oi oi-arrow-right"
+                                    class="oe_link"
                                     label=" How to?"
-                                    icon="oi oi-arrow-right" />
+                                    path="/applications/websites/website/configuration/google_search_console.html" />
                             </div>
                         </setting>
                         <setting
@@ -315,9 +315,9 @@
                                         name="website_block_third_party_domains"
                                         required="website_cookies_bar" />
                                     <label
-                                        class="o_light_label"
+                                        for="website_block_third_party_domains"
                                         string="Block tracking 3rd-party services"
-                                        for="website_block_third_party_domains" />
+                                        class="o_light_label" />
                                 </div>
                                 <div>
                                     <small class="text-muted">
@@ -326,11 +326,11 @@
                                 </div>
                                 <div class="mt4">
                                     <button
-                                        type="object"
                                         name="action_view_blocked_third_party_domains"
+                                        type="object"
                                         string="Add domains to the block list"
-                                        class="btn-link"
                                         icon="fa-ban"
+                                        class="btn-link"
                                         noSaveDialog="true" />
                                 </div>
                             </div>

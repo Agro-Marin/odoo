@@ -7,19 +7,19 @@
         <field name="arch" type="xml">
             <list
                 string="Analytic Distribution Model"
-                open_form_view="True"
+                default_order="sequence, id desc"
                 editable="top"
                 multi_edit="1"
-                default_order="sequence, id desc">
+                open_form_view="True">
                 <field name="sequence" widget="handle" />
                 <field name="partner_id" optional="show" />
                 <field name="partner_tag_id" optional="hide" />
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
+                    placeholder="Visible to all"
                     optional="show"
-                    placeholder="Visible to all" />
+                    groups="base.group_multi_company" />
                 <field
                     name="analytic_distribution"
                     widget="analytic_distribution"
@@ -44,8 +44,8 @@
                             <group>
                                 <field
                                     name="company_id"
-                                    groups="base.group_multi_company"
-                                    placeholder="Visible to all" />
+                                    placeholder="Visible to all"
+                                    groups="base.group_multi_company" />
                                 <field name="company_id" invisible="1" />
                             </group>
                         </group>

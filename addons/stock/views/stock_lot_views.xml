@@ -15,16 +15,16 @@
                 <field name="lot_properties" />
                 <field name="create_date" />
                 <filter
-                    string="At Customer"
                     name="at_customer"
+                    string="At Customer"
                     domain="[('quant_ids.location_id.usage','=','customer'), ('quant_ids.quantity', '&gt;', 0)]" />
                 <filter
-                    string="On Hand"
                     name="on_hand"
+                    string="On Hand"
                     domain="[('product_qty', '&gt;', 0)]" />
                 <filter
-                    string="Creation Date"
                     name="creation_date"
+                    string="Creation Date"
                     date="create_date" />
                 <group>
                     <filter
@@ -65,9 +65,9 @@
                 <field name="company_id" groups="base.group_multi_company" />
                 <field
                     name="partner_ids"
-                    optional="hide"
+                    string="Transfer to"
                     widget="many2many_tags"
-                    string="Transfer to" />
+                    optional="hide" />
                 <field name="activity_ids" widget="list_activity" optional="show" />
                 <field name="lot_properties" optional="hide" />
                 <field name="product_qty" optional="hide" />
@@ -107,32 +107,32 @@
                         name="button_box"
                         invisible="not display_complete">
                         <button
-                            class="oe_stat_button"
                             name="action_lot_open_transfers"
                             type="object"
-                            icon="fa-truck"
                             help="Transfers"
-                            invisible="count_transfer_outgoing == 0">
+                            icon="fa-truck"
+                            invisible="count_transfer_outgoing == 0"
+                            class="oe_stat_button">
                             <field
                                 name="count_transfer_outgoing"
-                                widget="statinfo"
-                                string="Transfers" />
+                                string="Transfers"
+                                widget="statinfo" />
                         </button>
                         <button
                             name="action_lot_open_quants"
-                            groups="stock.group_stock_multi_locations"
+                            type="object"
                             icon="fa-arrows"
-                            class="oe_stat_button"
-                            type="object">
+                            groups="stock.group_stock_multi_locations"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Location</span>
                             </div>
                         </button>
                         <button
                             name="%(action_stock_report)d"
+                            type="action"
                             icon="oi-arrow-up"
-                            class="oe_stat_button"
-                            type="action">
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Traceability</span>
                             </div>
@@ -148,38 +148,38 @@
                         <group string="Information">
                             <field
                                 name="product_id"
-                                context="{'default_is_storable': True, 'default_tracking': 'lot'}"
-                                readonly="context.get('set_product_readonly', False)"
+                                help="Product this lot/serial number contains. You cannot change it anymore if it has already been moved."
                                 force_save="1"
-                                help="Product this lot/serial number contains. You cannot change it anymore if it has already been moved." />
+                                context="{'default_is_storable': True, 'default_tracking': 'lot'}"
+                                readonly="context.get('set_product_readonly', False)" />
                             <field name="ref" string="Reference" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                             <field
                                 name="partner_ids"
                                 string="Customer"
-                                invisible="not partner_ids or not location_id"
-                                groups="stock.group_stock_manager"
                                 widget="many2many_tags"
-                                options="{'edit_tags': True}" />
+                                options="{'edit_tags': True}"
+                                groups="stock.group_stock_manager"
+                                invisible="not partner_ids or not location_id" />
                         </group>
-                        <group string="Inventory" name="inventory_group">
+                        <group name="inventory_group" string="Inventory">
                             <label for="product_qty" invisible="not display_complete" />
                             <div invisible="not display_complete">
                                 <field name="product_qty" class="oe_inline me-1" />
                                 <field
                                     name="product_uom_id"
-                                    groups="uom.group_uom"
                                     widget="many2one_uom"
                                     options="{'no_open': True}"
+                                    groups="uom.group_uom"
                                     class="oe_inline" />
                             </div>
                             <field
                                 name="location_id"
-                                invisible="not location_id"
-                                groups="stock.group_stock_manager" />
+                                groups="stock.group_stock_manager"
+                                invisible="not location_id" />
                         </group>
                         <field
                             name="lot_properties"

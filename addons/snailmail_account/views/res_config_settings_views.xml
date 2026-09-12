@@ -8,7 +8,7 @@
         <field name="inherit_id" ref="account.res_config_settings_view_form" />
         <field name="priority" eval="100" />
         <field name="arch" type="xml">
-            <setting id="send_invoices_followups" position="inside">
+            <setting position="inside" id="send_invoices_followups">
                 <div class="mt16" invisible="not module_snailmail_account">
                     <div>
                         <field name="snailmail_color" />

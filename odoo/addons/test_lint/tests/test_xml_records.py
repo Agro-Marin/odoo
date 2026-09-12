@@ -107,6 +107,9 @@ class XmlRecordLinter(LintCase):
                         f" in {record.get('id')!r}: {actual} → {expected}"
                     )
 
+            if _sort_xml_records.is_model_view(record):
+                violations.extend(XmlRecordLinter._arch_order(xml_file, record))
+
         for tag in _sort_xml_records._TOP_LEVEL_TAGS:
             for elem in root.iter(tag):
                 actual = list(elem.attrib.keys())
@@ -117,4 +120,17 @@ class XmlRecordLinter(LintCase):
                         f"  {xml_file}: <{tag}> id={eid!r}: {actual} → {expected}"
                     )
 
+        return violations
+
+    @staticmethod
+    def _arch_order(xml_file: str, record) -> list[str]:
+        violations: list[str] = []
+        for elem in _sort_xml_records.iter_arch_elements(record):
+            actual = list(elem.attrib.keys())
+            expected = _sort_xml_records.expected_arch_attrib_order(actual)
+            if actual != expected:
+                violations.append(
+                    f"  {xml_file}:{elem.sourceline}: <{elem.tag}> in "
+                    f"{record.get('id')!r}: {actual} → {expected}"
+                )
         return violations

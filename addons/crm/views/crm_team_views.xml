@@ -139,7 +139,7 @@
         <field name="inherit_id" ref="sales_team.crm_team_view_tree" />
         <field name="arch" type="xml">
             <field name="name" position="after">
-                <field string="Alias" name="alias_id" />
+                <field name="alias_id" string="Alias" />
             </field>
         </field>
     </record>
@@ -159,9 +159,9 @@
                         name="action_assign_leads"
                         type="object"
                         string="Assign Leads"
-                        class="oe_highlight"
                         confirm="This will assign leads to all members. Do you want to proceed?"
                         invisible="not use_leads and not use_opportunities or not assignment_enabled"
+                        class="oe_highlight"
                         confirm-label="Assign Leads" />
                 </header>
             </xpath>
@@ -186,15 +186,15 @@
                     <field
                         name="alias_id"
                         string="Email Alias"
-                        class="oe_read_only"
-                        required="0" />
+                        required="0"
+                        class="oe_read_only" />
                     <div class="oe_edit_only" name="edit_alias" dir="ltr">
                         <field name="alias_name" placeholder="alias" class="oe_inline" />@
                         <field
                             name="alias_domain_id"
-                            class="oe_inline"
                             placeholder="e.g. mycompany.com"
-                            options="{'no_create': True, 'no_open': True}" />
+                            options="{'no_create': True, 'no_open': True}"
+                            class="oe_inline" />
                     </div>
                 </div>
                 <field
@@ -226,8 +226,8 @@
                 </div>
                 <field
                     name="assignment_domain"
-                    widget="domain"
                     string="Domain"
+                    widget="domain"
                     options="{'foldable': True, 'model': 'crm.lead', 'in_dialog': True}"
                     invisible="not assignment_enabled" />
                 <field

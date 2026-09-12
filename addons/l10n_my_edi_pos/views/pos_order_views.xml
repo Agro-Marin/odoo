@@ -12,9 +12,9 @@
                     name="action_show_myinvois_documents"
                     type="object"
                     icon="fa-regular fa-sun"
-                    class="oe_stat_button"
                     groups="account.group_account_invoice"
-                    invisible="not consolidated_invoice_ids">
+                    invisible="not consolidated_invoice_ids"
+                    class="oe_stat_button">
                     <span>Consolidated<br />Invoice</span>
                 </button>
             </xpath>

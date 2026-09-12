@@ -22,16 +22,16 @@
                             name="resource_ref"
                             nolabel="1"
                             options="{'hide_model': True, 'no_create': True, 'no_open': True}"
-                            readonly="False"
-                            invisible="no_record" />
+                            invisible="no_record"
+                            readonly="False" />
                         <b invisible="not no_record" class="text-warning">No record for this model</b>
 
                         <field name="has_several_languages_installed" invisible="1" />
                         <field
                             name="lang"
-                            invisible="not has_several_languages_installed"
                             string="Force a Language"
-                            placeholder="Select a language" />
+                            placeholder="Select a language"
+                            invisible="not has_several_languages_installed" />
 
                         <field name="subject" />
                         <field name="email_from" invisible="not email_from" />
@@ -53,15 +53,15 @@
                         <field name="has_attachments" invisible="1" />
                         <field
                             name="attachment_ids"
-                            invisible="not has_attachments"
-                            widget="many2many_binary" />
+                            widget="many2many_binary"
+                            invisible="not has_attachments" />
                     </group>
                 </sheet>
                 <footer>
                     <button
+                        special="cancel"
                         string="Close"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

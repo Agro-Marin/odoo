@@ -78,30 +78,30 @@
                         <button
                             name="action_view_credentials"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-key">
+                            icon="fa-key"
+                            class="oe_stat_button">
                             <field
                                 name="credential_count"
-                                widget="statinfo"
-                                string="Credentials" />
+                                string="Credentials"
+                                widget="statinfo" />
                         </button>
                         <button
                             name="action_view_logs"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-list-alt">
+                            icon="fa-list-alt"
+                            class="oe_stat_button">
                             <field
                                 name="total_requests"
-                                widget="statinfo"
-                                string="Requests" />
+                                string="Requests"
+                                widget="statinfo" />
                         </button>
                     </div>
 
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
 
                     <div class="oe_title">
                         <label for="name" />
@@ -130,7 +130,7 @@
                     </group>
 
                     <notebook>
-                        <page string="API Configuration" name="api_config">
+                        <page name="api_config" string="API Configuration">
                             <group>
                                 <group string="Endpoints">
                                     <field name="endpoint_url" />
@@ -165,7 +165,7 @@
                             </group>
                         </page>
 
-                        <page string="Rate Limiting" name="rate_limiting">
+                        <page name="rate_limiting" string="Rate Limiting">
                             <group>
                                 <group>
                                     <field name="rate_limit_enabled" />
@@ -179,7 +179,7 @@
                             </group>
                         </page>
 
-                        <page string="Retry" name="retry">
+                        <page name="retry" string="Retry">
                             <group>
                                 <group>
                                     <field name="retry_enabled" />
@@ -196,7 +196,7 @@
                             </group>
                         </page>
 
-                        <page string="Caching" name="caching">
+                        <page name="caching" string="Caching">
                             <group>
                                 <group>
                                     <field name="cache_enabled" />
@@ -210,7 +210,7 @@
                             </group>
                         </page>
 
-                        <page string="Health Check" name="health_check">
+                        <page name="health_check" string="Health Check">
                             <group>
                                 <group>
                                     <field name="health_check_enabled" />
@@ -231,7 +231,7 @@
                             </group>
                         </page>
 
-                        <page string="Statistics" name="statistics">
+                        <page name="statistics" string="Statistics">
                             <group>
                                 <group>
                                     <field name="total_requests" readonly="1" />
@@ -245,7 +245,7 @@
                             </group>
                         </page>
 
-                        <page string="Info" name="info">
+                        <page name="info" string="Info">
                             <group>
                                 <group>
                                     <field name="website" widget="url" />

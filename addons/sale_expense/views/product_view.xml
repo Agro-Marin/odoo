@@ -24,8 +24,8 @@
                 <field
                     name="taxes_id"
                     widget="many2many_tax_tags"
-                    invisible="expense_policy == 'no'"
                     options="{'no_quick_create': True}"
+                    invisible="expense_policy == 'no'"
                     class="w-50" />
             </xpath>
         </field>

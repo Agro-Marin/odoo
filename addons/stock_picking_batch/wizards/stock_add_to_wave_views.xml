@@ -12,9 +12,9 @@
                         <field name="mode" widget="radio" nolabel="1" />
                         <field
                             name="wave_id"
+                            context="{'add_to_existing_batch': True}"
                             options="{'no_create': True, 'no_open': True}"
                             invisible="mode == 'new'"
-                            context="{'add_to_existing_batch': True}"
                             required="mode == 'existing'" />
                         <field
                             name="user_id"
@@ -29,7 +29,7 @@
                         type="object"
                         string="Confirm"
                         class="btn-primary" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

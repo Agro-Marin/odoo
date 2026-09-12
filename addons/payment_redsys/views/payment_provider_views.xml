@@ -9,18 +9,18 @@
             <group name="provider_credentials" position="inside">
                 <group invisible="code != 'redsys'">
                     <field
-                        string="Merchant Code"
                         name="redsys_merchant_code"
+                        string="Merchant Code"
                         required="code == 'redsys' and state != 'disabled'" />
                     <field
-                        string="Merchant Terminal"
                         name="redsys_merchant_terminal"
+                        string="Merchant Terminal"
                         required="code == 'redsys' and state != 'disabled'" />
                     <field
-                        string="Secret Key"
                         name="redsys_secret_key"
-                        required="code == 'redsys' and state != 'disabled'"
-                        password="True" />
+                        string="Secret Key"
+                        password="True"
+                        required="code == 'redsys' and state != 'disabled'" />
                 </group>
             </group>
         </field>

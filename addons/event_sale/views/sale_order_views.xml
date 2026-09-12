@@ -10,10 +10,10 @@
                 <button
                     name="action_view_attendee_list"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-users"
-                    invisible="attendee_count == 0">
-                    <field name="attendee_count" widget="statinfo" string="Attendees" />
+                    invisible="attendee_count == 0"
+                    class="oe_stat_button">
+                    <field name="attendee_count" string="Attendees" widget="statinfo" />
                 </button>
             </div>
             <xpath
@@ -22,44 +22,44 @@
                 <field
                     name="event_id"
                     domain="[                         ('event_ticket_ids.product_id','=', product_id),                         ('date_end','&gt;=',time.strftime('%Y-%m-%d 00:00:00')),                         '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)                     ]"
+                    options="{'no_open': True, 'no_create': True}"
                     invisible="service_tracking != 'event'"
-                    required="service_tracking == 'event'"
-                    options="{'no_open': True, 'no_create': True}" />
+                    required="service_tracking == 'event'" />
                 <field
                     name="event_slot_id"
                     domain="[('event_id','=', event_id)]"
+                    options="{'no_open': True, 'no_create': True}"
                     invisible="not is_multi_slots or service_tracking != 'event'"
-                    required="is_multi_slots and service_tracking == 'event'"
-                    options="{'no_open': True, 'no_create': True}" />
+                    required="is_multi_slots and service_tracking == 'event'" />
                 <field
                     name="event_ticket_id"
                     domain="[                         ('event_id', '=', event_id), ('product_id','=',product_id),                          '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)                     ]"
+                    options="{'no_open': True, 'no_create': True}"
                     invisible="service_tracking != 'event' or not event_id"
-                    required="service_tracking == 'event' and event_id"
-                    options="{'no_open': True, 'no_create': True}" />
+                    required="service_tracking == 'event' and event_id" />
             </xpath>
             <xpath
                 expr="//field[@name='line_ids']//list//field[@name='product_template_id']"
                 position="after">
                 <field
                     name="event_id"
-                    column_invisible="True"
+                    placeholder="All Events"
                     domain="[                         ('event_ticket_ids.product_id','=', product_id),                         ('date_end','&gt;=',time.strftime('%Y-%m-%d 00:00:00')),                         '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)                     ]"
-                    required="service_tracking == 'event'"
                     options="{'no_open': True, 'no_create': True}"
-                    placeholder="All Events" />
+                    column_invisible="True"
+                    required="service_tracking == 'event'" />
                 <field
                     name="event_slot_id"
-                    column_invisible="True"
                     domain="[('event_id','=', event_id)]"
-                    required="is_multi_slots and service_tracking == 'event'"
-                    options="{'no_open': True, 'no_create': True}" />
+                    options="{'no_open': True, 'no_create': True}"
+                    column_invisible="True"
+                    required="is_multi_slots and service_tracking == 'event'" />
                 <field
                     name="event_ticket_id"
-                    column_invisible="True"
                     domain="[                         ('event_id', '=', event_id), ('product_id','=',product_id),                          '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)                     ]"
-                    required="service_tracking == 'event' and event_id"
-                    options="{'no_open': True, 'no_create': True}" />
+                    options="{'no_open': True, 'no_create': True}"
+                    column_invisible="True"
+                    required="service_tracking == 'event' and event_id" />
             </xpath>
         </field>
     </record>

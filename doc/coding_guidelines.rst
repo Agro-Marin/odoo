@@ -5842,6 +5842,15 @@ The conventions they enforce:
 * Attribute order: ``id`` then ``model`` on records; ``name`` first on fields;
   ``menuitem``, ``template``, ``delete`` and ``function`` each have their own
   order (``ATTRIB_ORDER`` in ``odoo/addons/test_lint/tests/_sort_xml_records.py``).
+* Attribute order inside a view arch (``ARCH_ATTRIB_ORDER``, same file, every
+  view-semantic element, HTML left alone): what it is (``name``/``for``/``expr``,
+  ``position``, ``special``, ``type``) → what it says (``string``, ``placeholder``,
+  ``help``, ``confirm``) → how it renders (``widget``, ``icon``, ``col``,
+  ``nolabel``, ``optional`` ...) → what data it takes (``domain``, ``context``,
+  ``options``, ``default_order``, ``editable`` ...) → when it applies (``groups``,
+  ``invisible``, ``column_invisible``, ``readonly``, ``required``) → ``class``,
+  ``style`` → anything else alphabetically. The conditions a reviewer reads for
+  bugs sit together, just before the styling.
 * Field order inside a record: ``FIELD_ORDER`` in the same file is the canon,
   one list per technical model (``ir.ui.view``, the ``ir.actions.*``,
   ``ir.rule``, ``ir.cron``, ``res.groups``, ``mail.template``, ...): identity
@@ -6000,12 +6009,19 @@ in ``card`` (``kanban-template-scope``):
    </kanban>
 
 Across every view type: put ``name=""`` on groups, pages and divs so inheritance
-has something stable to target, and write conditions as Python expressions
+has something stable to target -- and one name per arch, since an xpath by name
+reaches only the first and ``search_default_<name>`` toggles every filter of
+that name (``duplicate-arch-name``). Write conditions as Python expressions
 (``invisible=``, ``readonly=``, ``required=``) that parse -- an empty one is
-dead and belongs off the element (``expression-syntax``). ``attrs=`` and
-``states=`` were removed in 17.0 (``removed-attribute``); fields referenced only
-by an expression are auto-injected. ``optional=`` is ``show`` or ``hide``
-(``optional-value``).
+dead and belongs off the element (``expression-syntax``) -- spelled ``True`` /
+``False``, not ``true`` (``boolean-spelling``). ``attrs=`` and ``states=`` were
+removed in 17.0 (``removed-attribute``); fields referenced only by an
+expression are auto-injected. ``optional=`` is ``show`` or ``hide``
+(``optional-value``). Dead attributes the renderer never reads are findings:
+``nolabel=`` outside a ``<group>``/``<setting>`` (``nolabel-outside-group``),
+``column_invisible=`` in a form (``column-invisible-outside-list``),
+``readonly=`` equal to ``invisible=`` (``readonly-duplicates-invisible``),
+``type=`` beside ``special=`` on a button (``special-button-type``).
 
 3.4 Wizards
 -----------

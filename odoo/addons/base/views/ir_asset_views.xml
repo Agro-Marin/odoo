@@ -11,8 +11,8 @@
                 <field name="sequence" />
                 <field name="path" />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
             </search>
         </field>

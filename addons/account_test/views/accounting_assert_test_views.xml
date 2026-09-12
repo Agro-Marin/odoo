@@ -29,12 +29,12 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Description" name="description">
-                            <field name="desc" nolabel="1" />
+                        <page name="description" string="Description">
+                            <field name="desc" />
                         </page>
-                        <page string="Expression" name="expression">
+                        <page name="expression" string="Expression">
                             <group string="Python Code">
-                                <field colspan="2" name="code_exec" nolabel="1" />
+                                <field name="code_exec" colspan="2" nolabel="1" />
                             </group>
                             <group string="Code Help">
                                 <div colspan="2">
@@ -67,12 +67,12 @@ Example:
         <field name="model">accounting.assert.test</field>
         <field name="arch" type="xml">
             <search string="Search Account Test">
-                <field string="Name" name="name" />
-                <field string="Description" name="desc" />
+                <field name="name" string="Name" />
+                <field name="desc" string="Description" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

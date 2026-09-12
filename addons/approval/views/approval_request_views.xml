@@ -130,22 +130,22 @@
                     name="sla_status"
                     widget="badge"
                     optional="hide"
+                    decoration-danger="sla_status == 'breached'"
                     decoration-success="sla_status in ('on_track', 'met')"
-                    decoration-warning="sla_status == 'at_risk'"
-                    decoration-danger="sla_status == 'breached'" />
+                    decoration-warning="sla_status == 'at_risk'" />
                 <field
                     name="state"
                     widget="badge"
-                    decoration-info="state == 'new'"
-                    decoration-warning="state == 'pending'"
-                    decoration-success="state == 'approved'"
                     decoration-danger="state == 'refused'"
-                    decoration-muted="state == 'cancelled'" />
+                    decoration-info="state == 'new'"
+                    decoration-muted="state == 'cancelled'"
+                    decoration-success="state == 'approved'"
+                    decoration-warning="state == 'pending'" />
                 <field
                     name="company_id"
-                    readonly="True"
                     optional="hide"
-                    groups="base.group_multi_company" />
+                    groups="base.group_multi_company"
+                    readonly="True" />
             </list>
         </field>
     </record>
@@ -155,14 +155,14 @@
         <field name="model">approval.request</field>
         <field name="arch" type="xml">
             <kanban
-                create="false"
-                class="o_modules_kanban"
-                default_group_by="state"
                 default_order="create_date desc"
+                default_group_by="state"
+                create="false"
+                sample="1"
+                class="o_modules_kanban"
                 group_create="false"
-                group_edit="false"
                 group_delete="false"
-                sample="1">
+                group_edit="false">
                 <field name="state" />
                 <field name="user_approver_state" />
                 <field name="can_withdraw" />
@@ -182,16 +182,16 @@
                             invisible="user_approver_state not in ['pending', 'approved', 'refused']">
                             <field
                                 name="user_approver_state"
-                                t-if="record.user_approver_state.raw_value == 'pending'"
-                                class="text-bg-info" />
+                                class="text-bg-info"
+                                t-if="record.user_approver_state.raw_value == 'pending'" />
                             <field
                                 name="user_approver_state"
-                                t-if="record.user_approver_state.raw_value == 'approved'"
-                                class="text-bg-success" />
+                                class="text-bg-success"
+                                t-if="record.user_approver_state.raw_value == 'approved'" />
                             <field
                                 name="user_approver_state"
-                                t-if="record.user_approver_state.raw_value == 'refused'"
-                                class="text-bg-warning" />
+                                class="text-bg-warning"
+                                t-if="record.user_approver_state.raw_value == 'refused'" />
                         </div>
                         <field name="name" class="fw-bolder fs-5" />
                         <field name="category_id" class="text-muted" />
@@ -224,87 +224,87 @@
                     <widget
                         name="attach_document"
                         string="Attach Document"
+                        invisible="request_owner_id != uid or is_terminal or count_attachment &gt;= 1 or pending_change_field"
                         action="message_post"
-                        highlight="1"
-                        invisible="request_owner_id != uid or is_terminal or count_attachment &gt;= 1 or pending_change_field" />
+                        highlight="1" />
                     <button
                         name="action_confirm"
-                        string="Submit"
                         type="object"
+                        string="Submit"
+                        invisible="count_attachment &lt; 1 or not approver_ids or state != 'new' or pending_change_field"
                         class="btn-primary"
-                        data-hotkey="q"
-                        invisible="count_attachment &lt; 1 or not approver_ids or state != 'new' or pending_change_field" />
+                        data-hotkey="q" />
                     <button
                         name="action_confirm"
-                        string="Submit"
                         type="object"
-                        data-hotkey="q"
-                        invisible="count_attachment &gt;= 1 or not approver_ids or state != 'new' or pending_change_field" />
+                        string="Submit"
+                        invisible="count_attachment &gt;= 1 or not approver_ids or state != 'new' or pending_change_field"
+                        data-hotkey="q" />
                     <button
                         name="action_approve"
-                        string="Approve"
                         type="object"
+                        string="Approve"
+                        invisible="is_terminal or user_approver_state != 'pending' or pending_change_field"
                         class="btn-primary"
-                        data-hotkey="v"
-                        invisible="is_terminal or user_approver_state != 'pending' or pending_change_field" />
+                        data-hotkey="v" />
                     <button
                         name="action_refuse"
-                        string="Refuse"
                         type="object"
+                        string="Refuse"
+                        invisible="is_terminal or user_approver_state != 'pending' or pending_change_field"
                         class="btn-danger"
-                        data-hotkey="z"
-                        invisible="is_terminal or user_approver_state != 'pending' or pending_change_field" />
+                        data-hotkey="z" />
                     <button
                         name="action_request_change"
-                        string="Request a Change"
                         type="object"
+                        string="Request a Change"
                         invisible="state != 'pending' or user_approver_state != 'pending' or pending_change_field" />
                     <button
                         name="action_resubmit"
-                        string="Re-submit"
                         type="object"
-                        class="btn-primary"
-                        invisible="not pending_change_field or (request_owner_id != uid and not user_approver_state and not can_change_request_owner)" />
+                        string="Re-submit"
+                        invisible="not pending_change_field or (request_owner_id != uid and not user_approver_state and not can_change_request_owner)"
+                        class="btn-primary" />
                     <button
                         name="action_withdraw"
-                        string="Withdraw"
                         type="object"
-                        data-hotkey="y"
-                        invisible="not can_withdraw or pending_change_field" />
+                        string="Withdraw"
+                        invisible="not can_withdraw or pending_change_field"
+                        data-hotkey="y" />
                     <button
                         name="action_cancel"
+                        type="object"
                         string="Cancel Request"
-                        type="object"
-                        data-hotkey="x"
                         confirm="Cancel this request? Approvers will be notified and their pending to-dos removed. You can reset it to draft later."
-                        invisible="state != 'pending' or (request_owner_id != uid and not can_change_request_owner)" />
+                        invisible="state != 'pending' or (request_owner_id != uid and not can_change_request_owner)"
+                        data-hotkey="x" />
                     <button
                         name="action_reset_to_draft"
-                        string="Reset to Draft"
                         type="object"
-                        data-hotkey="d"
+                        string="Reset to Draft"
                         confirm="Reopen this request for another approval cycle? Decision metadata will be cleared; the chatter history and the request number are kept."
-                        invisible="state not in ('refused', 'cancelled') or (request_owner_id != uid and not can_change_request_owner)" />
+                        invisible="state not in ('refused', 'cancelled') or (request_owner_id != uid and not can_change_request_owner)"
+                        data-hotkey="d" />
                     <button
                         name="action_reset_to_draft"
-                        string="Reset to Draft"
                         type="object"
+                        string="Reset to Draft"
                         confirm="Reset this APPROVED request to draft? This revokes the approval and notifies the source document. Only do this if the approval must be redone (e.g. the approver is no longer available)."
                         invisible="state != 'approved' or not can_change_request_owner" />
                     <widget
                         name="attach_document"
                         string="Attach Document"
-                        action="message_post"
-                        invisible="request_owner_id != uid or is_terminal or (count_attachment &lt; 1) or pending_change_field" />
+                        invisible="request_owner_id != uid or is_terminal or (count_attachment &lt; 1) or pending_change_field"
+                        action="message_post" />
                     <button
                         name="%(action_report_approval_request)d"
-                        string="Print"
                         type="action"
+                        string="Print"
                         invisible="state != 'approved'" />
                     <button
                         name="action_predict_outcome"
-                        string="Predict Outcome"
                         type="object"
+                        string="Predict Outcome"
                         invisible="is_terminal or not id" />
                     <field
                         name="state"
@@ -321,8 +321,8 @@
                         <strong invisible="sla_status != 'at_risk'">SLA At Risk</strong>
                         <strong invisible="sla_status != 'breached'" class="text-danger">SLA Breached</strong>
                         <span class="ms-2">
-                            (<field name="sla_elapsed_hours" class="d-inline" widget="float_time" /> elapsed,
-                            <field name="sla_remaining_hours" class="d-inline" widget="float_time" /> remaining)
+                            (<field name="sla_elapsed_hours" widget="float_time" class="d-inline" /> elapsed,
+                            <field name="sla_remaining_hours" widget="float_time" class="d-inline" /> remaining)
                         </span>
                     </div>
                     <div
@@ -330,7 +330,7 @@
                         role="alert"
                         invisible="not pending_change_field">
                         <strong>Change requested</strong>
-                        on <field name="pending_change_field" class="d-inline" readonly="1" />.
+                        on <field name="pending_change_field" readonly="1" class="d-inline" />.
                         Update the field and press <em>Re-submit</em>. See the chatter for the approver's instructions.
                     </div>
                     <field name="has_date" invisible="1" />
@@ -351,9 +351,9 @@
                         <button
                             name="action_view_attachment"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-book"
-                            invisible="count_attachment == 0">
+                            invisible="count_attachment == 0"
+                            class="oe_stat_button">
                             <field
                                 name="count_attachment"
                                 string="Documents"
@@ -365,8 +365,8 @@
                         <field
                             name="category_image"
                             widget="image"
-                            class="bg-view"
-                            options="{'preview_image': 'category_image', 'size': [80, 80]}" />
+                            options="{'preview_image': 'category_image', 'size': [80, 80]}"
+                            class="bg-view" />
                     </div>
                     <div class="oe_title">
                         <label for="name" />
@@ -382,10 +382,10 @@
                                 readonly="state != 'new'" />
                             <field
                                 name="partner_id"
-                                required="has_partner == 'required'"
-                                readonly="state != 'new'"
                                 context="{'category_id': ''}"
-                                invisible="has_partner == 'no'" />
+                                invisible="has_partner == 'no'"
+                                readonly="state != 'new'"
+                                required="has_partner == 'required'" />
                             <field
                                 name="request_owner_id"
                                 widget="many2one_avatar_user"
@@ -394,15 +394,15 @@
                             <field name="priority" widget="priority" />
                             <field
                                 name="reference"
-                                required="has_reference == 'required'"
+                                invisible="has_reference == 'no'"
                                 readonly="state != 'new'"
-                                invisible="has_reference == 'no'" />
+                                required="has_reference == 'required'" />
                             <field
                                 name="location"
                                 placeholder="e.g. Brussels"
-                                required="has_location == 'required'"
+                                invisible="has_location == 'no'"
                                 readonly="state != 'new'"
-                                invisible="has_location == 'no'" />
+                                required="has_location == 'required'" />
                         </group>
                         <group name="request_details">
                             <label
@@ -413,9 +413,9 @@
                                 <div>
                                     <field
                                         name="date"
-                                        class="oe_inline"
+                                        readonly="state != 'new' and pending_change_field != 'date'"
                                         required="has_date == 'required' and state == 'new'"
-                                        readonly="state != 'new' and pending_change_field != 'date'" />
+                                        class="oe_inline" />
                                 </div>
                             </div>
                             <label
@@ -426,9 +426,9 @@
                                 <div>
                                     <field
                                         name="date_deadline"
-                                        class="oe_inline"
+                                        readonly="state != 'new'"
                                         required="has_date_deadline == 'required' and state == 'new'"
-                                        readonly="state != 'new'" />
+                                        class="oe_inline" />
                                 </div>
                             </div>
                             <label
@@ -439,9 +439,9 @@
                                 <div>
                                     <field
                                         name="date_planned"
-                                        class="oe_inline"
+                                        readonly="state != 'new'"
                                         required="has_date_planned == 'required' and state == 'new'"
-                                        readonly="state != 'new'" />
+                                        class="oe_inline" />
                                 </div>
                             </div>
                             <label
@@ -452,55 +452,55 @@
                                 <div>
                                     <label
                                         for="date_start"
-                                        class="col-lg-2"
-                                        string="From:" />
+                                        string="From:"
+                                        class="col-lg-2" />
                                     <field
                                         name="date_start"
-                                        required="has_date_range == 'required' and state == 'new'"
                                         readonly="state != 'new' and pending_change_field != 'date'"
+                                        required="has_date_range == 'required' and state == 'new'"
                                         class="oe_inline" />
                                 </div>
                                 <div>
                                     <label
                                         for="date_end"
-                                        class="col-lg-2"
-                                        string="to:" />
+                                        string="to:"
+                                        class="col-lg-2" />
                                     <field
                                         name="date_end"
-                                        required="has_date_range == 'required' and state == 'new'"
                                         readonly="state != 'new' and pending_change_field != 'date'"
+                                        required="has_date_range == 'required' and state == 'new'"
                                         class="oe_inline" />
                                 </div>
                             </div>
                             <field name="date_confirmed" readonly="1" />
                             <field
                                 name="date_refused"
-                                readonly="1"
-                                invisible="state != 'refused'" />
+                                invisible="state != 'refused'"
+                                readonly="1" />
                             <field
                                 name="refusal_reason_id"
-                                readonly="1"
-                                invisible="state != 'refused' or not refusal_reason_id" />
+                                invisible="state != 'refused' or not refusal_reason_id"
+                                readonly="1" />
                             <field
                                 name="refusal_note"
-                                readonly="1"
-                                invisible="state != 'refused' or not refusal_note" />
+                                invisible="state != 'refused' or not refusal_note"
+                                readonly="1" />
                             <field
                                 name="quantity"
-                                required="has_quantity == 'required' and state == 'new'"
+                                invisible="has_quantity == 'no'"
                                 readonly="state != 'new'"
-                                invisible="has_quantity == 'no'" />
+                                required="has_quantity == 'required' and state == 'new'" />
                             <label for="amount" invisible="has_amount == 'no'" />
                             <div class="o_row" invisible="has_amount == 'no'">
                                 <field
                                     name="amount"
-                                    required="has_amount == 'required' and state == 'new'"
-                                    readonly="state != 'new'" />
+                                    readonly="state != 'new'"
+                                    required="has_amount == 'required' and state == 'new'" />
                                 <field
                                     name="currency_id"
                                     options="{'no_create': True, 'no_open': True}"
-                                    readonly="state != 'new'"
-                                    groups="base.group_multi_currency" />
+                                    groups="base.group_multi_currency"
+                                    readonly="state != 'new'" />
                             </div>
                             <field name="currency_id" invisible="1" />
                         </group>
@@ -542,10 +542,10 @@
                             <field name="approver_ids" mode="list,kanban" readonly="1">
                                 <list
                                     editable="bottom"
-                                    no_open="1"
+                                    decoration-danger="state=='refused'"
                                     decoration-success="state=='approved'"
                                     decoration-warning="state in ['pending', 'waiting']"
-                                    decoration-danger="state=='refused'">
+                                    no_open="1">
                                     <field name="company_id" column_invisible="True" />
                                     <field name="sequence" column_invisible="True" />
                                     <field name="user_id" string="Approver" />
@@ -582,9 +582,9 @@
                                         readonly="1" />
                                     <field
                                         name="note"
+                                        placeholder="Add a note explaining your decision..."
                                         optional="show"
-                                        readonly="state not in ['approved', 'refused']"
-                                        placeholder="Add a note explaining your decision..." />
+                                        readonly="state not in ['approved', 'refused']" />
                                 </list>
                                 <kanban class="o_kanban_mobile">
                                     <templates>
@@ -609,8 +609,8 @@
                                         <field name="state" invisible="1" />
                                         <field
                                             name="note"
-                                            invisible="state not in ['approved', 'refused']"
-                                            placeholder="Add a note explaining your decision..." />
+                                            placeholder="Add a note explaining your decision..."
+                                            invisible="state not in ['approved', 'refused']" />
                                     </group>
                                 </form>
                             </field>
@@ -625,7 +625,7 @@
                                 see the answer; nothing is inferred from the file
                                 name.
                             </div>
-                            <field name="attachment_ids" nolabel="1">
+                            <field name="attachment_ids">
                                 <list editable="bottom" create="false">
                                     <field name="name" readonly="1" />
                                     <field
@@ -641,21 +641,21 @@
                                     <field
                                         name="applied_rule_ids"
                                         widget="many2many_tags"
-                                        invisible="not applied_rule_ids"
-                                        groups="approval.group_approval_manager" />
+                                        groups="approval.group_approval_manager"
+                                        invisible="not applied_rule_ids" />
                                 </group>
                                 <group name="other_info_right">
                                     <field name="company_id" invisible="1" />
                                     <field
                                         name="company_id"
-                                        readonly="state != 'new'"
                                         options="{'no_create': True}"
-                                        groups="base.group_multi_company" />
+                                        groups="base.group_multi_company"
+                                        readonly="state != 'new'" />
                                     <field
                                         name="category_snapshot"
                                         widget="json"
-                                        invisible="not category_snapshot"
-                                        groups="approval.group_approval_manager" />
+                                        groups="approval.group_approval_manager"
+                                        invisible="not category_snapshot" />
                                 </group>
                             </group>
                         </page>

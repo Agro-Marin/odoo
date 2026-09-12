@@ -11,13 +11,13 @@
                 <field name="mail_template_id" />
                 <field name="rating_template_id" />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active', '=', False)]" />
                     <group>
                         <filter
-                            string="Projects"
                             name="project_ids"
+                            string="Projects"
                             context="{'group_by': 'project_ids'}" />
                     </group>
             </search>
@@ -34,8 +34,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group>
                             <field name="name" placeholder="e.g. To Do" />
@@ -103,10 +103,10 @@
         <field name="arch" type="xml">
             <list
                 string="Workflow Step"
-                delete="0"
-                sample="1"
-                multi_edit="1"
                 editable="bottom"
+                delete="0"
+                multi_edit="1"
+                sample="1"
                 open_form_view="True">
                 <field name="sequence" widget="handle" optional="show" />
                 <field name="name" placeholder="e.g. To Do" />
@@ -115,11 +115,11 @@
                 <field name="mail_template_id" optional="hide" />
                 <field
                     name="project_ids"
-                    required="1"
-                    optional="show"
                     widget="many2many_tags"
-                    options="{'color_field': 'color'}" />
-                <field name="color" optional="hide" widget="color_picker" />
+                    optional="show"
+                    options="{'color_field': 'color'}"
+                    required="1" />
+                <field name="color" widget="color_picker" optional="hide" />
                 <field name="fold" optional="show" />
                 <field name="task_state" optional="show" />
             </list>
@@ -143,10 +143,10 @@
         <field name="model">project.workflow.step</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
-                class="o_kanban_mobile"
+                default_group_by="project_ids"
                 sample="1"
-                default_group_by="project_ids">
+                class="o_kanban_mobile"
+                highlight_color="color">
                 <templates>
                     <t t-name="menu" t-if="!selection_mode" groups="base.group_user">
                         <field name="color" widget="kanban_color_picker" />

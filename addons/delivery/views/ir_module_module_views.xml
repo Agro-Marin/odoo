@@ -32,9 +32,9 @@
         <field name="arch" type="xml">
             <button name="button_immediate_install" position="after">
                 <button
-                    string="Delivery Methods"
-                    type="object"
                     name="action_view_delivery_methods"
+                    type="object"
+                    string="Delivery Methods"
                     invisible="state != 'installed'"
                     class="btn btn-primary btn-sm" />
             </button>

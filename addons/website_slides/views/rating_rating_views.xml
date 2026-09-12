@@ -10,8 +10,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='rating_text']" position="after">
                 <filter
-                    string="Course"
                     name="groupby_course"
+                    string="Course"
                     context="{'group_by': 'res_name'}" />
             </xpath>
             <filter name="filter_rated_on" position="attributes">
@@ -28,7 +28,7 @@
         <field name="model">rating.rating</field>
         <field name="priority">64</field>
         <field name="arch" type="xml">
-            <graph string="Reviews" type="bar" sample="1">
+            <graph type="bar" string="Reviews" sample="1">
                 <field name="res_name" invisible="1" />
                 <field name="rating" type="measure" />
                 <field name="res_id" invisible="1" />
@@ -100,7 +100,7 @@
                             <field name="is_internal" />
                         </group>
                     </group>
-                    <group class="mw-100" invisible="not feedback">
+                    <group invisible="not feedback" class="mw-100">
                         <field name="feedback" />
                     </group>
                 </sheet>

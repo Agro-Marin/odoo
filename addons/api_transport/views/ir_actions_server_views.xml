@@ -9,8 +9,8 @@
             <field name="webhook_url" position="after">
                 <field
                     name="webhook_endpoint_id"
-                    options="{'no_create': True}"
-                    placeholder="Unauthenticated POST" />
+                    placeholder="Unauthenticated POST"
+                    options="{'no_create': True}" />
             </field>
         </field>
     </record>

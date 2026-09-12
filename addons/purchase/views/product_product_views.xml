@@ -13,8 +13,8 @@
             <xpath expr="//filter[@name='goods']" position="after">
                 <separator />
                 <filter
-                    string="In the Order"
                     name="products_in_purchase_order"
+                    string="In the Order"
                     domain="[('is_in_purchase_order', '=', True)]" />
             </xpath>
         </field>
@@ -45,13 +45,13 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    class="oe_stat_button"
                     name="action_view_po"
-                    groups="purchase.group_purchase_user"
                     type="object"
+                    help="Purchased in the last 365 days"
                     icon="fa-credit-card"
+                    groups="purchase.group_purchase_user"
                     invisible="not purchase_ok"
-                    help="Purchased in the last 365 days">
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value d-flex gap-1">
                             <field
@@ -61,8 +61,8 @@
                                 class="oe_inline" />
                             <field
                                 name="uom_name"
-                                class="oe_inline"
-                                groups="uom.group_uom" />
+                                groups="uom.group_uom"
+                                class="oe_inline" />
                         </span>
                         <span class="o_stat_text">Purchased</span>
                     </div>

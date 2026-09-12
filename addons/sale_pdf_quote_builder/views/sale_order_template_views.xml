@@ -10,12 +10,12 @@
                 <page name="pdf_quote" string="Quote Builder" invisible="not (id)">
                     <field
                         name="quotation_document_ids"
-                        mode="kanban"
                         widget="quotation_document_many2many"
-                        class="w-100"
+                        mode="kanban"
                         nolabel="1"
+                        context="{                             'kanban_view_ref': 'sale_pdf_quote_builder.quotation_document_kanban',                             'hide_template_ids': True,                         }"
                         options="{'create': False}"
-                        context="{                             'kanban_view_ref': 'sale_pdf_quote_builder.quotation_document_kanban',                             'hide_template_ids': True,                         }" />
+                        class="w-100" />
                     <p class="text-muted">
                         Provide header pages and footer pages to compose an attractive quotation with more information
                         about your company, your products and you services. <br />
@@ -25,9 +25,9 @@
                         <div class="d-flex flex-column">
                             <widget
                                 name="documentation_link"
-                                path="/_downloads/c2c6ce32294dfddffcfefcf2775f7a09/pdfquotebuilderexamples.zip"
+                                icon="fa-arrow-right"
                                 label=" Download examples"
-                                icon="fa-arrow-right" />
+                                path="/_downloads/c2c6ce32294dfddffcfefcf2775f7a09/pdfquotebuilderexamples.zip" />
                             <a
                                 href="https://www.youtube.com/watch?v=SIvlo2JFU_U"
                                 target="_blank"

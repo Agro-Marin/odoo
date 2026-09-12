@@ -372,18 +372,18 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <form>
-                    <field name="a" readonly="not d" groups="base.group_erp_manager" />
-                    <field name="a" readonly="not k" groups="base.group_public" />
-                    <field name="b" readonly="not d" groups="base.group_system" />
+                    <field name="a" groups="base.group_erp_manager" readonly="not d" />
+                    <field name="a" groups="base.group_public" readonly="not k" />
+                    <field name="b" groups="base.group_system" readonly="not d" />
                     <field
                         name="c"
-                        readonly="d"
-                        groups="base.group_erp_manager,base.group_system" />
-                    <field name="d" readonly="a" groups="base.group_portal" />
+                        groups="base.group_erp_manager,base.group_system"
+                        readonly="d" />
+                    <field name="d" groups="base.group_portal" readonly="a" />
                     <field name="d" readonly="e" />
                     <field name="f" readonly="e" />
-                    <field name="f" readonly="e" groups="base.group_system" />
-                    <field name="f" readonly="e" groups="base.group_user" />
+                    <field name="f" groups="base.group_system" readonly="e" />
+                    <field name="f" groups="base.group_user" readonly="e" />
                     <field name="h" readonly="g" />
                 </form>
             </field>
@@ -398,9 +398,9 @@
                     <field name="d" decoration-warning="c" />
                     <groupby name="g_id">
                         <button
-                            string="Action"
-                            type="object"
                             name="action_full"
+                            type="object"
+                            string="Action"
                             invisible="ab != 1" />
                     </groupby>
                 </list>
@@ -412,10 +412,10 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <form>
-                    <field name="ab" readonly="cd" groups="base.group_system" />
+                    <field name="ab" groups="base.group_system" readonly="cd" />
                     <field name="cd" readonly="ab" />
-                    <field name="cd" readonly="ab" groups="base.group_system" />
-                    <field name="cd" readonly="ab" groups="!base.group_system" />
+                    <field name="cd" groups="base.group_system" readonly="ab" />
+                    <field name="cd" groups="!base.group_system" readonly="ab" />
                     <div invisible="ef">stuff</div>
                 </form>
             </field>
@@ -426,10 +426,10 @@
             <field name="mode">primary</field>
             <field name="arch" type="xml">
                 <form>
-                    <field name="ab" readonly="cd" groups="base.group_system" />
+                    <field name="ab" groups="base.group_system" readonly="cd" />
                     <field name="cd" readonly="ab" />
-                    <field name="cd" readonly="ab" groups="base.group_system" />
-                    <field name="cd" readonly="ab" groups="!base.group_system" />
+                    <field name="cd" groups="base.group_system" readonly="ab" />
+                    <field name="cd" groups="!base.group_system" readonly="ab" />
                     <field name="ab" readonly="cd" />
                 </form>
             </field>

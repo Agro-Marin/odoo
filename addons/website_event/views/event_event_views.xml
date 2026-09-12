@@ -14,8 +14,8 @@
                 <field name="website_published" invisible="1" />
                 <field
                     name="website_id"
-                    options="{'no_create': True}"
                     domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"
+                    options="{'no_create': True}"
                     groups="website.group_multi_website" />
                 <label for="website_visibility" string="Visibility" />
                 <div class="d-flex row">
@@ -89,9 +89,9 @@
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="website_id"
-                    groups="website.group_multi_website"
+                    optional="show"
                     domain="['|', ('company_id', '=', company_id), ('company_id', '=', False)]"
-                    optional="show" />
+                    groups="website.group_multi_website" />
             </field>
         </field>
     </record>
@@ -104,8 +104,8 @@
             <xpath expr="//filter[@name='upcoming']" position="after">
                 <separator />
                 <filter
-                    string="Published"
                     name="filter_published"
+                    string="Published"
                     domain="[('website_published', '=', True)]" />
             </xpath>
         </field>

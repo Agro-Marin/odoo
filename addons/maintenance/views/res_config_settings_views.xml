@@ -10,10 +10,10 @@
             <field name="arch" type="xml">
                 <xpath expr="//form" position="inside">
                     <app
-                        data-string="Maintenance"
-                        string="Maintenance"
                         name="maintenance"
-                        groups="maintenance.group_equipment_manager">
+                        string="Maintenance"
+                        groups="maintenance.group_equipment_manager"
+                        data-string="Maintenance">
                         <block title="Custom Worksheets">
                             <setting help="Create custom worksheet templates">
                                 <field

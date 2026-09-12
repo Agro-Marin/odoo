@@ -1,18 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="action_view" model="ir.ui.view">
-        <field name="name">ir.actions.actions</field>
+    <record id="action_view_search" model="ir.ui.view">
+        <field name="name">ir.actions.actions.search</field>
         <field name="model">ir.actions.actions</field>
         <field name="arch" type="xml">
-            <form string="Action">
-                <sheet>
-                    <group>
-                        <field name="name" />
-                        <field name="type" />
-                    </group>
-                </sheet>
-            </form>
+            <search string="Action">
+                <field
+                    name="name"
+                    string="Action"
+                    filter_domain="['|', ('name','ilike',self), ('type','ilike',self)]" />
+                <group>
+                    <filter
+                        name="type"
+                        string="Action Type"
+                        context="{'group_by':'type'}" />
+                    <filter
+                        name="binding_type"
+                        string="Binding Type"
+                        context="{'group_by':'binding_type'}" />
+                    <filter
+                        name="binding_model_id"
+                        string="Binding Model"
+                        context="{'group_by':'binding_model_id'}" />
+                </group>
+            </search>
         </field>
     </record>
 
@@ -27,30 +39,18 @@
         </field>
     </record>
 
-    <record id="action_view_search" model="ir.ui.view">
-        <field name="name">ir.actions.actions.search</field>
+    <record id="action_view" model="ir.ui.view">
+        <field name="name">ir.actions.actions</field>
         <field name="model">ir.actions.actions</field>
         <field name="arch" type="xml">
-            <search string="Action">
-                <field
-                    name="name"
-                    filter_domain="['|', ('name','ilike',self), ('type','ilike',self)]"
-                    string="Action" />
-                <group>
-                    <filter
-                        string="Action Type"
-                        name="type"
-                        context="{'group_by':'type'}" />
-                    <filter
-                        string="Binding Type"
-                        name="binding_type"
-                        context="{'group_by':'binding_type'}" />
-                    <filter
-                        string="Binding Model"
-                        name="binding_model_id"
-                        context="{'group_by':'binding_model_id'}" />
-                </group>
-            </search>
+            <form string="Action">
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="type" />
+                    </group>
+                </sheet>
+            </form>
         </field>
     </record>
 
@@ -71,9 +71,9 @@
                         <button
                             name="create_action"
                             type="object"
-                            invisible="binding_model_id"
-                            icon="fa-solid fa-square-plus"
                             help="Display an option on related documents to print this report"
+                            icon="fa-solid fa-square-plus"
+                            invisible="binding_model_id"
                             class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Add to the 'Print' menu</span>
@@ -82,9 +82,9 @@
                         <button
                             name="unlink_action"
                             type="object"
-                            invisible="not binding_model_id"
-                            icon="fa-solid fa-square-minus"
                             help="Remove the contextual action related to this report"
+                            icon="fa-solid fa-square-minus"
+                            invisible="not binding_model_id"
                             class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Remove from the 'Print' menu</span>
@@ -93,8 +93,8 @@
                         <button
                             name="action_view_qweb_views"
                             type="object"
-                            invisible="report_type not in ['qweb-pdf', 'qweb-html', 'qweb-text']"
                             icon="fa-code"
+                            invisible="report_type not in ['qweb-pdf', 'qweb-html', 'qweb-text']"
                             class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Qweb Views</span>
@@ -153,20 +153,20 @@
             <search string="Report Xml">
                 <field
                     name="name"
-                    filter_domain="['|', '|', '|', '|', ('name','ilike',self), ('model','ilike',self), ('type','ilike',self), ('report_name','ilike',self), ('report_type','ilike',self)]"
-                    string="Report" />
+                    string="Report"
+                    filter_domain="['|', '|', '|', '|', ('name','ilike',self), ('model','ilike',self), ('type','ilike',self), ('report_name','ilike',self), ('report_type','ilike',self)]" />
                 <field
                     name="model"
-                    filter_domain="[('model','=', self)]"
-                    string="Model" />
+                    string="Model"
+                    filter_domain="[('model','=', self)]" />
                 <group colspan="4">
                     <filter
-                        string="Report Type"
                         name="report_type"
+                        string="Report Type"
                         context="{'group_by':'report_type'}" />
                     <filter
-                        string="Report Model"
                         name="report_model"
+                        string="Report Model"
                         context="{'group_by':'model'}" />
                 </group>
             </search>
@@ -258,21 +258,21 @@
                             </group>
                             <group name="help" string="Help">
                                 <field
-                                    colspan="2"
                                     name="help"
-                                    options="{'codeview': true}"
+                                    colspan="2"
                                     nolabel="1"
+                                    options="{'codeview': true}"
                                     class="oe-bordered-editor" />
                             </group>
                             <group name="views_tree" string="Views">
-                                <field colspan="2" name="view_ids" nolabel="1">
+                                <field name="view_ids" colspan="2" nolabel="1">
                                     <form string="Views">
                                         <group>
                                             <field name="sequence" />
                                             <field name="view_mode" />
                                             <field
-                                                domain="[('type', '=', view_mode)]"
-                                                name="view_id" />
+                                                name="view_id"
+                                                domain="[('type', '=', view_mode)]" />
                                         </group>
                                     </form>
                                     <list string="Views">
@@ -283,7 +283,7 @@
                                 </field>
                             </group>
                         </page>
-                        <page string="Visibility" name="security">
+                        <page name="security" string="Visibility">
                             <field name="group_ids" />
                         </page>
                     </notebook>
@@ -299,16 +299,16 @@
             <search string="Open a Window">
                 <field
                     name="name"
-                    filter_domain="['|', ('name','ilike',self), ('res_model','ilike',self)]"
-                    string="Action" />
+                    string="Action"
+                    filter_domain="['|', ('name','ilike',self), ('res_model','ilike',self)]" />
                 <group>
                     <filter
-                        string="Binding Model"
                         name="binding_model_id"
+                        string="Binding Model"
                         context="{'group_by':'binding_model_id'}" />
                     <filter
-                        string="Target Window"
                         name="target"
+                        string="Target Window"
                         context="{'group_by':'target'}" />
                 </group>
             </search>
@@ -359,7 +359,7 @@
             <form>
                 <group>
                     <group>
-                        <field name="revision" required="1" widget="selection" />
+                        <field name="revision" widget="selection" required="1" />
                     </group>
                 </group>
                 <field name="code_diff" invisible="not code_diff" />
@@ -371,16 +371,16 @@
                 </div>
                 <footer>
                     <button
-                        string="Restore Revision"
                         name="restore_revision"
                         type="object"
-                        class="btn-primary"
+                        string="Restore Revision"
                         invisible="not code_diff"
+                        class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -395,50 +395,50 @@
                 <header invisible="context.get('is_modal')">
                     <button
                         name="create_action"
-                        string="Create Contextual Action"
                         type="object"
-                        class="btn-primary"
+                        string="Create Contextual Action"
+                        help="Display an option in the 'More' top-menu in order to run this action."
                         invisible="binding_model_id"
-                        help="Display an option in the 'More' top-menu in order to run this action." />
+                        class="btn-primary" />
                     <button
                         name="unlink_action"
-                        string="Remove Contextual Action"
                         type="object"
-                        invisible="not binding_model_id"
-                        help="Remove 'More' top-menu contextual action related to this action" />
+                        string="Remove Contextual Action"
+                        help="Remove 'More' top-menu contextual action related to this action"
+                        invisible="not binding_model_id" />
                     <button
                         name="run"
-                        string="Run"
                         type="object"
-                        class="btn-primary"
+                        string="Run"
+                        help="Run this action manually."
                         invisible="model_name != 'ir.actions.server' or state != 'code'"
-                        help="Run this action manually." />
+                        class="btn-primary" />
                     <button
                         name="action_view_code_history"
-                        string="Code History"
                         type="object"
-                        invisible="not show_code_history"
-                        help="View code history and restore a previous version" />
+                        string="Code History"
+                        help="View code history and restore a previous version"
+                        invisible="not show_code_history" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
-                            type="object"
                             name="action_view_parent_action"
+                            type="object"
+                            icon="fa-database"
                             invisible="not parent_id"
-                            class="oe_stat_button"
-                            icon="fa-database">
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Parent Action</span>
                             </div>
                         </button>
                         <button
-                            type="object"
                             name="action_view_scheduled_action"
-                            invisible="not ir_cron_ids or context.get('key') != 'server_action'"
+                            type="object"
+                            icon="fa-refresh"
                             context="{'key': 'ir_cron'}"
-                            class="oe_stat_button"
-                            icon="fa-refresh">
+                            invisible="not ir_cron_ids or context.get('key') != 'server_action'"
+                            class="oe_stat_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Scheduled Action</span>
                             </div>
@@ -456,10 +456,10 @@
                                 groups="base.group_no_one" />
                             <field
                                 name="model_id"
+                                domain="[('id', 'in', available_model_ids)]"
                                 options="{'no_create': True, 'no_open': True}"
                                 groups="!base.group_no_one"
-                                invisible="context.get('default_model_id')"
-                                domain="[('id', 'in', available_model_ids)]" />
+                                invisible="context.get('default_model_id')" />
                         </group>
                         <group groups="base.group_no_one">
                             <field name="group_ids" widget="many2many_tags" />
@@ -481,7 +481,7 @@
                             <i
                                 class="fa-solid fa-triangle-exclamation pe-2"
                                 title="Warning" />
-                            <field class="d-inline" name="warning" nolabel="1" />
+                            <field name="warning" class="d-inline" />
                         </div>
                         <div
                             class="d-flex flex-row flex-wrap gap-2"
@@ -490,9 +490,9 @@
                             <field
                                 name="update_path"
                                 widget="field_selector"
-                                class="oe_inline"
                                 options="{'model': 'model_name', 'allow_properties': False}"
-                                required="state == 'object_write'" />
+                                required="state == 'object_write'"
+                                class="oe_inline" />
                             <field name="update_field_id" invisible="True" />
                             <field name="update_related_model_id" invisible="True" />
                             <span
@@ -500,49 +500,49 @@
                                 by</span>
                             <field
                                 name="update_m2m_operation"
-                                class="oe_inline"
                                 invisible="evaluation_type != 'value' or update_field_type not in ['one2many', 'many2many']"
-                                required="update_field_type in ['one2many', 'many2many']" />
+                                required="update_field_type in ['one2many', 'many2many']"
+                                class="oe_inline" />
                             <span
                                 invisible="evaluation_type != 'value' or update_field_type in ['one2many', 'many2many']">
                                 to</span>
                             <span invisible="evaluation_type != 'sequence'">with</span>
                             <field
                                 name="value"
-                                class="oe_inline"
+                                string="Custom Value"
                                 placeholder="Set a value..."
                                 invisible="update_field_id == False or value_field_to_show != 'value' or evaluation_type == 'equation'"
-                                string="Custom Value" />
+                                class="oe_inline" />
                             <field
                                 name="html_value"
-                                class="w-100"
+                                string="Custom Value"
                                 placeholder="Set a value..."
                                 invisible="update_field_id == False or value_field_to_show != 'html_value'"
-                                string="Custom Value" />
+                                class="w-100" />
                             <field
                                 name="sequence_id"
-                                class="oe_inline"
                                 placeholder="Select a sequence..."
                                 invisible="evaluation_type != 'sequence'"
-                                required="evaluation_type == 'sequence'" />
+                                required="evaluation_type == 'sequence'"
+                                class="oe_inline" />
                             <field
                                 name="resource_ref"
-                                class="oe_inline"
-                                placeholder="Choose a value..."
                                 string="Custom Value"
+                                placeholder="Choose a value..."
                                 options="{'model_field': 'update_related_model_id', 'no_create': True, 'no_open': True}"
-                                invisible="update_field_id == False or value_field_to_show != 'resource_ref' or update_m2m_operation == 'clear'" />
+                                invisible="update_field_id == False or value_field_to_show != 'resource_ref' or update_m2m_operation == 'clear'"
+                                class="oe_inline" />
                             <field
                                 name="selection_value"
-                                class="oe_inline"
                                 placeholder="Choose a value..."
                                 options="{'no_create': True, 'no_open': True}"
-                                invisible="update_field_id == False or value_field_to_show != 'selection_value'" />
+                                invisible="update_field_id == False or value_field_to_show != 'selection_value'"
+                                class="oe_inline" />
                             <field
                                 name="update_boolean_value"
-                                class="oe_inline"
                                 invisible="value_field_to_show != 'update_boolean_value'"
-                                required="value_field_to_show == 'update_boolean_value'" />
+                                required="value_field_to_show == 'update_boolean_value'"
+                                class="oe_inline" />
                             <span invisible="update_field_id != False or evaluation_type != 'value'" class="o_actions_server_set_a_value text-muted">Set a value...</span>
                             <span invisible="evaluation_type != 'equation'">
                                 to this Python expression:
@@ -552,10 +552,10 @@
                                 invisible="evaluation_type != 'equation'">
                                 <field
                                     name="value"
-                                    class="w-50"
+                                    string="Expression"
                                     widget="code"
                                     options="{'mode': 'python'}"
-                                    string="Expression" />
+                                    class="w-50" />
                                 <div class="w-50 opacity-75">
                                     <span colspan="2" class="text-muted"> Available variables: </span>
                                     <ul colspan="2" class="text-muted">
@@ -584,24 +584,24 @@
                                     required="state in ['object_create', 'object_copy']" />
                                 <field
                                     name="value"
-                                    widget="char"
                                     string="Name"
-                                    invisible="state != 'object_create'"
+                                    placeholder="e.g. Follow-up"
                                     help="The name of the record to create"
-                                    placeholder="e.g. Follow-up" />
+                                    widget="char"
+                                    invisible="state != 'object_create'" />
                                 <field
                                     name="resource_ref"
-                                    placeholder="Choose a record..."
                                     string="Duplicate from"
+                                    placeholder="Choose a record..."
                                     options="{'model_field': 'crud_model_id', 'no_create': True, 'no_open': True}"
                                     invisible="crud_model_id == False or state != 'object_copy'"
                                     required="state == 'object_copy'" />
                                 <field
                                     name="link_field_id"
-                                    domain="[('model_id', '=', model_id), ('relation', '=', crud_model_name), ('ttype', 'in', ['many2one', 'one2many', 'many2many'])]"
                                     placeholder="Select a field to link the record to"
-                                    options="{'no_create': True, 'no_open': True}"
-                                    context="{'default_model_id': model_id, 'default_relation': crud_model_name}" />
+                                    domain="[('model_id', '=', model_id), ('relation', '=', crud_model_name), ('ttype', 'in', ['many2one', 'one2many', 'many2many'])]"
+                                    context="{'default_model_id': model_id, 'default_relation': crud_model_name}"
+                                    options="{'no_create': True, 'no_open': True}" />
                             </group>
                         </group>
                         <group invisible="state != 'webhook'">
@@ -613,21 +613,21 @@
                                 <field
                                     name="webhook_field_ids"
                                     string="Fields"
+                                    placeholder="Select fields to include in the request..."
                                     widget="many2many_tags"
-                                    context="{'hide_model': 1}"
                                     domain="[('model_id', '=', model_id)]"
-                                    placeholder="Select fields to include in the request..." />
+                                    context="{'hide_model': 1}" />
                             </group>
                             <group>
                                 <label for="webhook_sample_payload" />
                                 <field
                                     name="webhook_sample_payload"
                                     string="Sample Payload"
-                                    nolabel="1"
-                                    colspan="2"
-                                    readonly="1"
                                     widget="code"
-                                    options="{'mode': 'javascript'}" />
+                                    colspan="2"
+                                    nolabel="1"
+                                    options="{'mode': 'javascript'}"
+                                    readonly="1" />
                             </group>
                         </group>
                         <t invisible="state != 'multi'">
@@ -641,14 +641,14 @@
                             <page string="Code" invisible="state != 'code'">
                                 <field
                                     name="code"
+                                    placeholder="Enter Python code here. Help about Python expression is available in the help tab of this document."
                                     widget="code"
-                                    options="{'mode': 'python'}"
-                                    placeholder="Enter Python code here. Help about Python expression is available in the help tab of this document." />
+                                    options="{'mode': 'python'}" />
                             </page>
                             <page
+                                name="ir_actions_server_code_help"
                                 string="Help"
-                                invisible="state != 'code'"
-                                name="ir_actions_server_code_help">
+                                invisible="state != 'code'">
                                 <p>The following variables can be used:</p>
                                 <ul>
                                     <li><code>env</code>: environment on which the action is
@@ -678,16 +678,16 @@
                                 <p>
                                     <widget
                                         name="documentation_link"
-                                        path="/developer/reference/backend/orm.html"
+                                        icon="oi oi-fw oi-arrow-right me-1"
                                         label="ORM API Documentation"
-                                        icon="oi oi-fw oi-arrow-right me-1" />
+                                        path="/developer/reference/backend/orm.html" />
                                 </p>
                                 <div>
                                     <p>Example of Python code:</p>
                                     <pre style="white-space: pre-wrap">partner_name = record.name + '_code' env['res.partner'].create({'name': partner_name})</pre>
                                 </div>
                             </page>
-                            <page string="Usage" name="usage" invisible="1" />
+                            <page name="usage" string="Usage" invisible="1" />
                         </notebook>
                     </t>
                 </sheet>
@@ -725,10 +725,10 @@
                             t-att-title="record.warning.raw_value" />
                         <field name="name" class="text-truncate" />
                         <button
-                            type="delete"
                             name="delete"
-                            class="btn fa-solid fa-trash-can fa-xl px-3 ms-auto"
-                            title="Delete Action" />
+                            type="delete"
+                            title="Delete Action"
+                            class="btn fa-solid fa-trash-can fa-xl px-3 ms-auto" />
                     </t>
                 </templates>
             </kanban>
@@ -757,21 +757,21 @@
                 <field name="model_id" />
                 <field name="state" />
                 <filter
-                    string="Top-level actions"
                     name="toplevel_actions"
+                    string="Top-level actions"
                     domain="[('parent_id', '=', False)]" />
-                <group colspan="4" col="4">
+                <group col="4" colspan="4">
                     <filter
-                        string="Action Type"
                         name="action_type"
+                        string="Action Type"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="Model"
                         name="model"
+                        string="Model"
                         context="{'group_by':'model_id'}" />
                     <filter
-                        string="Usage"
                         name="usage"
+                        string="Usage"
                         context="{'group_by':'usage'}" />
                 </group>
             </search>
@@ -849,18 +849,18 @@
                 <field name="state" readonly="1" />
                 <button
                     name="action_launch"
-                    invisible="state != 'open'"
-                    string="Launch"
                     type="object"
+                    string="Launch"
+                    help="Launch Configuration Wizard"
                     icon="fa-cogs"
-                    help="Launch Configuration Wizard" />
+                    invisible="state != 'open'" />
                 <button
                     name="action_open"
-                    invisible="state != 'done'"
-                    string="Todo"
                     type="object"
+                    string="Todo"
                     help="Set as Todo"
-                    icon="fa-exchange" />
+                    icon="fa-exchange"
+                    invisible="state != 'done'" />
             </list>
         </field>
     </record>
@@ -873,25 +873,24 @@
                 <header>
                     <button
                         name="action_launch"
-                        invisible="state != 'open'"
-                        string="Launch"
                         type="object"
-                        class="oe_highlight"
+                        string="Launch"
+                        help="Launch Configuration Wizard"
                         icon="fa-cogs"
-                        help="Launch Configuration Wizard" />
+                        invisible="state != 'open'"
+                        class="oe_highlight" />
                     <button
                         name="action_open"
-                        invisible="state != 'done'"
-                        string="Set as Todo"
                         type="object"
+                        string="Set as Todo"
                         icon="fa-exchange"
+                        invisible="state != 'done'"
                         class="oe_highlight" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="open,done"
-                        nolabel="1"
-                        readonly="1" />
+                        readonly="1"
+                        statusbar_visible="open,done" />
                 </header>
                 <sheet>
                     <group col="4">
@@ -909,10 +908,10 @@
         <field name="arch" type="xml">
             <search string="Search Actions">
                 <filter
-                    string="To Do"
                     name="todo"
-                    domain="[('state','=','open')]"
-                    help="Wizards to be Launched" />
+                    string="To Do"
+                    help="Wizards to be Launched"
+                    domain="[('state','=','open')]" />
                 <field name="action_id" />
                 <field name="state" />
             </search>

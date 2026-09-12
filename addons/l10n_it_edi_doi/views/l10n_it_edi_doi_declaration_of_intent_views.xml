@@ -6,9 +6,9 @@
         <field name="model">l10n_it_edi_doi.declaration_of_intent</field>
         <field name="arch" type="xml">
             <list
+                decoration-danger="state == 'revoked'"
                 decoration-info="state == 'draft'"
-                decoration-muted="state == 'terminated'"
-                decoration-danger="state == 'revoked'">
+                decoration-muted="state == 'terminated'">
                 <control>
                     <create
                         name="add_line_control"
@@ -18,8 +18,8 @@
                 <field name="partner_id" readonly="state != 'draft'" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field name="protocol_number_part1" readonly="state != 'draft'" />
                 <field name="protocol_number_part2" readonly="state != 'draft'" />
                 <field name="issue_date" readonly="state != 'draft'" />
@@ -45,56 +45,56 @@
                         widget="statusbar"
                         statusbar_visible="draft,active" />
                     <button
+                        name="action_validate"
+                        type="object"
                         string="Validate"
                         invisible="state != 'draft'"
-                        class="btn-primary"
-                        type="object"
-                        name="action_validate" />
+                        class="btn-primary" />
                     <button
+                        name="action_terminate"
+                        type="object"
                         string="Terminate"
                         invisible="state != 'active'"
-                        class="btn-primary"
-                        type="object"
-                        name="action_terminate" />
+                        class="btn-primary" />
                     <button
+                        name="action_reset_to_draft"
+                        type="object"
                         string="Reset to Draft"
                         invisible="state != 'active'"
-                        class="btn-secondary"
-                        type="object"
-                        name="action_reset_to_draft" />
+                        class="btn-secondary" />
                     <button
+                        name="action_reactivate"
+                        type="object"
                         string="Reactivate"
                         invisible="state not in ['terminated', 'revoked']"
-                        class="btn-secondary"
-                        type="object"
-                        name="action_reactivate" />
+                        class="btn-secondary" />
                     <button
+                        name="action_revoke"
+                        type="object"
                         string="Revoke"
                         invisible="state != 'active'"
-                        class="btn-secondary"
-                        type="object"
-                        name="action_revoke" />
+                        class="btn-secondary" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <field name="invoice_ids" invisible="True" />
                         <field name="sale_order_ids" invisible="True" />
                         <button
-                            type="object"
-                            class="oe_stat_button"
                             name="action_view_invoice_ids"
+                            type="object"
                             icon="fa-regular fa-pen-to-square"
-                            invisible="not invoice_ids">
+                            invisible="not invoice_ids"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Invoices</span>
                             </div>
                         </button>
                         <button
-                            type="object"
-                            class="oe_stat_button"
                             name="action_view_sale_order_ids"
+                            type="object"
                             icon="fa-regular fa-pen-to-square"
-                            invisible="not sale_order_ids">
+                            invisible="not sale_order_ids"
+                            class="oe_stat_button">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Sale Orders</span>
                             </div>
@@ -120,7 +120,7 @@
                                     readonly="state != 'draft'" />
                             </div>
                             <field name="issue_date" readonly="state != 'draft'" />
-                            <label string="Date Range" for="start_date" />
+                            <label for="start_date" string="Date Range" />
                             <div name="date_range_div" class="d-flex">
                                 <field name="start_date" readonly="state != 'draft'" />
                                 <span class="o_form_label mx-3"> to </span>
@@ -158,18 +158,18 @@
                 <filter
                     name="l10n_it_edi_doi_declaration_of_intent_active_filter"
                     string="Active"
-                    domain="[('state','=', 'active')]"
-                    help="Show active declarations of intent" />
+                    help="Show active declarations of intent"
+                    domain="[('state','=', 'active')]" />
                 <filter
                     name="l10n_it_edi_doi_declaration_of_intent_draft_filter"
                     string="Draft"
-                    domain="[('state','=', 'draft')]"
-                    help="Show draft declarations of intent" />
+                    help="Show draft declarations of intent"
+                    domain="[('state','=', 'draft')]" />
                 <filter
                     name="l10n_it_edi_doi_declaration_of_intent_terminated_filter"
                     string="Terminated / Revoked"
-                    domain="[('state','in', ['terminated', 'revoked'])]"
-                    help="Show terminated or revoked Declarations of Intent" />
+                    help="Show terminated or revoked Declarations of Intent"
+                    domain="[('state','in', ['terminated', 'revoked'])]" />
             </search>
         </field>
     </record>

@@ -13,8 +13,8 @@
                             <field name="name" />
                             <field
                                 name="service_id"
-                                readonly="service_locked"
-                                options="{'no_open': True, 'no_create': True}" />
+                                options="{'no_open': True, 'no_create': True}"
+                                readonly="service_locked" />
                             <field name="description" />
                             <field
                                 name="company_ids"
@@ -27,8 +27,8 @@
                             <div>
                                 <field name="balance" class="oe_inline" />
                                 <button
-                                    type="object"
                                     name="action_buy_credits"
+                                    type="object"
                                     class="btn-link py-0">
                                     <i class="oi oi-arrow-right" />
                                     Buy Credit
@@ -37,9 +37,9 @@
                             <field name="warning_threshold" />
                             <field
                                 name="warning_user_ids"
+                                widget="many2many_tags"
                                 invisible="warning_threshold == 0"
-                                required="warning_threshold &gt; 0"
-                                widget="many2many_tags" />
+                                required="warning_threshold &gt; 0" />
                         </group>
                     </group>
                 </sheet>

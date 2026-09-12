@@ -12,8 +12,8 @@
             </xpath>
             <xpath expr="//group" position="inside">
                 <filter
-                    string="Mass Mailing"
                     name="groupby_mass_mailing_id"
+                    string="Mass Mailing"
                     context="{'group_by': 'mass_mailing_id'}" />
             </xpath>
         </field>
@@ -53,8 +53,8 @@
             </xpath>
             <xpath expr="//filter[@name='groupby_country_id']" position="after">
                 <filter
-                    string="Mass Mailing"
                     name="groupby_mass_mailing_id"
+                    string="Mass Mailing"
                     context="{'group_by': 'mass_mailing_id'}" />
             </xpath>
         </field>

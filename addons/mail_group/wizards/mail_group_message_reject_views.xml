@@ -27,30 +27,30 @@
                 </group>
                 <footer>
                     <button
+                        name="action_send_mail"
+                        type="object"
                         string="Reject Silently"
+                        invisible="action != 'reject' or send_email"
+                        class="btn-primary" />
+                    <button
                         name="action_send_mail"
                         type="object"
-                        class="btn-primary"
-                        invisible="action != 'reject' or send_email" />
-                    <button
                         string="Send &amp; Reject"
+                        invisible="action != 'reject' or not send_email"
+                        class="btn-primary" />
+                    <button
                         name="action_send_mail"
                         type="object"
-                        class="btn-primary"
-                        invisible="action != 'reject' or not send_email" />
-                    <button
                         string="Ban"
-                        name="action_send_mail"
-                        type="object"
-                        class="btn-primary"
-                        invisible="action != 'ban' or send_email" />
+                        invisible="action != 'ban' or send_email"
+                        class="btn-primary" />
                     <button
-                        string="Send &amp; Ban"
                         name="action_send_mail"
                         type="object"
-                        class="btn-primary"
-                        invisible="action != 'ban' or not send_email" />
-                    <button string="Discard" class="btn-secondary" special="cancel" />
+                        string="Send &amp; Ban"
+                        invisible="action != 'ban' or not send_email"
+                        class="btn-primary" />
+                    <button special="cancel" string="Discard" class="btn-secondary" />
                 </footer>
             </form>
         </field>

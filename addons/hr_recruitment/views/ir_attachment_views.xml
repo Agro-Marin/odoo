@@ -34,11 +34,11 @@
                     <field name="name" column_invisible="True" />
                     <field name="res_id" column_invisible="True" />
                     <field name="res_model" column_invisible="True" />
-                    <field name="datas" widget="binary" filename="name" string="File" />
+                    <field name="datas" string="File" widget="binary" filename="name" />
                     <field
                         name="res_name"
-                        widget="applicant_char"
                         string="Applicant"
+                        widget="applicant_char"
                         invisible="res_model != 'hr.applicant'" />
                     <field name="create_date" />
                 </list>

@@ -9,17 +9,17 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('active', '=', True)]" />
                 <filter
-                    string="Inactive"
                     name="inactive"
+                    string="Inactive"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}" />
                 </group>
             </search>
@@ -59,8 +59,8 @@
                             <field name="max_value" />
                             <field
                                 name="factor"
-                                widget="percentage"
-                                help="Multiplier applied to sale.target metas for partners in this profile." />
+                                help="Multiplier applied to sale.target metas for partners in this profile."
+                                widget="percentage" />
                         </group>
                         <group string="Settings">
                             <field name="sequence" />

@@ -14,14 +14,14 @@
                     <footer>
                         <button
                             name="action_post_entry"
-                            string="Post Expenses"
                             type="object"
+                            string="Post Expenses"
                             class="oe_highlight"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Cancel"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

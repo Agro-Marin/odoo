@@ -24,8 +24,8 @@
                 <footer>
                     <button
                         name="button_reject_invoice"
-                        string="Reject invoice"
                         type="object"
+                        string="Reject invoice"
                         class="btn-primary" />
                 </footer>
             </form>

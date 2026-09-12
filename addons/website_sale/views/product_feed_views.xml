@@ -42,9 +42,9 @@
                 <field name="name" />
                 <field
                     name="website_id"
-                    column_invisible="context.get('hide_website_column')"
+                    options="{'no_create': True}"
                     groups="website.group_multi_website"
-                    options="{'no_create': True}" />
+                    column_invisible="context.get('hide_website_column')" />
                 <field
                     name="pricelist_id"
                     placeholder="Default"
@@ -60,10 +60,10 @@
                     name="url"
                     string="Copy URL"
                     widget="CopyClipboardButton"
-                    class="o_field_handle"
                     width="100px"
                     nolabel="1"
-                    options="{'btn_class': 'primary btn-sm'}" />
+                    options="{'btn_class': 'primary btn-sm'}"
+                    class="o_field_handle" />
             </list>
         </field>
     </record>

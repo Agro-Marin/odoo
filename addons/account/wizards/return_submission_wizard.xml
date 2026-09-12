@@ -7,19 +7,19 @@
         <field name="arch" type="xml">
             <form string="Submit">
                 <sheet>
-                    <field name="instructions" nolabel="1" readonly="1" />
+                    <field name="instructions" readonly="1" />
                 </sheet>
                 <footer>
                     <button
-                        string="Mark as Submitted"
                         name="action_proceed_with_submission"
                         type="object"
+                        string="Mark as Submitted"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

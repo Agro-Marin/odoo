@@ -8,16 +8,16 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='frequency']" position="replace">
                 <field
-                    nolabel="1"
                     name="frequency"
-                    invisible="accrued_gain_time == 'end'"
                     widget="filterable_selection"
-                    options="{'blacklisted_values': ['worked_hours']}" />
-                <field
                     nolabel="1"
+                    options="{'blacklisted_values': ['worked_hours']}"
+                    invisible="accrued_gain_time == 'end'" />
+                <field
                     name="frequency"
-                    invisible="accrued_gain_time == 'start'"
-                    widget="selection" />
+                    widget="selection"
+                    nolabel="1"
+                    invisible="accrued_gain_time == 'start'" />
             </xpath>
         </field>
     </record>

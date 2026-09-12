@@ -19,8 +19,8 @@
                     <field
                         name="nuvei_secret_key"
                         string="Secret Key"
-                        required="code == 'nuvei' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'nuvei' and state != 'disabled'" />
                 </group>
             </group>
         </field>

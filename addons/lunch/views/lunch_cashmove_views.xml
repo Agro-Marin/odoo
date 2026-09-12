@@ -29,7 +29,7 @@
                 <field name="date" />
                 <field name="user_id" />
                 <field name="description" />
-                <field name="amount" sum="Total" widget="monetary" />
+                <field name="amount" widget="monetary" sum="Total" />
             </list>
         </field>
     </record>

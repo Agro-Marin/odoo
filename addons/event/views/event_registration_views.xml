@@ -9,18 +9,18 @@
             <field name="arch" type="xml">
                 <list
                     string="Registration"
+                    default_order="create_date desc"
                     multi_edit="1"
                     sample="1"
-                    expand="1"
-                    default_order="create_date desc"
                     class="o_event_registration_view_tree"
+                    expand="1"
                     js_class="registration_summary_dialog_list">
                     <field name="barcode" column_invisible="True" />
                     <field name="active" column_invisible="True" />
                     <field
                         name="create_date"
-                        optional="show"
-                        string="Registration Date" />
+                        string="Registration Date"
+                        optional="show" />
                     <field name="name" />
                     <field name="partner_id" optional="hide" />
                     <field name="email" optional="show" />
@@ -38,35 +38,35 @@
                     <field name="activity_ids" widget="list_activity" />
                     <field
                         name="state"
+                        widget="badge"
                         decoration-info="state in ('draft', 'open')"
-                        decoration-success="state == 'done'"
                         decoration-muted="state == 'cancel'"
-                        widget="badge" />
+                        decoration-success="state == 'done'" />
                     <field
                         name="company_id"
-                        groups="base.group_multi_company"
                         optional="hide"
+                        groups="base.group_multi_company"
                         readonly="state != 'draft'" />
                     <field name="message_needaction" column_invisible="True" />
                     <button
                         name="action_confirm"
-                        string="Registered"
                         type="object"
+                        string="Registered"
                         icon="fa-check"
                         invisible="not active or state != 'draft'" />
                     <button
                         name="action_set_done"
-                        string="Mark as Attending"
                         type="object"
+                        string="Mark as Attending"
                         icon="fa-level-down"
                         invisible="not active or state != 'open'" />
                     <button
                         name="action_cancel"
-                        string="Cancel"
                         type="object"
-                        class="o_btn_cancel_registration"
+                        string="Cancel"
                         icon="fa-times"
-                        invisible="not active or (state != 'open' and state != 'draft')" />
+                        invisible="not active or (state != 'open' and state != 'draft')"
+                        class="o_btn_cancel_registration" />
                     <field
                         name="activity_exception_decoration"
                         widget="activity_exception" />
@@ -82,74 +82,73 @@
                     <header>
                         <button
                             name="action_send_badge_email"
-                            string="Send by Email"
                             type="object"
-                            class="oe_highlight"
-                            invisible="not active or state != 'open' and state != 'done'" />
+                            string="Send by Email"
+                            invisible="not active or state != 'open' and state != 'done'"
+                            class="oe_highlight" />
                         <button
                             name="action_confirm"
-                            string="Registered"
                             type="object"
-                            class="oe_highlight"
-                            invisible="not active or state != 'draft'" />
+                            string="Registered"
+                            invisible="not active or state != 'draft'"
+                            class="oe_highlight" />
                         <button
                             name="action_set_done"
-                            string="Attended"
                             type="object"
-                            class="oe_highlight"
-                            invisible="not active or state != 'open'" />
+                            string="Attended"
+                            invisible="not active or state != 'open'"
+                            class="oe_highlight" />
                         <button
                             name="action_cancel"
-                            string="Cancel Registration"
                             type="object"
+                            string="Cancel Registration"
                             invisible="not active or state == 'cancel'" />
                         <field
                             name="state"
-                            nolabel="1"
-                            colspan="2"
                             widget="statusbar"
-                            statusbar_visible="open,done"
+                            colspan="2"
+                            options="{'clickable': '1'}"
                             readonly="False"
-                            options="{'clickable': '1'}" />
+                            statusbar_visible="open,done" />
                     </header>
                     <sheet string="Registration">
                         <div class="oe_button_box" name="button_box" />
                         <widget
                             name="web_ribbon"
-                            text="Archived"
+                            invisible="active"
                             bg_color="text-bg-danger"
-                            invisible="active" />
+                            text="Archived" />
                         <group>
-                            <group string="Attendee" name="attendee">
-                                <field class="o_text_overflow" name="name" />
+                            <group name="attendee" string="Attendee">
+                                <field name="name" class="o_text_overflow" />
                                 <field name="email" />
                                 <field
                                     name="phone_ids"
-                                    class="o_force_ltr"
-                                    widget="many2many_tags" />
+                                    widget="many2many_tags"
+                                    class="o_force_ltr" />
                                 <field
                                     name="company_name"
                                     placeholder="e.g. &quot;Azure Interior&quot;" />
                             </group>
-                            <group string="Event Information" name="event">
+                            <group name="event" string="Event Information">
                                 <field
-                                    class="text-break"
                                     name="event_id"
                                     context="{'name_with_seats_availability': True}"
-                                    options="{'no_create': True}" />
+                                    options="{'no_create': True}"
+                                    class="text-break" />
                                 <field
                                     name="event_slot_id"
-                                    invisible="not is_multi_slots"
-                                    required="is_multi_slots"
+                                    domain="[('event_id', '=', event_id)]"
                                     context="{'name_with_seats_availability': True}"
                                     options="{'no_open': True, 'no_create': True}"
-                                    domain="[('event_id', '=', event_id)]" />
+                                    invisible="not is_multi_slots"
+                                    required="is_multi_slots" />
                                 <field
                                     name="event_ticket_id"
-                                    invisible="not event_id"
+                                    domain="[('event_id', '=', event_id)]"
                                     context="{'name_with_seats_availability': True, 'is_event_multi_slots': is_multi_slots}"
                                     options="{'no_open': True, 'no_create': True}"
-                                    domain="[('event_id', '=', event_id)]" />
+                                    invisible="not event_id" />
                                 <field name="barcode" groups="base.group_no_one" />
                                 <field name="partner_id" />
                                 <field
@@ -159,8 +158,8 @@
                                 <field name="date_closed" groups="base.group_no_one" />
                             </group>
                             <group
-                                string="Marketing"
                                 name="utm_link"
+                                string="Marketing"
                                 groups="base.group_no_one">
                                 <field name="utm_campaign_id" />
                                 <field name="utm_medium_id" />
@@ -169,7 +168,7 @@
                         </group>
                         <field name="registration_properties" columns="2" />
                         <notebook>
-                            <page string="Questions" name="questions">
+                            <page name="questions" string="Questions">
                                 <field name="registration_answer_ids" widget="one2many">
                                     <list editable="bottom">
                                         <field
@@ -182,17 +181,17 @@
                                         <field name="question_type" string="Type" />
                                         <field
                                             name="value_answer_id"
-                                            invisible="question_type != 'simple_choice'"
                                             domain="[('question_id', '=', question_id)]"
-                                            options="{'no_create': True}" />
+                                            options="{'no_create': True}"
+                                            invisible="question_type != 'simple_choice'" />
                                         <field
                                             name="value_text_box"
                                             invisible="question_type == 'simple_choice'" />
                                     </list>
                                     <kanban
-                                        class="o_kanban_mobile"
                                         create="false"
-                                        delete="false">
+                                        delete="false"
+                                        class="o_kanban_mobile">
                                         <field name="event_id" />
                                         <field name="question_type" />
                                         <templates>
@@ -200,14 +199,14 @@
                                                 t-name="card"
                                                 class="justify-content-between">
                                                 <field
-                                                    class="fw-bold fs-5"
                                                     name="question_id"
-                                                    domain="[('event_ids', 'in', event_id)]" />
+                                                    domain="[('event_ids', 'in', event_id)]"
+                                                    class="fw-bold fs-5" />
                                                 <field
                                                     name="value_answer_id"
-                                                    invisible="question_type != 'simple_choice'"
                                                     domain="[('question_id', '=', question_id)]"
-                                                    options="{'no_create': True}" />
+                                                    options="{'no_create': True}"
+                                                    invisible="question_type != 'simple_choice'" />
                                                 <field
                                                     name="value_text_box"
                                                     invisible="question_type == 'simple_choice'" />
@@ -228,9 +227,9 @@
             <field name="priority">10</field>
             <field name="arch" type="xml">
                 <kanban
-                    class="o_event_attendee_kanban_view"
                     default_order="name, create_date desc"
                     sample="1"
+                    class="o_event_attendee_kanban_view"
                     js_class="registration_summary_dialog_kanban">
                     <field name="name" />
                     <field name="state" />
@@ -241,20 +240,20 @@
                             <widget
                                 name="web_ribbon"
                                 title="Archived"
-                                bg_color="text-bg-danger"
-                                invisible="active" />
+                                invisible="active"
+                                bg_color="text-bg-danger" />
                             <div class="col-8">
-                                <field class="d-block fw-bold fs-5" name="name" />
+                                <field name="name" class="d-block fw-bold fs-5" />
                                 <field
                                     name="state"
                                     widget="badge"
-                                    decoration-success="state == 'done'"
-                                    class="position-absolute top-0 end-0 o_event_registration_kanban_badge" />
+                                    class="position-absolute top-0 end-0 o_event_registration_kanban_badge"
+                                    decoration-success="state == 'done'" />
                                 <div class="o_kanban_event_registration_event_name">
                                     <field
-                                        class="text-truncate text-primary"
                                         name="event_id"
-                                        invisible="context.get('default_event_id')" />
+                                        invisible="context.get('default_event_id')"
+                                        class="text-truncate text-primary" />
                                 </div>
                                 <span
                                     class="text-truncate"
@@ -292,10 +291,10 @@
             <field name="priority" eval="2" />
             <field name="arch" type="xml">
                 <calendar
-                    date_start="event_begin_date"
-                    date_stop="event_end_date"
                     string="Event Registration"
                     color="event_id"
+                    date_start="event_begin_date"
+                    date_stop="event_end_date"
                     event_limit="5">
                     <field name="event_id" filters="1" />
                     <field name="name" />
@@ -307,7 +306,7 @@
             <field name="name">event.registration.pivot</field>
             <field name="model">event.registration</field>
             <field name="arch" type="xml">
-                <pivot string="Registration" display_quantity="1" sample="1">
+                <pivot string="Registration" sample="1" display_quantity="1">
                     <field name="event_id" type="row" />
                 </pivot>
             </field>
@@ -338,117 +337,117 @@
                     <field name="event_user_id" string="Responsible" invisible="1" />
                     <field name="event_organizer_id" string="Organizer" invisible="1" />
                     <filter
-                        string="Ongoing Events"
                         name="filter_is_ongoing"
+                        string="Ongoing Events"
                         domain="[('event_id.is_ongoing', '=', True)]" />
                     <filter
-                        string="Taken"
                         name="taken"
+                        string="Taken"
                         domain="[('state', 'in', ['open', 'done'])]" />
                     <separator />
                     <filter
-                        string="Unconfirmed"
                         name="unconfirmed"
+                        string="Unconfirmed"
                         domain="[('state', '=', 'draft')]" />
                     <filter
-                        string="Registered"
                         name="confirmed"
+                        string="Registered"
                         domain="[('state', '=', 'open')]" />
                     <filter
-                        string="Attended"
                         name="attended"
+                        string="Attended"
                         domain="[('state', '=', 'done')]" />
                     <separator />
                     <filter
-                        string="Registration Date"
                         name="filter_create_date"
+                        string="Registration Date"
                         date="create_date" />
                     <filter
-                        string="Event Start Date"
                         name="filter_event_begin_date"
+                        string="Event Start Date"
                         date="event_begin_date" />
                     <filter
-                        string="Attended Date"
                         name="filter_date_closed"
+                        string="Attended Date"
                         date="date_closed" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                     <filter
-                        string="Last 30 days"
                         name="filter_last_month_creation"
+                        string="Last 30 days"
                         domain="[('create_date','&gt;', 'today -30d')]" />
                     <separator />
                     <filter
-                        string="Archived"
                         name="filter_inactive"
+                        string="Archived"
                         domain="[('active', '=', False)]" />
                     <group>
                         <filter
-                            string="Partner"
                             name="partner"
+                            string="Partner"
                             context="{'group_by':'partner_id'}" />
                         <filter
-                            string="Event"
                             name="group_event"
+                            string="Event"
                             context="{'group_by':'event_id'}" />
                         <filter
-                            string="Slot"
                             name="group_by_event_slot_id"
+                            string="Slot"
                             context="{'group_by': 'event_slot_id'}" />
                         <filter
-                            string="Ticket Type"
                             name="group_event_ticket_id"
+                            string="Ticket Type"
                             context="{'group_by': 'event_ticket_id'}" />
                         <filter
-                            string="Status"
                             name="status"
+                            string="Status"
                             context="{'group_by':'state'}" />
                         <filter
-                            string="Registration Date"
                             name="group_by_create_date_week"
+                            string="Registration Date"
                             context="{'group_by': 'create_date:week'}"
                             invisible="context.get('registration_view_hide_group_by_create_date_week')" />
                         <filter
-                            string="Registration Date"
                             name="group_by_create_date_day"
+                            string="Registration Date"
                             context="{'group_by': 'create_date:day'}"
                             invisible="not context.get('registration_view_hide_group_by_create_date_week')" />
                         <filter
-                            string="Campaign"
                             name="group_by_utm_campaign_id"
+                            string="Campaign"
                             context="{'group_by': 'utm_campaign_id'}" />
                         <filter
-                            string="Medium"
                             name="group_by_utm_medium_id"
+                            string="Medium"
                             context="{'group_by': 'utm_medium_id'}" />
                         <filter
-                            string="Source"
                             name="group_by_utm_source_id"
+                            string="Source"
                             context="{'group_by': 'utm_source_id'}" />
                         <filter
-                            string="Properties"
                             name="group_by_registration_properties"
+                            string="Properties"
                             context="{'group_by': 'registration_properties'}" />
                     </group>
                 </search>

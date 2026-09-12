@@ -9,14 +9,14 @@
             <xpath expr="//field[@name='user_id']" position="replace">
                 <field
                     name="employee_id"
-                    readonly="1"
-                    invisible="not employee_id or context.get('from_frontend')" />
+                    invisible="not employee_id or context.get('from_frontend')"
+                    readonly="1" />
                 <field
                     name="employee_id"
-                    readonly="1"
+                    options="{'no_open': True}"
                     invisible="not employee_id or not context.get('from_frontend')"
-                    options="{'no_open': True}" />
-                <field name="user_id" readonly="1" invisible="employee_id" />
+                    readonly="1" />
+                <field name="user_id" invisible="employee_id" readonly="1" />
             </xpath>
         </field>
     </record>
@@ -31,8 +31,8 @@
             </xpath>
             <xpath expr="//filter[@name='user_id']" position="replace">
                 <filter
-                    string="Cashier"
                     name="by_cashier"
+                    string="Cashier"
                     context="{'group_by': 'cashier'}" />
             </xpath>
         </field>

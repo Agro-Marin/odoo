@@ -32,8 +32,8 @@
                 <field name="attachment_number" optional="show" />
                 <button
                     name="action_get_attachment_view"
-                    string="Attachments"
                     type="object"
+                    string="Attachments"
                     icon="fa-paperclip" />
             </field>
         </field>
@@ -52,8 +52,8 @@
                 <field name="attachment_number" optional="show" />
                 <button
                     name="action_get_attachment_view"
-                    string="Attachments"
                     type="object"
+                    string="Attachments"
                     icon="fa-paperclip" />
             </field>
         </field>
@@ -75,10 +75,10 @@
                 <button
                     name="action_view_employee"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-regular fa-id-card"
                     groups="hr.group_hr_user"
-                    invisible="not driver_employee_id">
+                    invisible="not driver_employee_id"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value">1</span>
                         <span class="o_stat_text">Employee</span>
@@ -117,14 +117,14 @@
             <field name="driver_id" position="after">
                 <field
                     name="driver_employee_id"
-                    optional="hide"
-                    widget="many2one_avatar_user" />
+                    widget="many2one_avatar_user"
+                    optional="hide" />
             </field>
             <field name="future_driver_id" position="after">
                 <field
                     name="future_driver_employee_id"
-                    optional="hide"
-                    widget="many2one_avatar_user" />
+                    widget="many2one_avatar_user"
+                    optional="hide" />
             </field>
         </field>
     </record>

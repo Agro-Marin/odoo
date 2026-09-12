@@ -13,10 +13,10 @@
                 <footer>
                     <button
                         name="action_print_report"
-                        string="Print"
                         type="object"
+                        string="Print"
                         class="btn-primary" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" />
+                    <button special="cancel" string="Cancel" class="btn-secondary" />
                 </footer>
             </form>
         </field>

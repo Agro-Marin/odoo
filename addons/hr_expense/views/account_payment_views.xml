@@ -11,10 +11,10 @@
                     <field name="expense_ids" invisible="1" />
                     <button
                         name="action_view_expense"
-                        class="oe_stat_button"
-                        icon="fa-regular fa-file-lines"
                         type="object"
-                        invisible="not expense_ids">
+                        icon="fa-regular fa-file-lines"
+                        invisible="not expense_ids"
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Expense</span>
                         </div>

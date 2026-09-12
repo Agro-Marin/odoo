@@ -15,10 +15,10 @@
                 <div>
                     <div class="content-group row mt16">
                         <label
-                            class="col-4"
                             for="website_google_places_api_key"
-                            string="API Key" />
-                        <field class="col-6" name="website_google_places_api_key" />
+                            string="API Key"
+                            class="col-4" />
+                        <field name="website_google_places_api_key" class="col-6" />
                     </div>
                     <div class="mt8">
                         <a

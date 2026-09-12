@@ -12,15 +12,15 @@
                 </group>
                 <footer>
                     <button
-                        string="Change Password"
                         name="change_password"
                         type="object"
+                        string="Change Password"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -32,18 +32,18 @@
         <field name="model">change.password.wizard</field>
         <field name="arch" type="xml">
             <form string="Change Password">
-                <field mode="list" name="user_ids" />
+                <field name="user_ids" mode="list" />
                 <footer>
                     <button
-                        string="Change Password"
                         name="change_password_button"
                         type="object"
+                        string="Change Password"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>
@@ -99,8 +99,8 @@
                                 <field name="email_domain_placeholder" invisible="1" />
                                 <field
                                     name="login"
-                                    class="w-100"
-                                    options="{'placeholder_field': 'email_domain_placeholder'}" />
+                                    options="{'placeholder_field': 'email_domain_placeholder'}"
+                                    class="w-100" />
                             </div>
                             <div class="d-flex align-items-baseline w-100">
                                 <i
@@ -108,9 +108,9 @@
                                     title="Phone" />
                                 <field
                                     name="phone_ids"
-                                    class="w-100"
+                                    placeholder="Phone"
                                     widget="many2many_tags"
-                                    placeholder="Phone" />
+                                    class="w-100" />
                             </div>
                             <div
                                 class="d-flex align-items-baseline w-100"
@@ -120,9 +120,9 @@
                                     title="Company" />
                                 <field
                                     name="company_id"
-                                    class="w-100"
+                                    placeholder="Company"
                                     context="{'user_preference': 0}"
-                                    placeholder="Company" />
+                                    class="w-100" />
                             </div>
                         </div>
                     </div>
@@ -132,7 +132,7 @@
                             string="Access Rights"
                             groups="base.group_no_one" />
                         <div groups="base.group_no_one">
-                            <field name="group_ids" readonly="1" widget="many2many_tags" style="display: inline;" /> You will be able to define additional
+                            <field name="group_ids" widget="many2many_tags" readonly="1" style="display: inline;" /> You will be able to define additional
                             access rights by editing the newly created user under the Settings /
                             Users menu. </div>
                     </group>
@@ -152,48 +152,48 @@
                         <button
                             name="action_show_groups"
                             type="object"
-                            groups="base.group_no_one"
-                            class="oe_stat_button"
+                            help="Groups that apply to the current user"
                             icon="fa-users"
-                            help="Groups that apply to the current user">
+                            groups="base.group_no_one"
+                            class="oe_stat_button">
                             <field
-                                string="Groups"
                                 name="groups_count"
+                                string="Groups"
                                 widget="statinfo" />
                         </button>
                         <button
                             name="action_show_accesses"
                             type="object"
+                            icon="fa-lock"
                             groups="base.group_no_one"
-                            class="oe_stat_button"
-                            icon="fa-lock">
+                            class="oe_stat_button">
                             <field
-                                string="Access Rights"
                                 name="accesses_count"
+                                string="Access Rights"
                                 widget="statinfo" />
                         </button>
                         <button
                             name="action_show_rules"
                             type="object"
+                            icon="fa-lock"
                             groups="base.group_no_one"
-                            class="oe_stat_button"
-                            icon="fa-lock">
+                            class="oe_stat_button">
                             <field
-                                string="Record Rules"
                                 name="rules_count"
+                                string="Record Rules"
                                 widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="External user"
-                        bg_color="text-bg-warning"
-                        invisible="not share" />
+                        invisible="not share"
+                        bg_color="text-bg-warning" />
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div
                         class="alert alert-info text-center o_form_header"
                         invisible="active or not active_partner"
@@ -202,7 +202,7 @@
                         <div>
                             <strong>The contact linked to this user is still active</strong>
                         </div>
-                        <div>You can archive the contact <field name="partner_id" required="0" readonly="1" />
+                        <div>You can archive the contact <field name="partner_id" readonly="1" required="0" />
                         </div>
                     </div>
                     <div class="d-flex gap-3">
@@ -243,8 +243,8 @@
                                 <field
                                     name="email"
                                     placeholder="Email"
-                                    class="w-75"
-                                    invisible="login == email" />
+                                    invisible="login == email"
+                                    class="w-75" />
                             </h5>
                             <h5
                                 name="h5_phone"
@@ -254,8 +254,8 @@
                                     title="Phone" />
                                 <field
                                     name="phone_ids"
-                                    widget="many2many_tags"
                                     placeholder="Phone"
+                                    widget="many2many_tags"
                                     class="w-75" />
                             </h5>
                         </div>
@@ -264,9 +264,9 @@
                         <field
                             name="partner_id"
                             groups="base.group_no_one"
+                            invisible="not id"
                             readonly="1"
-                            required="0"
-                            invisible="not id" />
+                            required="0" />
                     </group>
                     <notebook colspan="4">
                         <page name="access_rights" string="Access Rights">
@@ -275,48 +275,46 @@
                                 invisible="share and companies_count &lt;= 1">
                                 <field
                                     name="role"
-                                    invisible="share"
                                     widget="radio"
-                                    options="{'horizontal': true}" />
+                                    options="{'horizontal': true}"
+                                    invisible="share" />
                                 <field
-                                    string="Companies"
                                     name="company_ids"
-                                    invisible="companies_count &lt;= 1"
+                                    string="Companies"
                                     widget="many2many_tags"
-                                    options="{'no_create': True, 'color_field': 'color'}" />
+                                    options="{'no_create': True, 'color_field': 'color'}"
+                                    invisible="companies_count &lt;= 1" />
                                 <field
-                                    string="Default Company"
                                     name="company_id"
-                                    invisible="companies_count &lt;= 1"
-                                    context="{'user_preference': 0}" />
+                                    string="Default Company"
+                                    context="{'user_preference': 0}"
+                                    invisible="companies_count &lt;= 1" />
                             </group>
                             <field
                                 name="group_ids"
                                 widget="res_user_group_ids"
-                                nolabel="1"
                                 colspan="2"
                                 groups="base.group_no_one" />
                             <field
                                 name="group_ids"
                                 widget="res_user_group_ids"
-                                nolabel="1"
                                 colspan="2"
                                 groups="!base.group_no_one"
                                 invisible="share" />
                         </page>
-                        <page string="Preferences" name="preferences">
+                        <page name="preferences" string="Preferences">
                             <group>
                                 <group>
                                     <label for="lang" />
                                     <div class="o_row">
                                         <field name="lang" required="1" />
                                         <button
-                                            type="action"
                                             name="%(base.action_view_base_language_install)d"
-                                            class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas"
+                                            type="action"
+                                            title="Add a language"
                                             groups="base.group_system"
-                                            aria-label="Add a language"
-                                            title="Add a language" />
+                                            class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas"
+                                            aria-label="Add a language" />
                                     </div>
                                     <field
                                         name="signature"
@@ -333,14 +331,14 @@
                                         name="tz"
                                         widget="timezone_mismatch"
                                         options="{'tz_offset_field': 'tz_offset'}"
-                                        readonly="0"
-                                        invisible="share" />
+                                        invisible="share"
+                                        readonly="0" />
                                     <field name="tz_offset" invisible="1" />
                                 </group>
                                 <group name="other_calendar_preferences" />
                             </group>
                         </page>
-                        <page string="Security" name="page_security" invisible="not id">
+                        <page name="page_security" string="Security" invisible="not id">
                             <div name="auth" class="d-flex">
                                 <div class="col-7 col-sm-6 col-lg-3 d-flex flex-column">
                                     <span class="o_form_label">
@@ -351,16 +349,16 @@
                                     </span>
                                 </div>
                                 <button
-                                    invisible="id != uid"
                                     name="action_change_password"
                                     type="object"
                                     string="Change password"
+                                    invisible="id != uid"
                                     class="btn btn-secondary h-100 my-auto" />
                                 <button
-                                    invisible="id == uid"
                                     name="action_change_password_wizard"
                                     type="object"
                                     string="Change password"
+                                    invisible="id == uid"
                                     class="btn btn-secondary h-100 my-auto" />
                             </div>
                             <div
@@ -385,8 +383,8 @@
                                     <div>
                                         <button
                                             name="action_open_api_key_wizard"
-                                            string="Add API Key"
                                             type="object"
+                                            string="Add API Key"
                                             class="btn btn-secondary h-100" />
                                     </div>
                                 </div>
@@ -429,8 +427,8 @@
             <search string="Users">
                 <field
                     name="name"
-                    filter_domain="['|', '|', ('name','ilike',self), ('login','ilike',self), ('email','ilike',self)]"
-                    string="User" />
+                    string="User"
+                    filter_domain="['|', '|', ('name','ilike',self), ('login','ilike',self), ('email','ilike',self)]" />
                 <field
                     name="company_ids"
                     string="Company"
@@ -461,13 +459,13 @@
                 <field
                     name="avatar_128"
                     widget="image"
-                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}"
                     width="30"
-                    nolabel="1" />
+                    nolabel="1"
+                    options="{'size': [24, 24], 'img_class': 'o_avatar rounded'}" />
                 <field name="name" readonly="1" />
-                <field name="login" readonly="1" optional="show" />
+                <field name="login" optional="show" readonly="1" />
                 <field name="lang" optional="hide" />
-                <field name="login_date" readonly="1" optional="hide" />
+                <field name="login_date" optional="hide" readonly="1" />
                 <field name="role" widget="badge" />
             </list>
         </field>
@@ -503,7 +501,7 @@
                                         aria-label="Invalid"
                                         title="Invalid" />
                                 </div>
-                                <field class="fw-bold" name="name" />
+                                <field name="name" class="fw-bold" />
                             </div>
                             <div>
                                 <span class="mb4 text-truncate" title="Login">
@@ -514,8 +512,8 @@
                                     <field name="login" />
                                 </span>
                                 <field
-                                    class="badge rounded-pill float-end"
-                                    name="lang" />
+                                    name="lang"
+                                    class="badge rounded-pill float-end" />
                             </div>
                         </main>
                     </t>
@@ -592,9 +590,9 @@
                             data-hotkey="q" />
                         <button
                             special="cancel"
-                            data-hotkey="x"
                             string="Cancel"
-                            class="btn-secondary" />
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </footer>
                 </sheet>
             </form>
@@ -623,7 +621,7 @@
                         <strong>Important:</strong> The key cannot be retrieved later and provides <b>full
                         access</b> to your user account, it is very important to store it securely. </p>
                     <footer>
-                        <button special="cancel" data-hotkey="x" string="Done!" />
+                        <button special="cancel" string="Done!" data-hotkey="x" />
                     </footer>
                 </sheet>
             </form>
@@ -666,31 +664,31 @@
                                     title="Phone" />
                                 <field
                                     name="phone_ids"
-                                    widget="many2many_tags"
                                     placeholder="Phone"
+                                    widget="many2many_tags"
                                     class="w-75" />
                             </h5>
                         </div>
                     </div>
                     <notebook>
-                        <page string="Preferences" name="preferences_page">
+                        <page name="preferences_page" string="Preferences">
                             <group>
                                 <group>
                                     <label for="lang" />
                                     <div class="o_row">
-                                        <field name="lang" required="1" readonly="0" />
+                                        <field name="lang" readonly="0" required="1" />
                                         <button
-                                            type="action"
                                             name="%(base.action_view_base_language_install)d"
-                                            class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas"
-                                            aria-label="Add a language"
+                                            type="action"
+                                            title="Add a language"
                                             groups="base.group_system"
-                                            title="Add a language" />
+                                            class="oe_edit_only btn-sm btn-link mb4 fa-solid fa-earth-americas"
+                                            aria-label="Add a language" />
                                     </div>
                                     <field
                                         name="signature"
-                                        readonly="0"
                                         options="{'codeview': true, 'height': 112, 'resizable': true}"
+                                        readonly="0"
                                         class="border border-secondary" />
                                 </group>
                                 <group name="other_preferences" />
@@ -709,7 +707,7 @@
                                 <group name="other_calendar_preferences" />
                             </group>
                         </page>
-                        <page string="Security" name="page_security">
+                        <page name="page_security" string="Security">
                             <div name="auth" class="d-flex">
                                 <div class="col-7 col-sm-6 col-lg-3 d-flex flex-column">
                                     <span class="o_form_label">
@@ -744,8 +742,8 @@
                                     <div>
                                         <button
                                             name="action_open_api_key_wizard"
-                                            string="Add API Key"
                                             type="object"
+                                            string="Add API Key"
                                             class="btn btn-secondary h-100" />
                                     </div>
                                 </div>
@@ -785,10 +783,10 @@
                             data-hotkey="q" />
                         <button
                             name="preference_cancel"
-                            string="Discard"
                             special="cancel"
-                            data-hotkey="x"
-                            class="btn-secondary" />
+                            string="Discard"
+                            class="btn-secondary"
+                            data-hotkey="x" />
                     </footer>
                 </sheet>
             </form>
@@ -814,14 +812,14 @@
         <field name="model">res.users.apikeys</field>
         <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
         <field name="arch" type="xml">
-            <list create="0" edit="0" delete="0" editable="bottom">
+            <list editable="bottom" create="0" edit="0" delete="0">
                 <field name="user_id" />
                 <field name="name" />
                 <field name="scope" />
                 <field name="create_date" />
                 <button
-                    type="object"
                     name="remove"
+                    type="object"
                     title="Delete API key."
                     icon="fa-solid fa-trash-can" />
             </list>

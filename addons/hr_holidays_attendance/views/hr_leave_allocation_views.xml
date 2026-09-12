@@ -13,7 +13,7 @@
                 <div
                     class="oe_inline"
                     invisible="not employee_id or not overtime_deductible or employee_overtime &lt;= 0">
-                    <field name="employee_overtime" nolabel="1" widget="float_time" class="text-success" /> Extra Hours Available
+                    <field name="employee_overtime" widget="float_time" nolabel="1" class="text-success" /> Extra Hours Available
                 </div>
             </xpath>
         </field>
@@ -40,13 +40,13 @@
             <xpath expr="//sheet" position="after">
                 <footer>
                     <button
-                        string="Save"
                         special="save"
+                        string="Save"
                         class="btn btn-primary"
                         close="1" />
                     <button
-                        string="Discard"
                         special="cancel"
+                        string="Discard"
                         class="btn-secondary"
                         close="1" />
                 </footer>

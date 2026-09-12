@@ -26,18 +26,18 @@
             <xpath expr="(//button[@name='action_post'])[2]" position="before">
                 <button
                     name="action_extract_document"
-                    string="Read the document"
                     type="object"
+                    string="Read the document"
                     groups="account.group_account_invoice"
                     invisible="not extract_can_be_read" />
                 <button
                     name="action_review_extracted_lines"
-                    string="Review read lines"
                     type="object"
+                    string="Review read lines"
                     groups="account.group_account_invoice"
                     invisible="not extract_has_lines" />
             </xpath>
-            <page id="other_tab" position="after">
+            <page position="after" id="other_tab">
                 <page
                     name="extract"
                     string="Extraction"

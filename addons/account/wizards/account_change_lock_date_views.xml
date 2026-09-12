@@ -75,9 +75,9 @@
                                 <field
                                     name="sale_lock_date"
                                     placeholder="Not locked"
+                                    options="{'warn_future': true}"
                                     class="oe_inline"
-                                    decoration-info="exception_needed_fields and 'sale_lock_date' in exception_needed_fields"
-                                    options="{'warn_future': true}" />
+                                    decoration-info="exception_needed_fields and 'sale_lock_date' in exception_needed_fields" />
                                 <span
                                     class="text-muted o_form_label"
                                     invisible="not min_sale_lock_date_exception_for_me_id">
@@ -85,8 +85,8 @@
                                     <field
                                         name="sale_lock_date_for_me"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not sale_lock_date_for_me" />
+                                        invisible="not sale_lock_date_for_me"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -107,8 +107,8 @@
                                     <field
                                         name="sale_lock_date_for_everyone"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not sale_lock_date_for_everyone" />
+                                        invisible="not sale_lock_date_for_everyone"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -123,9 +123,9 @@
                                 <field
                                     name="purchase_lock_date"
                                     placeholder="Not locked"
+                                    options="{'warn_future': true}"
                                     class="oe_inline"
-                                    decoration-info="exception_needed_fields and 'purchase_lock_date' in exception_needed_fields"
-                                    options="{'warn_future': true}" />
+                                    decoration-info="exception_needed_fields and 'purchase_lock_date' in exception_needed_fields" />
                                 <span
                                     class="text-muted o_form_label"
                                     invisible="not min_purchase_lock_date_exception_for_me_id">
@@ -133,8 +133,8 @@
                                     <field
                                         name="purchase_lock_date_for_me"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not purchase_lock_date_for_me" />
+                                        invisible="not purchase_lock_date_for_me"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -155,8 +155,8 @@
                                     <field
                                         name="purchase_lock_date_for_everyone"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not purchase_lock_date_for_everyone" />
+                                        invisible="not purchase_lock_date_for_everyone"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -171,9 +171,9 @@
                                 <field
                                     name="tax_lock_date"
                                     placeholder="Not locked"
+                                    options="{'warn_future': true}"
                                     class="oe_inline"
-                                    decoration-info="exception_needed_fields and 'tax_lock_date' in exception_needed_fields"
-                                    options="{'warn_future': true}" />
+                                    decoration-info="exception_needed_fields and 'tax_lock_date' in exception_needed_fields" />
                                 <span
                                     class="text-muted"
                                     invisible="min_tax_lock_date_exception_for_me_id or min_tax_lock_date_exception_for_everyone_id">
@@ -186,8 +186,8 @@
                                     <field
                                         name="tax_lock_date_for_me"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not tax_lock_date_for_me" />
+                                        invisible="not tax_lock_date_for_me"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -208,8 +208,8 @@
                                     <field
                                         name="tax_lock_date_for_everyone"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not tax_lock_date_for_everyone" />
+                                        invisible="not tax_lock_date_for_everyone"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -224,9 +224,9 @@
                                 <field
                                     name="fiscalyear_lock_date"
                                     placeholder="Not locked"
+                                    options="{'warn_future': true}"
                                     class="oe_inline"
-                                    decoration-info="exception_needed_fields and 'fiscalyear_lock_date' in exception_needed_fields"
-                                    options="{'warn_future': true}" />
+                                    decoration-info="exception_needed_fields and 'fiscalyear_lock_date' in exception_needed_fields" />
                                 <span
                                     class="text-muted"
                                     invisible="min_fiscalyear_lock_date_exception_for_me_id or min_fiscalyear_lock_date_exception_for_everyone_id">
@@ -239,8 +239,8 @@
                                     <field
                                         name="fiscalyear_lock_date_for_me"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not fiscalyear_lock_date_for_me" />
+                                        invisible="not fiscalyear_lock_date_for_me"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -261,8 +261,8 @@
                                     <field
                                         name="fiscalyear_lock_date_for_everyone"
                                         nolabel="1"
-                                        class="oe_inline"
-                                        invisible="not fiscalyear_lock_date_for_everyone" />
+                                        invisible="not fiscalyear_lock_date_for_everyone"
+                                        class="oe_inline" />
                                     <a
                                         type="object"
                                         class="oe_link fw-bold"
@@ -286,10 +286,10 @@
                                 <field
                                     name="exception_reason"
                                     placeholder="Reason..."
-                                    class="oe_inline mx-3 flex-grow-1"
                                     widget="text"
                                     options="{'line_breaks': False}"
-                                    invisible="exception_applies_to == 'everyone' and exception_duration == 'forever'" />
+                                    invisible="exception_applies_to == 'everyone' and exception_duration == 'forever'"
+                                    class="oe_inline mx-3 flex-grow-1" />
                             </div>
                             <div class="d-flex justify-content-start" colspan="2">
                                 <div class="alert alert-danger ps-3 mb-3" role="alert">
@@ -299,9 +299,9 @@
                                         <field
                                             name="hard_lock_date"
                                             placeholder="Not locked"
+                                            options="{'warn_future': true}"
                                             class="oe_inline mx-3"
-                                            decoration-info="exception_needed_fields and 'hard_lock_date' in exception_needed_fields"
-                                            options="{'warn_future': true}" />
+                                            decoration-info="exception_needed_fields and 'hard_lock_date' in exception_needed_fields" />
                                         <span
                                             class="text-danger o_form_label"
                                             invisible="hard_lock_date == current_hard_lock_date">
@@ -314,15 +314,15 @@
                     </sheet>
                     <footer>
                         <button
-                            string="Save"
                             name="change_lock_date"
                             type="object"
+                            string="Save"
                             class="btn-primary"
                             data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

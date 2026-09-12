@@ -6,7 +6,7 @@
         <field name="model">document.document</field>
         <field name="arch" type="xml">
             <form>
-                <field name="type" invisible="1" force_save="1"/>  <!-- save that we're creating a
+                <field name="type" force_save="1" invisible="1"/>  <!-- save that we're creating a
                 folder -->
                 <field name="active" string="Active" invisible="1" />
                 <sheet>
@@ -16,8 +16,8 @@
                             <field
                                 name="name"
                                 placeholder="e.g. Finance"
-                                options="{'line_breaks': False}"
                                 widget="text"
+                                options="{'line_breaks': False}"
                                 readonly="False"
                                 required="True" />
                         </h1>
@@ -36,15 +36,15 @@
                 <div> Files will be sent to trash and deleted forever after <field name="deletion_delay" /> days. </div>
                 <footer>
                     <button
+                        name="action_archive"
+                        type="object"
                         string="Move to trash"
                         class="btn-primary"
-                        type="object"
-                        name="action_archive"
                         data-hotkey="d" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="z" />
                 </footer>
             </form>

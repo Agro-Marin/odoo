@@ -11,10 +11,10 @@
         <field name="arch" type="xml">
             <filter name="scope_general" position="after">
                 <filter
-                    string="SII"
                     name="scope_sii"
-                    domain="[('scope','=','sii')]"
-                    help="SII certificates" />
+                    string="SII"
+                    help="SII certificates"
+                    domain="[('scope','=','sii')]" />
             </filter>
         </field>
     </record>

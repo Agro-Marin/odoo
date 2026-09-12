@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <form string="Tax Unit">
                 <div class="alert alert-info" role="alert" invisible="fpos_synced">
-                    Fiscal Positions should apply to all companies of the tax unit. You may want to <button class="oe_link p-0 align-baseline" type="object" name="action_sync_unit_fiscal_positions">synchronize fiscal positions</button>.
+                    Fiscal Positions should apply to all companies of the tax unit. You may want to <button name="action_sync_unit_fiscal_positions" type="object" class="oe_link p-0 align-baseline">synchronize fiscal positions</button>.
                 </div>
                 <sheet>
                     <field name="fpos_synced" invisible="1" />

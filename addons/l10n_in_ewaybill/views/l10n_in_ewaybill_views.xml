@@ -9,38 +9,38 @@
                 <header>
                     <button
                         name="action_generate_ewaybill"
-                        string="Generate e-Waybill"
-                        class="oe_highlight"
                         type="object"
+                        string="Generate e-Waybill"
                         invisible="state != 'pending'"
+                        class="oe_highlight"
                         data-hotkey="g" />
                     <button
                         name="action_cancel_ewaybill"
-                        string="Cancel e-Waybill"
                         type="object"
+                        string="Cancel e-Waybill"
                         invisible="state != 'generated'"
                         data-hotkey="c" />
                     <button
                         name="action_reset_to_pending"
-                        string="Reset to Pending"
                         type="object"
+                        string="Reset to Pending"
+                        confirm="Are you sure you want to re-send the e-Waybill?"
                         invisible="state in ['pending', 'generated']"
-                        data-hotkey="r"
-                        confirm="Are you sure you want to re-send the e-Waybill?" />
+                        data-hotkey="r" />
                     <button
                         name="action_print"
-                        string="Print"
-                        class="oe_highlight"
                         type="object"
+                        string="Print"
                         invisible="state != 'generated'"
+                        class="oe_highlight"
                         data-hotkey="p" />
                     <button
                         name="action_export_content_json"
-                        string="Download Content JSON"
                         type="object"
-                        class="oe_highlight"
+                        string="Download Content JSON"
+                        groups="base.group_no_one"
                         invisible="not error_message"
-                        groups="base.group_no_one" />
+                        class="oe_highlight" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -75,8 +75,8 @@
                             <field
                                 name="type_id"
                                 widget="selection"
-                                readonly="state != 'pending'"
                                 domain="[('allowed_supply_type', 'in', (supply_type == 'I' and 'in' or 'out', 'both'))]"
+                                readonly="state != 'pending'"
                                 required="True" />
                         </group>
                         <group>
@@ -123,13 +123,13 @@
                             <field
                                 name="vehicle_type"
                                 invisible="mode not in ('1','4')"
-                                required="mode == '1'"
-                                readonly="state != 'pending'" />
+                                readonly="state != 'pending'"
+                                required="mode == '1'" />
                             <field
                                 name="vehicle_no"
                                 invisible="mode not in ('1','4')"
-                                required="mode == '1' and not transportation_doc_no"
-                                readonly="state != 'pending'" />
+                                readonly="state != 'pending'"
+                                required="mode == '1' and not transportation_doc_no" />
                             <label for="distance" readonly="state != 'pending'" />
                             <div class="o_row" name="distance">
                                 <field name="distance" readonly="state != 'pending'" />
@@ -150,14 +150,14 @@
                                 invisible="mode != '3'" />
                             <label
                                 for="transportation_doc_no"
-                                invisible="mode != '4'"
-                                string="Bill of lading No" />
+                                string="Bill of lading No"
+                                invisible="mode != '4'" />
                             <div class="o_row">
                                 <field
                                     name="transportation_doc_no"
+                                    invisible="not mode"
                                     readonly="state != 'pending'"
-                                    required="mode in ('2', '3', '4')"
-                                    invisible="not mode" />
+                                    required="mode in ('2', '3', '4')" />
                             </div>
 
 
@@ -179,9 +179,9 @@
                             <div class="o_row">
                                 <field
                                     name="transportation_doc_date"
+                                    invisible="not mode"
                                     readonly="state != 'pending'"
-                                    required="mode in ('2', '3', '4')"
-                                    invisible="not mode" />
+                                    required="mode in ('2', '3', '4')" />
                             </div>
                         </group>
                     </group>

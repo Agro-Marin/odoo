@@ -9,23 +9,23 @@
             <xpath expr="//header" position="inside">
                 <button
                     name="action_delivery_matching"
-                    string="Match Deliveries"
                     type="object"
-                    invisible="state != 'done' or transfer_state in ('no', 'done')"
-                    groups="stock.group_stock_user" />
+                    string="Match Deliveries"
+                    groups="stock.group_stock_user"
+                    invisible="state != 'done' or transfer_state in ('no', 'done')" />
             </xpath>
             <button name="action_view_invoice" position="before">
                 <button
                     name="action_view_delivery"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-truck"
+                    groups="stock.group_stock_user"
                     invisible="count_transfer_outgoing == 0"
-                    groups="stock.group_stock_user">
+                    class="oe_stat_button">
                     <field
                         name="count_transfer_outgoing"
-                        widget="statinfo"
-                        string="Delivery" />
+                        string="Delivery"
+                        widget="statinfo" />
                 </button>
             </button>
             <group name="sale_shipping" position="attributes">
@@ -34,8 +34,8 @@
             <label for="date_commitment" position="before">
                 <field
                     name="warehouse_id"
-                    options="{'no_create': True}"
                     force_save="1"
+                    options="{'no_create': True}"
                     readonly="state == 'done'" />
                 <field
                     name="incoterm_id"
@@ -43,8 +43,8 @@
                 <field name="incoterm_location" />
                 <field
                     name="picking_policy"
-                    required="True"
-                    readonly="state != 'draft'" />
+                    readonly="state != 'draft'"
+                    required="True" />
             </label>
             <span name="expected_date_span" position="attributes">
                 <attribute name="invisible">date_effective and date_commitment</attribute>
@@ -64,8 +64,8 @@
                 expr="//page[@name='other_information']//field[@name='date_planned']"
                 position="after">
                 <field
-                    string=" "
                     name="json_popover"
+                    string=" "
                     widget="stock_rescheduling_popover"
                     invisible="not show_json_popover" />
             </xpath>
@@ -75,8 +75,8 @@
                 <field
                     name="route_ids"
                     widget="many2many_tags"
-                    groups="stock.group_adv_location"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    groups="stock.group_adv_location" />
             </xpath>
             <xpath
                 expr="//field[@name='line_ids']//form//field[@name='product_uom_id']"
@@ -89,9 +89,9 @@
                 <field
                     name="route_ids"
                     widget="many2many_tags"
-                    groups="stock.group_adv_location"
+                    optional="hide"
                     options="{'no_create': True}"
-                    optional="hide" />
+                    groups="stock.group_adv_location" />
             </xpath>
             <xpath
                 expr="//field[@name='line_ids']//list//field[@name='qty_transferred']"
@@ -109,10 +109,10 @@
             <field name="tag_ids" position="after">
                 <field
                     name="warehouse_id"
+                    optional="hide"
                     options="{'no_create': True}"
-                    readonly="state == 'done'"
                     groups="stock.group_stock_multi_warehouses"
-                    optional="hide" />
+                    readonly="state == 'done'" />
             </field>
         </field>
     </record>
@@ -136,11 +136,11 @@
             <field name="invoice_state" position="before">
                 <field
                     name="transfer_state"
-                    decoration-success="transfer_state == 'done'"
-                    decoration-warning="transfer_state == 'partial'"
-                    decoration-info="transfer_state in ['to do', 'partial']"
                     widget="badge"
-                    optional="hide" />
+                    optional="hide"
+                    decoration-info="transfer_state in ['to do', 'partial']"
+                    decoration-success="transfer_state == 'done'"
+                    decoration-warning="transfer_state == 'partial'" />
             </field>
         </field>
     </record>
@@ -152,8 +152,8 @@
         <field name="arch" type="xml">
             <filter name="order_date" position="after">
                 <filter
-                    string="Late Availability"
                     name="late_availability"
+                    string="Late Availability"
                     domain="[('late_availability', '=', True)]" />
             </filter>
         </field>

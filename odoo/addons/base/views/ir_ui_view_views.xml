@@ -7,44 +7,44 @@
             <search string="Views">
                 <field
                     name="name"
-                    filter_domain="['|', '|', ('name','ilike',self), ('model','ilike',self), ('model_data_id','ilike',self)]"
-                    string="View" />
+                    string="View"
+                    filter_domain="['|', '|', ('name','ilike',self), ('model','ilike',self), ('model_data_id','ilike',self)]" />
                 <field name="key" />
                 <field name="model" />
                 <field name="inherit_id" />
                 <field name="type" />
                 <field name="arch_db" string="View Architecture" />
-                <filter string="Form" name="form" domain="[('type', '=','form')]" />
-                <filter string="List" name="list" domain="[('type', '=', 'list')]" />
+                <filter name="form" string="Form" domain="[('type', '=','form')]" />
+                <filter name="list" string="List" domain="[('type', '=', 'list')]" />
                 <filter
-                    string="Kanban"
                     name="kanban"
+                    string="Kanban"
                     domain="[('type', '=', 'kanban')]" />
                 <filter
-                    string="Search"
                     name="search"
+                    string="Search"
                     domain="[('type', '=', 'search')]" />
-                <filter string="QWeb" name="qweb" domain="[('type', '=', 'qweb')]" />
+                <filter name="qweb" string="QWeb" domain="[('type', '=', 'qweb')]" />
                 <separator />
                 <filter
-                    string="Modified Architecture"
                     name="arch_updated"
+                    string="Modified Architecture"
                     domain="[('arch_updated', '=',True)]" />
                 <separator />
-                <filter string="Active" name="active" domain="[('active', '=',True)]" />
+                <filter name="active" string="Active" domain="[('active', '=',True)]" />
                 <filter
-                    string="Inactive"
                     name="inactive"
+                    string="Inactive"
                     domain="[('active', '=',False)]" />
                 <group>
                     <filter
-                        string="Model"
                         name="object"
+                        string="Model"
                         context="{'group_by':'model'}" />
-                    <filter string="Type" name="type" context="{'group_by':'type'}" />
+                    <filter name="type" string="Type" context="{'group_by':'type'}" />
                     <filter
-                        string="Inherit"
                         name="inherit"
+                        string="Inherit"
                         context="{'group_by':'inherit_id'}" />
                 </group>
             </search>
@@ -97,7 +97,7 @@
                         <field name="warning_info" />
                     </div>
                     <notebook>
-                        <page string="Architecture" name="architecture">
+                        <page name="architecture" string="Architecture">
                             <field
                                 name="arch_db"
                                 class="oe_edit_only oe_no_translation_content" />
@@ -108,7 +108,7 @@
                                 options="{'mode': 'xml'}"
                                 required="1" />
                         </page>
-                        <page string="Access Rights" name="access_rights">
+                        <page name="access_rights" string="Access Rights">
                             <field name="group_ids" />
                         </page>
                         <page name="inherit_children" string="Inherited Views">
@@ -155,8 +155,8 @@
                         <field name="view_name" />
                         <field
                             name="compare_view_id"
-                            invisible="reset_mode != 'other_view'"
-                            options="{'no_create': True, 'no_open': True}" />
+                            options="{'no_create': True, 'no_open': True}"
+                            invisible="reset_mode != 'other_view'" />
                     </group>
                     <group>
                         <field name="reset_mode" widget="radio" />
@@ -173,16 +173,16 @@
                 </div>
                 <footer>
                     <button
-                        string="Reset View"
                         name="reset_view_button"
                         type="object"
-                        class="btn-primary"
+                        string="Reset View"
                         invisible="not has_diff"
+                        class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

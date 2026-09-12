@@ -34,56 +34,56 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <button
                         name="%(action_purchase_requisition_to_so)d"
                         type="action"
                         string="New Quotation"
-                        class="btn-primary"
                         context="{'default_currency_id': currency_id, 'default_user_id': user_id}"
-                        invisible="state != 'confirmed'" />
+                        invisible="state != 'confirmed'"
+                        class="btn-primary" />
                     <button
                         name="action_confirm"
-                        invisible="state != 'draft'"
-                        string="Confirm"
                         type="object"
+                        string="Confirm"
+                        invisible="state != 'draft'"
                         class="btn-primary" />
                     <button
                         name="action_done"
-                        invisible="state != 'confirmed' or requisition_type == 'purchase_template'"
-                        string="Close"
                         type="object"
+                        string="Close"
+                        invisible="state != 'confirmed' or requisition_type == 'purchase_template'"
                         class="btn-primary" />
                     <button
                         name="action_draft"
-                        invisible="state != 'cancel'"
+                        type="object"
                         string="Reset to Draft"
-                        type="object" />
+                        invisible="state != 'cancel'" />
                     <button
                         name="action_cancel"
-                        invisible="state not in ('draft', 'confirmed')"
+                        type="object"
                         string="Cancel"
-                        type="object" />
+                        invisible="state not in ('draft', 'confirmed')" />
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="draft,confirmed,done"
-                        invisible="requisition_type == 'purchase_template'" />
+                        invisible="requisition_type == 'purchase_template'"
+                        statusbar_visible="draft,confirmed,done" />
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="%(action_purchase_requisition_list)d"
                             type="action"
-                            class="oe_stat_button"
                             icon="fa-list-alt"
+                            context="{'default_currency_id': currency_id}"
                             invisible="state == 'draft'"
-                            context="{'default_currency_id': currency_id}">
+                            class="oe_stat_button">
                             <field
                                 name="order_count"
-                                widget="statinfo"
-                                string="RFQs/Orders" />
+                                string="RFQs/Orders"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <div class="oe_title">
@@ -102,12 +102,12 @@
                             <field
                                 name="user_id"
                                 string="Buyer"
-                                readonly="state != 'draft'"
-                                domain="[('share', '=', False)]" />
+                                domain="[('share', '=', False)]"
+                                readonly="state != 'draft'" />
                             <field
                                 name="requisition_type"
-                                readonly="state != 'draft'"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                readonly="state != 'draft'" />
                             <field
                                 name="currency_id"
                                 groups="base.group_multi_currency" />
@@ -134,13 +134,13 @@
                             <field name="reference" placeholder="e.g. PO0025" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
                                 options="{'no_create': True}"
+                                groups="base.group_multi_company"
                                 readonly="state != 'draft'" />
                         </group>
                     </group>
                     <notebook>
-                        <page string="Products" name="products">
+                        <page name="products" string="Products">
                             <field name="line_ids" readonly="state == 'done'">
                                 <list string="Products" editable="bottom">
                                     <field
@@ -156,16 +156,16 @@
                                         column_invisible="parent.requisition_type == 'purchase_template'" />
                                     <field
                                         name="product_uom_id"
-                                        groups="uom.group_uom"
+                                        widget="many2one_uom"
                                         optional="show"
-                                        required="product_id"
-                                        widget="many2one_uom" />
+                                        groups="uom.group_uom"
+                                        required="product_id" />
                                     <field
                                         name="analytic_distribution"
                                         widget="analytic_distribution"
                                         optional="hide"
-                                        groups="analytic.group_analytic_accounting"
-                                        options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}" />
+                                        options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}"
+                                        groups="analytic.group_analytic_accounting" />
                                     <field name="price_unit" />
                                 </list>
                                 <form string="Products">
@@ -177,17 +177,17 @@
                                         <field name="qty_ordered" />
                                         <field
                                             name="product_uom_id"
-                                            groups="uom.group_uom"
-                                            widget="many2one_uom" />
+                                            widget="many2one_uom"
+                                            groups="uom.group_uom" />
                                         <field
                                             name="analytic_distribution"
                                             widget="analytic_distribution"
-                                            groups="analytic.group_analytic_accounting"
-                                            options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}" />
+                                            options="{'product_field': 'product_id', 'business_domain': 'purchase_order'}"
+                                            groups="analytic.group_analytic_accounting" />
                                         <field
                                             name="company_id"
-                                            groups="base.group_multi_company"
-                                            options="{'no_create': True}" />
+                                            options="{'no_create': True}"
+                                            groups="base.group_multi_company" />
                                     </group>
                                 </form>
                             </field>
@@ -211,27 +211,27 @@
                     <field name="requisition_type" optional="show" />
                     <field
                         name="user_id"
-                        optional="show"
-                        widget="many2one_avatar_user" />
+                        widget="many2one_avatar_user"
+                        optional="show" />
                     <field
                         name="company_id"
-                        groups="base.group_multi_company"
+                        optional="show"
                         options="{'no_create': True}"
-                        optional="show" />
+                        groups="base.group_multi_company" />
                     <field name="date_start" optional="show" />
                     <field
                         name="date_end"
-                        optional="show"
                         widget="remaining_days"
-                        decoration-danger="date_end and date_end&lt;current_date"
-                        invisible="state in ('done', 'cancel')" />
+                        optional="show"
+                        invisible="state in ('done', 'cancel')"
+                        decoration-danger="date_end and date_end&lt;current_date" />
                     <field name="reference" optional="show" />
                     <field
                         name="state"
-                        optional="show"
                         widget="badge"
-                        decoration-success="state == 'done'"
-                        decoration-info="state not in ('done', 'cancel')" />
+                        optional="show"
+                        decoration-info="state not in ('done', 'cancel')"
+                        decoration-success="state == 'done'" />
                     <field
                         name="activity_exception_decoration"
                         widget="activity_exception" />
@@ -242,7 +242,7 @@
             <field name="name">purchase.requisition.kanban</field>
             <field name="model">purchase.requisition</field>
             <field name="arch" type="xml">
-                <kanban class="o_kanban_mobile" sample="1">
+                <kanban sample="1" class="o_kanban_mobile">
                     <templates>
                         <t t-name="card">
                             <div class="d-flex mb-1">
@@ -280,66 +280,66 @@
                     <field name="user_id" />
                     <field name="product_id" />
                     <filter
-                        string="My Agreements"
                         name="my_agreements"
+                        string="My Agreements"
                         domain="[('user_id', '=', uid)]" />
                     <separator />
                     <filter
-                        string="Blanket Orders"
                         name="blanket_order"
+                        string="Blanket Orders"
                         domain="[('requisition_type', '=', 'blanket_order')]" />
                     <filter
-                        string="Purchase Templates"
                         name="purchase_template"
+                        string="Purchase Templates"
                         domain="[('requisition_type', '=', 'purchase_template')]" />
                     <filter
-                        string="Draft"
                         name="draft"
-                        domain="[('state', '=', 'draft')]"
-                        help="New Agreements" />
+                        string="Draft"
+                        help="New Agreements"
+                        domain="[('state', '=', 'draft')]" />
                     <filter
-                        string="Done"
                         name="done"
+                        string="Done"
                         domain="[('state', '=', 'done')]" />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                     <group>
                         <filter
-                            string="Purchase Representative"
                             name="representative"
+                            string="Purchase Representative"
                             context="{'group_by': 'user_id'}" />
                         <filter
-                            string="Status"
                             name="status"
+                            string="Status"
                             context="{'group_by': 'state'}" />
                         <filter
-                            string="Ordering Date"
                             name="date_start"
+                            string="Ordering Date"
                             context="{'group_by': 'date_start'}" />
                     </group>
                 </search>

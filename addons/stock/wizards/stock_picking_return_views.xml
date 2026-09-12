@@ -13,7 +13,7 @@
         <field name="model">stock.return.picking</field>
         <field name="arch" type="xml">
             <form>
-                <field name="picking_id" invisible="1" force_save="1" />
+                <field name="picking_id" force_save="1" invisible="1" />
                 <field name="company_id" invisible="1" />
                 <field name="product_return_moves">
                     <list editable="bottom" create="1" decoration-warning="not move_id">
@@ -32,25 +32,25 @@
                 <footer>
                     <button
                         name="action_create_returns"
-                        string="Return"
                         type="object"
+                        string="Return"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
                         name="action_create_returns_all"
-                        string="Return All"
                         type="object"
+                        string="Return All"
                         class="btn-secondary" />
                     <button
                         name="action_create_exchanges"
+                        type="object"
                         string="Return for Exchange"
                         invisible="picking_type_code not in ('incoming', 'outgoing')"
-                        type="object"
                         class="btn-secondary" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

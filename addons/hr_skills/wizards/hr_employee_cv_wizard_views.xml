@@ -31,15 +31,15 @@
                 <footer>
                     <button
                         name="action_validate"
-                        string="Print"
                         type="object"
+                        string="Print"
                         class="oe_highlight"
                         data-hotkey="q" />
                     <button
-                        string="Discard"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Discard"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

@@ -37,7 +37,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Users" name="users">
+                        <page name="users" string="Users">
                             <group>
                                 <group>
                                     <field name="total_users" />
@@ -50,7 +50,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Challenges &amp; Goals" name="goals">
+                        <page name="goals" string="Challenges &amp; Goals">
                             <group>
                                 <group>
                                     <field name="active_challenges" />
@@ -64,7 +64,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Badges" name="badges">
+                        <page name="badges" string="Badges">
                             <group>
                                 <group>
                                     <field name="total_badges_granted" />
@@ -75,7 +75,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Kudos" name="kudos">
+                        <page name="kudos" string="Kudos">
                             <group>
                                 <group>
                                     <field name="total_kudos" />
@@ -87,7 +87,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Streaks" name="streaks">
+                        <page name="streaks" string="Streaks">
                             <group>
                                 <group>
                                     <field name="active_streaks" />
@@ -101,8 +101,8 @@
                             </group>
                         </page>
                         <page
-                            string="Achievements &amp; Karma"
-                            name="achievements_karma">
+                            name="achievements_karma"
+                            string="Achievements &amp; Karma">
                             <group>
                                 <group>
                                     <field name="total_unlocks" />
@@ -126,21 +126,21 @@
         <field name="arch" type="xml">
             <search>
                 <filter
-                    string="Last 30 Days"
                     name="last_30d"
+                    string="Last 30 Days"
                     domain="[('snapshot_date', '&gt;=', (context_today() - datetime.timedelta(days=30)).strftime('%%Y-%%m-%%d'))]" />
                 <filter
-                    string="Last 90 Days"
                     name="last_90d"
+                    string="Last 90 Days"
                     domain="[('snapshot_date', '&gt;=', (context_today() - datetime.timedelta(days=90)).strftime('%%Y-%%m-%%d'))]" />
                 <group>
                     <filter
-                        string="Month"
                         name="group_month"
+                        string="Month"
                         context="{'group_by': 'snapshot_date:month'}" />
                     <filter
-                        string="Company"
                         name="group_company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>

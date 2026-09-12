@@ -17,9 +17,9 @@
 
             <notebook position="inside">
                 <page
+                    name="page_pl_extra"
                     id="pl_extra"
                     string="PL Extra"
-                    name="page_pl_extra"
                     invisible="move_type not in ('out_invoice', 'out_refund') or country_code != 'PL'">
                     <group>
                         <group>

@@ -154,8 +154,8 @@
                 <field
                     name="hr_icon_display"
                     widget="hr_presence_status_private"
-                    invisible="not show_hr_icon_display or not id or not active"
-                    groups="hr.group_hr_user" />
+                    groups="hr.group_hr_user"
+                    invisible="not show_hr_icon_display or not id or not active" />
             </xpath>
             <xpath expr="//field[@name='hr_icon_display'][1]" position="attributes">
                 <attribute name="groups">!hr.group_hr_user</attribute>
@@ -167,11 +167,11 @@
                 <button
                     name="action_time_off_dashboard"
                     type="object"
-                    class="oe_stat_button"
+                    help="Remaining leaves"
                     icon="fa-calendar"
-                    invisible="not show_leaves or company_id not in allowed_company_ids"
                     groups="base.group_user"
-                    help="Remaining leaves">
+                    invisible="not show_leaves or company_id not in allowed_company_ids"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span
                             class="o_stat_value"
@@ -195,8 +195,8 @@
             <xpath expr="//field[@name='work_location_id']" position="after">
                 <field
                     name="leave_manager_id"
-                    optional="hide"
-                    widget="many2one_avatar_user" />
+                    widget="many2one_avatar_user"
+                    optional="hide" />
             </xpath>
         </field>
     </record>

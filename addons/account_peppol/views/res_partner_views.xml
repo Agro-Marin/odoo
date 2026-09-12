@@ -36,8 +36,8 @@
                     <field name="is_peppol_edi_format" invisible="1" />
                     <field
                         name="peppol_verification_state"
-                        invisible="1"
-                        force_save="1" />
+                        force_save="1"
+                        invisible="1" />
                     <label
                         for="peppol_verification_state"
                         invisible="not peppol_endpoint" />
@@ -48,10 +48,10 @@
                         <div class="col-6 pt-0">
                             <button
                                 name="button_account_peppol_check_partner_endpoint"
-                                class="btn btn-secondary"
                                 type="object"
                                 string="Verify"
-                                help="Verify partner's PEPPOL endpoint" />
+                                help="Verify partner's PEPPOL endpoint"
+                                class="btn btn-secondary" />
                         </div>
                     </div>
                 </xpath>

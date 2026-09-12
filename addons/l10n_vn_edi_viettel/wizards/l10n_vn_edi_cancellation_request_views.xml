@@ -17,12 +17,12 @@
                 </group>
                 <footer>
                     <button
-                        string="Request Cancellation"
                         name="button_request_cancel"
                         type="object"
+                        string="Request Cancellation"
                         default_focus="1"
                         class="btn-primary" />
-                    <button string="Close" special="cancel" />
+                    <button special="cancel" string="Close" />
                 </footer>
             </form>
         </field>

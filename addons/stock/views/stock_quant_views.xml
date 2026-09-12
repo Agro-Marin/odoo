@@ -72,39 +72,39 @@
                 </group>
                 <group>
                     <filter
-                        string="Product"
                         name="productgroup"
+                        string="Product"
                         context="{'group_by': 'product_id'}" />
                     <filter
-                        string="Product Category"
                         name="productcategorygroup"
+                        string="Product Category"
                         context="{'group_by': 'product_categ_id'}" />
                     <filter
-                        string="Location"
                         name="locationgroup"
+                        string="Location"
                         context="{'group_by': 'location_id'}" />
                     <filter
-                        string="Storage Category"
                         name="storagecategorygroup"
+                        string="Storage Category"
                         context="{'group_by': 'storage_category_id'}" />
                     <filter
-                        string="Owner"
                         name="owner"
+                        string="Owner"
                         context="{'group_by': 'owner_id'}"
                         groups="stock.group_tracking_owner" />
                     <filter
-                        string="Lot/Serial Number"
                         name="Lot_Serial_number"
+                        string="Lot/Serial Number"
                         context="{'group_by': 'lot_id'}"
                         groups="stock.group_production_lot" />
                     <filter
-                        string="Package"
                         name="package"
+                        string="Package"
                         context="{'group_by': 'package_id'}"
                         groups="stock.group_tracking_lot" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                 </group>
@@ -121,17 +121,17 @@
                 editable="bottom"
                 create="1"
                 edit="1"
-                js_class="inventory_report_list"
+                duplicate="0"
                 sample="1"
-                duplicate="0">
+                js_class="inventory_report_list">
                 <header>
                     <button
                         name="action_stock_quant_relocate"
-                        string="Relocate"
                         type="object"
+                        string="Relocate"
+                        context="{'action_ref': 'stock.action_view_quants'}"
                         groups="stock.group_stock_manager"
-                        invisible="context.get('hide_location', False)"
-                        context="{'action_ref': 'stock.action_view_quants'}" />
+                        invisible="context.get('hide_location', False)" />
                 </header>
                 <field name="create_date" column_invisible="True" />
                 <field name="write_date" column_invisible="True" />
@@ -140,42 +140,42 @@
                 <field name="company_id" column_invisible="True" />
                 <field
                     name="location_id"
+                    options="{'no_create': True}"
                     column_invisible="context.get('hide_location', False)"
-                    readonly="id"
-                    options="{'no_create': True}" />
+                    readonly="id" />
                 <field name="storage_category_id" optional="hide" />
                 <field
                     name="product_id"
-                    readonly="context.get('single_product', False) or id"
+                    widget="many2one"
                     force_save="1"
                     options="{'no_create': True}"
-                    widget="many2one" />
+                    readonly="context.get('single_product', False) or id" />
                 <field name="product_categ_id" optional="hide" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field
                     name="package_id"
-                    groups="stock.group_tracking_lot"
-                    readonly="id"
                     widget="package_m2o"
-                    context="{'show_src_package': 1}" />
+                    context="{'show_src_package': 1}"
+                    groups="stock.group_tracking_lot"
+                    readonly="id" />
                 <field
                     name="lot_id"
+                    context="{'default_product_id': product_id}"
                     groups="stock.group_production_lot"
                     column_invisible="context.get('hide_lot', False)"
-                    readonly="id or tracking not in ['serial', 'lot']"
-                    context="{'default_product_id': product_id}" />
+                    readonly="id or tracking not in ['serial', 'lot']" />
                 <field
                     name="owner_id"
+                    options="{'no_create': True}"
                     groups="stock.group_tracking_owner"
-                    readonly="id"
-                    options="{'no_create': True}" />
+                    readonly="id" />
                 <field
                     name="inventory_quantity_auto_apply"
-                    readonly="0"
-                    sum="Total On Hand" />
+                    sum="Total On Hand"
+                    readonly="0" />
                 <field name="reserved_quantity" optional="show" sum="Total Reserved" />
                 <field
                     name="available_quantity"
@@ -185,22 +185,22 @@
                 <field name="days_since_last_movement" optional="hide" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
-                    widget="many2one_uom" />
+                    widget="many2one_uom"
+                    groups="uom.group_uom" />
                 <field name="lot_properties" optional="hide" />
                 <button
                     name="action_view_stock_moves"
-                    string="History"
                     type="object"
-                    class="btn-link"
-                    icon="fa-history" />
+                    string="History"
+                    icon="fa-history"
+                    class="btn-link" />
                 <button
                     name="action_view_orderpoints"
-                    string="Replenishment"
                     type="object"
+                    string="Replenishment"
+                    icon="fa-refresh"
                     context="{'default_product_id': product_id, 'search_default_location_id': location_id}"
-                    class="btn-link"
-                    icon="fa-refresh" />
+                    class="btn-link" />
             </list>
         </field>
     </record>
@@ -224,9 +224,9 @@
                 <field name="lot_properties" />
                 <field
                     name="package_id"
-                    groups="stock.group_tracking_lot"
                     widget="package_m2o"
-                    context="{'show_src_package': 1}" />
+                    context="{'show_src_package': 1}"
+                    groups="stock.group_tracking_lot" />
                 <field name="owner_id" groups="stock.group_tracking_owner" />
                 <field name="quantity" string="On Hand" />
                 <field
@@ -236,8 +236,8 @@
                 <field name="product_uom_id" groups="uom.group_uom" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -265,23 +265,23 @@
         <field name="arch" type="xml">
             <list
                 default_order="location_id, inventory_date, product_id, package_id, lot_id, owner_id"
-                decoration-warning="is_outdated"
-                multi_edit="1"
                 editable="bottom"
                 create="1"
                 edit="1"
                 import="1"
-                js_class="inventory_report_list"
-                sample="1">
+                multi_edit="1"
+                sample="1"
+                decoration-warning="is_outdated"
+                js_class="inventory_report_list">
                 <header>
                     <button
                         name="action_apply_all"
-                        string="Apply All"
                         type="object"
-                        class="btn btn-primary"
+                        string="Apply All"
+                        display="always"
                         groups="stock.group_stock_user"
                         invisible="not context.get('inventory_mode') or context.get('inventory_report_mode')"
-                        display="always" />
+                        class="btn btn-primary" />
                     <button
                         name="stock.action_stock_inventory_adjustement_name"
                         type="action"
@@ -294,9 +294,9 @@
                         groups="stock.group_stock_manager" />
                     <button
                         name="stock.action_stock_request_count"
-                        groups="stock.group_stock_manager"
                         type="action"
-                        string="Request a Count" />
+                        string="Request a Count"
+                        groups="stock.group_stock_manager" />
                 </header>
                 <field name="create_date" column_invisible="True" />
                 <field name="write_date" column_invisible="True" />
@@ -309,88 +309,88 @@
                 <field
                     name="location_id"
                     domain="[('usage', 'in', ['internal', 'transit'])]"
+                    options="{'no_create': True}"
                     column_invisible="context.get('hide_location', False)"
-                    readonly="id"
-                    options="{'no_create': True}" />
+                    readonly="id" />
                 <field
                     name="cyclic_inventory_frequency"
-                    column_invisible="context.get('hide_location', False)"
+                    optional="hide"
                     options="{'no_create': True}"
-                    optional="hide" />
+                    column_invisible="context.get('hide_location', False)" />
                 <field
                     name="product_id"
-                    readonly="context.get('single_product', False) or id"
                     force_save="1"
-                    options="{'no_create': True}" />
+                    options="{'no_create': True}"
+                    readonly="context.get('single_product', False) or id" />
                 <field name="product_categ_id" optional="hide" />
                 <field
                     name="lot_id"
+                    force_save="1"
+                    context="{'default_product_id': product_id}"
                     groups="stock.group_production_lot"
                     column_invisible="context.get('hide_lot', False)"
                     readonly="tracking not in ['serial', 'lot'] or (id and (lot_id or quantity != 0))"
-                    context="{'default_product_id': product_id}"
-                    decoration-danger="sn_duplicated"
-                    force_save="1" />
+                    decoration-danger="sn_duplicated" />
                 <field
                     name="package_id"
-                    groups="stock.group_tracking_lot"
                     widget="package_m2o"
                     context="{'show_src_package': 1}"
+                    groups="stock.group_tracking_lot"
                     readonly="id" />
                 <field
                     name="owner_id"
+                    options="{'no_create': True}"
                     groups="stock.group_tracking_owner"
-                    readonly="id"
-                    options="{'no_create': True}" />
+                    readonly="id" />
                 <field name="last_count_date" optional="hide" readonly="1" />
                 <field
                     name="inventory_date"
-                    decoration-info="inventory_date &lt;= context_today().strftime('%Y-%m-%d')"
+                    optional="show"
                     decoration-bf="inventory_date &lt;= context_today().strftime('%Y-%m-%d')"
-                    optional="show" />
+                    decoration-info="inventory_date &lt;= context_today().strftime('%Y-%m-%d')" />
                 <field name="user_id" string="User" optional="show" />
                 <field
                     name="quantity"
+                    string="On Hand"
                     optional="show"
-                    decoration-warning="quantity &lt; 0"
-                    string="On Hand" />
+                    decoration-warning="quantity &lt; 0" />
                 <field name="inventory_quantity" widget="counted_quantity_widget" />
                 <field
                     name="inventory_diff_quantity"
                     string="Difference"
                     invisible="not inventory_quantity_set"
-                    decoration-muted="inventory_diff_quantity == 0"
+                    decoration-bf="inventory_diff_quantity != 0"
                     decoration-danger="inventory_diff_quantity &lt; 0"
-                    decoration-success="inventory_diff_quantity &gt; 0"
-                    decoration-bf="inventory_diff_quantity != 0" />
+                    decoration-muted="inventory_diff_quantity == 0"
+                    decoration-success="inventory_diff_quantity &gt; 0" />
                 <field name="product_uom_id" groups="uom.group_uom" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field name="lot_properties" optional="hide" />
                 <button
                     name="action_inventory_history"
                     type="object"
-                    class="btn btn-link text-info"
+                    string="History"
                     icon="fa-history"
-                    string="History" />
+                    class="btn btn-link text-info" />
                 <button
                     name="action_apply_inventory"
                     type="object"
                     string="Apply"
-                    class="btn btn-link"
-                    groups="stock.group_stock_user"
                     icon="fa-save"
-                    invisible="not inventory_quantity_set" />
+                    groups="stock.group_stock_user"
+                    invisible="not inventory_quantity_set"
+                    class="btn btn-link" />
                 <button
                     name="action_clear_inventory_quantity"
                     type="object"
                     string="Clear"
-                    class="btn text-warning"
-                    groups="stock.group_stock_user"
                     icon="fa-times"
-                    invisible="not inventory_quantity_set" />
+                    groups="stock.group_stock_user"
+                    invisible="not inventory_quantity_set"
+                    class="btn text-warning" />
             </list>
         </field>
     </record>
@@ -435,28 +435,28 @@
                             <field name="company_id" invisible="1" />
                             <field
                                 name="product_id"
-                                readonly="0"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                readonly="0" />
                             <field
                                 name="location_id"
-                                readonly="0"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                readonly="0" />
                             <field
                                 name="lot_id"
+                                context="{'default_product_id': product_id}"
                                 groups="stock.group_production_lot"
                                 readonly="tracking not in ['serial', 'lot']"
-                                required="tracking != 'none'"
-                                context="{'default_product_id': product_id}" />
+                                required="tracking != 'none'" />
                             <field
                                 name="package_id"
-                                readonly="0"
+                                context="{'show_src_package': 1}"
                                 groups="stock.group_tracking_lot"
-                                context="{'show_src_package': 1}" />
+                                readonly="0" />
                             <field
                                 name="owner_id"
-                                readonly="0"
+                                options="{'no_create': True}"
                                 groups="stock.group_tracking_owner"
-                                options="{'no_create': True}" />
+                                readonly="0" />
                             <field
                                 name="company_id"
                                 groups="base.group_multi_company" />
@@ -467,8 +467,8 @@
                                 <field name="quantity" />
                                 <field
                                     name="product_uom_id"
-                                    groups="uom.group_uom"
-                                    options="{'no_open': True}" />
+                                    options="{'no_open': True}"
+                                    groups="uom.group_uom" />
                             </div>
                             <label
                                 for="available_quantity"
@@ -477,16 +477,16 @@
                                 <field name="available_quantity" />
                                 <field
                                     name="product_uom_id"
-                                    groups="uom.group_uom"
-                                    options="{'no_open': True}" />
+                                    options="{'no_open': True}"
+                                    groups="uom.group_uom" />
                             </div>
                             <label for="reserved_quantity" string="Quantity Reserved" />
                             <div class="o_row">
                                 <field name="reserved_quantity" />
                                 <field
                                     name="product_uom_id"
-                                    groups="uom.group_uom"
-                                    options="{'no_open': True}" />
+                                    options="{'no_open': True}"
+                                    groups="uom.group_uom" />
                             </div>
                         </group>
                     </group>
@@ -516,9 +516,9 @@
                         <field
                             name="lot_id"
                             domain="[('product_id', '=', product_id)]"
+                            context="{'default_product_id': product_id, 'active_picking_id': context.get('active_picking_id')}"
                             groups="stock.group_production_lot"
-                            readonly="context.get('readonly_form')"
-                            context="{'default_product_id': product_id, 'active_picking_id': context.get('active_picking_id')}" />
+                            readonly="context.get('readonly_form')" />
                         <field
                             name="location_id"
                             groups="stock.group_stock_multi_locations"

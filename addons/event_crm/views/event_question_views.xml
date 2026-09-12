@@ -10,8 +10,8 @@
                 expr="//field[@name='answer_ids']/list/field[last()]"
                 position="after">
                 <button
-                    type="object"
                     name="action_add_rule_button"
+                    type="object"
                     string="Add a rule"
                     class="ms-auto" />
             </xpath>

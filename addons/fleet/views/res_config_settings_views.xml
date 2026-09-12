@@ -10,12 +10,12 @@
             <field name="arch" type="xml">
                 <xpath expr="//form" position="inside">
                     <app
-                        data-string="Fleet"
+                        name="fleet"
                         id="fleet"
                         string="Fleet"
-                        name="fleet"
-                        groups="fleet.fleet_group_manager">
-                        <block title="Fleet Management" id="end_contract_setting">
+                        groups="fleet.fleet_group_manager"
+                        data-string="Fleet">
+                        <block id="end_contract_setting" title="Fleet Management">
                             <setting string="End Date Contract Alert">
                                 <div class="text-muted content-group mt16">
                                     <span>Send an alert </span>

@@ -14,18 +14,18 @@
                     domain="[('l10n_latam_document_type_id', '!=', False)]" />
                 <filter
                     name="filter_accounting_date_this_year"
-                    invisible="1"
                     string="Accounting Date: This Year"
-                    domain="[('date', '&lt;', '=1m =1d +1y'), ('date', '&gt;=', '=1m =1d')]" />
+                    domain="[('date', '&lt;', '=1m =1d +1y'), ('date', '&gt;=', '=1m =1d')]"
+                    invisible="1" />
             </search>
             <filter name="user" position="after">
                 <filter
-                    string="State"
                     name="groupby_l10n_ar_state_id"
+                    string="State"
                     context="{'group_by': 'l10n_ar_state_id'}" />
                 <filter
-                    string="Account"
                     name="groupby_account_id"
+                    string="Account"
                     context="{'group_by':'account_id'}"
                     groups="account.group_account_readonly" />
             </filter>

@@ -19,20 +19,20 @@
                         invisible="context.get('default_talent_pool_ids')" />
                     <field
                         name="categ_ids"
-                        options="{'color_field': 'color'}"
-                        widget="many2many_tags" />
+                        widget="many2many_tags"
+                        options="{'color_field': 'color'}" />
                 </group>
                 <footer>
                     <button
                         name="action_add_applicants_to_pool"
-                        string="Add to Pool"
                         type="object"
+                        string="Add to Pool"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

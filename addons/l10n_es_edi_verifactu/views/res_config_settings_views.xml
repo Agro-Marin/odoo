@@ -10,8 +10,8 @@
                 expr="//block[@name='default_taxes_setting_container']"
                 position="before">
                 <block
-                    title="Veri*Factu"
                     name="l10n_es_edi_verifactu"
+                    title="Veri*Factu"
                     invisible="country_code != 'ES'">
                     <setting
                         id="l10n_es_edi_verifactu_required"
@@ -33,8 +33,8 @@
                                 <div class="o_row mt16">
                                     <label
                                         for="l10n_es_edi_verifactu_test_environment"
-                                        class="o_light_label"
-                                        string="Test Environment" />
+                                        string="Test Environment"
+                                        class="o_light_label" />
                                     <field
                                         name="l10n_es_edi_verifactu_test_environment" />
                                 </div>
@@ -52,8 +52,8 @@
                                 <div class="o_row mt8">
                                     <label
                                         for="l10n_es_edi_verifactu_special_vat_regime"
-                                        class="col-lg-6 o_light_label"
-                                        string="Special VAT Regime" />
+                                        string="Special VAT Regime"
+                                        class="col-lg-6 o_light_label" />
                                     <field
                                         name="l10n_es_edi_verifactu_special_vat_regime" />
                                 </div>

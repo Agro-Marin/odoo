@@ -81,8 +81,8 @@
                                 <label for="wave_group_by_category" />
                                 <field
                                     name="wave_category_ids"
-                                    widget="many2many_tags"
                                     placeholder="Select product categories you want to group"
+                                    widget="many2many_tags"
                                     invisible="not wave_group_by_category"
                                     required="wave_group_by_category" />
                             </div>
@@ -98,8 +98,8 @@
                                 <label for="wave_group_by_location" />
                                 <field
                                     name="wave_location_ids"
-                                    widget="many2many_tags"
                                     placeholder="Select locations you want to group"
+                                    widget="many2many_tags"
                                     invisible="not wave_group_by_location"
                                     required="wave_group_by_location" />
                             </div>

@@ -54,8 +54,8 @@
                 <xpath expr="//div[@id='event_ticket_id']" position="before">
                     <field
                         name="registration_answer_choice_ids"
-                        class="mt-1"
-                        widget="many2many_tags" />
+                        widget="many2many_tags"
+                        class="mt-1" />
                 </xpath>
             </field>
         </record>

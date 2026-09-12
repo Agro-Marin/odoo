@@ -10,11 +10,11 @@
                 <button
                     name="action_view_bills"
                     type="object"
-                    class="oe_stat_button"
+                    help="show the vendor bills for this vehicle"
                     icon="fa-regular fa-pen-to-square"
                     invisible="bill_count == 0"
-                    help="show the vendor bills for this vehicle">
-                    <field name="bill_count" widget="statinfo" string="Bills" />
+                    class="oe_stat_button">
+                    <field name="bill_count" string="Bills" widget="statinfo" />
                 </button>
             </xpath>
         </field>

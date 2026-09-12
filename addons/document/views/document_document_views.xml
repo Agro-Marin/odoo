@@ -8,8 +8,8 @@
             <search string="Documents">
                 <field
                     name="name"
-                    filter_domain="['|', ('name', 'ilike', self), ('tag_ids.name', 'ilike', self)]"
-                    string="Document" />
+                    string="Document"
+                    filter_domain="['|', ('name', 'ilike', self), ('tag_ids.name', 'ilike', self)]" />
                 <field name="name" />
                 <field name="tag_ids" />
                 <field name="owner_id" />
@@ -21,140 +21,140 @@
                 <field name="index_content" />
                 <field name="create_uid" string="Created by" />
                 <filter
-                    string="My Documents"
                     name="my_documents_filter"
+                    string="My Documents"
                     domain="['|', ('owner_id', '=', uid), ('partner_id.user_ids', '=', uid)]" />
                 <filter
-                    string="Starred"
                     name="my_favorites_filter"
+                    string="Starred"
                     domain="[('favorite_user_ids', 'in', uid)]" />
                 <filter
-                    string="Shared with anyone"
                     name="shared_anyone_with_the_link"
+                    string="Shared with anyone"
                     domain="[('access_via_link', '!=', 'none'), ('is_access_via_link_hidden', '=', False)]" />
                 <separator />
                 <filter
-                    string="Documents"
                     name="documents"
+                    string="Documents"
                     domain="[('type', '!=', 'folder')]" />
                 <filter
-                    string="Folders"
                     name="folders"
+                    string="Folders"
                     domain="[('type', '=', 'folder')]" />
                 <filter
-                    string="PDF/Documents"
                     name="pdf_doc"
+                    string="PDF/Documents"
                     domain="['|', ('mimetype', 'ilike', 'pdf'), ('name', 'ilike', '.doc')]" />
                 <filter
-                    string="Image/Video"
                     name="image_video_documents"
+                    string="Image/Video"
                     domain="['|', ('mimetype', 'ilike', 'image'), ('mimetype', 'ilike', 'video')]" />
                 <filter
-                    string="URL"
                     name="url_documents"
+                    string="URL"
                     domain="[('type', '=', 'url')]" />
                 <filter
-                    string="Hide shortcuts"
                     name="no_shortcuts"
+                    string="Hide shortcuts"
                     domain="[('shortcut_document_id', '=', False)]" />
                 <filter
-                    string="Requested Documents"
                     name="requested_filter"
+                    string="Requested Documents"
                     domain="[('type', '=', 'binary'), ('attachment_id', '=', False)]" />
                 <separator />
                 <field name="document_type_id" />
                 <field name="legal_number" />
                 <filter
-                    string="Valid"
                     name="expiration_valid"
+                    string="Valid"
                     domain="[('expiration_state', '=', 'valid')]" />
                 <filter
-                    string="Expiring Soon"
                     name="expiration_expiring_soon"
+                    string="Expiring Soon"
                     domain="[('expiration_state', '=', 'expiring_soon')]" />
                 <filter
-                    string="Expired"
                     name="expiration_expired"
+                    string="Expired"
                     domain="[('expiration_state', '=', 'expired')]" />
                 <filter
-                    string="Missing Expiration"
                     name="expiration_missing"
+                    string="Missing Expiration"
                     domain="[('expiration_state', '=', 'missing')]" />
                 <separator />
                 <filter
-                    string="Renewal Due"
                     name="renewal_due"
+                    string="Renewal Due"
                     domain="[('renewal_state', '=', 'due')]" />
                 <filter
-                    string="Renewed"
                     name="renewal_renewed"
+                    string="Renewed"
                     domain="[('renewal_state', '=', 'renewed')]" />
                 <separator />
                 <filter
-                    string="In My Drive"
                     name="my_drive_filter"
+                    string="In My Drive"
                     domain="[('user_folder_id', 'child_of', 'MY')]" />
                 <filter
-                    string="In Company"
                     name="in_company_filter"
+                    string="In Company"
                     domain="[('user_folder_id', 'child_of', 'COMPANY')]" />
                 <separator />
                 <field name="type" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
                 <group>
                     <filter
-                        string="Contact"
                         name="filter_partner_id"
+                        string="Contact"
                         context="{'group_by': 'partner_id'}" />
                     <filter
-                        string="Owner"
                         name="filter_owner_id"
+                        string="Owner"
                         context="{'group_by': 'owner_id'}" />
                     <filter
-                        string="Type"
                         name="filter_type"
+                        string="Type"
                         context="{'group_by': 'type'}" />
                     <filter
-                        string="Model"
                         name="filter_res_model"
+                        string="Model"
                         context="{'group_by': 'res_model'}" />
                     <filter
-                        string="Creation Date"
                         name="filter_create_date"
+                        string="Creation Date"
                         context="{'group_by':'create_date'}" />
                     <filter
-                        string="File Extension"
                         name="filter_file_extension"
+                        string="File Extension"
                         context="{'group_by': 'file_extension'}" />
                     <filter
-                        string="Document Type"
                         name="filter_document_type"
+                        string="Document Type"
                         context="{'group_by': 'document_type_id'}" />
                     <filter
-                        string="Expiration"
                         name="filter_expiration_state"
+                        string="Expiration"
                         context="{'group_by': 'expiration_state'}" />
                 </group>
                 <searchpanel class="o_documents_search_panel">
@@ -168,7 +168,7 @@
         <field name="name">document.document kanban</field>
         <field name="model">document.document</field>
         <field name="arch" type="xml">
-            <kanban js_class="documents_kanban" create="false">
+            <kanban create="false" js_class="documents_kanban">
                 <field name="id" />
                 <field name="active" />
                 <field name="mimetype" />
@@ -252,8 +252,8 @@
                                     t-att-title="fileRequest ? 'Upload file' : ''">
                                     <field
                                         name="is_user_favorite"
-                                        nolabel="1"
                                         widget="document_favorite"
+                                        nolabel="1"
                                         class="position-absolute top-0 end-0 p-1 pt-2" />
                                     <img
                                         t-if="youtubeVideoToken"
@@ -335,17 +335,17 @@
                                         title="This is a folder" />
                                     <field
                                         name="name"
-                                        class="text-truncate me-1"
+                                        string="Document"
                                         required="True"
-                                        string="Document" />
+                                        class="text-truncate me-1" />
                                     <i
                                         t-if="!discoverable"
                                         class="fa-regular fa-eye-slash me-1"
                                         title="Must have the link to access" />
                                     <field
                                         name="is_user_favorite"
-                                        nolabel="1"
                                         widget="document_favorite"
+                                        nolabel="1"
                                         class="ms-auto" />
                                 </div>
                                 <div t-else="" class="p-2 pb-0">
@@ -363,9 +363,9 @@
                                             class="d-flex flex-grow-1 align-items-center gap-2 overflow-hidden">
                                             <field
                                                 name="name"
-                                                class="text-truncate"
+                                                string="Document"
                                                 required="True"
-                                                string="Document" />
+                                                class="text-truncate" />
                                             <t
                                                 t-if="record.shortcut_document_id.raw_value">
                                                 <i
@@ -423,13 +423,13 @@
                                 </div>
                             </div>
                             <footer
-                                t-if="record.type.raw_value != 'folder' and record.tag_ids.raw_value.length"
-                                class="d-flex px-2">
+                                class="d-flex px-2"
+                                t-if="record.type.raw_value != 'folder' and record.tag_ids.raw_value.length">
                                 <field
                                     name="tag_ids"
-                                    class="d-block text-wrap"
                                     widget="documents_many2many_tags"
-                                    options="{'color_field': 'color'}" />
+                                    options="{'color_field': 'color'}"
+                                    class="d-block text-wrap" />
                             </footer>
                         </div>
                     </t>
@@ -450,8 +450,8 @@
                             <field
                                 name="name"
                                 placeholder="e.g. Finance"
-                                options="{'line_breaks': False}"
                                 widget="text"
+                                options="{'line_breaks': False}"
                                 readonly="False"
                                 required="True" />
                         </h1>
@@ -460,14 +460,14 @@
                 <footer>
                     <button
                         special="save"
-                        data-hotkey="q"
                         string="Rename"
-                        class="btn btn-primary" />
+                        class="btn btn-primary"
+                        data-hotkey="q" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Discard"
-                        class="btn-secondary" />
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -484,29 +484,29 @@
                         <field
                             name="url"
                             string="URL"
+                            placeholder="e.g. https://www.youtube.com/watch?v=CP96yVnXNrY"
                             widget="url"
-                            required="1"
-                            placeholder="e.g. https://www.youtube.com/watch?v=CP96yVnXNrY" />
+                            required="1" />
                         <field name="name" required="True" />
-                        <field name="url_preview_image" invisible="1" force_save="1" />
+                        <field name="url_preview_image" force_save="1" invisible="1" />
                         <field
                             name="folder_id"
                             string="Folder"
                             widget="documents_folder_many2one"
-                            context="{'default_type':'folder'}"
-                            domain="[('type', '=', 'folder'), ('shortcut_document_id', '=', False), ('user_permission', '=', 'edit')]" />
+                            domain="[('type', '=', 'folder'), ('shortcut_document_id', '=', False), ('user_permission', '=', 'edit')]"
+                            context="{'default_type':'folder'}" />
                         <field name="tag_ids" invisible="1" />
                     </group>
                     <footer>
                         <button
                             special="save"
-                            data-hotkey="q"
                             string="Add"
-                            class="btn btn-primary" />
+                            class="btn btn-primary"
+                            data-hotkey="q" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </sheet>
@@ -520,17 +520,17 @@
         <field name="priority">1</field>
         <field name="arch" type="xml">
             <list
+                default_order="is_folder, create_date DESC, id DESC"
                 create="false"
                 multi_edit="1"
-                decoration-info="shortcut_document_id"
-                default_order="is_folder, create_date DESC, id DESC">
+                decoration-info="shortcut_document_id">
                 <field name="is_user_favorite" widget="document_favorite" nolabel="1" />
                 <field
                     name="type"
-                    width="25px"
                     widget="documents_type_icon"
+                    width="25px"
                     nolabel="1" />
-                <field name="name" required="True" readonly="False" />
+                <field name="name" readonly="False" required="True" />
                 <field name="folder_id" optional="show" />
                 <field name="user_folder_id" column_invisible="True" />
                 <field name="user_can_move" column_invisible="True" />
@@ -543,15 +543,15 @@
                     optional="hide"
                     options="{'color_field': 'color'}" />
                 <field name="url" optional="hide" />
-                <field name="lock_uid" groups="base.group_user" optional="hide" />
+                <field name="lock_uid" optional="hide" groups="base.group_user" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="hide" />
+                    optional="hide"
+                    groups="base.group_multi_company" />
                 <field
                     name="available_embedded_actions_ids"
-                    optional="hide"
                     widget="many2many_tags"
+                    optional="hide"
                     groups="base.group_user" />
                 <field name="create_date" optional="hide" />
                 <field name="document_type_id" optional="show" />
@@ -571,23 +571,23 @@
                 <field
                     name="expiration_state"
                     widget="badge"
-                    decoration-success="expiration_state == 'valid'"
-                    decoration-warning="expiration_state in ('expiring_soon', 'missing')"
-                    decoration-danger="expiration_state == 'expired'"
                     optional="hide"
-                    invisible="not has_expiration" />
+                    invisible="not has_expiration"
+                    decoration-danger="expiration_state == 'expired'"
+                    decoration-success="expiration_state == 'valid'"
+                    decoration-warning="expiration_state in ('expiring_soon', 'missing')" />
                 <field name="is_renewable" column_invisible="1" />
                 <field name="renewed_by_document_id" column_invisible="1" />
                 <field
                     name="renewal_state"
                     widget="badge"
-                    decoration-warning="renewal_state == 'due'"
-                    decoration-info="renewal_state == 'renewed'"
                     optional="hide"
-                    invisible="not is_renewable" />
+                    invisible="not is_renewable"
+                    decoration-info="renewal_state == 'renewed'"
+                    decoration-warning="renewal_state == 'due'" />
                 <field name="write_date" optional="show" />
                 <field name="file_extension" optional="hide" />
-                <field name="file_size" optional="show" widget="document_size" />
+                <field name="file_size" widget="document_size" optional="show" />
                 <field name="res_id" string="Link to" optional="hide" />
                 <field name="id" column_invisible="1" />
                 <field name="access_token" column_invisible="1" />
@@ -602,9 +602,9 @@
                 <field name="access_url" column_invisible="1" />
                 <field
                     name="alias_email"
-                    groups="base.group_user"
+                    widget="email"
                     optional="hide"
-                    widget="email" />
+                    groups="base.group_user" />
                 <field name="alias_name" column_invisible="1" />
                 <field name="alias_domain_id" column_invisible="1" />
                 <field name="alias_tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" column_invisible="1"/> <!-- fetch `color` too -->
@@ -690,10 +690,10 @@
                         <field name="owner_id" widget="many2one_avatar_user" />
                         <div>
                             <field
-                                class="o_text_block"
                                 name="name"
                                 display="full"
-                                required="True" />
+                                required="True"
+                                class="o_text_block" />
                         </div>
                     </div>
                 </templates>

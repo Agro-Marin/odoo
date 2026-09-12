@@ -25,32 +25,32 @@
                 <field name="activity_user_id" string="Activities of" />
                 <field name="activity_type_id" string="Activity type" />
                 <filter
-                    domain="[                         ('state','in',['confirm']),                         '|',                         ('employee_id.user_id', '!=', uid),                         '&amp;',                         ('employee_id.user_id', '=', uid),                         ('employee_id.leave_manager_id', '=', uid)]"
-                    string="Waiting For Me"
                     name="waiting_for_me"
+                    string="Waiting For Me"
+                    domain="[                         ('state','in',['confirm']),                         '|',                         ('employee_id.user_id', '!=', uid),                         '&amp;',                         ('employee_id.user_id', '=', uid),                         ('employee_id.leave_manager_id', '=', uid)]"
                     groups="hr_holidays.group_hr_holidays_responsible,!hr_holidays.group_hr_holidays_user" />
                 <filter
-                    domain="[                         ('state','in',['confirm','validate1']),                         '|',                             ('employee_id.user_id', '!=', uid),                             '|',                                 '&amp;',                                     ('state','=','confirm'),                                     ('holiday_status_id.leave_validation_type','=','hr'),                                 ('state','=','validate1')]"
-                    string="Waiting For Me"
                     name="waiting_for_me_manager"
+                    string="Waiting For Me"
+                    domain="[                         ('state','in',['confirm','validate1']),                         '|',                             ('employee_id.user_id', '!=', uid),                             '|',                                 '&amp;',                                     ('state','=','confirm'),                                     ('holiday_status_id.leave_validation_type','=','hr'),                                 ('state','=','validate1')]"
                     groups="hr_holidays.group_hr_holidays_user" />
                 <separator />
                 <filter
-                    domain="[('state', '=', 'confirm')]"
+                    name="approve"
                     string="First Approval"
-                    name="approve" />
+                    domain="[('state', '=', 'confirm')]" />
                 <filter
-                    domain="[('state', '=', 'validate1')]"
+                    name="second_approval"
                     string="Second Approval"
-                    name="second_approval" />
+                    domain="[('state', '=', 'validate1')]" />
                 <filter
-                    domain="[('state','in',('confirm','validate1'))]"
+                    name="to_approve"
                     string="To Approve"
-                    name="to_approve" />
+                    domain="[('state','in',('confirm','validate1'))]" />
                 <filter
+                    name="validated"
                     string="Approved"
-                    domain="[('state', '=', 'validate')]"
-                    name="validated" />
+                    domain="[('state', '=', 'validate')]" />
                 <filter
                     name="cancelled_leaves"
                     string="Cancelled"
@@ -61,48 +61,48 @@
                     domain="[('state', '=', 'refuse')]" />
                 <separator />
                 <filter
-                    string="My Time Off"
                     name="my_leaves"
+                    string="My Time Off"
                     domain="[('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Team"
                     name="my_team"
-                    domain="['|', ('employee_id.leave_manager_id', '=', uid), ('employee_id.user_id', '=', uid)]"
-                    help="Time off of people you are manager of" />
+                    string="My Team"
+                    help="Time off of people you are manager of"
+                    domain="['|', ('employee_id.leave_manager_id', '=', uid), ('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Department"
                     name="department"
-                    domain="[('employee_id.member_of_department', '=', True)]"
-                    help="My Department" />
+                    string="My Department"
+                    help="My Department"
+                    domain="[('employee_id.member_of_department', '=', True)]" />
                 <separator />
                 <filter
                     name="filter_date_from"
+                    string="Start Date"
                     date="date_from"
-                    default_period="year"
-                    string="Start Date" />
+                    default_period="year" />
                 <separator />
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')                         ]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')                         ]"
+                    invisible="1" />
                 <group>
                     <filter
                         name="group_employee"
@@ -140,12 +140,12 @@
                 js_class="time_off_kanban_dashboard">
                 <header>
                     <button
-                        type="action"
                         name="%(hr_holidays.action_hr_leave_generate_multi_wizard)d"
+                        type="action"
                         string="New Group Time Off"
-                        class="btn btn-secondary"
+                        display="always"
                         groups="hr_holidays.group_hr_holidays_responsible"
-                        display="always" />
+                        class="btn btn-secondary" />
                 </header>
                 <field name="supported_attachment_ids_count" />
                 <field name="state" />
@@ -169,28 +169,28 @@
                             <widget
                                 name="web_ribbon"
                                 title="To Approve"
-                                bg_color="text-bg-warning"
-                                invisible="state != 'confirm'" />
+                                invisible="state != 'confirm'"
+                                bg_color="text-bg-warning" />
                             <widget
                                 name="web_ribbon"
                                 title="To Validate"
-                                bg_color="text-bg-warning"
-                                invisible="state != 'validate1'" />
+                                invisible="state != 'validate1'"
+                                bg_color="text-bg-warning" />
                             <widget
                                 name="web_ribbon"
                                 title="Cancelled"
-                                bg_color="text-bg-danger"
-                                invisible="state != 'cancel'" />
+                                invisible="state != 'cancel'"
+                                bg_color="text-bg-danger" />
                             <widget
                                 name="web_ribbon"
                                 title="Refused"
-                                bg_color="bg-danger"
-                                invisible="state != 'refuse'" />
+                                invisible="state != 'refuse'"
+                                bg_color="bg-danger" />
                             <widget
                                 name="web_ribbon"
                                 title="Approved"
-                                bg_color="bg-success"
-                                invisible="state != 'validate'" />
+                                invisible="state != 'validate'"
+                                bg_color="bg-success" />
                             <aside>
                                 <img
                                     t-att-src="'/web/image/hr.employee/' + record.employee_id.raw_value + '/avatar_128'"
@@ -205,8 +205,8 @@
                                             class="col-12 align-items-center o_hr_holidays_value">
                                             <div class="col-4 o_hr_holidays_card">
                                                 <field
-                                                    class="fw-bold fs-3 mb-2"
-                                                    name="employee_id" />
+                                                    name="employee_id"
+                                                    class="fw-bold fs-3 mb-2" />
                                             </div>
                                             <div class="col-2 o_hr_holidays_name">
                                                 <field
@@ -405,31 +405,31 @@
                             </main>
                             <bottom class="d-flex justify-content-end gap-2 mt-0">
                                 <button
-                                    t-if="record.can_approve.raw_value"
                                     name="action_approve"
                                     type="object"
-                                    class="btn btn-sm btn-primary py-0">
+                                    class="btn btn-sm btn-primary py-0"
+                                    t-if="record.can_approve.raw_value">
                                     Approve
                                 </button>
                                 <button
-                                    t-if="record.can_validate.raw_value and !record.can_approve.raw_value"
                                     name="action_approve"
                                     type="object"
-                                    class="btn btn-sm btn-primary py-0">
+                                    class="btn btn-sm btn-primary py-0"
+                                    t-if="record.can_validate.raw_value and !record.can_approve.raw_value">
                                     Validate
                                 </button>
                                 <button
-                                    t-if="record.can_refuse.raw_value"
                                     name="action_refuse"
                                     type="object"
-                                    class="btn btn-sm btn-secondary py-0">
+                                    class="btn btn-sm btn-secondary py-0"
+                                    t-if="record.can_refuse.raw_value">
                                     Refuse
                                 </button>
                                 <button
-                                    t-if="record.supported_attachment_ids_count.raw_value &gt; 0"
                                     name="action_documents"
                                     type="object"
-                                    class="btn btn-link btn-sm ps-0 text-danger">
+                                    class="btn btn-link btn-sm ps-0 text-danger"
+                                    t-if="record.supported_attachment_ids_count.raw_value &gt; 0">
                                     <i class="fa-solid fa-paperclip"> <field name="supported_attachment_ids_count" nolabel="1" /></i>
                                 </button>
                             </bottom>
@@ -474,68 +474,68 @@
         <field name="model">hr.leave</field>
         <field name="priority">32</field>
         <field name="arch" type="xml">
-            <form string="Time Off Request" class="o_hr_leave_form" duplicate="false">
+            <form string="Time Off Request" duplicate="false" class="o_hr_leave_form">
             <field name="employee_id" invisible="1" />
             <field name="user_id" invisible="1" />
             <header>
                 <button
+                    name="action_approve"
+                    type="object"
                     string="Approve"
-                    name="action_approve"
-                    type="object"
-                    class="oe_highlight"
-                    invisible="not can_approve or not id" />
-                <button
-                    string="Validate"
-                    name="action_approve"
-                    invisible="not can_validate or can_approve or not id"
-                    type="object"
+                    invisible="not can_approve or not id"
                     class="oe_highlight" />
                 <button
-                    string="Back to Approval"
+                    name="action_approve"
+                    type="object"
+                    string="Validate"
+                    invisible="not can_validate or can_approve or not id"
+                    class="oe_highlight" />
+                <button
                     name="action_back_to_approval"
                     type="object"
+                    string="Back to Approval"
                     invisible="not can_back_to_approve or not id" />
                 <button
-                    string="Refuse"
                     name="action_refuse"
                     type="object"
+                    string="Refuse"
                     invisible="not can_refuse or not id" />
                 <button
-                    string="Cancel"
                     name="action_cancel"
                     type="object"
+                    string="Cancel"
                     invisible="not can_cancel or not id" />
                 <field
                     name="state"
                     widget="statusbar"
-                    statusbar_visible="confirm,validate,validate1"
-                    invisible="validation_type != 'both'" />
+                    invisible="validation_type != 'both'"
+                    statusbar_visible="confirm,validate,validate1" />
                 <field
                     name="state"
                     widget="statusbar"
-                    statusbar_visible="confirm,validate"
-                    invisible="validation_type == 'both'" />
+                    invisible="validation_type == 'both'"
+                    statusbar_visible="confirm,validate" />
             </header>
             <sheet>
                 <field
                     name="dashboard_warning_message"
+                    invisible="not dashboard_warning_message"
                     class="alert alert-danger d-flex mt-2"
-                    role="alert"
                     style="white-space: pre-wrap;"
-                    invisible="not dashboard_warning_message" />
+                    role="alert" />
                 <field
                     name="leave_type_increases_duration"
+                    invisible="not leave_type_increases_duration"
                     class="alert alert-info d-flex mt-2"
-                    role="alert"
                     style="white-space: pre-wrap;"
-                    invisible="not leave_type_increases_duration" />
+                    role="alert" />
                 <div class="o_hr_leave_content row">
                     <div class="o_hr_leave_column col_left col-md-6 col-12">
                         <widget
                             name="web_ribbon"
                             title="Cancelled"
-                            bg_color="text-bg-danger"
-                            invisible="state != 'cancel'" />
+                            invisible="state != 'cancel'"
+                            bg_color="text-bg-danger" />
                         <div name="title" class="o_hr_leave_title" invisible="1">
                             <field
                                 name="display_name"
@@ -551,19 +551,19 @@
                                 readonly="state in ['cancel', 'refuse', 'validate', 'validate1']" />
                             <label
                                 for="request_date_from"
-                                invisible="not request_unit_half and not request_unit_hours"
-                                string="Date" />
+                                string="Date"
+                                invisible="not request_unit_half and not request_unit_hours" />
                             <label
                                 for="request_date_from"
-                                invisible="request_unit_half or request_unit_hours"
-                                string="Dates" />
+                                string="Dates"
+                                invisible="request_unit_half or request_unit_hours" />
                             <div id="full_date" class="o_row">
                                 <field
                                     name="request_date_from"
                                     widget="daterange"
+                                    options="{'end_date_field': 'request_date_to', 'always_range': '1'}"
                                     readonly="state != 'confirm'"
-                                    required="not date_from or not date_to"
-                                    options="{'end_date_field': 'request_date_to', 'always_range': '1'}" />
+                                    required="not date_from or not date_to" />
                                 <field name="request_date_to" invisible="1" />
                                 <div>
                                     ( <field name="duration_display" readonly="1" class="w-auto" /> )
@@ -571,38 +571,38 @@
                             </div>
                             <label
                                 for="request_date_from_period"
-                                invisible="not request_unit_half"
-                                string="Day Period" />
+                                string="Day Period"
+                                invisible="not request_unit_half" />
                             <div class="o_row" invisible="not request_unit_half">
                                 <field
                                     name="request_date_from_period"
                                     invisible="not request_unit_half"
-                                    required="request_unit_half"
                                     readonly="state != 'confirm'"
+                                    required="request_unit_half"
                                     class="o_hr_narrow_field me-2" />
                                 <field
                                     name="request_date_to_period"
                                     invisible="not request_unit_half"
-                                    required="request_unit_half"
                                     readonly="state != 'confirm'"
+                                    required="request_unit_half"
                                     class="o_hr_narrow_field" />
                             </div>
                             <label
                                 for="request_hour_from"
-                                invisible="not request_unit_hours"
-                                string="Hours" />
+                                string="Hours"
+                                invisible="not request_unit_hours" />
                             <div class="o_row" invisible="not request_unit_hours">
                                 <field
                                     name="request_hour_from"
+                                    widget="float_time_selection"
                                     readonly="state == 'validate'"
                                     required="request_unit_hours"
-                                    widget="float_time_selection"
                                     class="o_hr_narrow_field me-2" />
                                 <field
                                     name="request_hour_to"
+                                    widget="float_time_selection"
                                     readonly="state == 'validate'"
                                     required="request_unit_hours"
-                                    widget="float_time_selection"
                                     class="o_hr_narrow_field" />
                             </div>
                             <div
@@ -624,26 +624,26 @@
                                 <label for="date_from" string="From" />
                                 <field
                                     name="date_from"
-                                    readonly="1"
-                                    widget="datetime" />
+                                    widget="datetime"
+                                    readonly="1" />
                                 <label for="date_to" string="To" />
                                 <field name="date_to" readonly="1" />
                             </div>
                             <field
                                 name="name"
-                                readonly="state != 'confirm'"
+                                placeholder="No description provided"
                                 widget="text"
-                                nolabel="1"
                                 colspan="2"
-                                placeholder="No description provided" />
+                                nolabel="1"
+                                readonly="state != 'confirm'" />
                         </group>
                         <group>
                             <field
                                 name="supported_attachment_ids"
                                 widget="many2many_binary"
+                                colspan="2"
                                 nolabel="1"
-                                invisible="state != 'confirm'"
-                                colspan="2" />
+                                invisible="state != 'confirm'" />
                         </group>
                     </div>
                     <div class="o_hr_leave_column col_right col-md-6 col-12">
@@ -652,7 +652,7 @@
                 </div>
             </sheet>
             <div class="o_attachment_preview" />
-            <chatter reload_on_post="True" reload_on_attachment="True" />
+            <chatter reload_on_attachment="True" reload_on_post="True" />
             </form>
         </field>
     </record>
@@ -703,13 +703,13 @@
                 <widget
                     name="web_ribbon"
                     title="Refused"
-                    bg_color="bg-danger"
-                    invisible="state != 'refuse' or not id" />
+                    invisible="state != 'refuse' or not id"
+                    bg_color="bg-danger" />
                 <widget
                     name="web_ribbon"
                     title="Approved"
-                    bg_color="bg-success"
-                    invisible="state != 'validate' or not id" />
+                    invisible="state != 'validate' or not id"
+                    bg_color="bg-success" />
             </xpath>
         </field>
     </record>
@@ -739,24 +739,24 @@
         <field name="model">hr.leave</field>
         <field name="arch" type="xml">
             <calendar
-                js_class="time_off_calendar_dashboard"
                 string="Time Off Request"
-                form_view_id="%(hr_holidays.hr_leave_view_form_dashboard_new_time_off)d"
-                event_open_popup="true"
+                mode="year"
+                color="color"
                 date_start="date_from"
                 date_stop="date_to"
+                event_open_popup="true"
+                form_view_id="%(hr_holidays.hr_leave_view_form_dashboard_new_time_off)d"
+                hide_time="True"
+                js_class="time_off_calendar_dashboard"
                 quick_create="0"
                 show_date_picker="0"
-                show_unusual_days="True"
-                color="color"
-                hide_time="True"
-                mode="year">
+                show_unusual_days="True">
                 <field name="display_name" string="" />
                 <field
                     name="holiday_status_id"
-                    filters="1"
                     invisible="1"
-                    color="color" />
+                    color="color"
+                    filters="1" />
                 <field name="state" invisible="1" />
                 <field name="is_hatched" invisible="1" />
                 <field name="is_striked" invisible="1" />
@@ -770,23 +770,23 @@
         <field name="arch" type="xml">
             <calendar
                 string="Time Off Request"
-                js_class="time_off_calendar_dashboard"
-                form_view_id="%(hr_holidays.hr_leave_view_form_dashboard_new_time_off)d"
-                event_open_popup="true"
+                mode="year"
+                color="color"
                 date_start="date_from"
                 date_stop="date_to"
-                mode="year"
+                event_open_popup="true"
+                form_view_id="%(hr_holidays.hr_leave_view_form_dashboard_new_time_off)d"
+                hide_time="True"
+                js_class="time_off_calendar_dashboard"
                 quick_create="0"
                 show_date_picker="0"
-                show_unusual_days="True"
-                color="color"
-                hide_time="True">
+                show_unusual_days="True">
                 <field name="display_name" string="" />
                 <field
                     name="holiday_status_id"
-                    filters="1"
                     invisible="1"
-                    color="color" />
+                    color="color"
+                    filters="1" />
                 <field name="state" invisible="1" />
                 <field name="is_hatched" invisible="1" />
                 <field name="is_striked" invisible="1" />
@@ -807,9 +807,9 @@
             <xpath expr="//field[@name='holiday_status_id']" position="before">
                 <field
                     name="employee_id"
+                    widget="many2one_avatar_employee"
                     groups="hr_holidays.group_hr_holidays_responsible"
-                    readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"
-                    widget="many2one_avatar_employee" />
+                    readonly="state in ['cancel', 'refuse', 'validate', 'validate1']" />
                 <field name="company_id" groups="base.group_multi_company" />
                 <field
                     name="department_id"
@@ -824,25 +824,25 @@
         <field name="model">hr.leave</field>
         <field name="arch" type="xml">
             <calendar
-                js_class="time_off_calendar_hr_leave"
                 string="Time Off Request"
-                form_view_id="%(hr_holidays.hr_leave_view_form_dashboard_manager_new_time_off)d"
-                event_open_popup="true"
+                mode="month"
+                color="color"
                 date_start="date_from"
                 date_stop="date_to"
-                mode="month"
-                show_unusual_days="True"
+                event_open_popup="true"
+                form_view_id="%(hr_holidays.hr_leave_view_form_dashboard_manager_new_time_off)d"
+                js_class="time_off_calendar_hr_leave"
                 quick_create="0"
-                color="color">
+                show_unusual_days="True">
                 <field
                     name="holiday_status_id"
+                    invisible="1"
                     color="color"
-                    filters="1"
-                    invisible="1" />
+                    filters="1" />
                 <field
                     name="employee_id"
-                    filters="1"
-                    widget="many2one_avatar_employee" />
+                    widget="many2one_avatar_employee"
+                    filters="1" />
                 <field name="name" />
                 <field name="state" invisible="1" />
                 <field name="is_hatched" invisible="1" />
@@ -857,26 +857,26 @@
         <field name="arch" type="xml">
             <list
                 string="Time Off Requests"
-                sample="1"
                 duplicate="false"
+                sample="1"
                 js_class="hr_holidays_payslip_list">
                 <header>
                     <button
-                        type="action"
                         name="%(hr_holidays.action_hr_leave_generate_multi_wizard)d"
+                        type="action"
                         string="New Group Time Off"
-                        class="btn btn-secondary"
+                        display="always"
                         groups="hr_holidays.group_hr_holidays_responsible"
-                        display="always" />
+                        class="btn btn-secondary" />
                     <button
-                        type="object"
                         name="action_approve"
+                        type="object"
                         string="Approve"
                         icon="fa-thumbs-up"
                         class="btn btn-outline-success" />
                     <button
-                        type="object"
                         name="action_refuse"
+                        type="object"
                         string="Refuse"
                         icon="fa-times"
                         class="btn btn-outline-danger" />
@@ -891,8 +891,8 @@
                     readonly="state in ['cancel', 'refuse', 'validate', 'validate1']" />
                 <field
                     name="holiday_status_id"
-                    class="fw-bold"
-                    readonly="state in ['cancel', 'refuse', 'validate', 'validate1']" />
+                    readonly="state in ['cancel', 'refuse', 'validate', 'validate1']"
+                    class="fw-bold" />
                 <field
                     name="date_from"
                     readonly="state in ['cancel', 'refuse', 'validate', 'validate1']" />
@@ -904,28 +904,28 @@
                 <field
                     name="state"
                     widget="badge"
-                    decoration-warning="state in ('confirm','validate1')"
+                    decoration-danger="state == 'refuse'"
                     decoration-success="state == 'validate'"
-                    decoration-danger="state == 'refuse'" />
+                    decoration-warning="state in ('confirm','validate1')" />
                 <field name="active_employee" column_invisible="True" />
                 <field name="user_id" column_invisible="True" />
                 <field name="message_needaction" column_invisible="True" />
                 <button
-                    string="Approve"
                     name="action_approve"
                     type="object"
+                    string="Approve"
                     icon="fa-thumbs-up"
                     invisible="not can_approve" />
                 <button
-                    string="Validate"
                     name="action_approve"
                     type="object"
+                    string="Validate"
                     icon="fa-check"
                     invisible="not can_validate or can_approve" />
                 <button
-                    string="Refuse"
                     name="action_refuse"
                     type="object"
+                    string="Refuse"
                     icon="fa-times"
                     invisible="not can_refuse" />
                 <field
@@ -1251,9 +1251,9 @@
         <field name="model">hr.leave</field>
         <field name="priority">20</field>
         <field name="arch" type="xml">
-            <list string="Time Off Summary" sample="1" duplicate="false">
+            <list string="Time Off Summary" duplicate="false" sample="1">
                 <field name="employee_id" widget="many2one_avatar_employee" />
-                <field name="number_of_days" string="# days" type="measure" />
+                <field name="number_of_days" type="measure" string="# days" />
                 <field name="date_from" string="Start" />
                 <field name="date_to" string="Stop" />
                 <field name="name" optional="hide" />

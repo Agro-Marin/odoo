@@ -10,8 +10,8 @@
                 <field
                     name="odoobot_state"
                     groups="base.group_no_one"
-                    readonly="0"
-                    invisible="share" />
+                    invisible="share"
+                    readonly="0" />
             </field>
         </field>
     </record>

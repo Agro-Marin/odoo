@@ -16,17 +16,17 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="open_document"
-                            string="Open Document"
                             type="object"
-                            class="oe_link"
+                            string="Open Document"
                             icon="fa-sitemap"
-                            invisible="not alias_model_id or alias_force_thread_id == 0" />
+                            invisible="not alias_model_id or alias_force_thread_id == 0"
+                            class="oe_link" />
                         <button
                             name="open_parent_document"
                             type="object"
-                            class="oe_link"
                             icon="fa-sitemap"
-                            invisible="not alias_parent_model_id or alias_parent_thread_id == 0">
+                            invisible="not alias_parent_model_id or alias_parent_thread_id == 0"
+                            class="oe_link">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Open Parent Document</span>
                             </div>
@@ -34,14 +34,14 @@
                     </div>
                     <div class="d-flex">
                         <h2 class="flex-grow-1" dir="ltr">
-                            <field name="alias_name" placeholder="alias" class="oe_inline" />@ <field name="alias_domain_id" class="oe_inline" placeholder="e.g. mycompany.com" options="{'no_create': True, 'no_open': True}" />
+                            <field name="alias_name" placeholder="alias" class="oe_inline" />@ <field name="alias_domain_id" placeholder="e.g. mycompany.com" options="{'no_create': True, 'no_open': True}" class="oe_inline" />
                         </h2>
                         <field
                             name="alias_status"
                             widget="badge"
+                            decoration-danger="alias_status == 'invalid'"
                             decoration-success="alias_status == 'valid'"
-                            decoration-warning="alias_status == 'not_tested'"
-                            decoration-danger="alias_status == 'invalid'" />
+                            decoration-warning="alias_status == 'not_tested'" />
                     </div>
                     <group>
                         <field name="alias_model_id" />
@@ -80,9 +80,9 @@
                 <field
                     name="alias_status"
                     widget="badge"
+                    decoration-danger="alias_status == 'invalid'"
                     decoration-success="alias_status == 'valid'"
-                    decoration-warning="alias_status == 'not_tested'"
-                    decoration-danger="alias_status == 'invalid'" />
+                    decoration-warning="alias_status == 'not_tested'" />
                 <button
                     name="open_document"
                     type="object"
@@ -114,25 +114,25 @@
                 <field name="alias_parent_thread_id" />
                 <separator />
                 <filter
-                    string="Active"
                     name="active"
+                    string="Active"
                     domain="[('alias_name', '!=', False)]" />
                 <group>
                     <filter
-                        string="Creator"
                         name="groupby_create_uid"
+                        string="Creator"
                         context="{'group_by': 'create_uid'}" />
                     <filter
-                        string="Alias Domain"
                         name="groupby_alias_domain_id"
+                        string="Alias Domain"
                         context="{'group_by': 'alias_domain_id'}" />
                     <filter
-                        string="Document Model"
                         name="groupby_alias_model_id"
+                        string="Document Model"
                         context="{'group_by': 'alias_model_id'}" />
                     <filter
-                        string="Container Model"
                         name="groupby_alias_parent_model_id"
+                        string="Container Model"
                         context="{'group_by': 'alias_parent_model_id'}" />
                 </group>
             </search>

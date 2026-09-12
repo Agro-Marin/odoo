@@ -5,7 +5,7 @@
         <field name="name">l10n_tr.nilvera.trailer.plate.tree</field>
         <field name="model">l10n_tr.nilvera.trailer.plate</field>
         <field name="arch" type="xml">
-            <list string="GİB Plate Numbers" create="True" editable="bottom">
+            <list string="GİB Plate Numbers" editable="bottom" create="True">
                 <field name="name" />
                 <field name="plate_number_type" />
             </list>
@@ -16,12 +16,11 @@
         <field name="name">l10n_tr.nilvera.trailer.plate.form</field>
         <field name="model">l10n_tr.nilvera.trailer.plate</field>
         <field name="arch" type="xml">
-            <form string="GİB Plate Number" create="True" editable="bottom">
+            <form string="GİB Plate Number" editable="bottom" create="True">
                 <field
                     name="plate_number_type"
-                    nolabel="1"
-                    options="{'horizontal': true}"
-                    widget="radio" />
+                    widget="radio"
+                    options="{'horizontal': true}" />
                 <div class="oe_title">
                     <h2 class="mt-2">
                         <field name="name" placeholder="Plate Number" />

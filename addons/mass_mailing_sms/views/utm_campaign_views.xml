@@ -10,20 +10,20 @@
                 <button
                     name="action_create_mass_sms"
                     type="object"
-                    class="oe_highlight"
                     string="Send SMS"
+                    groups="mass_mailing.group_mass_mailing_user"
                     invisible="not is_mailing_campaign_activated"
-                    groups="mass_mailing.group_mass_mailing_user" />
+                    class="oe_highlight" />
             </xpath>
             <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
                 <button
                     name="action_redirect_to_mailing_sms"
                     type="object"
-                    class="oe_stat_button order-11"
-                    invisible="mailing_sms_count == 0 or not is_mailing_campaign_activated"
                     icon="fa-mobile"
-                    groups="mass_mailing.group_mass_mailing_user">
-                    <field name="mailing_sms_count" widget="statinfo" string="SMS" />
+                    groups="mass_mailing.group_mass_mailing_user"
+                    invisible="mailing_sms_count == 0 or not is_mailing_campaign_activated"
+                    class="oe_stat_button order-11">
+                    <field name="mailing_sms_count" string="SMS" widget="statinfo" />
                 </button>
             </xpath>
             <xpath expr="//sheet" position="inside">
@@ -31,10 +31,10 @@
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <page
-                    string="SMS"
                     name="sms"
-                    invisible="mailing_sms_count == 0 or not is_mailing_campaign_activated"
-                    groups="mass_mailing.group_mass_mailing_user">
+                    string="SMS"
+                    groups="mass_mailing.group_mass_mailing_user"
+                    invisible="mailing_sms_count == 0 or not is_mailing_campaign_activated">
                     <field name="mailing_sms_ids">
                         <list>
                             <field name="calendar_date" string="Date" />
@@ -48,8 +48,8 @@
                             <field
                                 name="campaign_id"
                                 string="Campaign"
-                                groups="mass_mailing.group_mass_mailing_campaign"
-                                optional="hide" />
+                                optional="hide"
+                                groups="mass_mailing.group_mass_mailing_campaign" />
                             <field
                                 name="ab_testing_enabled"
                                 string="A/B Test"
@@ -67,9 +67,9 @@
                                 avg="Average of Bounced" />
                             <field
                                 name="state"
+                                widget="badge"
                                 decoration-info="state in ('draft', 'in_queue')"
-                                decoration-success="state in ('sending', 'done')"
-                                widget="badge" />
+                                decoration-success="state in ('sending', 'done')" />
                             <button
                                 name="action_duplicate"
                                 type="object"

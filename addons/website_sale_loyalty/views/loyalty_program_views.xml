@@ -32,10 +32,10 @@
                 position="after">
                 <field
                     name="website_id"
-                    invisible="not ecommerce_ok"
+                    placeholder="All websites"
                     options="{'no_create': True}"
                     groups="website.group_multi_website"
-                    placeholder="All websites" />
+                    invisible="not ecommerce_ok" />
             </xpath>
             <div id="trigger_products" position="inside">
                 <div
@@ -66,8 +66,8 @@
             <field name="company_id" position="after">
                 <button
                     name="action_program_share"
-                    string="Share"
                     type="object"
+                    string="Share"
                     icon="fa-share-alt"
                     invisible="program_type != 'promo_code'" />
             </field>

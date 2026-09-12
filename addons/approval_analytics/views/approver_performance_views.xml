@@ -42,7 +42,7 @@
         <field name="name">approver.performance.graph</field>
         <field name="model">approver.performance</field>
         <field name="arch" type="xml">
-            <graph string="Approver Performance" type="bar">
+            <graph type="bar" string="Approver Performance">
                 <field name="user_id" />
                 <field name="avg_response_hours" type="measure" />
                 <field name="pending_count" type="measure" />

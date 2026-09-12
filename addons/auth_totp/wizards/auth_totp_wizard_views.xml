@@ -15,9 +15,9 @@
                             <div class="d-none d-md-block">
                                 <field
                                     name="qrcode"
-                                    readonly="True"
                                     widget="image"
-                                    options="{'reload': false }" />
+                                    options="{'reload': false }"
+                                    readonly="True" />
 
                                 <details id="collapseTotpSecret">
                                     <summary class="h3 fw-bold">Cannot scan it?</summary>
@@ -41,23 +41,23 @@
 
                             <h3 class="fw-bold">Write the code given by your app</h3>
                             <field
-                                required="True"
                                 name="code"
-                                autocomplete="off"
+                                placeholder="Verification code"
+                                required="True"
                                 class="o_field_highlight w-50 w-sm-25"
-                                placeholder="Verification code" />
+                                autocomplete="off" />
                         </div>
                     </div>
                 </sheet>
                 <footer>
                     <button
-                        type="object"
                         name="enable"
-                        class="btn btn-primary"
-                        context="{'code': code}"
+                        type="object"
                         string="Enable Two-Factor Authentication"
+                        context="{'code': code}"
+                        class="btn btn-primary"
                         data-hotkey="q" />
-                    <button string="Discard" special="cancel" data-hotkey="x" />
+                    <button special="cancel" string="Discard" data-hotkey="x" />
                 </footer>
             </form>
         </field>

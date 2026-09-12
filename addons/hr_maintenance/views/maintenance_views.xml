@@ -11,14 +11,14 @@
             </xpath>
             <xpath expr="//filter[@name='my_maintenances']" position="replace">
                 <filter
-                    string="My Maintenances"
                     name="my_maintenances"
+                    string="My Maintenances"
                     domain="[('employee_id.user_id', '=', uid)]" />
             </xpath>
             <xpath expr="//filter[@name='created_by']" position="replace">
                 <filter
-                    string="Created By"
                     name="created_by"
+                    string="Created By"
                     context="{'group_by': 'employee_id'}" />
             </xpath>
         </field>
@@ -78,12 +78,12 @@
             </field>
             <group position="inside">
                 <filter
-                    string="Employee"
                     name="employee"
+                    string="Employee"
                     context="{'group_by': 'employee_id'}" />
                 <filter
-                    string="Department"
                     name="department"
+                    string="Department"
                     context="{'group_by': 'department_id'}" />
             </group>
         </field>
@@ -99,8 +99,8 @@
                 <field
                     name="employee_id"
                     string="Employee"
-                    invisible="equipment_assign_to == 'department' or not equipment_assign_to"
-                    widget="many2one_avatar_employee" />
+                    widget="many2one_avatar_employee"
+                    invisible="equipment_assign_to == 'department' or not equipment_assign_to" />
                 <field
                     name="department_id"
                     string="Department"

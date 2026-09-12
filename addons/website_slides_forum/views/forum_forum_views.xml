@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//group[@name='group_order']" position="after">
                 <group
-                    string="eLearning"
                     name="group_slides"
+                    string="eLearning"
                     invisible="not slide_channel_id">
                     <field name="slide_channel_id" readonly="True" />
                 </group>

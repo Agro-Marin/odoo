@@ -25,8 +25,8 @@
                     role="alert"
                     invisible="comment_single_recipient or recipient_invalid_count == 0">
                     <p class="my-0">
-                        <field class="oe_inline fw-bold" name="recipient_invalid_count" /> out of
-                        <field class="oe_inline fw-bold" name="res_ids_count" /> recipients have an invalid phone number and will not receive this text message.
+                        <field name="recipient_invalid_count" class="oe_inline fw-bold" /> out of
+                        <field name="res_ids_count" class="oe_inline fw-bold" /> recipients have an invalid phone number and will not receive this text message.
                     </p>
                 </div>
                 <sheet>
@@ -47,76 +47,76 @@
                         <label
                             for="recipient_single_description"
                             string="To"
-                            class="fw-bold"
-                            invisible="not comment_single_recipient" />
+                            invisible="not comment_single_recipient"
+                            class="fw-bold" />
                         <div invisible="not comment_single_recipient">
                             <field
                                 name="recipient_single_description"
-                                class="w-auto text-muted me-2"
-                                invisible="not recipient_single_description" />
+                                invisible="not recipient_single_description"
+                                class="w-auto text-muted me-2" />
                             <field
                                 name="recipient_single_number_itf"
-                                class="oe_inline border-bottom"
+                                placeholder="e.g. +1 415 555 0100"
                                 nolabel="1"
-                                onchange_on_keydown="True"
-                                placeholder="e.g. +1 415 555 0100" />
+                                class="oe_inline border-bottom"
+                                onchange_on_keydown="True" />
                         </div>
                     </group>
                         <field
                             name="body"
+                            placeholder="Write a message..."
                             widget="sms_widget"
-                            invisible="comment_single_recipient or recipient_single_valid"
                             options="{'dynamic_placeholder': true, 'dynamic_placeholder_model_reference_field': 'res_model'}"
-                            placeholder="Write a message..." />
+                            invisible="comment_single_recipient or recipient_single_valid" />
                         <field
                             name="body"
+                            placeholder="Write a message..."
                             widget="sms_widget"
-                            invisible="comment_single_recipient or not recipient_single_valid"
                             default_focus="1"
                             options="{'dynamic_placeholder': true, 'dynamic_placeholder_model_reference_field': 'res_model'}"
-                            placeholder="Write a message..." />
+                            invisible="comment_single_recipient or not recipient_single_valid" />
                         <field
                             name="body"
+                            placeholder="Write a message..."
                             widget="sms_widget"
-                            invisible="not comment_single_recipient"
-                            placeholder="Write a message..." />
+                            invisible="not comment_single_recipient" />
                         <field name="mass_keep_log" invisible="1" />
                         <field name="use_exclusion_list" invisible="1" />
                 </sheet>
                 <footer>
                     <!-- attrs doesn't work for 'disabled'-->
                     <button
-                        string="Send"
-                        type="object"
-                        class="oe_highlight"
                         name="action_send_sms"
-                        data-hotkey="q"
-                        invisible="composition_mode not in ('comment', 'numbers') or not recipient_single_valid" />
+                        type="object"
+                        string="Send"
+                        invisible="composition_mode not in ('comment', 'numbers') or not recipient_single_valid"
+                        class="oe_highlight"
+                        data-hotkey="q" />
                     <button
-                        string="Send"
-                        type="object"
-                        class="oe_highlight"
                         name="action_send_sms"
-                        data-hotkey="q"
+                        type="object"
+                        string="Send"
                         invisible="composition_mode not in ('comment', 'numbers') or recipient_single_valid"
+                        class="oe_highlight"
+                        data-hotkey="q"
                         disabled="1" />
                     <button
-                        string="Put in queue"
-                        type="object"
-                        class="oe_highlight"
                         name="action_send_sms"
-                        data-hotkey="q"
-                        invisible="composition_mode != 'mass'" />
-                    <button
-                        string="Send now"
                         type="object"
-                        name="action_send_sms_mass_now"
-                        data-hotkey="w"
-                        invisible="composition_mode != 'mass'" />
+                        string="Put in queue"
+                        invisible="composition_mode != 'mass'"
+                        class="oe_highlight"
+                        data-hotkey="q" />
                     <button
+                        name="action_send_sms_mass_now"
+                        type="object"
+                        string="Send now"
+                        invisible="composition_mode != 'mass'"
+                        data-hotkey="w" />
+                    <button
+                        special="cancel"
                         string="Discard"
                         class="btn btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

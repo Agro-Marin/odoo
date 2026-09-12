@@ -33,10 +33,10 @@
         <field name="arch" type="xml">
             <list
                 string="Tags"
+                default_order="name"
                 editable="top"
-                sample="1"
                 multi_edit="1"
-                default_order="name">
+                sample="1">
                 <field name="name" />
                 <field name="color" widget="color_picker" optional="show" />
                 <field name="is_strategic" />

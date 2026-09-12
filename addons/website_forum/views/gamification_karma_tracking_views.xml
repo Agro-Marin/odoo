@@ -11,8 +11,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='filter_res_users']" position="after">
                 <filter
-                    string="Forum"
                     name="filter_forum_post"
+                    string="Forum"
                     domain="[('origin_ref', 'ilike', 'forum.post,')]" />
             </xpath>
         </field>

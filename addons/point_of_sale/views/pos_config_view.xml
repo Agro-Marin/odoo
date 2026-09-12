@@ -10,8 +10,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="active" invisible="1" />
                     <field name="company_has_template" invisible="1" />
                     <field name="has_active_session" invisible="1" />
@@ -29,7 +29,7 @@
                             invisible="not has_active_session"
                             role="alert">
                             A session is currently opened for this PoS. Some settings can only be changed after the session is closed.
-                            <button class="btn" style="padding:0" name="close_ui" type="object">Click here to close the session</button>
+                            <button name="close_ui" type="object" class="btn" style="padding:0">Click here to close the session</button>
                         </div>
                         <div
                             class="o_notification_alert alert alert-warning"
@@ -52,8 +52,8 @@
                         class="row mt16 o_settings_container"
                         invisible="context.get('pos_config_create_mode', False)">
                         <setting
-                            title="Employees can scan their badge or enter a PIN to log in to a PoS session. These credentials are configurable in the *HR Settings* tab of the employee form."
                             string="Log in with Employees"
+                            title="Employees can scan their badge or enter a PIN to log in to a PoS session. These credentials are configurable in the *HR Settings* tab of the employee form."
                             help="Allow to log and switch between selected Employees">
                             <field name="module_pos_hr" readonly="has_active_session" />
                             <div
@@ -86,8 +86,8 @@
                                     invisible="epson_printer_ip in [False, '']">
                                     <div class="col-lg-6 o_light_label">
                                         <label
-                                            string="Link Cashdrawer"
-                                            for="iface_cashdrawer" />
+                                            for="iface_cashdrawer"
+                                            string="Link Cashdrawer" />
                                     </div>
                                     <div class="col-lg-6">
                                         <field name="iface_cashdrawer" />
@@ -111,8 +111,8 @@
                                 <div class="row">
                                     <div class="col-lg-4 o_light_label">
                                         <label
-                                            string="IoT Box IP Address"
-                                            for="proxy_ip" />
+                                            for="proxy_ip"
+                                            string="IoT Box IP Address" />
                                     </div>
                                     <div class="col-lg-8">
                                         <field name="proxy_ip" />
@@ -121,8 +121,8 @@
                                 <div class="row iot_barcode_scanner">
                                     <div class="col-lg-5 o_light_label">
                                         <label
-                                            string="Scanner"
-                                            for="iface_scan_via_proxy" />
+                                            for="iface_scan_via_proxy"
+                                            string="Scanner" />
                                     </div>
                                     <div class="col-lg-7">
                                         <field name="iface_scan_via_proxy" />
@@ -131,8 +131,8 @@
                                 <div class="row">
                                     <div class="col-lg-5 o_light_label">
                                         <label
-                                            string="Electronic Scale"
-                                            for="iface_electronic_scale" />
+                                            for="iface_electronic_scale"
+                                            string="Electronic Scale" />
                                     </div>
                                     <div class="col-lg-7">
                                         <field name="iface_electronic_scale" />
@@ -141,8 +141,8 @@
                                 <div class="row">
                                     <div class="col-lg-5 o_light_label">
                                         <label
-                                            string="Receipt Printer"
-                                            for="iface_print_via_proxy" />
+                                            for="iface_print_via_proxy"
+                                            string="Receipt Printer" />
                                     </div>
                                     <div class="col-lg-7">
                                         <field name="iface_print_via_proxy" />
@@ -151,8 +151,8 @@
                                 <div class="row" invisible="not iface_print_via_proxy">
                                     <div class="col-lg-5 o_light_label ps-4">
                                         <label
-                                            string="Cashdrawer"
-                                            for="iface_cashdrawer" />
+                                            for="iface_cashdrawer"
+                                            string="Cashdrawer" />
                                     </div>
                                     <div class="col-lg-7">
                                         <field name="iface_cashdrawer" />
@@ -200,10 +200,10 @@
                                         class="col-lg-3 o_light_label" />
                                     <field
                                         name="stock_location_ids"
-                                        widget="many2many_tags"
                                         placeholder="All locations from warehouse"
-                                        options="{'no_create': True}"
+                                        widget="many2many_tags"
                                         domain="[('usage', '=', 'internal'), ('location_id', 'child_of', stock_warehouse_view_location_id)]"
+                                        options="{'no_create': True}"
                                         invisible="not stock_warehouse_id" />
                                 </div>
                                 <div class="row mt8" invisible="stock_warehouse_id">
@@ -220,8 +220,8 @@
                 </sheet>
 
                 <footer invisible="not context.get('pos_config_open_modal', False)">
-                    <button string="Save" special="save" class="btn-primary" />
-                    <button string="Discard" class="btn-secondary" special="cancel" />
+                    <button special="save" string="Save" class="btn-primary" />
+                    <button special="cancel" string="Discard" class="btn-secondary" />
                 </footer>
             </form>
         </field>
@@ -241,8 +241,8 @@
                 <field name="currency_id" column_invisible="True" />
                 <field
                     name="last_session_closing_cash"
-                    widget="monetary"
-                    string="Balance" />
+                    string="Balance"
+                    widget="monetary" />
             </list>
         </field>
     </record>
@@ -255,8 +255,8 @@
                 <field name="name" />
                 <field name="picking_type_id" />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>

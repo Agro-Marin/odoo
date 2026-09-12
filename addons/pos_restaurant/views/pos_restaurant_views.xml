@@ -11,14 +11,14 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="active" invisible="1" />
                     <field
                         name="floor_background_image"
                         widget="image"
-                        class="oe_avatar"
-                        options="{&quot;preview_image&quot;: &quot;floor_background_image&quot;}" />
+                        options="{&quot;preview_image&quot;: &quot;floor_background_image&quot;}"
+                        class="oe_avatar" />
                     <group col="4">
                         <field name="name" />
                         <field name="pos_config_ids" widget="many2many_tags" />
@@ -59,8 +59,8 @@
             <search>
                 <field name="name" />
                 <filter
-                    string="Archived"
                     name="active"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -107,7 +107,7 @@
                         <field name="table_number" />
                         <field name="seats" />
                     </group>
-                    <group col="4" string="Appearance" groups="base.group_no_one">
+                    <group string="Appearance" col="4" groups="base.group_no_one">
                         <field name="shape" />
                         <field name="color" />
                         <field name="position_h" />

@@ -8,10 +8,10 @@
                 <header>
                     <button
                         name="refresh_routes"
-                        string="Refresh route's list"
                         type="object"
-                        class="btn-light"
-                        invisible="redirect_type != '308'" />
+                        string="Refresh route's list"
+                        invisible="redirect_type != '308'"
+                        class="btn-light" />
                 </header>
                 <sheet>
                     <group>
@@ -87,34 +87,34 @@
                 <field name="url_to" />
                 <separator />
                 <filter
-                    string="404 Not Found"
                     name="404"
+                    string="404 Not Found"
                     domain="[('redirect_type', '=', '404')]" />
                 <filter
-                    string="301 Moved permanently"
                     name="301"
+                    string="301 Moved permanently"
                     domain="[('redirect_type', '=', '301')]" />
                 <filter
-                    string="302 Moved temporarily"
                     name="302"
+                    string="302 Moved temporarily"
                     domain="[('redirect_type', '=', '302')]" />
                 <filter
-                    string="308 Redirect / Rewrite"
                     name="308"
+                    string="308 Redirect / Rewrite"
                     domain="[('redirect_type', '=', '308')]" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Redirection Type"
                         name="group_by_type"
+                        string="Redirection Type"
                         context="{'group_by': 'redirect_type'}" />
                     <filter
-                        string="Created by"
                         name="group_by_author"
+                        string="Created by"
                         context="{'group_by': 'create_uid'}" />
                 </group>
             </search>

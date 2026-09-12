@@ -20,7 +20,7 @@
                             name="button_box"
                             invisible="not id" />
                         <div class="oe_title">
-                            <label for="name" class="oe_edit_only" string="Name" />
+                            <label for="name" string="Name" class="oe_edit_only" />
                             <h1><field name="name" placeholder="e.g. First Booth Alley 1" /></h1>
                         </div>
                         <group>
@@ -105,18 +105,18 @@
             <field name="arch" type="xml">
                 <kanban
                     default_group_by="state"
-                    quick_create_view="event_booth.event_booth_view_form_quick_create"
-                    sample="1">
+                    sample="1"
+                    quick_create_view="event_booth.event_booth_view_form_quick_create">
                     <field name="name" />
                     <templates>
                         <t t-name="card">
-                            <field class="fw-bold fs-5" name="name" />
+                            <field name="name" class="fw-bold fs-5" />
                             <footer class="p-0">
                                 <field name="booth_category_id" />
                                 <field
-                                    class="ms-auto"
                                     name="activity_ids"
-                                    widget="kanban_activity" />
+                                    widget="kanban_activity"
+                                    class="ms-auto" />
                             </footer>
                         </t>
                     </templates>
@@ -168,12 +168,12 @@
                         filter_domain="[('contact_email', 'ilike', self)]" />
                     <field name="event_id" />
                     <filter
-                        string="Available"
                         name="filter_booth_available"
+                        string="Available"
                         domain="[('state', '=', 'available')]" />
                     <filter
-                        string="Unavailable"
                         name="filter_booth_unavailable"
+                        string="Unavailable"
                         domain="[('state', '=', 'unavailable')]" />
                     <group>
                         <filter name="group_by_state" context="{'group_by': 'state'}" />
@@ -184,8 +184,8 @@
                             name="group_by_booth_category_id"
                             context="{'group_by': 'booth_category_id'}" />
                         <filter
-                            string="Event"
                             name="group_by_event_id"
+                            string="Event"
                             context="{'group_by': 'event_id'}" />
                     </group>
                 </search>
@@ -195,7 +195,7 @@
             <field name="name">event.booth.view.graph</field>
             <field name="model">event.booth</field>
             <field name="arch" type="xml">
-                <graph string="Event booth" sample="1" type="pie">
+                <graph type="pie" string="Event booth" sample="1">
                     <field name="booth_category_id" />
                 </graph>
             </field>

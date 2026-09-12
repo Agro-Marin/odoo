@@ -43,8 +43,8 @@
                 <field name="state_id" />
                 <group>
                     <filter
-                        string="State"
                         name="state"
+                        string="State"
                         context="{'group_by': 'state_id'}" />
                 </group>
             </search>

@@ -15,8 +15,8 @@
                             <field name="pool_manager" />
                             <field
                                 name="categ_ids"
-                                widget="many2many_tags"
-                                placeholder="e.g French-speaking, Immediately Available, Own a car" />
+                                placeholder="e.g French-speaking, Immediately Available, Own a car"
+                                widget="many2many_tags" />
                         </group>
                         <group>
                             <field name="color" widget="color_picker" />
@@ -52,12 +52,12 @@
         <field name="model">hr.talent.pool</field>
         <field name="arch" type="xml">
             <kanban
-                highlight_color="color"
-                action="%(action_hr_talent_pool_applications)d"
                 type="action"
                 limit="40"
                 multi_edit="1"
-                sample="1">
+                sample="1"
+                action="%(action_hr_talent_pool_applications)d"
+                highlight_color="color">
                 <field name="name" />
                 <field name="pool_manager" />
                 <field name="company_id" />
@@ -86,9 +86,9 @@
                             <div
                                 class="col d-flex justify-content-end align-items-end mb-1">
                                 <button
-                                    class="btn btn-primary"
                                     name="action_talent_pool_add_talents"
-                                    type="object">
+                                    type="object"
+                                    class="btn btn-primary">
                                     New Talent
                                 </button>
                             </div>

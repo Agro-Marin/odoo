@@ -38,14 +38,14 @@
             <field name="code" position="after">
                 <field name="l10n_ar_letter" />
                 <filter
-                    string="Argentinean Documents"
                     name="localization"
+                    string="Argentinean Documents"
                     domain="[('country_id', '=', %(base.ar)d)]" />
             </field>
             <group>
                 <filter
-                    string="Document Letter"
                     name="l10n_ar_letter"
+                    string="Document Letter"
                     context="{'group_by':'l10n_ar_letter'}" />
             </group>
         </field>

@@ -39,8 +39,8 @@
                                 alias rule can be neither saved nor corrected. -->
                             <field
                                 name="alias"
-                                required="type == 'alias'"
-                                readonly="type != 'alias'" />
+                                readonly="type != 'alias'"
+                                required="type == 'alias'" />
                         </list>
                     </field>
                 </sheet>

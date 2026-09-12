@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='account']/block" position="after">
                 <block
-                    title="ETA E-Invoicing Settings"
                     name="egyption_eta_edi"
+                    title="ETA E-Invoicing Settings"
                     invisible="country_code != 'EG'">
                     <field name="country_code" invisible="1" />
                     <setting
@@ -39,8 +39,8 @@
                                     class="col-lg-4 o_light_label" />
                                 <field
                                     name="l10n_eg_client_secret"
-                                    password="True"
-                                    help="The secret key provided by the ETA. You can input client secret 1 or 2" />
+                                    help="The secret key provided by the ETA. You can input client secret 1 or 2"
+                                    password="True" />
                             </div>
                             <div class="row">
                                 <label

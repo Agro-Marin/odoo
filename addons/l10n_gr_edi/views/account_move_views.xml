@@ -22,8 +22,8 @@
                     invisible="not (l10n_gr_edi_enable_send_invoices and l10n_gr_edi_alerts)">
                     <field
                         name="l10n_gr_edi_alerts"
-                        class="o_field_html"
-                        widget="actionable_errors" />
+                        widget="actionable_errors"
+                        class="o_field_html" />
                 </div>
             </header>
 
@@ -35,18 +35,18 @@
                     widget="dynamic_selection"
                     options="{'available_field': 'l10n_gr_edi_available_inv_type'}"
                     invisible="not l10n_gr_edi_enable_view_mydata"
-                    required="1"
-                    readonly="state != 'draft'" />
+                    readonly="state != 'draft'"
+                    required="1" />
                 <field
                     name="l10n_gr_edi_correlation_id"
                     invisible="not (l10n_gr_edi_enable_view_mydata and l10n_gr_edi_need_correlated)"
-                    required="l10n_gr_edi_need_correlated"
-                    readonly="state != 'draft'" />
+                    readonly="state != 'draft'"
+                    required="l10n_gr_edi_need_correlated" />
                 <field
                     name="l10n_gr_edi_payment_method"
                     invisible="not (l10n_gr_edi_enable_view_mydata and l10n_gr_edi_need_payment_method)"
-                    required="l10n_gr_edi_need_payment_method"
-                    readonly="state != 'draft'" />
+                    readonly="state != 'draft'"
+                    required="l10n_gr_edi_need_payment_method" />
                 <!--The myDATA Mark field will have the following behaviors:
                     * only appear in greece invoices/bills
                     * always visible on bills, and only visible on invoices when filled
@@ -78,20 +78,20 @@
                 <field
                     name="l10n_gr_edi_cls_category"
                     widget="dynamic_selection"
-                    options="{'available_field': 'l10n_gr_edi_available_cls_category'}"
                     optional="show"
+                    options="{'available_field': 'l10n_gr_edi_available_cls_category'}"
                     column_invisible="parent.country_code != 'GR'" />
                 <field
                     name="l10n_gr_edi_cls_type"
                     widget="dynamic_selection"
-                    options="{'available_field': 'l10n_gr_edi_available_cls_type'}"
                     optional="show"
+                    options="{'available_field': 'l10n_gr_edi_available_cls_type'}"
                     column_invisible="parent.country_code != 'GR'" />
                 <field
                     name="l10n_gr_edi_cls_vat"
                     widget="dynamic_selection"
-                    options="{'available_field': 'l10n_gr_edi_available_cls_vat'}"
                     optional="hide"
+                    options="{'available_field': 'l10n_gr_edi_available_cls_vat'}"
                     column_invisible="parent.country_code != 'GR'" />
             </xpath>
 
@@ -114,14 +114,14 @@
                     id="l10n_gr_edi_documents"
                     string="myDATA"
                     invisible="not transmission_ids">
-                    <field name="transmission_ids" readonly="1" nolabel="1">
+                    <field name="transmission_ids" nolabel="1" readonly="1">
                         <list
                             create="false"
-                            delete="false"
                             edit="false"
-                            no_open="1"
+                            delete="false"
                             decoration-danger="state == 'rejected'"
-                            decoration-success="state == 'accepted'">
+                            decoration-success="state == 'accepted'"
+                            no_open="1">
                             <field name="date_created" />
                             <field name="document_kind" />
                             <field name="reference" />
@@ -178,18 +178,18 @@
             </xpath>
             <xpath expr="//filter[@name='out_refund']" position="after">
                 <filter
-                    string="To send to myDATA"
                     name="l10n_gr_edi_state_false"
+                    string="To send to myDATA"
                     domain="[('l10n_gr_edi_state', 'in', (False, 'bill_fetched'))]" />
                 <filter
-                    string="Sent to myDATA"
                     name="l10n_gr_edi_state_sent"
+                    string="Sent to myDATA"
                     domain="[('l10n_gr_edi_state', '=', 'invoice_sent')]" />
             </xpath>
             <xpath expr="//group" position="inside">
                 <filter
-                    string="myDATA Status"
                     name="l10n_gr_edi_state_group"
+                    string="myDATA Status"
                     context="{'group_by':'l10n_gr_edi_state'}" />
             </xpath>
         </field>

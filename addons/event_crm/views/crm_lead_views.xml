@@ -24,10 +24,10 @@
                 <button
                     name="%(event_registration_action_from_lead)d"
                     type="action"
-                    class="oe_stat_button"
                     icon="fa-ticket"
+                    groups="event.group_event_user"
                     invisible="registration_count == 0"
-                    groups="event.group_event_user">
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <field name="registration_count" />
                         <span class="o_stat_text"> Attendees</span>

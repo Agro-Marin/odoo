@@ -5,7 +5,7 @@
         <field name="name">event.sale.report.view.graph</field>
         <field name="model">event.sale.report</field>
         <field name="arch" type="xml">
-            <graph string="Revenues" sample="1" type="line">
+            <graph type="line" string="Revenues" sample="1">
                 <field name="sale_price" type="measure" />
                 <field name="event_registration_create_date" interval="day" />
                 <field name="event_ticket_price" type="measure" invisible="True" />
@@ -17,7 +17,7 @@
         <field name="name">event.sale.report.view.form</field>
         <field name="model">event.sale.report</field>
         <field name="arch" type="xml">
-            <form string="Registration revenues" edit="false" create="false">
+            <form string="Registration revenues" create="false" edit="false">
                 <sheet>
                     <group col="2">
                         <group string="Event">
@@ -69,7 +69,7 @@
         <field name="name">event.sale.report.view.list</field>
         <field name="model">event.sale.report</field>
         <field name="arch" type="xml">
-            <list string="Revenues" edit="false" create="false">
+            <list string="Revenues" create="false" edit="false">
                 <field name="event_id" />
                 <field name="event_slot_id" />
                 <field name="event_ticket_id" />
@@ -84,8 +84,8 @@
                 <field
                     name="sale_order_state"
                     widget="badge"
-                    decoration-success="sale_order_state == 'done'"
-                    decoration-info="sale_order_state == 'draft'" />
+                    decoration-info="sale_order_state == 'draft'"
+                    decoration-success="sale_order_state == 'done'" />
             </list>
         </field>
     </record>
@@ -100,82 +100,82 @@
                 <field name="sale_order_partner_id" string="Booked by" />
                 <field name="company_id" />
                 <filter
-                    string="Non-free tickets"
                     name="priced_tickets"
+                    string="Non-free tickets"
                     domain="[('event_ticket_price', '!=', 0)]" />
                 <separator />
                 <filter
-                    string="Free"
                     name="free"
+                    string="Free"
                     domain="[('sale_status', '=', 'free')]" />
                 <filter
-                    string="Pending payment"
                     name="payment_pending"
+                    string="Pending payment"
                     domain="[('sale_status', '=', 'to_pay')]" />
                 <filter
-                    string="Sold"
                     name="is_sold"
+                    string="Sold"
                     domain="[('sale_status', '=', 'sold')]" />
                 <separator />
                 <filter
-                    string="Registration Date"
                     name="event_registration_create_date"
+                    string="Registration Date"
                     date="event_registration_create_date"
                     default_period="year" />
                 <separator />
                 <filter
-                    string="Upcoming/Running"
                     name="upcoming"
+                    string="Upcoming/Running"
                     help="Upcoming events from today"
                     domain="[('event_date_end', '&gt;=', 'now')]" />
                 <filter
-                    string="Past Events"
                     name="past"
+                    string="Past Events"
                     help="Events that have ended"
                     domain="[('event_date_end', '&lt;', 'now')]" />
                 <filter
-                    string="Event Start Date"
                     name="event_date_start"
+                    string="Event Start Date"
                     date="event_date_begin"
                     default_period="year" />
                 <filter
-                    string="Event End Date"
                     name="event_date_end"
+                    string="Event End Date"
                     date="event_date_end" />
                 <group>
                     <filter
-                        string="Event Type"
                         name="group_by_event_type_id"
+                        string="Event Type"
                         context="{'group_by': 'event_type_id' }" />
                     <filter
-                        string="Event"
                         name="group_by_event_id"
+                        string="Event"
                         context="{'group_by': 'event_id' }" />
                     <separator />
                     <filter
-                        string="Product"
                         name="group_by_product_id"
+                        string="Product"
                         context="{'group_by': 'product_id'}" />
                     <filter
-                        string="Slot"
                         name="group_by_slot_id"
+                        string="Slot"
                         context="{'group_by': 'event_slot_id'}" />
                     <filter
-                        string="Ticket"
                         name="group_by_ticket_id"
+                        string="Ticket"
                         context="{'group_by': 'event_ticket_id'}" />
                     <separator />
                     <filter
-                        string="Registration Status"
                         name="group_by_registration_state"
+                        string="Registration Status"
                         context="{'group_by': 'event_registration_state'}" />
                     <filter
-                        string="Sale Order Status"
                         name="group_by_sale_order_state"
+                        string="Sale Order Status"
                         context="{'group_by': 'sale_order_state'}" />
                     <filter
-                        string="Customer"
                         name="group_by_customer"
+                        string="Customer"
                         context="{'group_by': 'sale_order_partner_id'}" />
                 </group>
             </search>

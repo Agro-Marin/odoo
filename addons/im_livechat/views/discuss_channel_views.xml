@@ -14,8 +14,8 @@
                     <field name="livechat_customer_partner_ids" string="Customer" />
                     <filter
                         name="filter_my_sessions"
-                        domain="[('livechat_operator_id.user_ids', '=', uid)]"
-                        string="My Sessions" />
+                        string="My Sessions"
+                        domain="[('livechat_operator_id.user_ids', '=', uid)]" />
                     <separator />
                     <filter
                         name="ongoing"
@@ -24,25 +24,25 @@
                     <separator />
                     <filter
                         name="filter_session_rating_happy"
-                        domain="[('rating_ids', '!=', False), ('rating_avg', '&gt;=', 3.66)]"
-                        string="Happy" />
+                        string="Happy"
+                        domain="[('rating_ids', '!=', False), ('rating_avg', '&gt;=', 3.66)]" />
                     <filter
                         name="filter_session_rating_neutral"
-                        domain="[('rating_ids', '!=', False), ('rating_avg', '&gt;=', 2.33), ('rating_avg', '&lt;', 3.66)]"
-                        string="Neutral" />
+                        string="Neutral"
+                        domain="[('rating_ids', '!=', False), ('rating_avg', '&gt;=', 2.33), ('rating_avg', '&lt;', 3.66)]" />
                     <filter
                         name="fiter_session_rating_unhappy"
-                        domain="[('rating_ids', '!=', False), ('rating_avg', '&lt;', 2.33) ]"
-                        string="Unhappy" />
+                        string="Unhappy"
+                        domain="[('rating_ids', '!=', False), ('rating_avg', '&lt;', 2.33) ]" />
                     <filter
                         name="filter_session_unrated"
-                        domain="[('rating_ids', '=', False)]"
-                        string="Unrated" />
+                        string="Unrated"
+                        domain="[('rating_ids', '=', False)]" />
                     <separator />
                     <filter
                         name="filter_session_date"
-                        date="create_date"
-                        string="Session Date">
+                        string="Session Date"
+                        date="create_date">
                         <filter
                             name="rated_on_last_24_hours"
                             string="Last 24 Hours"
@@ -124,11 +124,11 @@
             <field name="model">discuss.channel</field>
             <field name="arch" type="xml">
                 <list
-                    js_class="im_livechat.discuss_channel_list"
-                    sample="1"
                     string="History"
+                    default_order="create_date desc, id desc"
                     create="false"
-                    default_order="create_date desc, id desc">
+                    sample="1"
+                    js_class="im_livechat.discuss_channel_list">
                     <field name="create_date" string="Date" />
                     <field
                         name="livechat_customer_history_ids"
@@ -164,23 +164,23 @@
                         name="livechat_conversation_tag_ids"
                         string="Tags"
                         widget="many2many_tags"
-                        options="{'color_field': 'color'}"
-                        optional="hide" />
+                        optional="hide"
+                        options="{'color_field': 'color'}" />
                     <field name="livechat_channel_id" optional="hide" />
                     <field
                         name="duration"
                         widget="float_time"
-                        options="{'display_seconds': True}"
-                        optional="show" />
+                        optional="show"
+                        options="{'display_seconds': True}" />
                     <field name="message_count" string="Messages" optional="show" />
                     <field
                         name="rating_last_text"
                         string="Rating"
-                        decoration-danger="rating_last_text == 'ko'"
-                        decoration-warning="rating_last_text == 'ok'"
-                        decoration-success="rating_last_text == 'top'"
                         widget="badge"
-                        optional="show" />
+                        optional="show"
+                        decoration-danger="rating_last_text == 'ko'"
+                        decoration-success="rating_last_text == 'top'"
+                        decoration-warning="rating_last_text == 'ok'" />
                     <field
                         name="rating_last_feedback"
                         string="Comment"
@@ -193,22 +193,22 @@
             <field name="model">discuss.channel</field>
             <field name="arch" type="xml">
                 <kanban
-                    js_class="im_livechat.discuss_channel_kanban"
-                    class="o_kanban_mobile"
-                    sample="1"
-                    quick_create="false"
+                    default_order="create_date desc"
                     create="False"
-                    default_order="create_date desc">
+                    sample="1"
+                    class="o_kanban_mobile"
+                    js_class="im_livechat.discuss_channel_kanban"
+                    quick_create="false">
                     <templates>
                         <t t-name="card">
                             <div class="d-flex">
                                 <div class="d-flex flex-column">
                                     <field
-                                        class="fw-bolder"
                                         name="livechat_customer_history_ids"
-                                        widget="im_livechat.one2many_names" />
+                                        widget="im_livechat.one2many_names"
+                                        class="fw-bolder" />
                                     <span class="fw-bold">Date: <field name="create_date" class="fw-normal" /></span>
-                                    <span class="fw-bold">Duration: <field class="d-inline fw-normal" name="duration" widget="float_time" options="{'display_seconds': True}" /></span>
+                                    <span class="fw-bold">Duration: <field name="duration" widget="float_time" options="{'display_seconds': True}" class="d-inline fw-normal" /></span>
                                     <span class="fw-bold">Messages: <field name="message_count" class="fw-normal" /></span>
                                     <field name="livechat_failure" invisible="1" />
                                     <field name="livechat_is_escalated" invisible="1" />
@@ -230,12 +230,12 @@
                                     string="Rating"
                                     widget="image"
                                     options="{&quot;size&quot;: [40, 40], &quot;img_class&quot;: &quot;bg-transparent&quot;}"
-                                    class="ms-auto"
-                                    invisible="not rating_last_image" />
+                                    invisible="not rating_last_image"
+                                    class="ms-auto" />
                             </div>
                             <footer class="pt-0">
                                 <t t-if="record.country_id.raw_value">
-                                    <span class="fw-bold">Country: </span><field string="Country" name="country_id" />
+                                    <span class="fw-bold">Country: </span><field name="country_id" string="Country" />
                                 </t>
                                 <field
                                     name="livechat_agent_partner_ids"
@@ -262,18 +262,17 @@
                                 name="rating_last_image"
                                 widget="image"
                                 options="{&quot;img_class&quot;: &quot;bg-transparent&quot;}"
-                                class="float-end bg-view"
                                 readonly="1"
-                                nolabel="1" />
-                            <field name="rating_last_feedback" nolabel="1" />
+                                class="float-end bg-view" />
+                            <field name="rating_last_feedback" />
                         </div>
                         <div style="width:50%" class="float-start">
                             <group>
                                 <field name="name" string="Participants" />
                                 <field
                                     name="create_date"
-                                    readonly="1"
-                                    string="Session Date" />
+                                    string="Session Date"
+                                    readonly="1" />
                             </group>
                         </div>
                     </sheet>
@@ -284,9 +283,9 @@
             <field name="name">discuss.channel.pivot</field>
             <field name="model">discuss.channel</field>
             <field name="arch" type="xml">
-                <pivot string="Sessions" display_quantity="1" sample="1">
+                <pivot string="Sessions" sample="1" display_quantity="1">
                     <field name="livechat_operator_id" type="row" />
-                    <field name="create_date" interval="day" type="col" />
+                    <field name="create_date" type="col" interval="day" />
                     <field
                         name="rating_last_value"
                         type="measure"
@@ -443,8 +442,8 @@
                     <field name="livechat_customer_partner_ids" string="Customer" />
                     <filter
                         name="filter_my_sessions"
-                        domain="[('livechat_operator_id.user_ids', '=', uid)]"
-                        string="My Sessions" />
+                        string="My Sessions"
+                        domain="[('livechat_operator_id.user_ids', '=', uid)]" />
                     <filter
                         name="filter_my_languages"
                         string="My Languages"
@@ -456,8 +455,8 @@
                     <separator />
                     <filter
                         name="filter_session_date"
-                        date="create_date"
-                        string="Session Date">
+                        string="Session Date"
+                        date="create_date">
                         <filter
                             name="created_on_last_24_hours"
                             string="Last 24 Hours"
@@ -543,11 +542,11 @@
             <field name="model">discuss.channel</field>
             <field name="arch" type="xml">
                 <list
-                    js_class="im_livechat.discuss_channel_looking_for_help_list"
-                    sample="1"
                     string="History"
+                    default_order="create_date asc"
                     create="false"
-                    default_order="create_date asc">
+                    sample="1"
+                    js_class="im_livechat.discuss_channel_looking_for_help_list">
                     <field name="create_date" string="Date" />
                     <field name="description" string="Description" optional="show" />
                     <field
@@ -576,14 +575,14 @@
                         name="livechat_conversation_tag_ids"
                         string="Tags"
                         widget="many2many_tags"
-                        options="{'color_field': 'color'}"
-                        optional="hide" />
+                        optional="hide"
+                        options="{'color_field': 'color'}" />
                     <field name="livechat_channel_id" optional="hide" />
                     <field
                         name="duration"
                         widget="float_time"
-                        options="{'display_seconds': True}"
-                        optional="hide" />
+                        optional="hide"
+                        options="{'display_seconds': True}" />
                     <field name="message_count" string="Messages" optional="hide" />
                     </list>
             </field>
@@ -605,18 +604,18 @@
             <field name="model">discuss.channel</field>
             <field name="arch" type="xml">
                 <kanban
-                    js_class="im_livechat.discuss_channel_looking_for_help_kanban"
-                    class="o_kanban_mobile"
-                    sample="1"
-                    quick_create="false"
+                    default_order="create_date desc"
                     create="False"
-                    default_order="create_date desc">
+                    sample="1"
+                    class="o_kanban_mobile"
+                    js_class="im_livechat.discuss_channel_looking_for_help_kanban"
+                    quick_create="false">
                     <templates>
                         <t t-name="card">
                             <field
-                                class="fw-bolder"
                                 name="livechat_customer_history_ids"
-                                widget="im_livechat.one2many_names" />
+                                widget="im_livechat.one2many_names"
+                                class="fw-bolder" />
                             <span class="fw-bold">Date: <field name="create_date" class="fw-normal" /></span>
                             <span class="fw-bold" t-if="record.country_id.raw_value">Country: <field name="country_id" class="fw-normal" /></span>
                             <span class="fw-bold" t-if="record.livechat_lang_id.raw_value">Language: <field name="livechat_lang_id" class="fw-normal" /></span>

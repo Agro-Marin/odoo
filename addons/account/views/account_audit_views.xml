@@ -8,12 +8,12 @@
             <field name="model">account.return</field>
             <field name="arch" type="xml">
                 <kanban
-                    js_class="account_return_audit_kanban"
-                    action="action_view_audit_return"
                     type="object"
+                    options="{'allowed_categories': ['audit']}"
+                    action="action_view_audit_return"
                     can_open="0"
-                    on_create="account.action_create_account_audit"
-                    options="{'allowed_categories': ['audit']}">
+                    js_class="account_return_audit_kanban"
+                    on_create="account.action_create_account_audit">
                     <field name="state" />
                     <t t-name="card" class="o_audit_kanban_record">
                         <div class="d-flex flex-column w-100 h-100">
@@ -29,8 +29,8 @@
                                 </h5>
                                 <div class="pe-3">
                                     <field
-                                        widget="account_return_selection_badge"
                                         name="audit_status"
+                                        widget="account_return_selection_badge"
                                         options="{                                             'ongoing': {'decoration': 'muted'},                                             'paused': {'decoration': 'danger'},                                             'done': {'decoration': 'success'},                                         }" />
                                 </div>
                             </div>
@@ -41,9 +41,9 @@
                                     <field name="audit_balances_count" invisible="1" />
                                     <field
                                         name="audit_balances_completed_count"
-                                        class="w-100 audit_return_progressbar"
                                         widget="account_audit_progressbar"
-                                        options="{ 'max_value': 'audit_balances_count'}" />
+                                        options="{ 'max_value': 'audit_balances_count'}"
+                                        class="w-100 audit_return_progressbar" />
                                 </div>
 
                                 <div class="w-100">
@@ -51,9 +51,9 @@
                                     <field name="check_count" invisible="1" />
                                     <field
                                         name="resolved_check_count"
-                                        class="w-100 audit_return_progressbar"
                                         widget="account_audit_progressbar"
-                                        options="{ 'max_value': 'check_count'}" />
+                                        options="{ 'max_value': 'check_count'}"
+                                        class="w-100 audit_return_progressbar" />
                                 </div>
                             </div>
 
@@ -138,27 +138,27 @@
                         context="{'group_by': 'type_id'}" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                 </search>
             </field>
         </record>
@@ -191,12 +191,12 @@
             <field name="model">account.account</field>
             <field name="arch" type="xml">
                 <list
-                    js_class="account_audit_balance_list"
+                    type="object"
                     editable="top"
                     create="0"
                     edit="1"
                     multi_edit="1"
-                    type="object">
+                    js_class="account_audit_balance_list">
                     <field name="audit_balance_show_warning" column_invisible="1" />
                     <field
                         name="audit_previous_balance_show_warning"
@@ -204,12 +204,12 @@
                     <field name="code" readonly="1" />
                     <field
                         name="name"
-                        readonly="1"
                         string="Name"
                         widget="accountAuditClickableCharField"
-                        options="{'onclick': 'action_audit_account'}" />
-                    <field name="audit_debit" readonly="1" optional="hide" />
-                    <field name="audit_credit" readonly="1" optional="hide" />
+                        options="{'onclick': 'action_audit_account'}"
+                        readonly="1" />
+                    <field name="audit_debit" optional="hide" readonly="1" />
+                    <field name="audit_credit" optional="hide" readonly="1" />
                     <field name="audit_balance" readonly="1" />
                     <field name="audit_previous_balance" readonly="1" />
                     <field name="audit_var_n_1" readonly="1" />
@@ -220,8 +220,8 @@
                         readonly="1" />
                     <field name="last_message" readonly="1" />
                     <field
-                        widget="account_return_selection_badge"
                         name="audit_status"
+                        widget="account_return_selection_badge"
                         options="{                             'todo': {'decoration': 'info'},                             'reviewed': {'decoration': 'success'},                             'supervised': {'decoration': 'success'},                             'anomaly': {'decoration': 'danger'},                         }" />
                 </list>
             </field>
@@ -259,11 +259,11 @@
                     <filter
                         name="audit_accounts"
                         string="Audit Accounts"
-                        invisible="not context.get('currency_exhange_difference_account_ids')"
-                        domain="[('id', 'in', context.get('currency_exhange_difference_account_ids'))]" />
+                        domain="[('id', 'in', context.get('currency_exhange_difference_account_ids'))]"
+                        invisible="not context.get('currency_exhange_difference_account_ids')" />
                     <searchpanel>
-                        <field name="audit_status" select="multi" enable_counters="1" />
-                        <field name="account_type" select="multi" enable_counters="1" />
+                        <field name="audit_status" enable_counters="1" select="multi" />
+                        <field name="account_type" enable_counters="1" select="multi" />
                     </searchpanel>
                 </search>
             </field>

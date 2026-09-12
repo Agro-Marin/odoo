@@ -31,8 +31,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title">
                         <h1><field name="name" readonly="1" /></h1>
                     </div>
@@ -50,8 +50,8 @@
                             <field name="method" invisible="action_id" />
                             <field
                                 name="action_id"
-                                invisible="method"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                invisible="method" />
                             <field
                                 name="subject_domain"
                                 placeholder="e.g. [('state', '=', 'draft')]" />
@@ -63,8 +63,8 @@
                             <field name="sudo_policy" />
                             <field
                                 name="category_id"
-                                required="mode != 'advise'"
-                                invisible="mode == 'advise'" />
+                                invisible="mode == 'advise'"
+                                required="mode != 'advise'" />
                         </group>
                     </group>
                     <group string="Observed" invisible="not observation_count">
@@ -73,7 +73,7 @@
                         <field name="self_elevated_count" />
                     </group>
                     <notebook invisible="not observation_count">
-                        <page string="Observations" name="observations">
+                        <page name="observations" string="Observations">
                             <field name="observation_ids" readonly="1">
                                 <list>
                                     <field name="date" />

@@ -10,10 +10,10 @@
             <xpath expr="//field[@name='stage_id']" position="before">
                 <button
                     name="action_mass_mailing_track_speakers"
-                    string="Contact Speakers"
                     type="object"
-                    invisible="track_count == 0"
-                    groups="mass_mailing.group_mass_mailing_user" />
+                    string="Contact Speakers"
+                    groups="mass_mailing.group_mass_mailing_user"
+                    invisible="track_count == 0" />
             </xpath>
         </field>
     </record>

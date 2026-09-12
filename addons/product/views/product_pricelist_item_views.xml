@@ -18,22 +18,22 @@
                 <field name="company_id" groups="base.group_multi_company" />
                 <field name="currency_id" groups="base.group_multi_currency" />
                 <filter
-                    string="From Active Pricelist"
                     name="visible"
+                    string="From Active Pricelist"
                     domain="[('pricelist_id.active', '=', True)]" />
                 <group>
                     <filter
-                        string="Product"
                         name="groupby_product"
+                        string="Product"
                         context="{'group_by': 'product_tmpl_id'}" />
                     <filter
-                        string="Variant"
                         name="groupby_product_variant"
+                        string="Variant"
                         context="{'group_by': 'product_id'}"
                         groups="product.group_product_variant" />
                     <filter
-                        string="Pricelist"
                         name="groupby_vendor"
+                        string="Pricelist"
                         context="{'group_by': 'pricelist_id'}"
                         groups="product.group_product_pricelist" />
                 </group>
@@ -58,8 +58,8 @@
                 <field name="date_end" optional="hide" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -83,27 +83,27 @@
                                 options="{'horizontal': true}" />
                             <field
                                 name="categ_id"
+                                placeholder="All categories"
                                 options="{'no_create': 1}"
-                                invisible="display_applied_on != '2_product_category'"
-                                placeholder="All categories" />
+                                invisible="display_applied_on != '2_product_category'" />
                             <field
                                 name="product_tmpl_id"
+                                placeholder="All products"
                                 options="{'no_create': 1}"
-                                invisible="display_applied_on != '1_product'"
-                                placeholder="All products" />
+                                invisible="display_applied_on != '1_product'" />
                             <field name="product_variant_count" invisible="1" />
                             <field
                                 name="product_id"
+                                placeholder="All variants"
                                 options="{'no_create': 1}"
-                                invisible="product_variant_count &lt; 2"
-                                placeholder="All variants" />
+                                invisible="product_variant_count &lt; 2" />
                             <field
                                 name="compute_price"
                                 string="Price Type"
                                 widget="radio"
                                 options="{'horizontal': true}"
-                                invisible="display_applied_on == '1_product' and compute_price == 'fixed'"
-                                groups="product.group_product_pricelist" />
+                                groups="product.group_product_pricelist"
+                                invisible="display_applied_on == '1_product' and compute_price == 'fixed'" />
                             <label
                                 for="fixed_price"
                                 invisible="compute_price != 'fixed'" />
@@ -152,10 +152,9 @@
                             <field name="base" string="Based price" />
                             <field
                                 name="base_pricelist_id"
+                                string="Other Pricelist"
                                 invisible="base != 'pricelist'"
-                                readonly="base != 'pricelist'"
-                                required="compute_price == 'formula' and base == 'pricelist'"
-                                string="Other Pricelist" />
+                                required="compute_price == 'formula' and base == 'pricelist'" />
                             <label
                                 for="price_discount"
                                 string="Discount"
@@ -184,8 +183,8 @@
                                 widget="monetary"
                                 options="{'currency_field': 'currency_id', 'field_digits': True}" />
                             <label
-                                string="Margins"
                                 for="price_min_margin"
+                                string="Margins"
                                 groups="base.group_no_one" />
                             <div
                                 class="d-flex align-items-baseline"
@@ -193,9 +192,9 @@
                                 <field
                                     name="price_min_margin"
                                     string="Min. Margin"
-                                    class="oe_inline"
                                     widget="monetary"
-                                    options="{'field_digits': True}" />
+                                    options="{'field_digits': True}"
+                                    class="oe_inline" />
                                 <i
                                     class="fa-solid fa-right-long mx-2 oe_edit_only"
                                     aria-label="Arrow icon"
@@ -203,10 +202,10 @@
                                 <field
                                     name="price_max_margin"
                                     string="Max. Margin"
-                                    class="oe_inline"
                                     widget="monetary"
                                     nolabel="1"
-                                    options="{'field_digits': True}" />
+                                    options="{'field_digits': True}"
+                                    class="oe_inline" />
                             </div>
                         </group>
                         <div>

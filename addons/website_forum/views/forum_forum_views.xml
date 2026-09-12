@@ -28,8 +28,8 @@
                             <button
                                 name="%(forum_post_action_forum_main)d"
                                 type="action"
-                                class="oe_stat_button"
-                                icon="fa-comments">
+                                icon="fa-comments"
+                                class="oe_stat_button">
                                 <div class="o_form_field o_stat_info">
                                     <span class="o_stat_value">
                                         <field name="total_posts" />
@@ -39,9 +39,9 @@
                             </button>
                             <button
                                 name="%(forum_post_action_favorites)d"
-                                class="oe_stat_button"
+                                type="action"
                                 icon="fa-star"
-                                type="action">
+                                class="oe_stat_button">
                                 <div class="o_form_field o_stat_info">
                                     <span class="o_stat_value">
                                         <field name="total_favorites" />
@@ -50,10 +50,10 @@
                                 </div>
                             </button>
                             <button
+                                name="go_to_website"
                                 type="object"
-                                class="oe_stat_button"
                                 icon="fa-globe"
-                                name="go_to_website">
+                                class="oe_stat_button">
                                 <div class="o_form_field o_stat_info">
                                     <span class="o_stat_text">Go to <br />Website</span>
                                 </div>
@@ -63,8 +63,8 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field
                             name="image_1920"
                             widget="image"
@@ -89,8 +89,8 @@
                             <page name="options" string="Options">
                                 <group>
                                     <group
-                                        string="Order and Visibility"
-                                        name="group_order">
+                                        name="group_order"
+                                        string="Order and Visibility">
                                         <field
                                             name="default_order"
                                             string="Default Sort" />
@@ -183,13 +183,13 @@
                     <group>
                         <field
                             name="name"
-                            placeholder="e.g. Technical Assistance"
-                            string="Forum Name" />
+                            string="Forum Name"
+                            placeholder="e.g. Technical Assistance" />
                         <field
                             name="mode"
+                            string="Forum Mode"
                             widget="radio"
-                            required="True"
-                            string="Forum Mode" />
+                            required="True" />
                         <field name="privacy" widget="radio" required="True" />
                         <field
                             name="authorized_group_id"
@@ -207,8 +207,8 @@
                 <search string="Forum">
                     <field name="name" />
                     <filter
-                        string="Archived"
                         name="inactive"
+                        string="Archived"
                         domain="[('active','=',False)]" />
                 </search>
             </field>

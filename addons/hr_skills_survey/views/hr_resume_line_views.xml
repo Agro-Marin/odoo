@@ -11,9 +11,9 @@
                 <field
                     name="survey_id"
                     domain="[('certification', '=', True)]"
-                    readonly="0"
+                    context="{'default_certification': True}"
                     invisible="line_type_id != %(hr_skills_survey.resume_type_certification)d"
-                    context="{'default_certification': True}" />
+                    readonly="0" />
             </xpath>
         </field>
     </record>

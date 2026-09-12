@@ -21,18 +21,18 @@
             <xpath expr="//button[@name='archive_applicant']" position="before">
                 <button
                     name="action_send_survey"
-                    string="Send Interview"
                     type="object"
+                    string="Send Interview"
                     invisible="not active or not survey_id" />
             </xpath>
             <xpath expr="//button[@name='action_create_meeting']" position="after">
                 <button
                     name="action_print_survey"
-                    class="oe_stat_button"
-                    icon="fa-regular fa-pen-to-square"
                     type="object"
                     help="See interview report"
-                    invisible="not survey_id or not response_ids">
+                    icon="fa-regular fa-pen-to-square"
+                    invisible="not survey_id or not response_ids"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Consult</span>
                         <span class="o_stat_text">Interview</span>

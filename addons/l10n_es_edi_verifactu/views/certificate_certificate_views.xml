@@ -12,10 +12,10 @@
             <field name="arch" type="xml">
                 <filter name="scope_general" position="after">
                     <filter
-                        string="Veri*Factu"
                         name="scope_verifactu"
-                        domain="[('scope','=','verifactu')]"
-                        help="Veri*Factu certificates" />
+                        string="Veri*Factu"
+                        help="Veri*Factu certificates"
+                        domain="[('scope','=','verifactu')]" />
                 </filter>
             </field>
         </record>

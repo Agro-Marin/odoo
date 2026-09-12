@@ -20,7 +20,7 @@
         <field name="model">res.partner</field>
         <field name="priority" eval="18" />
         <field name="arch" type="xml">
-            <list string="Contacts" sample="1" multi_edit="1" expand="1">
+            <list string="Contacts" multi_edit="1" sample="1" expand="1">
                 <field name="complete_name" string="Name" />
                 <field name="is_company" />
                 <field name="parent_id" />
@@ -28,14 +28,14 @@
                     name="set_commercial_partner_main"
                     type="object"
                     string="Set as main"
-                    class="btn-primary"
-                    invisible="not context.get('duplicated_partners_vat') or parent_id" />
+                    invisible="not context.get('duplicated_partners_vat') or parent_id"
+                    class="btn-primary" />
                 <field name="email" />
                 <field name="phone_ids" widget="many2many_tags" optional="show" />
                 <field
                     name="user_id"
-                    optional="show"
                     widget="many2one_avatar_user"
+                    optional="show"
                     domain="[('share', '=', False)]" />
                 <field name="user_ids" />
                 <field name="total_invoiced" />
@@ -45,8 +45,8 @@
                 <field name="country_id" optional="show" readonly="1" />
                 <field
                     name="tag_ids"
-                    optional="hide"
                     widget="many2many_tags"
+                    optional="hide"
                     options="{'color_field': 'color'}" />
                 <field
                     name="company_id"

@@ -34,13 +34,13 @@
                 <field name="delivery_type" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Provider"
                         name="provider"
+                        string="Provider"
                         context="{'group_by':'delivery_type', 'residual_visible':True}" />
                 </group>
             </search>
@@ -56,10 +56,10 @@
                     <div class="oe_button_box" name="button_box">
                         <button
                             name="toggle_prod_environment"
-                            invisible="not prod_environment or delivery_type == 'fixed' or delivery_type == 'base_on_rule'"
-                            class="oe_stat_button"
                             type="object"
-                            icon="fa-play">
+                            icon="fa-play"
+                            invisible="not prod_environment or delivery_type == 'fixed' or delivery_type == 'base_on_rule'"
+                            class="oe_stat_button">
                             <div class="o_stat_info o_field_widget">
                                 <span class="text-success">Production</span>
                                 <span class="o_stat_text">Environment</span>
@@ -68,10 +68,10 @@
                         <!-- transfer referenced here due to view inheritance issue in current master (post-saas-16) -->
                         <button
                             name="toggle_prod_environment"
-                            invisible="prod_environment or delivery_type == 'fixed' or delivery_type == 'base_on_rule'"
-                            class="oe_stat_button"
                             type="object"
-                            icon="fa-stop">
+                            icon="fa-stop"
+                            invisible="prod_environment or delivery_type == 'fixed' or delivery_type == 'base_on_rule'"
+                            class="oe_stat_button">
                             <div class="o_stat_info o_field_widget">
                                 <span class="o_stat_text o_warning_text fw-bold">Test</span>
                                 <span class="o_stat_text">Environment</span>
@@ -79,20 +79,20 @@
                         </button>
                         <button
                             name="toggle_debug"
-                            invisible="delivery_type == 'fixed' or delivery_type == 'base_on_rule' or debug_logging"
-                            class="oe_stat_button"
                             type="object"
-                            icon="fa-code">
+                            icon="fa-code"
+                            invisible="delivery_type == 'fixed' or delivery_type == 'base_on_rule' or debug_logging"
+                            class="oe_stat_button">
                             <div class="o_stat_info o_field_widget">
                                 <span class="o_stat_text text-danger">No debug</span>
                             </div>
                         </button>
                         <button
                             name="toggle_debug"
-                            invisible="delivery_type == 'fixed' or delivery_type == 'base_on_rule' or not debug_logging"
-                            class="oe_stat_button"
                             type="object"
-                            icon="fa-code">
+                            icon="fa-code"
+                            invisible="delivery_type == 'fixed' or delivery_type == 'base_on_rule' or not debug_logging"
+                            class="oe_stat_button">
                             <div class="o_stat_info o_field_widget">
                                 <span class="text-success">Debug requests</span>
                             </div>
@@ -101,8 +101,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <div class="oe_title" name="title">
                         <label for="name" string="Delivery Method" />
                         <h1>
@@ -119,9 +119,9 @@
                             <div>
                                 <field name="delivery_type" />
                                 <button
-                                    string="Install more Providers"
                                     name="install_more_provider"
                                     type="object"
+                                    string="Install more Providers"
                                     class="oe_link oe_edit_only" />
                             </div>
                             <field name="allow_cash_on_delivery" />
@@ -131,22 +131,22 @@
                                 invisible="delivery_type == 'fixed' or delivery_type == 'base_on_rule'" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                                placeholder="Visible to all" />
+                                placeholder="Visible to all"
+                                groups="base.group_multi_company" />
                         </group>
                         <group name="delivery_details">
                             <field name="currency_id" invisible="1" />
                             <field
                                 name="fixed_price"
                                 widget="monetary"
-                                class="oe_inline"
-                                invisible="delivery_type != 'fixed'" />
+                                invisible="delivery_type != 'fixed'"
+                                class="oe_inline" />
                             <field
                                 name="margin"
                                 string="Margin on Rate"
                                 widget="percentage"
-                                class="oe_inline"
-                                invisible="delivery_type == 'fixed'" />
+                                invisible="delivery_type == 'fixed'"
+                                class="oe_inline" />
                             <field
                                 name="fixed_margin"
                                 string="Additional margin"
@@ -162,9 +162,9 @@
                                 <field
                                     name="amount"
                                     widget="monetary"
-                                    class="oe_inline"
                                     invisible="not free_over"
-                                    required="free_over" />
+                                    required="free_over"
+                                    class="oe_inline" />
                             </div>
                             <field
                                 name="product_id"
@@ -180,8 +180,8 @@
                             <field name="supports_shipping_insurance" invisible="1" />
                             <label
                                 for="shipping_insurance"
-                                String="Shipping Insurance"
-                                invisible="not supports_shipping_insurance" />
+                                invisible="not supports_shipping_insurance"
+                                String="Shipping Insurance" />
                             <div invisible="not supports_shipping_insurance">
                                 <field name="shipping_insurance" class="oe_inline" />%
                             </div>
@@ -196,7 +196,7 @@
                                 <field name="price_rule_ids" nolabel="1" />
                             </group>
                         </page>
-                        <page string="Availability" name="destination">
+                        <page name="destination" string="Availability">
                             <group col="1">
                                 <p name="availability_description">
                                     Filling this form allows you to make the shipping method available according to the content of the order or its destination.
@@ -210,16 +210,16 @@
                                         <field
                                             name="state_ids"
                                             widget="many2many_tags"
-                                            domain="[('country_id', 'in', country_ids)]"
-                                            readonly="not country_ids"
                                             force_save="1"
-                                            options="{'no_create': True}" />
+                                            domain="[('country_id', 'in', country_ids)]"
+                                            options="{'no_create': True}"
+                                            readonly="not country_ids" />
                                         <field
                                             name="zip_prefix_ids"
                                             widget="many2many_tags"
-                                            readonly="not country_ids"
                                             force_save="1"
-                                            options="{'no_create_edit': True}" />
+                                            options="{'no_create_edit': True}"
+                                            readonly="not country_ids" />
                                     </group>
                                     <group name="content" string="Content">
                                         <label for="max_weight" />
@@ -254,7 +254,7 @@
                                 </p>
                             </group>
                         </page>
-                        <page string="Description" name="description">
+                        <page name="description" string="Description">
                             <field
                                 name="carrier_description"
                                 placeholder="Shipping method details to be included at bottom sales orders and their confirmation emails. E.g. Instructions for customers to follow." />

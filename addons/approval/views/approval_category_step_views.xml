@@ -77,13 +77,13 @@
                     <field name="name" placeholder="e.g. Finance review" />
                     <field
                         name="user_ids"
+                        placeholder="Select users..."
                         widget="many2many_tags"
-                        required="not group_id"
-                        placeholder="Select users..." />
+                        required="not group_id" />
                     <field
                         name="group_id"
-                        required="not user_ids"
-                        options="{'no_create': True}" />
+                        options="{'no_create': True}"
+                        required="not user_ids" />
                     <field name="notify_user_ids" widget="many2many_tags" />
                     <field name="exclusive" widget="boolean_toggle" />
                 </group>
@@ -115,8 +115,8 @@
                             <field
                                 name="user_ids"
                                 widget="many2many_avatar_user"
-                                class="ms-auto"
-                                readonly="1" />
+                                readonly="1"
+                                class="ms-auto" />
                         </footer>
                     </t>
                 </templates>

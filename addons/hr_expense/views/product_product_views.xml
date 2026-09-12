@@ -21,8 +21,8 @@
             <field name="arch" type="xml">
                 <filter name="filter_to_sell" position="after">
                     <filter
-                        string="Expenses"
                         name="filter_to_expense"
+                        string="Expenses"
                         domain="[('can_be_expensed', '=', True)]" />
                 </filter>
             </field>
@@ -42,15 +42,15 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field name="product_variant_count" invisible="1" />
                         <field name="id" invisible="1" />
                         <field
                             name="image_1920"
                             widget="image"
-                            class="oe_avatar"
-                            options="{'image_preview': 'image_128'}" />
+                            options="{'image_preview': 'image_128'}"
+                            class="oe_avatar" />
                         <field name="type" invisible="1" />
                         <div class="oe_title px-3">
                             <label for="name" string="Product Name" />
@@ -65,14 +65,14 @@
                                 <div class="o_row" groups="base.group_user">
                                     <field
                                         name="standard_price"
-                                        class="w-50"
+                                        help="When the cost of an expense product is different than 0, then the user                                             using this product won't be able to change the amount of the expense,                                             only the quantity. Use a cost different than 0 for expense categories funded by                                             the company at fixed cost like allowances for mileage, per diem, accommodation                                             or meal."
                                         widget="monetary"
                                         options="{'currency_field': 'currency_id'}"
-                                        help="When the cost of an expense product is different than 0, then the user                                             using this product won't be able to change the amount of the expense,                                             only the quantity. Use a cost different than 0 for expense categories funded by                                             the company at fixed cost like allowances for mileage, per diem, accommodation                                             or meal." />
+                                        class="w-50" />
                                     <span
                                         class="d-flex w-50 ms-2"
                                         invisible="standard_price == 0">
-                                        per <field name="uom_id" widget="many2one_uom" class="ms-2" options="{'no_create': True}" />
+                                        per <field name="uom_id" widget="many2one_uom" options="{'no_create': True}" class="ms-2" />
                                     </span>
                                 </div>
                                 <field
@@ -82,8 +82,8 @@
                                 <field name="categ_id" string="Category" class="w-50" />
                                 <field
                                     name="company_id"
-                                    class="w-50"
-                                    groups="base.group_multi_company" />
+                                    groups="base.group_multi_company"
+                                    class="w-50" />
                                 <field
                                     name="description"
                                     string="Guideline"
@@ -92,15 +92,15 @@
                             <group>
                                 <field
                                     name="property_account_expense_id"
-                                    class="w-50"
-                                    groups="account.group_account_readonly" />
+                                    groups="account.group_account_readonly"
+                                    class="w-50" />
                                 <field
                                     name="supplier_taxes_id"
-                                    class="w-50"
+                                    placeholder="no taxes"
                                     widget="many2many_tax_tags"
                                     context="{'default_type_tax_use':'purchase', 'default_price_include': 1}"
                                     options="{'no_quick_create': True}"
-                                    placeholder="no taxes" />
+                                    class="w-50" />
                             </group>
                         </group>
                     </sheet>
@@ -149,14 +149,14 @@
             <field name="model">product.product</field>
             <field name="arch" type="xml">
                 <list
-                    class="o_expense_categories"
-                    default_order="is_favorite desc, default_code, name, id">
+                    default_order="is_favorite desc, default_code, name, id"
+                    class="o_expense_categories">
                     <field name="name" readonly="1" />
                     <field name="currency_id" column_invisible="True" />
                     <field
                         name="default_code"
-                        optional="show"
                         string="Reference"
+                        optional="show"
                         readonly="1" />
                     <field
                         name="description"
@@ -165,15 +165,15 @@
                         readonly="1" />
                     <field
                         name="lst_price"
+                        string="Sales Price"
                         widget="monetary"
-                        options="{'currency_field': 'currency_id', 'field_digits': True}"
                         optional="show"
-                        string="Sales Price" />
+                        options="{'currency_field': 'currency_id', 'field_digits': True}" />
                     <field
                         name="standard_price"
                         widget="monetary"
-                        options="{'currency_field': 'currency_id', 'field_digits': True}"
-                        optional="show" />
+                        optional="show"
+                        options="{'currency_field': 'currency_id', 'field_digits': True}" />
                     <field
                         name="supplier_taxes_id"
                         widget="many2many_tax_tags"

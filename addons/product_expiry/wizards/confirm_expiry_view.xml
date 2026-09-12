@@ -19,21 +19,21 @@
                 <footer>
                     <button
                         name="process"
-                        string="Confirm"
                         type="object"
-                        data-hotkey="q"
+                        string="Confirm"
                         groups="stock.group_stock_manager"
-                        class="btn-primary" />
+                        class="btn-primary"
+                        data-hotkey="q" />
                     <button
                         name="process_no_expired"
-                        string="Proceed except expired"
                         type="object"
-                        data-hotkey="w"
-                        class="btn-secondary" />
+                        string="Proceed except expired"
+                        class="btn-secondary"
+                        data-hotkey="w" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

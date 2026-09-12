@@ -9,8 +9,8 @@
         <field name="arch" type="xml">
             <xpath expr="//filter[@name='inactive']" position="before">
                 <filter
-                    string="Mondial Relay"
                     name="is_mondialrelay"
+                    string="Mondial Relay"
                     domain="[('is_mondialrelay', '=', True)]" />
             </xpath>
         </field>

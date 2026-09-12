@@ -16,20 +16,20 @@
                     <field
                         name="lost_feedback"
                         placeholder="What went wrong?"
-                        nolabel="1"
-                        colspan="2" />
+                        colspan="2"
+                        nolabel="1" />
                 </group>
                 <footer>
                     <button
                         name="action_lost_reason_apply"
-                        string="Mark as Lost"
                         type="object"
+                        string="Mark as Lost"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

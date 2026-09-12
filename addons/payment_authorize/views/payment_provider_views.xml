@@ -23,26 +23,26 @@
                     <div class="o_row" col="2">
                         <field name="authorize_client_key" />
                         <button
-                            class="oe_link"
-                            icon="fa-refresh"
-                            type="object"
                             name="action_update_merchant_details"
-                            string="Generate Client Key" />
+                            type="object"
+                            string="Generate Client Key"
+                            icon="fa-refresh"
+                            class="oe_link" />
                     </div>
                     <widget
-                        colspan="2"
                         name="documentation_link"
-                        path="/applications/finance/payment_providers/authorize.html"
-                        label="How to get paid with Authorize.Net" />
+                        colspan="2"
+                        label="How to get paid with Authorize.Net"
+                        path="/applications/finance/payment_providers/authorize.html" />
                 </group>
             </group>
             <div name="available_currencies" position="inside">
                 <button
-                    string="Set Account Currency"
-                    type="object"
                     name="action_update_merchant_details"
-                    invisible="code != 'authorize'"
+                    type="object"
+                    string="Set Account Currency"
                     icon="fa-refresh"
+                    invisible="code != 'authorize'"
                     class="oe_link" />
             </div>
         </field>

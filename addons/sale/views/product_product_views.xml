@@ -8,13 +8,13 @@
         <field name="arch" type="xml">
             <div name="button_box" position="inside">
                 <button
-                    class="oe_stat_button"
                     name="action_view_sales"
                     type="object"
-                    icon="fa-signal"
                     help="Sold in the last 365 days"
+                    icon="fa-signal"
                     groups="sales_team.group_sale_salesman"
-                    invisible="not sale_ok">
+                    invisible="not sale_ok"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_value d-flex gap-1">
                             <field
@@ -24,8 +24,8 @@
                                 class="oe_inline" />
                             <field
                                 name="uom_name"
-                                class="oe_inline"
-                                groups="uom.group_uom" />
+                                groups="uom.group_uom"
+                                class="oe_inline" />
                         </span>
                         <span class="o_stat_text">Sold</span>
                     </div>

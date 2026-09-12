@@ -5,7 +5,7 @@
         <field name="name">coupon.share.form</field>
         <field name="model">coupon.share</field>
         <field name="arch" type="xml">
-            <form string="Share Loyalty Card" edit="1" create="0">
+            <form string="Share Loyalty Card" create="0" edit="1">
                 <field name="website_id" invisible="1" />
                 <field name="program_website_id" invisible="1" />
                 <group>
@@ -21,24 +21,24 @@
                     <group>
                         <field
                             name="website_id"
-                            groups="website.group_multi_website"
                             widget="selection"
+                            groups="website.group_multi_website"
                             invisible="program_website_id" />
                         <field name="redirect" />
                     </group>
                 </group>
                 <footer>
                     <button
+                        special="cancel"
                         string="Done"
                         class="btn-primary"
-                        special="cancel"
                         data-hotkey="x" />
                     <button
-                        string="Generate Short Link"
-                        class="btn-secondary"
-                        type="object"
                         name="action_generate_short_link"
+                        type="object"
+                        string="Generate Short Link"
                         invisible="not website_id or id"
+                        class="btn-secondary"
                         data-hotkey="g" />
                 </footer>
             </form>

@@ -20,8 +20,8 @@
                     <button
                         name="action_stripe_key"
                         type="object"
-                        icon="oi-arrow-right"
                         string="Don't forget to complete Stripe connect before using this payment method."
+                        icon="oi-arrow-right"
                         class="btn-link" />
                 </div>
             </xpath>

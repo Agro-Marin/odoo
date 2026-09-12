@@ -9,8 +9,8 @@
                 string="Expenses"
                 multi_edit="1"
                 sample="1"
-                js_class="hr_expense_tree"
-                decoration-info="state == 'draft'">
+                decoration-info="state == 'draft'"
+                js_class="hr_expense_tree">
                 <field name="is_editable" column_invisible="True" />
                 <field name="company_id" column_invisible="True" />
                 <field name="company_currency_id" column_invisible="True" />
@@ -38,9 +38,9 @@
                     name="analytic_distribution"
                     widget="analytic_distribution"
                     optional="show"
+                    options="{'product_field': 'product_id', 'business_domain': 'expense'}"
                     groups="analytic.group_analytic_accounting"
-                    readonly="not is_editable"
-                    options="{'product_field': 'product_id', 'business_domain': 'expense'}" />
+                    readonly="not is_editable" />
                 <field
                     name="account_id"
                     optional="hide"
@@ -65,8 +65,8 @@
                 <field
                     name="price_unit"
                     string="Unit Price"
-                    optional="hide"
                     widget="monetary"
+                    optional="hide"
                     options="{'currency_field': 'company_currency_id', 'field_digits': True}"
                     readonly="True" />
                 <field
@@ -75,16 +75,16 @@
                     readonly="not is_editable or not product_has_cost" />
                 <field
                     name="tax_ids"
-                    optional="hide"
                     widget="many2many_tax_tags"
+                    optional="hide"
                     groups="account.group_account_invoice,account.group_account_readonly"
                     readonly="not is_editable or not product_has_cost" />
                 <field
                     name="tax_amount"
-                    sum="Total Taxes"
-                    readonly="True"
                     optional="hide"
-                    groups="account.group_account_invoice,account.group_account_readonly" />
+                    sum="Total Taxes"
+                    groups="account.group_account_invoice,account.group_account_readonly"
+                    readonly="True" />
                 <field
                     name="nb_attachment"
                     widget="nb_attachment"
@@ -92,33 +92,33 @@
                     readonly="True" />
                 <field
                     name="total_amount"
-                    sum="Total Amount"
                     widget="monetary"
-                    readonly="not is_editable or product_has_cost"
+                    sum="Total Amount"
                     options="{'currency_field': 'company_currency_id'}"
+                    readonly="not is_editable or product_has_cost"
                     decoration-bf="1" />
                 <field
                     name="total_amount_currency"
                     widget="monetary"
-                    readonly="not is_editable or not is_multiple_currency or product_has_cost"
-                    options="{'currency_field': 'currency_id'}"
                     optional="hide"
-                    decoration-bf="1"
-                    groups="base.group_multi_currency" />
+                    options="{'currency_field': 'currency_id'}"
+                    groups="base.group_multi_currency"
+                    readonly="not is_editable or not is_multiple_currency or product_has_cost"
+                    decoration-bf="1" />
                 <field
                     name="currency_id"
                     optional="hide"
-                    readonly="not is_editable or product_has_cost"
-                    groups="base.group_multi_currency" />
+                    groups="base.group_multi_currency"
+                    readonly="not is_editable or product_has_cost" />
                 <field
                     name="state"
+                    widget="badge"
                     optional="show"
                     readonly="True"
+                    decoration-danger="state == 'refused'"
                     decoration-info="state == 'draft'"
                     decoration-success="state in ['approved', 'posted', 'in_payment', 'paid']"
-                    decoration-warning="state == 'submitted'"
-                    decoration-danger="state == 'refused'"
-                    widget="badge" />
+                    decoration-warning="state == 'submitted'" />
             </list>
         </field>
     </record>
@@ -156,121 +156,121 @@
             <header>
                 <button
                     name="action_submit"
-                    string="Submit"
                     type="object"
-                    class="oe_highlight o_expense_submit_highlight"
+                    string="Submit"
                     invisible="nb_attachment == 0 or state != 'draft'"
+                    class="oe_highlight o_expense_submit_highlight"
                     data-hotkey="v" />
                 <button
                     name="action_approve"
-                    string="Approve"
                     type="object"
-                    data-hotkey="q"
+                    string="Approve"
                     context="{'validate_analytic': True}"
                     invisible="nb_attachment == 0 or not can_approve or state != 'submitted'"
-                    class="oe_highlight o_expense_approve_highlight" />
+                    class="oe_highlight o_expense_approve_highlight"
+                    data-hotkey="q" />
                 <button
                     name="action_post"
-                    string="Post Journal Entries"
                     type="object"
-                    data-hotkey="y"
-                    class="oe_highlight o_expense_post_highlight"
+                    string="Post Journal Entries"
+                    groups="account.group_account_invoice"
                     invisible="nb_attachment == 0 or state != 'approved'"
-                    groups="account.group_account_invoice" />
+                    class="oe_highlight o_expense_post_highlight"
+                    data-hotkey="y" />
 
                 <widget
                     name="attach_document"
                     string="Attach Receipt"
+                    invisible="nb_attachment &gt;= 1"
                     action="attach_document"
-                    highlight="1"
-                    invisible="nb_attachment &gt;= 1" />
+                    highlight="1" />
                 <button
                     name="action_submit"
-                    string="Submit"
                     type="object"
-                    class="o_expense_submit"
+                    string="Submit"
                     invisible="nb_attachment &gt;= 1 or state != 'draft'"
+                    class="o_expense_submit"
                     data-hotkey="v" />
                 <button
                     name="action_approve"
-                    string="Approve"
                     type="object"
-                    data-hotkey="q"
+                    string="Approve"
                     context="{'validate_analytic': True}"
                     invisible="nb_attachment &gt;= 1 or not can_approve or state != 'submitted'"
-                    class="o_expense_approve" />
+                    class="o_expense_approve"
+                    data-hotkey="q" />
                 <button
                     name="action_post"
-                    string="Post Journal Entries"
                     type="object"
-                    data-hotkey="y"
-                    class="o_expense_post"
+                    string="Post Journal Entries"
+                    groups="account.group_account_invoice"
                     invisible="nb_attachment  &gt;= 1 or state != 'approved'"
-                    groups="account.group_account_invoice" />
+                    class="o_expense_post"
+                    data-hotkey="y" />
 
                 <button
                     name="action_refuse"
-                    string="Refuse"
-                    invisible="state not in ('submitted', 'approved')"
                     type="object"
+                    string="Refuse"
                     groups="hr_expense.group_hr_expense_team_approver"
+                    invisible="state not in ('submitted', 'approved')"
                     class="o_expense_refuse"
                     data-hotkey="x" />
                 <button
                     name="action_reset"
-                    string="Reset"
                     type="object"
-                    data-hotkey="r"
+                    string="Reset"
+                    groups="account.group_account_invoice"
                     invisible="not can_reset or state in 'draft'"
-                    groups="account.group_account_invoice" />
+                    data-hotkey="r" />
                 <button
                     name="action_reset"
-                    string="Reset"
                     type="object"
-                    data-hotkey="r"
+                    string="Reset"
+                    groups="!account.group_account_invoice"
                     invisible="not can_reset or state in ('draft', 'posted', 'in_payment','paid')"
-                    groups="!account.group_account_invoice" />
+                    data-hotkey="r" />
                 <button
                     name="action_split_wizard"
-                    string="Split Expense"
                     type="object"
-                    invisible="state != 'draft' or product_has_cost"
+                    string="Split Expense"
                     groups="!hr_expense.group_hr_expense_team_approver,!account.group_account_invoice"
+                    invisible="state != 'draft' or product_has_cost"
                     class="o_expense_split_user" />
                 <button
                     name="action_split_wizard"
-                    string="Split Expense"
                     type="object"
-                    class="o_expense_split_manager"
+                    string="Split Expense"
+                    groups="hr_expense.group_hr_expense_team_approver,account.group_account_invoice"
                     invisible="state in ('in_payment', 'paid', 'refused', 'posted') or product_has_cost"
-                    groups="hr_expense.group_hr_expense_team_approver,account.group_account_invoice" />
+                    class="o_expense_split_manager" />
 
                 <widget
                     name="attach_document"
                     string="Attach Receipt"
-                    action="attach_document"
-                    invisible="nb_attachment == 0" />
+                    invisible="nb_attachment == 0"
+                    action="attach_document" />
 
                 <field
                     name="state"
                     widget="statusbar"
-                    statusbar_visible="draft,approved,posted,paid"
-                    invisible="state in ('submitted', 'in_payment', 'refused')" />
+                    invisible="state in ('submitted', 'in_payment', 'refused')"
+                    statusbar_visible="draft,approved,posted,paid" />
                 <field
                     name="state"
                     widget="statusbar"
-                    statusbar_visible="draft,submitted,approved,posted,paid"
-                    invisible="state != 'submitted'" />
+                    invisible="state != 'submitted'"
+                    statusbar_visible="draft,submitted,approved,posted,paid" />
                 <field
                     name="state"
                     widget="statusbar"
-                    statusbar_visible="draft,approved,posted,in_payment,paid"
-                    invisible="state != 'in_payment'" />
+                    invisible="state != 'in_payment'"
+                    statusbar_visible="draft,approved,posted,in_payment,paid" />
                 <field
                     name="state"
                     widget="statusbar"
-                    statusbar_visible="draft,approved,posted,paid,refused"
-                    invisible="state != 'refused'" />
+                    invisible="state != 'refused'"
+                    statusbar_visible="draft,approved,posted,paid,refused" />
             </header>
             <div
                 class="alert alert-warning oe_edit_only"
@@ -284,17 +284,17 @@
                     <button
                         name="action_view_split_expense"
                         type="object"
-                        class="oe_stat_button"
+                        string="Split"
                         icon="fa-regular fa-file-lines"
                         invisible="not split_expense_origin_id"
-                        string="Split" />
+                        class="oe_stat_button" />
                     <button
                         name="action_view_account_move"
-                        class="oe_stat_button"
-                        icon="fa-bars"
                         type="object"
+                        icon="fa-bars"
+                        groups="account.group_account_invoice"
                         invisible="not account_move_id"
-                        groups="account.group_account_invoice">
+                        class="oe_stat_button">
                         <div class="o_stat_info">
                             <span class="o_stat_text">Journal Entry</span>
                         </div>
@@ -329,9 +329,9 @@
                         <div>
                             <field
                                 name="product_id"
-                                required="1"
-                                readonly="not is_editable"
                                 context="{                                         'default_type': 'service',                                         'default_can_be_expensed': 1,                                         'list_view_ref': 'hr_expense.product_product_expense_tree_view',                                         'form_view_ref': 'hr_expense.product_product_expense_form_view',                                     }"
+                                readonly="not is_editable"
+                                required="1"
                                 class="w-100" />
                             <div
                                 class="fst-italic"
@@ -342,26 +342,26 @@
 
                         <field
                             name="price_unit"
-                            required="1"
                             widget="monetary"
                             options="{'currency_field': 'currency_id', 'field_digits': True}"
                             invisible="not product_has_cost"
-                            readonly="True" />
+                            readonly="True"
+                            required="1" />
                         <label for="quantity" invisible="not product_has_cost" />
                         <div invisible="not product_has_cost">
                             <div class="o_row">
                                 <field
                                     name="quantity"
-                                    class="oe_inline"
-                                    readonly="not is_editable" />
+                                    readonly="not is_editable"
+                                    class="oe_inline" />
                                 <field
                                     name="product_uom_id"
-                                    required="1"
+                                    widget="many2one_uom"
                                     force_save="1"
                                     options="{'no_open': True, 'no_create': True}"
                                     groups="uom.group_uom"
                                     readonly="not is_editable"
-                                    widget="many2one_uom" />
+                                    required="1" />
                             </div>
                         </div>
 
@@ -379,10 +379,10 @@
                                 class="oe_inline mw-50 me-0" />
                             <field
                                 name="currency_id"
-                                class="mw-25 ms-0"
-                                groups="base.group_multi_currency"
                                 options="{'no_create': True, 'no_open': True}"
-                                readonly="not is_editable" />
+                                groups="base.group_multi_currency"
+                                readonly="not is_editable"
+                                class="mw-25 ms-0" />
                             <span class="d-flex" invisible="tax_amount == 0">(incl <field name="tax_amount" class="mx-1" /> tax)</span>
                         </div>
 
@@ -402,8 +402,8 @@
                             <field
                                 name="total_amount"
                                 widget="monetary"
-                                options="{'currency_field': 'company_currency_id'}"
                                 force_save="1"
+                                options="{'currency_field': 'company_currency_id'}"
                                 readonly="not is_editable or product_has_cost"
                                 class="oe_inline" />
                             <field name="label_currency_rate" class="ps-0" />
@@ -413,27 +413,27 @@
                         <div class="o_row">
                             <field
                                 name="tax_ids"
-                                force_save="1"
                                 widget="many2many_tax_tags"
-                                readonly="not is_editable"
-                                options="{'no_create': True}" />
+                                force_save="1"
+                                options="{'no_create': True}"
+                                readonly="not is_editable" />
                             <field name="tax_amount_currency" />
                         </div>
                         <field
                             name="employee_id"
-                            groups="!hr.group_hr_user"
-                            context="{'default_company_id': company_id}"
                             widget="many2one_avatar_employee"
+                            context="{'default_company_id': company_id}"
                             options="{'no_create': True}"
+                            groups="!hr.group_hr_user"
                             readonly="not is_editable" />
                         <field
                             name="employee_id"
-                            groups="hr.group_hr_user"
-                            context="{'default_company_id': company_id}"
                             widget="many2one_avatar_employee"
+                            context="{'default_company_id': company_id}"
                             options="{'relation': 'hr.employee'}"
+                            groups="hr.group_hr_user"
                             readonly="not is_editable" />
-                        <label id="lo" for="payment_mode" />
+                        <label for="payment_mode" id="lo" />
                         <div id="payment_mode">
                             <field
                                 name="payment_mode"
@@ -449,24 +449,24 @@
                             readonly="state != 'draft'" />
                         <field
                             name="manager_id"
+                            placeholder="Auto-validation"
                             widget="many2one_avatar_user"
-                            readonly="state != 'draft'"
-                            placeholder="Auto-validation" />
+                            readonly="state != 'draft'" />
                         <field
                             name="department_id"
+                            context="{'default_company_id': company_id}"
                             invisible="1"
-                            readonly="not is_editable"
-                            context="{'default_company_id': company_id}" />
+                            readonly="not is_editable" />
                         <field
                             name="vendor_id"
                             invisible="payment_mode != 'company_account'" />
                         <field
                             name="account_id"
-                            options="{'no_create': True}"
                             domain="[('account_type', 'not in', ('asset_receivable','liability_payable','asset_cash','liability_credit_card')), ('company_ids', 'parent_of', company_id)]"
+                            context="{'default_company_id': company_id}"
+                            options="{'no_create': True}"
                             groups="account.group_account_readonly"
-                            readonly="not is_editable"
-                            context="{'default_company_id': company_id}" />
+                            readonly="not is_editable" />
                         <field
                             name="payment_channel_id"
                             options="{'no_open': True, 'no_create': True}"
@@ -476,8 +476,8 @@
                         <field
                             name="analytic_distribution"
                             widget="analytic_distribution"
-                            groups="analytic.group_analytic_accounting"
                             options="{'product_field': 'product_id', 'account_field': 'account_id', 'business_domain': 'expense'}"
+                            groups="analytic.group_analytic_accounting"
                             readonly="not is_editable" />
                     </group>
                 </group>
@@ -518,8 +518,8 @@
         <field name="model">hr.expense</field>
         <field name="arch" type="xml">
             <kanban
-                class="o_kanban_mobile"
                 sample="1"
+                class="o_kanban_mobile"
                 js_class="hr_expense_kanban"
                 quick_create="false">
                 <field name="currency_id" />
@@ -529,11 +529,11 @@
                 <templates>
                     <t t-name="card">
                         <div class="d-flex align-items-baseline">
-                            <field class="fw-bold fs-5 me-2" name="name" />
+                            <field name="name" class="fw-bold fs-5 me-2" />
                             <field
-                                class="fw-bold ms-auto flex-shrink-0"
                                 name="total_amount_currency"
-                                widget="monetary" />
+                                widget="monetary"
+                                class="fw-bold ms-auto flex-shrink-0" />
                         </div>
                         <div class="d-flex mt8 text-muted">
                             <field
@@ -542,12 +542,12 @@
                                 options="{'display_avatar_name': True}"
                                 readonly="True" />
                             <field
-                                class="ms-auto"
                                 name="state"
                                 widget="label_selection"
-                                options="{'classes': {                                         'draft': 'default', 'submitted': 'warning', 'refused': 'danger', 'posted': 'warning',                                         'approved': 'success', 'in_payment': 'success', 'paid': 'success'}}" />
+                                options="{'classes': {                                         'draft': 'default', 'submitted': 'warning', 'refused': 'danger', 'posted': 'warning',                                         'approved': 'success', 'in_payment': 'success', 'paid': 'success'}}"
+                                class="ms-auto" />
                         </div>
-                        <field class="mt8 text-muted" name="date" />
+                        <field name="date" class="mt8 text-muted" />
                     </t>
                 </templates>
             </kanban>
@@ -599,7 +599,7 @@
         <field name="arch" type="xml">
             <pivot string="Expenses Analysis" sample="1">
                 <field name="employee_id" type="row" />
-                <field name="date" interval="month" type="col" />
+                <field name="date" type="col" interval="month" />
                 <field name="total_amount_currency" type="measure" />
             </pivot>
         </field>
@@ -627,8 +627,8 @@
             <search string="Expense">
                 <field
                     name="name"
-                    filter_domain="[('name', 'ilike', self)]"
-                    string="Expense" />
+                    string="Expense"
+                    filter_domain="[('name', 'ilike', self)]" />
                 <field
                     name="department_id"
                     filter_domain="[('department_id.name', 'ilike', self)]" />
@@ -641,109 +641,109 @@
                     filter_domain="[('employee_id.name', 'ilike', self)]" />
 
                 <filter
-                    string="My Expenses"
                     name="my_open_expenses"
+                    string="My Expenses"
                     domain="[('employee_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Team"
                     name="my_team_expenses"
+                    string="My Team"
+                    help="Expenses of Your Team Member"
                     domain="[('employee_id.parent_id.user_id', '=', uid)]"
-                    groups="hr_expense.group_hr_expense_team_approver"
-                    help="Expenses of Your Team Member" />
+                    groups="hr_expense.group_hr_expense_team_approver" />
                 <separator />
                 <filter
-                    string="Paid by Company"
                     name="by_company"
+                    string="Paid by Company"
                     domain="[('payment_mode', '=', 'company_account')]" />
                 <filter
-                    string="Paid by Employee"
                     name="by_employee"
+                    string="Paid by Employee"
                     domain="[('payment_mode', '=', 'own_account')]" />
                 <separator />
                 <filter
-                    string="To Submit"
                     name="draft"
+                    string="To Submit"
                     domain="[('state', '=', 'draft')]" />
                 <filter
-                    string="Waiting Approval"
                     name="submitted"
+                    string="Waiting Approval"
                     domain="[('state', '=', 'submitted')]" />
                 <filter
-                    string="To Post"
                     name="approved"
+                    string="To Post"
                     domain="[('state', '=', 'approved')]" />
                 <filter
-                    string="Waiting Reimbursement"
                     name="to_pay"
+                    string="Waiting Reimbursement"
                     domain="[('state', '=', 'approved'), ('payment_mode', '=', 'own_account')]" />
                 <separator />
-                <filter string="Expense Date" name="date" date="date" />
+                <filter name="date" string="Expense Date" date="date" />
                 <separator />
                 <filter
-                    string="All to Post"
                     name="all_approved"
+                    string="All to Post"
                     domain="[('state', '=', 'approved')]"
                     invisible="True" />
                 <filter
-                    string="All to Pay"
                     name="all_to_pay"
+                    string="All to Pay"
                     domain="[('state', '=', 'posted'), ('payment_mode', '=', 'own_account')]"
                     invisible="True" />
                 <filter
-                    string="All Paid"
                     name="all_paid"
+                    string="All Paid"
                     domain="[('state', 'in', ['in_payment', 'paid']), ('payment_mode', '=', 'own_account')]"
                     invisible="True" />
 
                 <filter
-                    invisible="1"
-                    string="My Activities"
                     name="filter_activities_my"
-                    domain="[('activity_user_id', '=', uid)]" />
+                    string="My Activities"
+                    domain="[('activity_user_id', '=', uid)]"
+                    invisible="1" />
                 <separator invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', 'today')]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', 'today')]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                    invisible="1" />
 
                 <group name="group_filters">
                     <filter
-                        string="Employee"
                         name="employee"
+                        string="Employee"
                         context="{'group_by': 'employee_id'}" />
                     <filter
-                        string="Category"
                         name="product"
+                        string="Category"
                         context="{'group_by': 'product_id'}" />
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by': 'state'}" />
                     <filter
-                        string="Expense Date"
                         name="expensesmonth"
-                        context="{'group_by': 'date'}"
-                        help="Expense Date" />
+                        string="Expense Date"
+                        help="Expense Date"
+                        context="{'group_by': 'date'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by': 'company_id'}"
                         groups="base.group_multi_company" />
                     <filter
-                        string="Department"
                         name="department"
+                        string="Department"
                         context="{'group_by': 'department_id'}" />
                 </group>
             </search>
@@ -769,8 +769,8 @@
                             <field
                                 name="total_amount_currency"
                                 widget="monetary"
-                                muted="1"
-                                display="full" />
+                                display="full"
+                                muted="1" />
                         </div>
                     </div>
                 </templates>
@@ -817,21 +817,21 @@
                 <searchpanel>
                     <field
                         name="state"
-                        expand="1"
-                        select="multi"
                         icon="fa-regular fa-square-check"
-                        enable_counters="1" />
+                        enable_counters="1"
+                        expand="1"
+                        select="multi" />
                     <field
                         name="employee_id"
+                        icon="fa-users"
                         limit="20"
                         hierarchize="0"
-                        select="one"
-                        icon="fa-users" />
+                        select="one" />
                     <field
                         name="company_id"
-                        expand="1"
                         icon="fa-building"
-                        groups="base.group_multi_company" />
+                        groups="base.group_multi_company"
+                        expand="1" />
                 </searchpanel>
             </xpath>
         </field>

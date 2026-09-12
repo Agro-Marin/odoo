@@ -122,6 +122,12 @@ negative for every rule, so no rule can go vacuous unnoticed.
 | `optional-value` | `optional=` outside `show` / `hide` / `conditional`. |
 | `kanban-template-scope` | a kanban entry template reading a `t-set` from a sibling template. |
 | `groupby-filter-domain` | any `domain` on a group-by `<filter>`; `classifyByContext()` promotes it and `visitFilter()` never reads the domain again. |
+| `duplicate-arch-name` | two definitions (not inheritance locators) sharing a `name` in one arch, for `filter`, `page`, `group`, `notebook`. An xpath by that name reaches only the first; two filters with one name are toggled together by `search_default_<name>` -- `maintenance`'s dashboard "Done" link activated a "Done" and a "Ready" filter in different groups and ANDed to nothing. |
+| `special-button-type` | `special=` with `type=`: the special is handled first, the type is dead. `name=` stays, it is an xpath and tour target. |
+| `readonly-duplicates-invisible` | `invisible="X" readonly="X"`: a field is never edited while hidden, so the readonly is dead. |
+| `nolabel-outside-group` | `nolabel=` on a form field outside a `<group>` or a `<setting>`, the only two places `form_compiler.js` reads it. |
+| `column-invisible-outside-list` | `column_invisible=` in a form: a literal is promoted to `invisible=`, an expression is never evaluated and the field shows. |
+| `boolean-spelling` | `invisible="true"` and friends: py.js aliases `true`, Python does not; the guide writes conditions as Python. |
 
 The last three moved here from `test_view_hygiene.py`, which keeps the two
 gates that need the registry (`OrphanLabelLinter`, `ActWindowViewOrderLinter`).
@@ -144,7 +150,7 @@ model with `_inherits` also declares `<xmlid>_<parent_model>`, every manifest
 | | invariant | why |
 |---|---|---|
 | `_pretty_xml.py` | `_xml_identity.is_faithful` | order-**preserving**: it only reindents |
-| `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job. `FIELD_ORDER` is one list per technical model (22, `ir.ui.view` to `mail.message.subtype`), every name pinned to the registry by `test_fixers.py` -- the canon carried four fields a rename had deleted (`groups_id` three times, `print_wizard`, `filter`, `mobile_view_filter`) and sorted nothing for them. A comment travels with the field it precedes; any other child keeps its place after the fields, so the sorter settles every record `test_xml_records.py` reports. |
+| `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job. Inside a model-backed view arch it also orders the attributes of every view-semantic element (`ARCH_TAGS`, HTML left alone) by `ARCH_ATTRIB_ORDER`: what it is (`name`, `for`, `expr`, `position`, `special`, `type`), what it says (`string`, `placeholder`, `help`, `confirm`), how it renders (`widget`, `icon`, `col`, `nolabel`, `optional`, ...), what data it takes (`domain`, `context`, `options`, `default_order`, `editable`, ...), when it applies (`groups`, `invisible`, `column_invisible`, `readonly`, `required`), then `class`/`style`, then the rest alphabetically -- so the conditions a reviewer scans for sit together. Core had no such order (26,384 of 26,848 arch fields put `name` first and agreed on nothing else); the sweep moved 17,394 lines in 1,272 files. `FIELD_ORDER` is one list per technical model (22, `ir.ui.view` to `mail.message.subtype`), every name pinned to the registry by `test_fixers.py` -- the canon carried four fields a rename had deleted (`groups_id` three times, `print_wizard`, `filter`, `mobile_view_filter`) and sorted nothing for them. A comment travels with the field it precedes; any other child keeps its place after the fields, so the sorter settles every record `test_xml_records.py` reports. |
 | `_sort_manifests.py` | `normalize` then a round-trip: the rendered dict must equal `normalize(data)` | value-**normalising**: see below |
 
 `_xml_sweep.py` runs a fixer over every data file **once**; the gates read the

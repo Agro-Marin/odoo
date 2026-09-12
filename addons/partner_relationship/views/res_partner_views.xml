@@ -10,31 +10,31 @@
                 <button
                     name="action_view_relations"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-share-alt"
-                    invisible="count_relation == 0">
+                    invisible="count_relation == 0"
+                    class="oe_stat_button">
                     <field
                         name="count_relation"
-                        widget="statinfo"
-                        string="Relationships" />
+                        string="Relationships"
+                        widget="statinfo" />
                 </button>
                 <button
                     name="action_view_related_partners"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-users"
-                    invisible="count_related_partner == 0">
+                    invisible="count_related_partner == 0"
+                    class="oe_stat_button">
                     <field
                         name="count_related_partner"
-                        widget="statinfo"
-                        string="Related Parties" />
+                        string="Related Parties"
+                        widget="statinfo" />
                 </button>
                 <button
                     name="action_view_network"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-sitemap"
-                    invisible="count_relation == 0">
+                    invisible="count_relation == 0"
+                    class="oe_stat_button">
                     <div class="o_stat_info">
                         <span class="o_stat_text">Open</span>
                         <span class="o_stat_text">Network</span>
@@ -42,16 +42,16 @@
                 </button>
             </xpath>
             <xpath expr="//page[@name='anchor_intelligence']" position="before">
-                <page string="Relationships" name="relationships">
+                <page name="relationships" string="Relationships">
                     <div class="d-flex gap-2 mb-3">
                         <button
-                            string="Add Relationship"
-                            type="object"
                             name="action_new_relation"
-                            class="btn btn-primary"
-                            groups="partner_relationship.group_partner_relationship_user" />
+                            type="object"
+                            string="Add Relationship"
+                            groups="partner_relationship.group_partner_relationship_user"
+                            class="btn btn-primary" />
                     </div>
-                    <field name="relation_ids" readonly="1" nolabel="1">
+                    <field name="relation_ids" nolabel="1" readonly="1">
                         <list>
                             <field name="partner_id" />
                             <field name="label" string="is" />
@@ -65,8 +65,8 @@
                     </field>
                 </page>
                 <page
-                    string="Network"
                     name="relationship_network"
+                    string="Network"
                     invisible="count_relation == 0">
                     <widget name="partner_network" />
                 </page>
@@ -87,7 +87,7 @@
             <form string="Contact Network" create="false" edit="false">
                 <sheet>
                     <div class="oe_title">
-                        <h1><field name="display_name" readonly="1" nolabel="1" /></h1>
+                        <h1><field name="display_name" readonly="1" /></h1>
                     </div>
                     <div class="o_partner_network_full">
                         <widget name="partner_network" />

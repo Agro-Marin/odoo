@@ -54,18 +54,18 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='create_date']" position="after">
                 <filter
-                    string="Draft"
                     name="filter_draft"
+                    string="Draft"
                     domain="[('state', '=', 'draft')]" />
                 <filter
-                    string="Done"
                     name="filter_done"
+                    string="Done"
                     domain="[('state', '=', 'done')]" />
             </xpath>
             <xpath expr="//filter[@name='transfer']" position="after">
                 <filter
-                    string="Manufacturing Order"
                     name="production_id"
+                    string="Manufacturing Order"
                     context="{'group_by':'production_id'}" />
             </xpath>
         </field>

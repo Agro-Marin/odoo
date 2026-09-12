@@ -32,8 +32,8 @@
                 <field name="name" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
+                    optional="show"
+                    groups="base.group_multi_company" />
             </list>
         </field>
     </record>
@@ -58,9 +58,9 @@
         <field name="arch" type="xml">
             <kanban
                 create="false"
+                class="o_approval_dashboard"
                 can_open="0"
                 highlight_color="color"
-                class="o_approval_dashboard"
                 js_class="approvals_category_kanban">
                 <field name="id" />
                 <field name="name" />
@@ -83,8 +83,8 @@
                             <widget
                                 name="web_ribbon"
                                 title="Archived"
-                                bg_color="text-bg-danger"
-                                invisible="active" />
+                                invisible="active"
+                                bg_color="text-bg-danger" />
 
                             <div class="o_approval_card_header">
                                 <field
@@ -103,17 +103,17 @@
 
                             <div class="o_approval_card_actions">
                                 <button
-                                    type="object"
                                     name="create_request"
+                                    type="object"
                                     class="o_approval_btn o_approval_btn_primary">
                                     <i class="fa-solid fa-plus" />
                                     <span>New Request</span>
                                 </button>
                                 <button
-                                    t-if="to_review &gt; 0"
-                                    type="object"
                                     name="view_requests_to_review"
-                                    t-att-class="'o_approval_btn o_approval_btn_review' + (has_urgency ? ' o_urgent' : '')">
+                                    type="object"
+                                    t-att-class="'o_approval_btn o_approval_btn_review' + (has_urgency ? ' o_urgent' : '')"
+                                    t-if="to_review &gt; 0">
                                     <span class="o_review_badge">
                                         <t t-out="to_review" />
                                     </span>
@@ -259,37 +259,37 @@
                         <button
                             name="view_rules"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-cogs"
+                            groups="approval.group_approval_manager"
                             invisible="rule_count == 0"
-                            groups="approval.group_approval_manager">
-                            <field name="rule_count" widget="statinfo" string="Rules" />
+                            class="oe_stat_button">
+                            <field name="rule_count" string="Rules" widget="statinfo" />
                         </button>
                         <button
                             name="view_templates"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-files-o"
+                            groups="approval.group_approval_manager"
                             invisible="template_count == 0"
-                            groups="approval.group_approval_manager">
+                            class="oe_stat_button">
                             <field
                                 name="template_count"
-                                widget="statinfo"
-                                string="Templates" />
+                                string="Templates"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="active" invisible="1" />
                     <field name="invalid_minimum" invisible="1" />
                     <field
                         name="image"
                         widget="image"
-                        class="oe_avatar"
-                        options="{&quot;preview_image&quot;: &quot;image&quot;, &quot;size&quot;: [80, 80]}" />
+                        options="{&quot;preview_image&quot;: &quot;image&quot;, &quot;size&quot;: [80, 80]}"
+                        class="oe_avatar" />
                     <div class="oe_title">
                         <label for="name" string="Approval Category" />
                         <h1>
@@ -380,12 +380,12 @@
                                 <group
                                     name="document_requirements_group"
                                     string="Required Documents"
-                                    invisible="has_document == 'optional'"
-                                    colspan="2">
+                                    colspan="2"
+                                    invisible="has_document == 'optional'">
                                     <field
                                         name="document_requirement_ids"
-                                        nolabel="1"
                                         colspan="2"
+                                        nolabel="1"
                                         context="{'default_category_id': id}">
                                         <list editable="bottom">
                                             <field name="sequence" widget="handle" />
@@ -438,7 +438,7 @@
                                 name="approvers_list"
                                 string="Default Approvers"
                                 invisible="group_approval == 'exclusive'">
-                                <field name="approver_ids" nolabel="1" colspan="2" />
+                                <field name="approver_ids" colspan="2" nolabel="1" />
                             </group>
                             <group
                                 name="group_members_list"
@@ -446,8 +446,8 @@
                                 invisible="group_approval == 'no'">
                                 <field
                                     name="approver_group_user_ids"
-                                    nolabel="1"
                                     colspan="2"
+                                    nolabel="1"
                                     readonly="1">
                                     <list>
                                         <field name="name" string="User" />
@@ -457,8 +457,8 @@
                             <group name="conditional_rules" string="Conditional Rules">
                                 <field
                                     name="rule_ids"
-                                    nolabel="1"
                                     colspan="2"
+                                    nolabel="1"
                                     context="{'default_category_id': id}">
                                     <list editable="bottom">
                                         <field name="sequence" widget="handle" />
@@ -493,15 +493,15 @@
                                         widget="radio" />
                                     <field
                                         name="allowed_user_ids"
+                                        placeholder="Visible to all"
                                         widget="many2many_tags"
                                         options="{'no_create': True}"
-                                        placeholder="Visible to all"
                                         invisible="privacy_visibility != 'restricted_users'" />
                                     <field
                                         name="allowed_group_ids"
+                                        placeholder="Visible to all"
                                         widget="many2many_tags"
                                         options="{'no_create': True}"
-                                        placeholder="Visible to all"
                                         invisible="privacy_visibility != 'restricted_groups'" />
                                 </group>
                                 <group name="display_settings" string="Dashboard">

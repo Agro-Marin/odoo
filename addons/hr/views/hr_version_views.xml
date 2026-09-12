@@ -6,14 +6,14 @@
         <field name="model">hr.version</field>
         <field name="arch" type="xml">
             <list
+                type="object"
                 string="Records"
-                multi_edit="1"
                 default_order="date_version DESC"
                 create="0"
-                action="action_view_version"
-                type="object"
-                class="o_hr_version_list_view">
-                <field name="date_version" readonly="False" string="Effective Date" />
+                multi_edit="1"
+                class="o_hr_version_list_view"
+                action="action_view_version">
+                <field name="date_version" string="Effective Date" readonly="False" />
                 <field name="contract_date_start" string="Start" />
                 <field name="contract_date_end" string="End" />
                 <field name="employee_id" optional="show" />
@@ -28,9 +28,9 @@
                 <field name="resource_calendar_id" optional="show" />
                 <field
                     name="company_id"
+                    optional="hide"
                     groups="base.group_multi_company"
-                    readonly="1"
-                    optional="hide" />
+                    readonly="1" />
                 <field name="create_uid" optional="hide" />
                 <field name="create_date" optional="hide" />
                 <field name="last_modified_uid" optional="hide" readonly="1" />
@@ -43,9 +43,9 @@
         <field name="name">hr.version.graph</field>
         <field name="model">hr.version</field>
         <field name="arch" type="xml">
-            <graph string="Employee Records" type="bar" sample="1">
+            <graph type="bar" string="Employee Records" sample="1">
                 <field name="date_version" type="row" />
-                <field name="wage" widget="monetary" type="measure" />
+                <field name="wage" type="measure" widget="monetary" />
             </graph>
         </field>
     </record>
@@ -72,71 +72,71 @@
                 <field name="resource_calendar_id" />
 
                 <filter
-                    string="Running Contract"
                     name="running_contract"
+                    string="Running Contract"
                     domain="[                             '&amp;',                                 '|',                                     ('contract_date_start', '=', False),                                     ('contract_date_start', '&lt;', 'today'),                                 '|',                                     ('contract_date_end', '=', False),                                     ('contract_date_end', '&gt;=', 'today')                         ]" />
                 <filter
-                    string="Expired Contracts"
                     name="expired_contracts"
+                    string="Expired Contracts"
                     domain="[                             ('contract_date_end', '!=', False),                             ('contract_date_end', '&lt;', 'today')                         ]" />
                 <filter
-                    string="Future Contracts"
                     name="future_contracts"
+                    string="Future Contracts"
                     domain="[                             ('contract_date_start', '!=', False),                             ('contract_date_start', '&gt;', 'today'),                         ]" />
                 <separator />
                 <filter
-                    string="Contract Start Date"
                     name="contract_date_start"
+                    string="Contract Start Date"
                     date="contract_date_start"
                     groups="hr.group_hr_manager" />
                 <filter
-                    string="Contract End Date"
                     name="contract_date_end"
+                    string="Contract End Date"
                     date="contract_date_end"
                     groups="hr.group_hr_manager" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="archived"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <filter
-                    invisible="1"
-                    string="Late Activities"
                     name="activities_overdue"
+                    string="Late Activities"
+                    help="Show all records whose next activity date is past"
                     domain="[('my_activity_date_deadline', '&lt;', context_today().strftime('%Y-%m-%d'))]"
-                    help="Show all records whose next activity date is past" />
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Today Activities"
                     name="activities_today"
-                    domain="[('my_activity_date_deadline', '=', context_today().strftime('%Y-%m-%d'))]" />
+                    string="Today Activities"
+                    domain="[('my_activity_date_deadline', '=', context_today().strftime('%Y-%m-%d'))]"
+                    invisible="1" />
                 <filter
-                    invisible="1"
-                    string="Future Activities"
                     name="activities_upcoming_all"
-                    domain="[('my_activity_date_deadline', '&gt;', context_today().strftime('%Y-%m-%d'))]" />
+                    string="Future Activities"
+                    domain="[('my_activity_date_deadline', '&gt;', context_today().strftime('%Y-%m-%d'))]"
+                    invisible="1" />
 
                 <filter
-                    string="Employee"
                     name="group_by_employee"
+                    string="Employee"
                     context="{'group_by': 'employee_id'}" />
                 <separator />
                 <filter
-                    string="Job Position"
                     name="group_by_job"
+                    string="Job Position"
                     context="{'group_by': 'job_id'}" />
                 <filter
-                    string="Department"
                     name="group_by_department"
+                    string="Department"
                     context="{'group_by': 'department_id'}" />
                 <separator />
                 <filter
-                    string="Working Schedule"
                     name="group_by_resource_calendar_id"
+                    string="Working Schedule"
                     context="{'group_by': 'resource_calendar_id'}" />
                 <filter
-                    string="Salary Structure Type"
                     name="group_by_structure_type_id"
+                    string="Salary Structure Type"
                     context="{'group_by': 'structure_type_id'}" />
             </search>
         </field>

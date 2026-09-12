@@ -19,18 +19,18 @@
                         Gmail Token Valid
                     </span>
                     <button
-                        type="object"
                         name="open_google_gmail_uri"
-                        class="btn-link px-0"
-                        invisible="server_type != 'gmail' or google_gmail_refresh_token">
+                        type="object"
+                        invisible="server_type != 'gmail' or google_gmail_refresh_token"
+                        class="btn-link px-0">
                         <i class="oi oi-arrow-right" />
                         Connect your Gmail account
                     </button>
                     <button
-                        type="object"
                         name="open_google_gmail_uri"
-                        class="btn-link px-0 ms-2"
-                        invisible="server_type != 'gmail' or not google_gmail_refresh_token">
+                        type="object"
+                        invisible="server_type != 'gmail' or not google_gmail_refresh_token"
+                        class="btn-link px-0 ms-2">
                         <i class="fa-solid fa-cog" title="Edit Settings" />
                     </button>
                 </div>

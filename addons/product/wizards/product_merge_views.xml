@@ -18,10 +18,10 @@
                     <h2 colspan="2">There are no more products to merge for this request</h2>
                     <button
                         name="%(action_product_deduplicate)d"
-                        string="Deduplicate the other Products"
-                        class="oe_highlight"
                         type="action"
-                        colspan="2" />
+                        string="Deduplicate the other Products"
+                        colspan="2"
+                        class="oe_highlight" />
                 </group>
                 <p class="opacity-50" invisible="state != 'option'">
                     Select the list of fields used to search for duplicated
@@ -53,7 +53,7 @@
                 <separator
                     string="Merge the following products"
                     invisible="state in ('option', 'finished')" />
-                <group invisible="state in ('option', 'finished')" col="1">
+                <group col="1" invisible="state in ('option', 'finished')">
                     <p class="opacity-50">
                         Selected products will be merged together. All documents
                         linked to one of these products will be redirected to the
@@ -82,45 +82,43 @@
                 <footer>
                     <button
                         name="action_merge"
-                        string="Merge Products"
-                        class="oe_highlight"
                         type="object"
-                        data-hotkey="q"
-                        invisible="state in ('option', 'finished')" />
+                        string="Merge Products"
+                        invisible="state in ('option', 'finished')"
+                        class="oe_highlight"
+                        data-hotkey="q" />
                     <button
                         name="action_skip"
-                        string="Skip these products"
                         type="object"
+                        string="Skip these products"
                         invisible="state != 'selection'" />
                     <button
                         name="action_start_manual_process"
-                        string="Merge with Manual Check"
-                        data-hotkey="w"
                         type="object"
+                        string="Merge with Manual Check"
+                        invisible="state != 'option'"
                         class="oe_highlight"
-                        invisible="state != 'option'" />
+                        data-hotkey="w" />
                     <button
                         name="action_start_automatic_process"
+                        type="object"
                         string="Merge Automatically"
-                        data-hotkey="l"
-                        type="object"
-                        class="oe_highlight"
                         confirm="Are you sure to execute the automatic merge of your products?"
-                        invisible="state != 'option'" />
+                        invisible="state != 'option'"
+                        class="oe_highlight"
+                        data-hotkey="l" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Cancel"
-                        type="object"
+                        invisible="state == 'finished'"
                         class="btn btn-secondary oe_inline"
-                        invisible="state == 'finished'" />
+                        data-hotkey="x" />
                     <button
                         special="cancel"
-                        data-hotkey="x"
                         string="Close"
-                        type="object"
+                        invisible="state != 'finished'"
                         class="btn btn-secondary oe_inline"
-                        invisible="state != 'finished'" />
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

@@ -10,8 +10,8 @@
                 <field
                     name="sale_order_template_id"
                     options="{'no_create': True}"
-                    readonly="state in ['cancel', 'done']"
-                    groups="sale_management.group_sale_order_template" />
+                    groups="sale_management.group_sale_order_template"
+                    readonly="state in ['cancel', 'done']" />
             </xpath>
 
             <xpath expr="//form//div[@name='invoice_lines']" position="before">

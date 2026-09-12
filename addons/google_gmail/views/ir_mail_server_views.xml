@@ -18,18 +18,18 @@
                         Gmail Token Valid
                     </span>
                     <button
-                        type="object"
                         name="open_google_gmail_uri"
-                        class="btn-link px-0"
-                        invisible="smtp_authentication != 'gmail' or google_gmail_refresh_token">
+                        type="object"
+                        invisible="smtp_authentication != 'gmail' or google_gmail_refresh_token"
+                        class="btn-link px-0">
                         <i class="oi oi-arrow-right" />
                         Connect your Gmail account
                     </button>
                     <button
-                        type="object"
                         name="open_google_gmail_uri"
-                        class="btn-link px-0 ms-2"
-                        invisible="smtp_authentication != 'gmail' or not google_gmail_refresh_token">
+                        type="object"
+                        invisible="smtp_authentication != 'gmail' or not google_gmail_refresh_token"
+                        class="btn-link px-0 ms-2">
                         <i class="fa-solid fa-cog" title="Edit Settings" />
                     </button>
                 </div>
@@ -37,9 +37,9 @@
             <field name="smtp_authentication_info" position="after">
                 <widget
                     name="documentation_link"
-                    path="/applications/general/email_communication/email_servers.html?highlight=outgoing email server#use-a-default-from-email-address"
                     invisible="smtp_authentication != 'gmail'"
-                    label="Read More" />
+                    label="Read More"
+                    path="/applications/general/email_communication/email_servers.html?highlight=outgoing email server#use-a-default-from-email-address" />
             </field>
         </field>
     </record>

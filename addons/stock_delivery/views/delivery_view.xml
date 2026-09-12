@@ -10,9 +10,9 @@
                 <field
                     name="route_ids"
                     string="Routes"
+                    widget="many2many_tags"
                     options="{'no_create': True}"
-                    groups="stock.group_adv_location"
-                    widget="many2many_tags" />
+                    groups="stock.group_adv_location" />
             </xpath>
         </field>
     </record>
@@ -28,8 +28,8 @@
                         <field name="is_return_picking" invisible="1" />
                         <field
                             name="carrier_id"
-                            readonly="state in ('done', 'cancel')"
-                            options="{'no_create': True, 'no_open': True}" />
+                            options="{'no_create': True, 'no_open': True}"
+                            readonly="state in ('done', 'cancel')" />
                         <field name="integration_level" invisible="1" />
                         <field name="delivery_type" invisible="True" />
                         <label for="carrier_tracking_ref" />
@@ -38,13 +38,13 @@
                                 name="carrier_tracking_ref"
                                 class="oe_inline text-break" />
                             <button
-                                type="object"
-                                class="oe_link"
-                                icon="oi-arrow-right"
-                                confirm="Cancelling a delivery may not be undoable. Are you sure you want to continue?"
                                 name="cancel_shipment"
+                                type="object"
                                 string="Cancel"
-                                invisible="not carrier_tracking_ref or delivery_type in ['fixed', 'base_on_rule'] or not delivery_type or state != 'done'" />
+                                confirm="Cancelling a delivery may not be undoable. Are you sure you want to continue?"
+                                icon="oi-arrow-right"
+                                invisible="not carrier_tracking_ref or delivery_type in ['fixed', 'base_on_rule'] or not delivery_type or state != 'done'"
+                                class="oe_link" />
                         </div>
                         <label for="weight" string="Weight" />
                         <div>
@@ -68,26 +68,26 @@
                 </xpath>
                 <div name="button_box" position="inside">
                     <button
-                        type="object"
                         name="open_website_url"
-                        class="oe_stat_button"
-                        icon="fa-truck"
+                        type="object"
                         string="Tracking"
-                        invisible="not carrier_tracking_ref or not carrier_id or delivery_type == 'grid'" />
+                        icon="fa-truck"
+                        invisible="not carrier_tracking_ref or not carrier_id or delivery_type == 'grid'"
+                        class="oe_stat_button" />
                 </div>
                 <xpath expr="/form/header/button[last()]" position="after">
                     <button
                         name="send_to_shipper"
-                        string="Send to Shipper"
                         type="object"
+                        string="Send to Shipper"
                         invisible="carrier_tracking_ref or delivery_type in ['fixed', 'base_on_rule'] or not delivery_type or state != 'done' or picking_type_code == 'incoming'"
                         data-hotkey="shift+v" />
                 </xpath>
                 <xpath expr="/form/header/button[last()]" position="after">
                     <button
                         name="print_return_label"
-                        string="Print Return Label"
                         type="object"
+                        string="Print Return Label"
                         invisible="not is_return_picking or state == 'done' or picking_type_code != 'incoming'"
                         data-hotkey="shift+o" />
                 </xpath>
@@ -144,7 +144,7 @@
                 <div class="o_row" name="Shipping Weight">
                     <field name="shipping_weight" class="oe_inline" />
                     <span><field name="weight_uom_name" /></span>
-                    <span class="text-muted">(computed: <field name="weight" class="oe_inline" nolabel="1" /></span><span class="text-muted"><field name="weight_uom_name" nolabel="1" class="oe_inline" />)</span>
+                    <span class="text-muted">(computed: <field name="weight" nolabel="1" class="oe_inline" /></span><span class="text-muted"><field name="weight_uom_name" nolabel="1" class="oe_inline" />)</span>
                 </div>
             </field>
         </field>
@@ -160,10 +160,10 @@
                 </div>
                 <footer>
                     <button
-                        string="OK"
                         special="cancel"
-                        data-hotkey="x"
-                        class="oe_highlight" />
+                        string="OK"
+                        class="oe_highlight"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -187,8 +187,8 @@
                 <field name="carrier_id" optional="hide" />
                 <field
                     name="destination_country_code"
-                    optional="hide"
-                    string="Destination" />
+                    string="Destination"
+                    optional="hide" />
                 <field name="weight" optional="hide" />
                 <field name="shipping_weight" optional="hide" />
             </xpath>

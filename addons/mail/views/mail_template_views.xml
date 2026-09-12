@@ -11,33 +11,33 @@
                     <field name="template_fs" invisible="1" />
                     <field name="is_template_editor" invisible="1" />
                     <button
-                        string="Preview"
                         name="action_view_mail_preview"
                         type="object"
+                        string="Preview"
                         class="btn-primary"
                         target="new" />
                     <button
-                        string="Reset Template"
                         name="%(mail_template_reset_action)d"
                         type="action"
+                        string="Reset Template"
                         groups="mail.group_mail_template_editor"
                         invisible="not template_fs" />
                     <t groups="base.group_no_one">
                         <button
-                            string="Add Context Action"
-                            class="btn btn-secondary"
                             name="create_action"
                             type="object"
+                            string="Add Context Action"
+                            help="Display an option on related documents to open a composition wizard with this template"
                             groups="base.group_system"
                             invisible="ref_ir_act_window"
-                            help="Display an option on related documents to open a composition wizard with this template" />
+                            class="btn btn-secondary" />
                         <button
-                            string="Remove Context Action"
-                            class="btn btn-secondary"
                             name="unlink_action"
                             type="object"
+                            string="Remove Context Action"
+                            help="Remove the contextual action to use this template on related documents"
                             invisible="not ref_ir_act_window"
-                            help="Remove the contextual action to use this template on related documents" />
+                            class="btn btn-secondary" />
                     </t>
                 </header>
                 <sheet>
@@ -46,48 +46,48 @@
                         <h1>
                             <field
                                 name="name"
-                                class="w-100"
                                 string="Template Name"
+                                placeholder="e.g. &quot;Welcome email&quot;"
                                 required="1"
-                                placeholder="e.g. &quot;Welcome email&quot;" />
+                                class="w-100" />
                         </h1>
                         <group>
                             <field
                                 name="model_id"
+                                placeholder="e.g. Contact"
+                                options="{'no_create': True}"
                                 groups="!base.group_no_one"
                                 invisible="context.get('default_model')"
-                                placeholder="e.g. Contact"
-                                required="1"
-                                options="{'no_create': True}" />
+                                required="1" />
                             <field
                                 name="model_id"
-                                groups="base.group_no_one"
                                 placeholder="e.g. Contact"
-                                required="1"
-                                options="{'no_create': True}" />
+                                options="{'no_create': True}"
+                                groups="base.group_no_one"
+                                required="1" />
                             <field
                                 name="subject"
-                                options="{'dynamic_placeholder': true}"
-                                placeholder="e.g. &quot;Welcome to MyCompany&quot; or &quot;Nice to meet you, {{ object.name }}&quot;" />
+                                placeholder="e.g. &quot;Welcome to MyCompany&quot; or &quot;Nice to meet you, {{ object.name }}&quot;"
+                                options="{'dynamic_placeholder': true}" />
                             <field name="model" invisible="1" />
                         </group>
                     </div>
                     <notebook>
-                        <page string="Body" name="content">
+                        <page name="content" string="Body">
                             <field name="can_write" invisible="1" />
                             <field
                                 name="body_html"
-                                widget="html_mail"
-                                class="oe-bordered-editor"
                                 placeholder="Write your message here..."
+                                widget="html_mail"
                                 options="{'codeview': true, 'dynamic_placeholder': true, 'allowVideo': false}"
-                                readonly="not can_write and id" />
+                                readonly="not can_write and id"
+                                class="oe-bordered-editor" />
                             <div invisible="not can_write" class="fst-italic text-muted">Tip: Write
                                 /field to insert dynamic content!</div>
                         </page>
                         <page
-                            string="Settings"
                             name="email_configuration"
+                            string="Settings"
                             groups="base.group_no_one">
                             <group col="2">
                                 <group>
@@ -98,16 +98,16 @@
                                     <field name="use_default_to" />
                                     <field
                                         name="email_to"
-                                        invisible="use_default_to"
-                                        placeholder="Comma-separated recipient addresses" />
+                                        placeholder="Comma-separated recipient addresses"
+                                        invisible="use_default_to" />
                                     <field
                                         name="partner_to"
-                                        invisible="use_default_to"
-                                        placeholder="Comma-separated ids of recipient partners" />
+                                        placeholder="Comma-separated ids of recipient partners"
+                                        invisible="use_default_to" />
                                     <field
                                         name="email_cc"
-                                        invisible="use_default_to"
-                                        placeholder="Comma-separated carbon copy of recipients addresses" />
+                                        placeholder="Comma-separated carbon copy of recipients addresses"
+                                        invisible="use_default_to" />
                                     <field
                                         name="reply_to"
                                         placeholder="Capture replies in the chatter" />
@@ -121,8 +121,8 @@
                                     <field name="has_mail_server" invisible="1" />
                                     <field
                                         name="mail_server_id"
-                                        invisible="not has_mail_server"
-                                        placeholder="By order of server priority" />
+                                        placeholder="By order of server priority"
+                                        invisible="not has_mail_server" />
                                     <field name="auto_delete" />
                                     <field
                                         name="scheduled_date"
@@ -132,7 +132,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Options" name="email_settings">
+                        <page name="email_settings" string="Options">
                             <group col="2">
                                 <group>
                                     <field name="has_dynamic_reports" invisible="1" />
@@ -141,19 +141,18 @@
                                         widget="many2many_binary" />
                                     <field
                                         name="report_template_ids"
+                                        placeholder="None"
                                         widget="many2many_tags"
                                         domain="[('model','=',model)]"
-                                        invisible="not has_dynamic_reports"
                                         options="{'no_create': True}"
-                                        placeholder="None" />
+                                        invisible="not has_dynamic_reports" />
                                 </group>
                                 <group>
                                     <field
                                         name="user_id"
+                                        placeholder="Shared with all users"
                                         widget="many2one_avatar_user"
-                                        readonly="not is_template_editor"
-                                        invisible="not is_template_editor"
-                                        placeholder="Shared with all users" />
+                                        invisible="not is_template_editor" />
                                     <field
                                         name="description"
                                         placeholder="Describe when this template should be used" />
@@ -174,7 +173,7 @@
                 <field name="mail_server_id" column_invisible="True" />
                 <field name="name" />
                 <field name="model_id" groups="base.group_no_one" />
-                <field name="user_id" optional="show" widget="many2one_avatar_user" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="description" />
                 <field name="subject" optional="hide" />
                 <field name="email_from" optional="hide" />
@@ -191,8 +190,8 @@
             <search string="Templates">
                 <field
                     name="name"
-                    filter_domain="['|', '|', ('name','ilike',self), ('subject','ilike',self), ('email_to','ilike',self)]"
-                    string="Templates" />
+                    string="Templates"
+                    filter_domain="['|', '|', ('name','ilike',self), ('subject','ilike',self), ('email_to','ilike',self)]" />
                 <field name="lang" />
                 <field name="model" filter_domain="[('model', '=', raw_value)]" />
                 <field name="model_id" />
@@ -210,12 +209,12 @@
                     domain="[('template_category', '=', 'custom_template')]" />
                 <group>
                     <filter
-                        string="SMTP Server"
                         name="smtpserver"
+                        string="SMTP Server"
                         context="{'group_by':'mail_server_id'}" />
                     <filter
-                        string="Model"
                         name="group_by_model_id"
+                        string="Model"
                         context="{'group_by':'model_id'}" />
                 </group>
             </search>

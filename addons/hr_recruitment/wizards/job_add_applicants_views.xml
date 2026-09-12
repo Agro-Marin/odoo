@@ -9,21 +9,21 @@
                 <group>
                     <field
                         name="job_ids"
+                        placeholder="Move to..."
                         widget="many2many_tags"
-                        options="{'color_field': 'color'}"
-                        placeholder="Move to..." />
+                        options="{'color_field': 'color'}" />
                 </group>
                 <footer>
                     <button
                         name="action_add_applicants_to_job"
-                        string="Create Applications"
                         type="object"
+                        string="Create Applications"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

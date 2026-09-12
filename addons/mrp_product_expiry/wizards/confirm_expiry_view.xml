@@ -22,18 +22,18 @@
             <xpath expr="//button[@name='process']" position="after">
                 <button
                     name="action_confirm_produce"
-                    data-hotkey="q"
-                    string="Confirm"
                     type="object"
-                    invisible="not production_ids"
+                    string="Confirm"
                     groups="mrp.group_mrp_manager"
-                    class="btn-primary" />
+                    invisible="not production_ids"
+                    class="btn-primary"
+                    data-hotkey="q" />
                 <button
                     special="cancel"
-                    data-hotkey="x"
                     string="Discard"
                     invisible="not production_ids"
-                    class="btn-secondary" />
+                    class="btn-secondary"
+                    data-hotkey="x" />
             </xpath>
         </field>
     </record>

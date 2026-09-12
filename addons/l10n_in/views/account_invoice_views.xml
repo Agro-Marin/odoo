@@ -44,22 +44,22 @@
                             <span invisible="not l10n_in_gstin_verified_date" class="ps-3">Checked: </span>
                             <field
                                 name="l10n_in_gstin_verified_date"
-                                class="oe_inline"
-                                widget="remaining_days" />
+                                widget="remaining_days"
+                                class="oe_inline" />
                             <button
                                 name="l10n_in_verify_partner_gstin_status"
                                 type="object"
+                                title="Verify GSTIN status"
                                 icon="fa-refresh"
-                                class="oe_link p-0 ps-3"
-                                title="Verify GSTIN status" />
+                                class="oe_link p-0 ps-3" />
                         </span>
                     </span>
                 </div>
                 <field
                     name="reversed_entry_id"
                     domain="[('move_type', '=', 'out_invoice'), ('commercial_partner_id', '=', commercial_partner_id)]"
-                    readonly="state != 'draft'"
-                    invisible="move_type != 'out_refund' or country_code != 'IN'" />
+                    invisible="move_type != 'out_refund' or country_code != 'IN'"
+                    readonly="state != 'draft'" />
             </xpath>
             <xpath
                 expr="//page[@id='other_tab']/group[@id='other_tab_group']"
@@ -119,24 +119,24 @@
             <xpath expr="//header" position="inside">
                 <button
                     name="%(l10n_in_withholding_entry_form_action)d"
-                    string="TDS Entry"
                     type="action"
-                    class="btn btn-secondary float-end"
-                    invisible="country_code != 'IN' or l10n_in_tds_deduction == 'no' or not l10n_in_tds_feature_enabled or move_type not in ('out_invoice', 'in_invoice', 'out_refund', 'in_refund') or state != 'posted'" />
+                    string="TDS Entry"
+                    invisible="country_code != 'IN' or l10n_in_tds_deduction == 'no' or not l10n_in_tds_feature_enabled or move_type not in ('out_invoice', 'in_invoice', 'out_refund', 'in_refund') or state != 'posted'"
+                    class="btn btn-secondary float-end" />
                 <button
                     name="action_l10n_in_apply_higher_tax"
-                    string="Apply Higher TCS"
                     type="object"
-                    class="btn btn-secondary float-end"
-                    invisible="not l10n_in_display_higher_tcs_button or not l10n_in_tcs_feature_enabled" />
+                    string="Apply Higher TCS"
+                    invisible="not l10n_in_display_higher_tcs_button or not l10n_in_tcs_feature_enabled"
+                    class="btn btn-secondary float-end" />
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
                     name="action_l10n_in_withholding_entries"
-                    class="oe_stat_button"
                     type="object"
                     icon="fa-list-alt"
-                    invisible="not l10n_in_tds_feature_enabled or not l10n_in_withhold_move_ids">
+                    invisible="not l10n_in_tds_feature_enabled or not l10n_in_withhold_move_ids"
+                    class="oe_stat_button">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">TDS</span>
                         <span class="o_stat_value"><field name="l10n_in_total_withholding_amount" /></span>
@@ -148,8 +148,8 @@
                     name="withholding_tab"
                     string="TDS Information"
                     invisible="not l10n_in_tds_feature_enabled or not l10n_in_withholding_line_ids">
-                    <field name="l10n_in_withholding_line_ids" nolabel="1" colspan="4">
-                        <list editable="bottom" string="TDS Information">
+                    <field name="l10n_in_withholding_line_ids" colspan="4" nolabel="1">
+                        <list string="TDS Information" editable="bottom">
                             <field
                                 name="tax_ids"
                                 string="Tax"
@@ -175,9 +175,9 @@
         <field name="arch" type="xml">
             <list
                 string="Journal items"
+                default_group_by="l10n_in_tds_tcs_section_id"
                 editable="top"
-                create="0"
-                default_group_by="l10n_in_tds_tcs_section_id">
+                create="0">
                 <field name="product_id" readonly="1" />
                 <field name="name" widget="section_and_note_text" />
                 <field name="account_id" />

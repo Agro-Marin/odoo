@@ -9,30 +9,30 @@
                 <filter
                     name="to_invoice"
                     string="To Invoice"
-                    domain="[('qty_to_invoice', '!=', 0)]"
-                    help="Sales Order Lines ready to be invoiced" />
+                    help="Sales Order Lines ready to be invoiced"
+                    domain="[('qty_to_invoice', '!=', 0)]" />
                 <separator />
                 <filter
-                    string="My Sales Order Lines"
                     name="my_sales_order_lines"
-                    domain="[('user_id','=',uid)]"
-                    help="Sales Order Lines related to a Sales Order of mine" />
+                    string="My Sales Order Lines"
+                    help="Sales Order Lines related to a Sales Order of mine"
+                    domain="[('user_id','=',uid)]" />
                 <field name="order_id" />
                 <field name="partner_id" operator="child_of" />
                 <field name="product_id" />
                 <field name="user_id" />
                 <group>
                     <filter
-                        string="Product"
                         name="product"
+                        string="Product"
                         context="{'group_by':'product_id'}" />
                     <filter
-                        string="Order"
                         name="order"
+                        string="Order"
                         context="{'group_by':'order_id'}" />
                     <filter
-                        string="Salesperson"
                         name="salesperson"
+                        string="Salesperson"
                         context="{'group_by':'user_id'}" />
                 </group>
             </search>
@@ -54,10 +54,10 @@
                 <field name="qty_to_invoice" />
                 <field
                     name="product_uom_id"
-                    groups="uom.group_uom"
                     widget="many2one_uom"
-                    context="{'product_id': product_id}" />
-                <field name="price_subtotal" sum="Total" widget="monetary" />
+                    context="{'product_id': product_id}"
+                    groups="uom.group_uom" />
+                <field name="price_subtotal" widget="monetary" sum="Total" />
                 <field name="currency_id" column_invisible="True" />
             </list>
         </field>
@@ -91,13 +91,13 @@
                     </div>
                     <group>
                         <group>
-                            <field name="order_id" readonly="1" force_save="1" />
+                            <field name="order_id" force_save="1" readonly="1" />
                             <field
                                 name="product_id"
-                                readonly="id and product_readonly"
-                                required="not display_type"
+                                widget="many2one_barcode"
                                 force_save="1"
-                                widget="many2one_barcode" />
+                                readonly="id and product_readonly"
+                                required="not display_type" />
                             <field name="name" />
                             <field name="product_qty" />
                             <field
@@ -107,9 +107,9 @@
                             <field name="qty_invoiced" invisible="state != 'done'" />
                             <field
                                 name="product_uom_id"
+                                widget="many2one_uom"
                                 force_save="1"
                                 groups="uom.group_uom"
-                                widget="many2one_uom"
                                 readonly="product_uom_readonly"
                                 required="not display_type" />
                             <field
@@ -137,9 +137,9 @@
                             <field
                                 name="tax_ids"
                                 widget="many2many_tax_tags"
-                                options="{'no_create': True}"
-                                context="{'search_view_ref': 'account.account_tax_view_search'}"
                                 domain="[('type_tax_use', '=', 'sale'), ('company_ids', 'parent_of', company_id), ('country_id', '=', tax_country_id)]"
+                                context="{'search_view_ref': 'account.account_tax_view_search'}"
+                                options="{'no_create': True}"
                                 readonly="qty_invoiced &gt; 0" />
                             <field name="price_tax" widget="monetary" />
                             <field name="currency_id" invisible="1" />
@@ -155,11 +155,11 @@
         <field name="model">sale.order.line</field>
         <field name="arch" type="xml">
             <list
-                create="false"
+                type="object"
                 default_order="date_confirmed desc, id desc"
-                decoration-info="order_id == context.get('active_id')"
+                create="false"
                 action="action_view_order"
-                type="object">
+                decoration-info="order_id == context.get('active_id')">
                 <field name="currency_id" column_invisible="True" />
                 <field name="order_id" widget="many2one" />
                 <field name="date_confirmed" />
@@ -178,7 +178,7 @@
                     name="discount"
                     optional="hide"
                     groups="sale.group_discount_per_so_line" />
-                <field name="price_subtotal" widget="monetary" string="Total Untaxed" />
+                <field name="price_subtotal" string="Total Untaxed" widget="monetary" />
                 <field name="state" optional="hide" />
             </list>
         </field>
@@ -189,8 +189,8 @@
         <field name="model">sale.order.line</field>
         <field name="arch" type="xml">
             <pivot>
-                <field name="price_total" string="Total sold amount" type="measure" />
-                <field name="product_uom_qty" string="Total Qty sold" type="measure" />
+                <field name="price_total" type="measure" string="Total sold amount" />
+                <field name="product_uom_qty" type="measure" string="Total Qty sold" />
             </pivot>
         </field>
     </record>

@@ -28,23 +28,23 @@
                 </group>
                 <footer>
                     <button
-                        string="Merge"
                         name="action_merge"
                         type="object"
+                        string="Merge"
+                        invisible="disable_merge_button"
                         class="oe_highlight"
-                        data-hotkey="q"
-                        invisible="disable_merge_button" />
+                        data-hotkey="q" />
                     <button
-                        string="Merge"
                         name="action_merge"
                         type="object"
+                        string="Merge"
+                        invisible="not disable_merge_button"
                         class="oe_highlight disabled"
-                        data-hotkey="q"
-                        invisible="not disable_merge_button" />
+                        data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Cancel"
                         class="btn btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

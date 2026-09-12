@@ -21,8 +21,8 @@
                         name="edi_state"
                         optional="hide"
                         class="fw-bold"
-                        decoration-muted="edi_blocking_level == 'info'"
                         decoration-danger="edi_blocking_level == 'error'"
+                        decoration-muted="edi_blocking_level == 'info'"
                         decoration-warning="edi_blocking_level == 'warning'" />
                     <field name="edi_blocking_level" optional="hide" />
                     <field name="edi_error_message" optional="hide" />
@@ -72,16 +72,16 @@
             <field name="arch" type="xml">
                 <xpath expr="//search/group/filter[@name='status']" position="after">
                     <filter
-                        string="Electronic invoicing state"
                         name="edi_state"
-                        groups="base.group_no_one"
-                        context="{'group_by': 'edi_state'}" />
+                        string="Electronic invoicing state"
+                        context="{'group_by': 'edi_state'}"
+                        groups="base.group_no_one" />
                     <separator />
                     <filter
-                        string="Electronic invoicing processing needed"
                         name="edi_to_process"
-                        groups="base.group_no_one"
-                        domain="[('edi_state', 'in', [('to_send'), ('to_cancel')])]" />
+                        string="Electronic invoicing processing needed"
+                        domain="[('edi_state', 'in', [('to_send'), ('to_cancel')])]"
+                        groups="base.group_no_one" />
                 </xpath>
             </field>
         </record>
@@ -96,15 +96,15 @@
                     <field name="edi_show_force_cancel_button" invisible="1" />
                     <button
                         name="button_cancel_posted_moves"
-                        string="Request EDI Cancellation"
                         type="object"
+                        string="Request EDI Cancellation"
                         groups="account.group_account_invoice"
                         invisible="not edi_show_cancel_button"
                         data-hotkey="x" />
                     <button
                         name="button_abandon_cancel_posted_posted_moves"
-                        string="Call off EDI Cancellation"
                         type="object"
+                        string="Call off EDI Cancellation"
                         groups="account.group_account_invoice"
                         invisible="not edi_show_abandon_cancel_button" />
                 </xpath>
@@ -121,8 +121,8 @@
                         <button
                             name="button_process_edi_web_services"
                             type="object"
-                            class="oe_link py-0 text-decoration-underline"
-                            string="Process now" />
+                            string="Process now"
+                            class="oe_link py-0 text-decoration-underline" />
                     </div>
                     <div
                         class="alert alert-danger"
@@ -132,22 +132,22 @@
                             <field name="edi_error_message" />
                             <button
                                 name="button_force_cancel"
-                                string="Force Cancel"
                                 type="object"
-                                groups="account.group_account_invoice"
+                                string="Force Cancel"
                                 confirm="Are you sure you want to cancel this invoice without waiting for the EDI document to be canceled?"
+                                groups="account.group_account_invoice"
                                 invisible="not edi_show_force_cancel_button" />
                             <button
                                 name="%(account_edi.action_open_edi_documents)d"
-                                string="⇒ See errors"
                                 type="action"
-                                class="oe_link"
-                                invisible="edi_error_count == 1" />
+                                string="⇒ See errors"
+                                invisible="edi_error_count == 1"
+                                class="oe_link" />
                             <button
                                 name="action_retry_edi_documents_error"
                                 type="object"
-                                class="oe_link oe_inline"
-                                string="Retry" />
+                                string="Retry"
+                                class="oe_link oe_inline" />
                         </div>
                     </div>
                     <div
@@ -158,10 +158,10 @@
                             <field name="edi_error_message" />
                             <button
                                 name="%(account_edi.action_open_edi_documents)d"
-                                string="⇒ See errors"
                                 type="action"
-                                class="oe_link"
-                                invisible="edi_error_count == 1" />
+                                string="⇒ See errors"
+                                invisible="edi_error_count == 1"
+                                class="oe_link" />
                         </div>
                     </div>
                     <div
@@ -172,10 +172,10 @@
                             <field name="edi_error_message" />
                             <button
                                 name="%(account_edi.action_open_edi_documents)d"
-                                string="⇒ See errors"
                                 type="action"
-                                class="oe_link"
-                                invisible="edi_error_count == 1" />
+                                string="⇒ See errors"
+                                invisible="edi_error_count == 1"
+                                class="oe_link" />
                         </div>
                     </div>
                 </xpath>
@@ -186,16 +186,16 @@
                 </xpath>
                 <xpath expr="//page[@id='other_tab']" position="after">
                     <page
+                        name="page_edi_documents"
                         id="edi_documents"
                         string="EDI Documents"
-                        name="page_edi_documents"
                         groups="base.group_no_one"
                         invisible="not edi_document_ids">
                         <field name="edi_document_ids">
                             <list
                                 create="false"
-                                delete="false"
                                 edit="false"
+                                delete="false"
                                 decoration-danger="error"
                                 no_open="1">
                                 <field name="name" />
@@ -206,10 +206,10 @@
                                 <button
                                     name="action_export_xml"
                                     type="object"
-                                    class="oe_link oe_inline"
                                     string="Download"
                                     groups="base.group_no_one"
-                                    invisible="not error or blocking_level == 'info'" />
+                                    invisible="not error or blocking_level == 'info'"
+                                    class="oe_link oe_inline" />
                             </list>
                         </field>
                     </page>

@@ -23,8 +23,8 @@
                 <field name="name" position="before">
                     <field
                         name="l10n_cl_sii_code"
-                        options="{'enable_formatting': false}"
-                        optional="hide" />
+                        optional="hide"
+                        options="{'enable_formatting': false}" />
                 </field>
             </field>
         </record>

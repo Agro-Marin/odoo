@@ -29,12 +29,12 @@
                         <button
                             name="action_view_relations"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-users">
+                            icon="fa-users"
+                            class="oe_stat_button">
                             <field
                                 name="count_relation"
-                                widget="statinfo"
-                                string="Relationships" />
+                                string="Relationships"
+                                widget="statinfo" />
                         </button>
                     </div>
                     <div class="oe_title">
@@ -47,9 +47,9 @@
                             <field name="is_antisymmetric" invisible="is_symmetric" />
                             <field
                                 name="name_inverse"
+                                placeholder="e.g. son of"
                                 invisible="is_symmetric"
-                                required="not is_symmetric"
-                                placeholder="e.g. son of" />
+                                required="not is_symmetric" />
                             <field name="code" />
                         </group>
                         <group name="semantics">
@@ -60,7 +60,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Gendered Wording" name="gendered">
+                        <page name="gendered" string="Gendered Wording">
                             <div class="text-muted mb-3">
                                 Used when the contact carries a gender. The neutral
                                 wording above is the fallback.
@@ -105,34 +105,34 @@
                 <field name="name" />
                 <field name="code" />
                 <filter
-                    string="Symmetric"
                     name="symmetric"
+                    string="Symmetric"
                     domain="[('is_symmetric', '=', True)]" />
                 <separator />
                 <filter
-                    string="Blood"
                     name="blood"
+                    string="Blood"
                     domain="[('category', '=', 'blood')]" />
                 <filter
-                    string="Affinity"
                     name="affinity"
+                    string="Affinity"
                     domain="[('category', '=', 'affinity')]" />
                 <filter
-                    string="Ritual"
                     name="ritual"
+                    string="Ritual"
                     domain="[('category', '=', 'ritual')]" />
                 <filter
-                    string="Business"
                     name="business"
+                    string="Business"
                     domain="[('category', '=', 'business')]" />
                 <filter
-                    string="Agricultural"
                     name="agricultural"
+                    string="Agricultural"
                     domain="[('category', '=', 'agricultural')]" />
                 <group>
                     <filter
-                        string="Category"
                         name="group_category"
+                        string="Category"
                         context="{'group_by': 'category'}" />
                 </group>
             </search>

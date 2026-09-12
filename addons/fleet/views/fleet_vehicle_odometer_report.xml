@@ -7,24 +7,24 @@
         <field name="arch" type="xml">
             <search>
                 <filter
-                    string="Date"
                     name="groupby_date"
+                    string="Date"
                     context="{'group_by': 'recorded_date:month'}" />
                 <filter
-                    string="Vehicle"
                     name="groupby_vehicle"
+                    string="Vehicle"
                     context="{'group_by': 'vehicle_id'}" />
                 <filter
-                    string="Category"
                     name="groupby_category"
+                    string="Category"
                     context="{'group_by': 'category_id'}" />
                 <filter
-                    string="Fuel Type"
                     name="groupby_fuel_type"
+                    string="Fuel Type"
                     context="{'group_by': 'fuel_type'}" />
                 <filter
-                    string="Model"
                     name="groupby_model"
+                    string="Model"
                     context="{'group_by': 'model_id'}" />
             </search>
         </field>
@@ -35,11 +35,11 @@
         <field name="model">fleet.vehicle.odometer.report</field>
         <field name="arch" type="xml">
             <graph
-                string="Vehicle Odometer Timeline"
-                stacked="0"
                 type="line"
+                string="Vehicle Odometer Timeline"
                 sample="1"
-                disable_linking="1">
+                disable_linking="1"
+                stacked="0">
                 <field name="mileage_delta" type="measure" />
             </graph>
         </field>

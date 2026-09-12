@@ -11,8 +11,8 @@
                     <field
                         name="mollie_api_key"
                         string="API Key"
-                        required="code == 'mollie' and state != 'disabled'"
-                        password="True" />
+                        password="True"
+                        required="code == 'mollie' and state != 'disabled'" />
                 </group>
             </group>
         </field>

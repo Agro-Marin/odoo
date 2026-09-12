@@ -13,61 +13,61 @@
                 <field name="country_id" />
                 <field name="company_id" groups="base.group_multi_company" />
                 <filter
-                    string="Confirmed Orders"
                     name="confirmed"
+                    string="Confirmed Orders"
                     domain="[('state', '=', 'done')]" />
                 <separator />
                 <filter name="filter_date" date="date_order" default_period="month" />
                 <group>
                     <filter
-                        string="Website"
                         name="groupby_website"
+                        string="Website"
                         context="{'group_by':'website_id'}"
                         groups="website.group_multi_website" />
                     <filter
-                        string="Product"
                         name="groupby_product"
+                        string="Product"
                         context="{'group_by':'product_id'}" />
                     <filter
-                        string="Product Category"
                         name="groupby_product_category"
+                        string="Product Category"
                         context="{'group_by':'product_category_id'}" />
                     <filter
-                        string="Customer"
                         name="groupby_customer"
+                        string="Customer"
                         context="{'group_by':'partner_id'}" />
                     <filter
-                        string="Customer Country"
                         name="groupby_country"
+                        string="Customer Country"
                         context="{'group_by':'country_id'}" />
                     <filter
-                        string="Status"
                         name="groupby_status"
+                        string="Status"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="eCommerce Category"
                         name="groupby_product_public_category"
+                        string="eCommerce Category"
                         context="{'group_by': 'public_categ_ids'}" />
                     <separator orientation="vertical" />
                     <filter
-                        string="Order Date"
                         name="groupby_order_date"
+                        string="Order Date"
                         context="{'group_by':'date_order'}" />
                     <filter
-                        string="Last Week"
-                        invisible="1"
                         name="week"
-                        domain="[('date_order','&gt;=', 'today -7d')]" />
+                        string="Last Week"
+                        domain="[('date_order','&gt;=', 'today -7d')]"
+                        invisible="1" />
                     <filter
-                        string="Last Month"
-                        invisible="1"
                         name="month"
-                        domain="[('date_order','&gt;=', 'today -30d')]" />
+                        string="Last Month"
+                        domain="[('date_order','&gt;=', 'today -30d')]"
+                        invisible="1" />
                     <filter
-                        string="Last Year"
-                        invisible="1"
                         name="year"
-                        domain="[('date_order','&gt;=', 'today -365d')]" />
+                        string="Last Year"
+                        domain="[('date_order','&gt;=', 'today -365d')]"
+                        invisible="1" />
                 </group>
             </search>
         </field>

@@ -10,19 +10,19 @@
                 <button
                     name="action_redirect_to_forum"
                     type="object"
-                    class="oe_stat_button"
+                    icon="fa-comment"
                     invisible="not forum_id"
-                    icon="fa-comment">
+                    class="oe_stat_button">
                     <field
-                        string="Forum Posts"
                         name="forum_total_posts"
+                        string="Forum Posts"
                         widget="statinfo" />
                 </button>
             </xpath>
             <xpath expr="//field[@name='allow_comment']" position="after">
                 <field
-                    string="Forum"
                     name="forum_id"
+                    string="Forum"
                     domain="[('slide_channel_id', 'in', [id, False])]" />
             </xpath>
         </field>

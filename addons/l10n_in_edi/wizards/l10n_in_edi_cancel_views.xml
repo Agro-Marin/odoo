@@ -15,15 +15,15 @@
                     </group>
                     <footer>
                         <button
-                            string="Cancel E-Invoice"
                             name="cancel_l10n_in_edi_move"
                             type="object"
+                            string="Cancel E-Invoice"
                             class="btn-primary"
                             data-hotkey="c" />
                         <button
+                            special="cancel"
                             string="Discard"
                             class="btn-secondary"
-                            special="cancel"
                             data-hotkey="x" />
                     </footer>
                 </form>

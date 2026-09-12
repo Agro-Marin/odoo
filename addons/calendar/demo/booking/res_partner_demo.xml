@@ -4,7 +4,7 @@
     <record id="base.default_user_group" model="res.groups">
         <field
             name="implied_ids"
-            eval="[(4, ref('calendar.group_appointment_manager'))]" />
+            eval="[Command.link(ref('calendar.group_appointment_manager'))]" />
     </record>
 
     <record id="res_partner_appointment_type_dental_care" model="res.partner">

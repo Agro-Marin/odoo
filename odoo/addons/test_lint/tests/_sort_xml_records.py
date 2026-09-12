@@ -305,6 +305,105 @@ ATTRIB_ORDER: dict[str, list[str]] = {
     ],
 }
 
+ARCH_ATTRIB_ORDER: list[str] = [
+    "name",
+    "for",
+    "expr",
+    "position",
+    "id",
+    "special",
+    "type",
+    "string",
+    "title",
+    "placeholder",
+    "help",
+    "confirm",
+    "widget",
+    "icon",
+    "mode",
+    "display",
+    "orientation",
+    "col",
+    "colspan",
+    "width",
+    "nolabel",
+    "optional",
+    "password",
+    "digits",
+    "filename",
+    "sum",
+    "avg",
+    "operator",
+    "default_focus",
+    "force_save",
+    "domain",
+    "filter_domain",
+    "context",
+    "options",
+    "date",
+    "default_period",
+    "default_order",
+    "default_group_by",
+    "limit",
+    "editable",
+    "create",
+    "edit",
+    "delete",
+    "duplicate",
+    "import",
+    "export_xlsx",
+    "multi_edit",
+    "sample",
+    "open_form_view",
+    "groups",
+    "invisible",
+    "column_invisible",
+    "readonly",
+    "required",
+    "add",
+    "remove",
+    "separator",
+    "class",
+    "style",
+]
+
+ARCH_TAGS: frozenset[str] = frozenset(
+    {
+        "form",
+        "list",
+        "kanban",
+        "search",
+        "calendar",
+        "graph",
+        "pivot",
+        "activity",
+        "gantt",
+        "cohort",
+        "map",
+        "hierarchy",
+        "grid",
+        "sheet",
+        "header",
+        "footer",
+        "notebook",
+        "page",
+        "group",
+        "separator",
+        "label",
+        "field",
+        "button",
+        "widget",
+        "filter",
+        "searchpanel",
+        "chatter",
+        "app",
+        "block",
+        "setting",
+        "xpath",
+        "attribute",
+    }
+)
+
 _XML_DECL = b'<?xml version="1.0" encoding="utf-8"?>'
 
 _PARSER = etree.XMLParser(remove_comments=False, strip_cdata=False)
@@ -331,19 +430,51 @@ def expected_attrib_order(tag: str, present_attribs: list[str]) -> list[str]:
     return known + unknown
 
 
-def _normalize_attribs(element: etree._Element) -> bool:
-    tag = element.tag
-    if callable(tag):
-        return False
+def expected_arch_attrib_order(present_attribs: list[str]) -> list[str]:
+    known = [k for k in ARCH_ATTRIB_ORDER if k in present_attribs]
+    unknown = sorted(k for k in present_attribs if k not in set(ARCH_ATTRIB_ORDER))
+    return known + unknown
+
+
+def _reorder(element: etree._Element, canonical: list[str]) -> bool:
     attribs = dict(element.attrib)
-    current = list(attribs.keys())
-    canonical = expected_attrib_order(tag, current)
-    if current == canonical:
+    if list(attribs) == canonical:
         return False
     element.attrib.clear()
     for k in canonical:
         element.set(k, attribs[k])
     return True
+
+
+def _normalize_attribs(element: etree._Element) -> bool:
+    tag = element.tag
+    if callable(tag):
+        return False
+    return _reorder(element, expected_attrib_order(tag, list(element.attrib)))
+
+
+def is_model_view(record: etree._Element) -> bool:
+    if record.get("model") != "ir.ui.view":
+        return False
+    model = record.find("field[@name='model']")
+    return model is not None and bool((model.text or "").strip())
+
+
+def iter_arch_elements(record: etree._Element):
+    arch = record.find("field[@name='arch']")
+    if arch is None:
+        return
+    for element in arch.iter(*ARCH_TAGS):
+        if not callable(element.tag):
+            yield element
+
+
+def _normalize_arch(record: etree._Element) -> bool:
+    modified = False
+    for element in iter_arch_elements(record):
+        if _reorder(element, expected_arch_attrib_order(list(element.attrib))):
+            modified = True
+    return modified
 
 
 def _field_groups(
@@ -434,6 +565,9 @@ def sort_xml_file(
                     was_modified = True
 
         if model in FIELD_ORDER and _sort_record_fields(record, model):
+            was_modified = True
+
+        if is_model_view(record) and _normalize_arch(record):
             was_modified = True
 
     for tag in _TOP_LEVEL_TAGS:

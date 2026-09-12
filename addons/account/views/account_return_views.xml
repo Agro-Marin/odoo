@@ -7,9 +7,9 @@
             <field name="model">account.return</field>
             <field name="arch" type="xml">
                 <kanban
+                    options="{'allowed_categories': ['account_return']}"
                     js_class="account_return_kanban"
-                    on_create="account.action_create_account_return"
-                    options="{'allowed_categories': ['account_return']}">
+                    on_create="account.action_create_account_return">
                     <field name="state" />
                     <field name="check_ids" />
                     <field name="is_completed" />
@@ -31,8 +31,8 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="bg-danger"
-                            invisible="not context.get('in_checks_view') or active" />
+                            invisible="not context.get('in_checks_view') or active"
+                            bg_color="bg-danger" />
                         <div class="w-100 p-2 px-3">
                             <div
                                 class="alert alert-warning text-center"
@@ -47,17 +47,17 @@
                                     <div class="row">
                                         <div class="o_field_widget">
                                             <field
-                                                class="oe_state_value pe-2 fs-5"
-                                                name="name" />
+                                                name="name"
+                                                class="oe_state_value pe-2 fs-5" />
                                             <field
+                                                name="unresolved_check_count"
                                                 invisible="context.get('in_checks_view') or unresolved_check_count &lt;= 0"
-                                                class="oe_state_value pe-1 text-danger"
-                                                name="unresolved_check_count" />
+                                                class="oe_state_value pe-1 text-danger" />
                                             <span invisible="context.get('in_checks_view') or unresolved_check_count &lt;= 0" class="oe_stat_text ps-0 text-danger">Pending</span>
                                             <field
+                                                name="resolved_check_count"
                                                 invisible="context.get('in_checks_view') or unresolved_check_count != 0 or resolved_check_count &lt;= 0"
-                                                class="oe_state_value pe-1 text-success"
-                                                name="resolved_check_count" />
+                                                class="oe_state_value pe-1 text-success" />
                                             <span invisible="context.get('in_checks_view') or unresolved_check_count != 0 or resolved_check_count &lt;= 0" class="oe_stat_text ps-0 text-success">Passed</span>
                                         </div>
                                     </div>
@@ -67,10 +67,10 @@
                                         t-att-class="{'text-black': (record.days_to_deadline.raw_value &gt;= 0) or record.date_submission.raw_value or record.is_completed.raw_value, 'text-danger': (record.days_to_deadline.raw_value &lt; 0) and !record.date_submission.raw_value and !record.is_completed.raw_value}"
                                         invisible="return_type_category == 'audit'">
                                         <t t-if="!record.date_submission.raw_value">
-                                            <span class="oe_stat_text pe-1 text-black">Deadline: </span><field class="oe_stat_value ps-0" name="date_deadline" />
+                                            <span class="oe_stat_text pe-1 text-black">Deadline: </span><field name="date_deadline" class="oe_stat_value ps-0" />
                                         </t>
                                         <t t-else="">
-                                            <span class="oe_stat_text pe-1 text-black-50">Submitted on: </span><field class="oe_stat_value ps-0 text-black-50" name="date_submission" />
+                                            <span class="oe_stat_text pe-1 text-black-50">Submitted on: </span><field name="date_submission" class="oe_stat_value ps-0 text-black-50" />
                                         </t>
                                     </div>
 
@@ -125,13 +125,13 @@
                                 <div class="col-12 col-lg-4 o_account_return_buttons">
                                     <field
                                         name="activity_ids"
-                                        invisible="context.get('in_checks_view')"
                                         widget="kanban_activity"
+                                        invisible="context.get('in_checks_view')"
                                         class="ms-1" />
 
                                     <button
-                                        type="object"
                                         name="action_view_attachments"
+                                        type="object"
                                         invisible="context.get('in_checks_view') or message_attachment_count &lt;= 0 or not is_main_company_active">
                                         <i
                                             class="fa-solid fa-paperclip fa-lg"
@@ -141,27 +141,27 @@
 
                                     <t
                                         t-if="!record.report_opened_once.raw_value and record.show_submit_button.raw_value and record.is_report_set.raw_value">
-                                        <button class="btn btn-primary" type="object" name="action_view_report"><field name="report_name" /></button>
-                                        <button invisible="not context.get('in_checks_view') or is_completed or not is_main_company_active" class="btn btn-secondary" type="object" name="action_submit">Submit</button>
+                                        <button name="action_view_report" type="object" class="btn btn-primary"><field name="report_name" /></button>
+                                        <button name="action_submit" type="object" invisible="not context.get('in_checks_view') or is_completed or not is_main_company_active" class="btn btn-secondary">Submit</button>
                                     </t>
                                     <t t-else="">
-                                        <button invisible="not is_report_set" class="btn btn-secondary" type="object" name="action_view_report"><field name="report_name" /></button>
-                                        <button invisible="not context.get('in_checks_view') or is_completed or not show_submit_button or not is_main_company_active" class="btn btn-primary" type="object" name="action_submit">Submit</button>
+                                        <button name="action_view_report" type="object" invisible="not is_report_set" class="btn btn-secondary"><field name="report_name" /></button>
+                                        <button name="action_submit" type="object" invisible="not context.get('in_checks_view') or is_completed or not show_submit_button or not is_main_company_active" class="btn btn-primary">Submit</button>
                                     </t>
 
                                     <t t-if="0">
                                     </t>
                                     <t id="default_buttons" t-else="">
-                                        <button invisible="not context.get('in_checks_view') or next_state != 'reviewed' or is_completed or not is_main_company_active or unresolved_check_count or not active" class="btn btn-primary" type="object" name="action_validate">Validate</button>
-                                        <button invisible="not context.get('in_checks_view') or next_state != 'paid' or is_completed or not is_main_company_active" class="btn btn-primary" type="object" name="action_pay">Pay</button>
+                                        <button name="action_validate" type="object" invisible="not context.get('in_checks_view') or next_state != 'reviewed' or is_completed or not is_main_company_active or unresolved_check_count or not active" class="btn btn-primary">Validate</button>
+                                        <button name="action_pay" type="object" invisible="not context.get('in_checks_view') or next_state != 'paid' or is_completed or not is_main_company_active" class="btn btn-primary">Pay</button>
                                     </t>
 
                                     <div
                                         class="dropdown show dropdown-sm"
                                         invisible="not is_main_company_active">
                                         <button
-                                            class="btn border-0"
                                             type="button"
+                                            class="btn border-0"
                                             data-self-handled="dropdown">
                                             <i
                                                 class="fa-solid fa-ellipsis-v"
@@ -238,13 +238,13 @@
             <field name="arch" type="xml">
                 <calendar
                     string="Tax Return"
+                    mode="year"
                     create="False"
                     edit="False"
                     delete="False"
+                    color="type_id"
                     date_start="date_deadline"
-                    mode="year"
-                    quick_create="0"
-                    color="type_id">
+                    quick_create="0">
                     <field name="name" />
                     <field name="type_id" filters="1" />
                 </calendar>
@@ -290,33 +290,33 @@
                         context="{'group_by': 'type_id'}" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="Return type"
                         name="filter_report_id"
-                        domain="[('type_id.report_id.id', '=', context.get('filter_report_id'))]" />
+                        string="Return type"
+                        domain="[('type_id.report_id.id', '=', context.get('filter_report_id'))]"
+                        invisible="1" />
                     <separator />
                     <filter
-                        invisible="1"
-                        string="My Activities"
                         name="filter_activities_my"
-                        domain="[('activity_user_id', '=', uid)]" />
+                        string="My Activities"
+                        domain="[('activity_user_id', '=', uid)]"
+                        invisible="1" />
                     <separator invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Late Activities"
                         name="activities_overdue"
+                        string="Late Activities"
+                        help="Show all records whose next activity date is past"
                         domain="[('my_activity_date_deadline', '&lt;', 'today')]"
-                        help="Show all records whose next activity date is past" />
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Today Activities"
                         name="activities_today"
-                        domain="[('my_activity_date_deadline', '=', 'today')]" />
+                        string="Today Activities"
+                        domain="[('my_activity_date_deadline', '=', 'today')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
-                        string="Future Activities"
                         name="activities_upcoming_all"
-                        domain="[('my_activity_date_deadline', '&gt;', 'today')]" />
+                        string="Future Activities"
+                        domain="[('my_activity_date_deadline', '&gt;', 'today')]"
+                        invisible="1" />
                 </search>
             </field>
         </record>

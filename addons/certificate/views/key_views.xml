@@ -35,9 +35,9 @@
                 <field name="name" string="Key" />
                 <field
                     name="company_id"
+                    optional="hide"
                     groups="base.group_multi_company"
-                    readonly="1"
-                    optional="hide" />
+                    readonly="1" />
             </list>
         </field>
     </record>
@@ -48,23 +48,23 @@
         <field name="arch" type="xml">
             <search string="key search">
                 <filter
-                    string="Archived"
                     name="archived"
-                    domain="[('active','=',False)]"
-                    help="Archived keys" />
+                    string="Archived"
+                    help="Archived keys"
+                    domain="[('active','=',False)]" />
                 <separator />
                 <filter
-                    string="Private"
                     name="private"
+                    string="Private"
                     domain="[('pem_key', '!=', False), ('public','=',False)]" />
                 <filter
-                    string="Public"
                     name="public"
+                    string="Public"
                     domain="[('pem_key', '!=', False), ('public','=',True)]" />
                 <separator />
                 <filter
-                    string="Invalid"
                     name="invalid"
+                    string="Invalid"
                     domain="[('pem_key', '=', False)]" />
             </search>
         </field>

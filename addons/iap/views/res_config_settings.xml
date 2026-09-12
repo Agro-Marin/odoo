@@ -8,7 +8,7 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@id='contacts_settings']" position="inside">
                 <div id="iap_portal">
-                    <block class="iap_portal" name="iap_purchases_setting_container">
+                    <block name="iap_purchases_setting_container" class="iap_portal">
                         <setting
                             id="iap_credits_setting"
                             string="Odoo IAP"
@@ -16,9 +16,9 @@
                             documentation="/applications/general/in_app_purchase.html">
                             <button
                                 name="iap.iap_account_action"
-                                icon="oi-arrow-right"
                                 type="action"
                                 string="View My Services"
+                                icon="oi-arrow-right"
                                 class="btn-link" />
                         </setting>
                     </block>

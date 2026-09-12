@@ -32,7 +32,7 @@
         <field name="name">mailing.trace.report.view.pivot</field>
         <field name="model">mailing.trace.report</field>
         <field name="arch" type="xml">
-            <pivot string="Mass Mailing Statistics" disable_linking="1" sample="1">
+            <pivot string="Mass Mailing Statistics" sample="1" disable_linking="1">
                 <field name="name" type="row" />
                 <field name="sent" type="measure" />
                 <field name="scheduled" type="measure" />
@@ -51,7 +51,7 @@
         <field name="name">mailing.trace.report.view.graph</field>
         <field name="model">mailing.trace.report</field>
         <field name="arch" type="xml">
-            <graph string="Mass Mailing Statistics" disable_linking="1" sample="1">
+            <graph string="Mass Mailing Statistics" sample="1" disable_linking="1">
                 <field name="name" />
                 <field name="sent" type="measure" />
                 <field name="replied" />
@@ -76,22 +76,22 @@
                 </group>
                 <group>
                     <filter
-                        string="Mass Mailing Campaign"
                         name="mass_mailing_campaign"
+                        string="Mass Mailing Campaign"
                         context="{'group_by':'campaign'}"
                         groups="mass_mailing.group_mass_mailing_campaign" />
                     <filter
-                        string="State"
                         name="state"
+                        string="State"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="Sent By"
                         name="sent_by"
+                        string="Sent By"
                         context="{'group_by':'email_from'}" />
                     <separator />
                     <filter
-                        string="Scheduled Period"
                         name="scheduled_date"
+                        string="Scheduled Period"
                         context="{'group_by':'scheduled_date'}" />
                 </group>
             </search>

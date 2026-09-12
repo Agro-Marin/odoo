@@ -43,8 +43,8 @@
                     </group>
                     <notebook colspan="4">
                         <page
-                            string="Volume per partner"
-                            name="page_volume_per_partner">
+                            name="page_volume_per_partner"
+                            string="Volume per partner">
                             <field name="volume_settings_ids">
                                 <list editable="bottom">
                                     <field name="partner_id" />

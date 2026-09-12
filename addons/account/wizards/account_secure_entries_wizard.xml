@@ -10,8 +10,8 @@
                     <div class="m-0" name="warnings" invisible="not warnings">
                         <field
                             name="warnings"
-                            class="o_field_html"
-                            widget="actionable_errors" />
+                            widget="actionable_errors"
+                            class="o_field_html" />
                     </div>
                     <field name="company_id" invisible="1" />
                     <div class="d-flex" name="hash_date">
@@ -21,8 +21,8 @@
                         <field
                             name="hash_date"
                             placeholder="Not hashed"
-                            class="oe_inline  ms-2"
-                            options="{'warn_future': true}" />
+                            options="{'warn_future': true}"
+                            class="oe_inline  ms-2" />
                         <span class="text-muted ms-2">
                             <i>inclusive, to make them immutable</i>
                         </span>
@@ -30,12 +30,12 @@
                 </sheet>
                 <footer>
                     <button
-                        string="Secure Entries"
-                        class="btn-primary"
                         name="action_secure_entries"
                         type="object"
+                        string="Secure Entries"
+                        class="btn-primary"
                         data-hotkey="v" />
-                    <button string="Discard" special="cancel" data-hotkey="z" />
+                    <button special="cancel" string="Discard" data-hotkey="z" />
                 </footer>
             </form>
         </field>

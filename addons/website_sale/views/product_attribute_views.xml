@@ -16,15 +16,15 @@
                     <field
                         name="preview_variants"
                         widget="radio"
+                        force_save="1"
                         options="{'horizontal': True}"
-                        readonly="create_variant != 'always' or display_type == 'multi'"
-                        force_save="1" />
+                        readonly="create_variant != 'always' or display_type == 'multi'" />
                     <field
                         name="is_thumbnail_visible"
                         widget="boolean_toggle"
-                        readonly="create_variant != 'always' or display_type == 'multi'"
+                        force_save="1"
                         invisible="preview_variants == 'hidden'"
-                        force_save="1" />
+                        readonly="create_variant != 'always' or display_type == 'multi'" />
                 </group>
             </group>
         </field>

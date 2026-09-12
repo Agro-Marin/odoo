@@ -11,8 +11,8 @@
             </field>
             <group>
                 <filter
-                    string="Document Type"
                     name="l10n_latam_document_type"
+                    string="Document Type"
                     context="{'group_by':'l10n_latam_document_type_id'}" />
             </group>
         </field>
@@ -28,8 +28,8 @@
             </field>
             <group>
                 <filter
-                    string="Document Type"
                     name="l10n_latam_document_type"
+                    string="Document Type"
                     context="{'group_by':'l10n_latam_document_type_id'}" />
             </group>
         </field>
@@ -49,11 +49,11 @@
             <xpath expr="//div[@name='journal_div']" position="after">
                 <field
                     name="l10n_latam_document_type_id"
+                    domain="[('id', 'in', l10n_latam_available_document_type_ids)]"
+                    options="{'no_open': True, 'no_create': True}"
                     invisible="not l10n_latam_use_documents"
                     readonly="posted_before"
-                    required="partner_id and l10n_latam_use_documents"
-                    domain="[('id', 'in', l10n_latam_available_document_type_ids)]"
-                    options="{'no_open': True, 'no_create': True}" />
+                    required="partner_id and l10n_latam_use_documents" />
                 <field
                     name="l10n_latam_document_number"
                     invisible="(not l10n_latam_use_documents or not l10n_latam_manual_document_number) and (not l10n_latam_use_documents or highest_name or state != 'draft')"

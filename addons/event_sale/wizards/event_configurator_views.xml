@@ -20,45 +20,45 @@
                 <group invisible="not has_available_tickets">
                     <field
                         name="event_id"
+                        placeholder="All Events"
                         domain="[                             ('event_ticket_ids.product_id','=', product_id),                             ('date_end','&gt;=',time.strftime('%Y-%m-%d 00:00:00'))                         ]"
-                        required="1"
                         context="{'name_with_seats_availability': True}"
                         options="{'no_open': True, 'no_create': True}"
-                        placeholder="All Events" />
+                        required="1" />
                     <field
                         name="event_slot_id"
                         domain="[('event_id', '=', event_id)]"
-                        invisible="not is_multi_slots"
-                        required="is_multi_slots"
                         context="{'name_with_seats_availability': True}"
-                        options="{'no_open': True, 'no_create': True}" />
+                        options="{'no_open': True, 'no_create': True}"
+                        invisible="not is_multi_slots"
+                        required="is_multi_slots" />
                     <field
                         name="event_ticket_id"
                         domain="[('event_id', '=', event_id), ('product_id', '=', product_id)]"
-                        invisible="not event_id"
-                        required="event_id"
                         context="{'name_with_seats_availability': True}"
-                        options="{'no_open': True, 'no_create': True}" />
+                        options="{'no_open': True, 'no_create': True}"
+                        invisible="not event_id"
+                        required="event_id" />
                     <field name="product_id" invisible="1" />
                 </group>
                 <footer>
                     <button
+                        special="save"
                         string="Add"
                         invisible="not has_available_tickets"
                         class="btn-primary o_event_sale_js_event_configurator_ok"
-                        special="save"
                         data-hotkey="q" />
                     <button
+                        special="cancel"
                         string="Discard"
                         invisible="not has_available_tickets"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                     <button
+                        special="cancel"
                         string="Close"
                         invisible="has_available_tickets"
                         class="btn-secondary"
-                        special="cancel"
                         data-hotkey="x" />
                 </footer>
             </form>

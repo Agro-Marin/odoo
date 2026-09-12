@@ -10,8 +10,8 @@
                 <field
                     name="website_id"
                     placeholder="All websites"
-                    groups="website.group_multi_website"
-                    options="{'no_open': True, 'no_create_edit': True}" />
+                    options="{'no_open': True, 'no_create_edit': True}"
+                    groups="website.group_multi_website" />
             </field>
             <field name="carrier_description" position="before">
                 <field
@@ -22,8 +22,8 @@
                 <button
                     name="website_publish_button"
                     type="object"
-                    class="oe_stat_button"
-                    icon="fa-globe">
+                    icon="fa-globe"
+                    class="oe_stat_button">
                     <field name="is_published" widget="website_publish_button" />
                 </button>
             </button>
@@ -49,8 +49,8 @@
         <field name="arch" type="xml">
             <filter name="inactive" position="after">
                 <filter
-                    string="Published"
                     name="is_published"
+                    string="Published"
                     domain="[('is_published', '=', True)]" />
             </filter>
         </field>

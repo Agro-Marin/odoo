@@ -33,8 +33,8 @@
             <xpath expr="//filter[@name='inactive']" position="after">
                 <group>
                     <filter
-                        string="Reason"
                         name="group_by_opt_out_reason_id"
+                        string="Reason"
                         context="{'group_by': 'opt_out_reason_id'}" />
                 </group>
             </xpath>

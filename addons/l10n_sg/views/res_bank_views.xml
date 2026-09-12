@@ -10,8 +10,8 @@
                 <p invisible="country_code != 'SG'">
                     <widget
                         name="documentation_link"
-                        path="/applications/finance/fiscal_localizations/singapore.html"
-                        label="Documentation" />
+                        label="Documentation"
+                        path="/applications/finance/fiscal_localizations/singapore.html" />
                 </p>
             </field>
         </field>

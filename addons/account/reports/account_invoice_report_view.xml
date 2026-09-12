@@ -17,7 +17,7 @@
         <field name="name">account.invoice.report.graph</field>
         <field name="model">account.invoice.report</field>
         <field name="arch" type="xml">
-            <graph string="Invoices Analysis" type="line" sample="1">
+            <graph type="line" string="Invoices Analysis" sample="1">
                 <field name="product_categ_id" />
                 <field name="price_subtotal" type="measure" />
             </graph>
@@ -37,8 +37,8 @@
                 <field name="invoice_date_due" optional="show" />
                 <field
                     name="invoice_user_id"
-                    optional="hide"
-                    widget="many2one_avatar_user" />
+                    widget="many2one_avatar_user"
+                    optional="hide" />
                 <field name="product_categ_id" optional="hide" />
                 <field name="product_id" optional="show" />
                 <field name="company_id" groups="base.group_multi_company" />
@@ -109,38 +109,38 @@
         <field name="arch" type="xml">
             <search string="Invoices Analysis">
                 <filter
-                    string="My Invoices"
                     name="my_invoice"
+                    string="My Invoices"
                     domain="[('invoice_user_id', '=', uid)]" />
                 <separator />
                 <field name="invoice_date" />
                 <separator />
                 <filter
-                    string="To Invoice"
                     name="toinvoice"
-                    domain="[('state','=','draft')]"
-                    help="Draft Invoices" />
+                    string="To Invoice"
+                    help="Draft Invoices"
+                    domain="[('state','=','draft')]" />
                 <filter
-                    string="Invoiced"
                     name="current"
+                    string="Invoiced"
                     domain="[('state','not in', ('draft','cancel'))]" />
                 <separator />
                 <filter
-                    string="Customers"
                     name="customer"
+                    string="Customers"
                     domain="['|', ('move_type','=','out_invoice'),('move_type','=','out_refund')]" />
                 <filter
-                    string="Vendors"
                     name="supplier"
+                    string="Vendors"
                     domain="['|', ('move_type','=','in_invoice'),('move_type','=','in_refund')]" />
                 <separator />
                 <filter
-                    string="Invoices"
                     name="invoice"
+                    string="Invoices"
                     domain="['|', ('move_type','=','out_invoice'),('move_type','=','in_invoice')]" />
                 <filter
-                    string="Credit Notes"
                     name="creditnote"
+                    string="Credit Notes"
                     domain="['|', ('move_type','=','out_refund'),('move_type','=','in_refund')]" />
                 <separator />
                 <filter name="filter_invoice_date" date="invoice_date" />
@@ -153,40 +153,40 @@
                     filter_domain="[('product_categ_id', 'child_of', self)]" />
                 <group>
                     <filter
-                        string="Salesperson"
                         name="user"
+                        string="Salesperson"
                         context="{'group_by':'invoice_user_id'}" />
                     <filter
-                        string="Partner"
                         name="partner_id"
+                        string="Partner"
                         context="{'group_by':'partner_id','residual_visible':True}" />
                     <filter
-                        string="Product Category"
                         name="category_product"
+                        string="Product Category"
                         context="{'group_by':'product_categ_id','residual_invisible':True}" />
                     <filter
-                        string="Status"
                         name="status"
+                        string="Status"
                         context="{'group_by':'state'}" />
                     <filter
-                        string="Company"
                         name="company"
+                        string="Company"
                         context="{'group_by':'company_id'}"
                         groups="base.group_multi_company" />
                     <separator orientation="vertical" />
                     <filter
-                        string="Date"
                         name="invoice_date"
+                        string="Date"
                         context="{'group_by':'invoice_date'}"
                         invisible="context.get('invoice_report_view_hide_invoice_date')" />
                     <filter
-                        string="Date"
                         name="group_by_invoice_date_week"
+                        string="Date"
                         context="{'group_by':'invoice_date:week'}"
                         invisible="not context.get('invoice_report_view_hide_invoice_date')" />
                     <filter
-                        string="Due Date"
                         name="duemonth"
+                        string="Due Date"
                         context="{'group_by':'invoice_date_due:month'}" />
                 </group>
             </search>

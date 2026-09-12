@@ -9,40 +9,40 @@
         <field name="arch" type="xml">
             <filter name="my_sale_orders_filter" position="before">
                 <filter
-                    string="Confirmed"
                     name="order_confirmed"
+                    string="Confirmed"
                     domain="[('state', '=', 'done')]" />
                 <filter
-                    string="Unpaid"
                     name="order_unpaid"
+                    string="Unpaid"
                     domain="[('state', '=', 'draft'), ('sent', '=', True)]" />
                 <filter
-                    string="Abandoned"
                     name="order_abandoned"
+                    string="Abandoned"
                     domain="[('is_abandoned_cart', '=', True)]" />
                 <separator />
-                <filter string="Order Date" name="order_date" date="date_order" />
+                <filter name="order_date" string="Order Date" date="date_order" />
                 <separator />
                 <filter
-                    string="From Website"
                     name="from_website"
+                    string="From Website"
                     domain="[('website_id', '!=', False)]" />
                 <separator />
                 <filter
-                    string="Last Week"
-                    invisible="1"
                     name="week"
-                    domain="[('date_order', '&gt;', 'today -7d')]" />
+                    string="Last Week"
+                    domain="[('date_order', '&gt;', 'today -7d')]"
+                    invisible="1" />
                 <filter
-                    string="Last Month"
-                    invisible="1"
                     name="month"
-                    domain="[('date_order', '&gt;', 'today -30d')]" />
+                    string="Last Month"
+                    domain="[('date_order', '&gt;', 'today -30d')]"
+                    invisible="1" />
                 <filter
-                    string="Last Year"
-                    invisible="1"
                     name="year"
-                    domain="[('date_order', '&gt;', 'today -365d')]" />
+                    string="Last Year"
+                    domain="[('date_order', '&gt;', 'today -365d')]"
+                    invisible="1" />
             </filter>
         </field>
     </record>
@@ -58,7 +58,7 @@
                 <attribute name="invisible">1</attribute>
             </filter>
             <filter name="my_sale_orders_filter" position="before">
-                <filter string="Order Date" name="order_date" date="date_order" />
+                <filter name="order_date" string="Order Date" date="date_order" />
                 <separator />
             </filter>
         </field>
@@ -105,39 +105,39 @@
             <search string="Search Abandoned Sales Orders">
                 <field name="name" />
                 <filter
-                    string="Creation Date"
                     name="creation_date"
+                    string="Creation Date"
                     date="create_date" />
                 <separator />
                 <filter
-                    string="Recovery Email to Send"
                     name="recovery_email"
+                    string="Recovery Email to Send"
                     domain="[('cart_recovery_email_sent', '=', False)]" />
                 <filter
-                    string="Recovery Email Sent"
                     name="recovery_email_set"
+                    string="Recovery Email Sent"
                     domain="[('cart_recovery_email_sent', '=', True)]" />
                 <group>
                     <filter
-                        string="Order Date"
                         name="order_date"
+                        string="Order Date"
                         context="{'group_by':'date_order'}" />
                 </group>
                 <filter
-                    string="Last Week"
-                    invisible="1"
                     name="week"
-                    domain="[('date_order','&gt;', 'today -7d')]" />
+                    string="Last Week"
+                    domain="[('date_order','&gt;', 'today -7d')]"
+                    invisible="1" />
                 <filter
-                    string="Last Month"
-                    invisible="1"
                     name="month"
-                    domain="[('date_order','&gt;', 'today -30d')]" />
+                    string="Last Month"
+                    domain="[('date_order','&gt;', 'today -30d')]"
+                    invisible="1" />
                 <filter
-                    string="Last Year"
-                    invisible="1"
                     name="year"
-                    domain="[('date_order','&gt;', 'today -365d')]" />
+                    string="Last Year"
+                    domain="[('date_order','&gt;', 'today -365d')]"
+                    invisible="1" />
             </search>
         </field>
     </record>
@@ -207,28 +207,28 @@
         <field name="arch" type="xml">
             <button
                 name="action_send_quotation"
-                id="quotation_send_primary"
-                position="attributes">
+                position="attributes"
+                id="quotation_send_primary">
                 <attribute
                     name="invisible"
-                    separator="or"
-                    add="is_abandoned_cart and not cart_recovery_email_sent" />
+                    add="is_abandoned_cart and not cart_recovery_email_sent"
+                    separator="or" />
             </button>
             <button name="action_send_quotation" position="after">
                 <button
                     name="action_recovery_email_send"
                     type="object"
                     string="Send a Recovery Email"
+                    invisible="not is_abandoned_cart or cart_recovery_email_sent"
                     class="btn-primary"
-                    data-hotkey="l"
-                    invisible="not is_abandoned_cart or cart_recovery_email_sent" />
+                    data-hotkey="l" />
             </button>
-            <button name="action_send_quotation" id="quotation_send" position="after">
+            <button name="action_send_quotation" position="after" id="quotation_send">
                 <button
                     name="action_send_quotation"
                     id="send_by_email_bis"
-                    string="Send by Email"
                     type="object"
+                    string="Send by Email"
                     invisible="not is_abandoned_cart or cart_recovery_email_sent or state != 'draft'" />
             </button>
             <field name="partner_id" position="attributes">
@@ -242,8 +242,8 @@
             <field name="team_id" position="after">
                 <field
                     name="website_id"
-                    invisible="not website_id"
-                    groups="website.group_multi_website" />
+                    groups="website.group_multi_website"
+                    invisible="not website_id" />
             </field>
         </field>
     </record>
@@ -256,8 +256,8 @@
             <field name="user_id" position="before">
                 <field
                     name="website_id"
-                    groups="website.group_multi_website"
-                    optional="show" />
+                    optional="show"
+                    groups="website.group_multi_website" />
             </field>
         </field>
     </record>

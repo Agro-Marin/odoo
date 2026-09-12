@@ -13,21 +13,21 @@
                     <button
                         name="l10n_ke_action_cu_post"
                         type="object"
-                        class="oe_highlight"
-                        groups="account.group_account_manager"
                         string="Send To Fiscal Device"
-                        invisible="not l10n_ke_cu_show_send_button" />
+                        groups="account.group_account_manager"
+                        invisible="not l10n_ke_cu_show_send_button"
+                        class="oe_highlight" />
                 </xpath>
                 <xpath expr="//group[@id='header_right_group']" position="inside">
                     <field
                         name="l10n_ke_cu_invoice_number"
-                        readonly="1"
-                        invisible="country_code != 'KE'" />
+                        invisible="country_code != 'KE'"
+                        readonly="1" />
                 </xpath>
                 <notebook position="inside">
                     <page
-                        string="Tremol GO3 Fiscal Device"
                         name="page_tremol_go3_fiscal_device"
+                        string="Tremol GO3 Fiscal Device"
                         invisible="country_code != 'KE'">
                         <group>
                             <group>

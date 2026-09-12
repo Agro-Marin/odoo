@@ -20,8 +20,8 @@
                 <field name="name" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -48,19 +48,15 @@
                 <sheet string="Level">
                     <div class="oe_button_box" name="button_box">
                         <button
-                            type="action"
                             name="partnership.action_grade_partners"
-                            class="oe_stat_button"
-                            icon="fa-users">
+                            type="action"
+                            icon="fa-users"
+                            class="oe_stat_button">
                             <field
                                 name="partners_count"
                                 widget="statinfo"
-                                class="oe_inline me-1"
-                                nolabel="1" />
-                            <field
-                                name="partners_label"
-                                widget="statinfo"
-                                nolabel="1" />
+                                class="oe_inline me-1" />
+                            <field name="partners_label" widget="statinfo" />
                         </button>
                     </div>
                     <div class="oe_title">

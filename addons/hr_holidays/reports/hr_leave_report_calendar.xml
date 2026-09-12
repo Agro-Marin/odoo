@@ -7,17 +7,17 @@
         <field name="arch" type="xml">
             <calendar
                 string="Time Off"
+                mode="month"
+                create="0"
+                color="employee_id"
                 date_start="start_datetime"
                 date_stop="stop_datetime"
-                mode="month"
-                quick_create="0"
-                color="employee_id"
                 event_open_popup="True"
                 js_class="time_off_report_calendar"
-                create="0"
+                quick_create="0"
                 show_unusual_days="True">
                 <field name="name" />
-                <field name="employee_id" filters="1" invisible="1" />
+                <field name="employee_id" invisible="1" filters="1" />
                 <field name="is_hatched" invisible="1" />
                 <field name="state" invisible="1" />
                 <field name="leave_manager_id" invisible="1" />
@@ -31,16 +31,16 @@
         <field name="arch" type="xml">
             <calendar
                 string="Time Off"
+                mode="year"
+                color="employee_id"
                 date_start="start_datetime"
                 date_stop="stop_datetime"
-                mode="year"
-                quick_create="0"
-                color="employee_id"
                 event_open_popup="True"
                 js_class="time_off_report_calendar"
+                quick_create="0"
                 show_unusual_days="True">
                 <field name="name" />
-                <field name="employee_id" filters="1" invisible="1" />
+                <field name="employee_id" invisible="1" filters="1" />
                 <field name="is_hatched" invisible="1" />
                 <field name="state" invisible="1" />
                 <field name="leave_manager_id" invisible="1" />
@@ -57,29 +57,29 @@
                     <widget
                         name="web_ribbon"
                         title="Cancelled"
-                        bg_color="text-bg-danger"
-                        invisible="state != 'cancel'" />
+                        invisible="state != 'cancel'"
+                        bg_color="text-bg-danger" />
                     <widget
                         name="web_ribbon"
                         title="Refused"
-                        bg_color="bg-danger"
-                        invisible="state != 'refuse'" />
+                        invisible="state != 'refuse'"
+                        bg_color="bg-danger" />
                     <widget
                         name="web_ribbon"
                         title="Approved"
-                        bg_color="bg-success"
-                        invisible="state != 'validate'" />
+                        invisible="state != 'validate'"
+                        bg_color="bg-success" />
                     <group class="py-0 pe-0 overflow-hidden">
                         <field name="employee_id" widget="many2one_avatar_employee" />
                         <field name="holiday_status_id" />
                         <label for="start_datetime" string="Dates" />
                         <div id="full_date" class="o_row">
                             <field
-                                string="dates"
                                 name="start_datetime"
+                                string="dates"
                                 widget="daterange"
-                                readonly="1"
-                                options="{'end_date_field': 'stop_datetime', 'show_time': false}" />
+                                options="{'end_date_field': 'stop_datetime', 'show_time': false}"
+                                readonly="1" />
                             <field name="start_datetime" invisible="1" />
                             <div style="margin-left: 4.82rem;">
                             ( <field name="duration_display" readonly="1" class="w-auto" /> )
@@ -90,16 +90,16 @@
                     <footer class="d-flex justify-content-end gap-1">
                         <button
                             name="action_approve"
-                            string="Approve"
                             type="object"
-                            close="1"
-                            invisible="state not in ['confirm', 'refuse'] or not is_manager" />
+                            string="Approve"
+                            invisible="state not in ['confirm', 'refuse'] or not is_manager"
+                            close="1" />
                         <button
                             name="action_refuse"
-                            string="Refuse"
                             type="object"
-                            close="1"
-                            invisible="state == 'refuse' or not is_manager" />
+                            string="Refuse"
+                            invisible="state == 'refuse' or not is_manager"
+                            close="1" />
                     </footer>
                 </sheet>
             </form>
@@ -119,29 +119,29 @@
                     string="My Team"
                     domain="['|', ('employee_id.user_id', '=', uid), ('employee_id.parent_id.user_id', '=', uid)]" />
                 <filter
-                    string="My Department"
                     name="department"
-                    domain="[('member_of_department', '=', True)]"
-                    help="My Department" />
+                    string="My Department"
+                    help="My Department"
+                    domain="[('member_of_department', '=', True)]" />
                 <separator />
                 <filter
-                    string="Off Today"
                     name="off_today"
-                    domain="[('is_absent', '=', True)]"
-                    help="Employees Off Today" />
+                    string="Off Today"
+                    help="Employees Off Today"
+                    domain="[('is_absent', '=', True)]" />
                 <separator />
                 <filter
-                    string="Approved"
                     name="validate"
-                    domain="[('state', '=', 'validate')]"
-                    help="validate" />
+                    string="Approved"
+                    help="validate"
+                    domain="[('state', '=', 'validate')]" />
                 <filter
                     name="refused_leaves"
                     string="Refused"
                     domain="[('state', '=', 'refuse')]" />
                 <filter
-                    string="Waiting for Approval"
                     name="approve"
+                    string="Waiting for Approval"
                     domain="[('state','in',('confirm','validate1'))]" />
                 <filter
                     name="groupby_job_id"

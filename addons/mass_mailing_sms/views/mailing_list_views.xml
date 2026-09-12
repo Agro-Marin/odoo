@@ -32,8 +32,8 @@
             <xpath expr="//button[@name='action_send_mailing']" position="after">
                 <button
                     name="action_send_mailing_sms"
-                    string="Send SMS"
                     type="object"
+                    string="Send SMS"
                     class="btn btn-primary" />
             </xpath>
         </field>

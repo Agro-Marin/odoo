@@ -24,8 +24,8 @@
                 <search string="Search City">
                     <field
                         name="name"
-                        filter_domain="['|', ('name','ilike',self), ('zipcode','ilike',self)]"
-                        string="City" />
+                        string="City"
+                        filter_domain="['|', ('name','ilike',self), ('zipcode','ilike',self)]" />
                     <separator />
                     <field name="country_id" />
                 </search>

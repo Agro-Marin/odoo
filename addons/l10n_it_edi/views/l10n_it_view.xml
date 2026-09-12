@@ -51,8 +51,8 @@
                 </xpath>
                 <xpath expr="//page" position="after">
                     <page
-                        string="Electronic Invoicing"
                         name="electronic_invoicing"
+                        string="Electronic Invoicing"
                         invisible="country_code != 'IT'">
                         <group>
                             <separator
@@ -161,9 +161,9 @@
                         name="action_check_l10n_it_edi"
                         type="object"
                         string="Check Sending"
+                        invisible="l10n_it_edi_state not in ('being_sent', 'processing', 'forward_attempt')"
                         class="oe_highlight"
-                        data-hotkey="shift+K"
-                        invisible="l10n_it_edi_state not in ('being_sent', 'processing', 'forward_attempt')" />
+                        data-hotkey="shift+K" />
                 </xpath>
                 <xpath expr="//button[@name='action_invoice_sent']" position="inside">
                     <!-- Make it clear in the button text when we are not in production (e.g., 'Send (Demo)') -->
@@ -171,8 +171,8 @@
                 </xpath>
                 <xpath expr="//page[@name='other_info']" position="after">
                     <page
-                        string="Electronic Invoicing"
                         name="electronic_invoicing"
+                        string="Electronic Invoicing"
                         invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund') or country_code != 'IT'">
                         <group>
                             <group>
@@ -194,8 +194,8 @@
                                     readonly="state != 'draft'" />
                                 <field
                                     name="l10n_it_ddt_id"
-                                    readonly="state != 'draft'"
-                                    invisible="move_type not in ('out_invoice', 'out_refund')" />
+                                    invisible="move_type not in ('out_invoice', 'out_refund')"
+                                    readonly="state != 'draft'" />
                                 <field
                                     name="l10n_it_document_type"
                                     string="Document Type" />

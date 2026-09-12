@@ -10,21 +10,21 @@
                 <div class="content-group" invisible="not module_auth_oauth">
                     <div class="mt8">
                         <button
-                            type="action"
                             name="%(auth_oauth.action_oauth_provider)d"
+                            type="action"
                             string="OAuth Providers"
                             icon="oi-arrow-right"
                             class="btn-link" />
                     </div>
                 </div>
             </div>
-            <setting id="module_auth_oauth" position="after">
+            <setting position="after" id="module_auth_oauth">
                 <setting
                     id="signin_google_setting"
                     string="Google Authentication"
                     help="Allow users to sign in with their Google account"
-                    documentation="/applications/general/auth/google.html"
-                    invisible="not module_auth_oauth">
+                    invisible="not module_auth_oauth"
+                    documentation="/applications/general/auth/google.html">
                     <field name="auth_oauth_google_enabled" />
                     <div
                         class="content-group"
@@ -40,9 +40,9 @@
                         </div>
                         <widget
                             name="documentation_link"
-                            path="/applications/general/auth/google.html"
                             icon="oi oi-fw oi-arrow-right"
-                            label="Tutorial" />
+                            label="Tutorial"
+                            path="/applications/general/auth/google.html" />
                     </div>
                 </setting>
             </setting>

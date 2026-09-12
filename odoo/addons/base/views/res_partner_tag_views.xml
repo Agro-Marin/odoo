@@ -29,17 +29,17 @@
                 <field name="display_name" string="Tag" />
                 <separator />
                 <filter
-                    string="Archived"
                     name="inactive"
+                    string="Archived"
                     domain="[('active', '=', False)]" />
                 <group>
                     <filter
-                        string="Parent Tag"
                         name="group_parent_id"
+                        string="Parent Tag"
                         context="{'group_by': 'parent_id'}" />
                     <filter
-                        string="Color"
                         name="group_color"
+                        string="Color"
                         context="{'group_by': 'color'}" />
                 </group>
             </search>

@@ -12,16 +12,16 @@
                 </group>
                 <footer>
                     <button
-                        string="Update"
-                        type="object"
                         name="action_update_current"
+                        type="object"
+                        string="Update"
                         class="btn-primary"
                         data-hotkey="q" />
                     <button
-                        string="Cancel"
                         special="cancel"
-                        data-hotkey="x"
-                        class="btn-secondary" />
+                        string="Cancel"
+                        class="btn-secondary"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

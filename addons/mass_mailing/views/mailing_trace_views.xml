@@ -12,69 +12,69 @@
                 <field name="email" />
                 <field name="mass_mailing_id" />
                 <filter
-                    string="Scheduled"
                     name="filter_scheduled"
+                    string="Scheduled"
                     domain="[('trace_status', '=', 'outgoing')]" />
                 <filter
-                    string="Cancelled"
                     name="filter_canceled"
+                    string="Cancelled"
                     domain="[('trace_status', '=', 'cancel')]" />
                 <filter
-                    string="Processing"
                     name="filter_process"
+                    string="Processing"
                     domain="[('trace_status', '=', 'process')]" />
                 <filter
-                    string="Sent"
                     name="filter_sent"
+                    string="Sent"
                     domain="[('sent_datetime', '!=', False)]" />
                 <filter
-                    string="Clicked"
                     name="filter_clicked"
+                    string="Clicked"
                     domain="[('links_click_datetime', '!=', False)]" />
                 <filter
-                    string="Delivered"
                     name="filter_delivered"
+                    string="Delivered"
                     domain="[('sent_datetime', '!=', False), ('trace_status', 'not in', ['error', 'cancel', 'process', 'pending'])]" />
                 <filter
-                    string="Opened"
                     name="filter_opened"
+                    string="Opened"
                     domain="[('trace_status', 'in', ['open', 'reply'])]" />
                 <filter
-                    string="Replied"
                     name="filter_replied"
+                    string="Replied"
                     domain="[('trace_status', '=', 'reply')]" />
                 <filter
-                    string="Bounced"
                     name="filter_bounced"
+                    string="Bounced"
                     domain="[('trace_status', '=', 'bounce')]" />
                 <filter
-                    string="Failed"
                     name="filter_failed"
+                    string="Failed"
                     domain="[('trace_status', '=', 'error')]" />
                 <filter
-                    string="Test Traces"
                     name="filter_is_test_trace"
+                    string="Test Traces"
                     domain="[('is_test_trace', '=', 'True')]" />
                 <group>
                     <filter
-                        string="State"
                         name="state"
+                        string="State"
                         context="{'group_by': 'trace_status'}" />
                     <filter
-                        string="Open Date"
                         name="group_open_date"
+                        string="Open Date"
                         context="{'group_by': 'open_datetime:day'}" />
                     <filter
-                        string="Reply Date"
                         name="group_reply_date"
+                        string="Reply Date"
                         context="{'group_by': 'reply_datetime:day'}" />
                     <filter
-                        string="Last State Update"
                         name="state_update"
+                        string="Last State Update"
                         context="{'group_by': 'write_date'}" />
                     <filter
-                        string="Mass Mailing"
                         name="mass_mailing"
+                        string="Mass Mailing"
                         context="{'group_by': 'mass_mailing_id'}" />
                 </group>
                 </search>
@@ -157,8 +157,8 @@
                     <widget
                         name="web_ribbon"
                         title="Test"
-                        bg_color="text-bg-danger"
-                        invisible="is_test_trace != True" />
+                        invisible="is_test_trace != True"
+                        bg_color="text-bg-danger" />
                     <group>
                         <group string="Status">
                             <field name="failure_type" invisible="not failure_type" />

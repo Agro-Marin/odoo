@@ -24,7 +24,7 @@
                     <field name="default_code" />
                 </group>
                 <notebook>
-                <page string="Margins" name="margins">
+                <page name="margins" string="Margins">
                     <group string="Analysis Criteria">
                         <field name="date_from" />
                         <field name="date_to" />

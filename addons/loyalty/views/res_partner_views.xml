@@ -11,13 +11,13 @@
                 <button
                     name="action_view_loyalty_cards"
                     type="object"
-                    class="oe_stat_button"
                     icon="fa-money"
                     groups="base.group_system"
-                    invisible="loyalty_card_count == 0">
+                    invisible="loyalty_card_count == 0"
+                    class="oe_stat_button">
                     <field
-                        string="Loyalty Cards"
                         name="loyalty_card_count"
+                        string="Loyalty Cards"
                         widget="statinfo" />
                 </button>
             </xpath>

@@ -33,9 +33,9 @@
         <field name="model">account.move</field>
         <field name="arch" type="xml">
             <list
-                decoration-info="state == 'draft'"
-                default_order="create_date"
                 string="Invoices and Refunds"
+                default_order="create_date"
+                decoration-info="state == 'draft'"
                 decoration-muted="state == 'cancel'"
                 js_class="account_tree">
                 <field name="l10n_latam_document_type_id_code" />
@@ -58,35 +58,35 @@
                 <field name="payment_reference" optional="hide" />
                 <field
                     name="invoice_user_id"
+                    string="Sales Person"
                     optional="show"
-                    column_invisible="context.get('default_move_type') not in ('out_invoice', 'out_refund', 'out_receipt')"
-                    string="Sales Person" />
+                    column_invisible="context.get('default_move_type') not in ('out_invoice', 'out_refund', 'out_receipt')" />
                 <field
                     name="company_id"
-                    groups="base.group_multi_company"
+                    optional="show"
                     options="{'no_create': True}"
-                    optional="show" />
-                <field name="invoice_origin" optional="show" string="Source Document" />
+                    groups="base.group_multi_company" />
+                <field name="invoice_origin" string="Source Document" optional="show" />
                 <field
                     name="amount_untaxed_signed"
                     string="Amount Untaxed"
-                    sum="Total"
-                    optional="show" />
+                    optional="show"
+                    sum="Total" />
                 <field
                     name="amount_tax_signed"
                     string="Tax"
-                    sum="Total"
-                    optional="show" />
+                    optional="show"
+                    sum="Total" />
                 <field
                     name="amount_total_signed"
                     string="Total"
-                    sum="Total"
-                    optional="show" />
+                    optional="show"
+                    sum="Total" />
                 <field
                     name="amount_residual_signed"
                     string="Amount Due"
-                    sum="Amount Due"
-                    optional="show" />
+                    optional="show"
+                    sum="Amount Due" />
                 <field
                     name="currency_id"
                     column_invisible="True"

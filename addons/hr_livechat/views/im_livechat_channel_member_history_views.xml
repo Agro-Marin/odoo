@@ -11,8 +11,8 @@
             <xpath expr="//*[@name='my_session']" position="after">
                 <filter
                     name="my_team"
-                    domain="[('partner_id.user_ids.employee_id.member_of_department', '=', True)]"
-                    string="My Team" />
+                    string="My Team"
+                    domain="[('partner_id.user_ids.employee_id.member_of_department', '=', True)]" />
             </xpath>
         </field>
     </record>

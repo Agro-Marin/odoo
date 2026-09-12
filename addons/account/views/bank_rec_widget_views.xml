@@ -24,8 +24,8 @@
                             <button
                                 name="action_view_bank_reconcile_widget"
                                 type="object"
-                                class="oe_stat_button"
-                                invisible="not line_ids">
+                                invisible="not line_ids"
+                                class="oe_stat_button">
                                 <field
                                     name="line_ids"
                                     string="Transactions"
@@ -96,8 +96,8 @@
                             <button
                                 name="action_view_bank_reconcile_widget"
                                 type="object"
-                                class="oe_stat_button"
-                                invisible="not line_ids">
+                                invisible="not line_ids"
+                                class="oe_stat_button">
                             <field
                                 name="line_ids"
                                 string="Transactions"
@@ -237,10 +237,6 @@
                         string="Not Matched"
                         domain="[('is_reconciled', '=', False), ('checked', '=', True)]" />
                     <filter
-                        name="to_check"
-                        string="To Check"
-                        domain="[('checked', '=', False)]" />
-                    <filter
                         name="with_activities"
                         string="With Activities"
                         domain="[('activity_ids', '!=', False)]" />
@@ -311,11 +307,11 @@
             <field name="model">account.bank.statement.line</field>
             <field name="arch" type="xml">
                 <list
+                    default_order="internal_index desc"
                     editable="top"
                     multi_edit="1"
-                    js_class="bank_rec_list"
                     decoration-muted="state == 'draft'"
-                    default_order="internal_index desc">
+                    js_class="bank_rec_list">
                     <field name="statement_complete" column_invisible="True" />
                     <field name="statement_valid" column_invisible="True" />
                     <field name="is_reconciled" column_invisible="True" />
@@ -324,30 +320,30 @@
                     <field name="currency_id" column_invisible="True" />
                     <field name="company_id" column_invisible="True" />
 
-                    <field name="sequence" widget="handle" column_invisible="True" />                    <field name="date" readonly="is_reconciled and amount != 0" options="{'warn_future': true}" />
+                    <field name="sequence" widget="handle" column_invisible="True" />                    <field name="date" options="{'warn_future': true}" readonly="is_reconciled and amount != 0" />
                     <field name="move_id" optional="hide" required="0" />
                     <field
                         name="payment_ref"
-                        required="1"
-                        readonly="is_reconciled and amount != 0" />
+                        readonly="is_reconciled and amount != 0"
+                        required="1" />
                     <field name="partner_id" readonly="is_reconciled and amount != 0" />
                     <field name="account_number" optional="hide" />
                     <field
                         name="narration"
                         string="Notes"
-                        readonly="is_reconciled and amount != 0"
-                        optional="hide" />
+                        optional="hide"
+                        readonly="is_reconciled and amount != 0" />
                     <field
                         name="ref"
-                        readonly="is_reconciled and amount != 0"
-                        optional="hide" />
+                        optional="hide"
+                        readonly="is_reconciled and amount != 0" />
                     <field name="transaction_type" optional="hide" />
                     <field
                         name="foreign_currency_id"
                         optional="hide"
-                        groups="base.group_multi_currency"
                         domain="[('id', '!=', currency_id)]"
                         options="{'no_open': True, 'no_create': True}"
+                        groups="base.group_multi_currency"
                         readonly="is_reconciled and amount != 0" />
                     <field
                         name="amount_currency"
@@ -364,17 +360,17 @@
                     <field name="running_balance" class="oe_read_only" />
                     <field
                         name="statement_id"
+                        widget="bank_rec_list_many2one_multi_id"
                         optional="show"
-                        options="{'no_quick_create': True}"
                         domain="['|',('journal_id', '=', journal_id),('journal_id', '=', False)]"
                         context="{                                 'default_journal_id':journal_id,                                 'form_view_ref': 'account.view_bank_statement_form_bank_rec_widget',                                 'st_line_id':id,                             }"
-                        decoration-danger="statement_complete == False or statement_valid == False"
-                        widget="bank_rec_list_many2one_multi_id"
-                        readonly="not id" />
+                        options="{'no_quick_create': True}"
+                        readonly="not id"
+                        decoration-danger="statement_complete == False or statement_valid == False" />
                     <field
                         name="state"
-                        optional="hide"
                         widget="badge"
+                        optional="hide"
                         decoration-info="state == 'draft'"
                         decoration-success="state == 'posted'" />
                 </list>
@@ -389,9 +385,9 @@
                         <button
                             name="action_button_draft"
                             type="object"
-                            class="btn btn-primary"
                             string="Reset to Draft"
-                            invisible="state == 'draft'" />
+                            invisible="state == 'draft'"
+                            class="btn btn-primary" />
                     </header>
                     <field name="state" invisible="1" />
                     <field name="statement_complete" invisible="1" />
@@ -408,8 +404,8 @@
                                     readonly="is_reconciled and amount != 0" />
                                 <field
                                     name="payment_ref"
-                                    required="1"
-                                    readonly="is_reconciled and amount != 0" />
+                                    readonly="is_reconciled and amount != 0"
+                                    required="1" />
                                 <field
                                     name="partner_id"
                                     readonly="is_reconciled and amount != 0" />
@@ -420,9 +416,9 @@
                                     readonly="is_reconciled and amount != 0" />
                                 <field
                                     name="foreign_currency_id"
-                                    groups="base.group_multi_currency"
                                     domain="[('id', '!=', currency_id)]"
                                     options="{'no_open': True, 'no_create': True}"
+                                    groups="base.group_multi_currency"
                                     readonly="is_reconciled and amount != 0" />
                                 <field
                                     name="amount_currency"
@@ -437,21 +433,21 @@
                         </group>
                         <footer>
                             <button
-                                string="Save &amp; Close"
-                                type="object"
                                 name="action_save_close"
+                                type="object"
+                                string="Save &amp; Close"
                                 class="btn btn-primary"
                                 data-hotkey="q" />
                             <button
-                                string="Save &amp; New"
-                                type="object"
                                 name="action_save_new"
+                                type="object"
+                                string="Save &amp; New"
                                 class="btn btn-primary"
                                 data-hotkey="n" />
                             <button
+                                special="cancel"
                                 string="Cancel"
                                 class="btn-secondary"
-                                special="cancel"
                                 data-hotkey="x" />
                         </footer>
                     </sheet>
@@ -471,16 +467,16 @@
                         <field name="date" nolabel="1" />
                         <field
                             name="payment_ref"
-                            class="o_payment_ref"
-                            required="1"
+                            placeholder="Write a label ..."
                             nolabel="1"
-                            placeholder="Write a label ..." />
+                            required="1"
+                            class="o_payment_ref" />
                         <field
                             name="partner_id"
-                            class="w-100"
+                            placeholder="Partner"
                             nolabel="1"
-                            placeholder="Partner" />
-                        <field name="amount" class="w-100" nolabel="1" />
+                            class="w-100" />
+                        <field name="amount" nolabel="1" class="w-100" />
                     </group>
                 </form>
             </field>
@@ -550,11 +546,11 @@
             <field name="priority">999</field>
             <field name="arch" type="xml">
                 <list
-                    js_class="bank_rec_dialog_list"
                     string="Journal Items to Match"
                     create="false"
                     edit="false"
-                    decoration-info="parent_state == 'draft'">
+                    decoration-info="parent_state == 'draft'"
+                    js_class="bank_rec_dialog_list">
                     <field name="date" />
                     <field name="move_name" string="Journal Entry" optional="show" />
                     <field name="account_id" optional="hide" />
@@ -566,20 +562,20 @@
                     <field name="ref" optional="hide" />
                     <field
                         name="analytic_distribution"
-                        groups="analytic.group_analytic_accounting"
                         widget="analytic_distribution"
                         optional="hide"
-                        options="{'account_field': 'account_id', 'business_domain': 'general'}" />
+                        options="{'account_field': 'account_id', 'business_domain': 'general'}"
+                        groups="analytic.group_analytic_accounting" />
                     <field
                         name="amount_residual"
+                        nolabel="1"
                         invisible="currency_id == company_currency_id"
-                        decoration-muted="amount_residual &lt; 0"
-                        nolabel="1" />
+                        decoration-muted="amount_residual &lt; 0" />
                     <field name="company_currency_id" column_invisible="True" />
                     <field
                         name="amount_residual_currency"
-                        decoration-muted="amount_residual_currency &lt; 0"
-                        string="Amount Due" />
+                        string="Amount Due"
+                        decoration-muted="amount_residual_currency &lt; 0" />
                     <field name="currency_id" column_invisible="True" />
                     <field name="move_id" column_invisible="True" />
                 </list>
@@ -591,10 +587,10 @@
             <field name="priority">999</field>
             <field name="arch" type="xml">
                 <kanban
-                    js_class="bank_rec_dialog_kanban"
-                    class="o_kanban_mobile"
                     create="false"
-                    group_create="false">
+                    class="o_kanban_mobile"
+                    group_create="false"
+                    js_class="bank_rec_dialog_kanban">
                     <field name="currency_id" />
                     <field name="company_currency_id" />
                     <templates>
@@ -631,7 +627,7 @@
                 <list string="Account" create="false" edit="false">
                     <field name="code" groups="account.group_account_readonly" />
                     <field name="name" optional="show" />
-                    <field name="description" optional="show" width="350px" />
+                    <field name="description" width="350px" optional="show" />
                     <field name="account_type" optional="hide" />
                     <field name="group_id" optional="hide" />
                     <field name="reconcile" string="Reconcile" optional="hide" />
@@ -646,20 +642,20 @@
             <field name="arch" type="xml">
                 <field name="name" position="after">
                     <filter
-                        invisible="1"
                         name="bankrec_income"
                         string="Income"
-                        domain="[('account_type', '=', 'income')]" />
+                        domain="[('account_type', '=', 'income')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="bankrec_expense"
                         string="Expenses"
-                        domain="[('account_type', '=', 'expense')]" />
+                        domain="[('account_type', '=', 'expense')]"
+                        invisible="1" />
                     <filter
-                        invisible="1"
                         name="bankrec_currentasset"
                         string="Current Assets"
-                        domain="[('account_type', '=', 'asset_current')]" />
+                        domain="[('account_type', '=', 'asset_current')]"
+                        invisible="1" />
                 </field>
             </field>
         </record>
@@ -671,8 +667,8 @@
                 <list position="inside">
                     <button
                         name="action_view_bank_reconcile_widget"
-                        string="Transactions"
-                        type="object" />
+                        type="object"
+                        string="Transactions" />
                 </list>
             </field>
         </record>

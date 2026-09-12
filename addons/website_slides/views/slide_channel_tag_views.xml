@@ -50,8 +50,8 @@
                 <search string="Course Tag Groups">
                     <field name="name" />
                     <filter
-                        string="Has Menu Entry"
                         name="filter_is_published"
+                        string="Has Menu Entry"
                         domain="[('is_published', '=', True)]" />
                 </search>
             </field>
@@ -64,11 +64,11 @@
                     <sheet>
                         <div class="oe_title">
                             <label for="name" string="Course Group Name" />
-                            <h1><field name="name" default_focus="1" placeholder="e.g. Your Level" /></h1>
+                            <h1><field name="name" placeholder="e.g. Your Level" default_focus="1" /></h1>
                         </div>
                         <group>
                             <field name="is_published" string="Menu Entry" />
-                            <field name="tag_ids" nolabel="1" colspan="2">
+                            <field name="tag_ids" colspan="2" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
                                     <field

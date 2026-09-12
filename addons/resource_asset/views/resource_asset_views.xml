@@ -27,7 +27,7 @@
         <field name="name">resource.asset.kanban</field>
         <field name="model">resource.asset</field>
         <field name="arch" type="xml">
-            <kanban highlight_color="color" sample="1">
+            <kanban sample="1" highlight_color="color">
                 <field name="state" />
                 <templates>
                     <t t-name="menu">
@@ -57,14 +57,14 @@
                         name="action_set_in_service"
                         type="object"
                         string="Put in Service"
-                        class="btn-primary"
-                        invisible="state not in ('draft', 'out_of_service', 'maintenance')" />
+                        invisible="state not in ('draft', 'out_of_service', 'maintenance')"
+                        class="btn-primary" />
                     <button
                         name="action_dispose"
                         type="object"
                         string="Dispose"
-                        invisible="state == 'disposed'"
-                        confirm="Dispose of this asset? It is archived and its custody ends today." />
+                        confirm="Dispose of this asset? It is archived and its custody ends today."
+                        invisible="state == 'disposed'" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -74,8 +74,8 @@
                     <widget
                         name="web_ribbon"
                         title="Archived"
-                        bg_color="text-bg-danger"
-                        invisible="active" />
+                        invisible="active"
+                        bg_color="text-bg-danger" />
                     <field name="avatar_128" invisible="1" />
                     <div class="oe_title">
                         <label for="name" />
@@ -104,7 +104,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Identifiers" name="identifiers">
+                        <page name="identifiers" string="Identifiers">
                             <field name="identifier_ids">
                                 <list editable="bottom">
                                     <field name="type_id" />
@@ -115,10 +115,10 @@
                             <field
                                 name="missing_identifier_type_ids"
                                 widget="many2many_tags"
-                                readonly="1"
-                                invisible="not missing_identifier_type_ids" />
+                                invisible="not missing_identifier_type_ids"
+                                readonly="1" />
                         </page>
-                        <page string="Meters" name="meters">
+                        <page name="meters" string="Meters">
                             <field name="meter_ids">
                                 <list editable="bottom">
                                     <field name="name" />
@@ -130,7 +130,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Custody" name="custody">
+                        <page name="custody" string="Custody">
                             <field
                                 name="assignment_ids"
                                 context="{'default_resource_id': resource_id}">
@@ -143,7 +143,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Lifecycle" name="lifecycle">
+                        <page name="lifecycle" string="Lifecycle">
                             <group>
                                 <group>
                                     <field name="date_acquisition" />

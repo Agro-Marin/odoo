@@ -5,7 +5,7 @@
         <field name="name">l10n_latam.identification.type.list</field>
         <field name="model">l10n_latam.identification.type</field>
         <field name="arch" type="xml">
-            <list decoration-muted="(not active)" create="0" edit="0">
+            <list create="0" edit="0" decoration-muted="(not active)">
                 <field name="name" />
                 <field name="description" />
                 <field name="country_id" />
@@ -26,13 +26,13 @@
                 <filter
                     name="active"
                     string="Active"
-                    domain="[('active','=',True)]"
-                    help="Show active identification types" />
+                    help="Show active identification types"
+                    domain="[('active','=',True)]" />
                 <filter
                     name="inactive"
                     string="Archived"
-                    domain="[('active','=',False)]"
-                    help="Show archived identification types" />
+                    help="Show archived identification types"
+                    domain="[('active','=',False)]" />
             </search>
         </field>
     </record>

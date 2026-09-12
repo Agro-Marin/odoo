@@ -9,10 +9,10 @@
                 of anything. -->
             <list
                 string="Access Log"
+                default_order="access_date desc"
                 create="false"
                 edit="false"
-                delete="false"
-                default_order="access_date desc">
+                delete="false">
                 <field name="access_date" />
                 <field name="document_id" />
                 <field name="partner_id" />

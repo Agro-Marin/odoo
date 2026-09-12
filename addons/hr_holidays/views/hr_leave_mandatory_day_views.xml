@@ -55,9 +55,9 @@
                 <separator />
                 <filter
                     name="filter_date"
+                    string="Period"
                     date="start_date"
-                    default_period="year"
-                    string="Period" />
+                    default_period="year" />
                 <group>
                     <filter
                         name="department"

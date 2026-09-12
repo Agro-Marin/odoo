@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <field name="categ_id" position="after">
                 <field
-                    string="POS Product Category"
                     name="pos_categ_ids"
+                    string="POS Product Category"
                     filter_domain="[('pos_categ_ids', 'child_of', raw_value)]" />
             </field>
             <filter name="filter_to_sell" position="after">
@@ -20,8 +20,8 @@
             </filter>
             <filter name="group_by_categ_id" position="after">
                 <filter
-                    string="POS Category"
                     name="pos_categ_ids"
+                    string="POS Category"
                     context="{'group_by': 'pos_categ_ids'}" />
             </filter>
         </field>
@@ -77,8 +77,8 @@
             </xpath>
             <page name="sales" position="after">
                 <page
-                    string="Point of Sale"
                     name="pos"
+                    string="Point of Sale"
                     invisible="not available_in_pos">
                     <group>
                         <group name="pos" string="Point of Sale">
@@ -86,27 +86,27 @@
                             <field name="to_weight" invisible="type=='service'" />
                             <field
                                 name="pos_categ_ids"
-                                widget="many2many_tags"
-                                groups="point_of_sale.group_pos_user"
                                 string="Category"
-                                options="{'color_field': 'color'}" />
-                            <field name="color" widget="color_picker" string="Color" />
+                                widget="many2many_tags"
+                                options="{'color_field': 'color'}"
+                                groups="point_of_sale.group_pos_user" />
+                            <field name="color" string="Color" widget="color_picker" />
                         </group>
-                        <group string="Description" name="public_description">
+                        <group name="public_description" string="Description">
                             <field
                                 name="public_description"
                                 placeholder="Information about your product."
-                                nolabel="1"
-                                colspan="2" />
+                                colspan="2"
+                                nolabel="1" />
                         </group>
-                        <group string="Upsell &amp; Cross-Sell" name="upsell_pos">
+                        <group name="upsell_pos" string="Upsell &amp; Cross-Sell">
                             <field
                                 name="pos_optional_product_ids"
+                                placeholder="Recommend when 'Adding to Cart'"
                                 widget="many2many_tags"
-                                groups="point_of_sale.group_pos_user"
                                 domain="[('id', '!=', id)]"
                                 options="{'color_field': 'color'}"
-                                placeholder="Recommend when 'Adding to Cart'" />
+                                groups="point_of_sale.group_pos_user" />
                         </group>
                     </group>
                 </page>
@@ -186,16 +186,16 @@
             <field name="categ_id" position="before">
                 <field
                     name="pos_categ_ids"
+                    string="POS Product Category"
                     widget="many2many_tags"
-                    groups="point_of_sale.group_pos_user"
                     optional="hide"
-                    string="POS Product Category" />
+                    groups="point_of_sale.group_pos_user" />
             </field>
             <field name="pos_categ_ids" position="after">
                 <field
                     name="available_in_pos"
-                    groups="point_of_sale.group_pos_user"
-                    optional="hide" />
+                    optional="hide"
+                    groups="point_of_sale.group_pos_user" />
             </field>
         </field>
     </record>
@@ -223,10 +223,10 @@
             <field name="categ_id" position="before">
                 <field
                     name="pos_categ_ids"
+                    string="POS Product Category"
                     widget="many2many_tags"
-                    groups="point_of_sale.group_pos_user"
                     optional="hide"
-                    string="POS Product Category" />
+                    groups="point_of_sale.group_pos_user" />
             </field>
         </field>
     </record>
@@ -240,51 +240,50 @@
                     <field
                         name="image_1920"
                         widget="image"
-                        class="oe_avatar"
-                        nolabel="1"
-                        options="{'zoom': True, 'convert_to_webp': True, 'preview_image': 'image_128'}" />
+                        options="{'zoom': True, 'convert_to_webp': True, 'preview_image': 'image_128'}"
+                        class="oe_avatar" />
                     <group name="name">
                         <field
                             name="name"
-                            class="oe_inline"
+                            string="Product Name"
                             placeholder="e.g. Cheese Burger"
-                            string="Product Name" />
+                            class="oe_inline" />
                         <field
                             name="barcode"
-                            class="oe_inline"
-                            placeholder="e.g. 1234567890" />
+                            placeholder="e.g. 1234567890"
+                            class="oe_inline" />
                         <label
                             for="is_storable"
-                            class="oe_inline"
-                            invisible="type != 'consu'" />
+                            invisible="type != 'consu'"
+                            class="oe_inline" />
                         <div class="o_row w-100" invisible="type != 'consu'">
                             <field name="is_storable" />
                             <field
                                 name="tracking"
-                                invisible="not is_storable"
-                                groups="stock.group_production_lot" />
+                                groups="stock.group_production_lot"
+                                invisible="not is_storable" />
                         </div>
                         <field
                             name="list_price"
-                            class="oe_inline"
                             widget="monetary"
-                            options="{'currency_field': 'currency_id', 'field_digits': True}" />
+                            options="{'currency_field': 'currency_id', 'field_digits': True}"
+                            class="oe_inline" />
                         <label for="taxes_id" />
                         <div name="tax_info" class="o_row">
                             <field
                                 name="taxes_id"
                                 widget="many2many_tags"
-                                readonly="context.get('taxes_readonly', False)"
                                 context="{'search_default_sale': 1}"
-                                options="{'create': false, 'create_edit': false}" />
+                                options="{'create': false, 'create_edit': false}"
+                                readonly="context.get('taxes_readonly', False)" />
                             <field name="tax_string" />
                         </div>
                         <field
                             name="pos_categ_ids"
                             string="POS Category"
-                            class="oe_inline"
-                            widget="many2many_tags" />
-                        <field name="color" widget="color_picker" string="Color" />
+                            widget="many2many_tags"
+                            class="oe_inline" />
+                        <field name="color" string="Color" widget="color_picker" />
                     </group>
                 </sheet>
             </form>

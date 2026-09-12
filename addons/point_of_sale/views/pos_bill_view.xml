@@ -21,13 +21,13 @@
         <field name="name">pos.bill.list</field>
         <field name="model">pos.bill</field>
         <field name="arch" type="xml">
-            <list string="Bills" create="1" delete="1" editable="bottom">
+            <list string="Bills" editable="bottom" create="1" delete="1">
                 <field name="name" />
                 <field name="value" />
                 <field
                     name="pos_config_ids"
-                    widget="many2many_tags_placeholder_list_view"
-                    placeholder="For all point of sale." />
+                    placeholder="For all point of sale."
+                    widget="many2many_tags_placeholder_list_view" />
             </list>
         </field>
     </record>

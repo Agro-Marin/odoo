@@ -12,18 +12,18 @@
                     <field
                         name="total_value"
                         widget="monetary"
-                        invisible="not lot_valuated"
-                        options="{'currency_field': 'company_currency_id'}" />
+                        options="{'currency_field': 'company_currency_id'}"
+                        invisible="not lot_valuated" />
                     <field
                         name="avg_cost"
                         widget="monetary"
-                        invisible="not lot_valuated"
-                        options="{'currency_field': 'company_currency_id'}" />
+                        options="{'currency_field': 'company_currency_id'}"
+                        invisible="not lot_valuated" />
                     <field
                         name="standard_price"
                         widget="monetary"
-                        invisible="not lot_valuated"
-                        options="{'currency_field': 'company_currency_id'}" />
+                        options="{'currency_field': 'company_currency_id'}"
+                        invisible="not lot_valuated" />
                 </group>
             </field>
         </record>

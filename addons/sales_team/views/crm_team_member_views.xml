@@ -16,8 +16,8 @@
                         domain="[('active', '=', False)]" />
                     <group>
                         <filter
-                            string="Sales Team"
                             name="groupby_crm_team_id"
+                            string="Sales Team"
                             context="{'group_by': 'crm_team_id'}" />
                     </group>
                 </search>
@@ -48,20 +48,20 @@
             <field name="model">crm.team.member</field>
             <field name="arch" type="xml">
                 <kanban
-                    quick_create="false"
-                    group_create="0"
-                    records_draggable="0"
-                    sample="1"
                     default_group_by="crm_team_id"
-                    class="o_crm_team_member_kanban">
+                    sample="1"
+                    class="o_crm_team_member_kanban"
+                    group_create="0"
+                    quick_create="false"
+                    records_draggable="0">
                     <field name="active" />
                     <templates>
                         <t t-name="card" class="flex-row mb-3">
                             <widget
                                 name="web_ribbon"
                                 title="Archived"
-                                bg_color="text-bg-danger"
-                                invisible="active" />
+                                invisible="active"
+                                bg_color="text-bg-danger" />
                             <aside>
                                 <field
                                     name="user_id"
@@ -124,26 +124,25 @@
                         <widget
                             name="web_ribbon"
                             title="Archived"
-                            bg_color="text-bg-danger"
-                            invisible="active" />
+                            invisible="active"
+                            bg_color="text-bg-danger" />
                         <field
                             name="image_1920"
                             widget="image"
-                            class="float-start pe-3"
+                            options="{&quot;preview_image&quot;: &quot;image_128&quot;, &quot;size&quot;: [130,130], &quot;img_class&quot;: &quot;rounded border&quot;}"
                             invisible="not user_id"
-                            nolabel="1"
-                            options="{&quot;preview_image&quot;: &quot;image_128&quot;, &quot;size&quot;: [130,130], &quot;img_class&quot;: &quot;rounded border&quot;}" />
+                            class="float-start pe-3" />
                         <h1 class="d-flex">
                             <field
                                 name="user_id"
-                                class="flex-grow-1"
                                 placeholder="e.g. John Doe"
-                                options="{'no_quick_create': True}" />
+                                options="{'no_quick_create': True}"
+                                class="flex-grow-1" />
                         </h1>
                         <group name="crm_team_id">
                             <field
-                                id="crm_team_id"
                                 name="crm_team_id"
+                                id="crm_team_id"
                                 context="{'kanban_view_ref': 'sales_team.crm_team_view_kanban'}" />
                         </group>
                         <group name="member_partner_info">
@@ -166,8 +165,8 @@
                                         title="Phone" />
                                     <field
                                         name="phone_ids"
-                                        nolabel="1"
-                                        widget="many2many_tags" />
+                                        widget="many2many_tags"
+                                        nolabel="1" />
                                 </div>
                                 <div
                                     colspan="2"

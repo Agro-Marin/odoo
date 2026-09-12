@@ -73,10 +73,10 @@
         <field name="model">api.event.log</field>
         <field name="arch" type="xml">
             <list
-                decoration-success="state == 'success'"
                 decoration-danger="state == 'failed'"
-                decoration-warning="state == 'pending'"
-                decoration-muted="state == 'duplicate'">
+                decoration-muted="state == 'duplicate'"
+                decoration-success="state == 'success'"
+                decoration-warning="state == 'pending'">
                 <field name="timestamp" />
                 <field name="direction" widget="badge" />
                 <field name="channel_name" />
@@ -101,8 +101,8 @@
                         name="action_retry_now"
                         type="object"
                         string="Retry Now"
-                        class="btn-primary"
-                        invisible="state not in ['failed', 'pending'] or direction != 'inbound'" />
+                        invisible="state not in ['failed', 'pending'] or direction != 'inbound'"
+                        class="btn-primary" />
                     <field
                         name="state"
                         widget="statusbar"
@@ -113,16 +113,16 @@
                         <button
                             name="action_view_channel"
                             type="object"
-                            class="oe_stat_button"
-                            icon="fa-link">
+                            icon="fa-link"
+                            class="oe_stat_button">
                             <span>View Channel</span>
                         </button>
                         <button
                             name="action_view_related_events"
                             type="object"
-                            class="oe_stat_button"
                             icon="fa-chain"
-                            invisible="not trace_id">
+                            invisible="not trace_id"
+                            class="oe_stat_button">
                             <span>Related Events</span>
                         </button>
                     </div>
@@ -136,19 +136,19 @@
                         <group>
                             <field
                                 name="company_id"
-                                readonly="1"
-                                groups="base.group_multi_company" />
+                                groups="base.group_multi_company"
+                                readonly="1" />
                             <field name="user_id" readonly="1" />
                             <field name="credential_id" readonly="1" />
                             <field
                                 name="source_ip"
-                                readonly="1"
-                                invisible="direction != 'inbound'" />
+                                invisible="direction != 'inbound'"
+                                readonly="1" />
                         </group>
                     </group>
 
                     <notebook>
-                        <page string="Request" name="request">
+                        <page name="request" string="Request">
                             <group invisible="direction != 'outbound'">
                                 <group>
                                     <field name="request_method" readonly="1" />
@@ -175,7 +175,7 @@
                             </group>
                         </page>
 
-                        <page string="Response" name="response">
+                        <page name="response" string="Response">
                             <group>
                                 <group>
                                     <field name="status_code" readonly="1" />
@@ -204,21 +204,21 @@
                             </group>
                         </page>
 
-                        <page string="Error" name="error" invisible="not error_message">
+                        <page name="error" string="Error" invisible="not error_message">
                             <group>
                                 <field name="error_type" readonly="1" />
                                 <field name="error_message" readonly="1" />
                             </group>
                         </page>
 
-                        <page string="Retry" name="retry" invisible="retry_count == 0">
+                        <page name="retry" string="Retry" invisible="retry_count == 0">
                             <group>
                                 <field name="retry_count" readonly="1" />
                                 <field name="date_next_retry" readonly="1" />
                             </group>
                         </page>
 
-                        <page string="Tracing" name="tracing">
+                        <page name="tracing" string="Tracing">
                             <group>
                                 <group>
                                     <field name="trace_id" readonly="1" />
