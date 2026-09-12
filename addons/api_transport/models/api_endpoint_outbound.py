@@ -70,6 +70,35 @@ class ApiEndpointOutbound(models.Model):
     endpoint_url_test = fields.Char(
         help="Base URL for test environment",
     )
+    allowed_hosts = fields.Char(
+        help="Hosts, besides those of the endpoint URLs, that may receive this "
+        "endpoint's credential, separated by commas. 'private' admits any "
+        "private-network host, for an endpoint that reaches devices at their own "
+        "addresses. A call to any other host that would carry the credential is "
+        "refused.",
+    )
+
+    def _is_credential_host_allowed(self, host):
+        self.check_singleton()
+        host = (host or "").strip("[]").lower()
+        if not host:
+            return False
+        own_hosts = {
+            (urlparse(url).hostname or "").lower()
+            for url in (self.endpoint_url, self.endpoint_url_test)
+            if url
+        }
+        if host in own_hosts:
+            return True
+        listed = {
+            entry.strip().lower()
+            for entry in (self.allowed_hosts or "").replace("\n", ",").split(",")
+            if entry.strip()
+        }
+        if host in listed:
+            return True
+        return "private" in listed and is_private_host(host)
+
     api_version = fields.Char()
     send_version_headers = fields.Boolean(
         string="Send Generic Version Headers",

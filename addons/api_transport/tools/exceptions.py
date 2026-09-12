@@ -41,3 +41,12 @@ class ValidationError(CommError):
         self, message: str = "Validation error", status_code: int | None = None
     ):
         super().__init__(message, status_code)
+
+
+class HostNotAllowedError(CommError):
+    def __init__(
+        self,
+        message: str = "Host not allowed for this credential",
+        status_code: int | None = None,
+    ):
+        super().__init__(message, status_code)

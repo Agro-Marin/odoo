@@ -135,6 +135,7 @@
                                 <group string="Endpoints">
                                     <field name="endpoint_url" />
                                     <field name="endpoint_url_test" />
+                                    <field name="allowed_hosts" />
                                     <field name="api_version" />
                                     <field
                                         name="api_version_header"

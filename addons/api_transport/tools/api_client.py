@@ -22,6 +22,7 @@ from .exceptions import (
     ClientError,
     CommError,
     CommTimeoutError,
+    HostNotAllowedError,
     RateLimitError,
     ServerError,
 )
@@ -211,6 +212,22 @@ def _masked_cause(exc: BaseException) -> BaseException:
     return exc
 
 
+class _CredentialSession(requests.Session):
+    # requests strips only Authorization on a cross-host redirect; a vendor key
+    # in X-API-Key or a custom header would follow the redirect to the new host.
+    credential_header_names = frozenset()
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        if not self.credential_header_names:
+            return
+        if not self.should_strip_auth(response.request.url, prepared_request.url):
+            return
+        for name in list(prepared_request.headers):
+            if name.lower() in self.credential_header_names:
+                del prepared_request.headers[name]
+
+
 class OutboundAPIClient:
     def __init__(self, env, endpoint_code, company_id=None, credential_id=None):
         self.env = env
@@ -218,6 +235,7 @@ class OutboundAPIClient:
         self.company_id = company_id or env.company.id
         self.user_id = env.user.id
         self._credential_header_names = frozenset()
+        self._credential_auth_applied = False
 
         self.service = (
             env["api.endpoint.outbound"]
@@ -259,6 +277,19 @@ class OutboundAPIClient:
                 _("Credentials have expired on %s") % self.credential.date_expiration,
             )
 
+        bound_endpoint = self.credential.endpoint_id
+        self._credential_usable = bool(self.credential) and (
+            not bound_endpoint or bound_endpoint == self.service
+        )
+        if self.credential and not self._credential_usable:
+            _logger.warning(
+                "Credential %s is bound to endpoint '%s' and will not authenticate "
+                "calls to '%s'; the request is sent without its secret.",
+                self.credential.id,
+                bound_endpoint.code,
+                endpoint_code,
+            )
+
         self.session = self._get_or_create_session()
 
         environment = (
@@ -291,7 +322,7 @@ class OutboundAPIClient:
         return session
 
     def _create_session(self):
-        session = requests.Session()
+        session = _CredentialSession()
 
         adapter = HTTPAdapter(
             pool_connections=10,
@@ -357,6 +388,8 @@ class OutboundAPIClient:
             self.check_rate_limit()
 
         self._update_request_kwargs(url, kwargs)
+        self._check_credential_host(url, kwargs)
+        self.session.credential_header_names = self._credential_header_names
         start_time = datetime.now()
 
         try:
@@ -431,7 +464,9 @@ class OutboundAPIClient:
                 self.service.timeout_read or 30,
             )
         kwargs.setdefault("verify", self._get_tls_verification(url))
-        kwargs.setdefault("auth", self._get_auth())
+        credential_auth = None if "auth" in kwargs else self._get_auth()
+        self._credential_auth_applied = credential_auth is not None
+        kwargs.setdefault("auth", credential_auth)
 
     def _deliver(
         self, response, elapsed_ms, raw, method, url, kwargs, trace_id, skip_logging
@@ -675,9 +710,30 @@ class OutboundAPIClient:
 
         return full_url
 
+    def _check_credential_host(self, url, kwargs):
+        if not (self._credential_header_names or self._credential_auth_applied):
+            return
+        host = urlparse(url).hostname or ""
+        if self.service._is_credential_host_allowed(host):
+            return
+        _logger.error(
+            "Refused to send the credential of service '%s' to '%s': the host is "
+            "neither the endpoint's own nor listed in its allowed hosts.",
+            self.endpoint_code,
+            host,
+        )
+        raise HostNotAllowedError(
+            _(
+                "Refusing to send the credential of service '%(service)s' to "
+                "'%(host)s'. Add the host to the endpoint's Allowed Hosts if it "
+                "is meant to receive it.",
+            )
+            % {"service": self.endpoint_code, "host": host},
+        )
+
     def _get_headers(self, additional_headers=None):
         credential_headers = (
-            self.credential.get_auth_headers() if self.credential else {}
+            self.credential.get_auth_headers() if self._credential_usable else {}
         )
         self._credential_header_names = frozenset(
             str(name).lower() for name in credential_headers
@@ -703,7 +759,7 @@ class OutboundAPIClient:
     def _get_auth(self):
         if self.service.auth_type not in self._HTTP_AUTH_TYPES:
             return None
-        if not self.credential:
+        if not self._credential_usable:
             return None
         pair = self.credential.get_basic_auth()
         if self.service.auth_type == "digest":
