@@ -1,6 +1,5 @@
 import logging
 from collections import defaultdict
-from collections.abc import Callable
 from typing import Any
 
 from odoo import http
@@ -45,32 +44,10 @@ class WebclientController(ThreadController):
         cls, fetch_params: list[str | list], context: dict | None
     ) -> dict:
         cls._update_context_from_client(context)
-        if request.env.cr.readonly:
-            store = Store()
-
-            def answer_whole_batch() -> None:
-                with request.env.cr.savepoint():
-                    request.update_context(mail_fetch_batched=True)
-                    try:
-                        cls._process_request_loop(store, fetch_params)
-                    finally:
-                        request.update_context(mail_fetch_batched=False)
-
-            if cls._absorbing_failure(
-                answer_whole_batch,
-                missing="Batched fetch needed a record that no longer exists; "
-                "answering each param in isolation.",
-                failed="Batched fetch failed; answering each param in isolation.",
-                traceback=False,
-            ):
-                _debug.logic("fetch_answered", by="batch", params=len(fetch_params))
-                return store.get_result()
-            _debug.logic("fetch_batch_fell_back", params=len(fetch_params))
         store = Store()
         with _debug.perf(
             "fetch_answered",
             cr=request.env.cr,
-            by="isolated",
             params=len(fetch_params) if isinstance(fetch_params, (list, tuple)) else 0,
             readonly=request.env.cr.readonly,
         ):
@@ -126,42 +103,28 @@ class WebclientController(ThreadController):
         if request.env.user._is_internal():
             cls._process_request_for_internal_user(store, name, params)
 
-    @staticmethod
-    def _absorbing_failure(
-        work: Callable[[], None], *, missing: str, failed: str, traceback: bool
-    ) -> bool:
+    @classmethod
+    def _process_one_request(cls, store: Store, name: str, params: Any) -> None:
         try:
-            work()
+            with request.env.cr.savepoint():
+                cls._dispatch_one_request(store, name, params)
         except PROPAGATED_BATCH_ERRORS:
             raise
         except MissingError:
-            _debug.logic("fetch_absorbed", error="MissingError")
-            _logger.info(missing)
+            _debug.logic("fetch_absorbed", name=name, error="MissingError")
+            _logger.info(
+                "Discarding fetch param %r: a record it needed no longer exists.",
+                name,
+            )
         except UserError:
             raise
         except Exception as error:
-            _debug.logic("fetch_absorbed", error=type(error).__name__)
-            _logger.log(
-                logging.ERROR if traceback else logging.INFO, failed, exc_info=True
+            _debug.logic("fetch_absorbed", name=name, error=type(error).__name__)
+            _logger.exception(
+                "Discarding fetch param %r: it failed while the rest of the batch "
+                "is answered normally.",
+                name,
             )
-        else:
-            return True
-        return False
-
-    @classmethod
-    def _process_one_request(cls, store: Store, name: str, params: Any) -> None:
-        def answer_one_param() -> None:
-            with request.env.cr.savepoint():
-                cls._dispatch_one_request(store, name, params)
-
-        cls._absorbing_failure(
-            answer_one_param,
-            missing=f"Discarding fetch param {name!r}: a record it needed no longer "
-            f"exists.",
-            failed=f"Discarding fetch param {name!r}: it failed while the rest of the "
-            f"batch is answered normally.",
-            traceback=True,
-        )
 
     @classmethod
     def _process_request_for_all(cls, store: Store, name: str, params: Any) -> None:

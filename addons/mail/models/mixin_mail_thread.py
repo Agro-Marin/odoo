@@ -88,7 +88,7 @@ def _escape_body(body: str | Literal[False] | None) -> str:
 
 
 _NOTIFY_TRANSPORT_PARAMETERS = frozenset(
-    {"email_collector", "email_prefetch", "follower_data"}
+    {"email_collector", "email_prefetch", "follower_data", "inbox_collector"}
 )
 
 
@@ -1493,13 +1493,24 @@ class MixinMailThread(models.AbstractModel):
             values_list,
             include_followers=not notif_kwargs.get("notify_skip_followers"),
         )
+        records._message_post_batch_notify(
+            messages, values_list, follower_data, notif_kwargs
+        )
+        return messages
+
+    def _message_post_batch_notify(
+        self,
+        messages: MailMessage,
+        values_list: list[dict],
+        follower_data: dict,
+        notif_kwargs: dict,
+    ) -> None:
         email_collector: list[dict] = []
+        inbox_collector: list[dict] = []
         email_prefetch = (
-            records._notify_by_email_prefetch(messages)
-            if not records._is_notification_scheduled(
-                notif_kwargs.get("scheduled_date")
-            )
-            and records._notify_batch_wants_email_prefetch(follower_data, values_list)
+            self._notify_by_email_prefetch(messages)
+            if not self._is_notification_scheduled(notif_kwargs.get("scheduled_date"))
+            and self._notify_batch_wants_email_prefetch(follower_data, values_list)
             else {}
         )
         with _debug.perf(
@@ -1510,7 +1521,7 @@ class MixinMailThread(models.AbstractModel):
             prefetched=len(email_prefetch),
         ) as span:
             for record, message, values in zip(
-                records, messages, values_list, strict=True
+                self, messages, values_list, strict=True
             ):
                 record._message_post_after_hook(message, values)
                 record._notify_thread(
@@ -1519,15 +1530,16 @@ class MixinMailThread(models.AbstractModel):
                     follower_data={record.id: follower_data.get(record.id, {})},
                     email_collector=email_collector,
                     email_prefetch=email_prefetch.get(message.id),
+                    inbox_collector=inbox_collector,
                     **notif_kwargs,
                 )
-            span.set(collected=len(email_collector))
+            span.set(collected=len(email_collector), inbox=len(inbox_collector))
+        self._notify_by_inbox_flush(inbox_collector)
         self._notify_by_email_flush(
             email_collector,
             force_send=notif_kwargs.get("force_send", True),
             send_after_commit=notif_kwargs.get("send_after_commit", True),
         )
-        return messages
 
     def _message_post_batch_check_parameters(
         self, kwargs: dict, message_type: str
@@ -2234,6 +2246,7 @@ class MixinMailThread(models.AbstractModel):
             "mail.followers"
         ]._get_recipient_data(self, "user_notification", subtype_id, all_pids)
         email_collector: list[dict] = []
+        inbox_collector: list[dict] = []
         email_prefetch = (
             self._notify_by_email_prefetch(messages)
             if self._notify_batch_wants_email_prefetch(follower_data, values_list)
@@ -2261,8 +2274,10 @@ class MixinMailThread(models.AbstractModel):
                 follower_data={notified.id: record_data},
                 email_collector=email_collector,
                 email_prefetch=email_prefetch.get(message.id),
+                inbox_collector=inbox_collector,
                 **notif_kwargs,
             )
+        self._notify_by_inbox_flush(inbox_collector)
         self._notify_by_email_flush(
             email_collector,
             force_send=notif_kwargs.get("force_send", True),
@@ -2722,6 +2737,7 @@ class MixinMailThread(models.AbstractModel):
             "force_email_lang",
             "force_record_name",
             "force_send",
+            "inbox_collector",
             "mail_auto_delete",
             "model_description",
             "notify_author",
@@ -2908,6 +2924,7 @@ class MixinMailThread(models.AbstractModel):
         message: MailMessage,
         recipients_data: list[dict],
         msg_vals: dict | Literal[False] = False,
+        inbox_collector: list[dict] | None = None,
         **kwargs,
     ) -> None:
         inbox_pids_uids = sorted(
@@ -2917,85 +2934,158 @@ class MixinMailThread(models.AbstractModel):
                 if r["id"] and r["notif"] == "inbox"
             ]
         )
-        if inbox_pids_uids:
-            notif_create_values = [
-                {
-                    "author_id": message.author_id.id,
-                    "mail_message_id": message.id,
-                    "notification_status": "sent",
-                    "notification_type": "inbox",
-                    "res_partner_id": pid_uid[0],
-                }
-                for pid_uid in inbox_pids_uids
-            ]
-            self.env["mail.notification"].sudo().create(notif_create_values)
-            users = self.env["res.users"].browse(i[1] for i in inbox_pids_uids if i[1])
-            _debug.lifecycle(
-                "inbox_notifications_created",
+        if not inbox_pids_uids:
+            return
+        entry = {
+            "message": message,
+            "msg_vals": msg_vals,
+            "pids_uids": inbox_pids_uids,
+        }
+        if inbox_collector is not None:
+            _debug.logic(
+                "inbox_collected",
                 model=self._name,
                 message=message.id,
                 partners=len(inbox_pids_uids),
-                users=len(users),
             )
-            followers = (
-                self.env["mail.followers"]
-                .sudo()
-                .search_fetch(
-                    [
-                        ("res_model", "=", message.model),
-                        ("res_id", "=", message.res_id),
-                        ("partner_id", "in", users.partner_id.ids),
-                    ],
-                    ["res_model", "res_id", "partner_id"],
-                )
-            )
-            starred_pids = self._notify_inbox_get_starred_pids(
-                message, [pid for pid, _uid in inbox_pids_uids]
-            )
-            author_sudo = message.sudo().author_id
-            starred_field = message._fields["starred"]
-            main_user_field = author_sudo._fields["main_user_id"]
-            shared_main_user_id = None
-            shared_main_user_computed = False
-            for user in users:
-                message_for_user = message.with_user(user).with_context(
-                    allowed_company_ids=[],
-                    mail_notify_inbox=True,
-                )
-                starred_field._insert_cache(
-                    message_for_user, [user.partner_id.id in starred_pids]
-                )
-                if author_sudo and author_sudo.id != user.partner_id.id:
-                    author_for_user = message_for_user.sudo().author_id
-                    if not shared_main_user_computed:
-                        shared_main_user_id = author_for_user.main_user_id.id or None
-                        shared_main_user_computed = True
-                    else:
-                        main_user_field._insert_cache(
-                            author_for_user, [shared_main_user_id]
-                        )
-                store = Store(bus_channel=user).add(
-                    message_for_user,
-                    msg_vals=msg_vals,
-                    add_followers=True,
-                    followers=followers,
-                )
-                user._bus_send(
-                    "mail.message/inbox",
-                    {
-                        "message_id": message.id,
-                        "store_data": store.get_result(),
-                    },
-                )
+            inbox_collector.append(entry)
+            return
+        self._notify_by_inbox_flush([entry])
 
-    def _notify_inbox_get_starred_pids(
-        self, message: MailMessage, partner_ids: list[int]
-    ) -> frozenset[int]:
-        if not partner_ids:
-            return frozenset()
-        return frozenset(message.sudo().starred_partner_ids.ids) & frozenset(
-            partner_ids
+    def _notify_by_inbox_flush(self, collected: list[dict]) -> None:
+        if not collected:
+            return
+        messages_sudo = (
+            self.env["mail.message"]
+            .sudo()
+            .browse([entry["message"].id for entry in collected])
         )
+        entries_by_message_id = {entry["message"].id: entry for entry in collected}
+        with _debug.perf(
+            "inbox_flush",
+            cr=self.env.cr,
+            model=self._name,
+            messages=len(collected),
+        ) as span:
+            self.env["mail.notification"].sudo().create(
+                [
+                    {
+                        "author_id": message.author_id.id,
+                        "mail_message_id": message.id,
+                        "notification_status": "sent",
+                        "notification_type": "inbox",
+                        "res_partner_id": pid,
+                    }
+                    for message in messages_sudo
+                    for pid, _uid in entries_by_message_id[message.id]["pids_uids"]
+                ]
+            )
+            entries_by_uid: dict[int, list[tuple[dict, int]]] = defaultdict(list)
+            for entry in collected:
+                for pid, uid in entry["pids_uids"]:
+                    if uid:
+                        entries_by_uid[uid].append((entry, pid))
+            followers_by_thread = self._notify_inbox_get_followers(
+                messages_sudo, entries_by_uid
+            )
+            starred_pids_by_message = {
+                message.id: frozenset(message.starred_partner_ids.ids)
+                for message in messages_sudo
+            }
+            span.set(
+                notifications=sum(len(e["pids_uids"]) for e in collected),
+                users=len(entries_by_uid),
+            )
+
+        shared_main_user_by_author: dict[int, int | None] = {}
+        for uid, user_entries in entries_by_uid.items():
+            self._notify_by_inbox_push(
+                self.env["res.users"].browse(uid),
+                user_entries,
+                starred_pids_by_message,
+                followers_by_thread,
+                shared_main_user_by_author,
+            )
+
+    def _notify_by_inbox_push(
+        self,
+        user: ResUsers,
+        user_entries: list[tuple[dict, int]],
+        starred_pids_by_message: dict[int, frozenset[int]],
+        followers_by_thread: dict[tuple[str, int], MailFollowers],
+        shared_main_user_by_author: dict[int, int | None],
+    ) -> None:
+        main_user_field = self.env["res.partner"]._fields["main_user_id"]
+        starred_field = self.env["mail.message"]._fields["starred"]
+        messages_for_user = (
+            self.env["mail.message"]
+            .browse([entry["message"].id for entry, _pid in user_entries])
+            .with_user(user)
+            .with_context(allowed_company_ids=[], mail_notify_inbox=True)
+        )
+        starred_field._insert_cache(
+            messages_for_user,
+            [
+                pid in starred_pids_by_message[entry["message"].id]
+                for entry, pid in user_entries
+            ],
+        )
+        for message_for_user, (entry, pid) in zip(
+            messages_for_user, user_entries, strict=True
+        ):
+            author_sudo = message_for_user.sudo().author_id
+            if author_sudo and author_sudo.id != pid:
+                if author_sudo.id in shared_main_user_by_author:
+                    main_user_field._insert_cache(
+                        author_sudo, [shared_main_user_by_author[author_sudo.id]]
+                    )
+                else:
+                    shared_main_user_by_author[author_sudo.id] = (
+                        author_sudo.main_user_id.id or None
+                    )
+            message_sudo = message_for_user.sudo()
+            store = Store(bus_channel=user).add(
+                message_for_user,
+                msg_vals=entry["msg_vals"],
+                add_followers=True,
+                followers=followers_by_thread.get(
+                    (message_sudo.model, message_sudo.res_id),
+                    self.env["mail.followers"].sudo(),
+                ),
+            )
+            user._bus_send(
+                "mail.message/inbox",
+                {
+                    "message_id": message_for_user.id,
+                    "store_data": store.get_result(),
+                },
+            )
+
+    def _notify_inbox_get_followers(
+        self,
+        messages_sudo: MailMessage,
+        entries_by_uid: dict[int, list[tuple[dict, int]]],
+    ) -> dict[tuple[str, int], MailFollowers]:
+        void = self.env["mail.followers"].sudo()
+        if not entries_by_uid:
+            return {}
+        partner_ids = self.env["res.users"].browse(list(entries_by_uid)).partner_id.ids
+        res_ids_by_model = defaultdict(set)
+        for message in messages_sudo:
+            if message.model and message.res_id:
+                res_ids_by_model[message.model].add(message.res_id)
+        if not res_ids_by_model:
+            return {}
+        domain = Domain.OR(
+            Domain("res_model", "=", model) & Domain("res_id", "in", list(res_ids))
+            for model, res_ids in res_ids_by_model.items()
+        ) & Domain("partner_id", "in", partner_ids)
+        followers_by_thread = defaultdict(lambda: void)
+        for follower in void.search_fetch(
+            domain, ["res_model", "res_id", "partner_id"]
+        ):
+            followers_by_thread[(follower.res_model, follower.res_id)] |= follower
+        return followers_by_thread
 
     def _notify_thread_by_email(
         self,

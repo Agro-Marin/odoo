@@ -41,6 +41,7 @@ has them (suggested-recipients, partner resolution, low-level tracking).
 | `mixin_mail_gateway.py` | `mixin.mail.gateway` | A | Inbound-email routing: parse, match a thread, decide the route (`mixin.mail.thread` inherits it) |
 | `mixin_mail_attachment_owner.py` | `mixin.mail.attachment.owner` | A | Re-owns the attachments a create/write links, for `mail.template` and `mailing.mailing` |
 | `mixin_store_sync.py` | `mixin.store.sync` (inh `mixin.bus.listener`) | A | Broadcasts the store fields a write changed (`discuss.channel`, `discuss.channel.member`) |
+| `mixin_mail_presence.py` | `mixin.mail.presence` | A | `im_status` / `offline_since` with their access tokens and the `avatar_128` / `im_status` store shapes, shared by `res.partner` and `mail.guest` (both also `mixin.avatar`); each keeps its own `_compute_presence` |
 
 ### Data models
 
@@ -115,7 +116,7 @@ has them (suggested-recipients, partner resolution, low-level tracking).
 | `discuss_call_history.py` | `discuss.call.history` | M | Call history log |
 | `discuss_gif_favorite.py` | `discuss.gif.favorite` | M | Favorite Tenor GIFs |
 | `discuss_voice_metadata.py` | `discuss.voice.metadata` | M | Voice-message attachment metadata |
-| `mail_guest.py` | `mail.guest` (inh `mixin.avatar`, `mixin.bus.listener`) | M | Portal / anonymous guest identity |
+| `mail_guest.py` | `mail.guest` (inh `mixin.avatar`, `mixin.mail.presence`, `mixin.bus.listener`) | M | Portal / anonymous guest identity |
 | `mixin_bus_listener.py` | inh `mixin.bus.listener` | A | Bus-notify helper (mail extensions) |
 | `mail_message.py` | inh `mail.message` | M | Discuss extensions to messages |
 | `ir_attachment.py`, `ir_websocket.py`, `res_groups.py`, `res_partner.py`, `res_users.py` | inh respective | M/A | Discuss extensions of framework/user models |
@@ -138,7 +139,7 @@ All extend an existing framework model; most add mail behavior.
 
 | File | `_name` / `_inherit` | Kind | Role |
 |------|----------------------|------|------|
-| `res_partner.py` | `res.partner` (**+`mixin.mail.activity`, `mixin.mail.thread.blacklist`**) | M | Partner mail behavior |
+| `res_partner.py` | `res.partner` (**+`mixin.mail.activity`, `mixin.mail.presence`, `mixin.mail.thread.blacklist`**) | M | Partner mail behavior |
 | `res_users.py` | `res.users` | M | User notification prefs, presence |
 | `res_company.py` | `res.company` | M | Company alias/catchall config |
 | `res_config_settings.py` | `res.config.settings` | T | Discuss/mail settings |

@@ -2567,6 +2567,84 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                 "message %s (%s ancestors)" % (message.id, len(per_thread)),
             )
 
+    def test_inbox_notifications_are_flushed_once_per_batch(self):
+        """A batch post writes its inbox notifications once, and pushes one
+        ``mail.message/inbox`` per message and recipient, each carrying that
+        recipient's own view of the message.
+        """
+        inbox_users = self.user_employee | mail_new_test_user(
+            self.env,
+            login="inbox_2",
+            groups="base.group_user",
+            name="Second Inbox",
+            notification_type="inbox",
+        )
+        records = self.env["mail.test.simple"].create(
+            [{"name": f"Inbox {idx}"} for idx in range(3)]
+        )
+        records.message_subscribe(partner_ids=inbox_users.partner_id.ids)
+        self.env.flush_all()
+
+        Notification = type(self.env["mail.notification"])
+        create_origin = Notification.create
+        create_sizes = []
+
+        def _create(model, vals_list):
+            create_sizes.append(len(vals_list))
+            return create_origin(model, vals_list)
+
+        with (
+            patch.object(Notification, "create", autospec=True, side_effect=_create),
+            self.mock_bus(),
+        ):
+            messages = records._message_post_batch(
+                {record.id: f"Body {record.id}" for record in records},
+                message_type="comment",
+                subtype_id=self.env.ref("mail.mt_comment").id,
+            )
+            self.env.flush_all()
+
+        inbox_notifs = (
+            self.env["mail.notification"]
+            .sudo()
+            .search(
+                [
+                    ("mail_message_id", "in", messages.ids),
+                    ("notification_type", "=", "inbox"),
+                ]
+            )
+        )
+        self.assertEqual(len(inbox_notifs), 6, "one per message and recipient")
+        self.assertEqual(create_sizes, [6], "one create call for the whole batch")
+        self.assertEqual(set(inbox_notifs.mapped("mail_message_id")), set(messages))
+        self.assertEqual(
+            set(inbox_notifs.mapped("res_partner_id")), set(inbox_users.partner_id)
+        )
+        for user in inbox_users:
+            channel = [self.env.cr.dbname, "res.partner", user.partner_id.id]
+            inbox_pushes = [
+                payload["payload"]
+                for payload in (
+                    json.loads(notif.message)
+                    for notif in self._new_bus_notifs
+                    if json.loads(notif.channel) == channel
+                )
+                if payload["type"] == "mail.message/inbox"
+            ]
+            self.assertEqual(
+                sorted(push["message_id"] for push in inbox_pushes),
+                sorted(messages.ids),
+                f"one inbox push per message for {user.login}",
+            )
+            for push in inbox_pushes:
+                stored = next(
+                    data
+                    for data in push["store_data"]["mail.message"]
+                    if data["id"] == push["message_id"]
+                )
+                self.assertTrue(stored["needaction"], "seen as unread by its recipient")
+                self.assertIn("thread", stored)
+
     @mute_logger(
         "odoo.addons.mail.models.mail_mail",
         "odoo.addons.mail.models.mixin_mail_thread",

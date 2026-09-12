@@ -22,7 +22,12 @@ ROOT_EMAIL_UNIQUENESS_FIELDS = frozenset({"email", "active"})
 
 class ResPartner(models.Model):
     _name = "res.partner"
-    _inherit = ["res.partner", "mixin.mail.activity", "mixin.mail.thread.blacklist"]
+    _inherit = [
+        "res.partner",
+        "mixin.mail.activity",
+        "mixin.mail.presence",
+        "mixin.mail.thread.blacklist",
+    ]
     _mail_flat_thread = False
 
     name = fields.Char(tracking=1)
@@ -35,16 +40,6 @@ class ResPartner(models.Model):
         compute="_compute_contact_address_inline",
         string="Inlined Complete Address",
         tracking=True,
-    )
-    im_status = fields.Char(
-        "IM Status",
-        compute="_compute_presence",
-        compute_sudo=True,
-    )
-    offline_since = fields.Datetime(
-        "Offline since",
-        compute="_compute_presence",
-        compute_sudo=True,
     )
 
     @api.depends("contact_address")
@@ -314,10 +309,6 @@ class ResPartner(models.Model):
             for (name, email_normalized), email in zip(name_emails, emails, strict=True)
         ]
 
-    def _get_im_status_access_token(self) -> str:
-        self.check_singleton()
-        return limited_field_access_token(self, "im_status", scope="mail.presence")
-
     def _get_mention_token(self) -> str:
         self.check_singleton()
         return limited_field_access_token(self, "id", scope="mail.message_mention")
@@ -338,24 +329,6 @@ class ResPartner(models.Model):
                 ["email", Store.Attr("phone", lambda p: p._phone_get_number().number)]
             )
         return fields
-
-    def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:
-        if field_spec == "avatar_128":
-            return [
-                Store.Attr(
-                    "avatar_128_access_token",
-                    lambda p: p._get_avatar_128_access_token(),
-                ),
-                "write_date",
-            ]
-        if field_spec == "im_status":
-            return [
-                "im_status",
-                Store.Attr(
-                    "im_status_access_token", lambda p: p._get_im_status_access_token()
-                ),
-            ]
-        return [field_spec]
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         res = [

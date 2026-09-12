@@ -6,6 +6,7 @@ from . import mixin_delay
 from . import mixin_mail_activity
 from . import mixin_mail_alias_optional
 from . import mixin_mail_alias
+from . import mixin_mail_presence
 from . import mixin_mail_render
 from . import mixin_mail_composer
 from . import mixin_mail_gateway

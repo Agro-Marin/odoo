@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 66 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 153 `*.test.js`).
+(`tests/`, 68 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 153 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -47,7 +47,7 @@ Class counts measured 2026-08-17 at `dd172d10485`; `factcheck.sh` pins them.
 | `mail_notification` | 1 | `test_mail_notification.py` | `format_failure_reason`, in the recipient's language |
 | `web_manifest` | 1 | `test_webmanifest.py` | Service worker + web manifest served to the browser |
 
-**36 of the 66 test files carry no topic tag at all** and are reachable only by the module
+**38 of the 68 test files carry no topic tag at all** and are reachable only by the module
 filter — among them `test_fetchmail.py`, `test_mail_mail.py`, `test_mail_blacklist.py`,
 `test_mail_message_access_parity.py`, `test_mail_message_search.py`, `test_uninstall.py`,
 `test_update_notification.py`, and **18 of the 28 files** in `discuss/`. That is **more than
