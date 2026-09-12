@@ -5,6 +5,7 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.view_validation import IGNORED_IN_EXPRESSION
 
@@ -12,6 +13,9 @@ _ALLOWED_DOMAIN_NAMES = frozenset(IGNORED_IN_EXPRESSION) | {
     "companies",
     "company_id",
 }
+
+
+_debug = DebugLog(__name__)
 
 
 class IrFilters(models.Model):
@@ -81,6 +85,13 @@ class IrFilters(models.Model):
         if not embedded_action_id and "embedded_parent_res_id" in vals:
             del vals["embedded_parent_res_id"]
         self._check_serialized_vals(vals)
+        _debug.lifecycle(
+            "create_filter",
+            model=vals.get("model_id"),
+            action=vals.get("action_id"),
+            embedded_action=embedded_action_id,
+            uid=self.env.uid,
+        )
         return self.create(vals)
 
     @api.model
@@ -150,6 +161,13 @@ class IrFilters(models.Model):
         user_context = self.env["res.users"].context_get()
         action_domain = self._get_domain_for_action(
             action_id, embedded_action_id, embedded_parent_res_id
+        )
+        _debug.logic(
+            "get_filters",
+            model=model,
+            action=action_id,
+            embedded_action=embedded_action_id,
+            uid=self.env.uid,
         )
         return self.with_context(user_context).search_read(
             action_domain

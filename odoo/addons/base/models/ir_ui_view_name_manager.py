@@ -6,9 +6,11 @@ from typing import Any
 from lxml import etree
 from markupsafe import Markup
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _, frozendict
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class NameManager:
@@ -118,6 +120,14 @@ class NameManager:
         return access_groups
 
     def check(self, view: Any) -> None:
+        _debug.pipeline(
+            "name_manager_check",
+            view=view.id,
+            model=self.model._name,
+            used_names=len(self.used_names),
+            available_fields=len(self.available_fields),
+            children=len(self.children),
+        )
         self._check_used_names(view)
         self._check_available_fields(view)
         self._check_required_actions(view)

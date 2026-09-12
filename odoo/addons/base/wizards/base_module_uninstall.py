@@ -1,6 +1,9 @@
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class BaseModuleUninstall(models.TransientModel):
@@ -70,4 +73,5 @@ class BaseModuleUninstall(models.TransientModel):
 
     def action_uninstall(self) -> dict[str, Any]:
         modules = self.module_ids
+        _debug.lifecycle("wizard_uninstall", modules=modules.mapped("name"))
         return modules.button_immediate_uninstall()

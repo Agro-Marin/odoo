@@ -13,12 +13,14 @@ from odoo.http import (
     request,
     root,
 )
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, unique
 from odoo.tools.translate import _
 
 from .res_users import check_identity
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _MOBILE_PLATFORMS = frozenset(
     {
@@ -176,6 +178,13 @@ class ResDeviceLog(models.Model):
                 )
             )
         _logger.info("User %d inserts device log (%s)", user_id, session_identifier)
+        _debug.lifecycle(
+            "device_log_inserted",
+            uid=user_id,
+            platform=trace["platform"],
+            browser=trace["browser"],
+            readonly_cursor=self.env.cr.readonly,
+        )
 
     @api.autovacuum
     def _gc_device_log(self) -> None:
@@ -203,6 +212,7 @@ class ResDeviceLog(models.Model):
             )
         )
         _logger.info("GC device logs delete %d entries", self.env.cr.rowcount)
+        _debug.lifecycle("gc_device_logs", count=self.env.cr.rowcount)
 
     @api.autovacuum
     def _update_revoked(self) -> None:
@@ -232,6 +242,11 @@ class ResDeviceLog(models.Model):
                 root.session_store.get_missing_session_identifiers(
                     set(candidate_device_log_ids.mapped("session_identifier"))
                 )
+            )
+            _debug.pipeline(
+                "revoke_sweep",
+                candidates=len(candidate_device_log_ids),
+                missing_sessions=len(revoked_session_identifiers),
             )
             if revoked_session_identifiers:
                 to_revoke = candidate_device_log_ids.filtered(
@@ -274,6 +289,13 @@ class ResDevice(models.Model):
         )
 
         must_logout = bool(self.filtered("is_current"))
+        _debug.lifecycle(
+            "devices_revoked",
+            uid=self.env.uid,
+            sessions=len(session_identifiers),
+            logs=len(revoked_devices),
+            logout=must_logout,
+        )
         if must_logout:
             request.session.logout()
 

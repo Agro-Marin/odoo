@@ -7,12 +7,14 @@ from psycopg.errors import ReadOnlySqlTransaction
 from odoo import models
 from odoo.fields import Domain
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets.esbuild import minify_js
 from odoo.tools.assets.esm_libs import served_lib_content
 
 from odoo.addons.base.models.ir_qweb_assets import _EsmReadonlyDeclined
 
 _attach_log = get_asset_logger("attach")
+_debug = DebugLog(__name__)
 
 
 class IrQweb(models.AbstractModel):
@@ -65,6 +67,12 @@ class IrQweb(models.AbstractModel):
                     "url": served_url,
                 }
             )
+        _debug.lifecycle(
+            "served_libs",
+            declared=len(files),
+            present=len(present),
+            missing=len(vals_list),
+        )
         if not vals_list:
             return
         try:

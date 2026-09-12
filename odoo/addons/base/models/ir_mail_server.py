@@ -27,6 +27,7 @@ from urllib3.util.ssl_match_hostname import CertificateError, match_hostname
 
 from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.email import extract_rfc2822_addresses
 from odoo.tools import (
     email_domain_extract,
@@ -37,6 +38,7 @@ from odoo.tools import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _test_logger = logging.getLogger("odoo.tests")
 
 SMTP_TIMEOUT = 60
@@ -648,6 +650,15 @@ class IrMail_Server(models.Model):
             mail_server = self.env["ir.mail_server"]
 
         transport = mail_server._prepare_smtp_transport()
+        _debug.logic(
+            "connect",
+            server=mail_server.id or None,
+            forced=bool(mail_server_id),
+            host=transport.server,
+            port=transport.port,
+            encryption=transport.encryption,
+            smtp_from=smtp_from,
+        )
         return self._open_smtp_connection(transport, smtp_from)
 
     def _prepare_smtp_transport(self) -> _SmtpTransport:
@@ -753,6 +764,29 @@ class IrMail_Server(models.Model):
                 )
             )
 
+        with _debug.perf(
+            "smtp_connect",
+            host=transport.server,
+            port=transport.port,
+            encryption=transport.encryption,
+            login=bool(transport.user),
+        ):
+            connection = self._open_smtp_socket(transport)
+
+        self._stash_session_context(
+            connection,
+            _SmtpSessionContext(
+                from_filter=transport.from_filter,
+                smtp_from=smtp_from,
+                mail_server_id=transport.login_server.id or None,
+            ),
+        )
+        return connection
+
+    @api.model
+    def _open_smtp_socket(
+        self, transport: _SmtpTransport
+    ) -> smtplib.SMTP | smtplib.SMTP_SSL:
         local_hostname = self._get_smtp_local_hostname()
         if transport.encryption in IMPLICIT_TLS_ENCRYPTIONS:
             connection = smtplib.SMTP_SSL(
@@ -787,15 +821,6 @@ class IrMail_Server(models.Model):
         except Exception:
             connection.close()
             raise
-
-        self._stash_session_context(
-            connection,
-            _SmtpSessionContext(
-                from_filter=transport.from_filter,
-                smtp_from=smtp_from,
-                mail_server_id=transport.login_server.id or None,
-            ),
-        )
         return connection
 
     @staticmethod
@@ -1108,6 +1133,7 @@ class IrMail_Server(models.Model):
         self._alter_message__(message, smtp_from)
 
         if self._match_from_filter(bounce_address, from_filter):
+            _debug.logic("envelope_from_bounce", bounce=bounce_address)
             smtp_from = bounce_address
 
         envelope_sender = self._get_envelope_sender(smtp_from)
@@ -1243,11 +1269,19 @@ class IrMail_Server(models.Model):
 
             if self._disable_send():
                 _test_logger.debug("skip sending email in test mode")
+                _debug.logic("send_skipped_test_mode", message_id=message["Message-Id"])
                 return message["Message-Id"]
 
             message_id = message["Message-Id"]
             try:
-                smtp.send_message(message, smtp_from, smtp_to_list)
+                with _debug.perf(
+                    "smtp_send",
+                    message_id=message_id,
+                    smtp_from=smtp_from,
+                    recipients=len(smtp_to_list),
+                    owns_connection=owns_connection,
+                ):
+                    smtp.send_message(message, smtp_from, smtp_to_list)
             except smtplib.SMTPServerDisconnected:
                 raise
             except Exception as e:
@@ -1286,6 +1320,7 @@ class IrMail_Server(models.Model):
                 mail_servers, index, email_from
             )
         ):
+            _debug.logic("mail_server", server=mail_server.id, by="from_filter")
             return mail_server, email_from
 
         fallbacks = self._filtered_mail_servers_fallback(mail_servers)
@@ -1295,12 +1330,14 @@ class IrMail_Server(models.Model):
                 fallbacks, index, notifications_email
             )
         ):
+            _debug.logic("mail_server", server=mail_server.id, by="notifications_email")
             return mail_server, notifications_email
 
         preferred = notifications_email or email_from
         if mail_server := next(
             (server for server in fallbacks if index(server).unrestricted), None
         ):
+            _debug.logic("mail_server", server=mail_server.id, by="unrestricted")
             return mail_server, preferred
 
         if fallbacks:
@@ -1308,8 +1345,10 @@ class IrMail_Server(models.Model):
                 "No mail server matches the from_filter, using %s as fallback",
                 preferred,
             )
+            _debug.logic("mail_server", server=fallbacks[0].id, by="first_fallback")
             return fallbacks[0], preferred
 
+        _debug.logic("mail_server", server=None, by="cli")
         return None, self._get_cli_envelope_sender(email_from, notifications_email)
 
     @api.model

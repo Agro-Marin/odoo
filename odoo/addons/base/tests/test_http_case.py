@@ -131,7 +131,11 @@ class TestAllowRequests(HttpCase):
 
     def test_cookie_guard_unit(self):
         fake_request = Mock(cookies={}, httprequest=Mock(path="/probe"))
-        with patch.object(odoo.http, "request", fake_request):
+        server_thread = threading.Thread()
+        with (
+            patch.object(odoo.http, "request", fake_request),
+            patch.object(self, "_test_thread", server_thread),
+        ):
             with self.assertRaises(BadRequest):
                 self.assertCanOpenTestCursor()
             with patch.object(self, "http_request_allow_all", True):

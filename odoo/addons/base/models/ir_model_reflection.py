@@ -8,11 +8,13 @@ from odoo import fields, models
 from odoo.api import ValuesType
 from odoo.db import schema as sql
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import normalize_identifier
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _get_owner_ids_by_name(records: models.BaseModel) -> dict[str, set[int]]:
@@ -82,10 +84,12 @@ class IrModelConstraint(models.Model):
     def unlink(self) -> bool:
         self.check_access("unlink")
         owners = _get_owner_ids_by_name(self)
+        _debug.lifecycle("unlink_constraints", count=len(self), names=len(owners))
 
         for data in self.sorted(key="id", reverse=True):
             name = data.name
             if not owners[name].issubset(self._ids):
+                _debug.logic("constraint_kept_shared_owner", name=name)
                 continue
 
             hname = normalize_identifier(name)
@@ -162,6 +166,9 @@ class IrModelConstraint(models.Model):
             )
         )
         if not rows:
+            _debug.lifecycle(
+                "constraint_inserted", name=conname, module=module, type=type
+            )
             [[cons_id]] = self.env.execute_query(
                 SQL(
                     """
@@ -190,6 +197,9 @@ class IrModelConstraint(models.Model):
         [cons] = rows
         cons_id = cons.pop("id")
         if cons != {"type": type, "definition": definition, "message": message}:
+            _debug.lifecycle(
+                "constraint_updated", name=conname, module=module, type=type
+            )
             self.env.execute_query(
                 SQL(
                     """
@@ -214,6 +224,12 @@ class IrModelConstraint(models.Model):
 
         changed = self._get_changed_constraints(expected)
         cons_ids = self._merge_constraints(changed) if changed else {}
+        _debug.pipeline(
+            "reflect_constraints",
+            models=len(model_names),
+            expected=len(expected),
+            changed=len(changed),
+        )
 
         data_list = []
         for name, module in expected:
@@ -363,6 +379,7 @@ class IrModelRelation(models.Model):
             if sql.table_exists(self.env.cr, name):
                 to_drop.add(name)
 
+        _debug.lifecycle("uninstall_relations", count=len(self), drop=list(to_drop))
         self.unlink()
 
         for table in to_drop:
@@ -400,6 +417,12 @@ class IrModelRelation(models.Model):
             )
         )
         missing = {key: name for key, name in expected.items() if key not in existing}
+        _debug.pipeline(
+            "reflect_relations",
+            expected=len(expected),
+            existing=len(existing),
+            missing=len(missing),
+        )
         if not missing:
             return
 

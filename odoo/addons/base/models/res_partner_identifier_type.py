@@ -2,8 +2,11 @@ import re
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 
 from .mixin_catalog import name_uniq_index
+
+_debug = DebugLog(__name__)
 
 _NON_ALPHANUMERIC = re.compile(r"[^\w&]+|_+")
 
@@ -103,6 +106,12 @@ class ResPartnerIdentifierType(models.Model):
                 )
             )
         checker = getattr(self, f"_check_code_{(self.code or '').lower()}", None)
+        _debug.logic(
+            "identifier_checked",
+            type=self.code,
+            pattern=bool(self.pattern),
+            checker=checker.__name__ if checker else None,
+        )
         if checker and not checker(normalized):
             raise ValidationError(
                 self.env._(

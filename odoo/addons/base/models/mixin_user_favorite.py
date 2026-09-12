@@ -2,7 +2,10 @@ from typing import Any
 
 from odoo import Command, api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class MixinUserFavorite(models.AbstractModel):
@@ -41,6 +44,13 @@ class MixinUserFavorite(models.AbstractModel):
             return
         self._check_user_favorite_access()
         command = Command.link if is_favorite else Command.unlink
+        _debug.lifecycle(
+            "user_favorite",
+            model=self._name,
+            records=self.ids,
+            uid=self.env.uid,
+            favorite=is_favorite,
+        )
         self.sudo().favorite_user_ids = [command(self.env.uid)]
 
     def _check_user_favorite_access(self) -> None:

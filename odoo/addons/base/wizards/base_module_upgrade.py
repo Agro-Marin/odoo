@@ -3,8 +3,11 @@ from typing import Any, Self
 import odoo
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.base.models.ir_module import assert_log_admin_access
+
+_debug = DebugLog(__name__)
 
 
 class BaseModuleUpgrade(models.TransientModel):
@@ -74,7 +77,8 @@ class BaseModuleUpgrade(models.TransientModel):
                 )
 
         self.env.cr.commit()
-        odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
+        with _debug.perf("registry_reload", db=self.env.cr.dbname, modules=len(mods)):
+            odoo.modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
         self.env.cr.reset()
 
         return {"type": "ir.actions.act_window_close"}

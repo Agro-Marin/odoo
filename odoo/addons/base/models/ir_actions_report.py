@@ -42,6 +42,7 @@ from odoo.libs.barcode import (
     get_barcode_font,
     is_barcode_encoding_valid,
 )
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import loads as json_loads
 from odoo.service import security
 from odoo.tools import is_html_empty
@@ -341,6 +342,7 @@ _xpath_article = etree.ETXPath(
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _original_compile_node = _cs2_compiler._compile_node
 _MAX_SELECTOR_COMBINATORS = 11
@@ -789,6 +791,19 @@ class WeasyPrintEngine:
                 )
                 for body in bodies
             ]
+            _debug.pipeline(
+                "weasy_render",
+                bodies=len(bodies),
+                split=split,
+                pdfa=wants_pdfa,
+                single_document=wants_single_document,
+                stylesheets=len(parsed_css_by_url),
+                incremental=(
+                    not split
+                    and not wants_single_document
+                    and len(processed) > self._native_merge_max
+                ),
+            )
 
             if split:
                 body_options = self._prepare_body_pdf_options(pdf_options)
@@ -1631,7 +1646,17 @@ class IrActionsReport(models.Model):
         )
         start = perf_counter()
         engine = self._prepare_weasyprint_engine()
-        result = engine.render(bodies, page_css, split=_split, pdf_options=pdf_options)
+        with _debug.perf(
+            "html_to_pdf",
+            report=report.report_name if report else None,
+            bodies=len(bodies),
+            split=_split,
+            variant=pdf_variant,
+        ) as span:
+            result = engine.render(
+                bodies, page_css, split=_split, pdf_options=pdf_options
+            )
+            span.set(warnings=len(engine.warnings))
         if engine.warnings:
             _logger.debug(
                 "WeasyPrint emitted %d warning(s) rendering %s; last: %s",
@@ -1865,7 +1890,8 @@ class IrActionsReport(models.Model):
             .sudo()
             .get_param("web.base.url", default=""),
         )
-        return view_obj._render_template(template, values).encode()
+        with _debug.perf("render_template", cr=self.env.cr, template=template):
+            return view_obj._render_template(template, values).encode()
 
     def _prepare_merge_pdfs_error(
         self,
@@ -1965,6 +1991,13 @@ class IrActionsReport(models.Model):
                 if wants_attachment
                 else None,
             }
+        _debug.logic(
+            "saved_attachment_streams",
+            report=report.report_name,
+            records=len(records),
+            wants_attachment=bool(wants_attachment),
+            reused=sum(1 for v in collected.values() if v["stream"]),
+        )
         return collected
 
     def _render_qweb_pdf_prepare_streams(
@@ -1995,6 +2028,9 @@ class IrActionsReport(models.Model):
         ]
         all_res_ids_wo_stream = res_ids if has_duplicated_ids else res_ids_wo_stream
         is_pdf_needed = not res_ids or res_ids_wo_stream
+        _debug.pipeline(
+            "prepare_streams", to_render=len(all_res_ids_wo_stream), pdf=is_pdf_needed
+        )
 
         if is_pdf_needed:
             data.setdefault("debug", False)
@@ -2207,6 +2243,11 @@ class IrActionsReport(models.Model):
         if not attachment_vals_list:
             return
         attachment_names = ", ".join(x["name"] for x in attachment_vals_list)
+        _debug.lifecycle(
+            "report_attachments_saved",
+            report=report.report_name,
+            count=len(attachment_vals_list),
+        )
         try:
             self.env["ir.attachment"].create(attachment_vals_list)
         except AccessError:
@@ -2283,10 +2324,11 @@ class IrActionsReport(models.Model):
             if len(streams_to_merge) == 1:
                 pdf_content = streams_to_merge[0].getvalue()
             else:
-                with self._merge_pdfs(
-                    streams_to_merge, add_merge_pdfs_error
-                ) as pdf_merged_stream:
-                    pdf_content = pdf_merged_stream.getvalue()
+                with _debug.perf("merge_pdfs", streams=len(streams_to_merge)):
+                    with self._merge_pdfs(
+                        streams_to_merge, add_merge_pdfs_error
+                    ) as pdf_merged_stream:
+                        pdf_content = pdf_merged_stream.getvalue()
         finally:
             if error_record_ids:
                 for stream in streams_to_merge:
@@ -2377,7 +2419,14 @@ class IrActionsReport(models.Model):
                     report=report.report_name,
                 )
             )
-        return render_func(report, res_ids, data=data)
+        with _debug.perf(
+            "render",
+            cr=self.env.cr,
+            report=report.report_name,
+            type=report_type,
+            records=len(res_ids or ()),
+        ):
+            return render_func(report, res_ids, data=data)
 
     def report_action(
         self,

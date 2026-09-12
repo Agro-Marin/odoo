@@ -3,8 +3,11 @@ from typing import Any
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 
 from ..models.res_users import check_identity
+
+_debug = DebugLog(__name__)
 
 
 class ChangePasswordWizard(models.TransientModel):
@@ -53,6 +56,11 @@ class ChangePasswordUser(models.TransientModel):
     new_passwd = fields.Char(string="New Password", default="")
 
     def change_password_button(self) -> None:
+        _debug.lifecycle(
+            "wizard_change_password",
+            by=self.env.uid,
+            users=[line.user_id.id for line in self if line.new_passwd],
+        )
         for line in self:
             if line.new_passwd:
                 line.user_id._change_password(line.new_passwd)

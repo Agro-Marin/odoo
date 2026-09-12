@@ -28,6 +28,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import split_refs
 from odoo.modules.module import get_resource_from_path
 from odoo.tools import SQL, _, config, frozendict, partition, unique
@@ -55,6 +56,7 @@ if TYPE_CHECKING:
     from odoo.tools import SetDefinitions
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MOVABLE_BRANDING = frozenset(
     {
@@ -483,6 +485,7 @@ class IrUiView(models.Model):
                 )
             if not arch:
                 continue
+            _debug.lifecycle("reset_arch", view=view.id, key=view.key, mode=mode)
             view.with_context(no_save_prev=True, lang=None).write(write_dict)
             reset += view
         return reset
@@ -622,6 +625,12 @@ class IrUiView(models.Model):
         )
 
         combined_archs = views._get_combined_archs_by_id()
+        _debug.pipeline(
+            "check_xml",
+            views=len(views),
+            partial=bool(partial_validation),
+            combined=len(combined_archs),
+        )
 
         for view in views:
             if partial_validation and not view.arch:
@@ -901,6 +910,12 @@ class IrUiView(models.Model):
 
         self.env.registry.clear_cache("templates")
         result = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(result),
+            inheriting=sum(1 for v in vals_list if v.get("inherit_id")),
+            types=sorted({v.get("type") for v in vals_list if v.get("type")}),
+        )
         result.with_context(ir_ui_view_partial_validation=True)._check_xml()
         return result
 
@@ -933,6 +948,13 @@ class IrUiView(models.Model):
         recombines = not revalidate and self._is_recombination_required(vals)
         if recombines:
             recombines = self._can_combine()
+        _debug.lifecycle(
+            "write",
+            count=len(self),
+            fields=list(vals),
+            revalidate=revalidate,
+            recombines=recombines,
+        )
 
         res = super().write(self._prepare_view_defaults(vals))
 
@@ -962,6 +984,9 @@ class IrUiView(models.Model):
                 ", ".join(str(view.key or view.id) for view in self),
                 e,
             )
+            _debug.logic(
+                "recombination_deferred", views=self.ids, error=type(e).__name__
+            )
 
     def _is_recombination_required(self, vals: dict[str, Any]) -> bool:
         for fname in _REVALIDATE_ON_CHANGE.intersection(vals):
@@ -976,6 +1001,7 @@ class IrUiView(models.Model):
             self.inherit_children_ids.unlink()
         self.env.registry.clear_cache("templates")
         candidates = self._view_modes_without_default()
+        _debug.lifecycle("unlink", count=len(self), view_modes=len(candidates))
         res = super().unlink()
         self.env["ir.actions.act_window"]._remove_view_modes_without_views(candidates)
         return res
@@ -1099,6 +1125,7 @@ class IrUiView(models.Model):
         )
 
         rows = self.env.execute_query(query)
+        _debug.perf.count("views_inheriting", roots=len(self.ids), rows=len(rows))
         if not rows:
             return self.browse()
 
@@ -1137,6 +1164,12 @@ class IrUiView(models.Model):
                 .items()
                 if xid in self.pool.loaded_xmlids
             )
+        _debug.logic(
+            "filter_loaded_views",
+            candidates=len(ids_to_check),
+            kept=sum(1 for vid in self.ids if vid in valid_view_ids),
+            install_module=install_module,
+        )
         return self.browse(vid for vid in self.ids if vid in valid_view_ids)
 
     def _check_view_access(self) -> bool:
@@ -1145,6 +1178,12 @@ class IrUiView(models.Model):
             return self.inherit_id._check_view_access()
         if set(self.group_ids.ids) & set(self.env.user._get_group_ids()):
             return True
+        _debug.logic(
+            "view_access_denied",
+            view=self.id,
+            uid=self.env.uid,
+            groups=self.group_ids.ids,
+        )
         if self.group_ids:
             error = _(
                 "View '%(name)s' accessible only to groups %(groups)s ",
@@ -1270,10 +1309,12 @@ class IrUiView(models.Model):
             sorted(hierarchy[self], key=lambda v: v.mode == "primary")
         )
         tree_cut_off_view = self.env.context.get("ir_ui_view_tree_cut_off_view")
+        applied = 0  # debuglog
         while queue:
             view = queue.popleft()
             if view == tree_cut_off_view:
                 break
+            applied += 1  # debuglog
             arch = etree.fromstring(view.arch or "<data/>")
             if view.env.context.get("inherit_branding"):
                 view.inherit_branding(arch)
@@ -1286,6 +1327,7 @@ class IrUiView(models.Model):
                 else:
                     queue.appendleft(child_view)
 
+        _debug.pipeline("combine", root=self.id, key=self.key, applied=applied)
         return combined_arch
 
     def get_combined_arch(self) -> str:
@@ -1354,6 +1396,12 @@ class IrUiView(models.Model):
             all_tree_views = all_tree_views._filter_loaded_views(
                 set(views.env.context["check_view_ids"])
             )
+        _debug.pipeline(
+            "combined_archs",
+            requested=len(self),
+            roots=len(roots),
+            tree_views=len(all_tree_views),
+        )
 
         children_views = collections.defaultdict(list)
         for view in all_tree_views:
@@ -1493,6 +1541,13 @@ class IrUiView(models.Model):
         missing_xmlid_views = [
             xmlid for xmlid in xmlids if "." in xmlid and xmlid not in view_by_id
         ]
+        _debug.perf.count(
+            "views_by_ref",
+            ids=len(ids),
+            xmlids=len(xmlids),
+            found=len(views),
+            missing_xmlids=len(missing_xmlid_views),
+        )
         if missing_xmlid_views:
             domain = Domain.OR(
                 Domain("model", "=", "ir.ui.view")
@@ -1556,6 +1611,7 @@ class IrUiView(models.Model):
             if ref
         ]
         missing_refs = [ref for ref in refs if ref not in compile_batch]
+        _debug.logic("preload_views", refs=len(refs), missing=len(missing_refs))
         if not missing_refs:
             return compile_batch
 
@@ -1584,7 +1640,14 @@ class IrUiView(models.Model):
     ) -> tuple[str, dict[str, set[str]]]:
         self and self.check_singleton()
 
-        name_manager = self._postprocess_view(node, model or self.model, **options)
+        with _debug.perf(
+            "postprocess_view",
+            cr=self.env.cr,
+            view=self.id,
+            model=model or self.model,
+            type=node.tag,
+        ):
+            name_manager = self._postprocess_view(node, model or self.model, **options)
         self._strip_arch_indentation(node)
         arch = etree.tostring(node, encoding="unicode")
 

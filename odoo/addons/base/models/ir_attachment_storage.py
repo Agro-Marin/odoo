@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING, Any
 import psycopg.errors
 
 from odoo.exceptions import MissingError
+from odoo.libs.debug_log import DebugLog
 
 if TYPE_CHECKING:
     from odoo.api import Environment
     from odoo.http import Stream
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 STORAGE_BACKENDS: dict[str, type[AttachmentStorage]] = {}
 
@@ -171,6 +173,7 @@ class FileStorage(AttachmentStorage):
 
         checklist = model._get_gc_checklist(limit=model._GC_MAX_ENTRIES)
         capped = len(checklist) >= model._GC_MAX_ENTRIES
+        _debug.pipeline("filestore_gc_checklist", entries=len(checklist), capped=capped)
         if capped:
             _logger.info(
                 "filestore gc: checklist cap reached (%d entries); the "
@@ -185,6 +188,7 @@ class FileStorage(AttachmentStorage):
                 cr.execute("LOCK ir_attachment IN SHARE MODE")
             except psycopg.errors.LockNotAvailable:
                 cr.rollback()
+                _debug.logic("filestore_gc_lock_lost", removed=removed)
                 if not removed:
                     return False
                 _logger.warning(
@@ -211,6 +215,7 @@ class FileStorage(AttachmentStorage):
             with contextlib.suppress(FileNotFoundError):
                 stat = Path(stream.path).stat()
         if stat is None:
+            _debug.logic("stream_file_missing", attachment=attachment.id)
             _logger.warning(
                 "Filestore file missing or invalid for attachment %s: %s",
                 attachment.id,

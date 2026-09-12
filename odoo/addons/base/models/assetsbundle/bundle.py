@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from odoo.api import Environment
 from odoo.libs.asset_log import log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools.assets.constants import (
     SCRIPT_EXTENSIONS,
@@ -45,6 +46,8 @@ from .css_pipeline import CssPipeline
 from .js_pipeline import JsPipeline
 from .store import AssetAttachmentStore
 from .xml_pipeline import XmlTemplatePipeline
+
+_debug = DebugLog(__name__)
 
 
 @functools.cache
@@ -443,16 +446,33 @@ class AssetsBundle:
         is_minified = not self.is_debug_assets
         extension = "min.js" if is_minified else "js"
         js_attachment = self.get_attachments(extension)
+        _debug.logic(
+            "js_attachment",
+            bundle=self.name,
+            minified=is_minified,
+            hit=bool(js_attachment),
+        )
 
         if not js_attachment:
-            template_bundle = (
-                self._xml.legacy_template_iife() if self._has_legacy_templates else ""
-            )
-            if is_minified:
-                content_bundle = self._js.minified_bundle(template_bundle)
-                js_attachment = self.save_attachment(extension, content_bundle)
-            else:
-                js_attachment = self.js_with_sourcemap(template_bundle=template_bundle)
+            with _debug.perf(
+                "js_build",
+                cr=self.env.cr,
+                bundle=self.name,
+                minified=is_minified,
+                assets=len(self.javascripts),
+            ):
+                template_bundle = (
+                    self._xml.legacy_template_iife()
+                    if self._has_legacy_templates
+                    else ""
+                )
+                if is_minified:
+                    content_bundle = self._js.minified_bundle(template_bundle)
+                    js_attachment = self.save_attachment(extension, content_bundle)
+                else:
+                    js_attachment = self.js_with_sourcemap(
+                        template_bundle=template_bundle
+                    )
 
         return js_attachment[0]
 
@@ -501,10 +521,25 @@ class AssetsBundle:
         is_minified = not self.is_debug_assets
         extension = "min.css" if is_minified else "css"
         attachments = self.get_attachments(extension)
+        _debug.logic(
+            "css_attachment",
+            bundle=self.name,
+            minified=is_minified,
+            hit=bool(attachments),
+        )
         if attachments:
             return attachments[0]
 
-        css = self.preprocess_css()
+        with _debug.perf(
+            "css_build",
+            cr=self.env.cr,
+            bundle=self.name,
+            minified=is_minified,
+            stylesheets=len(self.stylesheets),
+            rtl=self.rtl,
+        ) as span:
+            css = self.preprocess_css()
+            span.set(errors=len(self.css_errors))
         if self.css_errors:
             previous_attachment = self.get_attachments(extension, ignore_version=True)
             previous_css = (

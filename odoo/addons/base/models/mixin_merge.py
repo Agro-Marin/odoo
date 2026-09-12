@@ -8,9 +8,11 @@ import psycopg
 
 from odoo import api, models
 from odoo.db import schema as sql_tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, mute_logger
 
 _logger = logging.getLogger("odoo.addons.base.merge")
+_debug = DebugLog(__name__)
 
 
 def _is_searchable_reference_pair(model, field) -> bool:
@@ -120,8 +122,16 @@ class MixinMerge(models.AbstractModel):
 
         self.env.invalidate_all()
 
-        for table, column in relations:
-            self._repoint_table(table, column, src_records, dst_record)
+        with _debug.perf(
+            "repoint_foreign_keys",
+            cr=self.env.cr,
+            model=model,
+            sources=len(src_records),
+            destination=dst_record.id,
+            relations=len(relations),
+        ):
+            for table, column in relations:
+                self._repoint_table(table, column, src_records, dst_record)
 
     def _repoint_table(
         self,
@@ -151,17 +161,25 @@ class MixinMerge(models.AbstractModel):
             return
 
         if len(other_columns) <= 1:
+            _debug.logic("repoint_table", table=table, column=column, strategy="join")
             if other_columns:
                 self._repoint_join_rows(
                     tbl, col, SQL.identifier(other_columns[0]), src_records, dst_record
                 )
         elif not self._has_check_or_unique_constraint(table, column):
+            _debug.logic("repoint_table", table=table, column=column, strategy="bulk")
             self._repoint_rows(tbl, col, src_records.ids, dst_record.id)
         else:
             try:
                 with mute_logger("odoo.db"), self.env.cr.savepoint():
                     self._repoint_rows(tbl, col, src_records.ids, dst_record.id)
+                _debug.logic(
+                    "repoint_table", table=table, column=column, strategy="bulk"
+                )
             except psycopg.Error:
+                _debug.logic(
+                    "repoint_table", table=table, column=column, strategy="one_by_one"
+                )
                 self._repoint_rows_one_by_one(table, column, src_records, dst_record)
 
     def _repoint_join_rows(
@@ -288,6 +306,13 @@ class MixinMerge(models.AbstractModel):
             src_records.ids,
         )
 
+        _debug.pipeline(
+            "repoint_reference_fields",
+            model=referenced_model,
+            sources=len(src_records),
+            destination=dst_record.id,
+            additional=len(additional_update_records or []),
+        )
         self._repoint_sidecar_rows(
             referenced_model, src_records, dst_record, additional_update_records or []
         )
@@ -601,6 +626,14 @@ class MixinMerge(models.AbstractModel):
         deferred_values = {
             name: values.pop(name) for name in deferred_fields if name in values
         }
+        _debug.pipeline(
+            "merge_values",
+            model=dst_record._name,
+            destination=dst_record.id,
+            written=sorted(values),
+            deferred=sorted(deferred_values),
+            per_company=len(values_by_company),
+        )
         dst_record.write(values)
         for company, vals in values_by_company.items():
             dst_record.with_company(company).sudo().write(vals)

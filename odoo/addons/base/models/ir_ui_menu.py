@@ -7,6 +7,9 @@ from typing import Any, Self
 from odoo import _lt, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 MENU_ITEM_SEPARATOR = "/"
 _MISSING = object()
@@ -179,6 +182,13 @@ class IrUiMenu(models.Model):
                 menu = menu.parent_id
                 menu_id = menu.id
 
+        _debug.perf.count(
+            "visible_menus_computed",
+            uid=self.env.uid,
+            debug=debug,
+            candidates=len(menus),
+            visible=len(visible_ids),
+        )
         return frozenset(visible_ids)
 
     def _filter_visible_menus(self) -> Self:
@@ -193,6 +203,7 @@ class IrUiMenu(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         if not vals_list:
             return self.browse()
+        _debug.lifecycle("create", count=len(vals_list))
         self.env.registry.clear_cache()
         return super().create(
             [
@@ -205,6 +216,7 @@ class IrUiMenu(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if self and vals:
+            _debug.lifecycle("write", count=len(self), fields=list(vals))
             self.env.registry.clear_cache()
         if "web_icon" in vals:
             vals = {
@@ -226,6 +238,7 @@ class IrUiMenu(models.Model):
         )
         direct_children.write({"parent_id": False})
 
+        _debug.lifecycle("unlink", count=len(self), orphaned=len(direct_children))
         self.env.registry.clear_cache()
         return super().unlink()
 
@@ -286,6 +299,9 @@ class IrUiMenu(models.Model):
 
         app_info = self._get_app_id_by_menu(children_dict)
         visible_menus = visible_menus.filtered(lambda menu: menu.id in app_info)
+        _debug.pipeline(
+            "load_menus", uid=self.env.uid, debug=debug, visible=len(visible_menus)
+        )
 
         xmlids = visible_menus._get_menuitems_xmlids()
         icons_by_menu = self._get_menu_icons(visible_menus)

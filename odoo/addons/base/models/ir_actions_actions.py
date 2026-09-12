@@ -9,11 +9,13 @@ from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare
 from odoo.tools import SQL, _, frozendict
 from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _RX_ACTION_PATH = re.compile(r"[a-z][a-z0-9_-]*")
 
@@ -147,12 +149,23 @@ class IrActionsActions(models.Model):
         res = super().create(vals_list)
         if any(action.path for action in res):
             res._sync_path_reservations()
-        if groups := res._get_cache_groups_holding():
+        groups = res._get_cache_groups_holding()
+        _debug.lifecycle(
+            "create", model=self._name, count=len(res), caches_cleared=sorted(groups)
+        )
+        if groups:
             self.env.registry.clear_cache(*groups)
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
         groups = self._get_cache_groups_invalidated_by(vals) if self else ()
+        _debug.lifecycle(
+            "write",
+            model=self._name,
+            count=len(self),
+            fields=list(vals),
+            caches_cleared=sorted(groups),
+        )
         res = super().write(vals)
         if "path" in vals:
             self._sync_path_reservations()
@@ -164,6 +177,7 @@ class IrActionsActions(models.Model):
         if self._name == "ir.actions.actions":
             return self._unlink_as_concrete_types()
         groups = self._get_cache_groups_holding() | {"actions"}
+        _debug.lifecycle("unlink", model=self._name, count=len(self))
         with self.env.cr.savepoint():
             self._apply_ondelete_unenforced()
             res = super().unlink()
@@ -205,6 +219,11 @@ class IrActionsActions(models.Model):
             )
             if references:
                 found[ondelete].append((model_name, field_name, references))
+        _debug.logic(
+            "ondelete_unenforced",
+            actions=self.ids,
+            found={key: len(items) for key, items in found.items()},
+        )
 
         if restricted := found.get("restrict"):
             raise ValidationError(
@@ -476,6 +495,12 @@ class IrActionsActions(models.Model):
                 actions.append(action_data)
             if actions:
                 result[binding_type] = actions
+        _debug.logic(
+            "bindings_filtered",
+            model=model_name,
+            uid=self.env.uid,
+            visible={key: len(val) for key, val in result.items()},
+        )
         return result
 
     @tools.ormcache("model_name", "self.env.lang", cache="actions")
@@ -501,6 +526,7 @@ class IrActionsActions(models.Model):
             )
         )
         rows = cr.fetchall()
+        _debug.perf.count("bindings_computed", model=model_name, rows=len(rows))
         if not rows:
             return frozendict(result)
 

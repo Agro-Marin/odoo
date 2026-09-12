@@ -1,9 +1,11 @@
 import logging
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrActionsPath(models.Model):
@@ -51,6 +53,7 @@ class IrActionsPath(models.Model):
             )
         )
         if unbacked := self.env.cr.fetchall():
+            _debug.lifecycle("init_unbacked_paths_cleared", count=len(unbacked))
             self.env.cr.execute(
                 SQL(
                     "UPDATE %s SET path = NULL WHERE id IN %s",

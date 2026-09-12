@@ -3,9 +3,11 @@ import logging
 
 from odoo import api, fields, models
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.models import GC_UNLINK_LIMIT
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 DEFAULT_LOGGING_RETENTION_DAYS = 180
 
@@ -68,4 +70,7 @@ class IrLogging(models.Model):
             [("create_date", "<", cutoff)], limit=GC_UNLINK_LIMIT
         )
         records.unlink()
+        _debug.lifecycle(
+            "gc_logging", retention_days=retention_days, count=len(records)
+        )
         return len(records), len(records) == GC_UNLINK_LIMIT

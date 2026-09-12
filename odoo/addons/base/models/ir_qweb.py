@@ -34,6 +34,7 @@ from psycopg.errors import (
 from odoo import api, models, tools
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.func import lazy
 from odoo.libs.lru import LRU
 from odoo.libs.text import VOID_ELEMENTS
@@ -56,6 +57,7 @@ from odoo.tools.translate import FORMAT_REGEX
 from odoo.tools.urls import keep_query
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 QWEB_TOKEN_TYPE = token.NT_OFFSET - 1
@@ -397,7 +399,15 @@ class IrQweb(models.AbstractModel):
     ) -> Markup:
         values = values.copy() if values else {}
         irQweb = self._render_prepare(values, options)
-        return irQweb._render_prepared(template, values)
+        with _debug.perf(
+            "render",
+            cr=self.env.cr,
+            template=template if isinstance(template, (int, str)) else "etree",
+            lang=self.env.context.get("lang"),
+        ) as span:
+            html = irQweb._render_prepared(template, values)
+            span.set(chars=len(html))
+        return html
 
     @api.model
     def _render_batch(
@@ -410,9 +420,15 @@ class IrQweb(models.AbstractModel):
         shared = dict(shared_values) if shared_values else {}
         irQweb = self._render_prepare(shared, options)
         results = []
-        for varying in varying_values:
-            safe_eval.check_values(varying)
-            results.append(irQweb._render_prepared(template, {**shared, **varying}))
+        with _debug.perf(
+            "render_batch",
+            cr=self.env.cr,
+            template=template if isinstance(template, (int, str)) else "etree",
+        ) as span:
+            for varying in varying_values:
+                safe_eval.check_values(varying)
+                results.append(irQweb._render_prepared(template, {**shared, **varying}))
+            span.set(count=len(results))
         return results
 
     def _render_prepare(self, values: dict[str, Any], options: dict[str, Any]) -> Self:
@@ -509,6 +525,12 @@ class IrQweb(models.AbstractModel):
             raise
 
         except Exception as error:
+            _debug.logic(
+                "render_error",
+                template=view_ref if isinstance(view_ref, (int, str)) else "etree",
+                depth=len(stack),
+                error=type(error).__name__,
+            )
             self._wrap_render_error(error, stack, frame, view_ref)
 
     def _push_render_frame(
@@ -860,7 +882,11 @@ class IrQweb(models.AbstractModel):
             else None
         )
 
-        code, options, def_name = self._generate_code(template)
+        with _debug.perf("compile", template=ref if ref is not None else "etree"):
+            code, options, def_name = self._generate_code(template)
+        _debug.logic(
+            "compiled", template=options.get("ref", ref), found=code is not None
+        )
 
         if code is None:
             Error, message, stack = options["error"]
@@ -1094,7 +1120,8 @@ class IrQweb(models.AbstractModel):
             .union(*[data["view"] for data in missing_refs.values()])
         )
 
-        trees = views._get_view_etrees()
+        with _debug.perf("preload_trees", cr=self.env.cr, views=len(views)):
+            trees = views._get_view_etrees()
 
         data_by_view_id = {
             view.id: {
@@ -1126,6 +1153,12 @@ class IrQweb(models.AbstractModel):
                         )
                     if "{" not in sub_ref and "<" not in sub_ref and "/" not in sub_ref:
                         sub_refs.add(sub_ref)
+        _debug.pipeline(
+            "preload_trees",
+            refs=len(refs),
+            missing=len(missing_refs),
+            sub_refs=len(sub_refs),
+        )
         if sub_refs:
             self._preload_trees(list(sub_refs))
 

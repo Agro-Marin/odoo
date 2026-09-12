@@ -3,7 +3,10 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsAct_Window(models.Model):
@@ -231,7 +234,7 @@ class IrActionsAct_Window(models.Model):
         """
         for model, view_type in candidates:
             if self.env["ir.ui.view"].search_count(
-                [("model", "=", model), ("type", "=", view_type)]
+                [("model", "=", model), ("type", "=", view_type)], limit=1
             ):
                 continue
             actions = self.search(
@@ -245,4 +248,11 @@ class IrActionsAct_Window(models.Model):
                     [("view_mode", "=", view_type)]
                 ).unlink()
                 remaining = [mode for mode in modes if mode != view_type]
+                _debug.lifecycle(
+                    "view_mode_removed",
+                    action=action.id,
+                    model=model,
+                    view_type=view_type,
+                    remaining=remaining,
+                )
                 action.view_mode = ",".join(remaining) or "list"

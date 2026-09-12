@@ -10,6 +10,7 @@ from odoo.api import ValuesType
 from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import NO_ACCESS, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import get_index_name
 from odoo.models import pop_field
 from odoo.tools import SQL, OrderedSet, frozendict, unique
@@ -28,6 +29,7 @@ from .ir_model_common import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 RELATIONAL_TTYPES = frozenset({"many2one", "one2many", "many2many"})
@@ -641,6 +643,7 @@ class IrModelFields(models.Model):
                 continue
             existing = sql.get_table_columns(cr, table)
             dropped = [name for name in names if name in existing]
+            _debug.lifecycle("drop_columns", table=table, columns=dropped)
             if dropped:
                 cr.execute(
                     SQL(
@@ -682,6 +685,11 @@ class IrModelFields(models.Model):
             (list(tables_to_drop), list(self.ids)),
         )
         tables_to_keep = {row[0] for row in self.env.cr.fetchall()}
+        _debug.lifecycle(
+            "drop_m2m_tables",
+            drop=sorted(tables_to_drop - tables_to_keep),
+            keep=sorted(tables_to_keep),
+        )
         for rel_name in tables_to_drop - tables_to_keep:
             self.env.cr.execute(
                 SQL("DROP TABLE IF EXISTS %s", SQL.identifier(rel_name))
@@ -725,6 +733,13 @@ class IrModelFields(models.Model):
 
         records, failed_dependencies = self._get_dependent_fields_and_failures()
         self = records
+        _debug.logic(
+            "prepare_update",
+            fields=len(records),
+            failed_dependencies=len(failed_dependencies),
+            uninstalling=bool(uninstalling),
+            setup_models=setup_models,
+        )
 
         if failed_dependencies:
             if not uninstalling:
@@ -758,6 +773,7 @@ class IrModelFields(models.Model):
             for record in records
         ]
         views = self._get_views_mentioning(records.mapped("name"))
+        _debug.logic("views_mentioning_fields", fields=len(records), views=len(views))
         try:
             for view in views:
                 view._check_xml()
@@ -855,13 +871,20 @@ class IrModelFields(models.Model):
 
         model_names = OrderedSet(self.mapped("model"))
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
+        _debug.lifecycle(
+            "unlink",
+            fields=[f"{r.model}.{r.name}" for r in self],
+            registry_fields=len(fields_),
+            uninstalling=bool(uninstalling),
+        )
         if not uninstalling:
             self._get_attachments_of_binary_fields().unlink()
         self._drop_columns()
         res = super().unlink()
 
         if not uninstalling:
-            reload_schema(self.env, model_names, model_names)
+            with _debug.perf("reload_schema", cr=self.env.cr, models=list(model_names)):
+                reload_schema(self.env, model_names, model_names)
 
         return res
 
@@ -906,8 +929,16 @@ class IrModelFields(models.Model):
         res._add_missing_group_xml_ids()
 
         model_names = OrderedSet(res.mapped("model"))
+        _debug.lifecycle(
+            "create",
+            count=len(res),
+            models=list(model_names),
+            manual=sum(vals.get("state", "manual") == "manual" for vals in vals_list),
+            inverses_checked=len(inverses_wanted),
+        )
         if any(model in self.pool for model in model_names):
-            reload_schema(self.env, model_names, model_names)
+            with _debug.perf("reload_schema", cr=self.env.cr, models=list(model_names)):
+                reload_schema(self.env, model_names, model_names)
 
         return res
 
@@ -1016,6 +1047,9 @@ class IrModelFields(models.Model):
 
     def _rename_column(self, column_rename: ColumnRename) -> None:
         table, oldname, newname, index, stored = column_rename
+        _debug.lifecycle(
+            "rename_column", table=table, old=oldname, new=newname, stored=stored
+        )
         if not stored:
             return
         self.env.flush_all()
@@ -1056,6 +1090,14 @@ class IrModelFields(models.Model):
             renamed, column_rename, patched_models = self.browse(), None, set()
         else:
             renamed, column_rename, patched_models = self._plan_write(vals)
+        _debug.lifecycle(
+            "write",
+            count=len(self),
+            fields=list(vals),
+            translate_only=translate_only,
+            renamed=len(renamed),
+            patched_models=sorted(patched_models),
+        )
 
         vals = {
             key: value
@@ -1086,10 +1128,13 @@ class IrModelFields(models.Model):
             self._add_missing_group_xml_ids()
 
         if column_rename or patched_models:
+            _debug.logic("write_reload", reason="column_rename_or_patched_models")
             reload_schema(self.env, OrderedSet(self.mapped("model")), patched_models)
         elif translate_presence_changed:
+            _debug.logic("write_reload", reason="translate_presence_changed")
             reload_schema(self.env, OrderedSet(self.mapped("model")), ())
         elif translate_only:
+            _debug.logic("write_reload", reason="translate_only_cache_clear")
             self.env.registry.clear_cache("stable")
 
         return res
@@ -1190,6 +1235,13 @@ class IrModelFields(models.Model):
             existing[row[1:3]] = row[1:]
 
         rows = [row for row in expected if existing.get(row[:2]) != row]
+        _debug.pipeline(
+            "reflect_fields",
+            models=len(model_names),
+            expected=len(expected),
+            existing=len(existing),
+            changed=len(rows),
+        )
         if rows:
             ids = upsert_en(self, cols, rows, ["model", "name"])
             for row, id_ in zip(rows, ids, strict=True):
@@ -1216,6 +1268,7 @@ class IrModelFields(models.Model):
                 xml_id = field_xmlid(module, field_model, field_name)
                 record = self.browse(field_id)
                 data_list.append({"xml_id": xml_id, "record": record})
+        _debug.pipeline("reflect_fields_xmlids", module=module, xmlids=len(data_list))
         self.env["ir.model.data"]._update_xmlids(data_list)
 
     @tools.ormcache(cache="stable")
@@ -1253,12 +1306,29 @@ class IrModelFields(models.Model):
             row["field_description"] = row.pop("field_description_en")
             row["help"] = row.pop("help_en")
             result[row["model"]][row["name"]] = frozendict(row)
+        _debug.perf.count(
+            "manual_field_data_loaded",
+            models=len(result),
+            fields=sum(len(v) for v in result.values()),
+        )
         return frozendict(result)
 
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
         return self._get_manual_field_data_by_model().get(model_name, {})
 
     def _is_field_ready(self, field_data: dict[str, Any]) -> bool:
+        ready = self._is_field_ready_now(field_data)
+        if _debug.logic.enabled and not ready:
+            _debug.logic(
+                "manual_field_deferred",
+                model=field_data["model"],
+                field=field_data["name"],
+                ttype=field_data["ttype"],
+                relation=field_data.get("relation"),
+            )
+        return ready
+
+    def _is_field_ready_now(self, field_data: dict[str, Any]) -> bool:
         if self.pool.loaded:
             return True
         ttype = field_data["ttype"]

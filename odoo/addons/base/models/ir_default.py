@@ -6,6 +6,9 @@ from odoo import api, fields, models, tools
 from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 INT4_MIN = -(2**31)
 INT4_MAX = 2**31 - 1
@@ -106,6 +109,7 @@ class IrDefault(models.Model):
                 model._check_field_access(model._fields[field.name], "write")
 
     def _invalidate_defaults_cache(self) -> None:
+        _debug.lifecycle("defaults_cache_invalidated", count=len(self))
         self.env.invalidate_all()
         self.env.registry.clear_cache()
 
@@ -272,6 +276,14 @@ class IrDefault(models.Model):
         for row in cr.fetchall():
             if row[0] not in result:
                 result[row[0]] = json.loads(row[1])
+        _debug.perf.count(
+            "model_defaults_computed",
+            model=model_name,
+            uid=self.env.uid,
+            company=company_id,
+            condition=condition,
+            fields=sorted(result),
+        )
         return result
 
     @api.model

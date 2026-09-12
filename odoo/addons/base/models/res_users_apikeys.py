@@ -9,12 +9,14 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.password import CryptContext
 from odoo.tools import SQL
 
 from .res_users import check_identity
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 API_KEY_SIZE = 20
 INDEX_SIZE = 8
@@ -93,6 +95,7 @@ class ResUsersApikeys(models.Model):
                 self.env.uid,
                 ip,
             )
+            _debug.lifecycle("apikeys_removed", count=len(self), by=self.env.uid)
             self.sudo().unlink()
             return {"type": "ir.actions.act_window_close"}
         raise AccessError(
@@ -129,9 +132,12 @@ class ResUsersApikeys(models.Model):
                 scope,
             )
         )
-        for user_id, current_key in self.env.cr.fetchall():
+        candidates = self.env.cr.fetchall()
+        for user_id, current_key in candidates:
             if KEY_CRYPT_CONTEXT.verify(key, current_key):
+                _debug.logic("apikey_matched", scope=scope, uid=user_id)
                 return user_id
+        _debug.logic("apikey_rejected", scope=scope, candidates=len(candidates))
         return None
 
     def _get_key_expiration(self, *, scope: str, key: str) -> datetime.datetime | None:
@@ -213,6 +219,9 @@ class ResUsersApikeys(models.Model):
             self.env.uid,
             ip,
         )
+        _debug.lifecycle(
+            "apikey_generated", uid=self.env.uid, scope=scope, expires=expiration_date
+        )
 
         return k
 
@@ -233,6 +242,7 @@ class ResUsersApikeys(models.Model):
         if count:
             self.env.registry.clear_cache()
         _logger.info("GC %r delete %d entries", self._name, count)
+        _debug.lifecycle("gc_apikeys", count=count)
 
 
 class ResUsersApikeysDescription(models.TransientModel):

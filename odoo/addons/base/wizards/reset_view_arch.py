@@ -3,8 +3,11 @@ from typing import Any
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _
 from odoo.tools.misc import get_diff
+
+_debug = DebugLog(__name__)
 
 
 class ResetViewArchWizard(models.TransientModel):
@@ -100,6 +103,9 @@ class ResetViewArchWizard(models.TransientModel):
 
     def reset_view_button(self) -> dict[str, str]:
         self.check_singleton()
+        _debug.lifecycle(
+            "wizard_reset_view", view=self.view_id.id, mode=self.reset_mode
+        )
         if self.reset_mode == "other_view":
             self.view_id.write({"arch_db": self.arch_to_compare})
         else:

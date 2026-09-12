@@ -4,8 +4,10 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class DecimalPrecision(models.Model):
@@ -35,6 +37,11 @@ class DecimalPrecision(models.Model):
             "select digits from decimal_precision where name=%s", (application,)
         )
         res = self.env.cr.fetchone()
+        _debug.perf.count(
+            "precision_computed",
+            application=application,
+            digits=res[0] if res else None,
+        )
         if not res:
             _logger.warning(
                 "Decimal precision '%s' is not defined, using the default of 2 digits",
@@ -46,15 +53,18 @@ class DecimalPrecision(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle("create", names=res.mapped("name"))
         self.env.registry.clear_cache("stable")
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", names=self.mapped("name"), fields=list(vals))
         res = super().write(vals)
         self.env.registry.clear_cache("stable")
         return res
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", names=self.mapped("name"))
         res = super().unlink()
         self.env.registry.clear_cache("stable")
         return res

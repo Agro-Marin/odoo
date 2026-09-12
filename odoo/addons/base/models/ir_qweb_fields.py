@@ -11,6 +11,7 @@ from markupsafe import Markup, escape
 from PIL import Image
 
 from odoo import api, fields, models, tools
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import guess_mimetype
 from odoo.libs.numbers import float_utils
 from odoo.libs.text import nl2br
@@ -26,6 +27,7 @@ from odoo.tools.misc import babel_locale_parse, get_lang
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 TIMEDELTA_UNITS = (
     ("year", 3600 * 24 * 365),
@@ -106,6 +108,12 @@ class IrQwebField(models.AbstractModel):
             if key in env_context and record_context.get(key) != env_context[key]
         }
         if context_delta:
+            _debug.logic(
+                "record_context_realigned",
+                model=record._name,
+                field=field_name,
+                keys=sorted(context_delta),
+            )
             record = record.with_context(**context_delta)
         value = record[field_name]
         return (
@@ -401,6 +409,7 @@ class IrQwebFieldImage(models.AbstractModel):
             raise ValueError(msg) from None
 
         mimetype = guess_mimetype(img_b64, "") if img_b64 else None
+        _debug.logic("image_sniffed", mimetype=mimetype, bytes=len(img_b64))
         if mimetype == "image/webp":
             return self.env["ir.qweb"]._get_converted_image_data_uri(value)
         elif mimetype != "image/svg+xml":
@@ -690,11 +699,12 @@ class IrQwebFieldBarcode(models.AbstractModel):
         if not value.isascii():
             return nl2br(value)
         barcode_symbology = options.get("symbology", "Code128")
-        barcode = self.env["ir.actions.report"].prepare_barcode(
-            barcode_symbology,
-            value,
-            **{k: v for k, v in options.items() if k in BARCODE_RENDER_OPTIONS},
-        )
+        with _debug.perf("barcode", symbology=barcode_symbology, chars=len(value)):
+            barcode = self.env["ir.actions.report"].prepare_barcode(
+                barcode_symbology,
+                value,
+                **{k: v for k, v in options.items() if k in BARCODE_RENDER_OPTIONS},
+            )
 
         img_element = html.Element("img")
         for k, v in options.items():

@@ -2,8 +2,11 @@ from typing import Self
 
 from odoo import api, fields, models
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _
 from odoo.tools.misc import get_diff
+
+_debug = DebugLog(__name__)
 
 
 class ServerActionHistoryWizard(models.TransientModel):
@@ -52,4 +55,9 @@ class ServerActionHistoryWizard(models.TransientModel):
 
     def restore_revision(self) -> None:
         self.check_singleton()
+        _debug.lifecycle(
+            "wizard_restore_revision",
+            action=self.action_id.id,
+            revision=self.revision.id,
+        )
         self.action_id.code = self.revision.code

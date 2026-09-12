@@ -12,9 +12,11 @@ if TYPE_CHECKING:
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, ormcache, parse_date
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _CURRENCY_TOTAL_DIGITS = 69
 
@@ -92,17 +94,20 @@ class ResCurrency(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle("create", count=len(res), names=res.mapped("name"))
         self._toggle_group_multi_currency()
         self.env.registry.clear_cache("stable")
         return res
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self), names=self.mapped("name"))
         res = super().unlink()
         self._toggle_group_multi_currency()
         self.env.registry.clear_cache("stable")
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         if vals.keys() & {"active", "name", "position", "symbol", "rounding"}:
             self.env.registry.clear_cache("stable")
@@ -114,6 +119,7 @@ class ResCurrency(models.Model):
     @api.model
     def _toggle_group_multi_currency(self) -> None:
         active_currency_count = self.search_count([("active", "=", True)])
+        _debug.logic("multi_currency_group", active_currencies=active_currency_count)
         if active_currency_count > 1:
             self._activate_group_multi_currency()
         else:
@@ -156,6 +162,7 @@ class ResCurrency(models.Model):
         rates = self._get_rates_from_memo(company, date)
         if rates is not None:
             return rates
+        _debug.logic("rates_via_sql", currencies=self.ids, date=date)
         return self._get_rates_sql(company, date)
 
     def _get_rates_sql(self, company: Self, date: Any) -> dict[int, float]:
@@ -242,6 +249,12 @@ class ResCurrency(models.Model):
                 values.append(rate.rate or None)
             for currency_id, history in histories.items():
                 memo[currency_id, root_id, scope] = history
+            _debug.perf.count(
+                "rate_history_loaded",
+                currencies=sorted(missing),
+                company=root_id,
+                rates=len(rates),
+            )
         return {
             currency_id: self._get_rate_from_history(
                 memo[currency_id, root_id, scope], date
@@ -556,6 +569,7 @@ class ResCurrencyRate(models.Model):
         )
         res = super().write(self._sanitize_vals(vals))
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
+        _debug.lifecycle("rate_write", count=len(self), fields=list(vals))
         return res
 
     @api.model_create_multi
@@ -565,6 +579,7 @@ class ResCurrencyRate(models.Model):
         )
         records = super().create([self._sanitize_vals(vals) for vals in vals_list])
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
+        _debug.lifecycle("rate_create", count=len(records))
         return records
 
     def unlink(self) -> bool:
@@ -573,6 +588,7 @@ class ResCurrencyRate(models.Model):
         )
         res = super().unlink()
         self.env.cr.cache.pop(RATE_HISTORY_CACHE_KEY, None)
+        _debug.lifecycle("rate_unlink", count=len(self))
         return res
 
     def _get_latest_rate(self) -> Self:

@@ -2,9 +2,11 @@ from typing import Any, Self
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import ormcache
 
 DEFINITION_MEMO_CACHE_KEY = "properties_base_definition_ids"
+_debug = DebugLog(__name__)
 
 
 class PropertiesBaseDefinition(models.Model):
@@ -80,6 +82,12 @@ class PropertiesBaseDefinition(models.Model):
             field_id = field.id
 
         definition_record = self.sudo().create({"properties_field_id": field_id})
+        _debug.lifecycle(
+            "definition_created",
+            model=model_name,
+            field=field_name,
+            definition=definition_record.id,
+        )
         memo = self.env.cr.cache.setdefault(DEFINITION_MEMO_CACHE_KEY, {})
         memo[model_name, field_name] = definition_record.id
         return definition_record.id

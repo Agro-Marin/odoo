@@ -2,6 +2,9 @@ from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsTodo(models.Model):
@@ -56,15 +59,18 @@ class IrActionsTodo(models.Model):
         keep = self.filtered(lambda todo: todo.state == "open").sorted()[:1]
         if not keep:
             return
-        self.search([("state", "=", "open"), ("id", "not in", keep.ids)]).write(
-            {"state": "done"}
-        )
+        others = self.search([("state", "=", "open"), ("id", "not in", keep.ids)])
+        _debug.lifecycle("close_other_todos", keep=keep.id, closed=others.ids)
+        others.write({"state": "done"})
 
     def action_launch(self) -> dict[str, Any]:
         self.check_singleton()
         self.state = "done"
 
         action = self.action_id._get_action_concrete()
+        _debug.lifecycle(
+            "todo_launched", todo=self.id, action=action.id, type=action._name
+        )
         result = action._get_action_dict()
         if action._name != "ir.actions.act_window":
             return result

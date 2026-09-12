@@ -1,8 +1,10 @@
 import logging
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class ResUsersDeletion(models.Model):
@@ -36,6 +38,13 @@ class ResUsersDeletion(models.Model):
         done_requests.state = "done"
 
         todo_requests = delete_requests - done_requests
+        _debug.pipeline(
+            "gc_portal_users",
+            requests=len(delete_requests),
+            already_gone=len(done_requests),
+            todo=len(todo_requests),
+            batch_size=batch_size,
+        )
         commit_progress = self.env["ir.cron"]._commit_progress
         commit_progress(len(done_requests), remaining=len(todo_requests))
 

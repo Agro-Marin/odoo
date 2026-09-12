@@ -9,12 +9,14 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import Speedscope
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.misc import str2bool
 from odoo.tools.profiler import get_session_name
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrProfile(models.Model):
@@ -61,6 +63,7 @@ class IrProfile(models.Model):
         ]
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
+        _debug.lifecycle("gc_profile", count=len(records))
         return len(records), len(records) == GC_UNLINK_LIMIT
 
     def _has_memory(self) -> bool:
@@ -269,6 +272,13 @@ class IrProfile(models.Model):
         if params is not None:
             request.session["profile_params"] = params
 
+        _debug.lifecycle(
+            "profiling_toggled",
+            uid=self.env.uid,
+            profile=profile,
+            session=request.session.get("profile_session"),
+            collectors=request.session.get("profile_collectors"),
+        )
         return {
             "session": request.session.get("profile_session"),
             "collectors": request.session.get("profile_collectors"),

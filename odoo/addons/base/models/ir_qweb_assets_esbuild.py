@@ -4,6 +4,7 @@ from typing import Any
 
 from odoo import models
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets import esm_index
 from odoo.tools.assets.esbuild import (
     EsbuildCompiler,
@@ -23,6 +24,7 @@ from odoo.tools.assets.esm_registry import esm_registry, external_libs
 from odoo.addons.base.models.assetsbundle import AssetsBundle
 
 _fallback_log = get_asset_logger("fallback")
+_debug = DebugLog(__name__)
 
 
 class EsbuildBundleError(RuntimeError):
@@ -146,18 +148,26 @@ class IrQweb(models.AbstractModel):
     ) -> EsbuildResult:
         config = self._get_esbuild_config()
         try:
-            result = asset_bundle.esbuild_native_bundle(
-                timeout_s=config.get_param_int(
-                    "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
-                ),
-                target=config.get_param("web.esbuild.target")
-                or EsbuildCompiler._ESBUILD_TARGET,
-                source_maps=config.get_param("web.esbuild.source_maps")
-                or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
-                dynamic_child_specs=dynamic_child_specs,
-                secondary_parent_stubs=secondary_stubs or None,
-                exported_specs=exported_specs,
-            )
+            with _debug.perf(
+                "esbuild",
+                bundle=bundle,
+                dynamic_children=len(dynamic_child_specs or ()),
+                secondary_stubs=len(secondary_stubs),
+                exported=len(exported_specs or ()),
+            ) as span:
+                result = asset_bundle.esbuild_native_bundle(
+                    timeout_s=config.get_param_int(
+                        "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
+                    ),
+                    target=config.get_param("web.esbuild.target")
+                    or EsbuildCompiler._ESBUILD_TARGET,
+                    source_maps=config.get_param("web.esbuild.source_maps")
+                    or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
+                    dynamic_child_specs=dynamic_child_specs,
+                    secondary_parent_stubs=secondary_stubs or None,
+                    exported_specs=exported_specs,
+                )
+                span.set(chars=len(result.code) if result.code else 0)
         except Exception as exc:
             log_event(
                 _fallback_log,
@@ -187,6 +197,7 @@ class IrQweb(models.AbstractModel):
         empty = EsbuildResult("", None, None)
         child_bundles: list[AssetsBundle] = []
         if not self._can_compile_with_esbuild(bundle):
+            _debug.logic("esbuild_declined", bundle=bundle, standalone=standalone)
             return empty, child_bundles
         if assets_params is None:
             assets_params = self.env["ir.asset"]._prepare_assets_params()

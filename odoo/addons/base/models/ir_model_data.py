@@ -11,6 +11,7 @@ import psycopg
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError
+from odoo.libs.debug_log import DebugLog
 from odoo.models import add_field
 from odoo.tools import SQL, OrderedSet, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
@@ -18,6 +19,7 @@ from odoo.tools.translate import _
 from .ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrModelData(models.Model):
@@ -91,6 +93,7 @@ class IrModelData(models.Model):
         self.env.cr.execute(query, [module, name])
         result = self.env.cr.fetchone()
         if not (result and result[1]):
+            _debug.logic("xmlid_miss", xmlid=xmlid)
             raise ValueError(f"External ID not found in the system: {xmlid}")
         return result
 
@@ -121,7 +124,9 @@ class IrModelData(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle("create", count=len(res))
         if any(vals.get("model") == "res.groups" for vals in vals_list):
+            _debug.logic("groups_cache_cleared", reason="create")
             self.env.registry.clear_cache("groups")
         return res
 
@@ -144,6 +149,7 @@ class IrModelData(models.Model):
         if not self:
             return True
         touch_groups = any(data.model == "res.groups" for data in self.exists())
+        _debug.lifecycle("unlink", count=len(self), touch_groups=touch_groups)
         res = super().unlink()
         self.env.registry.clear_cache()
         if touch_groups:
@@ -178,6 +184,13 @@ class IrModelData(models.Model):
                 )
                 result.extend(cr.fetchall())
 
+        _debug.perf.count(
+            "get_xmlids",
+            model=model._name,
+            requested=len(xml_ids),
+            modules=len(bymodule),
+            found=len(result),
+        )
         return result
 
     @api.model
@@ -208,6 +221,9 @@ class IrModelData(models.Model):
                     "\n".join(str(row) for row in sub_rows),
                 )
                 raise
+        _debug.pipeline(
+            "update_xmlids", rows=len(rows), update=update, repointed=repointed
+        )
         if repointed:
             self.env.registry.clear_cache()
 
@@ -275,6 +291,16 @@ class IrModelData(models.Model):
         records_items, model_ids, field_ids, selection_ids, constraint_ids = (
             self._partition_module_data(module_data)
         )
+        _debug.pipeline(
+            "uninstall_module_data",
+            modules=modules_to_remove,
+            xmlids=len(module_data),
+            records=len(records_items),
+            models=len(model_ids),
+            fields=len(field_ids),
+            selections=len(selection_ids),
+            constraints=len(constraint_ids),
+        )
 
         self._unshare_prefetched_fields(field_ids)
 
@@ -327,6 +353,7 @@ class IrModelData(models.Model):
         )
 
         _logger.info("ir.model.data could not be deleted (%s)", undeletable_ids)
+        _debug.pipeline("uninstall_module_data_done", undeletable=len(undeletable_ids))
         self._remove_uninstalled_xmlids(module_data, undeletable_ids)
 
     @staticmethod
@@ -389,6 +416,12 @@ class IrModelData(models.Model):
         )
         ref_data -= cloc_exclude_data
         records -= records.browse((ref_data - module_data).mapped("res_id"))
+        _debug.logic(
+            "remove_uninstalled",
+            model=records._name,
+            candidates=len(ref_data),
+            deletable=len(records),
+        )
         if not records:
             return
 
@@ -401,6 +434,9 @@ class IrModelData(models.Model):
                 cloc_exclude_data.unlink()
                 records.unlink()
         except Exception:
+            _debug.logic(
+                "remove_uninstalled_failed", model=records._name, count=len(records)
+            )
             if len(records) <= 1:
                 undeletable_ids.extend(ref_data._ids)
             else:
@@ -492,6 +528,12 @@ class IrModelData(models.Model):
         xmlids_per_record = self._count_xmlids_per_record(
             [(model, res_id) for _id, _xmlid, model, res_id in candidates]
         )
+        _debug.pipeline(
+            "process_end",
+            modules=len(modules),
+            candidates=len(candidates),
+            loaded_xmlids=len(loaded_xmlids),
+        )
 
         for id, xmlid, model, res_id in candidates:
             if xmlid in loaded_xmlids:
@@ -543,6 +585,7 @@ class IrModelData(models.Model):
                     xmlids_per_record.get((model, res_id), 1) - 1
                 )
                 bad_imd_ids.append(id)
+        _debug.pipeline("process_end_stale_xmlids", count=len(bad_imd_ids))
         if bad_imd_ids:
             self.browse(bad_imd_ids).unlink()
 

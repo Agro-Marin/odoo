@@ -6,9 +6,11 @@ from stat import S_ISLNK
 from typing import Any, NamedTuple
 from urllib.parse import urlsplit
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets.constants import ASSET_EXTENSIONS, EXTERNAL_ASSET, ExternalAsset
 
 _logger = getLogger(__name__)
+_debug = DebugLog(__name__)
 
 DEFAULT_SEQUENCE = 16
 
@@ -262,9 +264,14 @@ class BundleWalk:
         self.walked.add(bundle)
 
         frame = BundleFrame(bundle, self.paths.add_anchor(), seen)
+        directives = 0  # debuglog
         for directive in self.prepare_directives(bundle):
+            directives += 1  # debuglog
             self.apply_directive(frame, directive)
         self.paths.remove_anchor(frame.anchor)
+        _debug.pipeline(
+            "bundle_walked", bundle=bundle, depth=len(seen), directives=directives
+        )
 
     def apply_directive(self, frame: BundleFrame, entry: AssetDirective) -> None:
         try:

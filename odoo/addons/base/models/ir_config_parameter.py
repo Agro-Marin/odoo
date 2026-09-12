@@ -6,9 +6,11 @@ from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.db import get_or_create_row
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import config, mute_logger, ormcache
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 _default_parameters = {
@@ -44,10 +46,12 @@ class IrConfig_Parameter(models.Model):
         )
         for key, func in _default_parameters.items():
             if force or key not in present:
+                _debug.lifecycle("default_param_set", key=key, force=force)
                 self.set_param(key, func())
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle("create", keys=[vals.get("key") for vals in vals_list])
         self.env.registry.clear_cache("stable")
         return super().create(vals_list)
 
@@ -61,10 +65,12 @@ class IrConfig_Parameter(models.Model):
                         ", ".join(illegal),
                     )
                 )
+        _debug.lifecycle("write", keys=self.mapped("key"), fields=list(vals))
         self.env.registry.clear_cache("stable")
         return super().write(vals)
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", keys=self.mapped("key"))
         self.env.registry.clear_cache("stable")
         return super().unlink()
 
@@ -124,6 +130,7 @@ class IrConfig_Parameter(models.Model):
             "SELECT value FROM ir_config_parameter WHERE key = %s", [key]
         )
         result = self.env.cr.fetchone()
+        _debug.perf.count("param_read", key=key, found=bool(result))
         return result and result[0]
 
     @api.model
@@ -143,7 +150,9 @@ class IrConfig_Parameter(models.Model):
 
         old = param.value
         if value is False or value is None:
+            _debug.logic("set_param", key=key, action="unlink")
             param.unlink()
         elif str(value) != old:
+            _debug.logic("set_param", key=key, action="write")
             param.write({"value": value})
         return old

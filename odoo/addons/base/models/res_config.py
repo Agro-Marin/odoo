@@ -6,8 +6,10 @@ from typing import Any, Self
 from odoo import _, api, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, RedirectWarning, UserError
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 SETTINGS_CLASSIFIED_CACHE_KEY = "res_config_settings_classified_fields"
 
@@ -239,6 +241,7 @@ class ResConfigSettings(models.TransientModel):
             else:
                 value = self[name]
             if name not in current_settings or value != current_settings[name]:
+                _debug.logic("setting_default", setting=name, model=model, field=field)
                 IrDefault.set(model, field, value)
 
         for name, groups, implied_group in sorted(
@@ -248,6 +251,12 @@ class ResConfigSettings(models.TransientModel):
             implied_group = implied_group.sudo()
             if self[name] == current_settings[name]:
                 continue
+            _debug.logic(
+                "setting_group",
+                setting=name,
+                enabled=bool(self[name] and int(self[name])),
+                implied_group=implied_group.id,
+            )
             if self[name] and int(self[name]):
                 groups._add_implied_group(implied_group)
             else:
@@ -270,6 +279,7 @@ class ResConfigSettings(models.TransientModel):
 
             if current_value == str(value) or current_value == value:
                 continue
+            _debug.logic("setting_config_param", setting=name, key=icp)
             IrConfigParameter.set_param(icp, value)
 
     def execute(self) -> dict[str, Any]:
@@ -296,6 +306,12 @@ class ResConfigSettings(models.TransientModel):
             )
         )
 
+        _debug.pipeline(
+            "settings_execute",
+            model=self._name,
+            install=to_install.mapped("name"),
+            uninstall=to_uninstall.mapped("name"),
+        )
         if to_install or to_uninstall:
             self.env.flush_all()
 

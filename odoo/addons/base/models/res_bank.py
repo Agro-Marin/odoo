@@ -4,7 +4,10 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _, clean_context
+
+_debug = DebugLog(__name__)
 
 
 def sanitize_account_number(acc_number: str | bool) -> str | bool:
@@ -197,6 +200,12 @@ class ResPartnerBank(models.Model):
                 ]
             )
         )
+        _debug.logic(
+            "bank_account_lookup",
+            partner=partner.id,
+            found=len(bank_account),
+            active=len(bank_account.filtered("active")),
+        )
         if (
             revive_archived_match
             and bank_account
@@ -228,6 +237,9 @@ class ResPartnerBank(models.Model):
                         "allow_out_payment": False,
                     }
                 )
+            )
+            _debug.lifecycle(
+                "bank_account_created", partner=partner.id, account=bank_account.id
             )
         return (
             bank_account.filtered_domain(

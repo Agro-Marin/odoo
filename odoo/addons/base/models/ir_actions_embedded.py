@@ -4,6 +4,9 @@ from typing import Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrEmbeddedActions(models.Model):
@@ -111,6 +114,12 @@ class IrEmbeddedActions(models.Model):
                 )
             return vals
 
+        _debug.lifecycle(
+            "create",
+            count=len(vals_list),
+            named_from_action=len(action_names),
+            python_methods=sum(1 for vals in vals_list if vals.get("python_method")),
+        )
         return super().create([normalised(vals) for vals in vals_list])
 
     @api.ondelete(at_uninstall=False)

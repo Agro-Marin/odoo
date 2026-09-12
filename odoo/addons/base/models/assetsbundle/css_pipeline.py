@@ -13,6 +13,7 @@ from subprocess import PIPE, Popen
 from typing import TYPE_CHECKING
 
 import odoo
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import misc
 from odoo.tools.config import config
 from odoo.tools.misc import file_path
@@ -72,6 +73,9 @@ def _is_rtlcss_available() -> bool:
 @functools.cache
 def _rtlcss_config_path() -> str:
     return file_path("base/data/rtlcss.json")
+
+
+_debug = DebugLog(__name__)
 
 
 class CssPipeline:
@@ -269,9 +273,11 @@ class CssPipeline:
             if (hit := cache.get(key)) is not None:
                 cache.move_to_end(key)
                 _logger.debug("CSS %s: cache hit, %s chars", key[0], len(hit))
+                _debug.logic("css_cache", stage=key[0], hit=True, chars=len(hit))
                 return hit
         _logger.debug("CSS %s: cache miss, transforming %s chars", key[0], len(source))
-        result = transform(source)
+        with _debug.perf("css_transform", stage=key[0], chars=len(source)):
+            result = transform(source)
         with cls._compiled_cache_lock:
             cache[key] = result
             cache.move_to_end(key)
@@ -305,7 +311,9 @@ class CssPipeline:
 
     def convert_css_to_rtl(self, source: str) -> str:
         if not _is_rtlcss_available():
-            _logger.debug("rtlcss unavailable, serving %r left-to-right", self._log_name)
+            _logger.debug(
+                "rtlcss unavailable, serving %r left-to-right", self._log_name
+            )
             return source
 
         cmd = [_rtlcss_bin(), "-c", _rtlcss_config_path(), "-"]

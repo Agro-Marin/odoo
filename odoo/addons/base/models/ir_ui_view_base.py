@@ -6,6 +6,7 @@ from lxml.builder import E
 
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import _, config, frozendict
 
 from .ir_ui_view import _xpath_descendant_field
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from lxml.etree import _Element
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Base(models.AbstractModel):
@@ -162,9 +164,17 @@ class Base(models.AbstractModel):
         options = options or {}
         result = {}
 
-        result["views"] = {
-            v_type: self.get_view(v_id, v_type, **options) for [v_id, v_type] in views
-        }
+        with _debug.perf(
+            "get_views",
+            cr=self.env.cr,
+            model=self._name,
+            views=[v_type for _v_id, v_type in views],
+            toolbar=bool(options.get("toolbar")),
+        ):
+            result["views"] = {
+                v_type: self.get_view(v_id, v_type, **options)
+                for [v_id, v_type] in views
+            }
 
         view_models = {}
         for view in result["views"].values():
@@ -257,6 +267,13 @@ class Base(models.AbstractModel):
             if not view_id:
                 view_id = IrUiView.default_view(self._name, view_type)
 
+        _debug.logic(
+            "view_resolved",
+            model=self._name,
+            type=view_type,
+            view=view_id or None,
+            source="record" if view_id else "default",
+        )
         if view_id:
             view = IrUiView.browse(view_id)
             arch = view._get_combined_arch()
@@ -309,9 +326,12 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> frozendict:
-        arch, view = self._get_view(view_id, view_type, **options)
-        arch, view_models = self._get_view_postprocessed(view, arch, **options)
-        view_models = self._get_fields_view(view_type or view.type, view_models)
+        with _debug.perf(
+            "view_cache_miss", cr=self.env.cr, model=self._name, type=view_type
+        ):
+            arch, view = self._get_view(view_id, view_type, **options)
+            arch, view_models = self._get_view_postprocessed(view, arch, **options)
+            view_models = self._get_fields_view(view_type or view.type, view_models)
         result = {
             "arch": arch,
             "id": view.id,

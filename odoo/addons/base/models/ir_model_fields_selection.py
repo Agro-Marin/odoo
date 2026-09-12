@@ -7,6 +7,7 @@ from psycopg.types.json import Json
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet
 
 from .ir_model_common import (
@@ -19,6 +20,7 @@ from .ir_model_common import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrModelFieldsSelection(models.Model):
@@ -101,6 +103,14 @@ class IrModelFieldsSelection(models.Model):
 
         cols = ["field_id", "value", "name", "sequence"]
         rows = [key + val for key, val in expected.items() if existing.get(key) != val]
+        _debug.pipeline(
+            "reflect_selections",
+            models=len(model_names),
+            fields=len(selection_fields),
+            expected=len(expected),
+            existing=len(existing),
+            changed=len(rows),
+        )
         if rows:
             ids = upsert_en(self, cols, rows, ["field_id", "value"])
             self.pool.post_init(mark_modified, self.browse(ids), cols[2:])
@@ -127,6 +137,9 @@ class IrModelFieldsSelection(models.Model):
                         selection_ids[field.model_name, field.name, value]
                     )
                     data_list.append({"xml_id": xml_id, "record": record})
+        _debug.pipeline(
+            "reflect_selections_xmlids", module=module, xmlids=len(data_list)
+        )
         self.env["ir.model.data"]._update_xmlids(data_list)
 
     def _update_selection(
@@ -214,9 +227,11 @@ class IrModelFieldsSelection(models.Model):
                     model,
                     name,
                 )
+        _debug.lifecycle("create", count=len(recs), setup_models=list(model_names))
         if model_names:
             self.env.flush_all()
-            self.pool._setup_models__(self.env.cr, model_names)
+            with _debug.perf("registry_setup_after_create", cr=self.env.cr):
+                self.pool._setup_models__(self.env.cr, model_names)
 
         return recs
 
@@ -293,10 +308,17 @@ class IrModelFieldsSelection(models.Model):
                 if selection.value == vals["value"]:
                     continue
                 if selection.field_id.store:
+                    _debug.lifecycle(
+                        "rename_stored_values",
+                        field=f"{selection.field_id.model}.{selection.field_id.name}",
+                        old=selection.value,
+                        new=vals["value"],
+                    )
                     self._rename_stored_values(
                         selection.field_id, selection.value, vals["value"]
                     )
         old_values = {selection.id: selection.value for selection in self}
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
 
         result = super().write(vals)
 
@@ -331,6 +353,12 @@ class IrModelFieldsSelection(models.Model):
     def unlink(self) -> bool:
         model_names = self.field_id.model_id.mapped("model")
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
+        _debug.lifecycle(
+            "unlink",
+            count=len(self),
+            models=model_names,
+            uninstalling=bool(uninstalling),
+        )
         self._process_ondelete()
         if not uninstalling:
             self._discard_defaults()
@@ -366,6 +394,7 @@ class IrModelFieldsSelection(models.Model):
                     fname,
                     error,
                 )
+                _debug.logic("ondelete_orm_bypass", model=records._name, field=fname)
                 self.env.execute_query(
                     SQL(
                         "UPDATE %s SET %s = %s WHERE id = ANY(%s)",
@@ -397,6 +426,7 @@ class IrModelFieldsSelection(models.Model):
                     policies[selection.value] = ondelete
             if not policies:
                 continue
+            _debug.logic("ondelete", field=field_record.name, policies=policies)
 
             companies = (
                 self._get_companies_with_stored_value(Model, field)

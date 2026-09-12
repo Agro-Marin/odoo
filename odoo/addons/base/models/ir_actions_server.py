@@ -16,6 +16,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.datetime import utc
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import OPT_INDENT_2, OPT_SORT_KEYS
 from odoo.libs.json import dumps as json_dumps
 from odoo.tools import _, get_lang
@@ -25,6 +26,7 @@ from odoo.tools.safe_eval import safe_eval, test_python_expr
 IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _server_action_logger = logging.getLogger(
     "odoo.addons.base.models.ir_actions.server_action_safe_eval"
 )
@@ -581,6 +583,14 @@ class IrActionsServer(models.Model):
         if history_vals:
             self.env["ir.actions.server.history"].create(history_vals)
 
+        _debug.lifecycle(
+            "create",
+            count=len(actions),
+            states=sorted(
+                {vals.get("state") for vals in vals_list if vals.get("state")}
+            ),
+            code_histories=len(history_vals),
+        )
         return actions
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -596,6 +606,7 @@ class IrActionsServer(models.Model):
             ]
             if history_vals:
                 self.env["ir.actions.server.history"].create(history_vals)
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         if name_decides_custom:
             self._release_automated_names()
@@ -1050,7 +1061,8 @@ class IrActionsServer(models.Model):
     def _run_action_code_multi(self, eval_context: dict[str, Any]) -> Any:
         if not self.code:
             return None
-        safe_eval(self.code.strip(), eval_context, mode="exec", filename=str(self))
+        with _debug.perf("action_code", cr=self.env.cr, action=self.id, name=self.name):
+            safe_eval(self.code.strip(), eval_context, mode="exec", filename=str(self))
         return eval_context.get("action")
 
     def _run_action_multi(self, eval_context: dict[str, Any] | None = None) -> Any:
@@ -1058,6 +1070,7 @@ class IrActionsServer(models.Model):
         children = self.child_ids.sorted()
         if (env := (eval_context or {}).get("env")) is not None:
             children = children.with_env(env)
+        _debug.pipeline("action_multi", action=self.id, children=children.ids)
         for act in children:
             res = act.run() or res
         return res
@@ -1140,6 +1153,13 @@ class IrActionsServer(models.Model):
 
         _logger.info("Webhook %s to %s", action_label, target)
         _logger.debug("POST JSON data for webhook call: %s", json_values)
+        _debug.pipeline(
+            "webhook_scheduled",
+            action=self.id,
+            target=target,
+            payload_bytes=len(json_values),
+            timeout=timeout,
+        )
         deliver = self._prepare_webhook_delivery(url, timeout, action_label, target)
 
         @self.env.cr.postrollback.add
@@ -1196,6 +1216,9 @@ class IrActionsServer(models.Model):
                 )
             response.raise_for_status()
             _logger.info("Webhook %s to %s - succeeded", action_label, target)
+            _debug.pipeline(
+                "webhook_delivered", target=target, status=response.status_code
+            )
         except requests.exceptions.ReadTimeout:
             _logger.warning(
                 "Webhook %s to %s timed out after %ss. The receiver may or "
@@ -1307,7 +1330,16 @@ class IrActionsServer(models.Model):
             eval_context = self._prepare_eval_context(action)
             records = self._get_records_targeted(action)
             action.sudo(self.env.su)._check_access_to_run(records)
-            res = action._run(records, eval_context)
+            with _debug.perf(
+                "run",
+                cr=self.env.cr,
+                action=action.id,
+                state=action.state,
+                model=records._name,
+                records=len(records),
+                uid=self.env.uid,
+            ):
+                res = action._run(records, eval_context)
         return res
 
     def _log_missing_target(self, runner: Any) -> None:
@@ -1335,6 +1367,14 @@ class IrActionsServer(models.Model):
             )
 
         runner, multi = self._resolve_runner()
+        _debug.logic(
+            "runner_resolved",
+            action=self.id,
+            state=self.state,
+            runner=runner.__name__ if runner else None,
+            multi=multi,
+            records=len(records),
+        )
         if not runner:
             _logger.warning(
                 "Found no way to execute server action %r of type %r, ignoring it. "
@@ -1378,6 +1418,9 @@ class IrActionsServer(models.Model):
         action_groups = config.group_ids
         if action_groups:
             if not (action_groups & self.env.user.sudo().all_group_ids):
+                _debug.logic(
+                    "run_denied", action=self.id, uid=self.env.uid, by="groups"
+                )
                 raise AccessError(
                     _("You don't have enough access rights to run this action.")
                 )

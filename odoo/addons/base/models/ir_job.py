@@ -25,6 +25,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.libs import backoff
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import working_on_database
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules.registry import Registry
@@ -43,6 +44,7 @@ from .ir_cron import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 NOTIFY_PENDING_KEY = "ir.job.notify"
 
@@ -448,6 +450,17 @@ class IrJob(models.Model):
                 now,
             ]
         )
+        _debug.lifecycle(
+            "enqueue",
+            job=row[0] if row else None,
+            model=records._name,
+            method=method_name,
+            records=len(records),
+            state=str(state),
+            channel=channel or job_config["channel"],
+            deduplicated=row is None,
+            depends_on=dep_ids,
+        )
         if row is None:
             row = self._reuse_deduplicated_job(
                 records, method_name, identity_key, dep_ids
@@ -620,6 +633,7 @@ class IrJob(models.Model):
                 )
             )
         job["defer"] = {"seconds": max(int(seconds), 0), "reason": reason or ""}
+        _debug.logic("defer_requested", job=job["id"], seconds=seconds, reason=reason)
 
     @api.model
     def _get_clock_timestamp(self) -> datetime:
@@ -686,6 +700,7 @@ class IrJob(models.Model):
         )
         if cr.rowcount:
             _logger.debug("Promoted %s scheduled job(s) now due", cr.rowcount)
+            _debug.pipeline("promoted", count=cr.rowcount)
         return cr.rowcount
 
     @staticmethod
@@ -717,8 +732,9 @@ class IrJob(models.Model):
             if not cr.fetchone()[0]:
                 return
             try:
-                IrJob._reap_dead_jobs(cr)
-                IrJob._release_ready_dependents(cr)
+                with _debug.perf("maintenance", cr=cr, db=db_conn.dbname):
+                    IrJob._reap_dead_jobs(cr)
+                    IrJob._release_ready_dependents(cr)
                 cr.commit()
             except PG_RETRY_EXCEPTIONS as exc:
                 cr.rollback()
@@ -765,12 +781,22 @@ class IrJob(models.Model):
                 if job is None:
                     cr.rollback()
                     return False
+                _debug.lifecycle(
+                    "job_claimed",
+                    job=job["id"],
+                    channel=job["channel"],
+                    model=job["model_name"],
+                    method=job["method_name"],
+                    retry=job["retry"],
+                )
                 if (reloaded := registry.check_signaling()) is not registry:
                     registry = reloaded
                     cr.transaction.reset()
                 cr.commit()
                 with _job_session_lock(cr, job["id"]):
-                    exc = IrJob._run_with_concurrency_replay(registry, cr, job)
+                    with _debug.perf("job_run", cr=cr, job=job["id"]) as span:
+                        exc = IrJob._run_with_concurrency_replay(registry, cr, job)
+                        span.set(failed=exc is not None)
                     if exc is None:
                         registry.signal_changes()
                         continue
@@ -792,6 +818,12 @@ class IrJob(models.Model):
                 cr.rollback()
                 if not isinstance(exc, JOB_CONCURRENCY_EXCEPTIONS):
                     return exc
+                _debug.logic(
+                    "job_concurrency_replay",
+                    job=job["id"],
+                    attempt=attempt,
+                    error=type(exc).__name__,
+                )
                 if attempt == CONCURRENCY_MAX_ATTEMPTS:
                     _logger.info(
                         "Job %s: %s on every one of %s attempts, recording it",
@@ -924,6 +956,7 @@ class IrJob(models.Model):
                 )
             except PG_RETRY_EXCEPTIONS:
                 cr.rollback()
+                _debug.logic("claim_retry", attempt=attempt, reason="serialization")
                 if attempt < CLAIM_MAX_ATTEMPTS:
                     time.sleep(
                         backoff.get_delay(
@@ -936,6 +969,7 @@ class IrJob(models.Model):
             row = cr.fetchone()
             if row is not None:
                 return dict(zip([d.name for d in cr.description], row, strict=True))
+            _debug.logic("claim_retry", attempt=attempt, reason="lost_race")
             if attempt < CLAIM_MAX_ATTEMPTS:
                 continue
         raise ClaimContended(
@@ -1014,6 +1048,7 @@ class IrJob(models.Model):
                 ) from None
             raise
         if defer := job.get("defer"):
+            _debug.lifecycle("job_deferred", job=job["id"], seconds=defer["seconds"])
             IrJob._record_deferral(cr, job, defer)
             return
         cr.execute(
@@ -1032,9 +1067,11 @@ class IrJob(models.Model):
                 " work commits without being marked done and may run again",
                 job["id"],
             )
-        if IrJob._release_dependents(cr, job["id"]):
+        released = IrJob._release_dependents(cr, job["id"])
+        if released:
             IrJob._notify_after_commit(cr)
         _logger.info("Job %s: done", job["id"])
+        _debug.lifecycle("job_done", job=job["id"], released_dependents=released)
 
     @staticmethod
     def _record_deferral(cr, job: dict[str, Any], defer: dict[str, Any]) -> None:
@@ -1136,6 +1173,13 @@ class IrJob(models.Model):
                 delay,
                 type(exc).__name__,
             )
+            _debug.lifecycle(
+                "job_retry_scheduled",
+                job=job["id"],
+                retry=retry + 1,
+                delay=delay,
+                error=type(exc).__name__,
+            )
         else:
             cr.execute(
                 SQL(
@@ -1155,6 +1199,9 @@ class IrJob(models.Model):
             )
             _logger.error(
                 "Job %s: failed permanently after %s retries", job["id"], retry
+            )
+            _debug.lifecycle(
+                "job_failed", job=job["id"], retries=retry, error=type(exc).__name__
             )
             IrJob._cancel_dependents(cr, [job["id"]])
             cls._notify_failed(cr, job, exc)
@@ -1223,6 +1270,9 @@ class IrJob(models.Model):
                 reaped,
                 len(requeue_ids),
                 len(fail_ids),
+            )
+            _debug.lifecycle(
+                "jobs_reaped", requeued=len(requeue_ids), failed=len(fail_ids)
             )
         return reaped
 
@@ -1329,6 +1379,7 @@ class IrJob(models.Model):
         ]
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
+        _debug.lifecycle("gc_jobs", count=len(records))
         return len(records), len(records) == GC_UNLINK_LIMIT
 
     def write(self, vals: dict[str, Any]) -> bool:

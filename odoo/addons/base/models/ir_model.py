@@ -8,6 +8,7 @@ from odoo.api import ValuesType
 from odoo.db import schema as sql
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, remove_accents, unique
 from odoo.tools.translate import _
 
@@ -23,6 +24,7 @@ from .ir_model_common import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Base(models.AbstractModel):
@@ -264,6 +266,9 @@ class IrModel(models.Model):
 
                 table = current_model._table
                 kind = sql.get_table_kind(self.env.cr, table)
+                _debug.lifecycle(
+                    "drop_table", model=model.model, table=table, kind=kind
+                )
                 if kind == sql.TableKind.View:
                     self.env.cr.execute(SQL("DROP VIEW %s", SQL.identifier(table)))
                 elif kind == sql.TableKind.Regular:
@@ -299,6 +304,12 @@ class IrModel(models.Model):
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             self._unlink_except_module_data()
         manual_models = self.filtered(lambda model: model.state == "manual")
+        _debug.lifecycle(
+            "unlink",
+            models=self.mapped("model"),
+            manual=len(manual_models),
+            uninstall=bool(self.env.context.get(MODULE_UNINSTALL_FLAG)),
+        )
         manual_models.field_id.filtered(lambda f: f.state == "manual")._prepare_update()
         (self - manual_models).field_id._prepare_update()
 
@@ -319,6 +330,7 @@ class IrModel(models.Model):
         )
         if model_data:
             model_data.unlink()
+        _debug.pipeline("unlink_cascade", crons=len(crons), xmlids=len(model_data))
 
         self.field_id._drop_m2m_tables()
         self._drop_table()
@@ -326,7 +338,8 @@ class IrModel(models.Model):
 
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             self.env.flush_all()
-            self.pool._setup_models__(self.env.cr)
+            with _debug.perf("registry_setup_after_unlink", cr=self.env.cr):
+                self.pool._setup_models__(self.env.cr)
 
         return res
 
@@ -344,10 +357,12 @@ class IrModel(models.Model):
                 )
         if "field_id" in vals:
             vals = dict(vals, field_id=[op for op in vals["field_id"] if op[0] != 4])
+        _debug.lifecycle("write", models=self.mapped("model"), fields=list(vals))
         res = super().write(vals)
         if "order" in vals or "fold_name" in vals:
             self.env.flush_all()
-            self.pool._setup_models__(self.env.cr, [])
+            with _debug.perf("registry_setup_after_write", cr=self.env.cr):
+                self.pool._setup_models__(self.env.cr, [])
         return res
 
     @api.model_create_multi
@@ -359,8 +374,10 @@ class IrModel(models.Model):
             for vals in vals_list
             if vals.get("state", "manual") == "manual"
         ]
+        _debug.lifecycle("create", count=len(res), manual=manual_models)
         if manual_models:
-            reload_schema(self.env, [], manual_models)
+            with _debug.perf("reload_schema", cr=self.env.cr, models=manual_models):
+                reload_schema(self.env, [], manual_models)
         return res
 
     @api.model
@@ -405,6 +422,9 @@ class IrModel(models.Model):
         ):
             add_value(self, name, cache_value=id_)
             model_ids.append(id_)
+        _debug.perf.count(
+            "prewarm_ids", requested=len(model_names), found=len(model_ids)
+        )
         return model_ids
 
     @api.model
@@ -429,6 +449,12 @@ class IrModel(models.Model):
             existing[row[1]] = row[1:]
 
         rows = [row for row in expected if existing.get(row[0]) != row]
+        _debug.pipeline(
+            "reflect_models",
+            models=len(model_names),
+            existing=len(existing),
+            changed=[row[0] for row in rows],
+        )
         if rows:
             ids = upsert_en(self, cols, rows, ["model"])
             for row, id_ in zip(rows, ids, strict=True):
@@ -450,6 +476,7 @@ class IrModel(models.Model):
                 xml_id = model_xmlid(module, model_name)
                 record = self.browse(model_id)
                 data_list.append({"xml_id": xml_id, "record": record})
+        _debug.pipeline("reflect_models_xmlids", module=module, xmlids=len(data_list))
         self.env["ir.model.data"]._update_xmlids(data_list)
 
     @api.model
@@ -502,6 +529,9 @@ class IrModelInherit(models.Model):
 
     def _reflect_inherits(self, model_names: list[str]) -> None:
         module_mapping = self._prepare_inherit_mapping(model_names)
+        _debug.pipeline(
+            "reflect_inherits", models=len(model_names), links=len(module_mapping)
+        )
         if not module_mapping:
             return
 
@@ -563,6 +593,7 @@ class IrModelInherit(models.Model):
                     "Inheritance of %r not reflected: no ir_model row yet",
                     model_name,
                 )
+                _debug.logic("inherit_skipped_no_model_row", model=model_name)
                 continue
             get_field_id = (
                 self.env["ir.model.fields"]._get_ids_by_name(model_name).get
@@ -652,6 +683,9 @@ class IrModelInherit(models.Model):
             for item in module_mapping
             if existing.get(item[:2], sentinel) != item[2]
         ]
+        _debug.perf.count(
+            "upsert_inherit_rows", existing=len(existing), changed=len(rows)
+        )
         if rows:
             ids = upsert_en(self, cols, rows, ["model_id", "parent_id"])
             inh_ids.update(dict(zip(rows, ids, strict=True)))

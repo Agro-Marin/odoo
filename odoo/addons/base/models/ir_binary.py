@@ -9,6 +9,7 @@ import werkzeug.http
 from odoo import _, models
 from odoo.exceptions import MissingError, UserError
 from odoo.http import Stream, request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import (
     MIMETYPE_HEAD_SIZE,
     get_extension,
@@ -20,6 +21,7 @@ from odoo.tools.misc import is_valid_limited_field_access_token
 
 DEFAULT_PLACEHOLDER_PATH = "web/static/img/placeholder.png"
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrBinary(models.AbstractModel):
@@ -52,10 +54,13 @@ class IrBinary(models.AbstractModel):
         if access_token and is_valid_limited_field_access_token(
             record, field_name, access_token, scope="binary"
         ):
+            _debug.logic("record_access", model=record._name, via="field_token")
             return record.sudo()
         if record._can_return_content(field_name, access_token):
+            _debug.logic("record_access", model=record._name, via="public_or_token")
             return record.sudo()
         record.check_access("read")
+        _debug.logic("record_access", model=record._name, via="acl")
         return record
 
     def _record_to_stream(self, record: Any, field_name: str) -> Stream:
@@ -120,6 +125,13 @@ class IrBinary(models.AbstractModel):
             )
 
         stream = self._record_to_stream(record, field_name)
+        _debug.pipeline(
+            "stream_from_record",
+            model=record._name,
+            field=field_name,
+            type=stream.type,
+            size=stream.size,
+        )
 
         if stream.type in ("data", "path"):
             if mimetype:
@@ -198,6 +210,7 @@ class IrBinary(models.AbstractModel):
         if not stream or stream.size == 0:
             if not placeholder:
                 placeholder = record._get_placeholder_filename(field_name)
+            _debug.logic("image_placeholder", model=record._name, field=field_name)
             stream = self._get_stream_placeholder(placeholder)
 
         if stream.type == "url":
@@ -229,12 +242,15 @@ class IrBinary(models.AbstractModel):
                 stream.type = "data"
                 stream.path = None
                 stream.data = data
-            stream.data = image_process(
-                stream.data,
-                size=(width, height),
-                crop=crop,
-                quality=quality,
-            )
+            with _debug.perf(
+                "image_process", size=stream.size, width=width, height=height
+            ):
+                stream.data = image_process(
+                    stream.data,
+                    size=(width, height),
+                    crop=crop,
+                    quality=quality,
+                )
             stream.size = len(stream.data)
 
         return stream

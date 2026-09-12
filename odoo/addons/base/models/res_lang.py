@@ -6,11 +6,13 @@ from typing import Any, Literal, Self
 from odoo import _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.locale import format_number
 from odoo.tools import OrderedSet
 from odoo.tools.misc import ReadonlyDict
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _LOCALE_LOCK = threading.Lock()
 
@@ -219,12 +221,14 @@ class ResLang(models.Model):
     def _activate_lang(self, code: str) -> Self:
         lang = self._get_lang_by_code(code)
         if lang and not lang.active:
+            _debug.lifecycle("lang_activated", code=code, install=False)
             lang.active = True
         return lang
 
     def _activate_and_install_lang(self, code: str) -> Self:
         lang = self._get_lang_by_code(code)
         if lang and not lang.active:
+            _debug.lifecycle("lang_activated", code=code, install=True)
             lang.action_unarchive()
         return lang
 
@@ -279,6 +283,7 @@ class ResLang(models.Model):
     @api.model
     def install_lang(self) -> bool:
         lang_code = (tools.config.get("load_language") or "en_US").split(",")[0]
+        _debug.lifecycle("install_lang", code=lang_code)
         self._activate_lang(lang_code) or self._create_lang(lang_code)
         IrDefault = self.env["ir.default"]
         default_value = IrDefault._get("res.partner", "lang")
@@ -340,6 +345,7 @@ class ResLang(models.Model):
                 .with_context(active_test=True)
                 .search_fetch([], self.CACHED_FIELDS, order="name")
             )
+            _debug.perf.count("active_langs_computed", langs=langs.mapped("code"))
             return LangDataDict(
                 {
                     lang.code: LangData({f: lang[f] for f in self.CACHED_FIELDS})
@@ -356,11 +362,18 @@ class ResLang(models.Model):
         if activated:
             active_lang = activated.mapped("code")
             mods = self.env["ir.module.module"].search([("state", "=", "installed")])
-            mods._update_translations(active_lang)
+            with _debug.perf(
+                "lang_translations_loaded",
+                cr=self.env.cr,
+                langs=active_lang,
+                modules=len(mods),
+            ):
+                mods._update_translations(active_lang)
         return res
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle("create", codes=[vals.get("code") for vals in vals_list])
         self.env.registry.clear_cache("stable")
         for vals in vals_list:
             if not vals.get("url_code"):

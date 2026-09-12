@@ -4,6 +4,9 @@ from typing import Self
 
 from odoo import Command, api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 PHONE_NOISE_PATTERN = re.compile(r"[\s\\./\(\)\-]")
 
@@ -100,6 +103,13 @@ class PhoneNumber(models.Model):
                 to_create.append((position, vals))
                 first_position[sanitized] = position
         created = super().create([vals for _, vals in to_create])
+        _debug.lifecycle(
+            "create",
+            requested=len(vals_list),
+            reused=len(existing),
+            deduplicated=len(deferred),
+            created=len(created),
+        )
         for (position, _), phone in zip(to_create, created, strict=True):
             by_position[position] = phone
         for position, first, vals in deferred:

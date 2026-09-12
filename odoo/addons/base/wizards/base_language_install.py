@@ -1,6 +1,9 @@
 from typing import Any
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class BaseLanguageInstall(models.TransientModel):
@@ -47,7 +50,14 @@ class BaseLanguageInstall(models.TransientModel):
         self.check_singleton()
         mods = self.env["ir.module.module"].search([("state", "=", "installed")])
         self.lang_ids.active = True
-        mods._update_translations(self.lang_ids.mapped("code"), self.overwrite)
+        with _debug.perf(
+            "install_langs",
+            cr=self.env.cr,
+            langs=self.lang_ids.mapped("code"),
+            modules=len(mods),
+            overwrite=self.overwrite,
+        ):
+            mods._update_translations(self.lang_ids.mapped("code"), self.overwrite)
 
         if len(self.lang_ids) == 1:
             return {

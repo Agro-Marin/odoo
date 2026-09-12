@@ -13,6 +13,7 @@ from odoo.db import FunctionStatus
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.libs.datetime import all_timezones
 from odoo.libs.datetime import timezone as get_timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.tools import SQL
 
@@ -35,6 +36,7 @@ EU_EXTRA_VAT_CODES = {
 }
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _FAILED_ADDRESS_FORMATS: set[tuple[str, str]] = set()
 
@@ -843,6 +845,14 @@ class ResPartner(models.Model):
                     kept |= other
             if kept:
                 matches[partner.id] = kept
+        _debug.perf.count(
+            "similar_named_partners",
+            named=len(named),
+            recalled=sum(len(ids) for ids in recalled_by_index.values()),
+            readable=len(readable_ids),
+            matched=len(matches),
+            threshold=threshold,
+        )
         return matches
 
     def _get_similar_name_recall(self, named: ResPartner) -> dict[int, list[int]]:
@@ -1298,6 +1308,13 @@ class ResPartner(models.Model):
                 descendants_to_sync.write(sync_vals)
 
     def _fields_sync(self, values: dict[str, Any]) -> None:
+        _debug.logic(
+            "fields_sync",
+            partner=self.id,
+            parent=self.parent_id.id,
+            type=self.type,
+            fields=list(values),
+        )
         self._sync_from_parent(values)
         self._sync_to_parent(values)
         self._sync_children(values)
@@ -1479,6 +1496,7 @@ class ResPartner(models.Model):
                 {"is_company": vals.get("is_company")}
             )
             del vals["is_company"]
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         result = result and super().write(vals)
         if {"lang", "tz"} & vals.keys() and self.sudo().with_context(
             active_test=False
@@ -1507,6 +1525,14 @@ class ResPartner(models.Model):
             partner.id
             for partner, values in zip(partners, vals_list, strict=True)
             if "lang" not in values
+        )
+        _debug.lifecycle(
+            "create",
+            count=len(partners),
+            companies=sum(1 for vals in vals_list if vals.get("is_company")),
+            with_parent=sum(1 for vals in vals_list if vals.get("parent_id")),
+            without_lang=len(partners_without_lang),
+            skip_sync=bool(self.env.context.get("_partners_skip_fields_sync")),
         )
         if partners_without_lang:
             partners_without_lang._update_lang_from_parent()
@@ -1557,6 +1583,9 @@ class ResPartner(models.Model):
             if to_write:
                 self.sudo().browse(children).write(to_write)
 
+        _debug.pipeline(
+            "load_records_create", partners=len(partners), groups=len(groups)
+        )
         for partner, vals in zip(partners, vals_list, strict=True):
             partner._sync_children(vals)
             partner._update_parent_address()
@@ -1697,8 +1726,12 @@ class ResPartner(models.Model):
                 limit=1,
             )
             if partners:
+                _debug.logic("get_or_create", found=partners.id)
                 return partners
 
+        _debug.logic(
+            "get_or_create", found=None, valid_email=bool(parsed_email_normalized)
+        )
         create_values = {self._rec_name: parsed_name or parsed_email_normalized}
         if parsed_email_normalized:
             create_values["email"] = parsed_email_normalized

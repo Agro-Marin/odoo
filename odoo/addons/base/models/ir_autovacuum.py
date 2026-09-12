@@ -7,10 +7,12 @@ from typing import Any
 
 from odoo import api, models
 from odoo.exceptions import AccessDenied
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import CACHES_BY_KEY
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAX_VACUUM_RUNTIME = 3600
 
@@ -34,6 +36,7 @@ class IrAutovacuum(models.AbstractModel):
         ]
         random.shuffle(all_methods)
         queue = collections.deque(all_methods)
+        _debug.pipeline("vacuum_start", methods=len(all_methods))
         vacuum_start = time.monotonic()
         hard_deadline = self.env.context.get("cron_hard_deadline")
         calls = 0
@@ -54,7 +57,11 @@ class IrAutovacuum(models.AbstractModel):
             calls += 1
             try:
                 start_time = time.monotonic()
-                result = func(model)
+                with _debug.perf(
+                    "vacuum_method", cr=self.env.cr, model=model._name, method=attr
+                ) as span:
+                    result = func(model)
+                    span.set(result=result)
                 self.env["ir.cron"]._commit_progress()
                 if remaining := self._get_remaining_work(model, attr, result):
                     if time.monotonic() - vacuum_start >= MAX_VACUUM_RUNTIME:
@@ -71,6 +78,7 @@ class IrAutovacuum(models.AbstractModel):
                 _logger.exception("Failed %s.%s()", model, attr)
                 self.env.cr.rollback()
                 self.env.invalidate_all()
+        _debug.pipeline("vacuum_end", calls=calls, deferred=len(deferred))
         if deferred:
             _logger.warning(
                 "Autovacuum exceeded its wall-clock budget; deferring "

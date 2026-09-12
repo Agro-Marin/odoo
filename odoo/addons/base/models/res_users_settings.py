@@ -1,6 +1,9 @@
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResUsersSettings(models.Model):
@@ -30,6 +33,9 @@ class ResUsersSettings(models.Model):
     def _get_or_create_for_user(self, user: Any) -> Self:
         settings = user.sudo().res_users_settings_ids
         if not settings:
+            _debug.lifecycle(
+                "settings_created", uid=user.id, transient=self.env.cr.readonly
+            )
             if self.env.cr.readonly:
                 settings = self.sudo().new({"user_id": user.id})
             else:
@@ -75,6 +81,12 @@ class ResUsersSettings(models.Model):
                 continue
             if self._is_setting_changed(setting, new_value):
                 changed_settings[setting] = new_value
+        _debug.logic(
+            "settings_changed",
+            uid=self.user_id.id,
+            requested=list(new_settings),
+            changed=list(changed_settings),
+        )
         self.write(changed_settings)
         return self._res_users_settings_format([*changed_settings.keys(), "id"])
 

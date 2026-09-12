@@ -25,6 +25,7 @@ from odoo.exceptions import (
 from odoo.fields import Command, Domain
 from odoo.http import DEFAULT_LANG, request
 from odoo.libs.datetime import all_timezones
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.password import _MAX_ROUNDS, CryptContext
 from odoo.tools import (
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MIN_ROUNDS = 600_000
 
@@ -228,6 +230,12 @@ class ResUsers(models.Model):
 
         context["uid"] = self.env.uid
 
+        _debug.perf.count(
+            "context_computed",
+            uid=self.env.uid,
+            lang=context["lang"],
+            user_lang_valid=user_lang_valid,
+        )
         return frozendict(context), user_lang_valid
 
     @tools.ormcache("self.id")
@@ -263,7 +271,9 @@ class ResUsers(models.Model):
     @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
-        return self.with_context({}).all_group_ids._ids
+        group_ids = self.with_context({}).all_group_ids._ids
+        _debug.perf.count("group_ids_computed", uid=self.id, groups=len(group_ids))
+        return group_ids
 
     def _get_effective_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
@@ -662,6 +672,13 @@ class ResUsers(models.Model):
             valid, replacement = self._get_crypt_context().match_and_update(
                 credential["password"], hashed
             )
+            _debug.logic(
+                "password_checked",
+                uid=self.id,
+                valid=valid,
+                rehashed=replacement is not None,
+                interactive=interactive,
+            )
             if replacement is not None:
                 self._update_encrypted_password(self.id, replacement)
                 if request and self == self.env.user:
@@ -684,6 +701,7 @@ class ResUsers(models.Model):
                 )
                 == self.id
             ):
+                _debug.logic("apikey_checked", uid=self.id, valid=True)
                 return {
                     "uid": self.id,
                     "auth_method": "apikey",
@@ -921,6 +939,12 @@ class ResUsers(models.Model):
                 {k: v for k, v in vals.items() if k not in backed} for vals in vals_list
             ]
         users = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(users),
+            logins=users.mapped("login"),
+            deferred_settings=sum(1 for settings in deferred if settings),
+        )
         users._sync_partner_company()
         inactive = users.filtered(lambda u: not u.active)
         (users - inactive).partner_id.active = True
@@ -976,8 +1000,10 @@ class ResUsers(models.Model):
             if all(
                 key in writeable for key in vals
             ) and not self._is_escaping_own_record(vals):
+                _debug.logic("self_write_elevated", uid=self.env.uid, fields=list(vals))
                 self = self.sudo()
 
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
 
         if "company_id" in vals:
@@ -989,8 +1015,10 @@ class ResUsers(models.Model):
                     reset_cached_properties(env)
 
         if "group_ids" in vals and self.ids:
+            _debug.logic("write_cache_cleared", reason="group_ids")
             self.env["ir.model.access"].call_cache_clearing_methods()
         elif self._get_fields_invalidation() & vals.keys():
+            _debug.logic("write_cache_cleared", reason="invalidating_fields")
             self.env.registry.clear_cache()
 
         return res
@@ -1125,9 +1153,13 @@ class ResUsers(models.Model):
                 user._update_last_login()
         except AccessDenied:
             _logger.info("Login failed for login:%s from %s", login, ip)
+            _debug.lifecycle("login_failed", login=login, ip=ip)
             raise
 
         _logger.info("Login successful for login:%s from %s", login, ip)
+        _debug.lifecycle(
+            "login", uid=auth_info["uid"], method=auth_info.get("auth_method"), ip=ip
+        )
 
         return auth_info
 
@@ -1239,6 +1271,7 @@ class ResUsers(models.Model):
             self.env.user.id,
             ip,
         )
+        _debug.lifecycle("password_changed", uid=self.id, by=self.env.uid)
 
         self.password = new_passwd
 
@@ -1559,6 +1592,7 @@ class ResUsers(models.Model):
         source = request.httprequest.remote_addr
         failures, previous = self._get_login_failure_state(source)
         if self._is_login_on_cooldown(failures, previous):
+            _debug.logic("login_cooldown", source=source, failures=failures)
             _logger.warning(
                 "Login attempt ignored for %s (user %r) on %s: "
                 "%d failures since last success, last failure at %s. "

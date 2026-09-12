@@ -3,9 +3,11 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets.constants import ESM_BRIDGE_REFRESH_DAYS
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 ASSETS_URL_PREFIX = "/web/assets/"
 ESM_BRIDGES_URL_PREFIX = "/web/assets/esm/bridges/"
@@ -27,6 +29,7 @@ class IrAttachment(models.Model):
         )
         res = super().unlink()
         if clear_assets:
+            _debug.lifecycle("assets_cache_cleared", reason="attachment_unlink")
             self.env.registry.clear_cache("assets")
         return res
 
@@ -110,6 +113,12 @@ class IrAttachment(models.Model):
                 break
             stale_artifacts, bridges = self._get_esm_gc_collectable(candidates)
             to_gc = stale_artifacts | bridges
+            _debug.pipeline(
+                "esm_gc_batch",
+                candidates=len(candidates),
+                stale=len(stale_artifacts),
+                bridges=len(bridges),
+            )
             offset += len(candidates) - len(to_gc)
             if not to_gc:
                 continue
@@ -161,6 +170,7 @@ class IrAttachment(models.Model):
     def regenerate_assets_bundles(self) -> None:
         self._check_admin_access()
         generated = self.search(self._get_domain_generated_assets())
+        _debug.lifecycle("regenerate_assets_bundles", generated=len(generated))
         if generated:
             generated.unlink()
         else:

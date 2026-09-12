@@ -12,6 +12,7 @@ from rjsmin import jsmin as _rjsmin
 from odoo import SUPERUSER_ID, api, models, tools
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.documents import mimetype_for
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
@@ -53,6 +54,7 @@ from odoo.tools.misc import file_path, str2bool
 from odoo.addons.base.models.assetsbundle import AssetsBundle, BundleFileSpec
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 EsmNodePair = tuple[list[AssetNode], list[AssetNode]]
 
@@ -310,16 +312,27 @@ class IrQweb(models.AbstractModel):
         rtl: bool = False,
         autoprefix: bool = False,
     ) -> list[str]:
-        asset_bundle = self._get_asset_bundle(
-            bundle,
+        with _debug.perf(
+            "asset_links_uncached",
+            cr=self.env.cr,
+            bundle=bundle,
             css=css,
             js=js,
-            debug_assets=debug_assets,
+            debug=debug_assets,
             rtl=rtl,
-            assets_params=assets_params,
-            autoprefix=autoprefix,
-        )
-        return asset_bundle.get_links()
+        ) as span:
+            asset_bundle = self._get_asset_bundle(
+                bundle,
+                css=css,
+                js=js,
+                debug_assets=debug_assets,
+                rtl=rtl,
+                assets_params=assets_params,
+                autoprefix=autoprefix,
+            )
+            links = asset_bundle.get_links()
+            span.set(links=len(links))
+        return links
 
     _external_libs = staticmethod(external_libs)
     _served_external_libs_table = staticmethod(served_external_libs)
@@ -668,7 +681,8 @@ class IrQweb(models.AbstractModel):
             assets_params=assets_params,
         )
         self._check_lazy_bundle_relative_imports(asset_bundle)
-        native_data = asset_bundle.get_native_module_data()
+        with _debug.perf("esm_payload_uncached", bundle=bundle, compiled=compiled):
+            native_data = asset_bundle.get_native_module_data()
         import_map = self._get_external_libs_served(debug_assets=not compiled)
         import_map.update(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
@@ -1729,6 +1743,7 @@ class IrQweb(models.AbstractModel):
 
         js_bundles, css_bundles = self._get_bundles_to_pregenerate()
         self._log_pregeneration_coverage(js_bundles)
+        _debug.pipeline("pregenerate", js=len(js_bundles), css=len(css_bundles))
 
         start = time.time()
         links = list(self._get_external_libs_served(debug_assets=False).values())

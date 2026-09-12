@@ -11,6 +11,7 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import Manifest
 from odoo.tools import misc
 from odoo.tools.assets.constants import EXTERNAL_ASSET, like_escape
@@ -39,6 +40,7 @@ from .ir_asset_paths import (
 )
 
 _logger = getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _CACHE_ASSET_LOOKUPS = "xml" not in tools.config["dev_mode"]
 
@@ -138,12 +140,16 @@ class IrAsset(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         records = super().create(vals_list)
+        _debug.lifecycle(
+            "create", count=len(records), bundles=sorted(set(records.mapped("bundle")))
+        )
         if records:
             records._warn_bundle_name()
             self._invalidate_assets_cache()
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         result = super().write(vals)
         if self and "bundle" in vals:
             self._warn_bundle_name()
@@ -159,6 +165,7 @@ class IrAsset(models.Model):
 
     def unlink(self) -> bool:
         had_records = bool(self)
+        _debug.lifecycle("unlink", count=len(self))
         result = super().unlink()
         if had_records:
             self._invalidate_assets_cache()
@@ -240,7 +247,9 @@ class IrAsset(models.Model):
             manifest_assets=self._get_manifest_assets(tuple(sorted(addons))),
         )
         walk = self._prepare_bundle_walk(resolution)
-        walk.walk(bundle)
+        with _debug.perf("asset_paths", bundle=bundle, addons=len(addons)) as span:
+            walk.walk(bundle)
+            span.set(paths=len(walk.paths.list), bundles_walked=len(walk.walked))
         return tuple(walk.paths.list)
 
     def _prepare_bundle_walk(self, resolution: Resolution) -> BundleWalk:

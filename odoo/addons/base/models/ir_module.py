@@ -18,6 +18,7 @@ from odoo.db.schema import column_exists
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.parse_version import parse_version
 from odoo.libs.rst import render_html as render_rst_html
 from odoo.modules.module import (
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Iterator
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 ACTION_DICT = {
     "view_mode": "form",
@@ -473,6 +475,10 @@ class IrModuleModule(models.Model):
                 )
 
     def write(self, vals: dict[str, Any]) -> bool:
+        if _debug.lifecycle.enabled and "state" in vals:
+            _debug.lifecycle(
+                "write_state", modules=self.mapped("name"), state=vals["state"]
+            )
         res = super().write(vals)
         if not STABLE_CACHE_FIELDS.isdisjoint(vals):
             self.env.registry.clear_cache("stable")
@@ -566,6 +572,13 @@ class IrModuleModule(models.Model):
 
             if module.state in states_to_update:
                 self.check_external_dependencies(module.name, newstate)
+                _debug.lifecycle(
+                    "module_state",
+                    module=module.name,
+                    old=module.state,
+                    new=newstate,
+                    level=level,
+                )
                 module.write({"state": newstate})
 
     def _get_unsatisfiable_dependency_error(self, module: Self, dep: Any) -> str:
@@ -609,7 +622,12 @@ class IrModuleModule(models.Model):
             return triggers <= AUTO_INSTALL_TRIGGER_STATES and "to install" in triggers
 
         to_install = self
+        rounds = 0  # debuglog
         while to_install:
+            rounds += 1  # debuglog
+            _debug.pipeline(
+                "install_round", round=rounds, modules=to_install.mapped("name")
+            )
             to_install._update_module_state("to install", ["uninstalled"])
 
             if config.get("skip_auto_install"):
@@ -618,6 +636,9 @@ class IrModuleModule(models.Model):
                 to_install = self.search(auto_domain).filtered(is_install_required)
 
         install_mods = self.search([("state", "in", list(AUTO_INSTALL_TRIGGER_STATES))])
+        _debug.pipeline(
+            "install_planned", requested=len(self), planned=len(install_mods)
+        )
 
         install_names = {module.name for module in install_mods}
         for module in install_mods:
@@ -681,6 +702,7 @@ class IrModuleModule(models.Model):
     @assert_log_admin_access
     def module_uninstall(self) -> bool:
         modules_to_remove = self.mapped("name")
+        _debug.lifecycle("module_uninstall", modules=modules_to_remove)
         self.env["ir.model.data"]._uninstall_module_data(modules_to_remove)
         self.with_context(prefetch_fields=False).write(
             {
@@ -782,9 +804,11 @@ class IrModuleModule(models.Model):
             cr.execute("LOCK ir_module_module IN EXCLUSIVE MODE")
         except psycopg.OperationalError:
             cr.rollback()
+            _debug.logic("module_lock_busy", reason="table_lock_timeout")
             raise UserError(busy) from None
 
         if self._has_pending_module_operation():
+            _debug.logic("module_lock_busy", reason="pending_operation")
             raise UserError(busy)
 
         try:
@@ -819,10 +843,18 @@ class IrModuleModule(models.Model):
             raise RuntimeError(msg)
 
         self._lock_against_concurrent_module_operations()
+        _debug.pipeline(
+            "immediate_function",
+            function=function.__name__,
+            modules=self.mapped("name"),
+        )
         function(self)
 
         self.env.cr.commit()
-        registry = modules.registry.Registry.new(self.env.cr.dbname, update_module=True)
+        with _debug.perf("registry_reload", db=self.env.cr.dbname):
+            registry = modules.registry.Registry.new(
+                self.env.cr.dbname, update_module=True
+            )
         self.env.cr.commit()
         if request and request.registry is self.env.registry:
             request.env.cr.reset()
@@ -877,6 +909,11 @@ class IrModuleModule(models.Model):
                 )
             )
         deps = self.downstream_dependencies()
+        _debug.lifecycle(
+            "uninstall_planned",
+            modules=self.mapped("name"),
+            dependents=deps.mapped("name"),
+        )
         (self + deps).write({"state": "to remove"})
         return dict(ACTION_DICT, name=_("Uninstall"))
 
@@ -937,6 +974,7 @@ class IrModuleModule(models.Model):
                 ):
                     seen_ids.add(dependent.id)
                     todo.append(dependent)
+        _debug.pipeline("upgrade_cascade", requested=len(self), cascade=len(todo))
         return todo
 
     def _get_module_ids_to_upgrade(self, cascade: list[Self]) -> list[int]:
@@ -970,6 +1008,7 @@ class IrModuleModule(models.Model):
                 len(marked_ids),
                 skipped,
             )
+        _debug.logic("upgrade_checksum_skip", marked=len(marked_ids), skipped=skipped)
         return marked_ids
 
     def _get_uninstalled_dependency_names(self, cascade: list[Self]) -> list[str]:
@@ -1037,6 +1076,7 @@ class IrModuleModule(models.Model):
         ]
         self.env["ir.model.data"].create(module_metadata_list)
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle("create", modules=modules.mapped("name"))
         return modules
 
     @assert_log_admin_access
@@ -1086,6 +1126,9 @@ class IrModuleModule(models.Model):
 
         self._sync_auto_install_required(auto_install_requirements)
 
+        _debug.pipeline(
+            "update_list", known=len(known_mods), updated=updated, added=added
+        )
         return UpdateListResult(updated=updated, added=added)
 
     def _update_from_terp(
@@ -1353,6 +1396,22 @@ class IrModuleModule(models.Model):
     ) -> None:
         translation_importer = TranslationImporter(self.env.cr, verbose=False)
 
+        with _debug.perf(
+            "load_module_terms",
+            cr=self.env.cr,
+            modules=len(module_names),
+            langs=langs,
+            overwrite=overwrite,
+        ):
+            self._load_module_terms_into(translation_importer, module_names, langs)
+            translation_importer.save(overwrite=overwrite)
+
+    def _load_module_terms_into(
+        self,
+        translation_importer: TranslationImporter,
+        module_names: list[str],
+        langs: list[str],
+    ) -> None:
         for module_name in module_names:
             if not Manifest.for_addon(module_name, display_warning=False):
                 continue
@@ -1377,8 +1436,6 @@ class IrModuleModule(models.Model):
                         module_name,
                         lang,
                     )
-
-        translation_importer.save(overwrite=overwrite)
 
     @api.model
     def _extract_resource_attachment_translations(

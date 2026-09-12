@@ -1,4 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class IrModuleModuleDependency(models.Model):
@@ -35,4 +38,7 @@ class IrModuleModuleDependency(models.Model):
             for module, dep_names in groups:
                 res[module.name] = dep_names
                 to_search.update(set(dep_names) - searched)
+        _debug.perf.count(
+            "all_dependencies", requested=len(module_names), resolved=len(res)
+        )
         return res

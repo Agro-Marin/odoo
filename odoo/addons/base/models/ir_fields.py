@@ -13,12 +13,14 @@ import psycopg
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.datetime import utc
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import loads as json_loads
 from odoo.tools import SQL, OrderedSet
 from odoo.tools.misc import DATE_LENGTH
 from odoo.tools.translate import LazyTranslate, code_translations
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _lt = LazyTranslate(__name__)
 
 REFERENCING_FIELDS = frozenset({None, "id", ".id"})
@@ -226,6 +228,13 @@ class IrFieldsConverter(models.AbstractModel):
         def resolve_converter(name: str, field: fields.Field) -> Converter | None:
             if name not in converter_cache:
                 converter_cache[name] = self._resolve_converter_field(field, fromtype)
+                _debug.logic(
+                    "converter_resolved",
+                    model=model._name,
+                    field=name,
+                    type=field.type,
+                    supported=converter_cache[name] is not None,
+                )
             return converter_cache[name]
 
         def convert_one(fname: str, value: Any, log: Callable) -> Any:
@@ -247,6 +256,12 @@ class IrFieldsConverter(models.AbstractModel):
                 log(fname, ValueError(escape_import_message(str(e))))
                 return _UNCONVERTED
             except Exception as e:
+                _debug.logic(
+                    "convert_failed",
+                    field=fname,
+                    type=field.type,
+                    error=type(e).__name__,
+                )
                 log(
                     fname,
                     self._prepare_import_error_from_exception(
@@ -864,6 +879,13 @@ class IrFieldsConverter(models.AbstractModel):
 
         if cache is not None and lookup.id:
             cache[cache_key] = (lookup.id, list(lookup.warnings))
+        _debug.logic(
+            "ref_lookup",
+            field=self._get_field_path(field),
+            subfield=subfield,
+            found=lookup.id is not None,
+            cached=cache is not None,
+        )
 
         if lookup.id is None and self._get_policy(field) is ImportPolicy.REPORT:
             raise self._prepare_ref_not_found_error(
@@ -934,6 +956,7 @@ class IrFieldsConverter(models.AbstractModel):
             try:
                 with self.env.cr.savepoint():
                     id, _name = RelatedModel.name_create(name=value)
+                _debug.lifecycle("ref_name_created", model=RelatedModel._name, id=id)
                 return RefLookup(id, field_type, "", warnings)
             except UserError, ValueError, psycopg.Error:
                 error_msg = self.env._(

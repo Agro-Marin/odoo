@@ -4,12 +4,15 @@ from typing import TYPE_CHECKING, Any
 
 from odoo import release
 from odoo.api import SUPERUSER_ID, Environment
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.assets.constants import ANY_UNIQUE
 
 if TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment
 from .common import _logger
+
+_debug = DebugLog(__name__)
 
 
 class AssetAttachmentStore:
@@ -182,6 +185,13 @@ class AssetAttachmentStore:
             "Generating a new asset bundle attachment %s (id:%s)",
             attachment.url,
             attachment.id,
+        )
+        _debug.lifecycle(
+            "attachment_saved",
+            bundle=self.name,
+            extension=extension,
+            attachment=attachment.id,
+            bytes=len(content),
         )
 
         self._clean_attachments(extension, url)

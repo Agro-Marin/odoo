@@ -8,6 +8,7 @@ from psycopg.types.json import Jsonb
 
 from odoo import api, models
 from odoo.api import MODULE_UNINSTALL_FLAG  # noqa: F401 - re-exported downstream
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
 from odoo.tools.translate import LazyTranslate
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from odoo.db.cursor import BaseCursor
 
 _lt = LazyTranslate(__name__)
+_debug = DebugLog(__name__)
 
 ACCESS_MODES = ("read", "write", "create", "unlink")
 
@@ -127,12 +129,19 @@ def reload_schema(
 ) -> None:
     env.flush_all()
     registry = env.registry
-    registry._setup_models__(env.cr, setup_models)
+    with _debug.perf("reload_schema_setup", cr=env.cr, models=len(setup_models)):
+        registry._setup_models__(env.cr, setup_models)
     if init_models:
         affected_models = registry.get_descendants(init_models, "_inherits")
-        registry.init_models(
-            env.cr, affected_models, dict(env.context, update_custom_fields=True)
-        )
+        with _debug.perf(
+            "reload_schema_init",
+            cr=env.cr,
+            models=len(init_models),
+            affected=len(affected_models),
+        ):
+            registry.init_models(
+                env.cr, affected_models, dict(env.context, update_custom_fields=True)
+            )
 
 
 def _model_slug(model_name: str) -> str:
@@ -336,9 +345,17 @@ def upsert_en(
     comma = SQL(", ").join
     batch_size = 65000 // len(fnames) or 1
     key_to_id = {}
-    for batch in batched(values, batch_size, strict=False):
-        query = _prepare_upsert_query(model, fnames, conflict, comma(batch))
-        for result_row in model.env.execute_query(query):
-            key_to_id[result_row[1:]] = result_row[0]
+    with _debug.perf(
+        "upsert_en",
+        cr=model.env.cr,
+        model=model._name,
+        rows=len(rows),
+        columns=len(fnames),
+        batch_size=batch_size,
+    ):
+        for batch in batched(values, batch_size, strict=False):
+            query = _prepare_upsert_query(model, fnames, conflict, comma(batch))
+            for result_row in model.env.execute_query(query):
+                key_to_id[result_row[1:]] = result_row[0]
 
     return [key_to_id[key] for key in keys]

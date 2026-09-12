@@ -4,6 +4,7 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from .ir_model_common import (
@@ -18,6 +19,7 @@ from .ir_model_common import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrModelAccess(models.Model):
@@ -127,6 +129,13 @@ class IrModelAccess(models.Model):
             )
         )
 
+        _debug.perf.count(
+            "models_allowed_computed",
+            mode=mode,
+            uid=self.env.uid,
+            groups=len(group_ids),
+            models=len(rows),
+        )
         return frozenset(v[0] for v in rows)
 
     def _get_unloaded_module_scope(self) -> tuple[int, str | None] | None:
@@ -154,6 +163,14 @@ class IrModelAccess(models.Model):
             return False
 
         has_access = model in self._get_models_allowed(mode)
+        if _debug.logic.enabled and not has_access:
+            _debug.logic(
+                "acl_denied",
+                model=model,
+                mode=mode,
+                uid=self.env.uid,
+                raise_exception=raise_exception,
+            )
         if not has_access and raise_exception:
             raise self._prepare_access_error(model, mode) from None
         return has_access
@@ -187,6 +204,7 @@ class IrModelAccess(models.Model):
 
     @api.model
     def call_cache_clearing_methods(self) -> None:
+        _debug.lifecycle("acl_cache_cleared")
         self.env.invalidate_all()
         self.env.registry.clear_cache("stable")
 
@@ -201,15 +219,18 @@ class IrModelAccess(models.Model):
                     vals.get("name"),
                 )
         records = super().create(vals_list)
+        _debug.lifecycle("create", count=len(records))
         self.call_cache_clearing_methods()
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         self.call_cache_clearing_methods()
         return res
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         res = super().unlink()
         self.call_cache_clearing_methods()
         return res

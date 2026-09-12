@@ -8,9 +8,11 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.db import get_or_create_row
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _create_sequence(
@@ -291,6 +293,12 @@ class IrSequence(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         seqs = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(seqs),
+            codes=seqs.mapped("code"),
+            standard=sum(1 for seq in seqs if seq.implementation == "standard"),
+        )
         for seq in seqs:
             if seq.implementation == "standard":
                 _create_sequence(
@@ -302,6 +310,9 @@ class IrSequence(models.Model):
         return seqs
 
     def unlink(self) -> bool:
+        _debug.lifecycle(
+            "unlink", count=len(self), date_ranges=len(self.date_range_ids)
+        )
         _drop_sequences(
             self.env.cr,
             [
@@ -319,6 +330,13 @@ class IrSequence(models.Model):
             previous_implementation, previous_increment = previous[seq.id]
             was_standard = previous_implementation == "standard"
             is_standard = seq.implementation == "standard"
+            if _debug.lifecycle.enabled and was_standard != is_standard:
+                _debug.lifecycle(
+                    "implementation_switched",
+                    sequence=seq.id,
+                    old=previous_implementation,
+                    new=seq.implementation,
+                )
             if was_standard and is_standard:
                 if "number_next" in vals:
                     _alter_sequence(
@@ -407,6 +425,13 @@ class IrSequence(models.Model):
         else:
             number_next = _update_nogap(self, self.number_increment)
         self.invalidate_recordset(["number_next_actual"])
+        _debug.logic(
+            "next",
+            sequence=self.id,
+            implementation=self.implementation,
+            number=number_next,
+            range=self.env.context.get("ir_sequence_date_range"),
+        )
         return self.get_next_char(number_next)
 
     def _next_do_batch(self, count: int) -> list[str]:
@@ -553,12 +578,19 @@ class IrSequence(models.Model):
             DateRange.invalidate_model()
             return self._get_covering_date_range(date)
 
-        date_range, _created = get_or_create_row(
+        date_range, created = get_or_create_row(
             self.env.cr,
             lambda: DateRange.sudo().create(vals),
             find_covering,
             conflict=f"ir.sequence {self.id} date range {date_from}..{date_to}",
             flush=False,
+        )
+        _debug.lifecycle(
+            "date_range",
+            sequence=self.id,
+            date_from=date_from,
+            date_to=date_to,
+            created=created,
         )
         return date_range
 
@@ -665,8 +697,16 @@ class IrSequence(models.Model):
                 "No ir.sequence has been found for code '%s'. Please make sure a sequence is set for current company.",
                 sequence_code,
             )
+            _debug.logic("code_not_found", code=sequence_code, company=company_id)
             return False
         seq_id = seq_ids[0]
+        _debug.logic(
+            "code_resolved",
+            code=sequence_code,
+            company=company_id,
+            sequence=seq_id.id,
+            candidates=len(seq_ids),
+        )
         return seq_id._next(sequence_date=sequence_date)
 
     @api.model

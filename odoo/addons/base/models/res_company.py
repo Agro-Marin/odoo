@@ -6,8 +6,11 @@ from odoo import _lt, api, fields, models, modules, tools
 from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import file_open, html2plaintext, ormcache
 from odoo.tools.image import image_process
+
+_debug = DebugLog(__name__)
 
 
 @functools.cache
@@ -371,6 +374,12 @@ class ResCompany(models.Model):
 
         self.env.registry.clear_cache()
         companies = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(companies),
+            partners_created=len(no_partner_vals_list),
+            branches=sum(1 for vals in vals_list if vals.get("parent_id")),
+        )
 
         if companies:
             (self.env.user | self.env["res.users"].browse(SUPERUSER_ID)).write(
@@ -404,6 +413,7 @@ class ResCompany(models.Model):
             and self.filtered(lambda company: not company.country_id)
         ) or self.browse()
 
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         invalidation_fields = self._get_cache_invalidation_fields()
         asset_invalidation_fields = {
@@ -426,6 +436,12 @@ class ResCompany(models.Model):
             roots = self.filtered(lambda company: not company.parent_id)
             all_branches = self.sudo().search(
                 [("id", "child_of", roots.ids), ("id", "not in", roots.ids)]
+            )
+            _debug.logic(
+                "delegated_fields_propagated",
+                fields=sorted(delegated_changed),
+                roots=len(roots),
+                branches=len(all_branches),
             )
             for company in roots:
                 branches = all_branches.filtered(
@@ -452,6 +468,7 @@ class ResCompany(models.Model):
         )
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         res = super().unlink()
         self.env.registry.clear_cache()
         return res
@@ -575,6 +592,12 @@ class ResCompany(models.Model):
             and not modules.module.current_test
             and not self.env.context.get("install_mode")
             and not self.env.context.get("import_file")
+        )
+        _debug.logic(
+            "install_l10n_modules",
+            companies=self.ids,
+            modules=uninstalled_modules.mapped("name"),
+            ready=is_ready_and_not_test,
         )
         if uninstalled_modules and is_ready_and_not_test:
             return uninstalled_modules.button_immediate_install()

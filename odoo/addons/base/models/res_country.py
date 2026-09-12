@@ -6,12 +6,14 @@ from odoo import api, fields, models, tools
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import frozendict
 from odoo.tools.translate import _
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 FLAG_MAPPING = {
@@ -154,17 +156,20 @@ class ResCountry(models.Model):
         for vals in vals_list:
             if vals.get("code"):
                 vals["code"] = vals["code"].upper()
+        _debug.lifecycle("create", codes=[vals.get("code") for vals in vals_list])
         return super().create(vals_list)
 
     def write(self, vals: dict[str, Any]) -> bool:
         if vals.get("code"):
             vals["code"] = vals["code"].upper()
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         if "code" in vals or "phone_code" in vals:
             self.env.registry.clear_cache("stable")
         return res
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", codes=self.mapped("code"))
         self.env.registry.clear_cache("stable")
         return super().unlink()
 

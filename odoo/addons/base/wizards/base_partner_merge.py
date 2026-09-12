@@ -7,10 +7,12 @@ from odoo import api, fields, models
 from odoo.db import FunctionStatus
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.tools import SQL
 
 _logger = logging.getLogger("odoo.addons.base.partner.merge")
+_debug = DebugLog(__name__)
 
 SIMILAR_NAME_PAIRS_PER_GROUP = 200
 
@@ -258,6 +260,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             dst_partner = ordered_partners[-1]
             src_partners = ordered_partners[:-1]
         _logger.info("dst_partner: %s", dst_partner.id)
+        _debug.pipeline(
+            "merge",
+            destination=dst_partner.id,
+            sources=src_partners.ids,
+            absorb=self._is_source_absorbed_on_merge(),
+            extra_checks=extra_checks,
+        )
 
         if dst_partner.company_id:
             partner_ids.mapped("user_ids").sudo().write(
@@ -273,8 +282,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             self._merge_bank_accounts(src_partners, dst_partner)
         self._merge_identifiers(src_partners, dst_partner)
 
-        self._update_foreign_keys(src_partners, dst_partner)
-        self._update_reference_fields(src_partners, dst_partner)
+        with _debug.perf(
+            "merge_repoint",
+            cr=self.env.cr,
+            destination=dst_partner.id,
+            sources=len(src_partners),
+        ):
+            self._update_foreign_keys(src_partners, dst_partner)
+            self._update_reference_fields(src_partners, dst_partner)
         if self._is_source_absorbed_on_merge():
             deferred_values = self._update_values(src_partners, dst_partner)
 
@@ -589,6 +604,14 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
 
         _logger.info("counter: %s", counter)
+        _debug.pipeline(
+            "merge_lines",
+            groups=len(groups),
+            candidates=len(all_ids),
+            accessible=len(accessible_set),
+            lines=counter,
+            exclusion_models=sorted(model_mapping),
+        )
 
     def action_start_manual_process(self) -> dict[str, Any]:
         self.check_singleton()

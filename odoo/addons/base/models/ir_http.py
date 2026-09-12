@@ -25,6 +25,7 @@ from odoo.http import (
     prepare_routing_map,
     request,
 )
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.hashing import cache_hash
 from odoo.libs.json import OPT_SORT_KEYS
 from odoo.libs.json import dumps_bytes as json_dumps_bytes
@@ -36,6 +37,7 @@ from odoo.tools.misc import get_lang, str2bool
 from odoo.tools.translate import code_translations
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _SLUG_SPLIT_RE = re.compile(r"[-_ ]")
 _SLUG_NONWORD_RE = re.compile(r"[^\w]+")
@@ -181,6 +183,7 @@ class IrHttp(models.AbstractModel):
             uid = request.env["res.users.apikeys"]._check_credentials(
                 scope="rpc", key=token
             )
+            _debug.logic("bearer_auth", uid=uid, session_uid=request.env.uid)
             if not uid:
                 e = "Invalid apikey"
                 raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
@@ -190,9 +193,11 @@ class IrHttp(models.AbstractModel):
             request.update_env(user=uid)
             request.session.can_save = False
         elif not request.env.uid:
+            _debug.logic("bearer_auth", uid=None, reason="no_token_no_session")
             e = "User not authenticated, use an API Key with a Bearer Authorization header."
             raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
         elif not is_document_navigation():
+            _debug.logic("bearer_auth", uid=request.env.uid, reason="not_navigation")
             e = 'Missing "Authorization" or Sec-headers for interactive usage.'
             raise Unauthorized(e, www_authenticate=WWWAuthenticate("bearer"))
         cls._auth_method_user()
@@ -200,6 +205,7 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _auth_method_user(cls) -> None:
         if request.env.uid in [None] + cls._get_public_users():
+            _debug.logic("session_expired", uid=request.env.uid)
             msg = "Session expired"
             raise http.SessionExpiredException(msg)
 
@@ -228,6 +234,7 @@ class IrHttp(models.AbstractModel):
         try:
             if request.session.uid is not None:
                 if not security.is_session_valid(request.session, request.env, request):
+                    _debug.logic("session_invalidated", uid=request.session.uid)
                     request.session.logout(keep_db=True)
                     request.env = api.Environment(
                         request.env.cr, None, request.session.context
@@ -236,7 +243,8 @@ class IrHttp(models.AbstractModel):
             if auth_method is None:
                 msg = f"Unknown authentication method: {auth!r}"
                 raise AccessDenied(msg)
-            auth_method()
+            with _debug.perf("authenticate", auth=auth, uid=request.env.uid):
+                auth_method()
         except (
             AccessDenied,
             http.SessionExpiredException,
@@ -295,6 +303,12 @@ class IrHttp(models.AbstractModel):
                 odoo.exceptions.AccessError,
                 odoo.exceptions.MissingError,
             ) as e:
+                _debug.logic(
+                    "route_param_inaccessible",
+                    param=key,
+                    model=args[key]._name,
+                    error=type(e).__name__,
+                )
                 if handle_error := rule.endpoint.routing.get(
                     "handle_params_access_error"
                 ):
@@ -312,7 +326,14 @@ class IrHttp(models.AbstractModel):
             captcha := endpoint.routing.get("captcha")
         ) and request.httprequest.method not in SAFE_HTTP_METHODS:
             request.env["ir.http"]._check_request_recaptcha_token(captcha)
-        result = endpoint(**request.params)
+        with _debug.perf(
+            "dispatch",
+            cr=request.env.cr,
+            endpoint=endpoint.routing.get("routes", [""])[0],
+            method=request.httprequest.method,
+        ) as span:
+            result = endpoint(**request.params)
+            span.set(qweb=isinstance(result, Response) and result.is_qweb)
         if isinstance(result, Response) and result.is_qweb:
             result.flatten()
         return result
@@ -335,6 +356,9 @@ class IrHttp(models.AbstractModel):
         attach = model.sudo()._get_serve_attachment(
             request.httprequest.path, extra_domain=[("public", "=", True)]
         )
+        _debug.logic(
+            "serve_fallback", path=request.httprequest.path, attachment=bool(attach)
+        )
         if attach and (attach.store_fname or attach.db_datas):
             return attach._to_http_stream().prepare_response()
         return None
@@ -353,10 +377,13 @@ class IrHttp(models.AbstractModel):
             odoo.tools.config["server_wide_modules"]
         )
         mods = sorted(installed)
-        return prepare_routing_map(
-            self._generate_routing_rules(mods),
-            converters=self._get_converters(),
-        )
+        with _debug.perf("routing_map", key=key, modules=len(mods)) as span:
+            routing_map = prepare_routing_map(
+                self._generate_routing_rules(mods),
+                converters=self._get_converters(),
+            )
+            span.set(rules=sum(1 for _rule in routing_map.iter_rules()))
+        return routing_map
 
     @api.autovacuum
     def _gc_sessions(self) -> None:
@@ -390,10 +417,11 @@ class IrHttp(models.AbstractModel):
         )
 
         translations_per_module = {}
-        for module in modules:
-            translations_per_module[module] = code_translations.get_web_translations(
-                module, lang
-            )
+        with _debug.perf("web_translations", lang=lang, modules=len(modules)):
+            for module in modules:
+                translations_per_module[module] = (
+                    code_translations.get_web_translations(module, lang)
+                )
 
         return translations_per_module, lang_params
 

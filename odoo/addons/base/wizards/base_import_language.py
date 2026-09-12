@@ -6,9 +6,11 @@ from tempfile import TemporaryFile
 
 from odoo import fields, models, tools
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import TranslationImporter
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class BaseLanguageImport(models.TransientModel):
@@ -60,5 +62,10 @@ class BaseLanguageImport(models.TransientModel):
                             error_message=e,
                         ),
                     ) from e
+            _debug.pipeline(
+                "import_language",
+                langs=[imp.code for imp in base_lang_imports],
+                overwrite=overwrite,
+            )
             translation_importer.save(overwrite=overwrite)
         return True

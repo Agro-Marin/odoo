@@ -5,6 +5,7 @@ from odoo import _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, config
 from odoo.tools.safe_eval import safe_eval
 
@@ -16,6 +17,7 @@ from .ir_model_common import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrRule(models.Model):
@@ -131,12 +133,22 @@ class IrRule(models.Model):
             )
             return Model.search_count(dom & Domain("id", "in", ids)) < len(set(ids))
 
-        return all_rules.filtered(
+        failing = all_rules.filtered(
             lambda r: (
                 r in group_rules
                 or ((not r.groups or r.composition == "restrict") and is_failing(r))
             )
         ).with_user(self.env.user)
+        _debug.logic(
+            "failing_rules",
+            model=Model._name,
+            mode=mode,
+            uid=self.env.uid,
+            records=distinct_count,
+            rules=len(all_rules),
+            failing=failing.ids,
+        )
+        return failing
 
     def _get_rules(self, model_name: str, mode: str = "read") -> Self:
         check_access_mode(mode)
@@ -195,6 +207,9 @@ class IrRule(models.Model):
 
         rules = self._get_rules(model_name, mode=mode)
         if not rules:
+            _debug.logic(
+                "rule_domain_none", model=model_name, mode=mode, uid=self.env.uid
+            )
             return Domain.AND(global_domains).optimize(model)
 
         eval_context = self._eval_context()
@@ -215,6 +230,15 @@ class IrRule(models.Model):
 
         if group_domains:
             global_domains.append(Domain.OR(group_domains))
+        _debug.logic(
+            "rule_domain_computed",
+            model=model_name,
+            mode=mode,
+            uid=self.env.uid,
+            rules=len(rules),
+            global_domains=len(global_domains),
+            group_domains=len(group_domains),
+        )
         return Domain.AND(global_domains).optimize(model)
 
     def _get_context_values_in_domains(self) -> Any:
@@ -225,6 +249,7 @@ class IrRule(models.Model):
             yield v
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         res = super().unlink()
         self.env.registry.clear_cache()
         return res
@@ -232,11 +257,13 @@ class IrRule(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle("create", count=len(res))
         self.env.flush_all()
         self.env.registry.clear_cache()
         return res
 
     def write(self, vals: dict[str, Any]) -> bool:
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
         self.env.flush_all()
         self.env.registry.clear_cache()

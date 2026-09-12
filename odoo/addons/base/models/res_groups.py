@@ -4,9 +4,12 @@ from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SetDefinitions
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
+_debug = DebugLog(__name__)
 
 
 class ResGroups(models.Model):
@@ -268,6 +271,7 @@ class ResGroups(models.Model):
         if self.ids:
             self.env["ir.model.access"].call_cache_clearing_methods()
 
+        _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
 
         if self.ids:
@@ -284,6 +288,7 @@ class ResGroups(models.Model):
             if not ext_id
         }
         if missings:
+            _debug.lifecycle("custom_xmlids_added", groups=list(missings))
             self.env["ir.model.data"].sudo().create(
                 [
                     {
@@ -321,6 +326,7 @@ class ResGroups(models.Model):
                     )
                 )
 
+            _debug.lifecycle("group_users_added", group=group.id, users=user_to_add.ids)
             group.user_ids += user_to_add
 
     def _search_all_user_ids(self, operator: str, value: Any) -> list:
@@ -384,11 +390,13 @@ class ResGroups(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         groups = super().create(vals_list)
+        _debug.lifecycle("create", count=len(groups))
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.env.registry.clear_cache("groups")
         return groups
 
     def unlink(self) -> bool:
+        _debug.lifecycle("unlink", count=len(self))
         res = super().unlink()
         self.env["ir.model.access"].call_cache_clearing_methods()
         self.env.registry.clear_cache("groups")
@@ -478,6 +486,7 @@ class ResGroups(models.Model):
             }
             for group in groups
         }
+        _debug.perf.count("group_definitions_computed", groups=len(data))
         return SetDefinitions(data)
 
     @api.model

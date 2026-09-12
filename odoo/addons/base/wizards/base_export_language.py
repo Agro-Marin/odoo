@@ -5,7 +5,10 @@ from typing import Any
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.translate import trans_export, trans_export_records
+
+_debug = DebugLog(__name__)
 
 NEW_LANG_KEY = "__new__"
 
@@ -91,6 +94,16 @@ class BaseLanguageExport(models.TransientModel):
             else:
                 mods = sorted(self.mapped("modules.name")) or ["all"]
                 is_exported = trans_export(lang, mods, buf, self.format, self.env)
+            _debug.pipeline(
+                "export_language",
+                lang=lang,
+                type=self.export_type,
+                format=self.format,
+                modules=mods,
+                model=self.model_name,
+                exported=bool(is_exported),
+                bytes=buf.tell(),
+            )
             out = base64.encodebytes(buf.getvalue()) if is_exported else False
 
         filename = "new"

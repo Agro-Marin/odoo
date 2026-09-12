@@ -23,6 +23,7 @@ from odoo.exceptions import (
 )
 from odoo.fields import COLLECTION_TYPES, Domain
 from odoo.http import Stream, request, root
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import (
     MIMETYPE_HEAD_SIZE,
     _olecf_mimetypes,
@@ -61,6 +62,7 @@ if TYPE_CHECKING:
     from odoo.tools.query import Query
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 SECURITY_FIELDS = ("res_model", "res_id", "create_uid", "public", "res_field")
 
 _INDEX_WORD_RE = re.compile(r"[^\x00-\x1f\x7f-\x9f]{4,}")
@@ -299,6 +301,13 @@ class IrAttachment(models.Model):
 
         records = super().create(vals_list)
         records._check_serving_attachments()
+        _debug.lifecycle(
+            "create",
+            count=len(records),
+            models=[m for m in model_and_ids if m],
+            backend=type(backend).__name__,
+            memoized=len(memo),
+        )
         return records
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -323,6 +332,9 @@ class IrAttachment(models.Model):
             if "mimetype" not in vals:
                 vals["mimetype"] = self._get_mimetype_for_write(vals)
             vals = self._prepare_contents(vals)
+        _debug.lifecycle(
+            "write", count=len(self), fields=list(vals), has_content=has_content
+        )
         res = super().write(vals)
         if "url" in vals or "type" in vals:
             self._check_serving_attachments()
@@ -369,6 +381,7 @@ class IrAttachment(models.Model):
         to_delete = OrderedSet(
             attach.store_fname for attach in self if attach.store_fname
         )
+        _debug.lifecycle("unlink", count=len(self), stored_files=len(to_delete))
         res = super().unlink()
         self._remove_stored_file_multi(to_delete)
         return res
@@ -500,6 +513,7 @@ class IrAttachment(models.Model):
                 return f.read(size)
         except OSError:
             _logger.info("_read_file could not read %s", full_path, exc_info=True)
+            _debug.logic("read_file_missing", fname=fname)
         return b""
 
     @contextlib.contextmanager
@@ -520,7 +534,9 @@ class IrAttachment(models.Model):
     def _write_file(self, bin_value: bytes, checksum: str) -> str:
         fname, full_path = self._prepare_file_destination(bin_value, checksum)
         self._mark_for_gc(fname)
-        if not self._is_stored_file_complete(full_path, len(bin_value)):
+        complete = self._is_stored_file_complete(full_path, len(bin_value))
+        _debug.logic("write_file", fname=fname, size=len(bin_value), existing=complete)
+        if not complete:
             with self._stage_temp_file("write") as tmp_path:
                 with tmp_path.open("wb") as fp:
                     fp.write(bin_value)
@@ -550,7 +566,9 @@ class IrAttachment(models.Model):
                 None, checksum, source_path=str(tmp_path)
             )
             self._mark_for_gc(fname)
-            if self._is_stored_file_complete(full_path_str, size):
+            complete = self._is_stored_file_complete(full_path_str, size)
+            _debug.logic("write_file_stream", fname=fname, size=size, existing=complete)
+            if complete:
                 tmp_path.unlink(missing_ok=True)
             else:
                 tmp_path.replace(full_path_str)
@@ -647,6 +665,7 @@ class IrAttachment(models.Model):
         key = (checksum, mimetype)
         cached = memo.get(key)
         if cached is not None and (not verify_collision or cached[0] == data):
+            _debug.logic("content_memo_hit", checksum=checksum, size=len(data))
             return cached[1]
         vals = self._prepare_content_vals(data, mimetype, backend, checksum=checksum)
         memo[key] = (data, vals)
@@ -664,11 +683,19 @@ class IrAttachment(models.Model):
         index_content = self._extract_index_content(data, mimetype, checksum=checksum)
         if backend is None:
             backend = self._get_storage_backend()
+        with _debug.perf(
+            "store_content",
+            size=len(data),
+            mimetype=mimetype,
+            backend=type(backend).__name__,
+            indexed=bool(index_content),
+        ):
+            stored = backend.write(data, checksum)
         return {
             "file_size": len(data),
             "checksum": checksum,
             "index_content": index_content,
-            **backend.write(data, checksum),
+            **stored,
         }
 
     def _get_raw_access_token(self) -> str:
@@ -876,6 +903,12 @@ class IrAttachment(models.Model):
             if bin_data:
                 wrote_content = True
 
+        _debug.lifecycle(
+            "update_content",
+            count=len(self),
+            replaced=len(old_fnames),
+            wrote_content=wrote_content,
+        )
         if old_fnames or wrote_content:
             self.flush_recordset(["checksum", "store_fname"])
         self._remove_stored_file_multi(OrderedSet(old_fnames))
@@ -1146,6 +1179,9 @@ class IrAttachment(models.Model):
             else:
                 sub_offset += PREFETCH_MAX
             records.invalidate_recordset(SECURITY_FIELDS)
+        _debug.perf.count(
+            "accessible_ids", bound=bound, found=len(result), keyset=keyset is not None
+        )
         return result
 
     def _post_add_create(self, **kwargs: Any) -> None:
@@ -1241,6 +1277,12 @@ class IrAttachment(models.Model):
             self.with_context(image_no_postprocess=True).create(to_create)
             if to_create
             else self.browse()
+        )
+        _debug.logic(
+            "create_unique",
+            requested=len(values_list),
+            reused=len(existing_by_key),
+            created=len(created),
         )
         return [
             (
@@ -1448,6 +1490,7 @@ class IrAttachment(models.Model):
                 capped |= int(bool(swept[1]))
             elif swept:
                 collected += swept
+        _debug.lifecycle("gc_file_store", collected=collected, capped=bool(capped))
         return collected, capped
 
     @api.model
@@ -1624,6 +1667,7 @@ class IrAttachment(models.Model):
                     Path(filepath).unlink()
 
         _logger.info("filestore gc %d checked, %d removed", len(checklist), removed)
+        _debug.lifecycle("gc_file_store_sweep", checked=len(checklist), removed=removed)
         return removed
 
     def _mark_for_gc(self, fname: str) -> None:
@@ -1721,6 +1765,14 @@ class IrAttachment(models.Model):
         )
         forbidden_ids.update(
             att_id for att_id, res in att_model_ids if res in forbidden_res_model_id
+        )
+        _debug.logic(
+            "check_access",
+            operation=operation,
+            uid=self.env.uid,
+            count=len(self),
+            forbidden=len(forbidden_ids),
+            linked_models=len(model_ids),
         )
 
         if forbidden_ids:

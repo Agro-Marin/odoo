@@ -19,6 +19,7 @@ from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import LockError, UserError
 from odoo.http import serialize_exception
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import working_on_database
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.modules import Manifest
@@ -35,6 +36,7 @@ if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 PG_CONCURRENCY_ERRORS = (
     *PG_RETRY_EXCEPTIONS,
@@ -266,6 +268,7 @@ class IrCron(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         vals_list = [{**vals, "usage": "ir_cron"} for vals in vals_list]
+        _debug.lifecycle("create", count=len(vals_list))
         if NOTIFY_CRON_CHANGES:
             self._notify_after_commit(self.env.cr)
         return super().create(vals_list)
@@ -286,6 +289,7 @@ class IrCron(models.Model):
         if not job:
             raise UserError(self.env._("Job '%s' already executing", self.name))
 
+        _debug.lifecycle("direct_trigger", job=job.id, name=job.cron_name)
         self._run_job(cron_cr, job)
         if exception := job.run_exception:
             e = RuntimeError()
@@ -312,6 +316,7 @@ class IrCron(models.Model):
                     cls._check_version(cron_cr)
                     jobs = cls._get_jobs_ready(cron_cr)
                     cls._check_modules_state(cron_cr, jobs)
+                    _debug.pipeline("cron_pass", db=db_name, ready=len(jobs))
                     if not jobs:
                         return
                     cls._run_jobs_until_deadline(
@@ -366,6 +371,9 @@ class IrCron(models.Model):
                     len(job_ids) - index,
                 )
                 notify_channel(CRON_TRIGGER_CHANNEL, db_name)
+                _debug.pipeline(
+                    "cron_pass_yielded", db=db_name, left=len(job_ids) - index
+                )
                 return True
             registry = registry.check_signaling()
             IrCronModel = registry[IrCron._name]
@@ -376,15 +384,19 @@ class IrCron(models.Model):
                 _logger.debug(
                     "job %s has been processed by another worker, skip", job_id
                 )
+                _debug.logic("job_skipped", job=job_id, reason="concurrency_error")
                 continue
             if not job:
                 _logger.debug(
                     "job %s is being processed by another worker, skip", job_id
                 )
+                _debug.logic("job_skipped", job=job_id, reason="not_acquired")
                 continue
             _logger.debug("job %s acquired", job_id)
+            _debug.lifecycle("job_acquired", job=job_id, name=job.cron_name)
             try:
-                IrCronModel._run_job(cron_cr, job, deadline=deadline)
+                with _debug.perf("job_run", cr=cron_cr, job=job_id, name=job.cron_name):
+                    IrCronModel._run_job(cron_cr, job, deadline=deadline)
                 cron_cr.commit()
             except Exception:
                 cron_cr.rollback()
@@ -516,6 +528,10 @@ class IrCron(models.Model):
             raise
 
         row = cr.dictfetchone()
+        if _debug.logic.enabled and row is None:
+            _debug.logic(
+                "job_not_ready", job=job_id, include_not_ready=include_not_ready
+            )
         return CronJob.from_row(row) if row else None
 
     def _notify_admin(self, message: str) -> None:
@@ -571,6 +587,15 @@ class IrCron(models.Model):
         else:
             raise RuntimeError(f"unreachable {status=}")
 
+        _debug.lifecycle(
+            "job_completion",
+            job=job.id,
+            name=job.cron_name,
+            status=str(status),
+            nextcall=vals.get("nextcall"),
+            active=vals.get("active", job.active),
+            failure_count=vals.get("failure_count", job.failure_count),
+        )
         ir_cron._write_job_row(job, vals)
 
     @staticmethod
@@ -637,6 +662,7 @@ class IrCron(models.Model):
             progress_watermark.record_success()
         elif status is None and progress_watermark.record_failure(remaining):
             status = CompletionStatus.FAILED
+            _debug.logic("job_stalled", job=job.id, remaining=remaining)
             _logger.error(
                 "Job %r (%s) failed %s times running with %s record(s) still"
                 " to process and no fewer than before; giving up on this run",
@@ -749,7 +775,10 @@ class IrCron(models.Model):
 
             success = False
             try:
-                cls._run_server_action_with_retry(cron, job, env)
+                with _debug.perf(
+                    "server_action_attempt", cr=job_cr, job=job.id, loop=loop_count
+                ):
+                    cls._run_server_action_with_retry(cron, job, env)
                 success = True
             except Exception as exc:
                 _logger.exception(
@@ -806,6 +835,9 @@ class IrCron(models.Model):
                 failure_count = 0
                 first_failure_date = None
                 active = False
+                _debug.lifecycle(
+                    "job_deactivated", job=job.id, failures=job.failure_count + 1
+                )
                 self._notify_admin(
                     self.env._(
                         "Cron job %(name)s (%(id)s) has been deactivated after failing %(count)s times. "
@@ -1012,6 +1044,7 @@ class IrCron(models.Model):
         if not self.sudo().active:
             at_list = [at for at in at_list if at > now]
 
+        _debug.lifecycle("triggers_added", job=self.id, count=len(at_list))
         if not at_list:
             return self.env["ir.cron.trigger"]
 
@@ -1089,6 +1122,14 @@ class IrCron(models.Model):
         }
         if deactivate:
             vals["deactivate"] = True
+        _debug.pipeline(
+            "progress",
+            job=ctx.get("cron_id"),
+            processed=processed,
+            done=done,
+            remaining=remaining,
+            deactivate=deactivate,
+        )
         progress.write(vals)
         self.env.cr.commit()
         return max(ctx.get("cron_end_time", float("inf")) - time.monotonic(), 0)
@@ -1119,6 +1160,7 @@ class IrCronTrigger(models.Model):
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
+        _debug.lifecycle("gc_triggers", count=len(records))
         return len(records), len(records) == GC_UNLINK_LIMIT
 
 
@@ -1151,4 +1193,5 @@ class IrCronProgress(models.Model):
         )
         records -= self.browse(row[0] for row in self.env.cr.fetchall())
         records.unlink()
+        _debug.lifecycle("gc_progress", count=len(records), full_batch=full_batch)
         return len(records), full_batch
