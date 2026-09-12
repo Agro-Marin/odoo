@@ -55,6 +55,7 @@ def get_single_database(
 
     if not db_names:
         if allow_none:
+            _debug.logic("cli.database.selected", db=None, reason="none_allowed")
             return None
         _debug.logic("cli.database.rejected", reason="none")
         error_handler(
@@ -76,6 +77,7 @@ def get_single_database(
         error_handler(MAINTENANCE_DB_MESSAGE.format(db_name=db_name))
         return None
 
+    _debug.logic("cli.database.selected", db=db_name, reason="single")
     return db_name
 
 
@@ -124,6 +126,12 @@ def open_environment(
         env.transaction.default_env = env
         with _debug.perf("cli.environment", cr=cr, db=db_name, readonly=readonly):
             yield env
+        _debug.lifecycle(
+            "cli.environment.closing",
+            db=db_name,
+            readonly=readonly,
+            models=len(registry.models),
+        )
 
 
 class Command:
@@ -236,7 +244,15 @@ class DatabaseCommand(Command, register=False):
         )
 
     def parse_args(self, args: list[str]) -> tuple[argparse.Namespace, list[str]]:
-        return self.parser.parse_known_args(args)
+        parsed, unknown = self.parser.parse_known_args(args)
+        _debug.logic(
+            "cli.args.parsed",
+            command=self.name,
+            given=len(args),
+            forwarded=len(unknown),
+            subcommand=getattr(parsed, "subcommand", None),
+        )
+        return parsed, unknown
 
     @overload
     def bootstrap_config(
@@ -300,12 +316,21 @@ class DatabaseCommand(Command, register=False):
 
 
 def load_internal_commands() -> None:
-    for path in odoo.cli.__path__:
-        for module in Path(path).iterdir():
-            if module.suffix != ".py" or module.stem.startswith("_"):
-                continue
-            __import__(f"odoo.cli.{module.stem}")
-    _debug.pipeline("cli.commands.internal_loaded", registered=len(commands))
+    before = len(commands)
+    with _debug.perf("cli.commands.internal_load") as span:
+        imported = 0  # debuglog
+        for path in odoo.cli.__path__:
+            for module in Path(path).iterdir():
+                if module.suffix != ".py" or module.stem.startswith("_"):
+                    continue
+                __import__(f"odoo.cli.{module.stem}")
+                imported += 1  # debuglog
+        span.set(imported=imported)
+    _debug.pipeline(
+        "cli.commands.internal_loaded",
+        registered=len(commands),
+        added=len(commands) - before,
+    )
 
 
 def load_addons_commands(command: str | None = None) -> None:
@@ -323,6 +348,11 @@ def load_addons_commands(command: str | None = None) -> None:
         for fullpath in sorted(Path(path).glob(f"*/cli/{command}.py")):
             found_command = fullpath.stem
             if not Command.is_valid_name(found_command):
+                _debug.logic(
+                    "cli.commands.addon_skipped",
+                    path=str(fullpath),
+                    reason="invalid_name",
+                )
                 continue
             fq_name = f"odoo.cli.{found_command}"
             if fq_name in mapping:
@@ -372,17 +402,23 @@ def get_cli_command(name: str) -> type[Command] | None:
         )
         return None
 
+    source = "registered"
     if name not in commands:
         expected_module = f"odoo.cli.{name}"
         try:
-            __import__(expected_module)
+            with _debug.perf("cli.command.internal_import", name=name):
+                __import__(expected_module)
+            source = "internal"
         except ModuleNotFoundError as e:
             if e.name != expected_module:
                 raise
             _debug.logic("cli.command.internal_missing", name=name)
+            source = "addon"
         load_addons_commands(command=name)
 
-    _debug.logic("cli.command.resolved", name=name, found=name in commands)
+    _debug.logic(
+        "cli.command.resolved", name=name, found=name in commands, source=source
+    )
     return commands.get(name)
 
 
@@ -413,22 +449,28 @@ def main() -> None:
     if args and not args[0].startswith("-"):
         command_name = args[0]
         args = args[1:]
+        chosen_by = "positional"
     elif args and args[0] in ("-h", "--help"):
         command_name = "help"
         args = args[1:]
+        chosen_by = "help_flag"
     else:
         command_name = DEFAULT_COMMAND
+        chosen_by = "default"
 
     odoo.cli.COMMAND = command_name
     _debug.lifecycle(
         "cli.command",
         command=command_name,
+        chosen_by=chosen_by,
         args=len(args),
         addons_path=bootstrap.addons_path is not None,
+        evented=odoo.evented,
     )
     if command := get_cli_command(command_name):
         with _debug.perf("cli.command.run", command=command_name):
             command().run(args)
+        _debug.lifecycle("cli.command.done", command=command_name)
     else:
         _debug.logic("cli.command.unknown", command=command_name)
         sys.exit(

@@ -73,11 +73,13 @@ class Scaffold(Command):
             _debug.logic("cli.scaffold.name_rejected", name=args.name)
             parser.error(str(err))
         dest = _get_or_create_directory(args.dest)
-        if not args.force and (dest / modname).exists():
-            _debug.logic("cli.scaffold.rejected", module=modname, reason="exists")
-            parser.error(
-                f"{dest / modname} already exists; pass --force to overwrite it"
-            )
+        if (dest / modname).exists():
+            if not args.force:
+                _debug.logic("cli.scaffold.rejected", module=modname, reason="exists")
+                parser.error(
+                    f"{dest / modname} already exists; pass --force to overwrite it"
+                )
+            _debug.logic("cli.scaffold.overwrite", module=modname, dest=str(dest))
         _debug.pipeline(
             "cli.scaffold.render",
             template=str(args.template),
@@ -90,6 +92,9 @@ class Scaffold(Command):
             "cli.scaffold.render", template=str(args.template), module=modname
         ):
             args.template.render_to_directory(modname, dest, params=params)
+        _debug.lifecycle(
+            "cli.scaffold.module_created", module=modname, path=str(dest / modname)
+        )
 
 
 def _get_template_path(*parts: str) -> Path:
@@ -131,6 +136,7 @@ def _get_jinja_env() -> Environment:
     env = jinja2.Environment()  # noqa: S701  see comment above
     env.filters["snake"] = _str_to_snake_case
     env.filters["pascal"] = _str_to_pascal_case
+    _debug.lifecycle("cli.scaffold.jinja_env_built", filters=2)
     return env
 
 
@@ -192,6 +198,11 @@ class Template:
 
     def parse_params(self, name: str) -> dict[str, str]:
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
+        _debug.logic(
+            "cli.scaffold.naming_convention",
+            template=self.id,
+            convention="default" if convention is DEFAULT_NAMING else self.id,
+        )
         return convention.parse_params(name)
 
     def get_module_name(self, name: str, params: dict[str, str]) -> str:
@@ -217,7 +228,9 @@ class Template:
         env = _get_jinja_env()
         files = 0  # debuglog
         templated = 0  # debuglog
+        copied_bytes = 0  # debuglog
         for path, content in self._read_files():
+            copied_bytes += len(content)  # debuglog
             rendered = Path(env.from_string(str(path)).render(params))
             local = rendered.relative_to(self.path)
             ext = rendered.suffix
@@ -250,4 +263,5 @@ class Template:
             template=self.id,
             files=files,
             templated=templated,
+            source_bytes=copied_bytes,
         )

@@ -106,8 +106,16 @@ class Populate(DatabaseCommand):
             )
         separator_code = ord(parsed_args.separator)
 
+        _debug.pipeline(
+            "cli.populate.plan",
+            db=db_name,
+            models=len(model_factors),
+            factor_min=min(model_factors.values(), default=0),
+            factor_max=max(model_factors.values(), default=0),
+        )
         with open_environment(db_name, context={"active_test": False}) as env:
             self._populate_models_named(env, model_factors, separator_code)
+        _debug.lifecycle("cli.populate.done", db=db_name, models=len(model_factors))
 
     @classmethod
     def _populate_models_named(
@@ -122,6 +130,11 @@ class Populate(DatabaseCommand):
             if (model := env.get(model_name)) is not None
             and not (model._transient or model._abstract)
         }
+        if _debug.logic.enabled:
+            for model, factor in model_factors.items():
+                _debug.logic(
+                    "cli.populate.model_selected", model=model._name, factor=factor
+                )
         if skipped := set(model_name_factors) - {m._name for m in model_factors}:
             _debug.logic("cli.populate.models_skipped", count=len(skipped))
             _logger.warning(
@@ -144,4 +157,7 @@ class Populate(DatabaseCommand):
         model_time = time.time() - t0
         _logger.info(
             "Populated models %s (total: %fs)", list(model_factors), model_time
+        )
+        _debug.lifecycle(
+            "cli.populate.populated", models=len(model_factors), seconds=model_time
         )

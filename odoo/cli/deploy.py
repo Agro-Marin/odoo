@@ -128,6 +128,13 @@ class Deploy(Command):
     ) -> str:
         url = url.rstrip("/")
         module_file = self.zip_module(module_path)
+        _debug.pipeline(
+            "cli.deploy.zipped",
+            module=Path(module_path).name,
+            archive=module_file,
+            url=url,
+            db=db or None,
+        )
         try:
             return self.login_upload_module(
                 module_file, url, login, password, db, force=force
@@ -147,12 +154,13 @@ class Deploy(Command):
     ) -> str:
         print("Uploading module file...")
         encoded_db = urllib.parse.quote(db or "", safe="")
-        with _debug.perf("cli.deploy.login_page", url=url, db=db or None):
-            self.session.get(
+        with _debug.perf("cli.deploy.login_page", url=url, db=db or None) as span:
+            login_page = self.session.get(
                 f"{url}/web/login?db={encoded_db}",
                 allow_redirects=False,
                 timeout=_LOGIN_TIMEOUT,
             )
+            span.set(status=login_page.status_code, cookies=len(self.session.cookies))
         endpoint = url + "/base_import_module/login_upload"
         post_data = {
             "login": login,
@@ -185,11 +193,17 @@ class Deploy(Command):
         if _debug.logic.enabled and not res.ok:
             _debug.logic("cli.deploy.upload_rejected", status=res.status_code, url=url)
         res.raise_for_status()
+        _debug.lifecycle(
+            "cli.deploy.uploaded", url=url, status=res.status_code, reply=len(res.text)
+        )
         return res.text
 
     def zip_module(self, path: str | Path) -> str:
         module_dir = Path(path).resolve()
         if not module_dir.is_dir():
+            _debug.logic(
+                "cli.deploy.rejected", path=str(module_dir), reason="not_a_directory"
+            )
             raise FileNotFoundError(f"Could not find module directory {module_dir!r}")
         fd, temp = tempfile.mkstemp(suffix=".zip")
         os.close(fd)
@@ -198,6 +212,7 @@ class Deploy(Command):
             with _debug.perf("cli.deploy.zip", module=module_dir.name) as span:
                 files = 0  # debuglog
                 symlinks = 0  # debuglog
+                excluded = 0  # debuglog
                 with zipfile.ZipFile(
                     temp, "w", compression=zipfile.ZIP_DEFLATED
                 ) as zfile:
@@ -205,6 +220,7 @@ class Deploy(Command):
                         kept_dirs = []
                         for dirname in dirnames:
                             if dirname in EXCLUDED_DIR_NAMES:
+                                excluded += 1  # debuglog
                                 continue
                             if (dirpath / dirname).is_symlink():
                                 symlinks += 1  # debuglog
@@ -227,13 +243,17 @@ class Deploy(Command):
                             if not filepath.is_file():
                                 continue
                             if _is_file_excluded(filepath):
+                                excluded += 1  # debuglog
                                 continue
                             zfile.write(
                                 filepath, filepath.relative_to(module_dir.parent)
                             )
                             files += 1  # debuglog
                 span.set(
-                    files=files, symlinks=symlinks, bytes=Path(temp).stat().st_size
+                    files=files,
+                    symlinks=symlinks,
+                    excluded=excluded,
+                    bytes=Path(temp).stat().st_size,
                 )
         except Exception as e:
             _debug.logic("cli.deploy.zip_failed", error=type(e).__name__)
@@ -251,6 +271,8 @@ class Deploy(Command):
                 scheme = "http" if hostname in _LOCAL_HOSTS else "https"
                 args.url = f"{scheme}://{args.url}"
                 _debug.logic("cli.deploy.scheme_inferred", scheme=scheme, host=hostname)
+            else:
+                _debug.logic("cli.deploy.scheme_given", url=args.url)
 
             if not args.verify_ssl:
                 self.session.verify = False
@@ -284,6 +306,7 @@ class Deploy(Command):
                         force=args.force,
                     )
             print(result or "Module deployed successfully.")
+            _debug.lifecycle("cli.deploy.done", url=args.url, server_reply=bool(result))
         except Exception as e:
             _debug.logic("cli.deploy.failed", error=type(e).__name__)
             _logger.debug("deploy failed", exc_info=True)

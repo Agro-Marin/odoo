@@ -328,12 +328,14 @@ class Db(Command):
         )
         report_configuration()
 
+        subcommand = getattr(args.func, "__name__", None)
         _debug.lifecycle(
             "cli.db",
-            subcommand=getattr(args.func, "__name__", None),
+            subcommand=subcommand,
             database=getattr(args, "database", None),
         )
         args.func(args)
+        _debug.lifecycle("cli.db.done", subcommand=subcommand)
 
     def init(self, args: argparse.Namespace) -> None:
         self._check_target_free(args.database, force=args.force)
@@ -355,6 +357,7 @@ class Db(Command):
                 country_code=args.country,
                 phone=None,
             )
+        _debug.lifecycle("cli.db.initialized", db=args.database, login=args.username)
 
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
@@ -408,6 +411,13 @@ class Db(Command):
 
             if args.force:
                 self._drop_database_if_exists(db_name)
+            _debug.pipeline(
+                "cli.db.load.restore",
+                db=db_name,
+                source="url" if url.scheme else "file",
+                copy=args.copy,
+                neutralize=args.neutralize,
+            )
             with _debug.perf(
                 "cli.db.restore", db=db_name, copy=args.copy, neutralize=args.neutralize
             ):
@@ -417,6 +427,12 @@ class Db(Command):
                     copy=args.copy,
                     neutralize_database=args.neutralize,
                 )
+            _debug.lifecycle(
+                "cli.db.loaded",
+                db=db_name,
+                moved=not args.copy,
+                neutralized=args.neutralize,
+            )
 
     def dump(self, args: argparse.Namespace) -> None:
         if args.database in SYSTEM_DBS:
@@ -461,6 +477,12 @@ class Db(Command):
                 )
                 destination.unlink(missing_ok=True)
                 raise
+            _debug.lifecycle(
+                "cli.db.dumped",
+                db=args.database,
+                to=str(destination),
+                format=args.dump_format,
+            )
 
     def duplicate(self, args: argparse.Namespace) -> None:
         self._check_source_not_target(args.source, args.target)
@@ -476,6 +498,12 @@ class Db(Command):
             _duplicate_database(
                 args.source, args.target, neutralize_database=args.neutralize
             )
+        _debug.lifecycle(
+            "cli.db.duplicated",
+            source=args.source,
+            target=args.target,
+            neutralized=args.neutralize,
+        )
 
     def rename(self, args: argparse.Namespace) -> None:
         self._check_source_not_target(args.source, args.target)
@@ -485,11 +513,13 @@ class Db(Command):
         self._drop_database_if_exists(args.target)
         with _debug.perf("cli.db.rename", source=args.source, target=args.target):
             _rename_database(args.source, args.target)
+        _debug.lifecycle("cli.db.renamed", source=args.source, target=args.target)
         if args.neutralize:
             try:
                 with db_connect(args.target).cursor() as cr:
                     with _debug.perf("cli.db.neutralize", cr=cr, db=args.target):
                         neutralize_database(cr)
+                _debug.lifecycle("cli.db.neutralized", db=args.target)
             except Exception:
                 _debug.logic("cli.db.neutralize_failed", db=args.target)
                 _logger.critical(
@@ -505,6 +535,7 @@ class Db(Command):
         if not _drop_database(args.database):
             _debug.logic("cli.db.drop.missing", db=args.database)
             sys.exit(f"Database {args.database} does not exist.")
+        _debug.lifecycle("cli.db.dropped", db=args.database)
 
     def list_databases(self, _args: argparse.Namespace) -> None:
         with _debug.perf("cli.db.list") as span:
@@ -515,12 +546,16 @@ class Db(Command):
 
     def _check_target_free(self, target: str, *, force: bool) -> None:
         check_db_not_maintenance(target)
-        if not force and exp_db_exist(target):
+        if force:
+            _debug.logic("cli.db.target_check_skipped", target=target, reason="force")
+            return
+        if exp_db_exist(target):
             _debug.logic("cli.db.target_exists", target=target, force=False)
             sys.exit(
                 f"Target database {target} exists, aborting.\n\n"
                 f"\tuse `--force` to delete the existing database anyway."
             )
+        _debug.logic("cli.db.target_free", target=target)
 
     def _check_source_exists(self, source: str) -> None:
         if not exp_db_exist(source):
@@ -534,6 +569,9 @@ class Db(Command):
 
     def _drop_database_if_exists(self, target: str) -> None:
         check_db_not_maintenance(target)
-        if exp_db_exist(target):
-            _debug.lifecycle("cli.db.existing_dropped", db=target)
+        if not exp_db_exist(target):
+            _debug.logic("cli.db.existing_drop_skipped", db=target, reason="absent")
+            return
+        _debug.lifecycle("cli.db.existing_dropped", db=target)
+        with _debug.perf("cli.db.existing_drop", db=target):
             _drop_database(target)

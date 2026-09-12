@@ -393,6 +393,13 @@ class Obfuscate(DatabaseCommand):
                 span.set(rows=getattr(self.cr, "rowcount", None))
             if with_commit:
                 self.commit()
+        else:
+            _debug.logic(
+                "cli.obfuscate.table_skipped",
+                table=table,
+                columns=len(fields),
+                reason="no_supported_column",
+            )
 
     def _get_keys_in_jsonb_column(self, table: str, field: str) -> list[str]:
         sql_field = SQL.identifier(field)
@@ -444,6 +451,7 @@ class Obfuscate(DatabaseCommand):
                 _logger.debug("Vacuuming table %s", table)
                 with _debug.perf("cli.obfuscate.vacuum", table=table):
                     vac_conn.execute(SQL("VACUUM FULL %s", SQL.identifier(table)).code)
+        _debug.lifecycle("cli.obfuscate.vacuumed", db=self.dbname, tables=len(tables))
 
     def _confirm_insecure_operation(self) -> None:
         _logger.info(
@@ -589,6 +597,9 @@ class Obfuscate(DatabaseCommand):
                 ):
                     self._install_cypher_support()
                     if not self._is_password_valid(pwd):
+                        _debug.logic(
+                            "cli.obfuscate.rejected", reason="invalid_password"
+                        )
                         self.rollback()
                         sys.exit(
                             "ERROR: invalid password (the database is encrypted with a different one)."
@@ -624,6 +635,7 @@ class Obfuscate(DatabaseCommand):
         try:
             fields = _get_fields_selected(opt)
         except ValueError as e:
+            _debug.logic("cli.obfuscate.rejected", reason="field_spec")
             self.parser.error(str(e))
 
         if opt.allfields:
@@ -705,6 +717,7 @@ class Obfuscate(DatabaseCommand):
     ) -> list[tuple[str, str]]:
         unfittable = self._get_fields_unfittable(fields, pwd)
         if not unfittable:
+            _debug.logic("cli.obfuscate.fields_fit", fields=len(fields))
             return fields
         described = ", ".join(
             f"{t}.{c} is varchar({width}), ciphertext needs {projected}"
@@ -753,7 +766,14 @@ class Obfuscate(DatabaseCommand):
         self._insert_password_marker(pwd)
         for table, columns in tables.items():
             _logger.info("Obfuscating table %s", table)
+            _debug.pipeline(
+                "cli.obfuscate.table",
+                table=table,
+                columns=len(columns),
+                mode="obfuscate",
+            )
             self._update_table_values(table, columns, pwd, opt.pertablecommit)
+        _debug.lifecycle("cli.obfuscate.obfuscated", db=self.dbname, tables=len(tables))
 
     def _unobfuscate_tables(
         self, opt: argparse.Namespace, pwd: str, tables: dict[str, set[str]]
@@ -772,7 +792,16 @@ class Obfuscate(DatabaseCommand):
         )
         for table, columns in tables.items():
             _logger.info("Unobfuscating table %s", table)
+            _debug.pipeline(
+                "cli.obfuscate.table",
+                table=table,
+                columns=len(columns),
+                mode="unobfuscate",
+            )
             self._update_table_values(table, columns, pwd, opt.pertablecommit, True)
+        _debug.lifecycle(
+            "cli.obfuscate.unobfuscated", db=self.dbname, tables=len(tables)
+        )
 
         partial_run = bool(opt.fields or opt.file or opt.exclude) and not opt.allfields
         if partial_run:
@@ -788,3 +817,5 @@ class Obfuscate(DatabaseCommand):
             self._vacuum_tables(tables)
         if not partial_run:
             self._remove_password_marker()
+        else:
+            _debug.logic("cli.obfuscate.marker_kept", reason="partial_run")

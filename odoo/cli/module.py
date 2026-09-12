@@ -109,10 +109,15 @@ class Module(DatabaseCommand):
     def run(self, cmdargs: list[str]) -> None:
         parsed_args, unknown = self.parse_args(cmdargs)
         self.bootstrap_config(parsed_args, extra_args=unknown)
+        subcommand = getattr(parsed_args.func, "__name__", None)
         _debug.lifecycle(
-            "cli.module", subcommand=getattr(parsed_args.func, "__name__", None)
+            "cli.module",
+            subcommand=subcommand,
+            db=parsed_args.db_name,
+            modules=len(getattr(parsed_args, "modules", ())),
         )
         parsed_args.func(parsed_args)
+        _debug.lifecycle("cli.module.done", subcommand=subcommand)
 
     @staticmethod
     @functools.cache
@@ -151,10 +156,16 @@ class Module(DatabaseCommand):
         return Module
 
     def _get_modules_installed(self, env: Environment) -> Any:
-        return self._sync_module_list(env).search([["state", "=", "installed"]])
+        installed = self._sync_module_list(env).search([["state", "=", "installed"]])
+        _debug.logic("cli.module.installed_set", count=len(installed))
+        return installed
 
     def _get_modules_named(self, env: Environment, module_names: set[str]) -> Any:
-        return self._sync_module_list(env).search([("name", "in", module_names)])
+        modules = self._sync_module_list(env).search([("name", "in", module_names)])
+        _debug.logic(
+            "cli.module.named_set", requested=len(module_names), found=len(modules)
+        )
+        return modules
 
     def _install_modules(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
@@ -174,6 +185,11 @@ class Module(DatabaseCommand):
                     modules=len(installable_modules),
                 ):
                     installable_modules.button_immediate_install()
+                _debug.lifecycle(
+                    "cli.module.installed",
+                    db=parsed_args.db_name,
+                    modules=len(installable_modules),
+                )
 
             installed_names = set(installable_modules.mapped("name"))
             non_installable_modules = OrderedSet(
@@ -218,6 +234,11 @@ class Module(DatabaseCommand):
                         "cli.module.import_zip", cr=env.cr, path=str(importable_zipfile)
                     ):
                         env["ir.module.module"]._import_zipfile(importable_zipfile)
+                    _debug.lifecycle(
+                        "cli.module.zip_imported",
+                        db=parsed_args.db_name,
+                        path=str(importable_zipfile),
+                    )
 
     def _upgrade_modules(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
@@ -266,10 +287,16 @@ class Module(DatabaseCommand):
                     )
                     upgradable_modules -= not_installed
             if parsed_args.outdated:
+                before_outdated = len(upgradable_modules)
                 upgradable_modules = upgradable_modules.filtered(
                     lambda x: (
                         parse_version(x.manifest_version) > parse_version(x.db_version)
                     ),
+                )
+                _debug.logic(
+                    "cli.module.outdated_filter",
+                    candidates=before_outdated,
+                    outdated=len(upgradable_modules),
                 )
             _debug.pipeline(
                 "cli.module.upgrade",
@@ -290,6 +317,11 @@ class Module(DatabaseCommand):
                 "cli.module.upgrade_run", cr=env.cr, modules=len(upgradable_modules)
             ):
                 upgradable_modules.button_immediate_upgrade()
+            _debug.lifecycle(
+                "cli.module.upgraded",
+                db=parsed_args.db_name,
+                modules=len(upgradable_modules),
+            )
 
     def _uninstall_modules(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
@@ -316,10 +348,15 @@ class Module(DatabaseCommand):
                 "cli.module.uninstall_run", cr=env.cr, modules=len(modules)
             ):
                 modules.button_immediate_uninstall()
+            _debug.lifecycle(
+                "cli.module.uninstalled", db=parsed_args.db_name, modules=len(modules)
+            )
 
     def _force_demo_data(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
+            _debug.pipeline("cli.module.force_demo", db=parsed_args.db_name)
             with _debug.perf(
-                "cli.module.force_demo", cr=env.cr, db=parsed_args.db_name
+                "cli.module.force_demo_run", cr=env.cr, db=parsed_args.db_name
             ):
                 force_demo(env)
+            _debug.lifecycle("cli.module.demo_forced", db=parsed_args.db_name)

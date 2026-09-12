@@ -53,7 +53,23 @@ class Cloc(DatabaseCommand):
             with _debug.perf("cli.cloc.count_database", db=db_name):
                 counter.count_database(db_name)
         if opt.path:
-            for path in dict.fromkeys(opt.path):
+            paths = list(dict.fromkeys(opt.path))
+            if len(paths) != len(opt.path):
+                _debug.logic(
+                    "cli.cloc.paths_deduplicated",
+                    given=len(opt.path),
+                    unique=len(paths),
+                )
+            for path in paths:
                 with _debug.perf("cli.cloc.count_path", path=path):
                     counter.count_path(path)
-        print(counter.report(opt.verbose))
+        _debug.pipeline(
+            "cli.cloc.counted",
+            modules=len(counter.modules),
+            excluded=len(counter.excluded),
+            errors=sum(len(items) for items in counter.errors.values()),
+            code_lines=sum(counter.code.values()),
+        )
+        with _debug.perf("cli.cloc.report", verbose=opt.verbose):
+            report = counter.report(opt.verbose)
+        print(report)

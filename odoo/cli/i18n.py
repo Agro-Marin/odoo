@@ -170,23 +170,26 @@ class I18n(DatabaseCommand):
     def run(self, cmdargs: list[str]) -> None:
         parsed_args, unknown = self.parse_args(cmdargs)
         self.bootstrap_config(parsed_args, extra_args=unknown)
-        _debug.lifecycle(
-            "cli.i18n", subcommand=getattr(parsed_args.func, "__name__", None)
-        )
+        subcommand = getattr(parsed_args.func, "__name__", None)
+        _debug.lifecycle("cli.i18n", subcommand=subcommand, db=parsed_args.db_name)
         parsed_args.func(parsed_args)
+        _debug.lifecycle("cli.i18n.done", subcommand=subcommand)
 
     def _get_languages(
         self, env: Any, language_codes: list[str], installed_only: bool = True
     ) -> Any:
         Lang = env["res.lang"].with_context(active_test=False)
-        languages = Lang.search(
-            Domain.OR(
-                [
-                    Domain("iso_code", "in", language_codes),
-                    Domain("code", "in", language_codes),
-                ]
+        with _debug.perf(
+            "cli.i18n.language_search", cr=env.cr, codes=len(language_codes)
+        ):
+            languages = Lang.search(
+                Domain.OR(
+                    [
+                        Domain("iso_code", "in", language_codes),
+                        Domain("code", "in", language_codes),
+                    ]
+                )
             )
-        )
         matched_codes = set(languages.mapped("iso_code")) | set(
             languages.mapped("code")
         )
@@ -286,6 +289,12 @@ class I18n(DatabaseCommand):
                     overwrite=parsed_args.overwrite or parsed_args.force_overwrite,
                     force_overwrite=parsed_args.force_overwrite,
                 )
+            _debug.lifecycle(
+                "cli.i18n.imported",
+                db=parsed_args.db_name,
+                lang=language.code,
+                files=len(paths),
+            )
 
     def _check_export_output(
         self,
@@ -319,6 +328,14 @@ class I18n(DatabaseCommand):
                 self.export_parser.error(
                     "Cannot export template in .csv format, please specify a language."
                 )
+            _debug.logic(
+                "cli.i18n.export_output",
+                to="file",
+                suffix=parsed_args.output.suffix,
+                pot=export_pot,
+            )
+        else:
+            _debug.logic("cli.i18n.export_output", to="stdout", pot=export_pot)
 
     def _export_translations(self, parsed_args: argparse.Namespace) -> None:
         requested_languages = list(parsed_args.languages or ["pot"])
@@ -333,9 +350,12 @@ class I18n(DatabaseCommand):
             requested_languages.remove("pot")
 
         with open_environment(parsed_args.db_name, readonly=True) as env:
-            modules = env["ir.module.module"].search_fetch(
-                [("name", "in", parsed_args.modules)], ["name", "state"]
-            )
+            with _debug.perf(
+                "cli.i18n.module_search", cr=env.cr, requested=len(parsed_args.modules)
+            ):
+                modules = env["ir.module.module"].search_fetch(
+                    [("name", "in", parsed_args.modules)], ["name", "state"]
+                )
             if not_found_module_names := set(parsed_args.modules) - set(
                 modules.mapped("name")
             ):
@@ -418,6 +438,13 @@ class I18n(DatabaseCommand):
                     "fix --addons-path or export with --output"
                 )
             module_paths[module_name] = module_path
+        _debug.pipeline(
+            "cli.i18n.export_to_modules",
+            modules=len(module_names),
+            languages=len(languages),
+            pot=export_pot,
+            files=len(module_names) * (len(languages) + export_pot),
+        )
         for module_name in module_names:
             i18n_path = Path(module_paths[module_name], "i18n")
             if export_pot:
@@ -458,6 +485,8 @@ class I18n(DatabaseCommand):
             return
 
         path = Path(path)
+        if _debug.lifecycle.enabled and not path.parent.is_dir():
+            _debug.lifecycle("cli.i18n.export_dir_created", path=str(path.parent))
         path.parent.mkdir(parents=True, exist_ok=True)
         export_format = path.suffix.removeprefix(".")
         if export_format == "pot":
@@ -480,9 +509,17 @@ class I18n(DatabaseCommand):
 
     def _load_languages(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name) as env:
-            for language in self._get_languages(
+            languages = self._get_languages(
                 env, parsed_args.languages, installed_only=False
-            ):
+            )
+            _debug.pipeline(
+                "cli.i18n.loadlang",
+                db=parsed_args.db_name,
+                requested=len(parsed_args.languages),
+                resolved=len(languages),
+                already_active=len(languages.filtered("active")),
+            )
+            for language in languages:
                 with _debug.perf(
                     "cli.i18n.load_language",
                     cr=env.cr,
@@ -490,3 +527,4 @@ class I18n(DatabaseCommand):
                     was_active=language.active,
                 ):
                     load_language(env.cr, language.code)
+                _debug.lifecycle("cli.i18n.language_loaded", lang=language.code)

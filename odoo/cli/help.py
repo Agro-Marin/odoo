@@ -43,13 +43,20 @@ class Help(Command):
     def run(self, args: list[str]) -> None:
         parsed = self.parser.parse_args(args)
         if parsed.command and Command.is_valid_name(parsed.command):
+            _debug.logic("cli.help.mode", mode="command", command=parsed.command)
             return self._show_command_help(parsed.command)
+        _debug.logic(
+            "cli.help.mode",
+            mode="list",
+            ignored_argument=parsed.command or None,
+        )
 
         with _debug.perf("cli.help.discover") as span:
             load_internal_commands()
             load_addons_commands()
             span.set(commands=len(commands))
 
+        _debug.pipeline("cli.help.listing", commands=len(commands))
         padding = max((len(cmd_name) for cmd_name in commands), default=0) + 2
         name_desc = [
             (
@@ -83,4 +90,5 @@ class Help(Command):
                 f"Unknown command {name!r}.\n"
                 f"Use '{PROG_NAME} help' to see the list of available commands."
             )
+        _debug.pipeline("cli.help.delegated", command=name, module=command.__module__)
         command().run(["--help"])

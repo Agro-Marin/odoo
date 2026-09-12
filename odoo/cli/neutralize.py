@@ -34,9 +34,13 @@ class Neutralize(DatabaseCommand):
         try:
             with odoo.db.db_connect(dbname).cursor() as cursor:
                 if parsed_args.to_stdout:
-                    installed_modules = (
-                        odoo.modules.neutralize.get_installed_module_names(cursor)
-                    )
+                    with _debug.perf(
+                        "cli.neutralize.installed_modules", cr=cursor, db=dbname
+                    ) as span:
+                        installed_modules = (
+                            odoo.modules.neutralize.get_installed_module_names(cursor)
+                        )
+                        span.set(modules=len(installed_modules))
                     queries = odoo.modules.neutralize.get_neutralization_queries(
                         installed_modules
                     )
@@ -55,6 +59,11 @@ class Neutralize(DatabaseCommand):
                 else:
                     with _debug.perf("cli.neutralize.apply", cr=cursor, db=dbname):
                         odoo.modules.neutralize.neutralize_database(cursor)
+            _debug.lifecycle(
+                "cli.neutralize.done",
+                db=dbname,
+                mode="printed" if parsed_args.to_stdout else "applied",
+            )
 
         except Exception as e:
             _debug.logic("cli.neutralize.failed", db=dbname, error=type(e).__name__)

@@ -60,6 +60,9 @@ class Console(code.InteractiveConsole):
         else:
             readline.set_completer(rlcompleter.Completer(local_vars).complete)
             readline.parse_and_bind("tab: complete")
+            _debug.logic(
+                "cli.shell.completer_bound", names=len(local_vars) if local_vars else 0
+            )
 
 
 class Shell(Command):
@@ -107,6 +110,11 @@ class Shell(Command):
         with _debug.perf("cli.shell.server_start"):
             server.start(preload=[], stop=True)
         signal.signal(signal.SIGINT, raise_keyboard_interrupt)
+        _debug.lifecycle(
+            "cli.shell.server_ready",
+            shell_file=bool(self._shell_file),
+            interface=self._shell_interface,
+        )
 
     @staticmethod
     def _is_stdin_a_tty() -> bool:
@@ -161,7 +169,9 @@ class Shell(Command):
             try:
                 shell_func = getattr(self, shell)
                 _debug.lifecycle("cli.shell.repl_started", shell=shell)
-                return shell_func(local_vars, pythonstartup)
+                result = shell_func(local_vars, pythonstartup)
+                _debug.lifecycle("cli.shell.repl_exited", shell=shell)
+                return result
             except Exception as e:
                 _debug.logic(
                     "cli.shell.repl_skipped",
@@ -218,7 +228,8 @@ class Shell(Command):
                     filename=pythonstartup,
                     symbol="exec",
                 )
-        console.interact(banner="")
+        with _debug.perf("cli.shell.interact", repl="python"):
+            console.interact(banner="")
 
     def _start_shell(self, dbname: str | None) -> None:
         local_vars: dict[str, Any] = {
@@ -230,7 +241,8 @@ class Shell(Command):
                 registry = Registry(dbname)
             with registry.cursor() as cr:
                 uid = api.SUPERUSER_ID
-                ctx = api.Environment(cr, uid, {})["res.users"].context_get()
+                with _debug.perf("cli.shell.context", cr=cr, db=dbname, uid=uid):
+                    ctx = api.Environment(cr, uid, {})["res.users"].context_get()
                 env = api.Environment(cr, uid, ctx)
                 env.transaction.default_env = env
                 local_vars["env"] = env
@@ -252,3 +264,4 @@ class Shell(Command):
         dbname = get_single_database(config["db_name"], allow_none=True)
         _debug.lifecycle("cli.shell", db=dbname)
         self._start_shell(dbname)
+        _debug.lifecycle("cli.shell.done", db=dbname)

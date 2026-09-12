@@ -48,8 +48,15 @@ class Start(Command):
         args, _unknown = self.parser.parse_known_args(args=cmdargs)
 
         server_args = [v for i, v in enumerate(cmdargs) if not _is_path_arg(i, cmdargs)]
+        _debug.logic(
+            "cli.start.args_split",
+            given=len(cmdargs),
+            server=len(server_args),
+            path_args=len(cmdargs) - len(server_args),
+        )
 
-        config._parse_config(server_args)
+        with _debug.perf("cli.start.preparse", args=len(server_args)):
+            config._parse_config(server_args)
 
         project_path, db_name = self._get_project_path_and_db_name(
             args.path, args.db_name
@@ -79,6 +86,7 @@ class Start(Command):
 
         if not args.db_name:
             server_args.extend(("-d", db_name))
+            _debug.logic("cli.start.db_arg_derived", db=db_name)
 
         if not _has_arg(server_args, "--db-filter"):
             server_args.append(f"--db-filter=^{re.escape(db_name)}$")
@@ -92,6 +100,12 @@ class Start(Command):
     ) -> tuple[Path, str]:
         if path is None:
             path = os.environ.get("VIRTUAL_ENV") or "."
+            _debug.logic(
+                "cli.start.path_source",
+                source="virtual_env" if path != "." else "cwd",
+            )
+        else:
+            _debug.logic("cli.start.path_source", source="explicit")
         project_path = Path(os.path.expandvars(path)).expanduser().resolve()
         if not project_path.is_dir():
             _debug.logic("cli.start.path_rejected", path=str(path), reason="not_dir")

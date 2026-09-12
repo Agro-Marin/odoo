@@ -89,6 +89,12 @@ def remove_pid_file(main_pid: int) -> None:
             _debug.lifecycle(
                 "cli.server.pid_removed", pid=main_pid, path=config["pidfile"]
             )
+        return
+    _debug.logic(
+        "cli.server.pid_remove_skipped",
+        reason="no_pidfile" if not config["pidfile"] else "child_process",
+        pid=os.getpid(),
+    )
 
 
 def write_pid_file() -> None:
@@ -102,6 +108,11 @@ def write_pid_file() -> None:
         Path(config["pidfile"]).write_text(str(pid), encoding="utf-8")
         atexit.register(remove_pid_file, pid)
         _debug.lifecycle("cli.server.pid_written", pid=pid, path=config["pidfile"])
+        return
+    _debug.logic(
+        "cli.server.pid_skipped",
+        reason="evented" if odoo.evented else "no_pidfile",
+    )
 
 
 def create_configured_databases() -> None:
@@ -153,8 +164,10 @@ def run_server(args: list[str]) -> None:
                 "config file."
             ),
         )
+    _debug.pipeline("cli.server.databases_checked", count=len(config["db_name"]))
 
-    create_configured_databases()
+    with _debug.perf("cli.server.database_probes", databases=len(config["db_name"])):
+        create_configured_databases()
 
     stop = config["stop_after_init"]
 
@@ -181,4 +194,5 @@ class Server(Command):
 
     def run(self, args: list[str]) -> None:
         config.parser.prog = self.prog
+        _debug.pipeline("cli.server.dispatch", args=len(args))
         run_server(args)
