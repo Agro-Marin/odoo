@@ -2892,6 +2892,28 @@ test(`invisible attrs on separators`, async () => {
     expect(`div.o_horizontal_separator`).toHaveCount(0);
 });
 
+test(`a separator follows its modifier, in and out of a group`, async () => {
+    await mountView({
+        resModel: "partner",
+        type: "form",
+        arch: `
+            <form>
+                <separator string="Bare" invisible="bar"/>
+                <group>
+                    <separator string="Grouped" invisible="bar"/>
+                    <field name="bar"/>
+                </group>
+            </form>
+        `,
+        resId: 1,
+    });
+    expect(`div.o_horizontal_separator`).toHaveCount(0);
+    await contains(`.o_field_widget[name=bar] input`).click();
+    expect(queryAllTexts`div.o_horizontal_separator`).toEqual(["BARE", "GROUPED"]);
+    await contains(`.o_field_widget[name=bar] input`).click();
+    expect(`div.o_horizontal_separator`).toHaveCount(0);
+});
+
 test(`form views in dialogs do not have a control panel`, async () => {
     Partner._views = {
         form: `<form><field name="foo"/></form>`,

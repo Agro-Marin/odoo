@@ -49,7 +49,7 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
         if (
             record &&
             this.env.searchModel?.context?.default_calendar_event_id ===
-            parseInt(event.id) &&
+                parseInt(event.id) &&
             !this.popover.isOpen &&
             !isDragging &&
             !isMirror
