@@ -368,7 +368,7 @@ class SearchMixin(_ModelStubs):
         **read_kwargs,
     ) -> list[ValuesType]:
         if not fields:
-            fields = list(self.fields_get(attributes=()))
+            fields = self._get_fields_default_read()
         records = self.search_fetch(
             domain or [], fields, offset=offset, limit=limit, order=order
         )

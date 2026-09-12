@@ -56,6 +56,23 @@ class TestACL(TransactionCaseWithUserDemo):
         self.env.invalidate_all()
         self.env.registry.clear_cache("templates")
 
+    def test_reading_every_field_leaves_out_an_x2many_whose_model_is_unreadable(self):
+        self.env["ir.model.access"].search(
+            [("model_id.model", "=", "res.partner.tag")]
+        ).perm_read = False
+        partner = self.user_demo.partner_id
+        demo_partner = partner.with_user(self.user_demo)
+        self.assertFalse(
+            self.env["res.partner.tag"].with_user(self.user_demo).has_access("read")
+        )
+        for rows in (
+            demo_partner.read(),
+            demo_partner.search_read([("id", "=", partner.id)]),
+        ):
+            self.assertIn("name", rows[0])
+            self.assertNotIn("tag_ids", rows[0])
+        self.assertIn("tag_ids", partner.read()[0])
+
     def test_field_visibility_restriction(self):
         currency = self.env["res.currency"].with_user(self.user_demo)
 

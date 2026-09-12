@@ -66,7 +66,7 @@ class ReadMixin(_ModelStubs):
         prof = _OrmProfile(_orm_read)
 
         if not fields:
-            fields = list(self.fields_get(attributes=()))
+            fields = self._get_fields_default_read()
         else:
             _model_fields = self._fields
             bad = [
@@ -103,6 +103,26 @@ class ReadMixin(_ModelStubs):
             )
 
         return result
+
+    # An x2many is read by searching its comodel, which raises for a user without
+    # read access to that model, while a many2one merely reads as empty. Such a
+    # field cannot be read, so it is not part of "every field" either.
+    @api.model
+    def _is_readable_by_default(self, field: Field) -> bool:
+        return (
+            self.env.su
+            or not field.is_x2many
+            or self.env[field.comodel_name].has_access("read")
+        )
+
+    @api.model
+    def _get_fields_default_read(self) -> list[str]:
+        model_fields = self._fields
+        return [
+            fname
+            for fname in self.fields_get(attributes=())
+            if self._is_readable_by_default(model_fields[fname])
+        ]
 
     def _read_format_scalar(
         self, name: str, results: list[dict], use_display_name: bool
