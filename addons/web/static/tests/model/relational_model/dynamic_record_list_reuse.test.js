@@ -142,3 +142,49 @@ test("a background refresh of an unchanged page reuses every datapoint", async (
     });
     expect(datapointIds(model)).toEqual(before);
 });
+
+test("a reloaded grouped list hands each group's records to the group that replaces it", async () => {
+    /** @type {RelationalModel[]} */
+    const instances = [];
+    patchWithCleanup(RelationalModel.prototype, {
+        setup(/** @type {any[]} */ ...args) {
+            super.setup(...args);
+            instances.push(/** @type {any} */ (this));
+        },
+    });
+    await mountView({
+        resModel: "foo",
+        type: "kanban",
+        groupBy: ["bar"],
+        arch: `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`,
+    });
+    const model = /** @type {RelationalModel} */ (instances.at(-1));
+    const idsByGroup = () =>
+        Object.fromEntries(
+            model.root.groups.map((g) => [
+                String(g.value),
+                g.list.records.map((r) => r.id),
+            ]),
+        );
+    const before = idsByGroup();
+    expect(Object.values(before).flat()).toHaveLength(3);
+    expect(queryAllTexts(".o_kanban_record:not(.o_kanban_ghost)")).toEqual([
+        "b",
+        "a",
+        "c",
+    ]);
+
+    MockServer.env["foo"].write([1], { name: "a2" });
+    await model.load();
+    await animationFrame();
+    expect(idsByGroup()).toEqual(before);
+    expect(queryAllTexts(".o_kanban_record:not(.o_kanban_ghost)")).toEqual([
+        "b",
+        "a2",
+        "c",
+    ]);
+
+    await model.root.load();
+    await animationFrame();
+    expect(idsByGroup()).toEqual(before);
+});

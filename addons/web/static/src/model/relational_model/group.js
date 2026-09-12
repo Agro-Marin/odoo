@@ -12,8 +12,9 @@ export class Group extends DataPoint {
     /**
      * @param {RelationalModelConfig & { groupByFieldName: string, list: any, record?: any }} config
      * @param {Record<string, any>} data
+     * @param {{ previousList?: any }} [options]
      */
-    setup(config, data) {
+    setup(config, data, { previousList } = {}) {
         super.setup(config, data);
         this.groupByField = this.fields[config.groupByFieldName];
         this.range = data.range;
@@ -32,7 +33,9 @@ export class Group extends DataPoint {
         }
         config.list.isGroupList = true;
         /** @type {any} */
-        this.list = new List(this.model, config.list, data);
+        this.list = new List(this.model, config.list, data, {
+            previousRoot: previousList,
+        });
         this._useGroupCountForList();
         if (config.record) {
             config.record.context = {

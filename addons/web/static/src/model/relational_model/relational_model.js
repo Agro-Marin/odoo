@@ -504,11 +504,14 @@ export class RelationalModel extends Model {
         if (config.isMonoRecord) {
             return new this.Class.Record(this, config, data);
         }
+        const donor = this.orm.isSample ? undefined : previousRoot;
         if (config.groupBy.length) {
-            return new this.Class.DynamicGroupList(this, config, data);
+            return new this.Class.DynamicGroupList(this, config, data, {
+                previousRoot: donor,
+            });
         }
         return new this.Class.DynamicRecordList(this, config, data, {
-            previousRoot: this.orm.isSample ? undefined : previousRoot,
+            previousRoot: donor,
         });
     }
 
