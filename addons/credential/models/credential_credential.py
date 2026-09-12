@@ -489,6 +489,11 @@ class CredentialCredential(models.Model):
                         ),
                     )
 
+        unset_policy = [
+            [name for name in self._CATEGORY_POLICY_DEFAULTS if name not in vals]
+            for vals in vals_list
+        ]
+
         current_version = self._get_current_encryption_key_version() or 1
 
         for vals in vals_list:
@@ -500,6 +505,19 @@ class CredentialCredential(models.Model):
                     vals["encryption_key_version"] = current_version
 
         records = super().create(vals_list)
+
+        # The policy fields belong to the credential administrators, so a creator
+        # outside that group cannot be handed them as create values; the category
+        # applies them afterwards, and only where the creator chose nothing.
+        for record, names in zip(records.sudo(), unset_policy, strict=True):
+            category = record.category_id
+            policy = {
+                name: category[self._CATEGORY_POLICY_DEFAULTS[name]]
+                for name in names
+                if record[name] != category[self._CATEGORY_POLICY_DEFAULTS[name]]
+            }
+            if category and policy:
+                record.write(policy)
 
         records._check_required_fields_for_category()
 
@@ -798,16 +816,19 @@ class CredentialCredential(models.Model):
         record._log_access_guarded("read")
         return value
 
+    _CATEGORY_POLICY_DEFAULTS = {
+        "decrypt_rate_limit_enabled": "default_decrypt_rate_limit_enabled",
+        "decrypt_rate_limit_max": "default_decrypt_rate_limit_max",
+        "auto_validate_health": "default_auto_validate_health",
+        "allow_key_fallback": "default_allow_key_fallback",
+    }
+
     @api.onchange("category_id")
     def _onchange_category_id(self):
         if self.category_id:
             category = self.category_id.sudo()
-            self.decrypt_rate_limit_enabled = (
-                category.default_decrypt_rate_limit_enabled
-            )
-            self.decrypt_rate_limit_max = category.default_decrypt_rate_limit_max
-            self.auto_validate_health = category.default_auto_validate_health
-            self.allow_key_fallback = category.default_allow_key_fallback
+            for field_name, default_name in self._CATEGORY_POLICY_DEFAULTS.items():
+                self[field_name] = category[default_name]
 
     def action_migrate_encryption_keys(self) -> dict[str, Any]:
         if not self.env.user.has_group(

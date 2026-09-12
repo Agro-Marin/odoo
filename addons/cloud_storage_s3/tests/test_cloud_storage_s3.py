@@ -594,3 +594,24 @@ class TestDocumentsDirectUpload(EncryptionKeyCase, HttpCase):
             "document.document",
             self.env["ir.attachment"]._get_cloud_storage_unsupported_models(),
         )
+
+
+@tagged("post_install", "-at_install")
+class TestS3CredentialSlots(EncryptionKeyCase, TransactionCase):
+    def test_the_category_declares_both_iam_keys(self):
+        category = self.env.ref(s3.CREDENTIAL_CATEGORY_XMLID)
+
+        self.assertEqual(
+            set(category.field_ids.mapped("code")),
+            {"access_key_id", "secret_access_key"},
+        )
+
+    def test_a_credential_missing_the_secret_key_is_refused(self):
+        with self.assertRaises(ValidationError):
+            self.env["credential.credential"].create(
+                {
+                    "name": "S3 without its secret",
+                    "category_id": self.env.ref(s3.CREDENTIAL_CATEGORY_XMLID).id,
+                    "credential_data": '{"access_key_id": "AKIA"}',
+                }
+            )

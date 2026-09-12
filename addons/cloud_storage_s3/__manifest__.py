@@ -17,6 +17,7 @@
     },
     "data": [
         "data/credential_category_data.xml",
+        "data/credential_category_field_data.xml",
         "data/ir_cron.xml",
         "views/settings.xml",
     ],
