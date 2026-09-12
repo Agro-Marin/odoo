@@ -1,5 +1,4 @@
 from odoo.db import schema
-from odoo.tools import SQL
 
 # The recurring-cost cadence is `mixin.recurrence.interval`'s, not fleet's own.
 # Only the column names change: the values were already the shared `TimeUnit`
@@ -22,13 +21,11 @@ def migrate(cr, version):
             continue
         if schema.column_exists(cr, "fleet_vehicle_log_contract", new):
             continue
-        cr.execute(
-            SQL(
-                "ALTER TABLE fleet_vehicle_log_contract RENAME COLUMN %s TO %s",
-                SQL.identifier(old),
-                SQL.identifier(new),
-            )
-        )
+        # `schema.rename_column`, not a bare ALTER: it carries the NOT NULL
+        # constraint's auto-generated name across too, so an upgraded database
+        # and a fresh one end up with the same catalog and not merely the same
+        # behaviour.
+        schema.rename_column(cr, "fleet_vehicle_log_contract", old, new)
 
     # `fleet.vehicle.cost.report` is a SQL view over these two columns. Postgres
     # rewrites a view's stored definition on RENAME COLUMN, so it survives -- but

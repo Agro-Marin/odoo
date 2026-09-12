@@ -1,5 +1,4 @@
 from odoo.db import schema
-from odoo.tools import SQL
 
 # `calendar.recurrence` now takes its rule from `mixin.recurrence.rule`, which
 # every other recurrence in this repository already used. The five columns it
@@ -35,13 +34,11 @@ def migrate(cr, version):
             continue
         if schema.column_exists(cr, "calendar_recurrence", new):
             continue
-        cr.execute(
-            SQL(
-                "ALTER TABLE calendar_recurrence RENAME COLUMN %s TO %s",
-                SQL.identifier(old),
-                SQL.identifier(new),
-            )
-        )
+        # `schema.rename_column`, not a bare ALTER: it carries the NOT NULL
+        # constraint's auto-generated name across too, so an upgraded database
+        # and a fresh one end up with the same catalog and not merely the same
+        # behaviour.
+        schema.rename_column(cr, "calendar_recurrence", old, new)
 
     for old, new in _UNIT_VALUES.items():
         cr.execute(

@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "website_sale_subscription/TestWebsiteSaleSubscriptionConfigurators.test_website_sale_subscription_combo_configurator": "FAIL",
+    "website_sale_subscription/TestWebsiteSaleSubscriptionConfigurators.test_website_sale_subscription_product_configurator": "FAIL"
+  },
+  "note": "NOT ACCEPTED. Two configurator tours fail at the same step, 'Assert that the price is 5.00'. Pre-existing: a control on the pre-rename enterprise worktree fails the identical two, so neither is the billing-period fold. Undiagnosed.",
+  "run_spec": "-u website_sale_subscription --test-enable --test-tags /website_sale_subscription",
+  "suite": "/website_sale_subscription",
+  "tests_total": 16,
+  "verified_at": "58bc72ca42e3"
+}
