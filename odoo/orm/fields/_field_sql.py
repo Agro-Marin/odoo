@@ -78,6 +78,14 @@ class _FieldSqlMixin(_FieldStubs):
             fallback = self.convert_to_column(
                 self.convert_to_write(fallback, model), model
             )
+            _debug.logic(
+                "field.sql.company_dependent.coalesced",
+                model=model._name,
+                field=self.name,
+                company=model.env.company.id,
+                column_type=underlying[1],
+                has_fallback=fallback is not None,
+            )
             sql_field = SQL(
                 "COALESCE(%(column)s->%(company_id)s,to_jsonb(%(fallback)s::%(column_type)s))",
                 column=sql_field,
@@ -222,6 +230,15 @@ class _FieldSqlMixin(_FieldStubs):
             sql_value = model.env.registry.unaccent(sql_value)
 
         sql = SQL("%s%s%s", sql_left, SQL_OPERATORS[operator], sql_value)
+        _debug.logic(
+            "field.sql.like",
+            model=self.model_name,
+            field=self.name,
+            operator=operator,
+            cast_to_text=not self.is_text,
+            unaccent=operator.endswith("ilike"),
+            null_accepted=operator in Domain.NEGATIVE_OPERATORS and can_be_null,
+        )
         if operator in Domain.NEGATIVE_OPERATORS and can_be_null:
             sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
         return sql
@@ -245,6 +262,12 @@ class _FieldSqlMixin(_FieldStubs):
 
         sql = SQL("%s%s%s", sql_field, SQL_OPERATORS[operator], sql_value)
         if accept_null_value:
+            _debug.logic(
+                "field.sql.inequality.null_accepted",
+                model=self.model_name,
+                field=self.name,
+                operator=operator,
+            )
             sql = SQL("(%s OR %s IS NULL)", sql, sql_field)
         return sql
 
@@ -274,6 +297,12 @@ class _FieldSqlMixin(_FieldStubs):
         _value_to_column = self._get_comparand_converter(field_expr, model)
 
         if operator in SQL_OPERATORS and isinstance(value, SQL):
+            _debug.logic(
+                "field.sql.raw_sql_comparand",
+                model=model._name,
+                field_expr=field_expr,
+                operator=operator,
+            )
             warnings.warn(
                 "Since 19.0, use Domain.custom(to_sql=lambda model, alias, query: SQL(...))",
                 DeprecationWarning,

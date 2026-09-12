@@ -90,6 +90,13 @@ class FieldCache[F: FieldKey = FieldKey]:
         for field in list(self._dirty):
             if getattr(field, "model_name", None) == model_name:
                 result[field] = self._dirty.pop(field)
+        if _debug.pipeline.enabled and result:
+            _debug.pipeline(
+                "cache.dirty_popped_for_model",
+                model=model_name,
+                fields=len(result),
+                records=sum(len(ids) for ids in result.values()),
+            )
         return result
 
     def is_any_dirty(self) -> bool:
@@ -127,6 +134,17 @@ class FieldCache[F: FieldKey = FieldKey]:
                 ids = [id_ for id_ in ids if id_ not in dirty]
             elif contexts and type(ids) not in _REITERABLE:
                 ids = tuple(ids)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "cache.field_invalidated",
+                field=str(field),
+                records=len(ids)
+                if ids is not None and hasattr(ids, "__len__")
+                else None,
+                whole=ids is None,
+                contexts=len(contexts) if contexts else 0,
+                kept_dirty=len(dirty) if dirty else 0,
+            )
         if field_cache:
             _evict(field_cache, ids, dirty)
         if contexts:

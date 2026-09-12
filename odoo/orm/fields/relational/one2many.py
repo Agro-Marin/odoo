@@ -76,6 +76,13 @@ class One2many(_RelationalMulti):
                     f"{self.inverse_name!r} declared in {self!r} does not exist on {comodel._name!r}."
                 ) from None
             self._inverse_is_computed = bool(field.compute)
+            if _debug.logic.enabled and self._inverse_is_computed:
+                _debug.logic(
+                    "field.one2many.inverse_is_computed",
+                    model=self.model_name,
+                    field=self.name,
+                    inverse=f"{self.comodel_name}.{self.inverse_name}",
+                )
 
     @override
     def setup_inverses(
@@ -189,6 +196,14 @@ class One2many(_RelationalMulti):
 
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
+        _debug.pipeline(
+            "field.one2many.read",
+            model=self.model_name,
+            field=self.name,
+            comodel=self.comodel_name,
+            records=len(records),
+            lines=len(lines),
+        )
 
     def _write_nonstored_commands(
         self,
@@ -209,6 +224,18 @@ class One2many(_RelationalMulti):
 
         for recs, commands in records_commands_list:
             delta = CommandDelta.fold(commands)
+            _debug.logic(
+                "field.one2many.delta",
+                model=self.model_name,
+                field=self.name,
+                stored=False,
+                records=len(recs),
+                created=len(delta.created),
+                updated=len(delta.updated),
+                removed=len(delta.removed),
+                linked=len(delta.linked),
+                replaced=delta.replaced,
+            )
             if delta.replaced:
                 self._update_cache(recs, ())
                 self._update_cache(recs[-1], browse_lines(delta.set_ids)._ids)
@@ -254,12 +281,28 @@ class One2many(_RelationalMulti):
         allow_full_delete = not create
 
         def unlink(lines):
-            if getattr(comodel._fields[inverse], "ondelete", False) == "cascade":
+            cascade = getattr(comodel._fields[inverse], "ondelete", False) == "cascade"
+            _debug.logic(
+                "field.one2many.unlink_strategy",
+                model=self.model_name,
+                field=self.name,
+                strategy="delete" if cascade else "detach",
+                lines=len(lines),
+            )
+            if cascade:
                 to_delete.extend(lines._ids)
             else:
                 lines[inverse] = False
 
         def flush():
+            _debug.pipeline(
+                "field.one2many.flush",
+                model=self.model_name,
+                field=self.name,
+                to_delete=len(to_delete),
+                to_create=len(to_create),
+                to_link=sum(len(ids) for ids in to_link.values()),
+            )
             if to_link:
                 before = {record: record[self.name] for record in to_link}
             if to_delete:
@@ -283,6 +326,7 @@ class One2many(_RelationalMulti):
                 "field.one2many.delta",
                 model=self.model_name,
                 field=self.name,
+                stored=True,
                 records=len(recs),
                 created=len(delta.created),
                 updated=len(delta.updated),
@@ -338,6 +382,15 @@ class One2many(_RelationalMulti):
 
         model, comodel = self._get_writer_models(records_commands_list)
 
+        _debug.pipeline(
+            "field.one2many.write_real",
+            model=model._name,
+            field=self.name,
+            comodel=comodel._name,
+            stored=self.store,
+            create=create,
+            groups=len(records_commands_list),
+        )
         if self.store:
             self._write_real_stored(records_commands_list, model, comodel, create)
         else:
@@ -355,6 +408,15 @@ class One2many(_RelationalMulti):
 
         ids = {record.id for records, _ in records_commands_list for record in records}
         records = model.browse(ids)
+        _debug.pipeline(
+            "field.one2many.write_new",
+            model=model._name,
+            field=self.name,
+            comodel=comodel._name,
+            stored=self.store,
+            records=len(records),
+            groups=len(records_commands_list),
+        )
 
         def browse(ids):
             return comodel.browse([id_ and NewId(id_) for id_ in ids])
@@ -408,6 +470,13 @@ class One2many(_RelationalMulti):
     ) -> Query:
         inverse_field = comodel._fields[self._get_inverse_name()]
         if inverse_field not in comodel.env.registry.not_null_fields:
+            _debug.logic(
+                "field.one2many.inverse_not_null_added",
+                model=model._name,
+                field=self.name,
+                inverse=f"{comodel._name}.{inverse_field.name}",
+                value_kind="domain" if isinstance(value, Domain) else "query",
+            )
             if isinstance(value, Domain):
                 value &= Domain(inverse_field.name, "not in", {False})
             else:
@@ -435,10 +504,24 @@ class One2many(_RelationalMulti):
         query: Query,
     ) -> SQL:
         if coquery.is_empty():
+            _debug.logic(
+                "field.one2many.condition_strategy",
+                model=model._name,
+                field=self.name,
+                strategy="empty_subquery",
+                exists=exists,
+            )
             return Domain(not exists)._to_sql(model, alias, query)
 
         comodel = model.env[self.comodel_name].sudo()
         inverse_field = comodel._fields[self.inverse_name]
+        _debug.logic(
+            "field.one2many.condition_strategy",
+            model=model._name,
+            field=self.name,
+            strategy="exists" if inverse_field.store else "unstored_inverse_in_memory",
+            exists=exists,
+        )
         if not inverse_field.store:
             recs = comodel.browse(coquery).with_context(prefetch_fields=False)
             if inverse_field.relational:

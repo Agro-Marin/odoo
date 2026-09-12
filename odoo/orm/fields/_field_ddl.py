@@ -224,19 +224,27 @@ def update_db_notnull(
 def update_db_related(field: Field, model: ModelLike) -> None:
     comodel = model.env[field.related_field.model_name]
     join_field, comodel_field = field._related_names
-    model.env.cr.execute(
-        SQL(
-            """ UPDATE %(model_table)s AS x
-            SET %(model_field)s = y.%(comodel_field)s
-            FROM %(comodel_table)s AS y
-            WHERE x.%(join_field)s = y.id """,
-            model_table=SQL.identifier(model._table),
-            model_field=SQL.identifier(field.name),
-            comodel_table=SQL.identifier(comodel._table),
-            comodel_field=SQL.identifier(comodel_field),
-            join_field=SQL.identifier(join_field),
+    with _debug.perf(
+        "field.ddl.related_column_filled",
+        cr=model.env.cr,
+        model=model._name,
+        field=field.name,
+        comodel=comodel._name,
+    ) as span:
+        model.env.cr.execute(
+            SQL(
+                """ UPDATE %(model_table)s AS x
+                SET %(model_field)s = y.%(comodel_field)s
+                FROM %(comodel_table)s AS y
+                WHERE x.%(join_field)s = y.id """,
+                model_table=SQL.identifier(model._table),
+                model_field=SQL.identifier(field.name),
+                comodel_table=SQL.identifier(comodel._table),
+                comodel_field=SQL.identifier(comodel_field),
+                join_field=SQL.identifier(join_field),
+            )
         )
-    )
+        span.set(rows=model.env.cr.rowcount)
 
 
 def update_db_foreign_key(
@@ -319,6 +327,17 @@ def update_db_relation_table(field: Many2many, model: ModelLike) -> bool:
 def update_db_foreign_keys(field: Many2many, model: BaseModel) -> None:
     comodel = model.env[field.comodel_name]
     relation, column1, column2 = field._get_relation_triple()
+    _debug.pipeline(
+        "field.ddl.m2m_foreign_keys",
+        model=model._name,
+        field=field.name,
+        relation=relation,
+        model_side=model._is_an_ordinary_table()
+        and not model._is_table_inheritance_root(),
+        comodel_side=comodel._is_an_ordinary_table()
+        and not comodel._is_table_inheritance_root(),
+        ondelete=field.ondelete or "cascade",
+    )
     if model._is_an_ordinary_table() and not model._is_table_inheritance_root():
         model.pool.add_foreign_key(
             relation,

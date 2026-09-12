@@ -236,6 +236,22 @@ class _ReadGroupSQLMixin(_ModelStubs):
         field = self._fields[fname]
         self._check_field_access(field, "read")
 
+        _debug.logic(
+            "read_group.groupby",
+            model=self._name,
+            groupby=groupby_spec,
+            field_type=field.type,
+            shape="properties"
+            if field.is_properties
+            else "many2one_path"
+            if seq_fnames
+            else "many2many"
+            if field.is_many2many
+            else "temporal"
+            if field.is_temporal
+            else "column",
+            granularity=granularity or None,
+        )
         if field.is_properties:
             sql_expr = self._read_group_groupby_properties(
                 alias, field, seq_fnames or "", query
@@ -335,6 +351,16 @@ class _ReadGroupSQLMixin(_ModelStubs):
         if field.is_date and granularity not in READ_GROUP_NUMBER_GRANULARITY:
             sql_expr = SQL("%s::date", sql_expr)
 
+        _debug.logic(
+            "read_group.groupby_temporal",
+            model=self._name,
+            groupby=groupby_spec,
+            granularity=granularity,
+            tz=self.env.context.get("tz") if field.is_datetime else None,
+            week_start=int(get_lang(self.env).week_start)
+            if granularity == "week"
+            else None,
+        )
         return sql_expr
 
     def _read_group_having(self, having_domain: list, query: Query) -> SQL:
@@ -427,6 +453,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
         if not order:
             return SQL.EMPTY
 
+        _debug.logic(
+            "read_group.orderby",
+            model=self._name,
+            order=order,
+            from_groupby=not traverse_many2one,
+            groupby_terms=len(groupby_terms),
+        )
         orderby_terms = []
 
         for order_part in order.split(","):

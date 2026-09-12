@@ -141,6 +141,13 @@ def get_stored_translations(
         )
     )
     res = cr.fetchone()
+    _debug.perf.count(
+        "field.translate.stored_translations_read",
+        model=field.model_name,
+        field=field.name,
+        record=record.id,
+        langs=len(res[0]) if res and res[0] else 0,
+    )
     return res[0] if res else None
 
 
@@ -158,6 +165,13 @@ def get_stored_translations_multi(
             SQL.identifier(records._table),
             tuple(records._ids),
         )
+    )
+    _debug.perf.count(
+        "field.translate.stored_translations_read_multi",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        flushed=len(pending),
     )
     return dict(cr.fetchall())
 
@@ -402,7 +416,16 @@ def _flush_pending_none(
 def _mark_dirty_unstored(
     field: BaseString, records: BaseModel, cache_value: typing.Any, lang: str
 ) -> None:
-    if field.compute and field.inverse and any(records._ids):
+    inverse_path = bool(field.compute and field.inverse and any(records._ids))
+    _debug.logic(
+        "field.translate.mark_dirty_unstored",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        lang=lang,
+        strategy="single_lang_for_inverse" if inverse_path else "plain",
+    )
+    if inverse_path:
         if field.translate is True:
             field._invalidate_cache(records.env, records._ids)
         field._update_cache(

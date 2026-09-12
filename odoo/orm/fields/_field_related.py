@@ -225,8 +225,19 @@ def search_related(
 
     field_seq = field._related_field_seq
     domain = Domain(field_seq[-1].name, operator, value)
+    null_steps = 0  # debuglog
     for step in reversed(field_seq[:-1]):
         domain = Domain(step.name, "any!" if field.compute_sudo else "any", domain)
         if can_be_null and step.is_many2one and not step.required:
             domain |= Domain(step.name, "=", False)
+            null_steps += 1  # debuglog
+    _debug.logic(
+        "field.related.search_domain",
+        model=field.model_name,
+        field=field.name,
+        operator=operator,
+        steps=len(field_seq) - 1,
+        sudo=bool(field.compute_sudo),
+        null_steps=null_steps,
+    )
     return domain

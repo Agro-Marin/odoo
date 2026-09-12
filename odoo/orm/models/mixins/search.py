@@ -41,6 +41,13 @@ class SearchMixin(_ModelStubs):
 
         query = self._search(domain, limit=limit)
         count = len(query)
+        _debug.pipeline(
+            "search.count",
+            model=self._name,
+            count=count,
+            limit=limit,
+            uid=self.env.uid,
+        )
 
         if self.env.transaction.observers:
             self.env.transaction.observe_operation(
@@ -242,6 +249,13 @@ class SearchMixin(_ModelStubs):
                 with contextlib.suppress(ValueError, TypeError):
                     typed_value = field.convert_to_write(value, self)
                     domains.append([(field_name, operator, typed_value)])
+        _debug.logic(
+            "search.display_name.match_domain",
+            model=self._name,
+            operator=operator,
+            search_fields=list(search_fnames),
+            branches=len(domains),
+        )
         return aggregator(domains)
 
     @api.model
@@ -390,6 +404,12 @@ class SearchMixin(_ModelStubs):
 
     @api.private
     def lock_for_update(self, *, allow_referencing: bool = False) -> None:
+        _debug.pipeline(
+            "search.lock_for_update",
+            model=self._name,
+            records=len(self),
+            allow_referencing=allow_referencing,
+        )
         self.env.backend.lock_for_update(self, allow_referencing=allow_referencing)
 
     @api.private

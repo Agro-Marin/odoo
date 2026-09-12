@@ -190,6 +190,15 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
         if computed.store:
             env.remove_to_compute(computed, records)
 
+    _debug.pipeline(
+        "field.compute_value",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+        computed_together=len(fields),
+        sudo=bool(field.compute_sudo),
+        validate=validate,
+    )
     try:
         with records.env.protecting(fields, records):
             records._compute_field_value(field, validate=validate)
@@ -220,6 +229,12 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
 def apply_inverse(field: Field, records: ModelLike) -> None:
     prof = _OrmProfile(_orm_compute)
 
+    _debug.pipeline(
+        "field.apply_inverse",
+        model=field.model_name,
+        field=field.name,
+        records=len(records),
+    )
     call_hook(field.inverse, records)
 
     prof.stop()

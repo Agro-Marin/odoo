@@ -75,6 +75,14 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
         selection = field._args__["selection"]
         if isinstance(selection, (list, tuple)):
             if values is not None and list(values) != [kv[0] for kv in selection]:
+                _debug.logic(
+                    "field.selection.overridden",
+                    model=self.model_name,
+                    field=self.name,
+                    module=field._module,
+                    previous=len(values),
+                    values=len(selection),
+                )
                 _logger.warning(
                     "%s: selection=%r overrides existing selection; use selection_add instead",
                     self,
@@ -86,6 +94,13 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
             self.ondelete = None
             self.selection = selection
             values = None
+            _debug.logic(
+                "field.selection.dynamic",
+                model=self.model_name,
+                field=self.name,
+                module=field._module,
+                source="method" if isinstance(selection, str) else "callable",
+            )
         else:
             raise ValueError(
                 f"{self!r}: selection={selection!r} should be a list, a callable or a method name"

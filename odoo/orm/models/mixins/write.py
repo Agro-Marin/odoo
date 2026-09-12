@@ -225,6 +225,13 @@ class WriteMixin(_ModelStubs):
                 real_recs = self
             else:
                 real_recs = self.filtered("id")
+                if _debug.logic.enabled and len(real_recs) < len(self):
+                    _debug.logic(
+                        "write.new_records_skipped",
+                        model=self._name,
+                        records=len(self),
+                        real=len(real_recs),
+                    )
 
             if len(field_values) > 1:
                 field_values.sort(key=lambda item: item[0].write_sequence)
@@ -236,6 +243,12 @@ class WriteMixin(_ModelStubs):
             prof.mark("after")
 
             if self._parent_store and self._parent_name in vals:
+                _debug.pipeline(
+                    "write.parent_flushed",
+                    model=self._name,
+                    records=len(self),
+                    parent_field=self._parent_name,
+                )
                 self.flush_model([self._parent_name])
 
             inverse_fields = [f.name for fs in inverses_by_hook.values() for f in fs]
@@ -247,6 +260,12 @@ class WriteMixin(_ModelStubs):
             real_recs._check_fields(inverse_fields)
 
         if self._check_company_auto:
+            _debug.pipeline(
+                "write.check_company",
+                model=self._name,
+                records=len(real_recs),
+                fields=len(vals),
+            )
             self._check_company(list(vals))
 
         prof.stop("inverse")
@@ -346,6 +365,12 @@ class WriteMixin(_ModelStubs):
             )
 
     def _execute_update(self, fnames: tuple[str, ...], rows: list[tuple]) -> None:
+        _debug.pipeline(
+            "write.execute_update",
+            model=self._name,
+            columns=len(fnames),
+            rows=len(rows),
+        )
         self.env.backend.update_rows(self, fnames, rows)
 
     def _get_records_with_parent_changed(self, vals_list: list[ValuesType]) -> Self:

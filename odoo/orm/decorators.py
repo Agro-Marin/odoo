@@ -3,11 +3,15 @@ import warnings
 from collections.abc import Callable, Collection, Mapping
 from functools import wraps
 
+from odoo.libs.debug_log import DebugLog
+
 C = typing.TypeVar("C", bound=Callable)
 Decorator = Callable[[C], C]
 
 if typing.TYPE_CHECKING:
     from ._typing import BaseModel, ValuesType
+
+_debug = DebugLog(__name__)
 
 
 def stamp[F](method: F, **markers: object) -> F:
@@ -179,6 +183,11 @@ def deprecated(reason: str) -> Decorator:
     def decorator(method: C) -> C:
         @wraps(method)
         def wrapper(*args: object, **kwargs: object) -> object:
+            _debug.logic(
+                "decorators.deprecated_called",
+                method=method.__qualname__,
+                reason=reason,
+            )
             warnings.warn(
                 f"Call to deprecated method {method.__qualname__}: {reason}",
                 DeprecationWarning,
@@ -198,6 +207,11 @@ def model_create_multi[T](
     @wraps(method)
     def create(self: T, vals_list: list[ValuesType] | ValuesType) -> T:
         if isinstance(vals_list, Mapping):
+            _debug.logic(
+                "decorators.create_single_vals_wrapped",
+                model=getattr(self, "_name", None),
+                method=method.__qualname__,
+            )
             vals_list = [vals_list]
         return method(self, vals_list)
 

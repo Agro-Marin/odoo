@@ -42,6 +42,11 @@ class _RegistryFieldsMixin(_RegistryStubs):
     def _get_field_triggers(self) -> dict:
         refused_at = self.__dict__.get("_field_triggers_refused_at")
         if refused_at is not None and refused_at != self.model_graph.trigger_epoch:
+            _debug.logic(
+                "registry.field_triggers.refused_rebuilt",
+                refused_at=refused_at,
+                epoch=self.model_graph.trigger_epoch,
+            )
             self.__dict__.pop("_field_triggers", None)
             self.__dict__.pop("_field_triggers_refused_at", None)
         return self._field_triggers
@@ -62,6 +67,11 @@ class _RegistryFieldsMixin(_RegistryStubs):
                 if field.relational:
                     field.setup_inverses(self, result)
         self.model_graph.set_inverses(result)
+        _debug.perf.count(
+            "registry.field_inverses_built",
+            models=len(self.models),
+            fields=len(result),
+        )
         return result
 
     @functools.cached_property
@@ -71,6 +81,11 @@ class _RegistryFieldsMixin(_RegistryStubs):
             for field in model_cls._fields.values():
                 if field.relational and field.comodel_name:
                     result[field.comodel_name].append(field)
+        _debug.perf.count(
+            "registry.fields_by_comodel_built",
+            comodels=len(result),
+            fields=sum(len(fields) for fields in result.values()),
+        )
         return {name: tuple(fields) for name, fields in result.items()}
 
     @functools.cached_property
@@ -88,6 +103,9 @@ class _RegistryFieldsMixin(_RegistryStubs):
                     for dep in self.field_depends.get(field, ())
                 ):
                     result.append(field)
+        _debug.perf.count(
+            "registry.fields_reading_through_a_reference", fields=len(result)
+        )
         return tuple(result)
 
     @functools.cached_property
@@ -102,6 +120,11 @@ class _RegistryFieldsMixin(_RegistryStubs):
                     and getattr(field, "ondelete", None) == "cascade"
                 ):
                     result[field.comodel_name].add(field.model_name)
+        _debug.perf.count(
+            "registry.models_cascading_from_built",
+            targets=len(result),
+            edges=sum(len(models) for models in result.values()),
+        )
         return {name: frozenset(models) for name, models in result.items()}
 
     @functools.cached_property

@@ -4,12 +4,15 @@ from collections import deque
 from collections.abc import Iterable, Iterator
 from operator import attrgetter
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
 from ._registry_stubs import _RegistryStubs
 
 if typing.TYPE_CHECKING:
     from odoo.models import BaseModel
+
+_debug = DebugLog(__name__)
 
 
 class _RegistryModelsMixin(_RegistryStubs):
@@ -34,6 +37,7 @@ class _RegistryModelsMixin(_RegistryStubs):
 
     def __delitem__(self, model_name: str) -> None:
         del self.models[model_name]
+        _debug.lifecycle("registry.model_removed", model=model_name)
         for Model in self.models.values():
             Model._inherit_children.discard(model_name)
 
@@ -47,6 +51,11 @@ class _RegistryModelsMixin(_RegistryStubs):
             incumbent = by_table.get(table)
             if incumbent is None or model_cls._name in self._get_ancestors(incumbent):
                 by_table[table] = model_cls
+        _debug.perf.count(
+            "registry.models_by_table_built",
+            models=len(self.models),
+            tables=len(by_table),
+        )
         return by_table
 
     def _get_ancestors(self, model_cls: type[BaseModel]) -> set[str]:

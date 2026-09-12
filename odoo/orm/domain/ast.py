@@ -159,6 +159,7 @@ def _recursion_error_as_value_error():
     try:
         yield
     except RecursionError:
+        _debug.logic("domain.optimize.recursion_exhausted")
         raise ValueError(
             "Domain nesting too deep to optimize: combined n-ary and 'any' "
             "nesting exhausts the evaluation stack"
@@ -821,6 +822,11 @@ class DomainCustom(Domain):
     def _as_predicate(self, records: BaseModel) -> Callable[[BaseModel], bool]:
         if self._filtered is not None:
             return self._filtered
+        _debug.logic(
+            "domain.custom.predicate_via_search",
+            model=records._name,
+            records=len(records),
+        )
         query = records._search(
             DomainCondition("id", "in", records.ids) & self, order="id"
         )
@@ -877,6 +883,11 @@ class DomainCondition(Domain):
             raise self._prepare_condition_error("Empty field name", error=TypeError)
         op = self.operator.lower()
         if op != self.operator:
+            _debug.logic(
+                "domain.normalize.operator_lowercased",
+                field_expr=self.field_expr,
+                operator=self.operator,
+            )
             warnings.warn(
                 f"Deprecated since 19.0, the domain condition {(self.field_expr, self.operator, self.value)!r} should have a lower-case operator",
                 DeprecationWarning,
@@ -891,6 +902,11 @@ class DomainCondition(Domain):
         if value is None:
             value = False
         elif isinstance(value, NewId):
+            _debug.logic(
+                "domain.normalize.new_id_dropped",
+                field_expr=self.field_expr,
+                operator=op,
+            )
             _logger.warning(
                 "Domains don't support NewId, use .ids instead, for %r",
                 (self.field_expr, self.operator, self.value),
@@ -898,6 +914,13 @@ class DomainCondition(Domain):
             op = "not in" if op in NEGATIVE_CONDITION_OPERATORS else "in"
             value = []
         elif is_recordset(value):
+            _debug.logic(
+                "domain.normalize.recordset_to_ids",
+                field_expr=self.field_expr,
+                operator=op,
+                model=value._name,
+                ids=len(value),
+            )
             _logger.warning(
                 "The domain condition %r should not have a value which is a model",
                 (self.field_expr, self.operator, self.value),
@@ -906,6 +929,12 @@ class DomainCondition(Domain):
         elif isinstance(value, (Domain, Query, SQL)) and op not in (
             SUBDOMAIN_OR_IN_OPERATORS
         ):
+            _debug.logic(
+                "domain.normalize.subquery_without_any",
+                field_expr=self.field_expr,
+                operator=op,
+                value_type=type(value).__name__,
+            )
             _logger.warning(
                 "The domain condition %r should use the 'any' or 'not any' operator.",
                 (self.field_expr, self.operator, self.value),
@@ -924,9 +953,18 @@ class DomainCondition(Domain):
     def _negate(self, model: BaseModel) -> Domain:
         if neg_op := INVERSE_INEQUALITY.get(self.operator):
             condition: Domain = DomainCondition(self.field_expr, neg_op, self.value)
-            if self._get_field(model).falsy_value is None:
+            null_included = self._get_field(model).falsy_value is None
+            if null_included:
                 is_null = DomainCondition(self.field_expr, "in", OrderedSet([False]))
                 condition = is_null | condition
+            _debug.logic(
+                "domain.negate.inequality",
+                model=model._name,
+                field_expr=self.field_expr,
+                operator=self.operator,
+                negated=neg_op,
+                null_included=null_included,
+            )
             return condition
 
         return super()._negate(model)
@@ -1204,6 +1242,13 @@ class DomainCondition(Domain):
 
         op = self.operator
         if op in ("child_of", "parent_of"):
+            _debug.logic(
+                "domain.predicate.hierarchy_expanded",
+                model=records._name,
+                field_expr=self.field_expr,
+                operator=op,
+                records=len(records),
+            )
             with _recursion_error_as_value_error():
                 domain = self._optimize(records, OptimizationLevel.FULL)
             return domain._as_predicate(records)
@@ -1218,6 +1263,13 @@ class DomainCondition(Domain):
         if not all(records._ids):
             fallback = getattr(self, "_predicate_fallback", None)
             if fallback is not None:
+                _debug.logic(
+                    "domain.predicate.new_records_fallback",
+                    model=records._name,
+                    field_expr=self.field_expr,
+                    operator=op,
+                    records=len(records),
+                )
                 return fallback._as_predicate(records)
 
         if op not in STANDARD_CONDITION_OPERATORS:
@@ -1235,6 +1287,13 @@ class DomainCondition(Domain):
                 op = "not any!"
             positive_operator = "any!"
             field_expr = "id"
+            _debug.logic(
+                "domain.predicate.sql_value_via_search",
+                model=records._name,
+                field_expr=self.field_expr,
+                operator=self.operator,
+                records=len(records),
+            )
             value = records.with_context(active_test=False)._search(
                 DomainCondition("id", "in", OrderedSet(records.ids)) & condition
             )

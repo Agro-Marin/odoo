@@ -96,6 +96,12 @@ class Many2one(_Relational):
         if name in model_class._inherits.values():
             self.delegate = True
             self.bypass_search_access = True
+            _debug.lifecycle(
+                "field.many2one.delegate",
+                model=model_class._name,
+                field=name,
+                comodel=self.comodel_name,
+            )
         elif self.delegate:
             comodel_name = self.comodel_name or "comodel_name"
             raise TypeError(
@@ -112,6 +118,15 @@ class Many2one(_Relational):
                 self.ondelete = "cascade" if self.required else "set null"
             else:
                 self.ondelete = "restrict" if self.required else "set null"
+            _debug.logic(
+                "field.many2one.ondelete_defaulted",
+                model=self.model_name,
+                field=self.name,
+                comodel=self.comodel_name,
+                ondelete=self.ondelete,
+                required=self.required,
+                transient=model.is_transient(),
+            )
         if self.ondelete == "set null" and self.required:
             raise ValueError(
                 f"The m2o field {self.name} of model {model._name} is required but declares its ondelete policy "
@@ -238,6 +253,17 @@ class Many2one(_Relational):
                 allowed_ids = set(targets._filtered_display_name_access()._ids)
             except MissingError:
                 allowed_ids = None
+            if _debug.pipeline.enabled:
+                _debug.pipeline(
+                    "field.many2one.read_display_names",
+                    model=self.model_name,
+                    field=self.name,
+                    comodel=self.comodel_name,
+                    values=len(values),
+                    targets=len(target_ids),
+                    allowed=len(allowed_ids) if allowed_ids is not None else None,
+                    per_record=allowed_ids is None,
+                )
 
         result: list[typing.Any] = []
         for value in values:
@@ -300,6 +326,14 @@ class Many2one(_Relational):
         cache_value = self.convert_to_cache(value, records)
 
         if self.bypass_search_access and not records.env.su:
+            _debug.logic(
+                "field.many2one.write_target_access_checked",
+                model=self.model_name,
+                field=self.name,
+                comodel=self.comodel_name,
+                target=cache_value,
+                uid=records.env.uid,
+            )
             try:
                 records.env[self.comodel_name].browse(cache_value).check_access("read")
             except AccessError as e:
@@ -316,6 +350,15 @@ class Many2one(_Relational):
         self._update_cache(records, cache_value, dirty=True)
 
         self._update_inverses(records, cache_value)
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "field.many2one.dirty",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                target=cache_value,
+                inverses=len(records.pool.field_inverses[self]),
+            )
 
     def _remove_inverses(self, records: BaseModel) -> None:
         inverse_fields = records.pool.field_inverses[self]
@@ -357,7 +400,7 @@ class Many2one(_Relational):
                 sorted_ids = records.browse(ids1)._sorted_by_ids(records._order, False)
                 if sorted_ids is not None:
                     ids1 = sorted_ids
-                else:
+                if _debug.logic.enabled and sorted_ids is None:
                     _debug.logic(
                         "field.many2one.inverse_appended_unsorted",
                         model=self.model_name,
@@ -372,6 +415,13 @@ class Many2one(_Relational):
         sql_field = super().to_sql(model, alias)
         if self.company_dependent:
             comodel = model.env[self.comodel_name]
+            _debug.logic(
+                "field.many2one.company_dependent_exists_subselect",
+                model=model._name,
+                field=self.name,
+                comodel=self.comodel_name,
+                alias=alias,
+            )
             sql_field = SQL(
                 """(SELECT %(cotable_alias)s.id
                     FROM %(cotable)s AS %(cotable_alias)s
@@ -472,6 +522,14 @@ class Many2one(_Relational):
     def join(self, model: ModelLike, alias: str, query: Query) -> tuple[BaseModel, str]:
         comodel = model.env[self.comodel_name]
         coalias = query.get_table_alias(alias, self.name)
+        _debug.pipeline(
+            "field.many2one.join",
+            model=model._name,
+            field=self.name,
+            comodel=self.comodel_name,
+            alias=alias,
+            coalias=coalias,
+        )
         query.add_join(
             "LEFT JOIN",
             coalias,

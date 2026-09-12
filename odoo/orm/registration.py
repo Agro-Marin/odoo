@@ -217,6 +217,15 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
         model_cls._inherits = frozendict(inherits)
     if depends:
         model_cls._depends = frozendict(depends)
+    _debug.lifecycle(
+        "registration.class_attributes_initialised",
+        model=model_cls._name,
+        table=model_cls._table,
+        log_access=model_cls._log_access,
+        inherits=len(inherits),
+        depends=len(depends),
+        bases=len(model_cls._base_classes__),
+    )
 
     registry = get_registry_of_model(model_cls)
     for parent_name in model_cls._inherits:
@@ -448,6 +457,12 @@ def _check_active_name(model_cls: type[BaseModel]):
         model_cls._active_name = "active"
     elif "x_active" in model_cls._fields:
         model_cls._active_name = "x_active"
+    if _debug.logic.enabled and model_cls._active_name:
+        _debug.logic(
+            "registration.active_name_resolved",
+            model=model_cls._name,
+            active_name=model_cls._active_name,
+        )
 
 
 def _add_table_objects(model_cls: type[BaseModel]):
@@ -464,6 +479,12 @@ def _add_table_objects(model_cls: type[BaseModel]):
             for cons in cls._table_object_definitions
         }
     )
+    if _debug.pipeline.enabled and model_cls._table_objects:
+        _debug.pipeline(
+            "registration.table_objects_collected",
+            model=model_cls._name,
+            table_objects=len(model_cls._table_objects),
+        )
 
 
 def _check_inherits(model_cls: type[BaseModel]):
@@ -666,6 +687,11 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
         )
 
     if not isinstance(getattr(model_cls, name, field), fields.Field):
+        _debug.logic(
+            "registration.field_overrides_attribute",
+            model=model_cls._name,
+            field=name,
+        )
         _logger.warning(
             "In model %r, field %r overriding existing value",
             model_cls._name,
@@ -675,6 +701,13 @@ def add_field(model_cls: type[BaseModel], name: str, field: Field):
     field._toplevel = True
     field.__set_name__(model_cls, name)
     model_cls._fields__[name] = field
+    if _debug.lifecycle.enabled and not is_class_field:
+        _debug.lifecycle(
+            "registration.manual_field_added",
+            model=model_cls._name,
+            field=name,
+            type=field.type,
+        )
 
 
 def pop_field(model_cls: type[BaseModel], name: str) -> Field | None:

@@ -167,6 +167,14 @@ class _Relational(Field["BaseModel"]):
                     continue
             if self.store and record_id and len(vals) < len(records) - PREFETCH_MAX:
                 remaining = records[len(vals) :]
+                _debug.logic(
+                    "field.relational.multi_get_fetch",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(records),
+                    cached=len(vals),
+                    remaining=len(remaining),
+                )
                 remaining.fetch([self.name])
                 field_cache = self._get_cache(env)
                 if record_id not in field_cache:
@@ -293,6 +301,15 @@ class _Relational(Field["BaseModel"]):
     ) -> Callable[[BaseModel], bool]:
         getter = self.get_expression_getter(field_expr)
 
+        _debug.logic(
+            "field.relational.filter_function",
+            model=self.model_name,
+            field_expr=field_expr,
+            operator=operator,
+            records=len(records),
+            sudo=(self.bypass_search_access or operator == "any!")
+            and not records.env.su,
+        )
         if (self.bypass_search_access or operator == "any!") and not records.env.su:
             expr_getter = getter
             sudo_env = records.sudo().with_context(filter_function_reset_sudo=True).env
@@ -377,6 +394,13 @@ class _RelationalMulti(_Relational):
     ) -> None:
         field_patches = records.env.core.get_patches(self)
         if field_patches and not field_patches.keys().isdisjoint(records._ids):
+            _debug.logic(
+                "field.x2many.patches_applied",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                patched=sum(1 for id_ in records._ids if id_ in field_patches),
+            )
             for record in records:
                 ids = field_patches.pop(record.id, ())
                 if ids:
@@ -412,6 +436,18 @@ class _RelationalMulti(_Relational):
             else:
                 current = ()
             delta = CommandDelta.fold(value, lambda it: browse(it).id)
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "field.x2many.commands_to_cache",
+                    model=self.model_name,
+                    field=self.name,
+                    record=record.id,
+                    commands=len(value),
+                    current=len(current),
+                    created=len(delta.created),
+                    updated=len(delta.updated),
+                    replaced=delta.replaced,
+                )
             line_ids = [comodel.new(vals, ref=ref).id for ref, vals in delta.created]
             for line_id, vals in delta.updated:
                 line = comodel.browse((line_id,))
@@ -549,15 +585,20 @@ class _RelationalMulti(_Relational):
         depends, depends_context = super().get_depends(model)
         if not self.compute and isinstance(domain := self.domain, (list, Domain)):
             domain = Domain(domain)
+            domain_paths = list(_iter_domain_depend_paths(domain))
             depends = unique(
                 itertools.chain(
                     depends,
-                    (
-                        self.name + "." + path
-                        for path in _iter_domain_depend_paths(domain)
-                    ),
+                    (self.name + "." + path for path in domain_paths),
                 )
             )
+            if _debug.logic.enabled and domain_paths:
+                _debug.logic(
+                    "field.x2many.domain_depends",
+                    model=self.model_name,
+                    field=self.name,
+                    paths=domain_paths,
+                )
         return depends, depends_context
 
     @override

@@ -1,6 +1,8 @@
 import typing
 from operator import itemgetter
 
+from odoo.libs.debug_log import DebugLog
+
 from .domain import Domain
 
 if typing.TYPE_CHECKING:
@@ -9,6 +11,8 @@ if typing.TYPE_CHECKING:
     from ._typing import ModelLike
     from .fields.base import Field
     from .models.base import BaseModel
+
+_debug = DebugLog(__name__)
 
 
 def get_fields_by_name(model: ModelLike, fnames: Iterable[str]) -> list[Field]:
@@ -68,7 +72,14 @@ def to_record_ids(arg) -> list[int]:
 
 def _get_ancestor_company_ids(self: BaseModel, company_ids: list[int]) -> list[int]:
     companies = self.env["res.company"].sudo().browse(company_ids)
-    return list(companies._get_ancestor_ids(include_self=True))
+    ancestor_ids = list(companies._get_ancestor_ids(include_self=True))
+    _debug.logic(
+        "helpers.company_ancestors",
+        model=self._name,
+        companies=len(company_ids),
+        ancestors=len(ancestor_ids),
+    )
+    return ancestor_ids
 
 
 def check_company_domain_parent_of(
@@ -76,6 +87,12 @@ def check_company_domain_parent_of(
     companies: BaseModel | list[int] | int | str,
 ) -> Domain:
     if isinstance(companies, str):
+        _debug.logic(
+            "helpers.check_company_domain",
+            model=self._name,
+            field="company_id",
+            shape="unquoted_expression",
+        )
         return Domain.OR(
             [
                 Domain("company_id", "=", False),
@@ -85,6 +102,12 @@ def check_company_domain_parent_of(
 
     companies = to_record_ids(companies)
     if not companies:
+        _debug.logic(
+            "helpers.check_company_domain",
+            model=self._name,
+            field="company_id",
+            shape="no_company",
+        )
         return Domain("company_id", "=", False)
 
     return Domain(

@@ -2,12 +2,15 @@ import typing
 from collections.abc import Callable, Iterable
 from collections.abc import Set as AbstractSet
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
 from ...primitives import Command
 
 if typing.TYPE_CHECKING:
     from ...primitives import IdType, ValuesType
+
+_debug = DebugLog(__name__)
 
 
 class CommandDelta:
@@ -83,6 +86,14 @@ class CommandDelta:
         self.replaced = True
         self.set_ids = ids
         if self.superseding:
+            if _debug.logic.enabled and (self.created or self.linked or self.unlinked):
+                _debug.logic(
+                    "field.x2many.commands_superseded",
+                    set_ids=len(ids),
+                    created=len(self.created),
+                    linked=len(self.linked),
+                    unlinked=len(self.unlinked),
+                )
             self.created.clear()
             self.linked.clear()
             self.unlinked.clear()

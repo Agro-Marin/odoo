@@ -288,6 +288,11 @@ class IterationMixin(_ModelStubs):
             return set(s_ids) == set(o_ids)
         except AttributeError:
             if peer:
+                _debug.logic(
+                    "iteration.eq_unsupported_operand",
+                    model=self._name,
+                    other_type=type(peer).__name__,
+                )
                 warnings.warn(
                     f"unsupported operand type(s) for \"==\": '{self._name}()' == '{peer!r}'",
                     stacklevel=2,

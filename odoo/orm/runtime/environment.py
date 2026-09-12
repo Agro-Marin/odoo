@@ -277,6 +277,12 @@ class Environment(Mapping[str, "BaseModel"]):
             context = (
                 clean_context(self.context) if su and not self.su else self.context
             )
+            if _debug.logic.enabled and su and not self.su:
+                _debug.logic(
+                    "environment.sudo_context_cleaned",
+                    uid=uid,
+                    keys=len(self.context) - len(context),
+                )
         su = (user is None and self.su) if su is None else su
         return Environment(cr, uid, context, su)
 
@@ -422,7 +428,12 @@ class Environment(Mapping[str, "BaseModel"]):
         try:
             module = get_translated_module(2)
             return get_translation(module, lang, source, format_args)
-        except Exception:
+        except Exception as exc:
+            _debug.logic(
+                "environment.translation_failed",
+                lang=lang,
+                error=type(exc).__name__,
+            )
             _logger.debug(
                 'translation went wrong for "%r", skipped',
                 source,
@@ -466,6 +477,12 @@ class Environment(Mapping[str, "BaseModel"]):
             return
         assert field.store and field.compute, (
             "Cannot add to recompute no-store or no-computed field"
+        )
+        _debug.pipeline(
+            "environment.to_compute_added",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
         )
         self.core.schedule(field, records._ids)
 

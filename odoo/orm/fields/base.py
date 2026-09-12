@@ -274,6 +274,11 @@ class Field[T](
                 )
             if taken is None:
                 cls._by_type__[cls.type] = cls
+                _debug.lifecycle(
+                    "field.type_registered",
+                    type=cls.type,
+                    field_class=f"{cls.__module__}.{cls.__qualname__}",
+                )
 
         related: list[tuple[str, str]] = []
         described: list[tuple[str, str]] = []
@@ -316,6 +321,14 @@ class Field[T](
 
         if not self.store or not self.column_type or self.manual:
             self.prefetch = False
+        if _debug.logic.enabled and extra_keys:
+            _debug.logic(
+                "field.setup.extra_keys",
+                model=self.model_name,
+                field=name,
+                type=self.type,
+                extra_keys=list(extra_keys),
+            )
 
         if not self.string and not self.related:
             self.string = (
@@ -335,6 +348,12 @@ class Field[T](
         if not self._setup_done:
             for key in self._extra_keys__:
                 if not model._is_valid_field_parameter(self, key):
+                    _debug.logic(
+                        "field.setup.unknown_parameter",
+                        model=self.model_name,
+                        field=self.name,
+                        parameter=key,
+                    )
                     _logger.warning(
                         "Field %s: unknown parameter %r, if this is an actual"
                         " parameter you may want to override the method"
@@ -405,6 +424,13 @@ class Field[T](
     def get_company_dependent_fallback(self, records: ModelLike) -> typing.Any:
         assert self.company_dependent
         fallback = self._get_company_dependent_fallback_raw(records)
+        _debug.logic(
+            "field.company_dependent.fallback",
+            model=self.model_name,
+            field=self.name,
+            company=records.env.company.id,
+            has_fallback=fallback is not None and fallback is not False,
+        )
         fallback = self.convert_to_cache(fallback, records, validate=False)
         return self.convert_to_record(fallback, records)
 
@@ -456,6 +482,11 @@ class Field[T](
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         records, cache_value = self._mark_dirty_prologue(records, value)
         if not records:
+            _debug.logic(
+                "field.mark_dirty.unchanged",
+                model=self.model_name,
+                field=self.name,
+            )
             return
 
         self._update_cache(records, cache_value, dirty=True)
@@ -639,6 +670,11 @@ class Field[T](
     def _get_not_singleton(self, record: BaseModel, owner: typing.Any = None) -> T:
         if record._ids:
             record.check_singleton()
+        _debug.logic(
+            "field.get.empty_recordset",
+            model=self.model_name,
+            field=self.name,
+        )
         value = self.convert_to_cache(False, record, validate=False)
         return self.convert_to_record(value, record)
 
@@ -661,6 +697,12 @@ class Field[T](
         if value is PENDING:
             field_cache.pop(record_id, None)
             if env.is_protected(self, record):
+                _debug.logic(
+                    "field.get.pending_protected",
+                    model=self.model_name,
+                    field=self.name,
+                    record=record_id,
+                )
                 value = self.convert_to_cache(False, record, validate=False)
                 self._update_cache(record, value)
                 return self.convert_to_record(value, record)

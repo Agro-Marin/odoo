@@ -190,6 +190,14 @@ class EnvironmentMixin(_ModelStubs):
             ref = None
         record = self.browse((NewId(origin_id, ref),))
         record._update_cache(values, validate=False)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "env.new_record",
+                model=self._name,
+                origin=origin_id,
+                ref=ref is not None,
+                fields=sorted(values),
+            )
 
         return record
 

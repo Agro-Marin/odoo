@@ -87,6 +87,11 @@ class Binary(Field[bytes | typing.Literal[False]]):
         attrs = super()._get_attrs(model_class, name)
         if not attrs.get("store", True):
             attrs["attachment"] = False
+            _debug.logic(
+                "field.binary.attachment_disabled_unstored",
+                model=model_class._name,
+                field=name,
+            )
         return attrs
 
     _description_attachment = property(attrgetter("attachment"))
@@ -110,10 +115,15 @@ class Binary(Field[bytes | typing.Literal[False]]):
                 )
             except binascii.Error:
                 decoded_value = value
-            if (
-                guess_mimetype(decoded_value).startswith("image/svg")
-                and not record.env.is_system()
-            ):
+            is_svg = guess_mimetype(decoded_value).startswith("image/svg")
+            _debug.logic(
+                "field.binary.svg_probe",
+                model=self.model_name,
+                field=self.name,
+                is_svg=is_svg,
+                system=record.env.is_system(),
+            )
+            if is_svg and not record.env.is_system():
                 raise UserError(record.env._("Only admins can upload SVG files."))
         if isinstance(value, bytes):
             return value
@@ -165,6 +175,14 @@ class Binary(Field[bytes | typing.Literal[False]]):
         under_bin_size = records.env.context.get("bin_size") or records.env.context.get(
             bin_size_name
         )
+        if _debug.logic.enabled and under_bin_size:
+            _debug.logic(
+                "field.binary.compute_under_bin_size",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                strategy="size_field" if self.bin_size_field else "compute_then_size",
+            )
         if under_bin_size and self.bin_size_field:
             field_cache = self._get_cache(records.env)
             for record in records:
@@ -231,19 +249,30 @@ class Binary(Field[bytes | typing.Literal[False]]):
         if not record_values:
             return
         env = record_values[0][0].env
-        env["ir.attachment"].sudo().create(
-            [
-                {
-                    "name": self.name,
-                    "res_model": self.model_name,
-                    "res_field": self.name,
-                    "res_id": record.id,
-                    "type": "binary",
-                    "datas": value,
-                }
-                for record, value in record_values
-                if value
-            ]
+        attachments = (
+            env["ir.attachment"]
+            .sudo()
+            .create(
+                [
+                    {
+                        "name": self.name,
+                        "res_model": self.model_name,
+                        "res_field": self.name,
+                        "res_id": record.id,
+                        "type": "binary",
+                        "datas": value,
+                    }
+                    for record, value in record_values
+                    if value
+                ]
+            )
+        )
+        _debug.lifecycle(
+            "field.binary.attachments_created",
+            model=self.model_name,
+            field=self.name,
+            records=len(record_values),
+            attachments=len(attachments),
         )
 
     @override
@@ -368,8 +397,14 @@ class Image(Binary):
         )
         try:
             new_value = self._process_image(value, records.env)
-        except UserError:
+        except UserError as exc:
             if not any(records._ids):
+                _debug.logic(
+                    "field.image.invalid_on_new_ignored",
+                    model=self.model_name,
+                    field=self.name,
+                    error=type(exc).__name__,
+                )
                 return
             raise
 

@@ -155,6 +155,12 @@ class BaseString(Field[str | typing.Literal[False]]):
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         if self.store and self.translate:
+            _debug.logic(
+                "field.translate.stored_related",
+                model=self.model_name,
+                field=self.name,
+                related=self.related,
+            )
             _logger.warning(
                 "Translated stored related field (%s) will not be computed correctly in all languages",
                 self,
@@ -165,6 +171,12 @@ class BaseString(Field[str | typing.Literal[False]]):
             dep, dep_ctx = super().get_depends(model)
             extra = tuple(dict.fromkeys(ctx for ctx in dep_ctx if ctx != "lang"))
             if extra and self.store:
+                _debug.logic(
+                    "field.translate.context_depends_ignored",
+                    model=self.model_name,
+                    field=self.name,
+                    ignored=list(extra),
+                )
                 _logger.warning(
                     "Translated stored fields (%s) cannot depend on context: "
                     "the flushed column keeps one value per language; "
@@ -177,6 +189,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         if callable(self.translate) and self.store:
             dep, dep_ctx = super().get_depends(model)
             if dep_ctx:
+                _debug.logic(
+                    "field.translate.context_depends_ignored",
+                    model=self.model_name,
+                    field=self.name,
+                    ignored=list(dep_ctx),
+                )
                 _logger.warning(
                     "Translated stored fields (%s) cannot depend on context",
                     self,
@@ -255,6 +273,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         if field_ is not self:
             return field_.convert_to_record(value, record_)
         if record.env.context.get("edit_translations") and self.get_trans_terms(value):
+            _debug.logic(
+                "field.translate.edit_translations_value",
+                model=self.model_name,
+                field=self.name,
+                record=record.id,
+            )
             return _translation.edit_translations_value(self, value, record)
         return value
 
@@ -324,6 +348,12 @@ class BaseString(Field[str | typing.Literal[False]]):
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
         if not self.translate or value is False or value is None:
             if self.translate is True and (value is False or value is None):
+                _debug.logic(
+                    "field.translate.cleared_all_langs",
+                    model=self.model_name,
+                    field=self.name,
+                    records=len(records),
+                )
                 self._invalidate_cache(records.env, records._ids)
             super().mark_dirty(records, value)
             return
@@ -350,6 +380,12 @@ class BaseString(Field[str | typing.Literal[False]]):
         sql_field = super().to_sql(model, alias)
         if self.translate and not model.env.context.get("prefetch_langs"):
             langs = self.get_translation_fallback_langs(model.env)
+            _debug.logic(
+                "field.translate.to_sql",
+                model=model._name,
+                field=self.name,
+                langs=list(langs),
+            )
             sql_field_langs = [SQL("%s->>%s", sql_field, lang) for lang in langs]
             if len(sql_field_langs) == 1:
                 return sql_field_langs[0]
@@ -410,6 +446,13 @@ class BaseString(Field[str | typing.Literal[False]]):
             else:
                 value = "%"
 
+            _debug.logic(
+                "field.translate.trigram_condition",
+                model=model._name,
+                field=self.name,
+                operator=operator,
+                applied=value != "%",
+            )
             if value == "%":
                 return base_condition
 
@@ -468,6 +511,11 @@ class Char(BaseString):
             and "lang" not in depends_context
         ):
             depends_context = [*depends_context, "lang"]
+            _debug.logic(
+                "field.char.display_name_depends_on_lang",
+                model=model._name,
+                rec_name=model._rec_name,
+            )
 
         return depends, depends_context
 
@@ -505,6 +553,11 @@ class Html(BaseString):
     def _get_attrs(self, model_class: ModelClass, name: str) -> dict[str, typing.Any]:
         attrs = super()._get_attrs(model_class, name)
         if attrs.get("sanitize") == "email_outgoing":
+            _debug.logic(
+                "field.html.sanitize_email_outgoing",
+                model=model_class._name,
+                field=name,
+            )
             attrs["sanitize"] = True
             attrs.update(
                 {
@@ -520,6 +573,11 @@ class Html(BaseString):
             )
         elif attrs.get("translate") is True and attrs.get("sanitize", True):
             attrs["translate"] = html_translate
+            _debug.logic(
+                "field.html.translate_by_terms",
+                model=model_class._name,
+                field=name,
+            )
         return attrs
 
     _related_sanitize = property(attrgetter("sanitize"))

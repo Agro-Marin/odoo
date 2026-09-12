@@ -70,6 +70,13 @@ def _optimize_property_temporal_comparand(
     elif isinstance(value, (date, datetime)):
         value = str(value)
 
+    _debug.logic(
+        "field.properties.temporal_comparand",
+        model=model._name,
+        field_expr=condition.field_expr,
+        operator=operator,
+        property_type=property_type,
+    )
     return DomainCondition(condition.field_expr, operator, value)
 
 
@@ -159,12 +166,26 @@ class Properties(Field):
             if not self.inherited_field:
                 self._depends = (self.definition_record,)
                 self.compute = self._compute
+            _debug.lifecycle(
+                "field.properties.definition_bound",
+                model=self.model_name,
+                field=self.name,
+                definition_record=self.definition_record,
+                definition_field=self.definition_record_field,
+                computed=not self.inherited_field,
+            )
 
     @override
     def setup_related(self, model: BaseModel) -> None:
         super().setup_related(model)
         if self.inherited_field and not self.definition:
             self.definition = self.inherited_field.definition
+            _debug.logic(
+                "field.properties.definition_inherited",
+                model=self.model_name,
+                field=self.name,
+                definition=self.definition,
+            )
             self._setup_definition_attrs(model)
 
     @override
@@ -229,6 +250,7 @@ class Properties(Field):
                     types_by_name[definition["name"]] = definition.get("type")
 
         converted = dict(values)
+        replaced = 0  # debuglog
         for name, value in values.items():
             if not is_recordset(value):
                 continue
@@ -243,6 +265,14 @@ class Properties(Field):
                     f"{self}: its definition declares "
                     f"{property_type or 'no relational type'}"
                 )
+            replaced += 1  # debuglog
+        _debug.logic(
+            "field.properties.recordsets_replaced",
+            model=self.model_name,
+            field=self.name,
+            replaced=replaced,
+            definitions=len(types_by_name),
+        )
         return converted
 
     @override
@@ -287,6 +317,15 @@ class Properties(Field):
             for value in result:
                 self._add_display_name(value, records.env)
 
+        _debug.pipeline(
+            "field.properties.read",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            with_definition=sum(1 for value in result if value),
+            comodels=len(res_ids_per_model),
+            display_names=use_display_name,
+        )
         return result
 
     @override
@@ -329,6 +368,13 @@ class Properties(Field):
         for model, ids in ids_per_model.items():
             recs = env[model].browse(ids).exists()
             res_ids_per_model[model] = set(recs.ids)
+            _debug.perf.count(
+                "field.properties.res_ids_verified",
+                field=self.name,
+                comodel=model,
+                requested=len(ids),
+                existing=len(recs),
+            )
 
             for record in recs:
                 with contextlib.suppress(AccessError):
@@ -381,6 +427,14 @@ class Properties(Field):
                 for property_definition in properties_definition:
                     property_definition.pop("value", None)
                 container[self._get_definition_record_field()] = properties_definition
+                _debug.lifecycle(
+                    "field.properties.definition_written",
+                    model=self.model_name,
+                    field=self.name,
+                    container=container._name,
+                    container_id=container.id,
+                    properties=len(properties_definition),
+                )
 
                 _logger.info(
                     "Properties field: User #%i changed definition of %r",
@@ -391,6 +445,12 @@ class Properties(Field):
         return super().mark_dirty(records, value)
 
     def _compute(self, records: BaseModel) -> None:
+        _debug.pipeline(
+            "field.properties.compute",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+        )
         for record in records.sudo():
             record[self.name] = self._add_default_values(
                 record.env,
@@ -411,6 +471,12 @@ class Properties(Field):
             properties_values = properties_values._values
 
         if not values.get(self._get_definition_record()):
+            _debug.logic(
+                "field.properties.defaults_skipped",
+                model=self.model_name,
+                field=self.name,
+                reason="no_container",
+            )
             return {}
 
         container_id = values[self._get_definition_record()]
@@ -431,6 +497,13 @@ class Properties(Field):
                 and any(d.get("definition_changed") for d in properties_values)
             )
         ):
+            _debug.logic(
+                "field.properties.defaults_skipped",
+                model=self.model_name,
+                field=self.name,
+                reason="no_definition",
+                container=container_id._name,
+            )
             return {}
 
         assert isinstance(properties_values, (list, dict))
@@ -442,6 +515,7 @@ class Properties(Field):
                 properties_values, properties_definition
             )
 
+        defaulted = 0  # debuglog
         for properties_value in properties_list_values:
             if properties_value.get("value") is None:
                 property_name = properties_value.get("name")
@@ -452,7 +526,17 @@ class Properties(Field):
                     default = properties_value.get("default")
                 if default is not None:
                     properties_value["value"] = default
+                    defaulted += 1  # debuglog
 
+        _debug.logic(
+            "field.properties.defaults_applied",
+            model=self.model_name,
+            field=self.name,
+            container=container_id._name,
+            properties=len(properties_list_values),
+            defaulted=defaulted,
+            given_as="list" if isinstance(properties_values, list) else "dict",
+        )
         return properties_list_values
 
     def _get_properties_definition(
@@ -546,9 +630,17 @@ class Properties(Field):
 
     @classmethod
     def _add_missing_names(cls, values_list: list[dict[str, typing.Any]]) -> None:
+        generated = 0  # debuglog
         for definition in values_list:
             if definition.get("definition_changed") and not definition.get("name"):
                 definition["name"] = str(uuid.uuid4()).replace("-", "")[:16]
+                generated += 1  # debuglog
+        if _debug.lifecycle.enabled and generated:
+            _debug.lifecycle(
+                "field.properties.names_generated",
+                generated=generated,
+                properties=len(values_list),
+            )
 
     @classmethod
     def _parse_json_types(
@@ -616,6 +708,17 @@ class Properties(Field):
                     property_definition["name"].endswith("_html") and property_value
                 )
 
+            if (
+                _debug.logic.enabled
+                and property_value in (False, [])
+                and property_definition.get("value") not in (False, [], None)
+            ):
+                _debug.logic(
+                    "field.properties.value_rejected",
+                    property=property_definition.get("name"),
+                    property_type=property_type,
+                    comodel=res_model or None,
+                )
             property_definition["value"] = property_value
 
     @classmethod
@@ -718,6 +821,17 @@ class Properties(Field):
             and hasattr(getter(records[:1]), "_ids")
         ):
             domain = Domain("id", "in", value).optimize(records)
+        _debug.logic(
+            "field.properties.filter_function",
+            model=self.model_name,
+            field_expr=field_expr,
+            operator=operator,
+            strategy="relational_domain"
+            if domain is not None
+            else "collection"
+            if operator == "in" and isinstance(value, COLLECTION_TYPES)
+            else "scalar",
+        )
         if domain is not None:
             return lambda rec: getter(rec).filtered_domain(domain)
 
@@ -824,6 +938,17 @@ class Properties(Field):
         raw_sql_field = model._field_to_sql(alias, fname, query)
         sql_left = model._field_to_sql(alias, field_expr, query)
 
+        _debug.logic(
+            "field.properties.condition_to_sql",
+            model=model._name,
+            field_expr=field_expr,
+            operator=operator,
+            shape="in"
+            if operator in ("in", "not in")
+            else "text"
+            if isinstance(value, str) or operator.endswith("like")
+            else "json",
+        )
         if operator in ("in", "not in"):
             return self._property_in_to_sql(
                 operator, value, sql_left, raw_sql_field, property_name
@@ -888,6 +1013,15 @@ class Property(abc.Mapping):
                 use_display_name=False,
             )
             index = self._definitions_by_name = {prop["name"]: prop for prop in values}
+            if _debug.perf.enabled:
+                _debug.perf.count(
+                    "field.properties.definitions_indexed",
+                    model=getattr(self.field, "model_name", None),
+                    field=getattr(self.field, "name", None),
+                    record=getattr(self.record, "id", None),
+                    definitions=len(index),
+                    values=len(self._values),
+                )
         return index
 
     def __iter__(self) -> typing.Iterator[str]:
@@ -1053,16 +1187,39 @@ class PropertiesDefinition(Field):
                 if property_model not in record.env:
                     property_definition["comodel"] = False
                     property_definition.pop("domain", None)
+                    _debug.logic(
+                        "field.properties_definition.comodel_dropped",
+                        model=self.model_name,
+                        field=self.name,
+                        property=property_definition.get("name"),
+                        comodel=property_model,
+                    )
                 elif property_domain := property_definition.get("domain"):
                     if len(property_domain) > 8192:
                         del property_definition["domain"]
+                        _debug.logic(
+                            "field.properties_definition.domain_dropped",
+                            model=self.model_name,
+                            field=self.name,
+                            property=property_definition.get("name"),
+                            reason="too_long",
+                            length=len(property_domain),
+                        )
                     else:
                         try:
                             dom = Domain(ast.literal_eval(property_domain))
                             model = record.env[property_model]
                             dom.check(model)
-                        except ValueError, SyntaxError, MemoryError:
+                        except (ValueError, SyntaxError, MemoryError) as exc:
                             del property_definition["domain"]
+                            _debug.logic(
+                                "field.properties_definition.domain_dropped",
+                                model=self.model_name,
+                                field=self.name,
+                                property=property_definition.get("name"),
+                                reason="invalid",
+                                error=type(exc).__name__,
+                            )
 
             elif type_ in ("selection", "tags"):
                 property_definition[type_] = property_definition.get(type_) or []
@@ -1194,3 +1351,10 @@ class PropertiesDefinition(Field):
             self._check_property_keys(property_definition, allowed_keys_set)
             self._check_property_name(property_definition, properties_names)
             self._check_property_options(property_definition, env)
+        _debug.pipeline(
+            "field.properties_definition.checked",
+            model=self.model_name,
+            field=self.name,
+            definitions=len(properties_definition),
+            allowed_keys=len(allowed_keys_set),
+        )

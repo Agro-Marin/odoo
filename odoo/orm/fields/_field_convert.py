@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from psycopg.types.json import Json as PsycopgJson
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FORMAT
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -14,6 +15,8 @@ if typing.TYPE_CHECKING:
 
 from . import _field_ddl as _ddl
 from ._field_stubs import _FieldStubs
+
+_debug = DebugLog(__name__)
 
 
 class _FieldConvertMixin[T](_FieldStubs):
@@ -58,6 +61,12 @@ class _FieldConvertMixin[T](_FieldStubs):
             return value
         fallback = self._get_company_dependent_fallback_raw(record)
         if value == self.convert_to_column(fallback, record):
+            _debug.logic(
+                "field.company_dependent.insert_as_fallback",
+                model=self.model_name,
+                field=self.name,
+                company=record.env.company.id,
+            )
             return None
         return PsycopgJson({record.env.company.id: self._to_json_value(value)})
 

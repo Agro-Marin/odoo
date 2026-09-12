@@ -53,7 +53,13 @@ def _resolve_sql_timezone_name(env, tz_name: str) -> str | None:
         return tz_name
     canonical = TIMEZONE_ALIASES.get(tz_name)
     if canonical is not None and canonical in sql_names:
+        _debug.logic(
+            "field.temporal.timezone_aliased",
+            tz=tz_name,
+            canonical=canonical,
+        )
         return canonical
+    _debug.logic("field.temporal.timezone_unknown_to_sql", tz=tz_name)
     return None
 
 
@@ -251,6 +257,14 @@ class BaseDate[T: date](Field[T | typing.Literal[False]]):
                 _logger.warning(
                     "Grouping in UTC: the database does not know timezone %r", tz_name
                 )
+        _debug.logic(
+            "field.temporal.property_to_sql",
+            model=model._name,
+            field=self.name,
+            property=property_name,
+            tz=model.env.context.get("tz") if self.is_datetime else None,
+            tz_applied=sql_expr is not field_sql,
+        )
         if property_name == "tz":
             return sql_expr
         if property_name not in READ_GROUP_NUMBER_GRANULARITY:

@@ -369,13 +369,23 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         ):
             append_method(extractor(row))
 
+        duplicated_sets = 0  # debuglog
         for duplicate_groups_indexes in mask_grouping_result_indexes.values():
             if len(duplicate_groups_indexes) < 2:
                 continue
             source_result_group = result[duplicate_groups_indexes[0]]
             for duplicate_group_index in duplicate_groups_indexes[1:]:
                 result[duplicate_group_index] = source_result_group[:]
+                duplicated_sets += 1  # debuglog
 
+        _debug.pipeline(
+            "read_group.grouping_sets.dispatched",
+            model=self._name,
+            rows=len(row_values),
+            grouping_sets=len(grouping_sets),
+            distinct_masks=len(mask_grouping_mapping),
+            duplicated_sets=duplicated_sets,
+        )
         return result
 
     @api.model
@@ -516,6 +526,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                     f"Cannot convert {field} to SQL because it is not a sudoed"
                     " related or inherited field"
                 )
+            _debug.logic(
+                "read_group.spec_access.related_traversed",
+                model=self._name,
+                field=field.name,
+                related=field.related,
+                sudo=bool(self.env.su or field.compute_sudo),
+            )
             model = self.sudo(self.env.su or field.compute_sudo)
             *path_fnames, last_fname = field.related.split(".")
             for path_fname in path_fnames:

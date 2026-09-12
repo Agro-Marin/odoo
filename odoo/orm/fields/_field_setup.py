@@ -67,12 +67,24 @@ def _warn_precompute_attrs(field: Field, attrs: dict) -> None:
                 stacklevel=1,
             )
             attrs["precompute"] = False
+            _debug.logic(
+                "field.setup.precompute_dropped",
+                model=field.model_name,
+                field=field.name,
+                reason="not_computed",
+            )
         elif not attrs.get("store"):
             warnings.warn(
                 f"precompute attribute has no impact on non stored field {field}",
                 stacklevel=1,
             )
             attrs["precompute"] = False
+            _debug.logic(
+                "field.setup.precompute_dropped",
+                model=field.model_name,
+                field=field.name,
+                reason="not_stored",
+            )
 
 
 def _normalize_company_dependent_attrs(field: Field, attrs: dict) -> None:
@@ -96,6 +108,14 @@ def _normalize_company_dependent_attrs(field: Field, attrs: dict) -> None:
         attrs["index"] = attrs.get("index", "btree_not_null")
         attrs["prefetch"] = attrs.get("prefetch", "company_dependent")
         attrs["_depends_context"] = ("company",)
+        _debug.logic(
+            "field.setup.company_dependent",
+            model=field.model_name,
+            field=field.name,
+            type=field.type,
+            index=attrs["index"],
+            allowed_type=field.type in COMPANY_DEPENDENT_FIELDS,
+        )
 
 
 def _normalize_depends_attrs(field: Field, attrs: dict) -> None:
@@ -175,6 +195,14 @@ def get_depends(field: Field, model: BaseModel) -> tuple[Iterable[str], Iterable
                 depends_context.extend(step.get_depends(step_model)[1])
                 step_model_name = step.comodel_name
             depends_context = tuple(unique(depends_context))
+            if _debug.logic.enabled and depends_context:
+                _debug.logic(
+                    "field.setup.related_depends_context",
+                    model=field.model_name,
+                    field=field.name,
+                    related=field.related,
+                    depends_context=list(depends_context),
+                )
         return [field.related], depends_context
 
     if not field.compute:

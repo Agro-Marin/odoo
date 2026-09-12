@@ -47,6 +47,11 @@ class Integer(Field[int]):
         res = super()._get_attrs(model_class, name)
         if "aggregator" not in res and name == SEQUENCE_FIELD:
             res["aggregator"] = None
+            _debug.logic(
+                "field.integer.sequence_aggregator_dropped",
+                model=model_class._name,
+                field=name,
+            )
         return res
 
     @override
@@ -96,6 +101,12 @@ class Integer(Field[int]):
         self, value, record: ModelLike, use_display_name: bool = True
     ) -> typing.Any:
         if value and not (-MAXINT - 1 <= value <= MAXINT):
+            _debug.logic(
+                "field.integer.read_as_float",
+                model=self.model_name,
+                field=self.name,
+                record=record.id,
+            )
             return float(value)
         return value
 
@@ -328,6 +339,13 @@ class Monetary(Field[float]):
             self.currency_field = self.related_field.get_currency_field(
                 model.env[self.related_field.model_name]
             )
+            _debug.logic(
+                "field.monetary.currency_field_inherited",
+                model=self.model_name,
+                field=self.name,
+                currency_field=self.currency_field,
+                related_model=self.related_field.model_name,
+            )
         assert self.get_currency_field(model) in model._fields, (
             f"Field {self} with unknown currency_field {self.get_currency_field(model)!r}"
         )
@@ -361,6 +379,7 @@ class Monetary(Field[float]):
         if values and currency_field_name in values:
             dummy = record.new({currency_field_name: values[currency_field_name]})
             currency = dummy[currency_field_name]
+            currency_from = "values"  # debuglog
         elif (
             values
             and currency_field.related
@@ -369,9 +388,20 @@ class Monetary(Field[float]):
             related_field_name = currency_field.related.split(".")[0]
             dummy = record.new({related_field_name: values[related_field_name]})
             currency = dummy[currency_field_name]
+            currency_from = "related_values"  # debuglog
         else:
             currency = self._resolve_currency_record(record).with_env(record.env)
+            currency_from = "record"  # debuglog
 
+        if _debug.logic.enabled:
+            _debug.logic(
+                "field.monetary.insert_currency",
+                model=self.model_name,
+                field=self.name,
+                currency_field=currency_field_name,
+                currency_from=currency_from,
+                currency=currency.id if currency else None,
+            )
         value = float(value or 0.0)
         if currency:
             return currency.round(value)
@@ -455,4 +485,12 @@ class Monetary(Field[float]):
                 and currency.with_env(env).round(value) == cache_value
             )
         )
+        if _debug.logic.enabled and len(ids_to_update) < len(records):
+            _debug.logic(
+                "field.monetary.rounded_equal_skipped",
+                model=self.model_name,
+                field=self.name,
+                records=len(records),
+                changed=len(ids_to_update),
+            )
         return records._spawn(env, ids_to_update, records._prefetch_ids)

@@ -165,12 +165,20 @@ def nary_condition_optimization(
 @operator_optimization(["=?"])
 def _optimize_equal_if_value(condition, _):
     if not condition.value:
+        _debug.logic(
+            "domain.optimize.equal_if_value_true", field_expr=condition.field_expr
+        )
         return _TRUE_DOMAIN
     return DomainCondition(condition.field_expr, "=", condition.value)
 
 
 @operator_optimization(["<>"])
 def _optimize_different(condition, _):
+    _debug.logic(
+        "domain.optimize.deprecated_operator",
+        operator="<>",
+        field_expr=condition.field_expr,
+    )
     warnings.warn(
         "Operator '<>' is deprecated since 19.0, use '!=' directly",
         DeprecationWarning,
@@ -181,6 +189,11 @@ def _optimize_different(condition, _):
 
 @operator_optimization(["=="])
 def _optimize_equals(condition, _):
+    _debug.logic(
+        "domain.optimize.deprecated_operator",
+        operator="==",
+        field_expr=condition.field_expr,
+    )
     warnings.warn(
         "Operator '==' is deprecated since 19.0, use '=' directly",
         DeprecationWarning,
@@ -194,6 +207,12 @@ def _optimize_equal_as_in(condition, _):
     value = condition.value
     operator = "in" if condition.operator == "=" else "not in"
     if isinstance(value, COLLECTION_TYPES):
+        _debug.logic(
+            "domain.optimize.equal_with_collection",
+            field_expr=condition.field_expr,
+            operator=condition.operator,
+            values=len(value),
+        )
         if not value:
             _logger.debug(
                 "The domain condition %r should compare with False.", condition
@@ -219,10 +238,27 @@ def _optimize_in_set(condition, _model):
         return condition
     if isinstance(value, ANY_TYPES):
         operator = "any" if condition.operator == "in" else "not any"
+        _debug.logic(
+            "domain.optimize.in_as_any",
+            field_expr=condition.field_expr,
+            operator=condition.operator,
+            value_type=type(value).__name__,
+        )
         return DomainCondition(condition.field_expr, operator, value)
     if not value:
+        _debug.logic(
+            "domain.optimize.in_empty_constant",
+            field_expr=condition.field_expr,
+            operator=condition.operator,
+        )
         return _FALSE_DOMAIN if condition.operator == "in" else _TRUE_DOMAIN
     if not isinstance(value, COLLECTION_TYPES):
+        _debug.logic(
+            "domain.optimize.in_scalar_wrapped",
+            field_expr=condition.field_expr,
+            operator=condition.operator,
+            value_type=type(value).__name__,
+        )
         _logger.debug("The domain condition %r should have a list value.", condition)
         value = [value]
     return DomainCondition(condition.field_expr, condition.operator, OrderedSet(value))
@@ -245,6 +281,13 @@ def _optimize_in_set_falsy_value(condition, model):
     if not any(is_null_alias(v) for v in value):
         return condition
 
+    _debug.logic(
+        "domain.optimize.null_alias_to_false",
+        model=model._name,
+        field_expr=condition.field_expr,
+        operator=condition.operator,
+        aliased=sum(1 for v in value if is_null_alias(v)),
+    )
     return DomainCondition(
         condition.field_expr,
         condition.operator,
@@ -488,6 +531,13 @@ def _optimize_relational_falsy_id(condition, model):
             return condition
         if not any(is_falsy_id(v) for v in value):
             return condition
+        _debug.logic(
+            "domain.optimize.falsy_id_to_false",
+            model=model._name,
+            field_expr=condition.field_expr,
+            operator=operator,
+            values=len(value),
+        )
         return DomainCondition(
             condition.field_expr,
             operator,
@@ -495,6 +545,13 @@ def _optimize_relational_falsy_id(condition, model):
         )
     if not is_falsy_id(value):
         return condition
+    _debug.logic(
+        "domain.optimize.falsy_id_to_false",
+        model=model._name,
+        field_expr=condition.field_expr,
+        operator=operator,
+        values=1,
+    )
     return DomainCondition(condition.field_expr, operator, False)
 
 
@@ -515,6 +572,13 @@ def _optimize_boolean_in(condition, model):
             type(value),
         )
     if not all(isinstance(v, bool) for v in value):
+        _debug.logic(
+            "domain.optimize.boolean_coerced",
+            model=model._name,
+            field_expr=condition.field_expr,
+            operator=operator,
+            from_str=any(isinstance(v, str) for v in value),
+        )
         if any(isinstance(v, str) for v in value):
             _logger.debug("Comparing boolean with a string in %s", condition)
         value = OrderedSet(
@@ -523,6 +587,12 @@ def _optimize_boolean_in(condition, model):
     if len(value) == 1 and not any(value):
         operator = INVERSE_OPERATOR[operator]
         value = OrderedSet((True,))
+        _debug.logic(
+            "domain.optimize.boolean_false_inverted",
+            model=model._name,
+            field_expr=condition.field_expr,
+            operator=operator,
+        )
     if operator == condition.operator and value is condition.value:
         return condition
     return DomainCondition(condition.field_expr, operator, value)

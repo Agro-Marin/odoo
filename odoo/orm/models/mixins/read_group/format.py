@@ -50,6 +50,13 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                     f"{chain_fnames}:{granularity}" if granularity else chain_fnames
                 )
                 model = self.env[field.comodel_name]
+                _debug.logic(
+                    "read_group.postprocess.chained_groupby",
+                    model=self._name,
+                    groupby=groupby_spec,
+                    comodel=model._name,
+                    values=len(raw_values),
+                )
                 return model._read_group_postprocess_groupby(groupby_seq, raw_values)
 
             registry = self.env.registry
@@ -80,6 +87,13 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
         fname, __, func = parse_read_group_spec(aggregate_spec)
         if func == "recordset":
             field = self._fields[fname]
+            _debug.logic(
+                "read_group.postprocess.recordset_aggregate",
+                model=self._name,
+                aggregate=aggregate_spec,
+                comodel=field.comodel_name if field.relational else self._name,
+                rows=len(raw_values),
+            )
             registry = self.env.registry
             Model = (
                 registry[field.comodel_name]
@@ -337,6 +351,13 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
         definition = self.get_property_definition(fullname)
         property_type = definition.get("type")
 
+        _debug.logic(
+            "read_group.format.property",
+            model=self._name,
+            groupby=group,
+            property_type=property_type,
+            rows=len(rows_dict),
+        )
         if property_type == "selection":
             self._format_properties_selection(rows_dict, fullname, definition)
         elif property_type == "many2one":

@@ -101,6 +101,15 @@ class Many2many(_RelationalMulti):
                     self.column1 = f"{model._table}_id"
                 if not self.column2:
                     self.column2 = f"{comodel._table}_id"
+                _debug.logic(
+                    "field.many2many.relation_defaulted",
+                    model=self.model_name,
+                    field=self.name,
+                    relation=self.relation,
+                    column1=self.column1,
+                    column2=self.column2,
+                    explicit=self._explicit,
+                )
             check_pg_name(self.relation)
         else:
             self.relation = self.column1 = self.column2 = None
@@ -181,6 +190,14 @@ class Many2many(_RelationalMulti):
         group = defaultdict(list)
         relation, column1, column2 = self._get_relation_columns()
         backend = records.env.backend
+        _debug.logic(
+            "field.many2many.read_strategy",
+            model=self.model_name,
+            field=self.name,
+            records=len(records),
+            strategy="joined" if backend.supports_joined_m2m_read else "pairs",
+            filter_access=filter_access,
+        )
         if not backend.supports_joined_m2m_read:
             position = {id2: index for index, id2 in enumerate(query.get_result_ids())}
             pairs = backend.read_m2m_pairs(
@@ -225,6 +242,14 @@ class Many2many(_RelationalMulti):
 
         values = [tuple(group[id_]) for id_ in records._ids]
         self._insert_cache(records, values)
+        _debug.pipeline(
+            "field.many2many.read",
+            model=self.model_name,
+            field=self.name,
+            comodel=self.comodel_name,
+            records=len(records),
+            links=sum(len(ids) for ids in values),
+        )
 
     def _apply_relation_delta(
         self,
@@ -306,6 +331,14 @@ class Many2many(_RelationalMulti):
 
         if modified_corecord_ids:
             corecords = comodel.browse(modified_corecord_ids)
+            _debug.pipeline(
+                "field.many2many.corecords_modified",
+                model=self.model_name,
+                field=self.name,
+                comodel=comodel._name,
+                corecords=len(corecords),
+                inverses=len(records.pool.field_inverses[self]),
+            )
             corecords.modified(
                 [
                     invf.name
@@ -319,6 +352,18 @@ class Many2many(_RelationalMulti):
     ) -> None:
         for recs, commands in records_commands_list:
             delta = CommandDelta.fold(commands)
+            _debug.logic(
+                "field.many2many.delta",
+                model=self.model_name,
+                field=self.name,
+                records=len(recs),
+                created=len(delta.created),
+                updated=len(delta.updated),
+                deleted=len(delta.deleted),
+                unlinked=len(delta.unlinked),
+                linked=len(delta.linked),
+                replaced=delta.replaced,
+            )
             for line_id, vals in delta.updated:
                 prefetch_ids = recs[self.name]._prefetch_ids
                 comodel.browse(line_id).with_prefetch(prefetch_ids).write(vals)
@@ -384,6 +429,13 @@ class Many2many(_RelationalMulti):
         )
 
         if not model.env.su:
+            _debug.logic(
+                "field.many2many.new_links_access_checked",
+                model=self.model_name,
+                field=self.name,
+                uid=model.env.uid,
+                records=len(records),
+            )
             self._check_new_relation_access(model, comodel, old_relation, new_relation)
 
         self._apply_relation_delta(
@@ -419,6 +471,12 @@ class Many2many(_RelationalMulti):
                 new_relation[id_] = delta.get_final_ids(new_relation[id_], created_ids)
 
         if new_relation == old_relation:
+            _debug.logic(
+                "field.many2many.write_new_unchanged",
+                model=self.model_name,
+                field=self.name,
+                records=len(old_relation),
+            )
             return
 
         records = model.browse(old_relation)
@@ -435,6 +493,17 @@ class Many2many(_RelationalMulti):
         coquery: Query,
         query: Query,
     ) -> SQL:
+        _debug.logic(
+            "field.many2many.condition_strategy",
+            model=model._name,
+            field=self.name,
+            exists=exists,
+            strategy="empty_subquery"
+            if coquery.is_empty()
+            else "any_link"
+            if not coquery.where_clause
+            else "exists_in",
+        )
         if coquery.is_empty():
             return SQL("FALSE") if exists else SQL("TRUE")
         rel_table, rel_id1, rel_id2 = self._get_relation_columns()
