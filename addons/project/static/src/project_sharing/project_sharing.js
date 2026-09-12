@@ -39,8 +39,7 @@ export class ProjectSharingWebClient extends Component {
                     if (el !== null) {
                         el.scrollIntoView(true);
                     }
-                } catch {
-                }
+                } catch {}
             }
         }
     }

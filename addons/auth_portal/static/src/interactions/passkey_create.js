@@ -52,10 +52,11 @@ export class PortalPasskeyCreate extends Interaction {
         await this.waitFor(
             handleCheckIdentity(
                 this.waitFor(
-                    this.services.orm.call("auth.passkey.key.create", "action_generate_key", [
-                        new_key,
-                        registration,
-                    ]),
+                    this.services.orm.call(
+                        "auth.passkey.key.create",
+                        "action_generate_key",
+                        [new_key, registration],
+                    ),
                 ),
                 this.services.orm,
                 this.services.dialog,

@@ -297,31 +297,22 @@ test("drag and drop regular line inside optional section resets some fields", as
 
         expect(
             args[1].line_ids.find((commands) => commands[1] === 13)[2].product_qty,
-        ).toEqual(
-            0,
-            {
-                message:
-                    "Drag and drop inside optional section should reset product_qty to 0",
-            },
-        );
+        ).toEqual(0, {
+            message:
+                "Drag and drop inside optional section should reset product_qty to 0",
+        });
         expect(
             args[1].line_ids.find((commands) => commands[1] === 11)[2].product_qty,
-        ).toEqual(
-            1,
-            {
-                message:
-                    "Drag and drop line with 0 quantity outside optional section should reset product_qty to 1",
-            },
-        );
+        ).toEqual(1, {
+            message:
+                "Drag and drop line with 0 quantity outside optional section should reset product_qty to 1",
+        });
         expect(
             args[1].line_ids.find((commands) => commands[1] === 9)?.[2].product_qty,
-        ).toEqual(
-            undefined,
-            {
-                message:
-                    "Drag and drop line with non-zero quantity outside optional section shouldn't reset product_qty",
-            },
-        );
+        ).toEqual(undefined, {
+            message:
+                "Drag and drop line with non-zero quantity outside optional section shouldn't reset product_qty",
+        });
     });
 
     await mountView({
@@ -356,31 +347,21 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
 
         expect(
             args[1].line_ids.find((commands) => commands[1] === 7)[2].product_qty,
-        ).toEqual(
-            0,
-            {
-                message:
-                    "New lines added to an optional section should have product_qty set to 0",
-            },
-        );
+        ).toEqual(0, {
+            message:
+                "New lines added to an optional section should have product_qty set to 0",
+        });
         expect(
             args[1].line_ids.find((commands) => commands[1] === 9)[2].product_qty,
-        ).toEqual(
-            0,
-            {
-                message:
-                    "New lines added to a subsection of an optional section should also have product_qty set to 0",
-            },
-        );
+        ).toEqual(0, {
+            message:
+                "New lines added to a subsection of an optional section should also have product_qty set to 0",
+        });
         expect(
             args[1].line_ids.find((commands) => commands[1] === 13)?.[2].product_qty,
-        ).toEqual(
-            undefined,
-            {
-                message:
-                    "Existing optional lines should keep their current product_qty",
-            },
-        );
+        ).toEqual(undefined, {
+            message: "Existing optional lines should keep their current product_qty",
+        });
     });
 
     await mountView({
@@ -409,40 +390,28 @@ test("Moving Optional Sections to exclude some lines should set quantity to 1", 
 
         expect(
             args[1].line_ids.find((command) => command[1] === 6)[2].product_qty,
-        ).toEqual(
-            1,
-            {
-                message:
-                    "Non-optional lines should reset product_qty to 1 when it was previously 0.",
-            },
-        );
+        ).toEqual(1, {
+            message:
+                "Non-optional lines should reset product_qty to 1 when it was previously 0.",
+        });
         expect(
             args[1].line_ids.find((command) => command[1] === 7)?.[2].product_qty,
-        ).toEqual(
-            undefined,
-            {
-                message:
-                    "Non-optional lines should keep their existing product_qty when it was already non-zero.",
-            },
-        );
+        ).toEqual(undefined, {
+            message:
+                "Non-optional lines should keep their existing product_qty when it was already non-zero.",
+        });
         expect(
             args[1].line_ids.find((command) => command[1] === 9)[2].product_qty,
-        ).toEqual(
-            1,
-            {
-                message:
-                    "Lines moved out of an optional subsection should reset product_qty to 1 when it was 0.",
-            },
-        );
+        ).toEqual(1, {
+            message:
+                "Lines moved out of an optional subsection should reset product_qty to 1 when it was 0.",
+        });
         expect(
             args[1].line_ids.find((command) => command[1] === 11)?.[2].product_qty,
-        ).toEqual(
-            undefined,
-            {
-                message:
-                    "Lines moved out of an optional subsection should keep their existing product_qty when it was already non-zero.",
-            },
-        );
+        ).toEqual(undefined, {
+            message:
+                "Lines moved out of an optional subsection should keep their existing product_qty when it was already non-zero.",
+        });
     });
 
     await mountView({

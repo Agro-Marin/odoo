@@ -28,7 +28,7 @@ async function waitForMacro() {
 }
 class Root extends Component {
     static components = {};
-    static template = xml `
+    static template = xml`
         <t>
             <div class="container">
                 <button class="button0">Button 0</button>

@@ -2112,12 +2112,7 @@ export const accountTaxHelpers = {
      * [!] Mirror of the same method in account_tax.py.
      * PLZ KEEP BOTH METHODS CONSISTENT WITH EACH OTHERS.
      */
-    split_base_line(
-        base_line,
-        company,
-        target_factors,
-        { update_kwargs = null } = {},
-    ) {
+    split_base_line(base_line, company, target_factors, { update_kwargs = null } = {}) {
         const factors = this.normalize_target_factors(target_factors);
 
         // Split 'tax_details'.

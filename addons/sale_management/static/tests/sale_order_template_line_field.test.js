@@ -261,9 +261,8 @@ test("Moving Optional Sections to exclude some template lines should set quantit
         expect.step("web_save");
 
         expect(
-            args[1].sale_order_template_line_ids.find(
-                (command) => command[1] === 6,
-            )[2].product_uom_qty,
+            args[1].sale_order_template_line_ids.find((command) => command[1] === 6)[2]
+                .product_uom_qty,
         ).toEqual(1, {
             message:
                 "Non-optional lines should reset product_uom_qty to 1 when it was previously 0.",
@@ -277,9 +276,8 @@ test("Moving Optional Sections to exclude some template lines should set quantit
                 "Non-optional lines should keep their existing product_uom_qty when it was already non-zero.",
         });
         expect(
-            args[1].sale_order_template_line_ids.find(
-                (command) => command[1] === 9,
-            )[2].product_uom_qty,
+            args[1].sale_order_template_line_ids.find((command) => command[1] === 9)[2]
+                .product_uom_qty,
         ).toEqual(1, {
             message:
                 "Lines moved out of an optional subsection should reset product_uom_qty to 1 when it was 0.",

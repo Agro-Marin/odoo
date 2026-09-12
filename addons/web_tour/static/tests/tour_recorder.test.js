@@ -399,7 +399,7 @@ test("Selecting item in autocomplete field through Enter", async () => {
 test("Edit input after autofocus", async () => {
     class Dummy extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <input type="text" class="o_input" t-ref="input"/>

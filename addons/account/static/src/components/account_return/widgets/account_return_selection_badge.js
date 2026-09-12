@@ -44,7 +44,7 @@ export class AccountReturnSelectionBadge extends Component {
     }
 
     get display() {
-        const result = this.options.filter((val) => val[0] == this.value)[0];
+        const result = this.options.filter((val) => val[0] === this.value)[0];
         if (result) {
             return result[1];
         }

@@ -9,10 +9,10 @@ import { standardActionServiceProps } from "@web/webclient/actions";
 import { ReceptionReportTable } from "../reception_report_table/stock_reception_report_table.js";
 import {
     assignMoves,
-    prepareLabelAction,
     collectAssignable,
     collectAssignedLabels,
     isLineAssignable,
+    prepareLabelAction,
 } from "../reception_report_utils.js";
 
 export class ReceptionReportMain extends Component {

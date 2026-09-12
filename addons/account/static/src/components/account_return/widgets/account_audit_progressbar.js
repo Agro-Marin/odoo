@@ -5,7 +5,7 @@ export class AccountAuditProgressbar extends ProgressBarField {
     static template = "account.AccountAuditProgressBar";
 
     get progressBarColorClass() {
-        if (this.maxValue == 0) {
+        if (this.maxValue === 0) {
             return "";
         }
         return this.currentValue > this.maxValue

@@ -21,7 +21,7 @@ let macro;
 
 class Root extends Component {
     static components = {};
-    static template = xml `<t><button class="button0">Button 0</button></t>`;
+    static template = xml`<t><button class="button0">Button 0</button></t>`;
     static props = ["*"];
 }
 

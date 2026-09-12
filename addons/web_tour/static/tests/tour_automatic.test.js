@@ -108,7 +108,7 @@ test("Step Tour validity", async () => {
 test("a step waits for an RPC the previous step left in flight", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -151,7 +151,7 @@ test("a step waits for an RPC the previous step left in flight", async () => {
 test("a step that expects the page to unload does not wait for the client to settle", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -255,7 +255,7 @@ test("a failing tour logs the step that failed in run", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -302,7 +302,7 @@ test("a failing tour with disabled element", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1" disabled="">Button 1</button>
@@ -352,7 +352,7 @@ test("a failing tour logs the step that failed", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>
@@ -436,7 +436,7 @@ TIMEOUT step failed to complete within 111 ms.`,
 test("a tour action can be contributed through the web_tour.helpers registry", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `<t><button class="button0">Button 0</button></t>`;
+        static template = xml`<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -456,7 +456,7 @@ test("a tour action can be contributed through the web_tour.helpers registry", a
 test("a built-in TourHelpers action wins over a registry entry of the same name", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `<t><button class="button0">Button 0</button></t>`;
+        static template = xml`<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -490,7 +490,7 @@ test("an unknown tour action names the registry in its error", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `<t><button class="button0">Button 0</button></t>`;
+        static template = xml`<t><button class="button0">Button 0</button></t>`;
         static props = ["*"];
     }
     await mountWithCleanup(Root);
@@ -506,7 +506,7 @@ test("an unknown tour action names the registry in its error", async () => {
 test("check tour with inactive steps", async () => {
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -561,7 +561,7 @@ test("automatic tour with invisible element", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -613,7 +613,7 @@ test("automatic tour with invisible element but use :not(:visible))", async () =
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -686,7 +686,7 @@ test("automatic tour with alternative trigger", async () => {
     });
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <button class="button0">Button 0</button>
@@ -725,7 +725,7 @@ test("check not possible to click below modal", async () => {
     }
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <div class="container">
                     <div class="p-3"><button class="button0" t-on-click="openDialog">Button 0</button></div>
@@ -777,7 +777,7 @@ test("a tour where hoot trigger failed", async () => {
 
     class Root extends Component {
         static components = {};
-        static template = xml `
+        static template = xml`
             <t>
                 <button class="button0">Button 0</button>
                 <button class="button1">Button 1</button>

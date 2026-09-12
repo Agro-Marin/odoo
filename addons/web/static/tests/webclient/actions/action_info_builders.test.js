@@ -91,7 +91,9 @@ test("client displayName prefers display_name, then name, then empty", async () 
     expect(
         prepareActionInfo({ type: "ir.actions.client", name: "N" }, {}, am).displayName,
     ).toBe("N");
-    expect(prepareActionInfo({ type: "ir.actions.client" }, {}, am).displayName).toBe("");
+    expect(prepareActionInfo({ type: "ir.actions.client" }, {}, am).displayName).toBe(
+        "",
+    );
 });
 
 test("active_id is left UNDEFINED rather than defaulted to false", async () => {

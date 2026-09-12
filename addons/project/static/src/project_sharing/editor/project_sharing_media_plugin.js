@@ -33,8 +33,7 @@ export class ProjectSharingImageSavePlugin extends ImageSavePlugin {
         let attachment = null;
         try {
             attachment = await response.json();
-        } catch {
-        }
+        } catch {}
         if (!response.ok || !attachment || attachment.error) {
             this.services.notification.add(
                 attachment?.error ||
