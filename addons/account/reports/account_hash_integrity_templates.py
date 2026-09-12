@@ -1,11 +1,14 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class ReportAccountReport_Hash_Integrity(models.AbstractModel):
     _name = "report.account.report_hash_integrity"
     _description = "Get hash integrity result as PDF."
 
     @api.model
+    @dbg.timed
     def _get_report_values(self, docids, data=None):
         if data:
             data.update(self.env.company._check_hash_integrity())

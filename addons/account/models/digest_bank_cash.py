@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
+from ..tools import debug_log as dbg
+
 
 class DigestDigest(models.Model):
     _inherit = "digest.digest"
@@ -11,6 +13,7 @@ class DigestDigest(models.Model):
     )
 
     @api.depends_context("uid")
+    @dbg.timed
     def _compute_kpi_account_bank_cash_value(self):
         if not self.env.user.has_group("account.group_account_user"):
             raise AccessError(

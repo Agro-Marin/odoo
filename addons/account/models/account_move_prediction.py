@@ -7,6 +7,8 @@ from odoo import api, models
 from odoo.fields import Command
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -18,6 +20,7 @@ class AccountMoveLine(models.Model):
         return {"fr": "french"}.get(lang, "english")
 
     @api.model
+    @dbg.timed
     def _prepare_predictive_query(self, move_id, additional_domain=None, partner=None):
         move_query = self.env["account.move"]._search(
             [
@@ -51,6 +54,7 @@ class AccountMoveLine(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _predicted_field(
         self, move_id, name, partner_id, field, query=None, additional_queries=None
     ):
@@ -117,11 +121,19 @@ class AccountMoveLine(models.Model):
                     )
                 )
                 result = self.env.cr.dictfetchall()
+            dbg.logic.debug(
+                "[predict] %s for partner %s from %r: %s",
+                field.code,
+                partner_id,
+                parsed_description[:60],
+                result,
+            )
             if result:
                 if (
                     len(result) > 1
                     and result[0]["ranking"] < 1.1 * result[1]["ranking"]
                 ):
+                    dbg.logic.debug("[predict] ambiguous ranking, no prediction")
                     return False
                 return result[0]["prediction"]
         except psycopg.Error:
@@ -160,6 +172,7 @@ class AccountMoveLine(models.Model):
         return False
 
     @api.model
+    @dbg.timed
     def _predict_specific_tax(
         self, move, name, partner, amount_type, amount, type_tax_use
     ):
@@ -227,6 +240,7 @@ class AccountMoveLine(models.Model):
         return False
 
     @api.model
+    @dbg.timed
     def _predict_specific_account(self, move, name, partner):
         field = SQL("account_move_line.account_id")
         if move.is_purchase_document(True):

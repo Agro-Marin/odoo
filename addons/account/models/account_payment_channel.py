@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountPaymentChannel(models.Model):
     _name = "account.payment.channel"
@@ -52,10 +54,13 @@ class AccountPaymentChannel(models.Model):
                 method.name = method.payment_method_id.name
 
     @api.constrains("name")
+    @dbg.timed
     def _check_unique_name_for_journal(self):
         self.journal_id._check_payment_channel_ids_multiplicity()
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         used_channels = self.browse(
             channel.id
             for [channel] in self.env["account.payment"]

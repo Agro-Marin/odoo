@@ -1,12 +1,15 @@
 from odoo import _, models
 from odoo.tools import SQL, Query
 
+from ..tools import debug_log as dbg
+
 
 class AccountCashFlowReportHandler(models.AbstractModel):
     _name = "account.cash.flow.report.handler"
     _inherit = ["account.report.custom.handler"]
     _description = "Cash Flow Report Custom Handler"
 
+    @dbg.timed
     def _dynamic_lines_generator(
         self, report, options, all_column_groups_expression_totals, warnings=None
     ):
@@ -71,6 +74,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
             additional_journals_domain=[("type", "in", ("bank", "cash", "general"))],
         )
 
+    @dbg.timed
     def _get_report_data(self, report, options, layout_data):
         report_data = {}
 
@@ -110,6 +114,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
 
         return report_data
 
+    @dbg.timed
     def _add_report_data(self, layout_line_id, aml_data, layout_data, report_data):
         """Add or update the report_data dictionary with aml_data.
 
@@ -199,6 +204,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
         """Get the account tag ids that are relevant for the cash flow report."""
         return self._get_tags_ids().values()
 
+    @dbg.timed
     def _dispatch_aml_data(self, tags_ids, aml_data, layout_data, report_data):
         # Dispatch the aml_data in the correct layout_line
         if aml_data["account_account_type"] == "asset_receivable":
@@ -253,6 +259,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
     # -------------------------------------------------------------------------
     # QUERIES
     # -------------------------------------------------------------------------
+    @dbg.timed
     def _get_account_ids(self, report, options):
         """Retrieve the liquidity accounts to be part of the cash flow statement: the default accounts of the
         selected bank/cash/general journals and the outstanding accounts of their payment method lines.
@@ -324,6 +331,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
             search_condition=query.where_clause,
         )
 
+    @dbg.timed
     def _compute_liquidity_balance(
         self, report, options, payment_account_ids, date_scope
     ):
@@ -395,6 +403,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
 
         return self.env.cr.dictfetchall()
 
+    @dbg.timed
     def _get_liquidity_moves(
         self, report, options, payment_account_ids, cash_flow_tag_ids
     ):
@@ -551,6 +560,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
 
         return list(reconciled_aml_groupby_account.values())
 
+    @dbg.timed
     def _get_reconciled_moves(
         self, report, options, payment_account_ids, cash_flow_tag_ids
     ):
@@ -853,6 +863,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
     # -------------------------------------------------------------------------
     # COLUMNS / LINES
     # -------------------------------------------------------------------------
+    @dbg.timed
     def _get_layout_data(self):
         # Indentation of the following dict reflects the structure of the report.
         return {
@@ -949,6 +960,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
             },
         }
 
+    @dbg.timed
     def _get_layout_line(
         self, report, options, layout_line_id, layout_line_data, report_data
     ):
@@ -1018,6 +1030,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
             "columns": column_values,
         }
 
+    @dbg.timed
     def _get_unexplained_difference_line(self, report, options, report_data):
         unexplained_difference = False
         column_values = []

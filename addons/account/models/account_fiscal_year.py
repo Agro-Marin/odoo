@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class AccountFiscalYear(models.Model):
     _name = "account.fiscal.year"
@@ -25,6 +27,7 @@ class AccountFiscalYear(models.Model):
     )
 
     @api.constrains("date_from", "date_to", "company_id")
+    @dbg.timed
     def _check_dates(self):
         others_by_company = self.search(
             [("company_id", "in", self.company_id.ids)]

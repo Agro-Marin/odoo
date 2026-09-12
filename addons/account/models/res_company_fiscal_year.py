@@ -4,6 +4,8 @@ from odoo import _, fields, models
 from odoo.tools import date_utils
 from odoo.tools.misc import DEFAULT_SERVER_DATE_FORMAT
 
+from ..tools import debug_log as dbg
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -73,7 +75,9 @@ class ResCompany(models.Model):
         required=True,
     )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         old_threshold_vals = {}
         for record in self.exists():
             old_threshold_vals[record] = record.invoicing_switch_threshold
@@ -180,6 +184,7 @@ class ResCompany(models.Model):
 
         return rslt
 
+    @dbg.timed
     def compute_fiscalyear_dates(self, current_date):
         self.check_singleton()
         date_str = current_date.strftime(DEFAULT_SERVER_DATE_FORMAT)

@@ -4,6 +4,7 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.account_report import (
     DOMAIN_REGEX,
     REFERENCE_UNSAFE_CHARS_REGEX,
@@ -147,6 +148,7 @@ class AccountReportLine(models.Model):
     )
 
     @api.constrains("code")
+    @dbg.timed
     def _check_code(self):
         for report_line in self:
             if report_line.code and REFERENCE_UNSAFE_CHARS_REGEX.search(
@@ -192,6 +194,7 @@ class AccountReportLine(models.Model):
             report_line.user_groupby = report_line.groupby
 
     @api.constrains("parent_id")
+    @dbg.timed
     def _check_groupby_no_child(self):
         for report_line in self:
             if report_line.parent_id.groupby or report_line.parent_id.user_groupby:
@@ -203,10 +206,12 @@ class AccountReportLine(models.Model):
                 )
 
     @api.constrains("groupby", "user_groupby")
+    @dbg.timed
     def _check_groupby(self):
         self.expression_ids._check_engine()
 
     @api.constrains("parent_id", "report_id")
+    @dbg.timed
     def _check_parent_report(self):
         for line in self:
             if line.parent_id and line.parent_id.report_id != line.report_id:
@@ -223,6 +228,7 @@ class AccountReportLine(models.Model):
                 )
 
     @api.constrains("parent_id")
+    @dbg.timed
     def _check_parent_line(self):
         for line in self.filtered(lambda x: x.parent_id == x):
             raise ValidationError(
@@ -233,6 +239,7 @@ class AccountReportLine(models.Model):
                 _("Report lines cannot form a recursive parent hierarchy.")
             )
 
+    @dbg.timed
     def _copy_hierarchy(self, copied_report):
         line_ids = set(self.ids)
         lines_by_parent_id = defaultdict(self.browse)
@@ -309,6 +316,7 @@ class AccountReportLine(models.Model):
     def _inverse_external_formula(self):
         self._create_report_expression(engine="external")
 
+    @dbg.timed
     def _create_report_expression(self, engine):
         vals_list = []
         xml_ids = self.expression_ids.filtered(
@@ -381,5 +389,7 @@ class AccountReportLine(models.Model):
             self.env["account.report.expression"].create(vals_list)
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_child_expressions(self):
+        dbg.lifecycle.debug("_unlink_child_expressions on %s", dbg.rec(self))
         self.expression_ids.unlink()

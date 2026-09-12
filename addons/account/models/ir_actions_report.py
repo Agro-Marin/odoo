@@ -7,6 +7,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import pdf
 
+from ..tools import debug_log as dbg
+
 
 class IrActionsReport(models.Model):
     _inherit = "ir.actions.report"
@@ -16,6 +18,7 @@ class IrActionsReport(models.Model):
         copy=True,
     )
 
+    @dbg.timed
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
         if (
             self._get_report(report_ref).report_name
@@ -72,6 +75,7 @@ class IrActionsReport(models.Model):
             report.is_invoice_report and report.model == "account.move"
         ) or report.report_name == "account.report_invoice"
 
+    @dbg.timed
     def _get_splitted_report(self, report_ref, content, report_type):
         if report_type == "html":
             report = self._get_report(report_ref)
@@ -122,7 +126,9 @@ class IrActionsReport(models.Model):
         return super()._pre_render_qweb_pdf(report_ref, res_ids=res_ids, data=data)
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_except_master_tags(self):
+        dbg.lifecycle.debug("_unlink_except_master_tags on %s", dbg.rec(self))
         master_xmlids = [
             "account_invoices",
             "action_account_original_vendor_bill",

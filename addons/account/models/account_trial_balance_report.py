@@ -5,6 +5,8 @@ from odoo import _, api, fields, models
 from odoo.fields import Domain
 from odoo.tools import SQL, frozendict, groupby
 
+from ..tools import debug_log as dbg
+
 
 class AccountTrialBalanceReportHandler(models.AbstractModel):
     _name = "account.trial.balance.report.handler"
@@ -42,6 +44,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             ):
                 group_vals["forced_options"]["no_impact_on_currency_table"] = True
 
+    @dbg.timed
     def _get_column_values(self, report, options):
         """Generate the column headers, column groups and columns of the trial balance report.
 
@@ -179,6 +182,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         columns.extend(col)
         return headers, groups, columns
 
+    @dbg.timed
     def _add_end_column(
         self,
         report,
@@ -214,6 +218,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         columns.extend(col)
         return headers, groups, columns
 
+    @dbg.timed
     def _create_column(
         self,
         report,
@@ -248,6 +253,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
     def _display_single_column_for_initial_and_end_sections(self, options):
         return len(options["column_headers"]) == 1
 
+    @dbg.timed
     def _generate_column_group(
         self, report, options, new_header_name, new_values, create_single_column=True
     ):
@@ -320,10 +326,13 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             ],
         }
 
+    @dbg.timed
     def open_unallocated_items_journal_items(self, options, params):
+        dbg.lifecycle.debug("open_unallocated_items_journal_items on %s", dbg.rec(self))
         report = self.env["account.report"].browse(options["report_id"])
         return report.open_unallocated_items_journal_items(options, params)
 
+    @dbg.timed
     def _report_custom_engine_trial_balance(
         self,
         expressions,
@@ -484,6 +493,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             for query_result in query_results
         ]
 
+    @dbg.timed
     def _custom_line_postprocessor(self, report, options, lines):
         """Compute the end balance of each column block and horizontal group from the initial
         balance and the period debits and credits of that same block and group.
@@ -610,6 +620,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
         return lines
 
+    @dbg.timed
     def _report_expand_unfoldable_line_with_groupby(
         self,
         line_dict_id,
@@ -647,6 +658,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
     def _get_fiscalyear_start_date(self, options):
         return options.get("trial_balance_block_fiscalyear_start")
 
+    @dbg.timed
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
     ):
@@ -749,7 +761,9 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 next_groupby = groupbys.pop()
         return results
 
+    @dbg.timed
     def action_audit_cell(self, options, params):
+        dbg.lifecycle.debug("action_audit_cell on %s", dbg.rec(self))
         report = self.env["account.report"].browse(options["report_id"])
         column_group_forced_options = options["column_groups"][
             params["column_group_key"]

@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileWizard(models.TransientModel):
     _inherit = "account.reconcile.wizard"
@@ -67,6 +69,7 @@ class AccountReconcileWizard(models.TransientModel):
         return rate, rate, rate
 
     @api.depends("move_line_ids")
+    @dbg.timed
     def _compute_reco_wizard_data(self):
         for wizard in self:
             amls = wizard.move_line_ids._origin
@@ -160,6 +163,7 @@ class AccountReconcileWizard(models.TransientModel):
                 wizard.edit_mode_amount_currency = 0.0
 
     @api.depends("edit_mode_amount_currency")
+    @dbg.timed
     def _compute_edit_mode_amount(self):
         for wizard in self:
             if wizard.edit_mode:

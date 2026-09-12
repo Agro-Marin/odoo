@@ -5,6 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools.misc import format_datetime
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.res_company import SOFT_LOCK_DATE_FIELDS
 
 
@@ -118,6 +119,7 @@ class AccountLock_Exception(models.Model):
                 else:
                     exception[field] = date.max
 
+    @dbg.timed
     def _search_state(self, operator, value):
         if operator != "in":
             return NotImplemented
@@ -136,6 +138,7 @@ class AccountLock_Exception(models.Model):
             )
         return domain
 
+    @dbg.timed
     def _search_lock_date(self, field, operator, value):
         if operator not in ["<", "<="] or not value:
             return NotImplemented
@@ -147,15 +150,19 @@ class AccountLock_Exception(models.Model):
             ("lock_date", operator, value),
         ]
 
+    @dbg.timed
     def _search_fiscalyear_lock_date(self, operator, value):
         return self._search_lock_date("fiscalyear_lock_date", operator, value)
 
+    @dbg.timed
     def _search_tax_lock_date(self, operator, value):
         return self._search_lock_date("tax_lock_date", operator, value)
 
+    @dbg.timed
     def _search_sale_lock_date(self, operator, value):
         return self._search_lock_date("sale_lock_date", operator, value)
 
+    @dbg.timed
     def _search_purchase_lock_date(self, operator, value):
         return self._search_lock_date("purchase_lock_date", operator, value)
 
@@ -166,7 +173,14 @@ class AccountLock_Exception(models.Model):
         )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if "lock_date" not in vals or "lock_date_field" not in vals:
                 changed_fields = [
@@ -186,6 +200,16 @@ class AccountLock_Exception(models.Model):
                 vals["company_lock_date"] = company[vals["lock_date_field"]]
 
         exceptions = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "lock exceptions %s: %s",
+            dbg.ids(exceptions),
+            dbg.lazy(
+                lambda: [
+                    (e.company_id.id, e.lock_date_field, e.lock_date, e.user_id.id)
+                    for e in exceptions
+                ]
+            ),
+        )
 
         for exception in exceptions:
             company = exception.company_id
@@ -225,7 +249,9 @@ class AccountLock_Exception(models.Model):
         exceptions._invalidate_affected_user_lock_dates()
         return exceptions
 
+    @dbg.timed
     def copy(self, default=None):
+        dbg.lifecycle.debug("copy on %s", dbg.rec(self))
         raise UserError(_("You cannot duplicate a Lock Date Exception."))
 
     def _recreate(self):
@@ -233,10 +259,15 @@ class AccountLock_Exception(models.Model):
             return self.env["account.lock_exception"]
         vals_list = self.with_context(active_test=False).copy_data()
         new_records = self.create(vals_list)
+        dbg.pipeline.debug(
+            "_recreate lock exceptions %s -> %s", dbg.ids(self), dbg.ids(new_records)
+        )
         self.sudo().action_revoke()
         return new_records
 
+    @dbg.timed
     def action_revoke(self):
+        dbg.lifecycle.debug("action_revoke on %s", dbg.rec(self))
         if (
             not self.env.user.has_group("account.group_account_manager")
             and not self.env.su
@@ -265,6 +296,7 @@ class AccountLock_Exception(models.Model):
             & Domain("state", "=", "active")
         )
 
+    @dbg.timed
     def _get_domain_audit_trail_during_exception(self):
         self.check_singleton()
 
@@ -319,7 +351,12 @@ class AccountLock_Exception(models.Model):
             *Domain.AND(move_date_domain),
         ]
 
+    @dbg.timed
     def action_show_audit_trail_during_exception(self):
+        dbg.lifecycle.debug(
+            "action_show_audit_trail_during_exception on %s",
+            dbg.rec(self),
+        )
         self.check_singleton()
         return {
             "name": _("Journal Items"),

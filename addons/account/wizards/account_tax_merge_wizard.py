@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountTaxMergeWizard(models.TransientModel):
     _name = "account.tax.merge.wizard"
@@ -21,7 +23,9 @@ class AccountTaxMergeWizard(models.TransientModel):
     disable_merge_button = fields.Boolean(compute="_compute_disable_merge_button")
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         res = super().default_get(fields_list)
         if not set(fields_list) & {"tax_ids", "wizard_line_ids"} or set(res) & {
             "tax_ids",
@@ -72,6 +76,7 @@ class AccountTaxMergeWizard(models.TransientModel):
         )
 
     @api.depends("tax_ids")
+    @dbg.timed
     def _compute_wizard_line_ids(self):
         for wizard in self:
             taxes = wizard.tax_ids._origin
@@ -112,7 +117,9 @@ class AccountTaxMergeWizard(models.TransientModel):
                 len(group) < 2 for group in selectable.grouped("grouping_key").values()
             )
 
+    @dbg.timed
     def action_merge(self):
+        dbg.lifecycle.debug("action_merge on %s", dbg.rec(self))
         for wizard in self:
             selected = wizard.wizard_line_ids.filtered(
                 lambda line: (
@@ -141,6 +148,7 @@ class AccountTaxMergeWizard(models.TransientModel):
         }
 
     @api.model
+    @dbg.timed
     def _check_access_rights(self, taxes):
         taxes.check_access("write")
         if forbidden := (taxes.sudo().company_ids - self.env.user.company_ids):
@@ -181,7 +189,9 @@ class AccountTaxMergeWizard(models.TransientModel):
         self.env["account.move.line"].invalidate_model(["tax_repartition_line_id"])
 
     @api.model
+    @dbg.timed
     def _action_merge(self, taxes):
+        dbg.lifecycle.debug("_action_merge on %s", dbg.rec(self))
         company_ids_to_write = taxes.sudo().company_ids
         tax_to_merge_into = taxes[0]
         taxes_to_remove = taxes[1:]
@@ -253,6 +263,7 @@ class AccountTaxMergeWizardLine(models.TransientModel):
     tax_has_hashed_entries = fields.Boolean(compute="_compute_tax_has_hashed_entries")
 
     @api.depends("tax_id")
+    @dbg.timed
     def _compute_tax_has_hashed_entries(self):
         query = self.env["account.move.line"]._search(
             [

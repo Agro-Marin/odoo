@@ -1,6 +1,8 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class AccountTaxUnit(models.Model):
     _name = "account.tax.unit"
@@ -39,7 +41,14 @@ class AccountTaxUnit(models.Model):
     )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         res = super().create(vals_list)
 
         horizontal_groups = self.env["account.report.horizontal.group"].create(
@@ -91,7 +100,9 @@ class AccountTaxUnit(models.Model):
         self.env["account.return.type"]._sync_all_returns(res.company_ids.root_id)
         return res
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         root_companies_before = self.company_ids.root_id
         result = super().write(vals)
         if any(
@@ -104,6 +115,7 @@ class AccountTaxUnit(models.Model):
         return result
 
     @api.depends("company_ids")
+    @dbg.timed
     def _compute_fpos_synced(self):
         # The real input is every company partner's property_account_position_id, which
         # no @api.depends can reach: it is company-dependent, on arbitrary partners.
@@ -160,7 +172,9 @@ class AccountTaxUnit(models.Model):
                     fiscal_positions += existing_fp
         return fiscal_positions
 
+    @dbg.timed
     def action_sync_unit_fiscal_positions(self):
+        dbg.lifecycle.debug("action_sync_unit_fiscal_positions on %s", dbg.rec(self))
         self._get_tax_unit_fiscal_positions(
             companies=self.env["res.company"].search([])
         ).unlink()
@@ -177,14 +191,17 @@ class AccountTaxUnit(models.Model):
         # so without this the flag keeps the value it had before the sync ran.
         self.invalidate_recordset(["fpos_synced"])
 
+    @dbg.timed
     def unlink(self):
         # EXTENDS base
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         self._get_tax_unit_fiscal_positions(
             companies=self.env["res.company"].search([])
         ).unlink()
         return super().unlink()
 
     @api.constrains("country_id", "company_ids")
+    @dbg.timed
     def _check_companies_country(self):
         for record in self:
             currencies = set()
@@ -211,6 +228,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids", "main_company_id")
+    @dbg.timed
     def _check_main_company(self):
         for record in self:
             if record.main_company_id not in record.company_ids:
@@ -219,6 +237,7 @@ class AccountTaxUnit(models.Model):
                 )
 
     @api.constrains("company_ids")
+    @dbg.timed
     def _check_company_ids(self):
         for record in self:
             if len(record.company_ids) < 2:
@@ -234,6 +253,7 @@ class AccountTaxUnit(models.Model):
             self.country_id, self.vat, validation=False
         )
 
+    @dbg.timed
     def _inverse_vat_and_country_id(self):
         for record in self:
             if not record.vat:

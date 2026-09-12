@@ -8,6 +8,8 @@ from odoo.exceptions import UserError
 from odoo.tools import OrderedSet, frozendict
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
+
 
 class AccountPaymentRegister(models.TransientModel):
     _name = "account.payment.register"
@@ -273,6 +275,7 @@ class AccountPaymentRegister(models.TransientModel):
             return journals.filtered("outbound_payment_channel_ids")
 
     @api.model
+    @dbg.timed
     def _get_batch_journal(self, batch_result):
         payment_values = batch_result["payment_values"]
         foreign_currency_id = payment_values["currency_id"]
@@ -401,6 +404,7 @@ class AccountPaymentRegister(models.TransientModel):
             )
 
     @api.depends("line_ids")
+    @dbg.timed
     def _compute_batches(self):
         for wizard in self:
             lines = wizard.line_ids._origin
@@ -473,6 +477,17 @@ class AccountPaymentRegister(models.TransientModel):
                     vals["lines"] = lines
                 batch_vals.append(vals)
 
+            dbg.logic.debug(
+                "_compute_batches: %d line(s) -> %d batch(es) %s",
+                len(lines),
+                len(batch_vals),
+                dbg.lazy(
+                    lambda batch_vals=batch_vals: [
+                        (b["payment_values"]["payment_type"], len(b["lines"]))
+                        for b in batch_vals
+                    ]
+                ),
+            )
             wizard.batches = batch_vals
 
     @api.depends("batches", "currency_id", "payment_date")
@@ -483,6 +498,7 @@ class AccountPaymentRegister(models.TransientModel):
             )
 
     @api.depends("payment_channel_id", "line_ids", "group_payment", "partner_bank_id")
+    @dbg.timed
     def _compute_trust_values(self):
         for wizard in self:
             untrusted_payments_count = 0
@@ -525,6 +541,7 @@ class AccountPaymentRegister(models.TransientModel):
             )
 
     @api.depends("line_ids")
+    @dbg.timed
     def _compute_from_lines(self):
         for wizard in self:
             batch_result = wizard.batches[0]
@@ -557,6 +574,7 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.can_edit_wizard = False
 
     @api.depends("batches", "amount")
+    @dbg.timed
     def _compute_can_group_payments(self):
         for wizard in self:
             if len(wizard.batches) == 1:
@@ -618,6 +636,7 @@ class AccountPaymentRegister(models.TransientModel):
             wizard.available_journal_ids = [Command.set(available_journals.ids)]
 
     @api.depends("available_journal_ids")
+    @dbg.timed
     def _compute_journal_id(self):
         Journal = self.env["account.journal"]
         fallback_journals = Journal.search(
@@ -681,6 +700,7 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.available_payment_channel_ids = False
 
     @api.depends("payment_type", "journal_id")
+    @dbg.timed
     def _compute_payment_channel_id(self):
         for wizard in self:
             if wizard.journal_id:
@@ -730,6 +750,7 @@ class AccountPaymentRegister(models.TransientModel):
             )
 
     @api.depends("line_ids")
+    @dbg.timed
     def _compute_actionable_errors(self):
         for wizard in self:
             actionable_errors = {}
@@ -751,6 +772,7 @@ class AccountPaymentRegister(models.TransientModel):
                 }
             wizard.actionable_errors = actionable_errors
 
+    @dbg.timed
     def _convert_to_wizard_currency(self, installments):
         self.check_singleton()
         total_per_currency = defaultdict(
@@ -789,6 +811,7 @@ class AccountPaymentRegister(models.TransientModel):
                 )
         return total_amount
 
+    @dbg.timed
     def _get_total_amounts_to_pay(self, batch_results):
         self.check_singleton()
         next_payment_date = self._get_next_payment_date_in_context()
@@ -859,6 +882,17 @@ class AccountPaymentRegister(models.TransientModel):
         lines = self.env["account.move.line"]
         for value in amount_per_line_common + amount_per_line_by_default:
             lines |= value["line"]
+        dbg.logic.debug(
+            "[register:%s] amounts: common=%s by_default=%s full=%s for_difference=%s epd=%s first_mode=%s lines=%d",
+            self.id,
+            common,
+            by_default,
+            full_amount,
+            for_difference,
+            epd_applied,
+            first_installment_mode,
+            len(lines),
+        )
 
         return {
             "amount_by_default": abs(common + by_default),
@@ -950,6 +984,7 @@ class AccountPaymentRegister(models.TransientModel):
                 wizard.amount = total_amount_values["amount_by_default"]
 
     @api.depends("amount")
+    @dbg.timed
     def _compute_installments_mode(self):
         for wizard in self:
             if not wizard.journal_id or not wizard.currency_id:
@@ -974,6 +1009,7 @@ class AccountPaymentRegister(models.TransientModel):
                     wizard.installments_mode = "full"
 
     @api.depends("installments_mode")
+    @dbg.timed
     def _compute_installments_switch_values(self):
         for wizard in self:
             if not wizard.journal_id or not wizard.currency_id:
@@ -1056,6 +1092,7 @@ class AccountPaymentRegister(models.TransientModel):
                     }
 
     @api.depends("can_edit_wizard", "payment_date", "currency_id", "amount")
+    @dbg.timed
     def _compute_early_payment_discount_mode(self):
         for wizard in self:
             if (
@@ -1080,6 +1117,7 @@ class AccountPaymentRegister(models.TransientModel):
                 )
 
     @api.depends("can_edit_wizard", "amount", "installments_mode")
+    @dbg.timed
     def _compute_payment_difference(self):
         for wizard in self:
             if wizard.payment_date:
@@ -1099,6 +1137,14 @@ class AccountPaymentRegister(models.TransientModel):
                     )
             else:
                 wizard.payment_difference = 0.0
+            dbg.logic.debug(
+                "[register:%s] difference=%s amount=%s mode=%s handling=%s",
+                wizard.id,
+                wizard.payment_difference,
+                wizard.amount,
+                wizard.installments_mode,
+                wizard.payment_difference_handling,
+            )
 
     @api.depends(
         "can_edit_wizard",
@@ -1179,7 +1225,9 @@ class AccountPaymentRegister(models.TransientModel):
         return dummy._get_duplicate_reference(matching_states)
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         res = super().default_get(fields)
 
         if "line_ids" in fields and "line_ids" not in res:
@@ -1288,6 +1336,7 @@ class AccountPaymentRegister(models.TransientModel):
         )
         return [vals for vals_list in counterpart_vals.values() for vals in vals_list]
 
+    @dbg.timed
     def _create_payment_vals_from_wizard(self, batch_result):
         payment_vals = {
             "date": self.payment_date,
@@ -1345,6 +1394,7 @@ class AccountPaymentRegister(models.TransientModel):
 
         return payment_vals
 
+    @dbg.timed
     def _create_payment_vals_from_batch(self, batch_result):
         batch_values = self._get_wizard_values_from_batch(batch_result)
 
@@ -1395,11 +1445,18 @@ class AccountPaymentRegister(models.TransientModel):
 
         return payment_vals
 
+    @dbg.timed
     def _init_payments(self, to_process, edit_mode=False):
         payments = (
             self.env["account.payment"]
             .with_context(skip_invoice_sync=True)
             .create([x["create_vals"] for x in to_process])
+        )
+        dbg.pipeline.debug(
+            "[register:%s] _init_payments: %s edit_mode=%s",
+            self.id,
+            dbg.rec(payments),
+            edit_mode,
         )
 
         for payment, vals in zip(payments, to_process, strict=False):
@@ -1429,12 +1486,21 @@ class AccountPaymentRegister(models.TransientModel):
                     if not payment.currency_id.is_zero(
                         source_balance_converted - payment_amount_currency
                     ):
+                        dbg.logic.debug(
+                            "[payment:%s] edit_mode: amount differs from source, no rebalancing",
+                            payment.id,
+                        )
                         continue
 
                     delta_balance = source_balance - payment_balance
 
                     if self.company_currency_id.is_zero(delta_balance):
                         continue
+                    dbg.logic.debug(
+                        "[payment:%s] edit_mode: rebalancing entry by %s",
+                        payment.id,
+                        delta_balance,
+                    )
 
                     debit_lines = (liquidity_lines + counterpart_lines).filtered(
                         "debit"
@@ -1465,12 +1531,15 @@ class AccountPaymentRegister(models.TransientModel):
                         )
         return payments
 
+    @dbg.timed
     def _post_payments(self, to_process, edit_mode=False):
+        dbg.lifecycle.debug("_post_payments on %s", dbg.rec(self))
         payments = self.env["account.payment"]
         for vals in to_process:
             payments |= vals["payment"]
         payments.with_context(skip_sale_auto_invoice_send=True).action_post()
 
+    @dbg.timed
     def _reconcile_payments(self, to_process, edit_mode=False):
         domain = [
             ("parent_state", "=", "posted"),
@@ -1491,6 +1560,14 @@ class AccountPaymentRegister(models.TransientModel):
                 else {}
             )
 
+            dbg.pipeline.debug(
+                "[payment:%s] _reconcile_payments: %s against %s accounts=%s rate=%s",
+                payment.id,
+                dbg.rec(payment_lines),
+                dbg.rec(lines),
+                dbg.ids(payment_lines.account_id),
+                vals.get("rate"),
+            )
             for account in payment_lines.account_id:
                 (payment_lines + lines).with_context(**extra_context).filtered_domain(
                     [
@@ -1588,6 +1665,7 @@ class AccountPaymentRegister(models.TransientModel):
             )
         return filtered_batches, to_process
 
+    @dbg.timed
     def _create_payments(self):
         self.check_singleton()
         batches = self._get_payable_batches()
@@ -1601,6 +1679,15 @@ class AccountPaymentRegister(models.TransientModel):
             to_process = [self._get_single_payment_to_process(first_batch_result)]
         else:
             batches, to_process = self._get_batched_payments_to_process(batches)
+        dbg.logic.debug(
+            "[register:%s] _create_payments edit_mode=%s group=%s installments=%s batches=%d to_process=%d",
+            self.id,
+            edit_mode,
+            self.group_payment,
+            self.installments_mode,
+            len(batches),
+            len(to_process),
+        )
 
         lines = sum(
             (batch_result["lines"] for batch_result in batches),
@@ -1628,7 +1715,9 @@ class AccountPaymentRegister(models.TransientModel):
                     return fields.Date.to_date(domain_elem[2])
         return False
 
+    @dbg.timed
     def action_create_payments(self):
+        dbg.lifecycle.debug("action_create_payments on %s", dbg.rec(self))
         if self.is_register_payment_on_draft:
             self.payment_difference_handling = "open"
         payments = self._create_payments()
@@ -1670,7 +1759,9 @@ class AccountPaymentRegister(models.TransientModel):
         else:
             return available_partner_banks[:1]
 
+    @dbg.timed
     def action_view_untrusted_bank_accounts(self):
+        dbg.lifecycle.debug("action_view_untrusted_bank_accounts on %s", dbg.rec(self))
         self.check_singleton()
         if len(self.untrusted_bank_ids) == 1:
             action = {
@@ -1705,7 +1796,9 @@ class AccountPaymentRegister(models.TransientModel):
 
         return action
 
+    @dbg.timed
     def action_view_missing_account_partners(self):
+        dbg.lifecycle.debug("action_view_missing_account_partners on %s", dbg.rec(self))
         self.check_singleton()
         vals = {}
         if len(self.missing_account_partners) > 1:

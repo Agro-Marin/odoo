@@ -13,6 +13,7 @@ from odoo.libs.documents import Document, canonical_mimetypes
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import groupby
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools.import_file_type import is_pdf
 
 _logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
     _description = "Business document import mixin"
 
     @api.model
+    @dbg.timed
     def _create_records_from_attachments(self, attachments, grouping_method=None):
         if grouping_method is None:
             grouping_method = self._group_files_data_by_origin_attachment
@@ -81,6 +83,13 @@ class MixinAccountDocumentImport(models.AbstractModel):
         files_data.extend(self._unwrap_attachments(files_data))
 
         file_data_groups = grouping_method(files_data)
+        dbg.pipeline.debug(
+            "[import] %d attachment(s) -> %d file(s) after unwrap -> %d group(s) via %s",
+            len(attachments),
+            len(files_data),
+            len(file_data_groups),
+            grouping_method.__name__,
+        )
 
         records = self.create([{}] * len(file_data_groups))
         for record, file_data_group in zip(records, file_data_groups, strict=False):
@@ -191,6 +200,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
         matcher = difflib.SequenceMatcher(a=filename1, b=filename2, autojunk=False)
         return matcher.find_longest_match().size
 
+    @dbg.timed
     def _extend_with_attachments(self, files_data, new=False):
         def _get_attachment_name(file_data):
             params = {
@@ -225,6 +235,18 @@ class MixinAccountDocumentImport(models.AbstractModel):
         )
 
         file_data = sorted_files_data[0]
+        dbg.logic.debug(
+            "[import] %s: decoders %s, chosen %s (type=%s)",
+            dbg.rec(self),
+            dbg.lazy(
+                lambda: [
+                    (fd["name"], (fd["decoder_info"] or {}).get("priority"))
+                    for fd in sorted_files_data
+                ]
+            ),
+            file_data["name"],
+            file_data.get("import_file_type"),
+        )
 
         if (
             file_data["decoder_info"] is None
@@ -242,6 +264,12 @@ class MixinAccountDocumentImport(models.AbstractModel):
                     self, file_data, new
                 )
                 if reason_cannot_decode:
+                    dbg.logic.debug(
+                        "[import] %s: decoder refused %s: %s",
+                        dbg.rec(self),
+                        file_data["name"],
+                        reason_cannot_decode,
+                    )
                     self.message_post(
                         body=self.env._(
                             "Attachment %(filename)s not imported: %(reason)s",
@@ -353,6 +381,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
         )
 
     @api.model
+    @dbg.timed
     def _import_file_type_rules(self):
         return [("pdf", is_pdf)]
 

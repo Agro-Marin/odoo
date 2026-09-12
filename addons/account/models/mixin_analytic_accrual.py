@@ -3,11 +3,14 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class MixinAnalytic(models.AbstractModel):
     _inherit = "mixin.analytic"
 
     @api.model
+    @dbg.timed
     def _read_group_for_accrual(
         self,
         domain,

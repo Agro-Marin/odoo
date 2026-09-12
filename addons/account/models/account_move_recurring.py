@@ -1,6 +1,8 @@
 from odoo import models
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -23,6 +25,7 @@ class AccountMove(models.Model):
         periods = elapsed // self.repeat_interval + 1
         return date_origin + self._get_recurrence_delta() * periods
 
+    @dbg.timed
     def _copy_recurring_entries(self):
         moves_next_dates = []
         for record in self:
@@ -65,12 +68,24 @@ class AccountMove(models.Model):
             )
         )
         for record, next_date in moves_next_dates:
-            if not recurrence_exists.get(record.id):
-                record.copy(
-                    default=record._get_fields_to_copy_recurring_entries(
-                        {"date": next_date}
-                    )
+            if recurrence_exists.get(record.id):
+                dbg.logic.debug(
+                    "[move:%s] recurrence for %s already exists, not copied",
+                    record.id,
+                    next_date,
                 )
+                continue
+            dbg.pipeline.debug(
+                "[move:%s] copying recurring entry to %s (%s)",
+                record.id,
+                next_date,
+                record.auto_post,
+            )
+            record.copy(
+                default=record._get_fields_to_copy_recurring_entries(
+                    {"date": next_date}
+                )
+            )
 
     def _get_fields_to_copy_recurring_entries(self, values):
         values.update(

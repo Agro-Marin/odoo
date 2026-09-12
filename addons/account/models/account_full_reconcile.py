@@ -1,5 +1,7 @@
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountFullReconcile(models.Model):
     _name = "account.full.reconcile"
@@ -17,7 +19,15 @@ class AccountFullReconcile(models.Model):
     )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
+
         def get_ids(commands):
             for command in commands:
                 if command[0] == Command.LINK:
@@ -36,6 +46,12 @@ class AccountFullReconcile(models.Model):
         fulls = super(
             AccountFullReconcile, self.with_context(tracking_disable=True)
         ).create(vals_list)
+        dbg.pipeline.debug(
+            "[full:%s] created over %d line group(s), %d partial group(s)",
+            dbg.ids(fulls),
+            len(move_line_ids),
+            len(partial_ids),
+        )
 
         self.env.cr.execute_values(
             """
@@ -78,10 +94,13 @@ class AccountFullReconcile(models.Model):
         )
         return fulls
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         amls = self.reconciled_line_ids
         res = super().unlink()
         if self.env.context.get("defer_matching_number_update"):
+            dbg.logic.debug("full unlink: matching number update deferred")
             return res
         amls = amls.exists()
         if amls:

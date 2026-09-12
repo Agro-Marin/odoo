@@ -8,6 +8,7 @@ from odoo import _, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import date_utils
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools import format_structured_reference_iso
 
 
@@ -93,6 +94,7 @@ class AccountMove(models.Model):
             where_string += " AND sequence_prefix !~ %(anti_regex)s "
         return where_string
 
+    @dbg.timed
     def _get_domain_last_sequence(self, relaxed=False):
         # pylint: disable=sql-injection
         self.check_singleton()
@@ -127,6 +129,7 @@ class AccountMove(models.Model):
                 where_string += " AND false "
         return where_string, param
 
+    @dbg.timed
     def _get_starting_sequence(self):
         self.check_singleton()
         move_date = self.date or self.invoice_date or fields.Date.context_today(self)
@@ -183,6 +186,7 @@ class AccountMove(models.Model):
             starting_sequence = "P" + starting_sequence
         return starting_sequence
 
+    @dbg.timed
     def _get_sequence_date_range(self, reset):
         if reset not in ("year_range", "year_range_month"):
             return super()._get_sequence_date_range(reset)

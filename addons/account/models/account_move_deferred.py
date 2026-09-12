@@ -8,6 +8,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import float_compare
 
+from ..tools import debug_log as dbg
+
 DEFERRED_DATE_MIN = "1900-01-01"
 DEFERRED_DATE_MAX = "9999-12-31"
 
@@ -44,16 +46,23 @@ class AccountMove(models.Model):
         copy=False,
     )
 
+    @dbg.timed
     def _post_entries(self):
+        dbg.lifecycle.debug("_post_entries on %s", dbg.rec(self))
         posted = super()._post_entries()
         for move in self:
             if move._get_deferred_entries_method() == "on_validation" and any(
                 move.line_ids.mapped("deferred_start_date")
             ):
+                dbg.pipeline.debug(
+                    "[move:%s] deferral on validation: generating entries", move.id
+                )
                 move._create_deferred_entries()
         return posted
 
+    @dbg.timed
     def action_draft(self):
+        dbg.lifecycle.debug("action_draft on %s", dbg.rec(self))
         if any(
             len(deferral_move.deferred_original_move_ids) > 1
             for deferral_move in self.deferred_move_ids
@@ -64,6 +73,11 @@ class AccountMove(models.Model):
                 )
             )
         reversed_moves = self.deferred_move_ids._unlink_or_reverse()
+        dbg.logic.debug(
+            "action_draft: deferral moves %s -> reversed %s",
+            dbg.rec(self.deferred_move_ids),
+            dbg.rec(reversed_moves),
+        )
         if reversed_moves:
             for move in reversed_moves:
                 move.with_context(skip_readonly_check=True).write(
@@ -76,7 +90,9 @@ class AccountMove(models.Model):
             self.deferred_move_ids |= reversed_moves
         return super().action_draft()
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         deferral_moves = self.filtered(
             lambda move: (
                 move._is_protected_by_audit_trail() and move.deferred_original_move_ids
@@ -164,6 +180,7 @@ class AccountMove(models.Model):
         return None
 
     @api.model
+    @dbg.timed
     def _get_deferred_amounts_by_line(
         self, lines, periods, deferred_type, company=None
     ):
@@ -262,6 +279,7 @@ class AccountMove(models.Model):
             == line.date.replace(day=1)
         )
 
+    @dbg.timed
     def _prepare_deferral_move_vals(self, line, deferred_journal, ref):
         self.check_singleton()
         return {
@@ -276,6 +294,7 @@ class AccountMove(models.Model):
             "date": line.move_id.date,
         }
 
+    @dbg.timed
     def _create_deferral_moves(self, moves_vals, lines_vals):
         moves = self.create(moves_vals)
         for move, move_lines_vals in zip(moves, lines_vals, strict=True):
@@ -284,6 +303,7 @@ class AccountMove(models.Model):
         self.env["account.move.line"].create(list(chain(*lines_vals)))
         return moves
 
+    @dbg.timed
     def _prepare_period_deferral_vals(
         self, line, periods, move_vals, deferred_type, deferred_account
     ):
@@ -323,6 +343,7 @@ class AccountMove(models.Model):
             )
         return moves_vals, lines_vals
 
+    @dbg.timed
     def _create_deferred_entries(self):
         self.check_singleton()
         if self.state != "posted":
@@ -345,6 +366,12 @@ class AccountMove(models.Model):
                 if not periods or not self._is_deferral_worth_generating(
                     line, deferred_method
                 ):
+                    dbg.logic.debug(
+                        "[move:%s] line %s: deferral not worth generating (%d period(s))",
+                        self.id,
+                        line.id,
+                        len(periods or ()),
+                    )
                     continue
 
                 ref = _("Deferral of %s", line.move_id.name or "")
@@ -393,11 +420,23 @@ class AccountMove(models.Model):
             to_unlink = deferral_moves.filtered(
                 lambda move: move.currency_id.is_zero(move.amount_total)
             )
+            dbg.pipeline.debug(
+                "[move:%s] deferred %s: %d line(s), full=%s periodic=%s zero-dropped=%s method=%s",
+                self.id,
+                deferred_type,
+                len(lines_periods),
+                dbg.rec(moves_fully_deferred),
+                dbg.rec(deferral_moves),
+                dbg.rec(to_unlink),
+                deferred_method,
+            )
             to_unlink.unlink()
 
             (moves_fully_deferred + deferral_moves - to_unlink)._post(soft=True)
 
+    @dbg.timed
     def open_deferred_entries(self):
+        dbg.lifecycle.debug("open_deferred_entries on %s", dbg.rec(self))
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",
@@ -416,7 +455,9 @@ class AccountMove(models.Model):
             },
         }
 
+    @dbg.timed
     def open_deferred_original_entry(self):
+        dbg.lifecycle.debug("open_deferred_original_entry on %s", dbg.rec(self))
         self.check_singleton()
         action = {
             "type": "ir.actions.act_window",
@@ -467,7 +508,9 @@ class AccountMoveLine(models.Model):
         exportable=False,
     )
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         data_list = super().copy_data(default=default)
         for line, values in zip(self, data_list, strict=True):
             if "move_reverse_cancel" in self.env.context:
@@ -475,7 +518,9 @@ class AccountMoveLine(models.Model):
                 values["deferred_end_date"] = line.deferred_end_date
         return data_list
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if "account_id" in vals:
             for line in self:
                 if (
@@ -498,6 +543,7 @@ class AccountMoveLine(models.Model):
             line.has_deferred_moves = bool(line.move_id.deferred_move_ids)
 
     @api.depends("deferred_start_date", "deferred_end_date")
+    @dbg.timed
     def _compute_has_abnormal_deferred_dates(self):
         for line in self:
             line.has_abnormal_deferred_dates = (
@@ -558,6 +604,7 @@ class AccountMoveLine(models.Model):
                 line.deferred_start_date = line.move_id.invoice_date
 
     @api.constrains("deferred_start_date", "deferred_end_date", "account_id")
+    @dbg.timed
     def _check_deferred_dates(self):
         for line in self:
             if line.deferred_start_date and not line.deferred_end_date:

@@ -6,6 +6,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.account_report import (
     ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
     ACCOUNT_CODES_ENGINE_TERM_REGEX,
@@ -95,6 +96,7 @@ class AccountReportExpression(models.Model):
     )
 
     @api.constrains("label")
+    @dbg.timed
     def _check_label(self):
         for expression in self:
             if REFERENCE_UNSAFE_CHARS_REGEX.search(expression.label or ""):
@@ -109,6 +111,7 @@ class AccountReportExpression(models.Model):
                 )
 
     @api.constrains("carryover_target", "label")
+    @dbg.timed
     def _check_carryover_target(self):
         for expression in self:
             if not expression.carryover_target:
@@ -142,6 +145,7 @@ class AccountReportExpression(models.Model):
         return parts[0], parts[1]
 
     @api.constrains("formula")
+    @dbg.timed
     def _check_formula(self):
         def raise_formula_error(expression, cause=None):
             raise ValidationError(
@@ -182,6 +186,7 @@ class AccountReportExpression(models.Model):
             expression.auditable = expression.engine in auditable_engines
 
     @api.constrains("engine", "report_line_id")
+    @dbg.timed
     def _check_engine(self):
         for expression in self:
             if expression.engine in ("aggregation", "external") and (
@@ -219,6 +224,7 @@ class AccountReportExpression(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _search_tax_tags(self, tag_keys):
         tag_model = self.env["account.account.tag"]
         if not tag_keys:
@@ -230,6 +236,7 @@ class AccountReportExpression(models.Model):
             )
         )
 
+    @dbg.timed
     def _create_missing_tax_tags(self, formula_override=None):
         wanted_keys = set()
         for expression in self:
@@ -251,7 +258,14 @@ class AccountReportExpression(models.Model):
             self.env["account.account.tag"].create(tags_create_vals)
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             self._strip_formula_vals(vals)
 
@@ -259,7 +273,9 @@ class AccountReportExpression(models.Model):
         result.filtered(lambda x: x.engine == "tax_tags")._create_missing_tax_tags()
         return result
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         self._strip_formula_vals(vals)
 
         tax_tags_expressions = self.filtered(lambda x: x.engine == "tax_tags")
@@ -308,9 +324,12 @@ class AccountReportExpression(models.Model):
         return result
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_archive_used_tags(self):
+        dbg.lifecycle.debug("_unlink_archive_used_tags on %s", dbg.rec(self))
         self._release_tax_tags()
 
+    @dbg.timed
     def _release_tax_tags(self):
         expressions_tags = self._get_matching_tags().with_context(lang="en_US")
         if not expressions_tags:
@@ -356,6 +375,7 @@ class AccountReportExpression(models.Model):
         for expr in self:
             expr.display_name = f"{expr.report_line_name} [{expr.label}]"
 
+    @dbg.timed
     def _expand_aggregations(self):
         result = self
 
@@ -403,6 +423,7 @@ class AccountReportExpression(models.Model):
 
         return result
 
+    @dbg.timed
     def _get_cross_report_id(self):
         self.check_singleton()
         error_context = {

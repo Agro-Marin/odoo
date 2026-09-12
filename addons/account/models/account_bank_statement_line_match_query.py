@@ -5,6 +5,8 @@ from collections import defaultdict
 from odoo import SUPERUSER_ID, api, models
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -42,6 +44,7 @@ class AccountBankStatementLine(models.Model):
             right=right,
         )
 
+    @dbg.timed
     def _match_outstanding_accounts(
         self, st_move_ids, outstanding_accounts, remaining_st_line_ids
     ):
@@ -76,6 +79,7 @@ class AccountBankStatementLine(models.Model):
             )
         return remaining_st_line_ids
 
+    @dbg.timed
     def _match_payment_references(
         self, st_move_ids, account_ids, remaining_st_line_ids
     ):
@@ -102,6 +106,11 @@ class AccountBankStatementLine(models.Model):
                     to_process.pop((st_line_id, matching_word), None)
                     to_process.pop((st_line_id, word), None)
             st_lines_refs[st_line_id].append(matching_word)
+        dbg.logic.debug(
+            "[automatch] payment references: %d row(s) -> %d kept after surrounding/overlap filter",
+            len(matched_rows),
+            len(to_process),
+        )
 
         ref_amls_left = {}
         for (st_line_id, _matching_word), (
@@ -115,6 +124,11 @@ class AccountBankStatementLine(models.Model):
                     aml_amount_residual
                 )
             elif st_line.currency_id.compare_amounts(left, 0) <= 0:
+                dbg.logic.debug(
+                    "[automatch:%s] payment ref: amount exhausted, aml %s skipped",
+                    st_line_id,
+                    aml_id,
+                )
                 continue
             else:
                 ref_amls_left[st_line_id] = left - abs(aml_amount_residual)
@@ -139,6 +153,7 @@ class AccountBankStatementLine(models.Model):
             .payment_account_id
         ) - self.journal_id.default_account_id
 
+    @dbg.timed
     def _partner_mapping(self, reco_models):
         reco_model_model = self.env["account.reconcile.model"]
         reco_model_model.flush_model()
@@ -194,6 +209,7 @@ class AccountBankStatementLine(models.Model):
                 mapped_partner_id,
             )
 
+    @dbg.timed
     def _end_to_end_uuid(self, st_move_ids, account_ids):
         processed_st_line_ids = set()
         st_lines_with_end_to_end_uuid_ids = (
@@ -298,6 +314,7 @@ class AccountBankStatementLine(models.Model):
                     processed_st_line_ids.add(st_line_id)
         return processed_st_line_ids
 
+    @dbg.timed
     def _match_accounts_query(
         self, st_move_ids, account_ids, remaining_st_line_ids, outstanding_account=False
     ):

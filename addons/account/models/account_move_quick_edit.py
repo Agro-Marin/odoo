@@ -4,11 +4,14 @@ from odoo import api, fields, models
 from odoo.fields import Command
 from odoo.tools import SQL, float_is_zero
 
+from ..tools import debug_log as dbg
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
     @api.model
+    @dbg.timed
     def _get_frequent_account_and_taxes(self, company_id, partner_id, move_type):
         if not partner_id:
             return 0, False, False
@@ -57,6 +60,7 @@ class AccountMove(models.Model):
         )
         return rows[0] if rows else (0, False, False)
 
+    @dbg.timed
     def _get_quick_edit_suggestions(self):
         self.check_singleton()
         if not self.quick_edit_mode or not self.quick_edit_total_amount:
@@ -174,6 +178,7 @@ class AccountMove(models.Model):
             return
         self._check_total_amount(self.quick_edit_total_amount)
 
+    @dbg.timed
     def _check_total_amount(self, amount_total):
         if not self.tax_totals or not amount_total:
             return

@@ -1,5 +1,6 @@
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.res_company import PEPPOL_LIST
 
 
@@ -383,7 +384,9 @@ class ResConfigSettings(models.TransientModel):
                 self.env.company.terms_type == "html" and setting.terms_type == "html"
             )
 
+    @dbg.timed
     def action_update_terms(self):
+        dbg.lifecycle.debug("action_update_terms on %s", dbg.rec(self))
         self.check_singleton()
         if hasattr(self, "website_id") and self.env.user.has_group(
             "website.group_website_designer"
@@ -399,7 +402,9 @@ class ResConfigSettings(models.TransientModel):
             "res_id": self.company_id.id,
         }
 
+    @dbg.timed
     def action_eu_oss_tax_mapping(self):
+        dbg.lifecycle.debug("action_eu_oss_tax_mapping on %s", dbg.rec(self))
         l10n_eu_oss_module = self.env["ir.module.module"].search(
             [("name", "=", "l10n_eu_oss")], limit=1
         )

@@ -1,9 +1,12 @@
 from odoo import Command, _, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileWizard(models.TransientModel):
     _inherit = "account.reconcile.wizard"
 
+    @dbg.timed
     def _prepare_write_off_taxes_data(self, partner):
         AccountTax = self.env["account.tax"]
         amount_currency = self.edit_mode_amount_currency or self.amount_currency
@@ -61,6 +64,7 @@ class AccountReconcileWizard(models.TransientModel):
             "tax_lines_data": tax_lines_data,
         }
 
+    @dbg.timed
     def _create_write_off_lines(self, partner=None):
         if not partner:
             partner = self.env["res.partner"]

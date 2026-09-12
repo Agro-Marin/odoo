@@ -5,6 +5,7 @@ from odoo.fields import Command
 from odoo.tools import format_amount, format_date
 from odoo.tools.mail import email_re, email_split, generate_tracking_message_id
 
+from ..tools import debug_log as dbg
 from odoo.addons.mail.models.mixin_mail_gateway import RouteVerdict
 
 
@@ -15,6 +16,7 @@ class AccountMove(models.Model):
         return ["&", ("move_type", "=", "out_invoice"), ("state", "=", "posted")]
 
     @api.model
+    @dbg.timed
     def _routing_check_route(self, message, message_dict, route, raise_exception=True):
         if route[0] == "account.move" and len(message_dict["attachments"]) < 1:
             company_id = (route[2] or {}).get("company_id", self.env.company.id)
@@ -49,6 +51,7 @@ class AccountMove(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def message_new(self, msg_dict, custom_values=None):
         custom_values = custom_values or {}
         if custom_values.get("move_type", "entry") not in (
@@ -117,12 +120,22 @@ class AccountMove(models.Model):
         )
         move = super(AccountMove, move_ctx).message_new(msg_dict, custom_values=values)
         self.env.add_to_compute(move._fields["name"], move)
+        dbg.pipeline.debug(
+            "[alias] [move:%s] created from mail type=%s journal=%s company=%s partner=%s from=%s",
+            move.id,
+            custom_values.get("move_type", "entry"),
+            custom_values.get("journal_id"),
+            company.id,
+            values["partner_id"],
+            values["invoice_source_email"],
+        )
 
         return move
 
     def _attachment_fields_to_clear(self):
         return super()._attachment_fields_to_clear() + ["message_main_attachment_id"]
 
+    @dbg.timed
     def _message_post_after_hook_from_alias(
         self, new_message, message_values, valid_files_data, extra_files_data
     ):
@@ -130,6 +143,13 @@ class AccountMove(models.Model):
             valid_files_data
         ) or [[]]
         invoices = self
+        dbg.pipeline.debug(
+            "[alias] [move:%s] %d valid file(s) + %d extra -> %d group(s)",
+            self.id,
+            len(valid_files_data),
+            len(extra_files_data),
+            len(file_data_groups),
+        )
         if len(file_data_groups) > 1:
             create_vals = [
                 self.copy_data()[0].copy()
@@ -177,6 +197,7 @@ class AccountMove(models.Model):
 
         return res
 
+    @dbg.timed
     def _message_post_after_hook(self, new_message, message_values):
         attachments = new_message.attachment_ids
 
@@ -259,6 +280,7 @@ class AccountMove(models.Model):
             "in_receipt": _("Purchase Receipt Created"),
         }[self.move_type]
 
+    @dbg.timed
     def _notify_by_email_prepare_rendering_context(
         self,
         message,

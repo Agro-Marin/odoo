@@ -1,5 +1,7 @@
 from odoo import _, models
 
+from ..tools import debug_log as dbg
+
 
 class MixinPaymentQrCode(models.AbstractModel):
     _name = "mixin.payment.qr.code"
@@ -16,6 +18,7 @@ class MixinPaymentQrCode(models.AbstractModel):
             and self.amount
         )
 
+    @dbg.timed
     def _render_payment_qr_code(self, amount, communication):
         self.check_singleton()
         if not self._can_render_payment_qr_code():

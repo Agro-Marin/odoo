@@ -9,6 +9,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import SQL, frozendict
 
+from ..tools import debug_log as dbg
+
 
 class AccountTaxGroup(models.Model):
     _inherit = "account.tax.group"
@@ -160,6 +162,7 @@ class AccountTax(models.Model):
                 not tax.fiscal_position_ids or domestic in tax.fiscal_position_ids
             )
 
+    @dbg.timed
     def _search_is_domestic(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
@@ -178,6 +181,7 @@ class AccountTax(models.Model):
                 tax.fiscal_position_ids and tax.fiscal_position_ids._origin != domestic
             )
 
+    @dbg.timed
     def _compute_is_used(self):
         used_taxes = set()
 
@@ -232,7 +236,9 @@ class AccountTax(models.Model):
             tax.is_used = tax._origin.id in used_taxes
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def unlink_except_tax_used(self):
+        dbg.lifecycle.debug("unlink_except_tax_used on %s", dbg.rec(self))
         self.invalidate_recordset(["is_used"])
         if any(self.mapped("is_used")):
             raise ValidationError(
@@ -242,6 +248,7 @@ class AccountTax(models.Model):
             )
 
     @api.model
+    @dbg.timed
     def _get_import_criteria_from_invoice_predictive(self, tax_values):
         if "payment_state_before_switch" not in self.env["account.move"]._fields:
             return None
@@ -298,6 +305,7 @@ class AccountTax(models.Model):
         return {"criteria": criteria}
 
     @api.model
+    @dbg.timed
     def _update_tax_values_from_search_plan(
         self, search_plan, company, tax_values_list
     ):
@@ -376,6 +384,13 @@ class AccountTax(models.Model):
 
                 if tax:
                     break
+            dbg.logic.debug(
+                "[import] tax %s %s%% %s -> %s",
+                tax_values.get("type_tax_use"),
+                tax_values.get("amount"),
+                tax_values.get("amount_type"),
+                tax_values.get("tax") and tax_values["tax"].id,
+            )
 
     @api.depends(
         "repartition_line_ids.account_id",
@@ -386,6 +401,7 @@ class AccountTax(models.Model):
         "invoice_repartition_line_ids",
         "refund_repartition_line_ids",
     )
+    @dbg.timed
     def _compute_repartition_lines_str(self):
         for tax in self:
             repartition_line_info = {}
@@ -424,6 +440,7 @@ class AccountTax(models.Model):
             return self.env["account.account"].browse(value).display_name
         return value
 
+    @dbg.timed
     def _prepare_repartition_lines_log_body(self, old_values_str, new_values_str):
         self.check_singleton()
         old_line_values_dict = ast.literal_eval(old_values_str or "{}")
@@ -505,6 +522,7 @@ class AccountTax(models.Model):
 
         return Markup().join(fragments)
 
+    @dbg.timed
     def _message_log_batch(self, bodies, **kwargs):
         tracking_values = kwargs.get("tracking_values") or {}
         snapshot_field_id = (
@@ -597,6 +615,7 @@ class AccountTax(models.Model):
         for new_tax in new_record_by_company.values():
             new_tax.name = self.name
 
+    @dbg.timed
     def _unmerge_split_sidecars(self, new_record_by_company):
 
         def ordered(tax):
@@ -648,6 +667,7 @@ class AccountTax(models.Model):
         raise UserError(self.env._("You cannot merge taxes."))
 
     @api.constrains("company_ids", "country_id")
+    @dbg.timed
     def _check_company_ids_country(self):
         for tax in self:
             if len(tax.company_ids) < 2:
@@ -669,6 +689,7 @@ class AccountTax(models.Model):
                     )
 
     @api.constrains("company_ids")
+    @dbg.timed
     def _check_company_consistency(self):
         if self.env.context.get("from_account_tax_creation") is True:
             return
@@ -697,6 +718,7 @@ class AccountTax(models.Model):
                 )
 
     @api.model
+    @dbg.timed
     def _prepare_base_line_for_taxes_computation(self, record, **kwargs):
         base_line = super()._prepare_base_line_for_taxes_computation(record, **kwargs)
         if base_line["account_id"] is False:
@@ -706,6 +728,7 @@ class AccountTax(models.Model):
         return base_line
 
     @api.model
+    @dbg.timed
     def _prepare_tax_line_for_taxes_computation(self, record, **kwargs):
         def load(field, fallback):
             return self._get_base_line_field_value_from_record(
@@ -739,6 +762,7 @@ class AccountTax(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _prepare_base_line_grouping_key(self, base_line):
         return {
             "partner_id": base_line["partner_id"].id,
@@ -748,6 +772,7 @@ class AccountTax(models.Model):
             "tax_ids": [Command.set(base_line["tax_ids"].ids)],
         }
 
+    @dbg.timed
     def _prepare_base_line_tax_repartition_grouping_key(
         self, base_line, base_line_grouping_key, tax_data, tax_rep_data
     ):
@@ -771,6 +796,7 @@ class AccountTax(models.Model):
             "__keep_zero_line": False,
         }
 
+    @dbg.timed
     def _prepare_tax_line_repartition_grouping_key(self, tax_line):
         return {
             "tax_repartition_line_id": tax_line["tax_repartition_line_id"].id,
@@ -807,6 +833,7 @@ class AccountTax(models.Model):
             cache[key] = by_kind
         return by_kind
 
+    @dbg.timed
     def _add_accounting_data_to_base_line_tax_details(
         self,
         base_line,
@@ -860,6 +887,7 @@ class AccountTax(models.Model):
             repartition_cache=repartition_cache,
         )
 
+    @dbg.timed
     def _add_tax_repartition_amounts(
         self,
         base_line,
@@ -925,6 +953,7 @@ class AccountTax(models.Model):
             ):
                 target_factor["tax_rep_data"][field] += amount_to_distribute
 
+    @dbg.timed
     def _add_tax_repartition_tags_and_grouping_keys(
         self, base_line, product_tags, include_caba_tags=False, repartition_cache=None
     ):
@@ -975,6 +1004,7 @@ class AccountTax(models.Model):
             )
 
     @api.model
+    @dbg.timed
     def _prepare_tax_lines(self, base_lines, company, tax_lines=None):
         tax_lines_mapping, base_lines_to_update = self._aggregate_tax_lines_by_key(
             base_lines
@@ -996,6 +1026,14 @@ class AccountTax(models.Model):
             {**grouping_key, **values}
             for grouping_key, values in tax_lines_mapping.items()
         ]
+        dbg.pipeline.debug(
+            "_prepare_tax_lines: %d base line(s) -> add=%d update=%d delete=%d base_update=%d",
+            len(base_lines),
+            len(tax_lines_to_add),
+            len(tax_lines_to_update),
+            len(tax_lines_to_delete),
+            len(base_lines_to_update),
+        )
 
         return {
             "tax_lines_to_add": tax_lines_to_add,
@@ -1005,6 +1043,7 @@ class AccountTax(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _aggregate_tax_lines_by_key(self, base_lines):
         tax_lines_mapping = defaultdict(
             lambda: {
@@ -1080,6 +1119,7 @@ class AccountTax(models.Model):
             )
         ).mapped("tag_ids")
 
+    @dbg.timed
     def _compute_all_tax_values(self, tax_details, currency, partner, round_base):
         taxes = []
         void_amount = 0.0
@@ -1115,6 +1155,7 @@ class AccountTax(models.Model):
                     void_amount += tax_rep_data["tax_amount_currency"]
         return taxes, void_amount
 
+    @dbg.timed
     def compute_all(
         self,
         price_unit,
@@ -1160,6 +1201,16 @@ class AccountTax(models.Model):
             tax_details, currency, partner, round_base
         )
         total_void += void_amount
+        dbg.logic.debug(
+            "compute_all %s price=%s qty=%s special=%s -> excl=%s incl=%s taxes=%d",
+            dbg.rec(self),
+            price_unit,
+            quantity,
+            special_mode,
+            total_excluded,
+            total_included,
+            len(taxes),
+        )
 
         if round_base:
             total_excluded = currency.round(total_excluded)

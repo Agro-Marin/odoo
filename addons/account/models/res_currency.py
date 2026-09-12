@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL, date_utils
 
+from ..tools import debug_log as dbg
+
 CURRENCY_TABLE_COLUMNS = (
     "company_id",
     "period_key",
@@ -40,7 +42,9 @@ class ResCurrency(models.Model):
                 record._origin.rounding != record.rounding
             )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if "rounding" in vals:
             new_decimal_places = self._decimal_places_for_rounding(vals["rounding"])
             for record in self:
@@ -83,6 +87,7 @@ class ResCurrency(models.Model):
         )
         return SQL("account_currency_table")
 
+    @dbg.timed
     def _check_currency_table_monocurrency(self, companies):
         return len(companies.currency_id) == 1
 
@@ -111,6 +116,7 @@ class ResCurrency(models.Model):
             ),
         )
 
+    @dbg.timed
     def _create_currency_table(self, companies, date_periods, use_cta_rates=False):
         main_company = self.env.company
         domestic_currency_companies = companies.filtered(
@@ -182,6 +188,13 @@ class ResCurrency(models.Model):
             )
         )
         cr.execute(SQL("ANALYZE account_currency_table"))
+        dbg.pipeline.debug(
+            "currency table built: companies=%s periods=%d cta=%s builders=%d",
+            dbg.ids(companies),
+            len(date_periods),
+            use_cta_rates,
+            len(table_builders),
+        )
 
     def _get_table_builder_domestic_currency(self, companies, use_cta_rates) -> SQL:
         return SQL(
@@ -191,6 +204,7 @@ class ResCurrency(models.Model):
             ),
         )
 
+    @dbg.timed
     def _get_table_builder_current(
         self,
         scope: CurrencyTableScope,
@@ -223,6 +237,7 @@ class ResCurrency(models.Model):
             main_company_unit_factor=main_company_unit_factor,
         )
 
+    @dbg.timed
     def _get_table_builder_historical(
         self,
         scope: CurrencyTableScope,
@@ -259,6 +274,7 @@ class ResCurrency(models.Model):
             else SQL(),
         )
 
+    @dbg.timed
     def _get_table_builder_average(
         self,
         scope: CurrencyTableScope,

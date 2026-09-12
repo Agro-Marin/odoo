@@ -1,6 +1,8 @@
 from odoo import _, http
 from odoo.http import request
 
+from ..tools import debug_log as dbg
+
 
 def sitemap_terms(env, rule, qs):
     if qs and qs.lower() not in "/terms":
@@ -17,6 +19,7 @@ class TermsController(http.Controller):
         "/terms", type="http", auth="public", website=True, sitemap=sitemap_terms
     )
     def terms_conditions(self, **kwargs):
+        dbg.pipeline.debug("route TermsController.terms_conditions")
         use_invoice_terms = (
             request.env["ir.config_parameter"]
             .sudo()

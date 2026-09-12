@@ -1,5 +1,7 @@
 from odoo import _, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -8,7 +10,9 @@ class AccountMove(models.Model):
         comodel_name="account.return", index="btree_not_null", copy=False
     )
 
+    @dbg.timed
     def action_view_tax_return(self):
+        dbg.lifecycle.debug("action_view_tax_return on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_window",
             "name": self.closing_return_id.name,
@@ -31,7 +35,9 @@ class AccountMove(models.Model):
             ],
         }
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         for move in self:
             if move.closing_return_id:
                 if len(move.closing_return_id.company_ids) == 1:
@@ -49,17 +55,22 @@ class AccountMove(models.Model):
                     )
         return super().unlink()
 
+    @dbg.timed
     def _post_entries(self):
+        dbg.lifecycle.debug("_post_entries on %s", dbg.rec(self))
         posted_moves = super()._post_entries()
         posted_moves._update_accounts_audit_status()
         return posted_moves
 
+    @dbg.timed
     def action_draft(self):
+        dbg.lifecycle.debug("action_draft on %s", dbg.rec(self))
         posted_moves = self.filtered(lambda move: move.state == "posted")
         res = super().action_draft()
         posted_moves._update_accounts_audit_status()
         return res
 
+    @dbg.timed
     def _update_accounts_audit_status(self):
         if not self:
             return

@@ -1,6 +1,8 @@
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ValidateAccountMove(models.TransientModel):
     _name = "validate.account.move"
@@ -64,7 +66,9 @@ class ValidateAccountMove(models.TransientModel):
             ).partner_id
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         result = super().default_get(fields_list)
         if "move_ids" in fields_list and not result.get("move_ids"):
             if self.env.context.get("active_model") == "account.move":
@@ -91,7 +95,9 @@ class ValidateAccountMove(models.TransientModel):
 
         return result
 
+    @dbg.timed
     def action_post_moves(self):
+        dbg.lifecycle.debug("action_post_moves on %s", dbg.rec(self))
         if self.ignore_abnormal_amount:
             self.abnormal_amount_partner_ids.ignore_abnormal_invoice_amount = True
         if self.ignore_abnormal_date:

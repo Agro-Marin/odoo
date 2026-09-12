@@ -6,12 +6,15 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, fields, models
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
     _name = "account.aged.partner.balance.report.handler"
     _inherit = ["account.report.custom.handler"]
     _description = "Aged Partner Balance Custom Handler"
 
+    @dbg.timed
     def _custom_options_initializer(self, report, options, previous_options):
         super()._custom_options_initializer(
             report, options, previous_options=previous_options
@@ -94,6 +97,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
 
         return lines
 
+    @dbg.timed
     def _report_custom_engine_aged_receivable(
         self,
         expressions,
@@ -114,6 +118,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @dbg.timed
     def _report_custom_engine_aged_payable(
         self,
         expressions,
@@ -134,6 +139,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @dbg.timed
     def _aged_partner_report_custom_engine_common(
         self,
         options,
@@ -411,7 +417,9 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
 
             return rslt
 
+    @dbg.timed
     def open_journal_items(self, options, params):
+        dbg.lifecycle.debug("open_journal_items on %s", dbg.rec(self))
         params["view_ref"] = "account.view_account_move_line_list_grouped_partner"
         options_for_audit = {**options, "date": {**options["date"], "date_from": None}}
         report = self.env["account.report"].browse(options["report_id"])
@@ -421,11 +429,14 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
         )
         return action
 
+    @dbg.timed
     def open_customer_statement(self, options, params):
+        dbg.lifecycle.debug("open_customer_statement on %s", dbg.rec(self))
         report = self.env["account.report"].browse(options["report_id"])
         record_model, record_id = report._get_model_info_from_id(params.get("line_id"))
         return self.env[record_model].browse(record_id).open_customer_statement()
 
+    @dbg.timed
     def _common_custom_unfold_all_batch_data_generator(
         self, internal_type, report, options, lines_to_expand_by_function
     ):
@@ -524,6 +535,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
 
         return rslt
 
+    @dbg.timed
     def _prepare_partner_values(self):
         return {
             "invoice_date": None,
@@ -560,6 +572,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             action["domain"] = domain
         return action
 
+    @dbg.timed
     def _prepare_domain_from_period(self, options, period):
         if period != "total" and period[-1].isdigit():
             period_number = int(period[-1])
@@ -621,7 +634,9 @@ class AccountAgedSideReportHandler(models.AbstractModel):
     def _get_aged_account_type_option(self):
         raise NotImplementedError
 
+    @dbg.timed
     def open_journal_items(self, options, params):
+        dbg.lifecycle.debug("open_journal_items on %s", dbg.rec(self))
         options.setdefault("account_type", []).append(
             self._get_aged_account_type_option()
         )
@@ -640,7 +655,9 @@ class AccountAgedSideReportHandler(models.AbstractModel):
             )
         return {}
 
+    @dbg.timed
     def action_audit_cell(self, options, params):
+        dbg.lifecycle.debug("action_audit_cell on %s", dbg.rec(self))
         return super().aged_partner_balance_audit(
             options, params, self._aged_audit_journal_type
         )

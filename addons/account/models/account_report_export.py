@@ -21,6 +21,7 @@ from odoo.tools import html2plaintext
 from odoo.tools.mail import html_to_inner_content
 from odoo.tools.misc import file_path, format_date
 
+from ..tools import debug_log as dbg
 from .account_report import (
     ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
     ACCOUNT_CODES_ENGINE_TERM_REGEX,
@@ -46,10 +47,12 @@ class AccountReportExport(models.Model):
     _inherit = "account.report"
 
     @api.model
+    @dbg.timed
     def _cron_account_report_send(self, job_count=10):
         """Handle Send & Print async processing.
         :param job_count: maximum number of jobs to process if specified.
         """
+        dbg.lifecycle.debug("_cron_account_report_send on %s", dbg.rec(self))
         to_process = self.env["account.report"].search(
             [("send_and_print_values", "!=", False)],
         )
@@ -149,6 +152,12 @@ class AccountReportExport(models.Model):
         self.check_singleton()
 
         export_options = {**options, "export_mode": "file"}
+        dbg.pipeline.debug(
+            "[report:%s] export_file via %s next=%s",
+            self.id,
+            file_generator,
+            next_action,
+        )
 
         return {
             "type": "ir_actions_account_report_download",
@@ -159,6 +168,7 @@ class AccountReportExport(models.Model):
             },
         }
 
+    @dbg.timed
     def _get_report_send_recipients(self, options):
         custom_handler_model = self._get_custom_handler_model()
         if custom_handler_model and hasattr(
@@ -167,6 +177,7 @@ class AccountReportExport(models.Model):
             return self.env[custom_handler_model]._get_report_send_recipients(options)
         return self.env["res.partner"]
 
+    @dbg.timed
     def export_to_pdf(self, options):
         self.check_singleton()
 
@@ -242,16 +253,23 @@ class AccountReportExport(models.Model):
                 else body
                 for body in bodies
             ]
-            files_stream.append(
-                io.BytesIO(
-                    action_report._render_html_to_pdf(
-                        bodies_list,
-                        landscape=is_landscape
-                        or self.env.context.get("force_landscape_printing"),
-                        specific_paperformat_args=PDF_PAPERFORMAT_ARGS,
+            with dbg.timer(
+                self.env,
+                "[report:%s] pdf render x%d bodies landscape=%s",
+                self.id,
+                len(bodies_list),
+                is_landscape,
+            ):
+                files_stream.append(
+                    io.BytesIO(
+                        action_report._render_html_to_pdf(
+                            bodies_list,
+                            landscape=is_landscape
+                            or self.env.context.get("force_landscape_printing"),
+                            specific_paperformat_args=PDF_PAPERFORMAT_ARGS,
+                        )
                     )
                 )
-            )
 
         if len(files_stream) > 1:
             result_stream = action_report._merge_pdfs(files_stream)
@@ -269,6 +287,7 @@ class AccountReportExport(models.Model):
             "file_type": "pdf",
         }
 
+    @dbg.timed
     def _get_pdf_export_html(
         self, options, lines, additional_context=None, template=None
     ):
@@ -328,6 +347,7 @@ class AccountReportExport(models.Model):
         # Render.
         return self.env["ir.qweb"]._render(template, render_values)
 
+    @dbg.timed
     def _prepare_annotations_list_for_pdf_export(
         self, date_options, lines, annotations_per_line_id
     ):
@@ -371,6 +391,7 @@ class AccountReportExport(models.Model):
                     )
         return annotations_to_render
 
+    @dbg.timed
     def export_to_xlsx(self, options, response=None):
         def add_worksheet_unique_name(workbook, sheet_name):
             existing_names = set(workbook.sheetnames.keys())
@@ -414,18 +435,24 @@ class AccountReportExport(models.Model):
                 reports_options.append(report_options)
                 # Use custom handler's XLSX export method if available
                 custom_handler_model = report._get_custom_handler_model()
-                if custom_handler_model and hasattr(
-                    self.env[custom_handler_model], "_write_report_to_xlsx_sheet"
+                with dbg.timer(
+                    self.env,
+                    "[report:%s] xlsx sheet custom=%s",
+                    report.id,
+                    custom_handler_model,
                 ):
-                    self.env[custom_handler_model]._write_report_to_xlsx_sheet(
-                        report_options, workbook
-                    )
-                else:
-                    report._write_report_to_xlsx_sheet(
-                        report_options,
-                        workbook,
-                        add_worksheet_unique_name(workbook, report.name),
-                    )
+                    if custom_handler_model and hasattr(
+                        self.env[custom_handler_model], "_write_report_to_xlsx_sheet"
+                    ):
+                        self.env[custom_handler_model]._write_report_to_xlsx_sheet(
+                            report_options, workbook
+                        )
+                    else:
+                        report._write_report_to_xlsx_sheet(
+                            report_options,
+                            workbook,
+                            add_worksheet_unique_name(workbook, report.name),
+                        )
 
             self._add_options_xlsx_sheet(workbook, reports_options)
 
@@ -440,6 +467,7 @@ class AccountReportExport(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _set_xlsx_cell_sizes(self, sheet, fonts, col, row, value, style, has_colspan):
         """This small helper will resize the cells if needed, to allow to get a better output."""
 
@@ -495,6 +523,7 @@ class AccountReportExport(models.Model):
                 fonts[font_type] = ImageFont.load_default()
         return fonts
 
+    @dbg.timed
     def _write_report_to_xlsx_sheet(self, options, workbook, sheet):
         fonts = self._get_xlsx_export_fonts()
 
@@ -926,6 +955,7 @@ class AccountReportExport(models.Model):
                     annotation_format,
                 )
 
+    @dbg.timed
     def _add_xlsx_currency_codes_columns(self, options, lines):
         """Adds a 'Currency Code' column for each column displaying amounts in foreign currencies. This is done because
         the raw number is displayed on the xlsx file, making it impossible to know the currency used.
@@ -970,6 +1000,7 @@ class AccountReportExport(models.Model):
 
             line["columns"] = new_column_values
 
+    @dbg.timed
     def _add_options_xlsx_sheet(self, workbook, options_list):
         """Adds a new sheet for xlsx report exports with a summary of all filters and options activated at the moment of the export."""
         filters_sheet = workbook.add_worksheet(_("Filters"))
@@ -1026,6 +1057,7 @@ class AccountReportExport(models.Model):
             else:
                 y_offset = new_offset
 
+    @dbg.timed
     def _write_report_options_to_xlsx_sheet(
         self, options, sheet, y_offset, options_to_print=None
     ):
@@ -1126,6 +1158,7 @@ class AccountReportExport(models.Model):
 
         return y_offset
 
+    @dbg.timed
     def get_vat_for_export(self, options, raise_warning=True):
         """Returns the VAT number to use when exporting this report with the provided
         options. If filter_multi_company is set to 'tax_units', the selected tax unit's VAT
@@ -1164,6 +1197,7 @@ class AccountReportExport(models.Model):
             )
         return company.vat
 
+    @dbg.timed
     def action_download_xlsx_accounts_coverage_report(self):
         """Generate an XLSX file used to debug the report, issuing the following warnings when applicable:
 
@@ -1171,6 +1205,10 @@ class AccountReportExport(models.Model):
         - an account is reported in multiple lines of the report (orange)
         - an account is reported in a line of the report but does not exist in the Chart of Accounts (yellow)
         """
+        dbg.lifecycle.debug(
+            "action_download_xlsx_accounts_coverage_report on %s",
+            dbg.rec(self),
+        )
         self.check_singleton()
         if not self.is_account_coverage_report_available:
             raise UserError(
@@ -1211,6 +1249,7 @@ class AccountReportExport(models.Model):
             "target": "download",
         }
 
+    @dbg.timed
     def _generate_accounts_coverage_report_xlsx_lines(self):
         """Generate the lines of the accounts coverage XLSX file, issuing the following warnings when applicable:
 
@@ -1504,6 +1543,7 @@ class AccountReportExport(models.Model):
         return self._get_accounts_coverage_report_coverage_lines("", errors_trie)
 
     @api.depends("country_id", "chart_template", "root_report_id")
+    @dbg.timed
     def _compute_is_account_coverage_report_available(self):
         for report in self:
             report.is_account_coverage_report_available = (
@@ -1521,6 +1561,7 @@ class AccountReportExport(models.Model):
                 self.env.ref("account.balance_sheet", raise_if_not_found=False),
             )
 
+    @dbg.timed
     def _get_accounts_coverage_report_errors_trie(
         self,
         all_reported_codes,
@@ -1628,6 +1669,7 @@ class AccountReportExport(models.Model):
                 trie["errors"] = children_errors
         return trie
 
+    @dbg.timed
     def _get_accounts_coverage_report_coverage_lines(
         self, subcode, trie, coverage_lines=None
     ):
@@ -1736,6 +1778,7 @@ class AccountReportExport(models.Model):
             )
             return footer_html.decode()
 
+    @dbg.timed
     def _generate_file_data_with_error_check(
         self, options, content_generator, generator_params, errors
     ):

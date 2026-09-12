@@ -5,6 +5,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL, Query
 
+from ..tools import debug_log as dbg
+
 
 class AccountAccount(models.Model):
     _name = "account.account"
@@ -83,6 +85,7 @@ class AccountAccount(models.Model):
                     )
 
     @api.constrains("currency_id")
+    @dbg.timed
     def _check_journal_consistency(self):
         if not self:
             return
@@ -148,6 +151,7 @@ class AccountAccount(models.Model):
             )
 
     @api.constrains("company_ids")
+    @dbg.timed
     def _check_company_move_line_consistency(self):
         self.invalidate_recordset(fnames=["company_ids"])
         companies_by_account = defaultdict(set)
@@ -173,6 +177,7 @@ class AccountAccount(models.Model):
                 )
 
     @api.constrains("account_type")
+    @dbg.timed
     def _check_account_type_sales_purchase_journal(self):
         if not self:
             return
@@ -209,6 +214,7 @@ class AccountAccount(models.Model):
             )
 
     @api.constrains("account_type")
+    @dbg.timed
     def _check_account_is_bank_journal_bank_account(self):
         self.env["account.account"].flush_model(["account_type"])
         self.env["account.journal"].flush_model(
@@ -241,6 +247,7 @@ class AccountAccount(models.Model):
 
     @api.model
     @api.readonly
+    @dbg.timed
     def name_search(self, name="", domain=None, operator="ilike", limit=100):
         move_type = self.env.context.get("move_type")
         if not move_type:
@@ -291,7 +298,9 @@ class AccountAccount(models.Model):
         ).search_fetch(domain, ["display_name"], limit=limit)
         return [(record.id, record.display_name) for record in records]
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if "reconcile" in vals:
             if vals["reconcile"]:
                 self.filtered(
@@ -333,7 +342,12 @@ class AccountAccount(models.Model):
         return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_except_contains_journal_items(self):
+        dbg.lifecycle.debug(
+            "_unlink_except_contains_journal_items on %s",
+            dbg.rec(self),
+        )
         if (
             self.env["account.move.line"]
             .sudo()
@@ -350,7 +364,12 @@ class AccountAccount(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_except_linked_to_fiscal_position(self):
+        dbg.lifecycle.debug(
+            "_unlink_except_linked_to_fiscal_position on %s",
+            dbg.rec(self),
+        )
         if self.env["account.fiscal.position.account"].search_count(
             [
                 "|",
@@ -368,7 +387,12 @@ class AccountAccount(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_except_linked_to_tax_repartition_line(self):
+        dbg.lifecycle.debug(
+            "_unlink_except_linked_to_tax_repartition_line on %s",
+            dbg.rec(self),
+        )
         if self.env["account.tax.repartition.line"].search_count(
             [("account_id", "in", self.ids)],
             limit=1,
@@ -389,6 +413,7 @@ class AccountAccount(models.Model):
 
     @api.depends_context("company")
     @api.depends("code")
+    @dbg.timed
     def _compute_group_id(self):
         accounts_with_code = self.filtered(lambda a: a.code)
 
@@ -470,6 +495,7 @@ class AccountAccount(models.Model):
             record.related_taxes_amount = counts.get(record, 0)
 
     @api.depends_context("company")
+    @dbg.timed
     def _compute_opening_debit_credit(self):
         self.opening_debit = 0
         self.opening_credit = 0
@@ -506,6 +532,7 @@ class AccountAccount(models.Model):
 
     @api.depends_context("company", "formatted_display_name", "uid")
     @api.depends("code")
+    @dbg.timed
     def _compute_display_name(self):
         formatted_display_name = self.env.context.get(
             "formatted_display_name",
@@ -553,6 +580,7 @@ class AccountAccount(models.Model):
                     else account.name
                 )
 
+    @dbg.timed
     def _search_used(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
@@ -600,6 +628,7 @@ class AccountAccount(models.Model):
             self.tax_ids = False
 
     @api.model
+    @dbg.timed
     def _load_precommit_update_opening_move(self):
         data = self.env.cr.precommit.data.pop(
             "import_account_opening_balance",
@@ -636,7 +665,13 @@ class AccountAccount(models.Model):
             WHERE full_reconcile_id IS NULL and account_id = ANY(%s)
         """
         self.env.cr.execute(query, [list(self.ids)])
+        dbg.lifecycle.debug(
+            "[account:%s] reconcile -> true, %d line(s) reset",
+            dbg.ids(self),
+            self.env.cr.rowcount,
+        )
 
+    @dbg.timed
     def _toggle_reconcile_to_false(self):
         if not self.ids:
             return
@@ -670,6 +705,11 @@ class AccountAccount(models.Model):
             WHERE full_reconcile_id IS NULL AND account_id = ANY(%s)
         """
         self.env.cr.execute(query, [list(self.ids)])
+        dbg.lifecycle.debug(
+            "[account:%s] reconcile -> false, %d line(s) zeroed",
+            dbg.ids(self),
+            self.env.cr.rowcount,
+        )
 
     def _get_used_account_ids(self, account_ids=None):
         rows = self.env.execute_query(
@@ -691,6 +731,7 @@ class AccountAccount(models.Model):
         return [r[0] for r in rows]
 
     @api.model
+    @dbg.timed
     def _get_most_frequent_accounts_for_partner(
         self,
         company_id,
@@ -796,6 +837,7 @@ class AccountAccount(models.Model):
             move_type,
         )
 
+    @dbg.timed
     def _order_to_sql(
         self,
         order: str,
@@ -845,7 +887,9 @@ class AccountAccount(models.Model):
         }
         return move_type_accounts.get(move_type.split("_")[0])
 
+    @dbg.timed
     def action_view_related_taxes(self):
+        dbg.lifecycle.debug("action_view_related_taxes on %s", dbg.rec(self))
         related_taxes_ids = (
             self.env["account.tax"]
             .search(
@@ -863,7 +907,9 @@ class AccountAccount(models.Model):
             "domain": [("id", "in", related_taxes_ids)],
         }
 
+    @dbg.timed
     def action_view_reconcile(self):
+        dbg.lifecycle.debug("action_view_reconcile on %s", dbg.rec(self))
         self.check_singleton()
         return self.env["account.move.line"]._action_view_unreconciled(
             extra_domain=[("account_id", "=", self.id)],

@@ -5,6 +5,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.tools import SQL, html2plaintext
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.account_audit_account_status import (
     STATUS_SELECTION,
 )
@@ -98,25 +99,32 @@ class AccountAccount(models.Model):
         result = self.env.execute_query_dict(query.select())
         return [("id", "in", [row["id"] for row in result])]
 
+    @dbg.timed
     def _search_audit_debit(self, operator, value):
         return self._get_domain_audit_field("audit_debit", operator, value)
 
+    @dbg.timed
     def _search_audit_credit(self, operator, value):
         return self._get_domain_audit_field("audit_credit", operator, value)
 
+    @dbg.timed
     def _search_audit_balance(self, operator, value):
         return self._get_domain_audit_field("audit_balance", operator, value)
 
+    @dbg.timed
     def _search_audit_previous_balance(self, operator, value):
         return self._get_domain_audit_field("audit_previous_balance", operator, value)
 
+    @dbg.timed
     def _search_audit_var_n_1(self, operator, value):
         return self._get_domain_audit_field("audit_var_n_1", operator, value)
 
+    @dbg.timed
     def _search_audit_var_percentage(self, operator, value):
         return self._get_domain_audit_field("audit_var_percentage", operator, value)
 
     @api.depends_context("working_file_id")
+    @dbg.timed
     def _compute_audit_period(self):
         working_file = self.env["account.return"].browse(
             self.env.context.get("working_file_id")
@@ -172,6 +180,7 @@ class AccountAccount(models.Model):
                 ) / account.audit_previous_balance
 
     @api.depends_context("working_file_id")
+    @dbg.timed
     def _compute_audit_status(self):
         working_file = self.env["account.return"].browse(
             self.env.context.get("working_file_id")
@@ -212,6 +221,7 @@ class AccountAccount(models.Model):
                 if account in account_status_by_account:
                     account_status_by_account[account].status = account.audit_status
 
+    @dbg.timed
     def _compute_balance_warning(self, balance_field_name, warning_field_name):
         for account in self:
             if account.internal_group == "asset":
@@ -242,6 +252,7 @@ class AccountAccount(models.Model):
         )
 
     @api.depends_context("working_file_id")
+    @dbg.timed
     def _compute_last_message(self):
         working_file = self.env["account.return"].browse(
             self.env.context.get("working_file_id")
@@ -271,6 +282,7 @@ class AccountAccount(models.Model):
         for account in self:
             account.last_message = last_message_by_account.get(account.id, False)
 
+    @dbg.timed
     def _field_to_sql(self, alias, field_expr, query=None) -> SQL:
         def add_aml_join(join_alias, date_from, date_to, company_ids):
             self.env["account.move.line"].flush_model()
@@ -407,7 +419,9 @@ class AccountAccount(models.Model):
                 """)
         return None
 
+    @dbg.timed
     def action_audit_account(self):
+        dbg.lifecycle.debug("action_audit_account on %s", dbg.rec(self))
         domain = [("account_id", "in", self.ids)]
         working_file = self.env["account.return"].browse(
             self.env.context.get("working_file_id")

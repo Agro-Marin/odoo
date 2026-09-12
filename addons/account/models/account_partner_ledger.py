@@ -7,6 +7,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountPartnerLedgerReportHandler(models.AbstractModel):
     _name = "account.partner.ledger.report.handler"
@@ -34,6 +36,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
 
         return lines
 
+    @dbg.timed
     def _prepare_partner_lines(self, report, options, level_shift=0):
         lines = []
 
@@ -105,6 +108,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
 
         return lines, totals_by_column_group
 
+    @dbg.timed
     def _report_expand_unfoldable_line_partner_ledger_prefix_group(
         self,
         line_dict_id,
@@ -157,6 +161,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             "has_more": False,
         }
 
+    @dbg.timed
     def _custom_options_initializer(self, report, options, previous_options):
         super()._custom_options_initializer(
             report, options, previous_options=previous_options
@@ -234,6 +239,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
         )
         return bool(self.env["account.move.line"].search_count(domain, limit=1))
 
+    @dbg.timed
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
     ):
@@ -288,7 +294,9 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def action_view_partner(self, options, params):
+        dbg.lifecycle.debug("action_view_partner on %s", dbg.rec(self))
         _dummy, record_id = self.env["account.report"]._get_model_info_from_id(
             params["id"]
         )
@@ -302,6 +310,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def action_toggle_no_followup(self, line_id, all_line_ids):
         """Toggle the `no_followup` field on the journal item corresponding to the given `line_id`.
 
@@ -311,6 +320,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             - `updated_value`: the updated `no_followup` value (`True` or `False`)
             - `updated_line_ids`: a list of the impacted report lines, so the report can be updated dynamically
         """
+        dbg.lifecycle.debug("action_toggle_no_followup on %s", dbg.rec(self))
         model, aml_id = self.env["account.report"]._get_model_info_from_id(line_id)
         if model != "account.move.line":
             return None
@@ -339,6 +349,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             ).mapped(lambda line: aml_id_to_line_id[line.id])
         return res
 
+    @dbg.timed
     def _query_partners(self, report, options):
         """Executes the queries and performs all the computation.
         :return:        A list of tuple (partner, column_group_values) sorted by the table's model _order:
@@ -411,6 +422,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             for partner in partners
         ]
 
+    @dbg.timed
     def _get_query_sums(self, report, options) -> SQL:
         """Construct a query retrieving all the aggregated sums to build the report. It includes:
         - sums for all partners.
@@ -507,6 +519,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
 
         return SQL(" UNION ALL ").join(queries)
 
+    @dbg.timed
     def _get_initial_balance_values(self, partner_ids, options):
         report = self.env["account.report"].browse(options["report_id"])
 
@@ -622,6 +635,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                         inverse_sign * row[field]
                     )
 
+    @dbg.timed
     def _get_sums_without_partner(self, options):
         """Get the sum of lines without partner reconciled with a line with a partner, grouped by partner."""
         # Those lines belong to the partner for the reconciled amount, as they may clear some of the partner
@@ -686,6 +700,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
 
         return SQL(" UNION ALL ").join(queries)
 
+    @dbg.timed
     def _report_expand_unfoldable_line_partner_ledger(
         self,
         line_dict_id,
@@ -823,6 +838,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
     def _get_order_by_aml_values(self):
         return SQL("account_move_line.date, account_move_line.id")
 
+    @dbg.timed
     def _get_aml_values(self, options, partner_ids, offset=0, limit=None):
         rslt = {partner_id: [] for partner_id in partner_ids}
 
@@ -1050,6 +1066,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
     ####################################################
     # COLUMNS/LINES
     ####################################################
+    @dbg.timed
     def _get_report_line_partners(
         self, options, partner, partner_values, level_shift=0
     ):
@@ -1120,6 +1137,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             line_name, move_ref, move_name=move_name
         )
 
+    @dbg.timed
     def _get_report_line_move_line(
         self,
         options,
@@ -1194,6 +1212,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             "no_followup": aml_query_result["no_followup"],
         }
 
+    @dbg.timed
     def _get_report_line_total(self, options, totals_by_column_group):
         column_values = []
         report = self.env["account.report"].browse(options["report_id"])
@@ -1212,6 +1231,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             "columns": column_values,
         }
 
+    @dbg.timed
     def _get_report_send_recipients(self, options):
         partners = options.get("partner_ids", [])
         if not partners:
@@ -1222,7 +1242,9 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             ]
         return self.env["res.partner"].browse(partners)
 
+    @dbg.timed
     def open_journal_items(self, options, params):
+        dbg.lifecycle.debug("open_journal_items on %s", dbg.rec(self))
         params["view_ref"] = "account.view_account_move_line_list_grouped_partner"
         report = self.env["account.report"].browse(options["report_id"])
         action = report.open_journal_items(options=options, params=params)

@@ -1,5 +1,7 @@
 from odoo import models, modules
 
+from ..tools import debug_log as dbg
+
 
 class AccountChartTemplate(models.AbstractModel):
     _inherit = "account.chart.template"
@@ -27,6 +29,7 @@ class AccountChartTemplate(models.AbstractModel):
             }
         }
 
+    @dbg.timed
     def _get_chart_template_data(self, chart_template):
         data = super()._get_chart_template_data(chart_template)
 
@@ -77,7 +80,9 @@ class AccountChartTemplate(models.AbstractModel):
 
         return data
 
+    @dbg.timed
     def _post_load_data(self, template_code, company, template_data):
+        dbg.lifecycle.debug("_post_load_data on %s", dbg.rec(self))
         super()._post_load_data(template_code, company, template_data)
 
         sepa_countries = self.env.ref("base.sepa_zone").country_ids

@@ -2,6 +2,7 @@ from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 
@@ -67,6 +68,7 @@ class AccountMoveReversal(models.TransientModel):
             record.available_journal_ids = allowed
 
     @api.constrains("journal_id", "move_ids")
+    @dbg.timed
     def _check_journal_type(self):
         for record in self:
             if record.journal_id.type not in record.move_ids.journal_id.mapped("type"):
@@ -75,7 +77,9 @@ class AccountMoveReversal(models.TransientModel):
                 )
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         res = super().default_get(fields_list)
         move_ids = (
             self.env["account.move"].browse(self.env.context.get("active_ids"))
@@ -97,6 +101,7 @@ class AccountMoveReversal(models.TransientModel):
         return res
 
     @api.depends("move_ids")
+    @dbg.timed
     def _compute_from_moves(self):
         for record in self:
             move_ids = record.move_ids._origin
@@ -119,6 +124,7 @@ class AccountMoveReversal(models.TransientModel):
                 )
             )
 
+    @dbg.timed
     def _prepare_default_reversal(self, move):
         reverse_date = self.date
         mixed_payment_term = (
@@ -205,6 +211,7 @@ class AccountMoveReversal(models.TransientModel):
                 }
         return action
 
+    @dbg.timed
     def reverse_moves(self, is_modify=False):
         self.check_singleton()
         moves = self.move_ids
@@ -217,9 +224,22 @@ class AccountMoveReversal(models.TransientModel):
             for move in moves
         ]
         batches = self._get_reversal_batches(moves, default_values_list, is_modify)
+        dbg.pipeline.debug(
+            "[reversal:%s] %s modify=%s -> %d batch(es)",
+            self.id,
+            dbg.rec(moves),
+            is_modify,
+            len(batches),
+        )
 
         moves_to_redirect = self.env["account.move"]
         for batch_moves, batch_default_values, is_cancel_needed in batches:
+            dbg.logic.debug(
+                "[reversal:%s] batch %s cancel=%s",
+                self.id,
+                dbg.rec(batch_moves),
+                is_cancel_needed,
+            )
             new_moves = batch_moves._reverse_moves(
                 batch_default_values, cancel=is_cancel_needed
             )

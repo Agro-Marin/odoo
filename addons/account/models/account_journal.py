@@ -12,6 +12,7 @@ from odoo.tools import email_normalize, email_normalize_all, groupby, is_encodab
 from odoo.tools.misc import hash_sign
 from odoo.tools.translate import LazyTranslate
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
@@ -584,6 +585,7 @@ class AccountJournal(models.Model):
             ).add(provider.id)
         return providers_per_code
 
+    @dbg.timed
     def _update_company_journals(self, mapping, unique_ids, manage_providers):
         if not unique_ids or not self.company_id:
             return
@@ -624,6 +626,7 @@ class AccountJournal(models.Model):
             journal_ids.append(journal_id)
 
     @api.depends("outbound_payment_channel_ids", "inbound_payment_channel_ids")
+    @dbg.timed
     def _compute_available_payment_method_ids(self):
         info = self._get_journals_payment_method_information()
         pay_methods = info.pay_methods
@@ -695,6 +698,7 @@ class AccountJournal(models.Model):
     def _compute_outbound_payment_channel_ids(self):
         self._compute_payment_channel_ids("outbound")
 
+    @dbg.timed
     def _compute_payment_channel_ids(self, payment_type):
         field_name = f"{payment_type}_payment_channel_ids"
         for journal in self:
@@ -841,6 +845,7 @@ class AccountJournal(models.Model):
         return f"{self._get_type_label(journal_type)} ({suffix})"
 
     @api.constrains("type", "bank_account_id")
+    @dbg.timed
     def _check_bank_account(self):
         for journal in self:
             if journal.type == "bank" and journal.bank_account_id:
@@ -863,6 +868,7 @@ class AccountJournal(models.Model):
                     )
 
     @api.constrains("company_id")
+    @dbg.timed
     def _check_company_consistency(self):
         move_companies_by_journal = defaultdict(set)
         for journal, move_company in self.env["account.move"]._read_group(
@@ -915,6 +921,7 @@ class AccountJournal(models.Model):
         )
 
     @api.constrains("allowed_account_ids")
+    @dbg.timed
     def _check_allowed_accounts_cover_existing_items(self):
         journals = self.filtered("allowed_account_ids")
         if not journals:
@@ -956,6 +963,7 @@ class AccountJournal(models.Model):
             )
 
     @api.constrains("type", "default_account_id")
+    @dbg.timed
     def _check_type_default_account_id_type(self):
         for journal in self:
             if journal.type in (
@@ -972,6 +980,7 @@ class AccountJournal(models.Model):
                 )
 
     @api.constrains("inbound_payment_channel_ids", "outbound_payment_channel_ids")
+    @dbg.timed
     def _check_payment_channel_ids_multiplicity(self):
         info = self._get_journals_payment_method_information()
         pay_methods = info.pay_methods
@@ -1028,6 +1037,7 @@ class AccountJournal(models.Model):
             )
 
     @api.constrains("active")
+    @dbg.timed
     def _check_auto_post_draft_entries(self):
         archived = self.filtered(lambda j: not j.active)
         if archived:
@@ -1070,7 +1080,9 @@ class AccountJournal(models.Model):
         for journal in self:
             journal.available_invoice_template_pdf_report_ids = reports
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         orphaned_bank_accounts = self.bank_account_id
         if orphaned_bank_accounts:
             orphaned_bank_accounts -= (
@@ -1090,7 +1102,9 @@ class AccountJournal(models.Model):
         orphaned_bank_accounts.unlink()
         return ret
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         default = dict(default or {})
         vals_list = super().copy_data(default)
         used_by_company = {}
@@ -1118,7 +1132,9 @@ class AccountJournal(models.Model):
             lambda record, term: record.env._("%s (copy)", term or ""),
         )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         journals_changing_type = (
             self.filtered(lambda journal: journal.type != vals["type"])
             if "type" in vals
@@ -1130,6 +1146,17 @@ class AccountJournal(models.Model):
             or not self.env["mail.alias"]._sanitize_alias_name(vals["alias_name"])
         )
         alias_names = {}
+        if journals_changing_type:
+            dbg.logic.debug(
+                "write: journal type change %s -> %s on %s",
+                dbg.lazy(lambda: set(journals_changing_type.mapped("type"))),
+                vals["type"],
+                dbg.rec(journals_changing_type),
+            )
+        if unusable_alias:
+            dbg.logic.debug(
+                "write: alias_name %r unusable, deriving", vals["alias_name"]
+            )
         if unusable_alias and "type" not in vals:
             taken = {}
             for journal in self:
@@ -1158,6 +1185,7 @@ class AccountJournal(models.Model):
         self._sync_after_write(vals, journals_changing_type)
         return result
 
+    @dbg.timed
     def _check_write_preconditions(self, vals):
         if vals.get("bank_account_id"):
             bank_account = self.env["res.partner.bank"].browse(vals["bank_account_id"])
@@ -1193,6 +1221,7 @@ class AccountJournal(models.Model):
                     )
                 )
 
+    @dbg.timed
     def _sync_bank_account_before_write(self, vals):
         for journal in self:
             if "company_id" in vals and journal.company_id.id != vals["company_id"]:
@@ -1216,6 +1245,7 @@ class AccountJournal(models.Model):
             ):
                 journal.bank_account_id.allow_out_payment = False
 
+    @dbg.timed
     def _sync_after_write(self, vals, journals_changing_type):
         if "type" in vals and not self.env.context.get(
             "account_journal_skip_alias_sync"
@@ -1248,6 +1278,10 @@ class AccountJournal(models.Model):
                 {fname: value for fname, value in defaults.items() if fname not in vals}
             )
             if journal.type in LIQUIDITY_TYPES and not journal.default_account_id:
+                dbg.logic.debug(
+                    "[journal:%s] liquidity type without default account, creating one",
+                    journal.id,
+                )
                 journal.default_account_id = self._find_or_create_default_account(
                     journal.company_id,
                     journal.type,
@@ -1395,6 +1429,7 @@ class AccountJournal(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _prepare_account_vals(self, company, code, vals, account_type):
         return {
             "name": vals.get("name"),
@@ -1405,10 +1440,12 @@ class AccountJournal(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _prepare_liquidity_account_vals(self, company, code, vals):
         return self._prepare_account_vals(company, code, vals, "asset_cash")
 
     @api.model
+    @dbg.timed
     def _prepare_credit_account_vals(self, company, code, vals):
         return self._prepare_account_vals(company, code, vals, "liability_credit_card")
 
@@ -1435,6 +1472,7 @@ class AccountJournal(models.Model):
         return self._create_default_account(company, journal_type, vals)
 
     @api.model
+    @dbg.timed
     def _create_default_account(self, company, journal_type, vals):
         if journal_type not in LIQUIDITY_TYPES:
             raise UserError(
@@ -1512,6 +1550,7 @@ class AccountJournal(models.Model):
         return codes
 
     @api.model
+    @dbg.timed
     def _update_missing_values(self, vals, reservations=None):
         journal_type = vals.get("type")
         is_import = "import_file" in self.env.context
@@ -1569,6 +1608,16 @@ class AccountJournal(models.Model):
             vals["name"] = vals.get("name_placeholder") or self._get_default_name(
                 journal_type, vals.get("code")
             )
+        dbg.logic.debug(
+            "journal defaults type=%s company=%s: code=%s name=%r alias=%s default_account=%s import=%s",
+            journal_type,
+            company.id,
+            vals.get("code"),
+            vals.get("name"),
+            vals.get("alias_name"),
+            vals.get("default_account_id"),
+            is_import,
+        )
 
     @api.model
     def _update_code(self, vals, journal_type, company, reservations):
@@ -1589,10 +1638,21 @@ class AccountJournal(models.Model):
         taken_codes.add(candidate)
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         reservations = self._reserve_batch(vals_list)
         for vals in vals_list:
             self._update_missing_values(vals, reservations=reservations)
+        dbg.logic.debug(
+            "create: codes %s",
+            dbg.lazy(lambda: [(v.get("type"), v.get("code")) for v in vals_list]),
+        )
 
         journals = super(
             AccountJournal, self.with_context(mail_create_nolog=True)
@@ -1637,7 +1697,9 @@ class AccountJournal(models.Model):
                 name = f"{name} ({journal.currency_id.name})"
             journal.display_name = name
 
+    @dbg.timed
     def action_configure_bank_journal(self):
+        dbg.lifecycle.debug("action_configure_bank_journal on %s", dbg.rec(self))
         return (
             self.env["res.company"]
             .with_context(default_linked_journal_id=self.id)
@@ -1645,6 +1707,7 @@ class AccountJournal(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _prepare_no_journal_error_msg(self, company_name, journal_types):
         return _(
             "No journal could be found in company %(company_name)s for any of those types: %(journal_types)s",
@@ -1652,6 +1715,7 @@ class AccountJournal(models.Model):
             journal_types=", ".join(journal_types),
         )
 
+    @dbg.timed
     def _create_document_from_attachment(self, attachment_ids):
         if not self:
             self = self.env["account.journal"].browse(
@@ -1692,6 +1756,12 @@ class AccountJournal(models.Model):
                 )
             )
 
+        dbg.pipeline.debug(
+            "[journal:%s] _create_document_from_attachment: %d attachment(s) move_type=%s",
+            self.id,
+            len(attachments),
+            move_type,
+        )
         invoices = (
             self.env["account.move"]
             .with_context(
@@ -1699,6 +1769,9 @@ class AccountJournal(models.Model):
                 skip_is_manually_modified=True,
             )
             ._create_records_from_attachments(attachments)
+        )
+        dbg.pipeline.debug(
+            "[journal:%s] documents created %s", self.id, dbg.rec(invoices)
         )
 
         for invoice in invoices:
@@ -1785,6 +1858,7 @@ class AccountJournal(models.Model):
         )
         return self.filtered_domain(method_domain)
 
+    @dbg.timed
     def _process_reference_for_sale_order(self, order_reference):
         self.check_singleton()
         return order_reference
@@ -1809,6 +1883,7 @@ class AccountJournal(models.Model):
         for move in moves:
             self._notify_invoice_subscribers(move)
 
+    @dbg.timed
     def _notify_invoice_subscribers(self, invoice, mail_params=None):
         self.check_singleton()
         invoice.check_singleton()

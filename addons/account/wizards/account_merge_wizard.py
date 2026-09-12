@@ -4,6 +4,8 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountMergeWizard(models.TransientModel):
     _name = "account.merge.wizard"
@@ -25,7 +27,9 @@ class AccountMergeWizard(models.TransientModel):
     disable_merge_button = fields.Boolean(compute="_compute_disable_merge_button")
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         res = super().default_get(fields_list)
         if not set(fields_list) & {"account_ids", "wizard_line_ids"} or set(
             res.keys()
@@ -57,6 +61,7 @@ class AccountMergeWizard(models.TransientModel):
         return tuple(account[field] for field in grouping_fields)
 
     @api.depends("is_group_by_name", "account_ids")
+    @dbg.timed
     def _compute_wizard_line_ids(self):
         for wizard in self:
             accounts = wizard.account_ids._origin.filtered(
@@ -118,7 +123,9 @@ class AccountMergeWizard(models.TransientModel):
             "view_mode": "form",
         }
 
+    @dbg.timed
     def action_merge(self):
+        dbg.lifecycle.debug("action_merge on %s", dbg.rec(self))
         for wizard in self:
             wizard_lines_selected = wizard.wizard_line_ids.filtered(
                 lambda l: l.display_type == "account" and l.is_selected and not l.info
@@ -145,6 +152,7 @@ class AccountMergeWizard(models.TransientModel):
         }
 
     @api.model
+    @dbg.timed
     def _check_access_rights(self, accounts):
         accounts.check_access("write")
         if forbidden_companies := (
@@ -203,7 +211,9 @@ class AccountMergeWizard(models.TransientModel):
         self.env.registry.clear_cache()
 
     @api.model
+    @dbg.timed
     def _action_merge(self, accounts):
+        dbg.lifecycle.debug("_action_merge on %s", dbg.rec(self))
         company_ids_to_write = accounts.sudo().company_ids
         code_by_company = self.env.execute_query(
             SQL(
@@ -219,6 +229,12 @@ class AccountMergeWizard(models.TransientModel):
 
         account_to_merge_into = accounts[0]
         accounts_to_remove = accounts[1:]
+        dbg.pipeline.debug(
+            "[merge] accounts %s into %s, codes=%s",
+            dbg.ids(accounts_to_remove),
+            account_to_merge_into.id,
+            code_by_company,
+        )
 
         self._check_access_rights(accounts)
 
@@ -296,6 +312,7 @@ class AccountMergeWizardLine(models.TransientModel):
     )
 
     @api.depends("account_id")
+    @dbg.timed
     def _compute_account_has_hashed_entries(self):
         query = self.env["account.move.line"]._search(
             [
@@ -327,6 +344,7 @@ class AccountMergeWizardLine(models.TransientModel):
             wizard_line_group._update_info_company_conflict()
             wizard_line_group._update_info_hashed_moves_conflict()
 
+    @dbg.timed
     def _get_group_name(self):
         self.check_singleton()
 

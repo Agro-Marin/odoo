@@ -1,11 +1,14 @@
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class AccountChangeLockDate(models.TransientModel):
     """Lock date wizard, extended to seed the default report external values."""
 
     _inherit = "account.change.lock.date"
 
+    @dbg.timed
     def _create_default_report_external_values(self, lock_date_field):
         """Create the default report external values of the period being locked.
 

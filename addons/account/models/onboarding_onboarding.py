@@ -1,13 +1,18 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class OnboardingOnboarding(models.Model):
     _inherit = "onboarding.onboarding"
 
     @api.model
+    @dbg.timed
     def action_close_panel_account_invoice(self):
+        dbg.lifecycle.debug("action_close_panel_account_invoice on %s", dbg.rec(self))
         self.action_close_panel("account.onboarding_onboarding_account_invoice")
 
+    @dbg.timed
     def _prepare_rendering_values(self):
         self.check_singleton()
         if self == self.env.ref(
@@ -29,5 +34,7 @@ class OnboardingOnboarding(models.Model):
         return super()._prepare_rendering_values()
 
     @api.model
+    @dbg.timed
     def action_close_panel_account_dashboard(self):
+        dbg.lifecycle.debug("action_close_panel_account_dashboard on %s", dbg.rec(self))
         self.action_close_panel("account.onboarding_onboarding_account_dashboard")

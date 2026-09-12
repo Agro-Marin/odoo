@@ -5,6 +5,8 @@ from odoo import _, api, fields, models, modules, tools
 from odoo.exceptions import UserError
 from odoo.fields import Command
 
+from ..tools import debug_log as dbg
+
 
 class AccountJournal(models.Model):
     _inherit = "account.journal"
@@ -13,7 +15,9 @@ class AccountJournal(models.Model):
     def is_sample_action_available(self):
         return bool(self.env.ref("base.res_partner_2", raise_if_not_found=False))
 
+    @dbg.timed
     def action_create_vendor_bill(self):
+        dbg.lifecycle.debug("action_create_vendor_bill on %s", dbg.rec(self))
         context = dict(self.env.context)
         purchase_journal = self.browse(context.get("default_journal_id")).filtered(
             lambda journal: journal.type == "purchase"
@@ -85,6 +89,7 @@ class AccountJournal(models.Model):
             "context": context,
         }
 
+    @dbg.timed
     def _render_sample_bill_attachment(self, company, ref, invoice_date):
         if tools.config["test_enable"] or modules.module.current_test:
             return self.env["ir.attachment"]

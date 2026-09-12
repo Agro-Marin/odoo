@@ -5,6 +5,8 @@ from odoo import Command, _, models
 from odoo.exceptions import RedirectWarning, UserError
 from odoo.tools import SQL, Query
 
+from ..tools import debug_log as dbg
+
 
 class MixinCompanySplit(models.AbstractModel):
     _name = "mixin.company.split"
@@ -22,7 +24,9 @@ class MixinCompanySplit(models.AbstractModel):
     def _unmerge_split_sidecars(self, new_record_by_company):
         return
 
+    @dbg.timed
     def action_unmerge(self):
+        dbg.lifecycle.debug("action_unmerge on %s", dbg.rec(self))
         self._check_action_unmerge_possible()
         self._action_unmerge_get_user_confirmation()
 
@@ -37,6 +41,7 @@ class MixinCompanySplit(models.AbstractModel):
 
         return {"type": "ir.actions.client", "tag": "soft_reload"}
 
+    @dbg.timed
     def _check_action_unmerge_possible(self):
         self.check_access("write")
 
@@ -59,7 +64,12 @@ class MixinCompanySplit(models.AbstractModel):
                     )
                 )
 
+    @dbg.timed
     def _action_unmerge_get_user_confirmation(self):
+        dbg.lifecycle.debug(
+            "_action_unmerge_get_user_confirmation on %s",
+            dbg.rec(self),
+        )
         if self.env.context.get("account_unmerge_confirm"):
             return
 
@@ -87,7 +97,9 @@ class MixinCompanySplit(models.AbstractModel):
             },
         )
 
+    @dbg.timed
     def _action_unmerge(self):
+        dbg.lifecycle.debug("_action_unmerge on %s", dbg.rec(self))
         self.check_singleton()
 
         self._check_action_unmerge_possible()
@@ -100,6 +112,12 @@ class MixinCompanySplit(models.AbstractModel):
         new_record_by_company = self._unmerge_create_records(base_company)
         new_records = self.browse().union(
             *new_record_by_company.values(),
+        )
+        dbg.pipeline.debug(
+            "[unmerge] %s base company %s -> %s",
+            dbg.rec(self),
+            base_company.id,
+            dbg.lazy(lambda: {c.id: r.id for c, r in new_record_by_company.items()}),
         )
 
         self.env.invalidate_all()
@@ -185,6 +203,7 @@ class MixinCompanySplit(models.AbstractModel):
             new_by_company[company] = new
         return new_by_company
 
+    @dbg.timed
     def _unmerge_remap_many2x_fields(self, new_id_by_company_id):
         new_id_by_company_id_json = json.dumps(new_id_by_company_id)
         many2x_fields = self.env["ir.model.fields"].search(
@@ -261,6 +280,7 @@ class MixinCompanySplit(models.AbstractModel):
                 )
             )
 
+    @dbg.timed
     def _unmerge_remap_reference_fields(self, new_id_by_company_id):
         new_id_by_company_id_json = json.dumps(new_id_by_company_id)
         reference_fields = self.env["ir.model.fields"].search(
@@ -300,6 +320,7 @@ class MixinCompanySplit(models.AbstractModel):
                 )
             )
 
+    @dbg.timed
     def _unmerge_remap_many2one_reference_fields(self, new_id_by_company_id):
         new_id_by_company_id_json = json.dumps(new_id_by_company_id)
         many2one_reference_fields = self.env["ir.model.fields"].search(
@@ -347,6 +368,7 @@ class MixinCompanySplit(models.AbstractModel):
                 )
             )
 
+    @dbg.timed
     def _unmerge_migrate_company_dependent_fields(
         self, new_records, new_id_by_company_id
     ):

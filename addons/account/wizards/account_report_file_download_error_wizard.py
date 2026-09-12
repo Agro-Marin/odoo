@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountReportFileDownloadErrorWizard(models.TransientModel):
     _name = "account.report.file.download.error.wizard"
@@ -9,7 +11,9 @@ class AccountReportFileDownloadErrorWizard(models.TransientModel):
     file_name = fields.Char()
     file_content = fields.Binary()
 
+    @dbg.timed
     def button_download(self):
+        dbg.lifecycle.debug("button_download on %s", dbg.rec(self))
         self.check_singleton()
         if self.file_name:
             return {

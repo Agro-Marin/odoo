@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountJournal(models.Model):
     _inherit = "account.journal"
@@ -33,10 +35,12 @@ class AccountJournal(models.Model):
                     or not journal.company_id.account_opening_date
                 )
 
+    @dbg.timed
     def action_view_bank_balance_in_gl(self):
         """Show the bank balance inside the General Ledger report.
         :return: An action opening the General Ledger.
         """
+        dbg.lifecycle.debug("action_view_bank_balance_in_gl on %s", dbg.rec(self))
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_account_report_general_ledger"

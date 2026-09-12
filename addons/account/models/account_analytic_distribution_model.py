@@ -2,6 +2,8 @@ import re
 
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticDistributionModel(models.Model):
     _inherit = "account.analytic.distribution.model"
@@ -48,12 +50,14 @@ class AccountAnalyticDistributionModel(models.Model):
             )
         )
 
+    @dbg.timed
     def _create_domain(self, fname, value):
         if fname == "account_prefix":
             return []
         return super()._create_domain(fname, value)
 
     @api.depends("analytic_precision")
+    @dbg.timed
     def _compute_prefix_placeholder(self):
         expense_account = self.env["account.account"].search(
             [

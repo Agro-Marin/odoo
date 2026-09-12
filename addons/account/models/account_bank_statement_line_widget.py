@@ -1,6 +1,8 @@
 from odoo import Command, _, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
@@ -27,6 +29,7 @@ class AccountBankStatementLine(models.Model):
             ),
         }
 
+    @dbg.timed
     def _set_move_line_to_statement_line_move(self, lines_to_set, lines_to_add):
         self.check_singleton()
 
@@ -36,6 +39,13 @@ class AccountBankStatementLine(models.Model):
         ]
 
         open_balance = sum(lines_to_set.mapped("balance")) + lines_to_add_balance
+        dbg.pipeline.debug(
+            "[stline:%s] set lines: keep %s, add %d, open balance %s",
+            self.id,
+            dbg.rec(lines_to_set),
+            len(lines_to_add),
+            open_balance,
+        )
         if not self.company_currency_id.is_zero(open_balance):
             if not self.foreign_currency_id:
                 lines_to_add_amount_currency = sum(
@@ -71,7 +81,8 @@ class AccountBankStatementLine(models.Model):
                 )
             )
         move = self.move_id.with_context(force_delete=True, skip_readonly_check=True)
-        move.line_ids = lines_commands
+        with dbg.timer(self.env, "[stline:%s] rewrite move lines", self.id):
+            move.line_ids = lines_commands
 
         if self.env.context.get("recompute_partner"):
             partner_id = self._get_partner_id(
@@ -102,6 +113,7 @@ class AccountBankStatementLine(models.Model):
             liquidity_lines + other_lines, lines_to_add
         )
 
+    @dbg.timed
     def set_account_bank_statement_line(self, aml_id, account_id):
         account = self.env["account.account"].browse(account_id)
         statement_lines = self
@@ -150,6 +162,7 @@ class AccountBankStatementLine(models.Model):
             )
         return statement_lines
 
+    @dbg.timed
     def set_line_bank_statement_line(self, move_lines_ids):
         self.check_singleton()
         move_lines = self.env["account.move.line"].search(
@@ -260,6 +273,7 @@ class AccountBankStatementLine(models.Model):
             recompute_partner=True,
         )._add_move_line_to_statement_line_move(new_lines)
 
+    @dbg.timed
     def remove_reconciled_line(self, move_line_ids):
         self.check_singleton()
         if (
@@ -299,6 +313,7 @@ class AccountBankStatementLine(models.Model):
                 original_base_lines, original_tax_lines, move_lines_to_remove
             )
 
+    @dbg.timed
     def edit_reconcile_line(self, move_line_id, record_data):
         self.check_singleton()
         if (

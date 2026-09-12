@@ -10,6 +10,8 @@ from odoo.exceptions import ValidationError
 from odoo.tools import SQL, date_utils, frozendict
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -43,7 +45,9 @@ class MixinSequence(models.AbstractModel):
     sequence_prefix = fields.Char(compute="_compute_split_sequence", store=True)
     sequence_number = fields.Integer(compute="_compute_split_sequence", store=True)
 
+    @dbg.timed
     def init(self):
+        dbg.lifecycle.debug("init on %s", dbg.rec(self))
         if not self._abstract and self._sequence_index:
             index_name = self._table + "_sequence_index"
             self.env.cr.execute(
@@ -87,7 +91,9 @@ class MixinSequence(models.AbstractModel):
     def _get_sequence_cache(self):
         return self.env.cr.cache.setdefault("mixin.sequence", {})
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if self._sequence_field in vals and self.env.context.get(
             "clear_sequence_mixin_cache", True
         ):
@@ -201,6 +207,7 @@ class MixinSequence(models.AbstractModel):
             record.sequence_number = int(matching.group("seq") or 0)
 
     @api.model
+    @dbg.timed
     def _deduce_sequence_number_reset(self, name):
         for regex, ret_val, requirements in [
             (
@@ -241,6 +248,7 @@ class MixinSequence(models.AbstractModel):
             )
         )
 
+    @dbg.timed
     def _prepare_regex_non_capturing(self, regex):
         return re.sub(r"\?P<\w+>", "?:", regex)
 
@@ -282,6 +290,7 @@ class MixinSequence(models.AbstractModel):
         self.env.cr.execute(query, param)
         return (self.env.cr.fetchone() or [None])[0]
 
+    @dbg.timed
     def _get_sequence_format_param(self, previous):
         sequence_number_reset = self._deduce_sequence_number_reset(previous)
         regex = self._sequence_fixed_regex
@@ -327,6 +336,7 @@ class MixinSequence(models.AbstractModel):
         )
         return format, format_values
 
+    @dbg.timed
     def _locked_increment(self, format_string, format_values):
         cache = self._get_sequence_cache()
         seq = format_values["seq"]
@@ -337,6 +347,13 @@ class MixinSequence(models.AbstractModel):
         )
         if cache_key in cache:
             cache[cache_key] += 1
+            dbg.logic.debug(
+                "[seq:%s:%s] cache hit %s -> %d",
+                self._name,
+                self.id,
+                cache_key[0],
+                cache[cache_key],
+            )
             return format_string.format(**format_values, seq=cache[cache_key])
 
         self.flush_recordset()
@@ -356,8 +373,14 @@ class MixinSequence(models.AbstractModel):
                         log_exceptions=False,
                     )
                     cache[cache_key] = seq
+                    dbg.lifecycle.debug(
+                        "[seq:%s:%s] assigned %s", self._name, self.id, sequence
+                    )
                     return sequence
                 except pgerrors.ExclusionViolation, pgerrors.UniqueViolation:
+                    dbg.logic.debug(
+                        "[seq:%s:%s] %s taken, retrying", self._name, self.id, sequence
+                    )
                     sp.rollback()
 
     def _set_next_sequence(self):
@@ -373,6 +396,7 @@ class MixinSequence(models.AbstractModel):
 
         self._update_split_sequence()
 
+    @dbg.timed
     def _get_next_sequence_format(self):
         last_sequence = self._get_last_sequence()
         new = not last_sequence
@@ -382,6 +406,14 @@ class MixinSequence(models.AbstractModel):
             )
 
         format_string, format_values = self._get_sequence_format_param(last_sequence)
+        dbg.logic.debug(
+            "[seq:%s:%s] new_chain=%s last=%s format=%s",
+            self._name,
+            self.id,
+            new,
+            last_sequence,
+            format_string,
+        )
         if new:
             if not self[self._sequence_date_field]:
                 raise ValidationError(

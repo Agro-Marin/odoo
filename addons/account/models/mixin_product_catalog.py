@@ -1,9 +1,12 @@
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class MixinProductCatalog(models.AbstractModel):
     _inherit = "mixin.product.catalog"
 
+    @dbg.timed
     def _create_section(self, child_field, name, position, **kwargs):
         parent_field = self._get_parent_field_on_child_model()
 
@@ -101,6 +104,7 @@ class MixinProductCatalog(models.AbstractModel):
             and line.product_uom_qty > 0
         )
 
+    @dbg.timed
     def _resequence_sections(self, sections, child_field, **kwargs):
         lines = self[child_field].sorted("sequence")
         move_section, target_section = sections

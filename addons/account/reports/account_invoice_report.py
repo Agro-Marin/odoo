@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.tools import SQL
 from odoo.tools.query import Query
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.account_move import PAYMENT_STATE_SELECTION
 
 
@@ -109,6 +110,7 @@ class AccountInvoiceReport(models.Model):
         return SQL("%s %s %s", self._select(), self._from(), self._where())
 
     @api.model
+    @dbg.timed
     def _select(self) -> SQL:
         return SQL(
             """
@@ -191,6 +193,7 @@ class AccountInvoiceReport(models.Model):
             """,
         )
 
+    @dbg.timed
     def _read_group_select(self, aggregate_spec: str, query: Query) -> SQL:
         if aggregate_spec != "price_average:avg":
             return super()._read_group_select(aggregate_spec, query)
@@ -206,6 +209,7 @@ class ReportAccountReport_Invoice(models.AbstractModel):
     _description = "Account report without payment lines"
 
     @api.model
+    @dbg.timed
     def _get_report_values(self, docids, data=None):
         docs = self.env["account.move"].browse(docids)
 
@@ -232,6 +236,7 @@ class ReportAccountReport_Invoice_With_Payments(models.AbstractModel):
     _inherit = ["report.account.report_invoice"]
 
     @api.model
+    @dbg.timed
     def _get_report_values(self, docids, data=None):
         rslt = super()._get_report_values(docids, data)
         rslt["report_type"] = data.get("report_type") if data else ""

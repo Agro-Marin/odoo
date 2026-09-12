@@ -5,6 +5,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import date_utils
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.res_company import (
     LOCK_DATE_FIELDS,
     SOFT_LOCK_DATE_FIELDS,
@@ -183,6 +184,7 @@ class AccountChangeLockDate(models.TransientModel):
 
     @api.depends("company_id")
     @api.depends_context("uid", "company")
+    @dbg.timed
     def _compute_lock_date_exceptions(self):
         for wizard in self:
             exceptions = self.env["account.lock_exception"].search(
@@ -309,6 +311,7 @@ class AccountChangeLockDate(models.TransientModel):
             changes_needing_exception = wizard._get_changes_needing_exception()
             wizard.exception_needed_fields = ",".join(changes_needing_exception)
 
+    @dbg.timed
     def _prepare_lock_date_values(self, exception_vals_list=None):
         self.check_singleton()
         if self.company_id.hard_lock_date and (
@@ -337,6 +340,7 @@ class AccountChangeLockDate(models.TransientModel):
 
         return lock_date_values
 
+    @dbg.timed
     def _prepare_exception_values(self):
         self.check_singleton()
         changes_needing_exception = self._get_changes_needing_exception()
@@ -432,6 +436,12 @@ class AccountChangeLockDate(models.TransientModel):
             if fiscal_lock_date != company_fiscal_lock_date:
                 self._create_default_report_external_values(field)
 
+        dbg.pipeline.debug(
+            "[lockdate:%s] company %s -> %s",
+            self.id,
+            self.company_id.id,
+            lock_date_values,
+        )
         self.company_id.sudo().write(lock_date_values)
 
     def change_lock_date(self):
@@ -443,6 +453,11 @@ class AccountChangeLockDate(models.TransientModel):
             )
 
             if exception_vals_list:
+                dbg.logic.debug(
+                    "[lockdate:%s] creating %d lock exception(s)",
+                    self.id,
+                    len(exception_vals_list),
+                )
                 self.env["account.lock_exception"].create(exception_vals_list)
 
             self._change_lock_date(changed_lock_date_values)
@@ -452,7 +467,12 @@ class AccountChangeLockDate(models.TransientModel):
             )
         return {"type": "ir.actions.act_window_close"}
 
+    @dbg.timed
     def action_show_draft_moves_in_locked_period(self):
+        dbg.lifecycle.debug(
+            "action_show_draft_moves_in_locked_period on %s",
+            dbg.rec(self),
+        )
         self.check_singleton()
         return {
             "view_mode": "list",
@@ -470,7 +490,12 @@ class AccountChangeLockDate(models.TransientModel):
             ],
         }
 
+    @dbg.timed
     def action_show_posted_tax_closing_in_locked_period(self):
+        dbg.lifecycle.debug(
+            "action_show_posted_tax_closing_in_locked_period on %s",
+            dbg.rec(self),
+        )
         self.check_singleton()
         posted_closings = self.env["account.move"].search(
             self._get_domain_posted_tax_closings_in_locked_period()
@@ -481,7 +506,9 @@ class AccountChangeLockDate(models.TransientModel):
             ]
         )
 
+    @dbg.timed
     def action_reopen_wizard(self):
+        dbg.lifecycle.debug("action_reopen_wizard on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_window",
             "res_model": self._name,
@@ -490,7 +517,9 @@ class AccountChangeLockDate(models.TransientModel):
             "target": "new",
         }
 
+    @dbg.timed
     def action_revoke_min_exception(self):
+        dbg.lifecycle.debug("action_revoke_min_exception on %s", dbg.rec(self))
         self.check_singleton()
         lock_date_field = self.env.context.get("lock_date_field")
         scope = self.env.context.get("exception_scope")

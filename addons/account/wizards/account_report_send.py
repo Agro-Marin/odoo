@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 from odoo.libs.documents import mimetype_for
 from odoo.tools.misc import get_lang
 
+from ..tools import debug_log as dbg
+
 
 class AccountReportSend(models.TransientModel):
     _name = "account.report.send"
@@ -76,8 +78,10 @@ class AccountReportSend(models.TransientModel):
     )
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
         # EXTENDS 'base'
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         results = super().default_get(fields)
 
         context_options = self.env.context.get("default_report_options", {})
@@ -175,6 +179,7 @@ class AccountReportSend(models.TransientModel):
             )
 
     @api.depends("mail_partner_ids", "checkbox_send_mail", "send_mail_readonly")
+    @dbg.timed
     def _compute_warnings(self):
         for wizard in self:
             warnings = {}
@@ -217,6 +222,7 @@ class AccountReportSend(models.TransientModel):
             wizard.mail_partner_ids = wizard.partner_ids
 
     @api.depends("mail_template_id", "mail_lang", "mode")
+    @dbg.timed
     def _compute_mail_subject_body(self):
         for wizard in self:
             if wizard.mode == "single" and wizard.mail_template_id:
@@ -249,14 +255,17 @@ class AccountReportSend(models.TransientModel):
                 wizard.mail_attachments_widget = []
 
     @api.model
+    @dbg.timed
     def _action_download(self, attachments):
         """Return the action downloading the attachment, or a zip of them if there is more than one."""
+        dbg.lifecycle.debug("_action_download on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_url",
             "url": f"/account/download_attachments/{','.join(map(str, attachments.ids))}",
             "close": True,
         }
 
+    @dbg.timed
     def _process_send_and_print(
         self, report, options, recipient_partner_ids=None, wizard=None
     ):
@@ -339,6 +348,7 @@ class AccountReportSend(models.TransientModel):
             return self._action_download(downloadable_attachments)
         return None
 
+    @dbg.timed
     def action_send_and_print(self, force_synchronous=False):
         """Create the documents and send them to the end customers.
 
@@ -346,6 +356,7 @@ class AccountReportSend(models.TransientModel):
 
         :param force_synchronous: process synchronously even in multi mode
         """
+        dbg.lifecycle.debug("action_send_and_print on %s", dbg.rec(self))
         self.check_singleton()
 
         if (
@@ -359,6 +370,15 @@ class AccountReportSend(models.TransientModel):
 
         force_synchronous = force_synchronous or self.checkbox_download
         process_later = self.mode == "multi" and not force_synchronous
+        dbg.logic.debug(
+            "[reportsend:%s] mode=%s later=%s mail=%s download=%s partners=%d",
+            self.id,
+            self.mode,
+            process_later,
+            self.checkbox_send_mail,
+            self.checkbox_download,
+            len(self.partner_ids),
+        )
         if process_later:
             # Set sending information on report
             if self.account_report_id.send_and_print_values:

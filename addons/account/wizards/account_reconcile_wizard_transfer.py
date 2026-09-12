@@ -4,10 +4,13 @@ from odoo import Command, _, models
 from odoo.tools import groupby
 from odoo.tools.misc import formatLang
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileWizard(models.TransientModel):
     _inherit = "account.reconcile.wizard"
 
+    @dbg.timed
     def _get_transfer_data(self, amls):
         self.check_singleton()
         accounts = amls.account_id
@@ -91,6 +94,7 @@ class AccountReconcileWizard(models.TransientModel):
             }
         return source_commands, to_absorb
 
+    @dbg.timed
     def _match_transfer_partners(self, to_absorb):
         self.check_singleton()
         other_lines = self.move_line_ids.filtered(
@@ -136,6 +140,7 @@ class AccountReconcileWizard(models.TransientModel):
                 }
         return destination_data, room_per_partner
 
+    @dbg.timed
     def _place_transfer_remainders(self, to_absorb, room_per_partner, destination_data):
         self.check_singleton()
         for partner, currency, sign in to_absorb:
@@ -171,6 +176,7 @@ class AccountReconcileWizard(models.TransientModel):
                     amount_currency
                 )
 
+    @dbg.timed
     def create_transfer(self):
         self.check_singleton()
         source_commands, to_absorb = self._get_transfer_source_lines()

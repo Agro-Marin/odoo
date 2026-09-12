@@ -3,6 +3,8 @@ from datetime import date, timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class AccountFinancialYearOp(models.TransientModel):
     _name = "account.financial.year.op"
@@ -38,6 +40,7 @@ class AccountFinancialYearOp(models.TransientModel):
             record.opening_move_posted = record.company_id.opening_move_posted()
 
     @api.constrains("fiscalyear_last_day", "fiscalyear_last_month")
+    @dbg.timed
     def _check_fiscalyear(self):
         for wiz in self:
             try:
@@ -76,7 +79,14 @@ class AccountFinancialYearOp(models.TransientModel):
             )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if "company_id" in vals:
                 company = self.env["res.company"].browse(vals["company_id"])
@@ -87,7 +97,9 @@ class AccountFinancialYearOp(models.TransientModel):
 
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         for wiz in self:
             wiz._update_company(wiz.company_id, vals)
 
@@ -96,7 +108,9 @@ class AccountFinancialYearOp(models.TransientModel):
 
         return super().write(vals)
 
+    @dbg.timed
     def action_save_onboarding_fiscal_year(self):
+        dbg.lifecycle.debug("action_save_onboarding_fiscal_year on %s", dbg.rec(self))
         step_state = (
             self.env["onboarding.onboarding.step"]
             .with_company(self.company_id)
@@ -163,7 +177,14 @@ class AccountSetupBankManualConfig(models.TransientModel):
             record.new_journal_name = record.acc_number
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         wanted_bics = {
             vals["bank_bic"]
             for vals in vals_list
@@ -215,6 +236,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
             (j.id for j in candidates if j.id not in journals_with_moves), False
         )
 
+    @dbg.timed
     def _inverse_linked_journal(self):
         journal_type = self.env.context.get("journal_type", "bank")
         for record in self:

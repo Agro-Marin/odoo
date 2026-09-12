@@ -14,6 +14,7 @@ from odoo.tools import float_repr, get_lang, html2plaintext
 from odoo.tools.formatting import ROUNDING_UNIT_MAPPING
 from odoo.tools.misc import format_date, formatLang
 
+from ..tools import debug_log as dbg
 from .account_report_engine import (
     LINE_ID_HIERARCHY_DELIMITER,
     NUMBER_FIGURE_TYPES,
@@ -23,6 +24,7 @@ from .account_report_engine import (
 class AccountReportLines(models.Model):
     _inherit = "account.report"
 
+    @dbg.timed
     def _prepare_columns_from_column_group_vals(
         self, options, all_column_group_vals_in_order
     ):
@@ -98,6 +100,7 @@ class AccountReportLines(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _prepare_line_id(self, current):
         """Build a generic line id string from its list representation, converting
         the None values for model and value to empty strings.
@@ -134,6 +137,7 @@ class AccountReportLines(models.Model):
             for markup, model, value in current
         )
 
+    @dbg.timed
     def _get_lines(
         self, options, all_column_groups_expression_totals=None, warnings=None
     ):
@@ -166,8 +170,15 @@ class AccountReportLines(models.Model):
                 )
             )
 
-        dynamic_lines = self._get_dynamic_lines(
-            options, all_column_groups_expression_totals, warnings=warnings
+        with dbg.timer(self.env, "[report:%s] dynamic lines", self.id):
+            dynamic_lines = self._get_dynamic_lines(
+                options, all_column_groups_expression_totals, warnings=warnings
+            )
+        dbg.pipeline.debug(
+            "[report:%s] _get_lines: %d static, %d dynamic",
+            self.id,
+            len(self.line_ids),
+            len(dynamic_lines),
         )
 
         lines = []
@@ -324,9 +335,16 @@ class AccountReportLines(models.Model):
         self._update_line_names_for_consolidation(lines)
 
         if self.custom_handler_model_id:
-            lines = self.env[self.custom_handler_model_name]._custom_line_postprocessor(
-                self, options, lines
-            )
+            with dbg.timer(
+                self.env,
+                "[report:%s] %s._custom_line_postprocessor x%d",
+                self.id,
+                self.custom_handler_model_name,
+                len(lines),
+            ):
+                lines = self.env[
+                    self.custom_handler_model_name
+                ]._custom_line_postprocessor(self, options, lines)
 
         if warnings is not None:
             custom_handler_name = (
@@ -363,6 +381,7 @@ class AccountReportLines(models.Model):
 
         return lines
 
+    @dbg.timed
     def _format_column_values(self, options, line_dict_list, force_format=False):
         for line_dict in line_dict_list:
             for column_dict in line_dict["columns"]:
@@ -420,6 +439,7 @@ class AccountReportLines(models.Model):
                 }
 
     @api.model
+    @dbg.timed
     def _prepare_static_line_columns(
         self, line, options, all_column_groups_expression_totals, groupby_model=None
     ):
@@ -571,6 +591,7 @@ class AccountReportLines(models.Model):
 
         return columns
 
+    @dbg.timed
     def _prepare_column_dict(
         self,
         col_value,
@@ -650,6 +671,7 @@ class AccountReportLines(models.Model):
 
     @api.model
     @api.readonly
+    @dbg.timed
     def sort_lines(self, lines, options, result_as_index=False):
         """Sort report lines based on the 'order_column' key inside the options.
         The value of options['order_column'] is a dict with keys 'expression_label' (the column to sort on)
@@ -796,6 +818,7 @@ class AccountReportLines(models.Model):
 
         return sorted_list
 
+    @dbg.timed
     def _get_column_headers_render_data(self, options):
         column_headers_render_data = {}
 
@@ -863,6 +886,7 @@ class AccountReportLines(models.Model):
 
         return column_headers_render_data
 
+    @dbg.timed
     def _expand_unfoldable_line(
         self,
         expand_function_name,
@@ -883,16 +907,32 @@ class AccountReportLines(models.Model):
         expand_function = self._get_custom_report_function(
             expand_function_name, "expand_unfoldable_line"
         )
-        expansion_result = expand_function(
+        with dbg.timer(
+            self.env,
+            "[report:%s] expand %s line=%s groupby=%s offset=%s",
+            self.id,
+            expand_function_name,
             line_dict_id,
             groupby,
-            options,
-            progress,
             offset,
-            unfold_all_batch_data=unfold_all_batch_data,
-        )
+        ):
+            expansion_result = expand_function(
+                line_dict_id,
+                groupby,
+                options,
+                progress,
+                offset,
+                unfold_all_batch_data=unfold_all_batch_data,
+            )
 
         rslt = expansion_result["lines"]
+        dbg.logic.debug(
+            "[report:%s] expanded %s -> %d line(s) has_more=%s",
+            self.id,
+            line_dict_id,
+            len(rslt),
+            bool(expansion_result.get("has_more")),
+        )
 
         if horizontal_split_side:
             for line in rslt:
@@ -924,6 +964,7 @@ class AccountReportLines(models.Model):
 
         return self._add_totals_below_sections(rslt, options)
 
+    @dbg.timed
     def _report_expand_unfoldable_line_with_groupby(
         self,
         line_dict_id,
@@ -990,6 +1031,7 @@ class AccountReportLines(models.Model):
             else False,
         }
 
+    @dbg.timed
     def _regroup_lines_by_name_prefix(
         self,
         options,
@@ -1115,6 +1157,7 @@ class AccountReportLines(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _report_expand_unfoldable_line_groupby_prefix_group(
         self,
         line_dict_id,
@@ -1250,6 +1293,7 @@ class AccountReportLines(models.Model):
         # function_name was already validated to start with the private prefix above.
         return getattr(self, function_name)
 
+    @dbg.timed
     def _fully_unfold_lines_if_needed(self, lines, options):
         def line_need_expansion(line_dict):
             return line_dict.get("unfolded") and line_dict.get("expand_function")
@@ -1265,11 +1309,20 @@ class AccountReportLines(models.Model):
                         line_dict["expand_function"], []
                     ).append(line_dict)
 
-            custom_unfold_all_batch_data = self.env[
-                self.custom_handler_model_name
-            ]._custom_unfold_all_batch_data_generator(
-                self, options, lines_to_expand_by_function
-            )
+            with dbg.timer(
+                self.env,
+                "[report:%s] %s._custom_unfold_all_batch_data_generator (%s)",
+                self.id,
+                self.custom_handler_model_name,
+                dbg.lazy(
+                    lambda: {k: len(v) for k, v in lines_to_expand_by_function.items()}
+                ),
+            ):
+                custom_unfold_all_batch_data = self.env[
+                    self.custom_handler_model_name
+                ]._custom_unfold_all_batch_data_generator(
+                    self, options, lines_to_expand_by_function
+                )
 
         i = 0
         while i < len(lines):
@@ -1293,6 +1346,7 @@ class AccountReportLines(models.Model):
 
         return lines
 
+    @dbg.timed
     def _get_static_line_dict(
         self, options, line, all_column_groups_expression_totals, parent_id=None
     ):
@@ -1391,19 +1445,32 @@ class AccountReportLines(models.Model):
                 )
         return rslt
 
+    @dbg.timed
     def _get_dynamic_lines(
         self, options, all_column_groups_expression_totals, warnings=None
     ):
         if self.custom_handler_model_id:
-            rslt = self.env[self.custom_handler_model_name]._dynamic_lines_generator(
-                self, options, all_column_groups_expression_totals, warnings=warnings
-            )
+            with dbg.timer(
+                self.env,
+                "[report:%s] %s._dynamic_lines_generator",
+                self.id,
+                self.custom_handler_model_name,
+            ):
+                rslt = self.env[
+                    self.custom_handler_model_name
+                ]._dynamic_lines_generator(
+                    self,
+                    options,
+                    all_column_groups_expression_totals,
+                    warnings=warnings,
+                )
             self._apply_integer_rounding_to_dynamic_lines(
                 options, (line for _sequence, line in rslt)
             )
             return rslt
         return []
 
+    @dbg.timed
     def _apply_integer_rounding_to_dynamic_lines(self, options, dynamic_lines):
         if options.get("integer_rounding_enabled"):
             for line in dynamic_lines:
@@ -1420,6 +1487,7 @@ class AccountReportLines(models.Model):
                             rounding_method=options["integer_rounding"],
                         )
 
+    @dbg.timed
     def _add_totals_below_sections(self, lines, options):
         """Returns a new list, corresponding to lines with the required total lines added as sublines of the sections it contains."""
         if not self.env.company.totals_below_sections or options.get(
@@ -1470,6 +1538,7 @@ class AccountReportLines(models.Model):
 
         return lines
 
+    @dbg.timed
     def _cleanup_empty_sections(self, lines):
         """Resets the fold state for parents left without visible children, and removes their orphaned total lines.
         The total line removal only applies when called after _add_totals_below_sections.
@@ -1508,6 +1577,7 @@ class AccountReportLines(models.Model):
         return result
 
     @api.model
+    @dbg.timed
     def _get_load_more_line(
         self, offset, parent_line_id, expand_function_name, groupby, progress, options
     ):
@@ -1569,6 +1639,7 @@ class AccountReportLines(models.Model):
             format_params=format_params,
         )
 
+    @dbg.timed
     def _format_value(self, options, value, figure_type, format_params=None):
         """Formats a value for display in a report (not especially numerical). figure_type provides the type of formatting we want."""
         if value is None:
@@ -1628,6 +1699,7 @@ class AccountReportLines(models.Model):
         return formatted_amount
 
     @api.model
+    @dbg.timed
     def _is_value_zero(
         self, amount, figure_type, format_params, rounding_unit="decimals"
     ):
@@ -1663,6 +1735,7 @@ class AccountReportLines(models.Model):
     ####################################################
     # LINE IDS MANAGEMENT HELPERS
     ####################################################
+    @dbg.timed
     def _get_generic_line_id(self, model_name, value, markup=None, parent_line_id=None):
         """Generates a generic line id from the provided parameters.
 
@@ -1710,6 +1783,7 @@ class AccountReportLines(models.Model):
         return markup
 
     @api.model
+    @dbg.timed
     def _parse_line_id(self, line_id, markup_as_string=False):
         """Parse the provided string line id and convert it to its list representation.
         Empty strings for model and value will be converted to None.
@@ -1757,6 +1831,7 @@ class AccountReportLines(models.Model):
             parse_segment(key) for key in line_id.split(LINE_ID_HIERARCHY_DELIMITER)
         ]
 
+    @dbg.timed
     def _generate_columns_group_vals_recursively(
         self, next_levels_headers, previous_levels_group_vals
     ):
@@ -1804,6 +1879,7 @@ class AccountReportLines(models.Model):
             return [previous_levels_group_vals]
 
     @api.model
+    @dbg.timed
     def _prepare_parent_line_id(self, current):
         """Build the parent_line id based on the current position in the report.
 
@@ -1859,10 +1935,12 @@ class AccountReportLines(models.Model):
 
         return result
 
+    @dbg.timed
     def _prepare_subline_id(self, parent_line_id, subline_id_postfix):
         """Creates a new subline id by concatanating parent_line_id with the provided id postfix."""
         return f"{parent_line_id}{LINE_ID_HIERARCHY_DELIMITER}{subline_id_postfix}"
 
+    @dbg.timed
     def _generate_total_below_section_line(self, section_line_dict):
         return {
             **section_line_dict,
@@ -1903,6 +1981,7 @@ class AccountReportLines(models.Model):
 
         return options_per_group
 
+    @dbg.timed
     def _convert_json_friendly_column_group_totals(
         self,
         json_friendly_column_group_totals,
@@ -1979,6 +2058,7 @@ class AccountReportLines(models.Model):
             # the date is not parsable thus is returned as text
             return ("text", cell["name"])
 
+    @dbg.timed
     def _compute_column_percent_comparison_data(
         self, options, value1, value2, green_on_positive=True
     ):
@@ -2048,6 +2128,7 @@ class AccountReportLines(models.Model):
                 }
         return None
 
+    @dbg.timed
     def get_expanded_lines(
         self,
         options,
@@ -2110,6 +2191,7 @@ class AccountReportLines(models.Model):
             horizontal_split_side,
         )
 
+    @dbg.timed
     def get_annotations(self, options, lines):
         """Return the annotations to display on the report, based on its dates and their display mode.
 

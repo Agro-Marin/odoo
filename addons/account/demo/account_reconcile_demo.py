@@ -2,11 +2,14 @@ import time
 
 from odoo import Command, _, api, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountChartTemplate(models.AbstractModel):
     _inherit = "account.chart.template"
 
     @api.model
+    @dbg.timed
     def _account_reconcile_install_demo(self, companies):
         if not isinstance(companies, models.BaseModel):
             companies = self.env["res.company"].browse(companies)

@@ -2,6 +2,7 @@ from odoo import _, api, fields, models
 from odoo.fields import Domain
 from odoo.tools import SQL, Query
 
+from ..tools import debug_log as dbg
 from odoo.addons.web.controllers.utils import clean_action
 
 
@@ -24,6 +25,7 @@ class AccountReport(models.AbstractModel):
         sequence_map[self._init_options_analytic_groupby] = 995
         return sequence_map
 
+    @dbg.timed
     def _init_options_analytic_groupby(self, options, previous_options):
         if not self.filter_analytic_groupby:
             return
@@ -65,6 +67,7 @@ class AccountReport(models.AbstractModel):
 
         self._create_column_analytic(options)
 
+    @dbg.timed
     def _create_column_analytic(self, options):
         """Creates the analytic columns for each plan or account in the filters.
 
@@ -135,6 +138,7 @@ class AccountReport(models.AbstractModel):
                 ]
 
     @api.model
+    @dbg.timed
     def _create_aml_shadowing_query_for_analytic_groupby(self):
         """Prepare a SQL subquery exposing account_analytic_line data under the account_move_line schema.
 
@@ -196,6 +200,7 @@ class AccountReport(models.AbstractModel):
             fields_to_insert=fields_to_insert,
         )
 
+    @dbg.timed
     def _get_report_query(self, options, date_scope, domain=None) -> Query:
         # Override to add the context key which will eventually trigger the shadowing of the table
         context_self = self.with_context(
@@ -233,7 +238,9 @@ class AccountReport(models.AbstractModel):
 
         return query
 
+    @dbg.timed
     def action_audit_cell(self, options, params):
+        dbg.lifecycle.debug("action_audit_cell on %s", dbg.rec(self))
         column_group_options = self._get_column_group_options(
             options, params["column_group_key"]
         )
@@ -362,6 +369,7 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     @api.model
+    @dbg.timed
     def _search(self, *args, **kwargs):
         """Shadow the account_move_line table with analytic data when a report needs analytic columns."""
         # Done here so every query built for the report transparently reads the analytic

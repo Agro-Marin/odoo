@@ -3,11 +3,18 @@ from collections import defaultdict
 from odoo import Command, models
 from odoo.libs.numbers import float_compare
 
+from ..tools import debug_log as dbg
+
 
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
+    @dbg.timed
     def action_view_manual_reconciliation_widget(self):
+        dbg.lifecycle.debug(
+            "action_view_manual_reconciliation_widget on %s",
+            dbg.rec(self),
+        )
         self.check_singleton()
         if not self.partner_id:
             return self.env["account.move.line"]._action_view_unreconciled()
@@ -20,7 +27,9 @@ class AccountPayment(models.Model):
             extra_context=extra_context,
         )
 
+    @dbg.timed
     def button_open_statement_lines(self):
+        dbg.lifecycle.debug("button_open_statement_lines on %s", dbg.rec(self))
         self.check_singleton()
 
         default_statement_line = self.reconciled_statement_line_ids[-1]
@@ -46,6 +55,7 @@ class AccountPayment(models.Model):
             )
         ).sorted("date")
 
+    @dbg.timed
     def _get_amls_for_payment_without_move(self, date=None):
         valid_payment_states = ["draft", *self._valid_payment_states()]
         lines_to_create = []
@@ -83,6 +93,12 @@ class AccountPayment(models.Model):
 
             if not payment.currency_id.is_zero(remaining):
                 line2amount[False] -= remaining
+            dbg.logic.debug(
+                "[payment:%s] amls without move: %d term line(s), unallocated=%s",
+                payment.id,
+                len(payment_term_lines),
+                remaining,
+            )
 
             for line, amount in line2amount.items():
                 balance = payment.currency_id._convert(
@@ -144,6 +160,14 @@ class AccountPayment(models.Model):
         payment_with_move = line.move_id.matched_payment_ids.filtered(
             lambda pay: pay.move_id and pay.state in valid_payment_states
         )
+        dbg.logic.debug(
+            "[payment:%s] superseded by payment with move %s on line %s: amount=%s current=%s",
+            self.id,
+            dbg.rec(payment_with_move),
+            line.id,
+            self.amount_signed,
+            current_amount,
+        )
         if self.currency_id.compare_amounts(self.amount_signed, current_amount) == 0:
             self.action_cancel()
             self.message_post(
@@ -166,6 +190,7 @@ class AccountPayment(models.Model):
                 ),
             )
 
+    @dbg.timed
     def _get_amls_for_reconciliation(self, st_line):
         def get_current_amount(payment, line_amount, remaining):
             return (

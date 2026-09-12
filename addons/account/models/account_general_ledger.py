@@ -9,12 +9,15 @@ from odoo import _, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL, float_repr
 
+from ..tools import debug_log as dbg
+
 
 class AccountGeneralLedgerReportHandler(models.AbstractModel):
     _name = "account.general.ledger.report.handler"
     _inherit = ["account.report.custom.handler"]
     _description = "General Ledger Custom Handler"
 
+    @dbg.timed
     def _custom_options_initializer(self, report, options, previous_options):
         options["buttons"].append(
             {
@@ -73,7 +76,9 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
             ],
         }
 
+    @dbg.timed
     def open_unallocated_items_journal_items(self, options, params):
+        dbg.lifecycle.debug("open_unallocated_items_journal_items on %s", dbg.rec(self))
         report = self.env["account.report"].browse(options["report_id"])
         return report.open_unallocated_items_journal_items(options, params)
 
@@ -105,6 +110,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
 
         return action
 
+    @dbg.timed
     def _get_custom_groupby_map(self):
         def custom_label_builder(grouping_keys):
             """Batch label builder for the accumulated-balance groupby: labels journal item rows with their move line name, and balance rows with "Initial Balance"."""
@@ -151,6 +157,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
             },
         }
 
+    @dbg.timed
     def _report_custom_engine_general_ledger(
         self,
         expressions,
@@ -232,6 +239,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
 
         return [(key, entry) for key, entry in rows_by_key.items()]
 
+    @dbg.timed
     def _get_query(
         self, options, current_groupby, order_by_account=False, offset=0, limit=None
     ):
@@ -402,6 +410,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
             limit=limit,
         )
 
+    @dbg.timed
     def _report_expand_unfoldable_line_with_groupby(
         self,
         line_dict_id,
@@ -483,6 +492,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                 col["is_zero"] = not bool(col["no_format"])
         return total_line_columns
 
+    @dbg.timed
     def _custom_line_postprocessor(self, report, options, lines):
         """Append the unallocated earnings lines, attach the chatter to journal item lines and move the total
         line to the bottom, as it must always be last in the general ledger.
@@ -578,6 +588,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
 
         return processed_lines
 
+    @dbg.timed
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
     ):

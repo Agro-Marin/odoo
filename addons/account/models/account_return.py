@@ -10,6 +10,8 @@ from odoo.exceptions import RedirectWarning, UserError
 from odoo.tools import SQL
 from odoo.tools.translate import LazyTranslate
 
+from ..tools import debug_log as dbg
+
 _lt = LazyTranslate(__name__)
 
 
@@ -219,6 +221,7 @@ class AccountReturn(models.Model):
     @api.deprecated(
         "Since 19.0, There's no need to have embedded.actions anymore for AccountReturnCheckControlPanel"
     )
+    @dbg.timed
     def _create_embedded_actions_config(self, audit_action_id):
         """Create embedded action settings for this return if not already existing."""
         user_setting_id = self.env.user.res_users_settings_id.id
@@ -249,7 +252,14 @@ class AccountReturn(models.Model):
         return user_actions._format_embedded_action_settings()
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         records = super().create(vals_list)
         account_status_create_vals = []
         for record in records:
@@ -325,7 +335,9 @@ class AccountReturn(models.Model):
         self.env["account.audit.account.status"].create(account_status_create_vals)
         return records
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         result = super().write(vals)
         for record in self:
             if record.type_id.states_workflow in vals:
@@ -340,7 +352,9 @@ class AccountReturn(models.Model):
         return result
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_if_not_manually_created_new(self):
+        dbg.lifecycle.debug("_unlink_if_not_manually_created_new on %s", dbg.rec(self))
         if (
             not self.env.user.has_group("account.group_account_user")
             and not self.env.su
@@ -360,7 +374,9 @@ class AccountReturn(models.Model):
             )
 
     @api.model
+    @dbg.timed
     def action_refresh_all_returns(self):
+        dbg.lifecycle.debug("action_refresh_all_returns on %s", dbg.rec(self))
         root_companies = (
             self.env["res.company"]
             .sudo()
@@ -374,6 +390,7 @@ class AccountReturn(models.Model):
         self.env["account.return.type"]._sync_all_returns(root_companies)
 
     @api.model
+    @dbg.timed
     def _evaluate_deadline(
         self, company, return_type, return_type_external_id, date_from, date_to
     ):
@@ -454,6 +471,7 @@ class AccountReturn(models.Model):
                 > 1
             )
 
+    @dbg.timed
     def _check_all_branches_allowed(self):
         for account_return in self:
             report = account_return.type_id.report_id
@@ -509,6 +527,7 @@ class AccountReturn(models.Model):
 
     @api.depends("type_id", "state", "type_id.states_workflow")
     @api.depends_context("lang")
+    @dbg.timed
     def _compute_visible_states(self):
         for record in self:
             current_state = record.state
@@ -616,6 +635,7 @@ class AccountReturn(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def get_next_returns_ids(
         self, journal_id=False, additional_domain=None, allow_multiple_by_types=False
     ):
@@ -654,6 +674,7 @@ class AccountReturn(models.Model):
         return next_returns_ids
 
     @api.model
+    @dbg.timed
     def get_next_return_for_dashboard(self, journal_id=False):
         additional_domain = [
             ("date_to", "<", fields.Date.context_today(self)),
@@ -687,9 +708,11 @@ class AccountReturn(models.Model):
         return dashboard_return_dicts
 
     @api.model
+    @dbg.timed
     def action_view_tax_return_view(
         self, additional_return_domain=None, additional_context=None
     ):
+        dbg.lifecycle.debug("action_view_tax_return_view on %s", dbg.rec(self))
         company = self.env.company
 
         if not additional_context:
@@ -743,7 +766,9 @@ class AccountReturn(models.Model):
             return_action["context"] = str(context)
         return return_action
 
+    @dbg.timed
     def action_view_audit_return(self):
+        dbg.lifecycle.debug("action_view_audit_return on %s", dbg.rec(self))
         self.check_singleton()
         audit_action = (
             self.with_context(active_id=self.id, active_model=self._name)
@@ -764,8 +789,10 @@ class AccountReturn(models.Model):
             },
         }
 
+    @dbg.timed
     def action_view_audit_balances(self):
         # Opens the balances list view; action_view_audit_return opens the check kanban.
+        dbg.lifecycle.debug("action_view_audit_balances on %s", dbg.rec(self))
         self.check_singleton()
         return {
             **self.with_context(active_id=self.id, active_model=self._name)
@@ -804,14 +831,23 @@ class AccountReturn(models.Model):
     ####  State Actions
     ####################################################################################################
 
+    @dbg.timed
     def action_validate(self, bypass_failing_tests=False):
         """Review the checks, then complete an audit return or lock any other return.
 
         :param bypass_failing_tests: mark the failing checks as reviewed instead of blocking
         """
+        dbg.lifecycle.debug("action_validate on %s", dbg.rec(self))
         self.check_singleton()
 
         self._review_checks(bypass_failing_tests)
+        dbg.pipeline.debug(
+            "[return:%s] validate: category=%s bypass=%s state=%s",
+            self.id,
+            self.return_type_category,
+            bypass_failing_tests,
+            self.state,
+        )
 
         if self.return_type_category == "audit":
             self.state = "reviewed"
@@ -829,6 +865,7 @@ class AccountReturn(models.Model):
 
         self._check_failing_checks_in_current_stage()
 
+    @dbg.timed
     def _proceed_with_locking(self, options_to_inject=None):
         """Lock the return: generate the carryover values and the attachments of
         `_generate_locking_attachments`, create the closing entries for a tax return, then set
@@ -869,6 +906,7 @@ class AccountReturn(models.Model):
             self._generate_locking_attachments(options)
 
             if self.is_tax_return:
+                dbg.pipeline.debug("[return:%s] locking: tax closing entries", self.id)
                 # Create the tax closing move
                 self._create_tax_closing_entries(options)
 
@@ -915,6 +953,12 @@ class AccountReturn(models.Model):
                 )
 
         self.date_lock = fields.Date.context_today(self)
+        dbg.lifecycle.debug(
+            "[return:%s] locked on %s, workflow=%s",
+            self.id,
+            self.date_lock,
+            self.type_id.states_workflow,
+        )
 
         self.state = "reviewed"
         if self.type_id.states_workflow == "generic_state_review":
@@ -957,6 +1001,7 @@ class AccountReturn(models.Model):
             tax_groups_sudo.tax_receivable_account_id,
         )
 
+    @dbg.timed
     def _evaluate_period_amount_to_pay_from_tax_closing_accounts(
         self, payable_accounts, receivable_accounts
     ):
@@ -968,6 +1013,7 @@ class AccountReturn(models.Model):
 
         return self.amount_to_pay_currency_id.round(amount)
 
+    @dbg.timed
     def _evaluate_total_amount_to_pay_from_tax_closing_accounts(
         self, payable_accounts, receivable_accounts
     ):
@@ -992,6 +1038,7 @@ class AccountReturn(models.Model):
     def _get_domain_amount_to_pay_additional_tax(self):
         return []
 
+    @dbg.timed
     def _generate_locking_attachments(self, options):
         self.check_singleton()
         self._add_attachment(self.type_id.report_id.export_to_pdf(options))
@@ -1014,7 +1061,9 @@ class AccountReturn(models.Model):
         self.attachment_ids = [Command.link(attachment.id)]
         return attachment
 
+    @dbg.timed
     def action_submit(self):
+        dbg.lifecycle.debug("action_submit on %s", dbg.rec(self))
         self.check_singleton()
         self._check_all_branches_allowed()
         return self._proceed_with_submission()
@@ -1036,7 +1085,9 @@ class AccountReturn(models.Model):
             return self.action_pay()
         return None
 
+    @dbg.timed
     def action_pay(self):
+        dbg.lifecycle.debug("action_pay on %s", dbg.rec(self))
         self.check_singleton()
         self._check_failing_checks_in_current_stage()
         is_positive_amount = (
@@ -1047,7 +1098,9 @@ class AccountReturn(models.Model):
             return self._get_pay_wizard() or self._action_finalize_payment()
         return self._action_finalize_payment()
 
+    @dbg.timed
     def _action_finalize_payment(self):
+        dbg.lifecycle.debug("_action_finalize_payment on %s", dbg.rec(self))
         self.check_singleton()
         self.state = "paid"
         if self.type_id.states_workflow in (
@@ -1061,17 +1114,23 @@ class AccountReturn(models.Model):
     ####  Revert Actions
     ####################################################################################################
 
+    @dbg.timed
     def action_delete(self):
         # Since 19.0, Upgrade the module to have the new view with the confirmaton modal, and call .unlink instead.
         # The permission checks this used to restate are an @api.ondelete hook, so unlink() applies them itself.
+        dbg.lifecycle.debug("action_delete on %s", dbg.rec(self))
         self.unlink()
 
+    @dbg.timed
     def action_archive(self):
+        dbg.lifecycle.debug("action_archive on %s", dbg.rec(self))
         super(
             AccountReturn, self.filtered(lambda record: record.state == "new")
         ).action_archive()
 
+    @dbg.timed
     def action_unarchive(self):
+        dbg.lifecycle.debug("action_unarchive on %s", dbg.rec(self))
         self.check_singleton()
         if self.return_type_category == "account_return":
             domain = [
@@ -1104,7 +1163,9 @@ class AccountReturn(models.Model):
                 body=_("All checks and approvers have been reset")
             )
 
+    @dbg.timed
     def action_reset_tax_return_common(self):
+        dbg.lifecycle.debug("action_reset_tax_return_common on %s", dbg.rec(self))
         self.check_singleton()
         if not self.is_tax_return:
             return True
@@ -1212,11 +1273,15 @@ class AccountReturn(models.Model):
         self._reset_common()
         return True
 
+    @dbg.timed
     def action_reset_custom_return(self):
+        dbg.lifecycle.debug("action_reset_custom_return on %s", dbg.rec(self))
         self._reset_common()
         return True
 
+    @dbg.timed
     def action_reset_annual_closing(self):
+        dbg.lifecycle.debug("action_reset_annual_closing on %s", dbg.rec(self))
         self.check_singleton()
 
         if not self.env.user.has_group("account.group_account_manager"):
@@ -1227,7 +1292,9 @@ class AccountReturn(models.Model):
         self._reset_common()
         return True
 
+    @dbg.timed
     def action_reset_2_states(self):
+        dbg.lifecycle.debug("action_reset_2_states on %s", dbg.rec(self))
         self.check_singleton()
 
         if not self.env.user.has_group("account.group_account_manager"):
@@ -1258,12 +1325,16 @@ class AccountReturn(models.Model):
     ####################################################################################################
     ####  Other Actions
     ####################################################################################################
+    @dbg.timed
     def action_view_attachments(self):
+        dbg.lifecycle.debug("action_view_attachments on %s", dbg.rec(self))
         action = self.action_view_account_return()
         action["context"]["open_attachments_in_chatter"] = True
         return action
 
+    @dbg.timed
     def action_mark_completed(self):
+        dbg.lifecycle.debug("action_mark_completed on %s", dbg.rec(self))
         self.check_singleton()
         return self._mark_completed()
 
@@ -1291,7 +1362,9 @@ class AccountReturn(models.Model):
             }
         return None
 
+    @dbg.timed
     def action_mark_uncompleted(self):
+        dbg.lifecycle.debug("action_mark_uncompleted on %s", dbg.rec(self))
         self.check_singleton()
         if not self.is_completed:
             raise UserError(_("You can only unarchive a completed return."))
@@ -1303,7 +1376,9 @@ class AccountReturn(models.Model):
         if self.return_type_category == "audit":
             self.audit_status = "ongoing"
 
+    @dbg.timed
     def action_export_working_files(self):
+        dbg.lifecycle.debug("action_export_working_files on %s", dbg.rec(self))
         report = self.env.ref("account.trial_balance_report").with_company(
             self.company_id.id
         )
@@ -1332,7 +1407,9 @@ class AccountReturn(models.Model):
             },
         }
 
+    @dbg.timed
     def action_view_entry(self):
+        dbg.lifecycle.debug("action_view_entry on %s", dbg.rec(self))
         self.check_singleton()
         name = (
             _("Closing Entries")
@@ -1341,7 +1418,9 @@ class AccountReturn(models.Model):
         )
         return self.closing_move_ids._get_records_action(name=name)
 
+    @dbg.timed
     def action_view_report(self):
+        dbg.lifecycle.debug("action_view_report on %s", dbg.rec(self))
         self.check_singleton()
         if self.has_access("write") and self.state == "reviewed":
             self.report_opened_once = True
@@ -1390,7 +1469,9 @@ class AccountReturn(models.Model):
         )
         return self.date_from == aligned_date_from and self.date_to == aligned_date_to
 
+    @dbg.timed
     def action_send_email_instructions(self, wizard, template):
+        dbg.lifecycle.debug("action_send_email_instructions on %s", dbg.rec(self))
         self.check_singleton()
 
         compose_form = self.env.ref("mail.email_compose_message_wizard_form")
@@ -1441,6 +1522,7 @@ class AccountReturn(models.Model):
     ####################################################################################################
     ####  Tax Closing
     ####################################################################################################
+    @dbg.timed
     def _create_tax_closing_entries(self, options):
         """Create and post one closing move per company of the return.
 
@@ -1469,8 +1551,15 @@ class AccountReturn(models.Model):
             )
 
         moves = self.env["account.move"].sudo().create(closing_move_vals)
+        dbg.pipeline.debug(
+            "[return:%s] closing moves %s for companies %s",
+            self.id,
+            dbg.rec(moves),
+            dbg.ids(self.company_ids),
+        )
         moves.action_post()
 
+    @dbg.timed
     def _check_tax_group_configuration_for_tax_closing(self):
         """Raise a RedirectWarning informing the user his tax groups are missing configuration,
         redirecting him to the list view of account.tax.group filtered on the report's country.
@@ -1506,6 +1595,7 @@ class AccountReturn(models.Model):
                 _("Configure accounts"),
             )
 
+    @dbg.timed
     def _compute_tax_closing_entry(self, company, options):
         """Compute the tax closing entry.
 
@@ -1650,6 +1740,7 @@ class AccountReturn(models.Model):
 
         return move_vals_lines, tax_group_subtotal
 
+    @dbg.timed
     def _vat_closing_entry_results_rounding(
         self, company, options, results, rounding_accounts, vat_results_summary
     ):
@@ -1723,6 +1814,7 @@ class AccountReturn(models.Model):
     def _get_domain_vat_closing_entry_additional(self):
         return []
 
+    @dbg.timed
     def _add_tax_group_closing_items(self, tax_group_subtotal, company):
         """Transform the tax_group_subtotal dictionary into the one2many commands balancing the
         tax group accounts of the VAT closing entry.
@@ -1796,6 +1888,7 @@ class AccountReturn(models.Model):
     ####  Checks
     ####################################################################################################
 
+    @dbg.timed
     def _check_failing_checks_in_current_stage(self):
         self.check_singleton()
         domain = [
@@ -1810,6 +1903,7 @@ class AccountReturn(models.Model):
                 )
             )
 
+    @dbg.timed
     def refresh_checks(self):
         """
         Recompute all checks for every return in self of the current state
@@ -1821,6 +1915,11 @@ class AccountReturn(models.Model):
             not self.env["account.return.check"].has_access("write")
             or not locked_returns
         ):
+            dbg.logic.debug(
+                "refresh_checks skipped on %s: locked=%s",
+                dbg.rec(self),
+                dbg.rec(locked_returns),
+            )
             return
 
         to_create = []
@@ -1857,6 +1956,13 @@ class AccountReturn(models.Model):
                 obsolete_check_codes = checks_by_code.keys() - (
                     codes_refreshed | check_codes_to_ignore
                 )
+                dbg.logic.debug(
+                    "[return:%s] checks: %d run, %d ignored, %d obsolete",
+                    record.id,
+                    len(rslt),
+                    len(check_codes_to_ignore),
+                    len(obsolete_check_codes),
+                )
                 if obsolete_check_codes:
                     to_unlink |= record.check_ids.filtered(
                         lambda c, obsolete_check_codes=obsolete_check_codes: (
@@ -1872,6 +1978,7 @@ class AccountReturn(models.Model):
         self.check_singleton()
         return self.state == "new"
 
+    @dbg.timed
     def _execute_template_checks(self, codes_to_ignore):
         def filter_template(template):
             return template.code not in codes_to_ignore and (
@@ -1979,6 +2086,7 @@ class AccountReturn(models.Model):
 
         return vals_list
 
+    @dbg.timed
     def _run_checks(self, check_codes_to_ignore):
         """
         To override in l10n for specific checks by type
@@ -1999,6 +2107,7 @@ class AccountReturn(models.Model):
 
         return checks
 
+    @dbg.timed
     def _check_suite_common_vat_report(self, check_codes_to_ignore):
         checks = []
         # check company configuration
@@ -2173,6 +2282,7 @@ class AccountReturn(models.Model):
 
         return checks
 
+    @dbg.timed
     def _check_suite_annual_closing(self, check_codes_to_ignore):
         def get_unknown_partner_aml_ids(report):
             options = report.get_options({})
@@ -2387,12 +2497,14 @@ class AccountReturn(models.Model):
 
         return checks
 
+    @dbg.timed
     def _check_suite_eu_vat_report(self, check_codes_to_ignore):
         checks = []
         self._generic_vies_vat_check(check_codes_to_ignore, checks)
         check_codes_to_ignore.add("check_partner_vies")
         return checks
 
+    @dbg.timed
     def _generic_vies_vat_check(self, check_codes_to_ignore, checks):
         is_account_vat_installed = (
             "account_vat" in self.env["ir.module.module"]._get_installed_module_ids()
@@ -2447,6 +2559,7 @@ class AccountReturn(models.Model):
                 }
             )
 
+    @dbg.timed
     def _check_suite_common_ec_sales_list(self, check_codes_to_ignore):
         checks = []
 
@@ -2585,6 +2698,7 @@ class AccountReturn(models.Model):
 
         return checks
 
+    @dbg.timed
     def _check_match_all_bank_entries(self, code, name, message):
         domain = [
             ("is_reconciled", "=", False),
@@ -2623,7 +2737,9 @@ class AccountReturn(models.Model):
             "result": "anomaly" if unreconciled_bank_entries_count else "reviewed",
         }
 
+    @dbg.timed
     def action_view_account_return(self):
+        dbg.lifecycle.debug("action_view_account_return on %s", dbg.rec(self))
         self.check_singleton()
         if not self.check_ids:
             self.refresh_checks()
@@ -2652,6 +2768,7 @@ class AccountReturn(models.Model):
             ],
         }
 
+    @dbg.timed
     def _check_draft_entries(self, code, name, message, exclude_entries=False):
         domain = [
             ("state", "=", "draft"),

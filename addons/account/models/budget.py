@@ -6,6 +6,8 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import date_utils, float_is_zero, float_round
 
+from ..tools import debug_log as dbg
+
 
 class AccountReportBudget(models.Model):
     _name = "account.report.budget"
@@ -33,12 +35,20 @@ class AccountReportBudget(models.Model):
                 raise ValidationError(_("Please enter a valid budget name."))
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for values in vals_list:
             if name := values.get("name"):
                 values["name"] = name.strip()
         return super().create(vals_list)
 
+    @dbg.timed
     def _create_or_update_budget_items(
         self, value_to_set, account_id, rounding, date_from, date_to
     ):
@@ -124,14 +134,18 @@ class AccountReportBudget(models.Model):
             # Make sure that the model is flushed before continuing the code and fetching these new items
             self.env["account.report.budget.item"].flush_model()
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         vals_list = super().copy_data(default=default)
         return [
             dict(vals, name=self.env._("%s (copy)", budget.name))
             for budget, vals in zip(self, vals_list, strict=False)
         ]
 
+    @dbg.timed
     def copy(self, default=None):
+        dbg.lifecycle.debug("copy on %s", dbg.rec(self))
         new_budgets = super().copy(default)
         for old_budget, new_budget in zip(self, new_budgets, strict=False):
             for item in old_budget.item_ids:

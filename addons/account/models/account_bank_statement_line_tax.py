@@ -1,9 +1,12 @@
 from odoo import Command, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
 
+    @dbg.timed
     def _prepare_for_tax_lines_recomputation(self):
         _liquidity_lines, _suspense_lines, other_lines = self._seek_for_lines()
         other_lines = other_lines.filtered(lambda line: not line.reconciled_lines_ids)
@@ -18,6 +21,7 @@ class AccountBankStatementLine(models.Model):
         ]
         return base_lines, tax_lines
 
+    @dbg.timed
     def _create_tax_lines(self, original_base_lines, original_tax_lines, new_lines):
         self.check_singleton()
         liquidity_lines, _suspense_lines, other_lines = self._seek_for_lines()
@@ -34,6 +38,7 @@ class AccountBankStatementLine(models.Model):
             original_base_lines, liquidity_lines, original_tax_lines, other_lines
         )
 
+    @dbg.timed
     def _edit_tax_lines(
         self, original_base_lines, original_tax_lines, edited_line, old_move_line
     ):
@@ -110,9 +115,11 @@ class AccountBankStatementLine(models.Model):
 
         return original_base_lines, original_tax_lines
 
+    @dbg.timed
     def _post_recompute_tax_lines(
         self, base_lines, liquidity_lines, original_tax_lines, other_lines
     ):
+        dbg.lifecycle.debug("_post_recompute_tax_lines on %s", dbg.rec(self))
         self.check_singleton()
         AccountTax = self.env["account.tax"]
         AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)
@@ -197,6 +204,7 @@ class AccountBankStatementLine(models.Model):
             "group_tax_id": tax_line_vals["group_tax_id"],
         }
 
+    @dbg.timed
     def _prepare_base_line_for_taxes_computation(self, line_vals):
         self.check_singleton()
         if not line_vals:
@@ -218,6 +226,7 @@ class AccountBankStatementLine(models.Model):
             special_mode="total_included",
         )
 
+    @dbg.timed
     def _prepare_tax_line_for_taxes_computation(self, line):
         self.check_singleton()
         if not line:

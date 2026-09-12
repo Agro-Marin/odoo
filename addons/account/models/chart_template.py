@@ -14,6 +14,7 @@ from odoo.modules import get_resource_from_path
 from odoo.tools import SQL, file_open, float_compare, get_lang
 from odoo.tools.translate import TranslationImporter, _, code_translations
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
@@ -117,7 +118,9 @@ class AccountChartTemplate(models.AbstractModel):
         cls._template_register = template_register
         return template_register
 
+    @dbg.timed
     def _post_model_setup__(self):
+        dbg.lifecycle.debug("_post_model_setup__ on %s", dbg.rec(self))
         super()._post_model_setup__()
         self.env.registry[
             self._name
@@ -161,9 +164,11 @@ class AccountChartTemplate(models.AbstractModel):
     def _guess_chart_template(self, country):
         return self._select_chart_template(country)[0][0]
 
+    @dbg.timed
     def try_loading(
         self, template_code, company, install_demo=False, force_create=True
     ):
+        dbg.lifecycle.debug("try_loading on %s", dbg.rec(self))
         if not company:
             return None
         if isinstance(company, int):
@@ -179,6 +184,14 @@ class AccountChartTemplate(models.AbstractModel):
                 template_code,
             )
         template_code = template_code or self._guess_chart_template(company.country_id)
+        dbg.pipeline.debug(
+            "[chart:%s] try_loading company=%s demo=%s force_create=%s current=%s",
+            template_code,
+            company.id,
+            install_demo,
+            force_create,
+            company.chart_template,
+        )
 
         mapping = self._get_chart_template_mapping(get_all=True).get(template_code, {})
         if not mapping.get("visible", True) and template_code != company.chart_template:
@@ -217,7 +230,9 @@ class AccountChartTemplate(models.AbstractModel):
                     records_for_companies.company_ids -= children_companies
             records.with_context({MODULE_UNINSTALL_FLAG: True}).unlink()
 
+    @dbg.timed
     def _load(self, template_code, company, install_demo, force_create=True):
+        dbg.lifecycle.debug("_load on %s", dbg.rec(self))
         if not self.env.is_system():
             raise AccessError(_("Only administrators can install chart templates"))
         self = self.sudo()
@@ -236,6 +251,9 @@ class AccountChartTemplate(models.AbstractModel):
             [("name", "=", module_name), ("state", "=", "uninstalled")]
         )
         if module:
+            dbg.pipeline.debug(
+                "[chart:%s] installing l10n module %s first", template_code, module_name
+            )
             module.button_immediate_install()
             self.env.transaction.reset()
             self = self.env()["account.chart.template"]
@@ -258,7 +276,18 @@ class AccountChartTemplate(models.AbstractModel):
             and not company.parent_id
             and (not company.root_id._existing_accounting() or install_demo)
         ):
+            dbg.logic.debug(
+                "[chart:%s] removing existing accounting data of company %s",
+                template_code,
+                company.id,
+            )
             self._remove_existing_accounting_data(company)
+        dbg.logic.debug(
+            "[chart:%s] reload=%s branch=%s",
+            template_code,
+            reload_template,
+            bool(company.parent_id),
+        )
 
         data = self._get_chart_template_data(template_code)
         template_data = data.pop("template_data")
@@ -271,7 +300,17 @@ class AccountChartTemplate(models.AbstractModel):
             self._pre_reload_data(company, template_data, data, force_create)
             install_demo = False
         data = self._pre_load_data(template_code, company, template_data, data)
+        dbg.pipeline.debug(
+            "[chart:%s] loading %s",
+            template_code,
+            dbg.lazy(lambda: {model: len(recs) for model, recs in data.items()}),
+        )
         created_records = self._load_data(data)
+        dbg.pipeline.debug(
+            "[chart:%s] loaded %s",
+            template_code,
+            dbg.lazy(lambda: {m: len(r) for m, r in created_records.items()}),
+        )
         self._post_load_data(template_code, company, template_data)
         self._load_translations(companies=company)
 
@@ -302,6 +341,7 @@ class AccountChartTemplate(models.AbstractModel):
             )._load_data(self._get_demo_data(company))
             self.with_context(install_mode=True)._post_load_demo_data(company)
 
+    @dbg.timed
     def _get_pre_reload_skips(
         self,
         company,
@@ -350,6 +390,7 @@ class AccountChartTemplate(models.AbstractModel):
                     skip_update.add((model_name, xmlid))
         return skip_update
 
+    @dbg.timed
     def _pre_reload_data(self, company, template_data, data, force_create=True):
         for prop in self._get_property_accounts():
             template_data.pop(prop, None)
@@ -390,6 +431,14 @@ class AccountChartTemplate(models.AbstractModel):
             force_create,
         )
 
+        dbg.logic.debug(
+            "[chart] reload company %s: skipping %d update(s) %s, %d obsolete xmlid(s) %s",
+            company.id,
+            len(skip_update),
+            dbg.lazy(lambda: sorted(skip_update)[:8]),
+            len(obsolete_xmlid),
+            dbg.lazy(lambda: sorted(obsolete_xmlid)[:8]),
+        )
         for skip_model, skip_xmlid in skip_update:
             data[skip_model].pop(skip_xmlid, None)
 
@@ -428,6 +477,7 @@ class AccountChartTemplate(models.AbstractModel):
             if match
         }
 
+    @dbg.timed
     def _pre_reload_journals(self, company, data):
         lang = self._get_untranslatable_fields_target_language(
             company.chart_template, company
@@ -526,6 +576,7 @@ class AccountChartTemplate(models.AbstractModel):
             or len(template_line_ids) not in (0, len(tax.repartition_line_ids))
         )
 
+    @dbg.timed
     def _pre_reload_tax(
         self,
         xmlid,
@@ -577,6 +628,7 @@ class AccountChartTemplate(models.AbstractModel):
                 tax_to_rename.name = f"[old{suffix}] {tax_to_rename.name}"
                 unique_tax_name_keys.add(self._unique_tax_name_key(tax_to_rename))
 
+    @dbg.timed
     def _pre_reload_tax_relink(self, values, xmlid2records, force_create):
         fiscal_position_ids = values.get("fiscal_position_ids")
         original_tax_ids = values.get("original_tax_ids")
@@ -652,6 +704,7 @@ class AccountChartTemplate(models.AbstractModel):
                         if command == Command.CREATE:
                             values[fname][i] = Command.update(line.id, vals)
 
+    @dbg.timed
     def _reload_account_points_at_an_existing_one(
         self, company, template_data, xmlid, values, xmlid2account
     ):
@@ -735,7 +788,9 @@ class AccountChartTemplate(models.AbstractModel):
                     if translation:
                         record[field] = translation
 
+    @dbg.timed
     def _pre_load_data(self, template_code, company, template_data, data):
+        dbg.lifecycle.debug("_pre_load_data on %s", dbg.rec(self))
         company_data = data.get("res.company", {}).get(company.id, {})
         fiscal_country = (
             self.ref(company_data["account_fiscal_country_id"])
@@ -760,6 +815,7 @@ class AccountChartTemplate(models.AbstractModel):
         self._pre_load_translate_untranslatable(template_code, company, data)
         return data
 
+    @dbg.timed
     def _load_deref_x2many(self, field, value):
         for i, (command, _id, *last_part) in enumerate(value):
             if last_part:
@@ -773,6 +829,7 @@ class AccountChartTemplate(models.AbstractModel):
             elif command == Command.LINK and isinstance(_id, str):
                 value[i] = Command.link(self.ref(_id).id)
 
+    @dbg.timed
     def _load_deref_many2one(self, values, fname, value, field, model, failed_fields):
         try:
             values[fname] = (
@@ -790,6 +847,7 @@ class AccountChartTemplate(models.AbstractModel):
                 failed_fields.append(fname)
                 values[fname] = False
 
+    @dbg.timed
     def _load_deref_values(self, values, model):
         failed_fields = []
         for fname, value in list(values.items()):
@@ -819,6 +877,7 @@ class AccountChartTemplate(models.AbstractModel):
             del values[fname]
         return values
 
+    @dbg.timed
     def _load_should_delay(
         self,
         created_models,
@@ -862,6 +921,7 @@ class AccountChartTemplate(models.AbstractModel):
                         return True
         return False
 
+    @dbg.timed
     def _load_clears_default_repartition(self, model, field_name, xml_id, field_val):
         return (
             model == "account.tax"
@@ -906,6 +966,7 @@ class AccountChartTemplate(models.AbstractModel):
             yield model, data
             created_models.add(model)
 
+    @dbg.timed
     def _load_record_vals(self, model, xml_id, record_vals):
         for key in list(record_vals):
             if "@" in key or key == "__translation_module__":
@@ -925,7 +986,9 @@ class AccountChartTemplate(models.AbstractModel):
             "noupdate": True,
         }
 
+    @dbg.timed
     def _load_data(self, data):
+        dbg.lifecycle.debug("_load_data on %s", dbg.rec(self))
         created_records = {}
         for model, model_data in self._load_in_dependency_order(
             list(deepcopy(data).items())
@@ -934,14 +997,17 @@ class AccountChartTemplate(models.AbstractModel):
                 self._load_record_vals(model, xml_id, record_vals)
                 for xml_id, record_vals in model_data.items()
             ]
-            created_records[model] = (
-                self.with_context(lang="en_US")
-                .env[model]
-                ._load_records(all_records_vals)
-            )
+            with dbg.timer(self.env, "_load_data %s x%d", model, len(all_records_vals)):
+                created_records[model] = (
+                    self.with_context(lang="en_US")
+                    .env[model]
+                    ._load_records(all_records_vals)
+                )
         return created_records
 
+    @dbg.timed
     def _post_load_journal_accounts(self, company):
+        dbg.lifecycle.debug("_post_load_journal_accounts on %s", dbg.rec(self))
         for journal in self.env["account.journal"].search(
             [
                 ("type", "in", ["cash", "bank", "credit"]),
@@ -1008,7 +1074,9 @@ class AccountChartTemplate(models.AbstractModel):
         )
         products._force_default_tax_field(company, fname, tax_field)
 
+    @dbg.timed
     def _post_load_default_taxes(self, company):
+        dbg.lifecycle.debug("_post_load_default_taxes on %s", dbg.rec(self))
         if not company.account_sale_tax_id:
             company.account_sale_tax_id = self._default_tax_for(
                 company, ("sale", "all")
@@ -1036,7 +1104,9 @@ class AccountChartTemplate(models.AbstractModel):
         ):
             company.tax_exigibility = True
 
+    @dbg.timed
     def _post_load_defaults(self, company, template_data):
+        dbg.lifecycle.debug("_post_load_defaults on %s", dbg.rec(self))
         for field, model in self._get_property_accounts().items():
             value = template_data.get(field)
             if not value or field not in self.env[model]._fields:
@@ -1055,7 +1125,9 @@ class AccountChartTemplate(models.AbstractModel):
                 "product.category", field, account.id, company_id=company.id
             )
 
+    @dbg.timed
     def _post_load_reconcile_models(self, company):
+        dbg.lifecycle.debug("_post_load_reconcile_models on %s", dbg.rec(self))
         reco = self.ref("internal_transfer_reco", raise_if_not_found=False)
         if reco:
             reco.line_ids.sudo().write({"account_id": company.transfer_account_id.id})
@@ -1065,7 +1137,9 @@ class AccountChartTemplate(models.AbstractModel):
                 {"account_id": self._get_bank_fees_reco_account(company).id}
             )
 
+    @dbg.timed
     def _post_load_data(self, template_code, company, template_data):
+        dbg.lifecycle.debug("_post_load_data on %s", dbg.rec(self))
         company = company or self.env.company
 
         self._setup_utility_bank_accounts(template_code, company, template_data)
@@ -1101,6 +1175,7 @@ class AccountChartTemplate(models.AbstractModel):
                     data[xmlid].update(values)
         return dict(data)
 
+    @dbg.timed
     def _get_chart_template_data(self, template_code):
         template_data = defaultdict(lambda: defaultdict(dict))
         template_data["res.company"]
@@ -1133,6 +1208,7 @@ class AccountChartTemplate(models.AbstractModel):
                                 template_data[model][xmlid].update(record)
         return template_data
 
+    @dbg.timed
     def _get_accounts_data_values(
         self, company, template_data, bank_prefix="", code_digits=0
     ):
@@ -1204,6 +1280,7 @@ class AccountChartTemplate(models.AbstractModel):
 
             self._create_outstanding_accounts(company, bank_prefix, code_digits)
 
+    @dbg.timed
     def _create_outstanding_accounts(self, company, bank_prefix, code_digits):
         accounts_by_xmlid = {
             "account_journal_payment_debit_account_id": {
@@ -1347,6 +1424,7 @@ class AccountChartTemplate(models.AbstractModel):
                         ).id
                     )
 
+    @dbg.timed
     def _foreign_tax_map_cash_basis_accounts(
         self, company, tax_data, existing_accounts
     ):
@@ -1441,6 +1519,7 @@ class AccountChartTemplate(models.AbstractModel):
         return prefixed
 
     @api.model
+    @dbg.timed
     def _instantiate_foreign_taxes(self, country, company):
         taxes_in_country = self.env["account.tax"].search(
             [
@@ -1504,6 +1583,7 @@ class AccountChartTemplate(models.AbstractModel):
         return self._prepare_csv_vals(template_code, "account.fiscal.position")
 
     @template(model="account.journal")
+    @dbg.timed
     def _get_account_journal(self, template_code):
         return {
             "sale": {
@@ -1602,6 +1682,7 @@ class AccountChartTemplate(models.AbstractModel):
             code = template_mapping.get(code).get("parent")
         return parents
 
+    @dbg.timed
     def _get_tag_mapper(self, country_id):
         tags = {
             x.name: x.id
@@ -1701,6 +1782,7 @@ class AccountChartTemplate(models.AbstractModel):
             Model = self.env[field.comodel_name]
         return Model
 
+    @dbg.timed
     def _update_csv_vals_from_row(self, Model, res, row, last_id, filename, line_no):
         if row["id"]:
             last_id = row["id"]
@@ -1744,6 +1826,7 @@ class AccountChartTemplate(models.AbstractModel):
             sub[fname] = self._parse_csv_value(fname, value, SubModel._fields)
         return last_id
 
+    @dbg.timed
     def _prepare_csv_vals(self, template_code, model, module=None):
         Model = self.env[model]
         if module is None:
@@ -1792,6 +1875,7 @@ class AccountChartTemplate(models.AbstractModel):
             for model in TEMPLATE_MODELS
         }
 
+    @dbg.timed
     def _get_untranslated_translatable_template_model_records(self, langs, companies):
         if not langs or not companies:
             return []
@@ -1876,6 +1960,7 @@ class AccountChartTemplate(models.AbstractModel):
                 translation_module, generic_lang
             ).get(record[fname])
 
+    @dbg.timed
     def _collect_template_translations(
         self, translation_importer, langs, companies, template_data
     ):
@@ -1912,6 +1997,7 @@ class AccountChartTemplate(models.AbstractModel):
                                     xml_id
                                 ][lang] = field_translation
 
+    @dbg.timed
     def _collect_code_translations(
         self, translation_importer, translation_langs, companies
     ):
@@ -1955,6 +2041,7 @@ class AccountChartTemplate(models.AbstractModel):
                             ][lang] = value_translated
                             break
 
+    @dbg.timed
     def _load_translations(self, langs=None, companies=None, template_data=None):
         langs = langs or [code for code, _name in self.env["res.lang"].get_installed()]
         available_template_codes = list(self._get_chart_template_mapping(get_all=True))

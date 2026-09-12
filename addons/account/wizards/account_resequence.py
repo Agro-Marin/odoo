@@ -6,6 +6,8 @@ from odoo.exceptions import UserError
 from odoo.tools.date_utils import get_fiscal_year
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
+
 
 class AccountResequenceWizard(models.TransientModel):
     _name = "account.resequence.wizard"
@@ -36,7 +38,9 @@ class AccountResequenceWizard(models.TransientModel):
     preview_moves = fields.Text(compute="_compute_preview_moves")
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         values = super().default_get(fields_list)
         if "move_ids" not in fields_list:
             return values
@@ -91,6 +95,7 @@ class AccountResequenceWizard(models.TransientModel):
                 )
 
     @api.depends("new_values", "ordering", "sequence_number_reset")
+    @dbg.timed
     def _compute_preview_moves(self):
         for record in self:
             new_values = sorted(
@@ -167,6 +172,7 @@ class AccountResequenceWizard(models.TransientModel):
             case _:
                 return "default"
 
+    @dbg.timed
     def _update_resequence_period_values(
         self,
         new_values,
@@ -219,6 +225,7 @@ class AccountResequenceWizard(models.TransientModel):
 
     @api.depends("first_name", "move_ids", "sequence_number_reset")
     @api.depends_context("lang")
+    @dbg.timed
     def _compute_new_values(self):
         self.new_values = "{}"
         for record in self.filtered("first_name"):
@@ -263,6 +270,13 @@ class AccountResequenceWizard(models.TransientModel):
                     )
                 )
         moves_to_rename = self.env["account.move"].browse(int(k) for k in new_values)
+        dbg.pipeline.debug(
+            "[resequence:%s] ordering=%s first=%s renaming %s",
+            self.id,
+            self.ordering,
+            self.first_name,
+            dbg.rec(moves_to_rename),
+        )
         moves_to_rename.name = False
         moves_to_rename.flush_recordset(["name"])
 

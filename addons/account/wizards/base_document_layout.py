@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class BaseDocumentLayout(models.TransientModel):
     _inherit = "base.document.layout"
@@ -15,7 +17,9 @@ class BaseDocumentLayout(models.TransientModel):
         inverse="_inverse_account_number",
     )
 
+    @dbg.timed
     def action_save_layout(self):
+        dbg.lifecycle.debug("action_save_layout on %s", dbg.rec(self))
         res = super().action_save_layout()
         if step := self.env.ref(
             "account.onboarding_onboarding_step_base_document_layout",
@@ -67,6 +71,7 @@ class BaseDocumentLayout(models.TransientModel):
     def _compute_preview(self):
         super()._compute_preview()
 
+    @dbg.timed
     def _inverse_account_number(self):
         for record in self:
             if record.partner_id.bank_ids and record.account_number:

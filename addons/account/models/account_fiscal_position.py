@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import unique
 
+from ..tools import debug_log as dbg
+
 
 class AccountFiscalPosition(models.Model):
     _name = "account.fiscal.position"
@@ -110,6 +112,7 @@ class AccountFiscalPosition(models.Model):
     )
 
     @api.constrains("zip_from", "zip_to")
+    @dbg.timed
     def _check_zip(self):
         for position in self:
             if (
@@ -123,6 +126,7 @@ class AccountFiscalPosition(models.Model):
                 )
 
     @api.constrains("country_id", "country_group_id", "state_ids", "foreign_vat")
+    @dbg.timed
     def _check_foreign_vat_country(self):
         foreign_vat_positions = self.search(
             [
@@ -179,7 +183,14 @@ class AccountFiscalPosition(models.Model):
                 )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             zip_from = vals.get("zip_from")
             zip_to = vals.get("zip_to")
@@ -189,7 +200,9 @@ class AccountFiscalPosition(models.Model):
                 )
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         zip_from = vals.get("zip_from")
         zip_to = vals.get("zip_to")
         if not (zip_from or zip_to):
@@ -223,6 +236,7 @@ class AccountFiscalPosition(models.Model):
             position.states_count = len(position.country_id.state_ids)
 
     @api.depends("foreign_vat", "country_id", "company_id")
+    @dbg.timed
     def _compute_foreign_vat_header_mode(self):
         AccountTax = self.env["account.tax"]
         country_taxes = AccountTax.search(
@@ -381,6 +395,7 @@ class AccountFiscalPosition(models.Model):
         ]
 
     @api.model
+    @dbg.timed
     def _get_fiscal_position(self, partner, delivery=None, company=None):
         if not partner:
             return self.env["account.fiscal.position"]
@@ -407,18 +422,38 @@ class AccountFiscalPosition(models.Model):
             or partner.with_company(company).property_account_position_id
         )
         if manual_fiscal_position:
+            dbg.logic.debug(
+                "[partner:%s] fiscal position: manual %s (intra_eu=%s)",
+                partner.id,
+                manual_fiscal_position.id,
+                intra_eu,
+            )
             return manual_fiscal_position
 
         if not partner.country_id:
+            dbg.logic.debug(
+                "[partner:%s] fiscal position: no country, none", partner.id
+            )
             return self.env["account.fiscal.position"]
 
         all_auto_apply_fpos = self.search(
             self._check_company_domain(company) + [("auto_apply", "=", True)]
         )
 
-        return all_auto_apply_fpos._get_first_matching_fpos(delivery, company)
+        fpos = all_auto_apply_fpos._get_first_matching_fpos(delivery, company)
+        dbg.logic.debug(
+            "[partner:%s] fiscal position: auto %s of %d candidate(s), delivery=%s intra_eu=%s",
+            partner.id,
+            fpos.id,
+            len(all_auto_apply_fpos),
+            delivery.id,
+            intra_eu,
+        )
+        return fpos
 
+    @dbg.timed
     def action_view_related_taxes(self):
+        dbg.lifecycle.debug("action_view_related_taxes on %s", dbg.rec(self))
         list_view = self.env.ref(
             "account.account_tax_fiscal_position_view_tree", raise_if_not_found=False
         )
@@ -437,7 +472,9 @@ class AccountFiscalPosition(models.Model):
             "context": {"active_test": False},
         }
 
+    @dbg.timed
     def action_create_foreign_taxes(self):
+        dbg.lifecycle.debug("action_create_foreign_taxes on %s", dbg.rec(self))
         self.check_singleton()
         template = self._get_foreign_tax_chart_template(self.country_id)
         if not template["installed"]:

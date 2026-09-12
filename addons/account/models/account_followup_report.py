@@ -1,12 +1,15 @@
 from odoo import _, fields, models
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountFollowupCustomHandler(models.AbstractModel):
     _name = "account.followup.report.handler"
     _inherit = "account.partner.ledger.report.handler"
     _description = "Follow-Up Report Custom Handler"
 
+    @dbg.timed
     def _custom_options_initializer(self, report, options, previous_options):
         super()._custom_options_initializer(report, options, previous_options)
 
@@ -71,6 +74,7 @@ class AccountFollowupCustomHandler(models.AbstractModel):
             )
         )
 
+    @dbg.timed
     def _get_partner_aml_report_lines(
         self,
         report,
@@ -194,7 +198,9 @@ class AccountFollowupCustomHandler(models.AbstractModel):
             order_by=super()._get_order_by_aml_values(),
         )
 
+    @dbg.timed
     def action_send_follow_up(self, options):
+        dbg.lifecycle.debug("action_send_follow_up on %s", dbg.rec(self))
         template = self.env.ref(
             "account.email_template_customer_follow_up_report", False
         )

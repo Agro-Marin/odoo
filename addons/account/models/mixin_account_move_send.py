@@ -6,6 +6,7 @@ from markupsafe import Markup
 from odoo import Command, _, api, models, modules, tools
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.ir_actions_report import PDF_OPTIONS_DATA_KEY
 
 _logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_default_sending_settings(self, move, from_cron=False, **custom_settings):
         def get_setting(key, from_cron=False, default_value=None):
             return (
@@ -152,9 +154,21 @@ class MixinAccountMoveSend(models.AbstractModel):
             vals["mail_attachments_widget"] = get_setting(
                 "mail_attachments_widget", default_value=mail_attachments_widget
             )
+        dbg.logic.debug(
+            "[send] [move:%s] settings: methods=%s edis=%s edi_format=%s pdf_report=%s template=%s from_cron=%s custom=%s",
+            move.id,
+            vals["sending_methods"],
+            vals["extra_edis"],
+            vals["invoice_edi_format"],
+            vals["pdf_report"].id,
+            mail_template.id,
+            from_cron,
+            dbg.keys(custom_settings),
+        )
         return vals
 
     @api.model
+    @dbg.timed
     def _get_alerts(self, moves, moves_data):
         alerts = {}
         send_cron = self.env.ref(
@@ -240,6 +254,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         )
 
     @api.model
+    @dbg.timed
     def _get_default_mail_partner_ids(self, move, mail_template, mail_lang):
         partners = self.env["res.partner"].with_company(move.company_id)
         if mail_template.use_default_to:
@@ -385,10 +400,14 @@ class MixinAccountMoveSend(models.AbstractModel):
             raise UserError("\n".join(danger_alert_messages))
 
     @api.model
+    @dbg.timed
     def _check_move_constraints(self, moves):
         errors = []
         for move in moves:
             if move_constraints := self._get_move_constraints(move):
+                dbg.logic.debug(
+                    "[send] [move:%s] refused: %s", move.id, dbg.keys(move_constraints)
+                )
                 message = next(iter(move_constraints.values()), None)
                 errors.append(f"{move.display_name}: {message}")
         if errors:
@@ -411,6 +430,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return constraints
 
     @api.model
+    @dbg.timed
     def _check_invoice_report(self, moves, **custom_settings):
         if (
             custom_settings.get("pdf_report")
@@ -469,6 +489,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return
 
     @api.model
+    @dbg.timed
     def _update_invoice_data_pdf_report(self, invoices_data):
         grouped_invoices_by_report = defaultdict(dict)
         for invoice, invoice_data in invoices_data.items():
@@ -585,6 +606,11 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     @api.model
     def _hook_if_errors(self, moves_data, allow_raising=True):
+        dbg.logic.debug(
+            "[send] _hook_if_errors allow_raising=%s on %d move(s)",
+            allow_raising,
+            len(moves_data),
+        )
         if allow_raising:
             error_messages = [
                 self._format_error_text(move_data["error"])
@@ -602,6 +628,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         self._send_notifications_to_partners(group_by_partner, is_success=False)
 
     @api.model
+    @dbg.timed
     def _hook_if_success(self, moves_data, from_cron=False):
         group_by_partner = defaultdict(list)
         to_send_mail = {}
@@ -612,6 +639,12 @@ class MixinAccountMoveSend(models.AbstractModel):
                 "email", move, **move_data
             ):
                 to_send_mail[move] = move_data
+        dbg.pipeline.debug(
+            "[send] _hook_if_success: %d success, %d to mail, from_cron=%s",
+            len(moves_data),
+            len(to_send_mail),
+            from_cron,
+        )
         self._send_mails(to_send_mail, from_cron=from_cron)
         self._send_notifications_to_partners(group_by_partner)
 
@@ -639,6 +672,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                 _logger.exception("Failed notifying subscribers for move %s", move.id)
 
     @api.model
+    @dbg.timed
     def _send_notifications_to_partners(
         self, moves_grouped_by_author_partner_id, is_success=True
     ):
@@ -709,6 +743,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return "mail.mail_notification_layout_with_responsible_signature"
 
     @api.model
+    @dbg.timed
     def _get_mail_params(self, move, move_data):
         mail_attachments_widget = move_data.get("mail_attachments_widget")
         seen_attachment_ids = set()
@@ -747,6 +782,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return params
 
     @api.model
+    @dbg.timed
     def _generate_dynamic_reports(self, moves_data, from_cron=False):
         failed = self.env["account.move"]
         for move, move_data in moves_data.items():
@@ -768,6 +804,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return failed
 
     @api.model
+    @dbg.timed
     def _create_dynamic_reports_for_move(self, move, move_data):
         mail_attachments_widget = move_data.get("mail_attachments_widget", [])
 
@@ -810,6 +847,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         ]
 
     @api.model
+    @dbg.timed
     def _send_mails(self, moves_data, from_cron=False):
         subtype = self.env.ref("mail.mt_comment")
 
@@ -825,7 +863,17 @@ class MixinAccountMoveSend(models.AbstractModel):
             mail_lang = move_data["mail_lang"]
             mail_params = self._get_mail_params(move, move_data)
             if not mail_params:
+                dbg.logic.debug(
+                    "[send] [move:%s] no mail params, mail skipped", move.id
+                )
                 continue
+            dbg.pipeline.debug(
+                "[send] [move:%s] mailing template=%s lang=%s attachments=%d",
+                move.id,
+                mail_template.id,
+                mail_lang,
+                len(mail_params.get("attachments", [])),
+            )
 
             if move_data.get("proforma_pdf_attachment"):
                 attachment = move_data["proforma_pdf_attachment"]
@@ -876,6 +924,7 @@ class MixinAccountMoveSend(models.AbstractModel):
         return
 
     @api.model
+    @dbg.timed
     def _render_invoice_documents(self, invoices_data, allow_fallback_pdf=False):
         for invoice, invoice_data in invoices_data.items():
             self._hook_invoice_document_before_pdf_report_render(invoice, invoice_data)
@@ -917,9 +966,18 @@ class MixinAccountMoveSend(models.AbstractModel):
 
         if pdf_to_generate:
             batches.append(pdf_to_generate)
+        dbg.pipeline.debug(
+            "[send] render: %d invoice(s), web service %d, pdf %d in %d batch(es) of %s",
+            len(invoices_data),
+            len(invoices_data_web_service),
+            len(invoices_data_pdf),
+            len(batches),
+            batch_size,
+        )
 
         for batch in batches:
-            self._update_invoice_data_pdf_report(batch)
+            with dbg.timer(self.env, "[send] pdf batch x%d", len(batch)):
+                self._update_invoice_data_pdf_report(batch)
 
         for invoice, invoice_data in invoices_data_pdf.items():
             if not invoice_data.get("error") and not invoice.invoice_pdf_report_id:
@@ -935,6 +993,10 @@ class MixinAccountMoveSend(models.AbstractModel):
                 and invoice_data.get("error")
             }
             if invoices_data_pdf_error:
+                dbg.logic.debug(
+                    "[send] pdf errors with fallback on %s",
+                    dbg.ids(self.env["account.move"].union(*invoices_data_pdf_error)),
+                )
                 self._hook_if_errors(
                     invoices_data_pdf_error, allow_raising=not allow_fallback_pdf
                 )
@@ -955,9 +1017,13 @@ class MixinAccountMoveSend(models.AbstractModel):
         self._link_invoice_documents(invoices_to_link)
 
     @api.model
+    @dbg.timed
     def _create_invoice_fallback_documents(self, invoices_data):
         for invoice, invoice_data in invoices_data.items():
             if not invoice.invoice_pdf_report_id and invoice_data.get("error"):
+                dbg.logic.debug(
+                    "[send] [move:%s] falling back to proforma pdf", invoice.id
+                )
                 invoice_data.pop("error")
                 self._update_invoice_data_proforma_pdf_report(invoice, invoice_data)
                 self._hook_invoice_document_after_pdf_report_render(
@@ -967,6 +1033,7 @@ class MixinAccountMoveSend(models.AbstractModel):
                     "ir.attachment"
                 ].create(invoice_data.pop("proforma_pdf_attachment_values"))
 
+    @dbg.timed
     def _check_sending_data(self, moves, **custom_settings):
         self._check_move_constraints(moves)
         self._check_invoice_report(moves, **custom_settings)
@@ -978,6 +1045,7 @@ class MixinAccountMoveSend(models.AbstractModel):
             raise ValidationError(_("Invalid sending method provided."))
 
     @api.model
+    @dbg.timed
     def _generate_and_send_invoices(
         self,
         moves,
@@ -995,6 +1063,13 @@ class MixinAccountMoveSend(models.AbstractModel):
             }
             for move in moves
         }
+        dbg.pipeline.debug(
+            "[send] _generate_and_send_invoices %s from_cron=%s fallback=%s settings=%s",
+            dbg.rec(moves),
+            from_cron,
+            allow_fallback_pdf,
+            dbg.keys(custom_settings),
+        )
 
         self._render_invoice_documents(
             moves_data, allow_fallback_pdf=allow_fallback_pdf
@@ -1006,6 +1081,11 @@ class MixinAccountMoveSend(models.AbstractModel):
             if move_data.get("error")
         }
         if errors:
+            dbg.logic.debug(
+                "[send] %d error(s) after render on %s",
+                len(errors),
+                dbg.ids(self.env["account.move"].union(*errors)),
+            )
             self._hook_if_errors(
                 errors,
                 allow_raising=not from_cron
@@ -1026,6 +1106,16 @@ class MixinAccountMoveSend(models.AbstractModel):
             for move, move_data in moves_data.items()
             if not move_data.get("error")
         }
+        dbg.pipeline.debug(
+            "[send] success=%d error=%d retry=%d",
+            len(success),
+            len(moves_data) - len(success),
+            sum(
+                1
+                for move_data in moves_data.values()
+                if move_data.get("error", {}).get("retry")
+            ),
+        )
         if success:
             self._hook_if_success(success, from_cron=from_cron)
 

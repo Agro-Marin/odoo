@@ -1,7 +1,7 @@
 import ast
 import json
 import random
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import timedelta
 from typing import NamedTuple
 
@@ -13,6 +13,8 @@ from odoo.release import version_info
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DF
 from odoo.tools import SQL
 from odoo.tools.misc import get_lang
+
+from ..tools import debug_log as dbg
 
 BANK_CASH_TYPES = ("bank", "cash", "credit")
 SALE_PURCHASE_TYPES = ("sale", "purchase")
@@ -113,6 +115,7 @@ class AccountJournal(models.Model):
             journal.kanban_dashboard = json.dumps(dashboard_data[journal.id])
 
     @api.depends("current_statement_balance")
+    @dbg.timed
     def _compute_kanban_dashboard_graph(self):
         bank_cash_journals = self.filtered(
             lambda journal: journal.type in BANK_CASH_TYPES
@@ -138,6 +141,7 @@ class AccountJournal(models.Model):
             self - bank_cash_journals - sale_purchase_journals
         ).kanban_dashboard_graph = False
 
+    @dbg.timed
     def _query_has_sequence_holes(self):
         self.env["account.move"].flush_model(
             ["journal_id", "date", "sequence_prefix", "made_sequence_gap"]
@@ -237,6 +241,7 @@ class AccountJournal(models.Model):
             )
 
     @api.depends_context("allowed_company_ids")
+    @dbg.timed
     def _compute_entry_presence(self):
         if not self.ids:
             self.has_posted_entries = False
@@ -288,6 +293,7 @@ class AccountJournal(models.Model):
             return ["", _("Credit Card: Balance")]
         return ["", ""]
 
+    @dbg.timed
     def _get_bank_cash_graph_data(self):
         def prepare_graph_point(date, amount, currency):
             name = format_date(date, "d LLLL Y", locale=locale)
@@ -359,6 +365,7 @@ class AccountJournal(models.Model):
             ]
         return result
 
+    @dbg.timed
     def _get_sale_purchase_graph_data(self):
         today = fields.Date.context_today(self)
         lang_code = get_lang(self.env).code
@@ -461,10 +468,19 @@ class AccountJournal(models.Model):
                 or journal.company_id.id != self.env.company.id,
                 "company_name": journal.company_id.sudo().name,
             }
-        self._update_bank_cash_dashboard_data(dashboard_data)
-        self._update_sale_purchase_dashboard_data(dashboard_data)
-        self._update_general_dashboard_data(dashboard_data)
-        self._update_onboarding_data(dashboard_data)
+        dbg.pipeline.debug(
+            "dashboard batch over %s types=%s",
+            dbg.rec(self),
+            dbg.lazy(lambda: dict(Counter(self.mapped("type")))),
+        )
+        with dbg.timer(self.env, "dashboard bank/cash"):
+            self._update_bank_cash_dashboard_data(dashboard_data)
+        with dbg.timer(self.env, "dashboard sale/purchase"):
+            self._update_sale_purchase_dashboard_data(dashboard_data)
+        with dbg.timer(self.env, "dashboard general"):
+            self._update_general_dashboard_data(dashboard_data)
+        with dbg.timer(self.env, "dashboard onboarding"):
+            self._update_onboarding_data(dashboard_data)
         return dashboard_data
 
     def _update_dashboard_data_count(self, dashboard_data, model, name, domain):
@@ -567,6 +583,7 @@ class AccountJournal(models.Model):
             )
         }
 
+    @dbg.timed
     def _update_bank_cash_dashboard_data(self, dashboard_data):
         bank_cash_journals = self.filtered(
             lambda journal: journal.type in BANK_CASH_TYPES
@@ -686,6 +703,7 @@ class AccountJournal(models.Model):
                 late[journal.id] = [r for r in rows[journal.id] if r["late"]]
         return to_pay, late
 
+    @dbg.timed
     def _update_sale_purchase_dashboard_data(self, dashboard_data):
         sale_purchase_journals = self.filtered(
             lambda journal: journal.type in SALE_PURCHASE_TYPES
@@ -774,6 +792,7 @@ class AccountJournal(models.Model):
 
             dashboard_data[journal.id]["drag_drop_settings"] = drag_drop_settings
 
+    @dbg.timed
     def _update_onboarding_data(self, dashboard_data):
         journal_onboarding_map = {
             "sale": "account_invoice",
@@ -933,6 +952,7 @@ class AccountJournal(models.Model):
                 )
         return count, target_currency.round(total_amount)
 
+    @dbg.timed
     def _get_bank_positions(self):
         if not self:
             return {}
@@ -1066,7 +1086,9 @@ class AccountJournal(models.Model):
             ctx["view_no_maturity"] = True
         return ctx
 
+    @dbg.timed
     def action_create_new(self):
+        dbg.lifecycle.debug("action_create_new on %s", dbg.rec(self))
         return {
             "name": _("Create invoice/bill"),
             "type": "ir.actions.act_window",
@@ -1093,7 +1115,9 @@ class AccountJournal(models.Model):
         else:
             return "action_move_journal_line"
 
+    @dbg.timed
     def open_action(self):
+        dbg.lifecycle.debug("open_action on %s", dbg.rec(self))
         self.check_singleton()
         action_name = self._select_action_to_open()
 
@@ -1144,7 +1168,9 @@ class AccountJournal(models.Model):
         action["domain"] = (action["domain"] or []) + [("journal_id", "=", self.id)]
         return action
 
+    @dbg.timed
     def open_payments_action(self, payment_type=False, mode="list"):
+        dbg.lifecycle.debug("open_payments_action on %s", dbg.rec(self))
         if payment_type == "outbound":
             action_ref = "account.action_account_payments_payable"
         elif payment_type == "transfer":
@@ -1172,14 +1198,18 @@ class AccountJournal(models.Model):
             action["views"] = [[False, "form"]]
         return action
 
+    @dbg.timed
     def action_post_all_entries(self):
+        dbg.lifecycle.debug("action_post_all_entries on %s", dbg.rec(self))
         ctx = dict(self.env.context, active_model="account.journal", active_id=self.id)
         moves_to_validate = self.env["account.move"].search(
             [("journal_id", "=", self.id)]
         )
         return moves_to_validate.with_context(ctx).action_post_moves_with_confirmation()
 
+    @dbg.timed
     def open_action_with_context(self):
+        dbg.lifecycle.debug("open_action_with_context on %s", dbg.rec(self))
         action_name = self.env.context.get("action_name", False)
         if not action_name:
             return False
@@ -1205,7 +1235,9 @@ class AccountJournal(models.Model):
             )
         return action
 
+    @dbg.timed
     def open_bank_difference_action(self):
+        dbg.lifecycle.debug("open_bank_difference_action on %s", dbg.rec(self))
         self.check_singleton()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_account_moves_all_a"
@@ -1225,7 +1257,9 @@ class AccountJournal(models.Model):
             }
         return action
 
+    @dbg.timed
     def open_invalid_statements_action(self):
+        dbg.lifecycle.debug("open_invalid_statements_action on %s", dbg.rec(self))
         self.check_singleton()
         return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_bank_statement_tree"

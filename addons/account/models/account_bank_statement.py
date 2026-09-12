@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 from odoo.tools import SQL
 from odoo.tools.misc import formatLang
 
+from ..tools import debug_log as dbg
+
 _RUNNING_BALANCE_TRIGGERS = frozenset(
     {"balance_start", "first_line_index", "journal_id", "line_ids"}
 )
@@ -140,6 +142,7 @@ class AccountBankStatement(models.Model):
         self.check_singleton()
         return self.line_ids.filtered("internal_index").sorted("internal_index")
 
+    @dbg.timed
     def _get_balance_start(self, stmt):
         journal_id = stmt.journal_id.id or stmt.line_ids.journal_id.id
         previous_line_with_statement = self.env["account.bank.statement.line"].search(
@@ -240,6 +243,7 @@ class AccountBankStatement(models.Model):
                 )
             stmt.problem_description = description
 
+    @dbg.timed
     def _search_is_valid(self, operator, value):
         if operator != "in":
             return NotImplemented
@@ -265,6 +269,7 @@ class AccountBankStatement(models.Model):
             == 0
         )
 
+    @dbg.timed
     def _get_invalid_statement_ids(self, all_statements=None):
         self.env["account.bank.statement.line"].flush_model(
             ["statement_id", "internal_index"]
@@ -310,10 +315,19 @@ class AccountBankStatement(models.Model):
                 SQL() if all_statements else SQL("AND id = ANY(%s)", self.ids),
             )
         )
-        return [statement_id for (statement_id,) in self.env.cr.fetchall()]
+        invalid_ids = [statement_id for (statement_id,) in self.env.cr.fetchall()]
+        dbg.logic.debug(
+            "_get_invalid_statement_ids all=%s on %s -> %s",
+            bool(all_statements),
+            dbg.rec(self),
+            invalid_ids[:8],
+        )
+        return invalid_ids
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         defaults = super().default_get(fields)
 
         if "line_ids" not in fields:
@@ -394,14 +408,23 @@ class AccountBankStatement(models.Model):
             attachments.write({"res_id": stmt.id, "res_model": stmt._name})
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         attachments_list = self._get_attachments(vals_list)
         stmts = super().create(vals_list)
         self._reparent_attachments(stmts, attachments_list)
         self.env["account.bank.statement.line"]._invalidate_running_balance()
         return stmts
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if len(self) != 1 and "attachment_ids" in vals:
             vals = {
                 key: value for key, value in vals.items() if key != "attachment_ids"
@@ -414,7 +437,9 @@ class AccountBankStatement(models.Model):
             self.env["account.bank.statement.line"]._invalidate_running_balance()
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         res = super().unlink()
         self.env["account.bank.statement.line"]._invalidate_running_balance()
         return res

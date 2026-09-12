@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticLine(models.Model):
     _inherit = "account.analytic.line"
@@ -51,6 +53,7 @@ class AccountAnalyticLine(models.Model):
     )
 
     @api.constrains("move_line_id", "general_account_id")
+    @dbg.timed
     def _check_general_account_id(self):
         for line in self:
             if (
@@ -62,12 +65,21 @@ class AccountAnalyticLine(models.Model):
                 )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         analytic_lines = super().create(vals_list)
         analytic_lines.move_line_id._update_analytic_distribution()
         return analytic_lines
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         affected_move_lines = self.move_line_id
         res = super().write(vals)
         if any(
@@ -79,7 +91,9 @@ class AccountAnalyticLine(models.Model):
             affected_move_lines._update_analytic_distribution()
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         affected_move_lines = self.move_line_id
         res = super().unlink()
         affected_move_lines._update_analytic_distribution()

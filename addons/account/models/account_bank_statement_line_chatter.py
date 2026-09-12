@@ -2,6 +2,8 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
@@ -19,13 +21,17 @@ class AccountBankStatementLine(models.Model):
             limit=1,
         )
 
+    @dbg.timed
     def _post_matching_note(self, body):
+        dbg.lifecycle.debug("_post_matching_note on %s", dbg.rec(self))
         self.check_singleton()
         if self._get_last_5_minutes_messages(body=body):
             return
         self.move_id.message_post(body=body, author_id=self.env.user.partner_id.id)
 
+    @dbg.timed
     def _post_matching_done_confirmation(self):
+        dbg.lifecycle.debug("_post_matching_done_confirmation on %s", dbg.rec(self))
         self.check_singleton()
         if not self.is_reconciled:
             return
@@ -37,12 +43,15 @@ class AccountBankStatementLine(models.Model):
             )
         self._post_matching_note(body)
 
+    @dbg.timed
     def _post_matching_unreconciled(self):
+        dbg.lifecycle.debug("_post_matching_unreconciled on %s", dbg.rec(self))
         self.check_singleton()
         if self.is_reconciled:
             return
         self._post_matching_note(_("Matching unreconciled"))
 
+    @dbg.timed
     def _create_payment_with_move_from_invoice(self, move_id):
         return (
             self.env["account.payment.register"]
@@ -59,6 +68,7 @@ class AccountBankStatementLine(models.Model):
             ._create_payments()
         )
 
+    @dbg.timed
     def _reconcile_with_payments(self, payments, amls_to_create, reconciled_lines=None):
         self.check_singleton()
         has_exchange_diff = False

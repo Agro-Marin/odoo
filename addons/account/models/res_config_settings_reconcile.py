@@ -3,6 +3,8 @@ from datetime import date
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
@@ -111,6 +113,7 @@ class ResConfigSettings(models.TransientModel):
             settings.module_sign = sign_installed or settings.company_id.sign_invoice
 
     @api.constrains("fiscalyear_last_day", "fiscalyear_last_month")
+    @dbg.timed
     def _check_fiscalyear(self):
         for wiz in self:
             try:
@@ -125,7 +128,14 @@ class ResConfigSettings(models.TransientModel):
                 ) from e
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             fiscalyear_last_day = (
                 vals.pop("fiscalyear_last_day", False)

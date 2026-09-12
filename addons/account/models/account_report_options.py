@@ -10,6 +10,7 @@ from odoo.fields import Domain
 from odoo.tools import date_utils
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
 from .account_report_engine import CURRENCIES_USING_LAKH
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
@@ -17,6 +18,7 @@ from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPE
 class AccountReportOptions(models.Model):
     _inherit = "account.report"
 
+    @dbg.timed
     def _init_options_journals(
         self, options, previous_options, additional_journals_domain=None
     ):
@@ -231,6 +233,7 @@ class AccountReportOptions(models.Model):
             audit_return[0]["id"] if len(audit_return) > 0 else False
         )
 
+    @dbg.timed
     def _init_options_journals_names(
         self, options, previous_options, additional_journals_domain=None
     ):
@@ -344,6 +347,7 @@ class AccountReportOptions(models.Model):
             for filter_record in selected_ir_filters
         )
 
+    @dbg.timed
     def _init_options_date(self, options, previous_options):
         """Initialize the 'date' options key.
 
@@ -553,6 +557,7 @@ class AccountReportOptions(models.Model):
 
         options["date"]["filter"] = options_filter
 
+    @dbg.timed
     def _init_options_return_periodicity(self, options, previous_options):
         if (
             previous_options.get("return_periodicity")
@@ -591,6 +596,7 @@ class AccountReportOptions(models.Model):
                 "report_id": self.id,
             }
 
+    @dbg.timed
     def _init_options_comparison(self, options, previous_options):
         """Initialize the 'comparison' options key.
 
@@ -773,6 +779,7 @@ class AccountReportOptions(models.Model):
             )
         return Domain.TRUE
 
+    @dbg.timed
     def _init_options_account_type(self, options, previous_options):
         """Initialize a filter based on the account_type of the line (trade/non trade, payable/receivable).
 
@@ -881,6 +888,7 @@ class AccountReportOptions(models.Model):
             for c in companies
         ]
 
+    @dbg.timed
     def _multi_company_tax_units_init_options(self, options, previous_options):
         """Initializes the companies option for reports configured to compute it from tax units."""
         available_tax_units = self.env.company._get_available_tax_units(self)
@@ -964,6 +972,7 @@ class AccountReportOptions(models.Model):
     ####################################################
     # OPTIONS: CURRENCY TABLE
     ####################################################
+    @dbg.timed
     def _init_options_currency_table(self, options, previous_options):
         companies = self.env["res.company"].browse(self.get_report_company_ids(options))
         table_type = (
@@ -1087,6 +1096,7 @@ class AccountReportOptions(models.Model):
             if "filter_search_bar" in previous_options:
                 options["filter_search_bar"] = previous_options["filter_search_bar"]
 
+    @dbg.timed
     def _init_options_column_headers(self, options, previous_options):
         # Prepare column headers, in case the order of the comparison is ascending we reverse the order of the columns
         all_comparison_date_vals = [options["date"]] + options.get(
@@ -1183,6 +1193,7 @@ class AccountReportOptions(models.Model):
     ####################################################
     # OPTIONS: COLUMNS
     ####################################################
+    @dbg.timed
     def _init_options_columns(self, options, previous_options):
         default_group_vals = {"horizontal_groupby_element": {}, "forced_options": {}}
         all_column_group_vals_in_order = self._generate_columns_group_vals_recursively(
@@ -1219,6 +1230,7 @@ class AccountReportOptions(models.Model):
             and not selected_budgets
         )
 
+    @dbg.timed
     def _init_options_buttons(self, options, previous_options):
         options["buttons"] = [
             {
@@ -1271,6 +1283,7 @@ class AccountReportOptions(models.Model):
     ####################################################
     # OPTIONS: VARIANTS
     ####################################################
+    @dbg.timed
     def _init_options_variants(self, options, previous_options):
         allowed_variant_ids = set()
 
@@ -1338,6 +1351,7 @@ class AccountReportOptions(models.Model):
     ####################################################
     # OPTIONS: SECTIONS
     ####################################################
+    @dbg.timed
     def _init_options_sections(self, options, previous_options):
         if options.get("selected_variant_id"):
             options["sections_source_id"] = options["selected_variant_id"]
@@ -1403,9 +1417,15 @@ class AccountReportOptions(models.Model):
     def _init_options_custom(self, options, previous_options):
         custom_handler_model = self._get_custom_handler_model()
         if custom_handler_model:
-            self.env[custom_handler_model]._custom_options_initializer(
-                self, options, previous_options
-            )
+            with dbg.timer(
+                self.env,
+                "[report:%s] %s._custom_options_initializer",
+                self.id,
+                custom_handler_model,
+            ):
+                self.env[custom_handler_model]._custom_options_initializer(
+                    self, options, previous_options
+                )
 
     ####################################################
     # OPTIONS: INTEGER ROUNDING
@@ -1519,6 +1539,7 @@ class AccountReportOptions(models.Model):
         }
 
     @api.readonly
+    @dbg.timed
     def get_options(self, previous_options):
         self.check_singleton()
 
@@ -1552,6 +1573,11 @@ class AccountReportOptions(models.Model):
         if (
             not self.root_report_id or (self.use_sections and self.section_report_ids)
         ) and options["report_id"] != self.id:
+            dbg.logic.debug(
+                "[report:%s] get_options rerouted to report %s",
+                self.id,
+                options["report_id"],
+            )
             # Load the variant/section instead of the root report
             variant_options = {**previous_options}
             for reroute_opt_key in (
@@ -1572,7 +1598,20 @@ class AccountReportOptions(models.Model):
 
         # No reroute; keep on and compute the other options
         for initializer in after_report:
-            initializer(options, previous_options=previous_options)
+            with dbg.timer(self.env, "[report:%s] %s", self.id, initializer.__name__):
+                initializer(options, previous_options=previous_options)
+        dbg.pipeline.debug(
+            "[report:%s] get_options: date=%s companies=%s column_groups=%d filters=%s",
+            self.id,
+            dbg.lazy(lambda: options.get("date", {}).get("string")),
+            dbg.lazy(lambda: self.get_report_company_ids(options)),
+            len(options.get("column_groups", {})),
+            dbg.lazy(
+                lambda: sorted(
+                    k for k, v in options.items() if k.startswith("filter_") and v
+                )
+            ),
+        )
 
         options_companies = self.env["res.company"].browse(
             self.get_report_company_ids(options)
@@ -1646,6 +1685,7 @@ class AccountReportOptions(models.Model):
 
         return initializers
 
+    @dbg.timed
     def _get_options_initializers_forced_sequence_map(self):
         """By default, not specific order is ensured for the filters when calling _get_options_initializers_in_sequence.
         This function allows giving them a sequence number. It can be overridden
@@ -1683,6 +1723,7 @@ class AccountReportOptions(models.Model):
             self._init_options_filters: 1500,
         }
 
+    @dbg.timed
     def _get_domain_options(self, options, date_scope) -> Domain:
         self.check_singleton()
 
@@ -1774,6 +1815,7 @@ class AccountReportOptions(models.Model):
 
         return self._get_dates_period(date_from, date_to, mode, period_type=period_type)
 
+    @dbg.timed
     def _get_date_bounds_info(self, options, date_scope):
         # Default values (the ones from 'strict_range')
         date_to = options["date"]["date_to"]
@@ -1872,6 +1914,7 @@ class AccountReportOptions(models.Model):
         return dates_domain
 
     @api.model
+    @dbg.timed
     def _get_dates_period(
         self, date_from, date_to, mode, period_type=None, options_return=False
     ):
@@ -1976,6 +2019,7 @@ class AccountReportOptions(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _get_shifted_dates_period(
         self, options, period_vals, periods, return_period=False
     ):

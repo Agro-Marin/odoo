@@ -1,12 +1,16 @@
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class MailTemplate(models.Model):
     _inherit = "mail.template"
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_except_master_mail_template(self):
+        dbg.lifecycle.debug("_unlink_except_master_mail_template on %s", dbg.rec(self))
         master_xmlids = {
             "account.email_template_edi_invoice",
             "account.email_template_edi_credit_note",

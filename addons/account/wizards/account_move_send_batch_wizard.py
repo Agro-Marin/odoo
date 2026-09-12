@@ -3,6 +3,8 @@ from collections import Counter
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 
+from ..tools import debug_log as dbg
+
 
 class AccountMoveSendBatchWizard(models.TransientModel):
     _name = "account.move.send.batch.wizard"
@@ -14,7 +16,9 @@ class AccountMoveSendBatchWizard(models.TransientModel):
     alerts = fields.Json(compute="_compute_alerts")
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         results = super().default_get(fields_list)
         if "move_ids" in fields_list and "move_ids" not in results:
             move_ids = self.env.context.get("active_ids", [])
@@ -22,6 +26,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
         return results
 
     @api.depends("move_ids")
+    @dbg.timed
     def _compute_summary_data(self):
         extra_edis = self._get_all_extra_edis()
         sending_methods = dict(
@@ -70,11 +75,14 @@ class AccountMoveSendBatchWizard(models.TransientModel):
             wizard.alerts = self._get_alerts(wizard.move_ids._origin, moves_data)
 
     @api.constrains("move_ids")
+    @dbg.timed
     def _check_move_ids_constraints(self):
         for wizard in self:
             self._check_move_constraints(wizard.move_ids)
 
+    @dbg.timed
     def action_send_and_print(self, force_synchronous=False, allow_fallback_pdf=False):
+        dbg.lifecycle.debug("action_send_and_print on %s", dbg.rec(self))
         self.check_singleton()
         if self.alerts:
             self._raise_danger_alerts(self.alerts)

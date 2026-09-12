@@ -5,15 +5,24 @@ from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    @dbg.timed
     def _extend_with_attachments(self, files_data, new=False):
         existing_lines = self.invoice_line_ids
         res = super()._extend_with_attachments(files_data, new)
+        dbg.pipeline.debug(
+            "[import] [move:%s] extended=%s new lines=%d",
+            self.id,
+            res,
+            len(self.invoice_line_ids - existing_lines),
+        )
 
         if new_lines := (self.invoice_line_ids - existing_lines):
             new_lines.is_imported = True
@@ -85,6 +94,7 @@ class AccountMove(models.Model):
     def _post_process_link_to_purchase_order(self, invoice):
         pass
 
+    @dbg.timed
     def _prepare_edi_vals_to_export(self):
         self.check_singleton()
 

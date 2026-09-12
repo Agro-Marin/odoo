@@ -12,6 +12,7 @@ from odoo.libs.numbers import float_round
 from odoo.service.model import get_public_method
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from .account_report_engine import (
     ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
     UNDISTR_LINE_NAME,
@@ -27,7 +28,9 @@ from odoo.addons.web.controllers.utils import clean_action
 class AccountReportActions(models.Model):
     _inherit = "account.report"
 
+    @dbg.timed
     def action_view_report_form(self, options, params):
+        dbg.lifecycle.debug("action_view_report_form on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_window",
             "res_model": "account.report",
@@ -36,7 +39,12 @@ class AccountReportActions(models.Model):
             "res_id": self.id,
         }
 
+    @dbg.timed
     def open_account_report_file_download_error_wizard(self, errors, content):
+        dbg.lifecycle.debug(
+            "open_account_report_file_download_error_wizard on %s",
+            dbg.rec(self),
+        )
         self.check_singleton()
 
         model = "account.report.file.download.error.wizard"
@@ -66,6 +74,7 @@ class AccountReportActions(models.Model):
             ),
         }
 
+    @dbg.timed
     def _caret_options_initializer_default(self):
         return {
             "account.account": [
@@ -151,6 +160,7 @@ class AccountReportActions(models.Model):
 
         return self.env["ir.model.data"]._get_xmlid_target(view_xmlid)[1]
 
+    @dbg.timed
     def caret_option_open_general_ledger(self, options, params):
         # When coming from a specific account, the unfold must only be retained
         # on the specified account. Better performance and more ergonomic
@@ -217,6 +227,7 @@ class AccountReportActions(models.Model):
             )
         )
 
+    @dbg.timed
     def dispatch_report_action(
         self, options, action, action_param=None, on_sections_source=False
     ):
@@ -269,9 +280,14 @@ class AccountReportActions(models.Model):
             model = self.env[custom_handler_model]
         report_method = get_public_method(model, action)
         args = [options, action_param] if action_param is not None else [options]
-        return report_method(model, *args)
+        with dbg.timer(
+            self.env, "[report:%s] dispatch %s.%s", self.id, model._name, action
+        ):
+            return report_method(model, *args)
 
+    @dbg.timed
     def action_audit_cell(self, options, params):
+        dbg.lifecycle.debug("action_audit_cell on %s", dbg.rec(self))
         report_line = self.env["account.report.line"].browse(params["report_line_id"])
         expression_label = params["expression_label"]
         expression = report_line.expression_ids.filtered(
@@ -353,7 +369,9 @@ class AccountReportActions(models.Model):
         )
         return action
 
+    @dbg.timed
     def action_view_all_variants(self, options, params):
+        dbg.lifecycle.debug("action_view_all_variants on %s", dbg.rec(self))
         return {
             "name": _("All Report Variants"),
             "type": "ir.actions.act_window",
@@ -374,8 +392,10 @@ class AccountReportActions(models.Model):
             ],
         }
 
+    @dbg.timed
     def open_journal_items(self, options, params):
         """Open the journal items view with the proper filters and groups"""
+        dbg.lifecycle.debug("open_journal_items on %s", dbg.rec(self))
         record_model, record_id = self._get_model_info_from_id(params.get("line_id"))
         view_id = (
             self.env.ref(params["view_ref"]).id if params.get("view_ref") else None
@@ -574,7 +594,9 @@ class AccountReportActions(models.Model):
             "context": ctx,
         }
 
+    @dbg.timed
     def open_unallocated_items_journal_items(self, options, params):
+        dbg.lifecycle.debug("open_unallocated_items_journal_items on %s", dbg.rec(self))
         _record_model, record_id = self._get_model_info_from_id(params.get("line_id"))
         fiscal_year = self.env.company.compute_fiscalyear_dates(
             fields.Date.to_date(options.get("date").get("date_from"))
@@ -595,8 +617,10 @@ class AccountReportActions(models.Model):
         action.get("context", {}).update({"search_default_date_between": 0})
         return action
 
+    @dbg.timed
     def open_unposted_moves(self, options, params=None):
         """Open the list of draft journal entries that might impact the reporting"""
+        dbg.lifecycle.debug("open_unposted_moves on %s", dbg.rec(self))
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
         )
@@ -609,7 +633,9 @@ class AccountReportActions(models.Model):
         action["context"] = {}
         return action
 
+    @dbg.timed
     def open_deferral_entries(self, options, params):
+        dbg.lifecycle.debug("open_deferral_entries on %s", dbg.rec(self))
         domain = self._get_domain_generated_deferral_entries(options)
         deferral_line_ids = self.env["account.move"].search(domain).line_ids.ids
         return {
@@ -624,6 +650,7 @@ class AccountReportActions(models.Model):
             },
         }
 
+    @dbg.timed
     def action_modify_manual_value(
         self,
         line_id,
@@ -649,6 +676,7 @@ class AccountReportActions(models.Model):
                                                   only the expressions depending on the newly-modified manual value, and keeping all the results
                                                   from the previous computations for the other ones.
         """
+        dbg.lifecycle.debug("action_modify_manual_value on %s", dbg.rec(self))
         self.check_singleton()
 
         target_column_group_options = self._get_column_group_options(
@@ -706,7 +734,9 @@ class AccountReportActions(models.Model):
             ),
         }
 
+    @dbg.timed
     def action_display_inactive_sections(self, options):
+        dbg.lifecycle.debug("action_display_inactive_sections on %s", dbg.rec(self))
         self.check_singleton()
 
         return {
@@ -725,8 +755,10 @@ class AccountReportActions(models.Model):
             },
         }
 
+    @dbg.timed
     def action_view_returns(self, options):
 
+        dbg.lifecycle.debug("action_view_returns on %s", dbg.rec(self))
         date_to = options["date"]["date_to"]
         date_from = options["date"].get("date_from") or fields.Date.to_string(
             fields.Date.from_string(date_to) - relativedelta(months=3)
@@ -777,7 +809,9 @@ class AccountReportActions(models.Model):
             }
         )
 
+    @dbg.timed
     def action_create_composite_report(self):
+        dbg.lifecycle.debug("action_create_composite_report on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_window",
             "res_model": "account.report",
@@ -808,6 +842,7 @@ class AccountReportActions(models.Model):
         )
         return action, menuitem
 
+    @dbg.timed
     def _create_menu_item_for_report(self):
         """Adds a default menu item for this report. This is called by an action on the report, for reports created manually by the user."""
         self.check_singleton()
@@ -852,10 +887,18 @@ class AccountReportActions(models.Model):
             or ""
         )
 
+    @dbg.timed
     def execute_action(self, options, params=None):
         action_id = int(params.get("actionId"))
         action = self.env["ir.actions.actions"].sudo().browse([action_id])
         action_type = action.type
+        dbg.pipeline.debug(
+            "[report:%s] execute_action %s (%s) line=%s",
+            self.id,
+            action_id,
+            action_type,
+            params.get("id"),
+        )
         action = self.env[action.type].sudo().browse([action_id])
         action_read = clean_action(action.read()[0], env=action.env)
 
@@ -892,6 +935,7 @@ class AccountReportActions(models.Model):
 
         return action_read
 
+    @dbg.timed
     def _action_modify_manual_external_value(
         self, target_column_group_options, new_value_str, target_expression_id, rounding
     ):
@@ -905,6 +949,7 @@ class AccountReportActions(models.Model):
 
         :param rounding: The number of decimal digits to round with.
         """
+        dbg.lifecycle.debug("_action_modify_manual_external_value on %s", dbg.rec(self))
         if len(target_column_group_options["companies"]) > 1:
             raise UserError(
                 _(
@@ -1000,6 +1045,7 @@ class AccountReportActions(models.Model):
                 }
             )
 
+    @dbg.timed
     def _action_modify_manual_budget_value(
         self,
         line_id,
@@ -1008,6 +1054,7 @@ class AccountReportActions(models.Model):
         target_expression_id,
         rounding,
     ):
+        dbg.lifecycle.debug("_action_modify_manual_budget_value on %s", dbg.rec(self))
         target_expression = self.env["account.report.expression"].browse(
             target_expression_id
         )
@@ -1070,6 +1117,7 @@ class AccountReportActions(models.Model):
             target_column_group_options["date"]["date_to"],
         )
 
+    @dbg.timed
     def _get_domain_audit_line(self, column_group_options, expression, params):
         groupby_domain = Domain(
             self._get_domain_audit_line_groupby(params["calling_line_dict_id"])

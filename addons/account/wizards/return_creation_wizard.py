@@ -5,6 +5,8 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class AccountReturnCreationWizard(models.TransientModel):
     _name = "account.return.creation.wizard"
@@ -97,6 +99,7 @@ class AccountReturnCreationWizard(models.TransientModel):
             self.date_from = self.date_to = False
 
     @api.depends("category")
+    @dbg.timed
     def _compute_available_return_type_ids(self):
         return_type_by_country_and_category = self.env[
             "account.return.type"
@@ -161,6 +164,7 @@ class AccountReturnCreationWizard(models.TransientModel):
             )
 
     @api.depends("date_from", "date_to", "return_type_id")
+    @dbg.timed
     def _compute_warnings(self):
         returns_companies_map = {
             (date_from, date_to, tuple(type_id.ids)): returns.mapped("company_ids")
@@ -223,7 +227,9 @@ class AccountReturnCreationWizard(models.TransientModel):
             if wizard.show_warning_existing_return:
                 wizard.show_warning_overlap = False
 
+    @dbg.timed
     def action_create_manual_account_returns(self):
+        dbg.lifecycle.debug("action_create_manual_account_returns on %s", dbg.rec(self))
         self.check_singleton()
 
         if self.show_warning_wrong_dates and not self.env.context.get(

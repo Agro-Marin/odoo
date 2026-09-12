@@ -2,6 +2,8 @@ import json
 
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountReturnSubmissionWizard(models.TransientModel):
     _name = "account.return.submission.wizard"
@@ -10,7 +12,9 @@ class AccountReturnSubmissionWizard(models.TransientModel):
     instructions = fields.Html(string="Instructions")
     return_id = fields.Many2one(comodel_name="account.return", required=True)
 
+    @dbg.timed
     def action_proceed_with_submission(self):
+        dbg.lifecycle.debug("action_proceed_with_submission on %s", dbg.rec(self))
         self.check_singleton()
         return self.return_id._proceed_with_submission()
 

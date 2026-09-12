@@ -5,6 +5,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL, float_compare
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 MAX_BARREN_CRON_ROUNDS = 3
@@ -13,9 +15,14 @@ MAX_BARREN_CRON_ROUNDS = 3
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
 
+    @dbg.timed
     def _cron_try_auto_reconcile_statement_lines(
         self, batch_size=None, limit_time=0, company_id=None
     ):
+        dbg.lifecycle.debug(
+            "_cron_try_auto_reconcile_statement_lines on %s",
+            dbg.rec(self),
+        )
         if limit_time <= 0:
             # `limit_time_real_cron` DEFAULTS to -1, meaning "inherit
             # --limit-time-real" (itself 120), and reading the option directly
@@ -109,7 +116,8 @@ class AccountBankStatementLine(models.Model):
                 if not st_lines:
                     return
 
-                st_lines._try_auto_reconcile_statement_lines(company_id=company_id)
+                with dbg.timer(self.env, "[automatch] cron batch x%d", len(st_lines)):
+                    st_lines._try_auto_reconcile_statement_lines(company_id=company_id)
                 barren_rounds = 0
             except Exception as e:
                 if rollback_and_retire(st_lines, e):
@@ -145,6 +153,7 @@ class AccountBankStatementLine(models.Model):
             return True
         return abs(amount - residual) <= tolerance * abs(residual)
 
+    @dbg.timed
     def _invoice_matching_post_process(self, st_line, amls):
         candidate_amls = self.env["account.move.line"]
         tolerance = self._get_payment_tolerance()
@@ -183,16 +192,24 @@ class AccountBankStatementLine(models.Model):
             ):
                 candidate_amls += aml
 
-        if len(candidate_amls) == 1:
-            return candidate_amls
-
         prior_amls = candidate_amls.filtered(
             lambda aml: aml.invoice_date and aml.invoice_date <= st_line.date
         )
+        dbg.logic.debug(
+            "[automatch:%s] invoice matching: %d of %d settle within tolerance %s, %d dated before",
+            st_line.id,
+            len(candidate_amls),
+            len(amls),
+            tolerance,
+            len(prior_amls),
+        )
+        if len(candidate_amls) == 1:
+            return candidate_amls
         if len(prior_amls) == 1:
             return prior_amls
         return None
 
+    @dbg.timed
     def _handle_reconciliation_matching_amount(
         self, st_move_ids, account_ids, remaining_st_line_ids, match_journal=False
     ):
@@ -229,14 +246,24 @@ class AccountBankStatementLine(models.Model):
 
         for st_line_id, all_aml_ids, total_residual in self.env.cr.fetchall():
             st_line = self.browse(st_line_id).with_prefetch(self._prefetch_ids)
-            if (
+            exact = (
                 float_compare(
                     total_residual,
                     st_line.amount,
                     precision_rounding=st_line.currency_id.rounding,
                 )
                 == 0
-            ):
+            )
+            dbg.logic.debug(
+                "[automatch:%s] amount matching journal=%s: %d aml(s) residual=%s amount=%s exact=%s",
+                st_line_id,
+                match_journal,
+                len(all_aml_ids or ()),
+                total_residual,
+                st_line.amount,
+                exact,
+            )
+            if exact:
                 st_line.set_line_bank_statement_line(all_aml_ids)
                 _logger.info(
                     "try_auto_reconcile - match amount - st_line: %s set lines %s",
@@ -257,6 +284,7 @@ class AccountBankStatementLine(models.Model):
                 processed_st_line_ids.add(st_line.id)
         return processed_st_line_ids
 
+    @dbg.timed
     def _flush_before_matching_queries(self):
         self.env["account.account"].flush_model(["account_type", "active"])
         self.env["account.move"].flush_model(["date", "amount_total"])
@@ -292,6 +320,7 @@ class AccountBankStatementLine(models.Model):
         )
         self.env["account.payment"].flush_model(["move_id", "journal_id", "memo"])
 
+    @dbg.timed
     def _try_auto_reconcile_statement_lines(self, company_id=None):
         st_move_ids = self.mapped("move_id").ids
         self.lock_for_update()
@@ -310,9 +339,20 @@ class AccountBankStatementLine(models.Model):
             self._flush_before_matching_queries()
 
             account_ids = self._get_matchable_account_ids()
+            dbg.pipeline.debug(
+                "[automatch:%s] start: %d reco model(s), %d matchable account(s)",
+                dbg.ids(self),
+                len(reco_models),
+                len(account_ids),
+            )
 
             remaining_st_line_ids = set(self.ids) - self._end_to_end_uuid(
                 st_move_ids, account_ids
+            )
+            dbg.pipeline.debug(
+                "[automatch:%s] after end-to-end uuid: %d remaining",
+                dbg.ids(self),
+                len(remaining_st_line_ids),
             )
             if not remaining_st_line_ids:
                 return
@@ -322,6 +362,12 @@ class AccountBankStatementLine(models.Model):
                 remaining_st_line_ids = self._match_outstanding_accounts(
                     st_move_ids, outstanding_accounts, remaining_st_line_ids
                 )
+                dbg.pipeline.debug(
+                    "[automatch:%s] after outstanding accounts %s: %d remaining",
+                    dbg.ids(self),
+                    dbg.ids(outstanding_accounts),
+                    len(remaining_st_line_ids),
+                )
 
             account_ids = list(set(account_ids) - set(outstanding_accounts.ids))
             if not (remaining_st_line_ids and account_ids):
@@ -330,11 +376,21 @@ class AccountBankStatementLine(models.Model):
             remaining_st_line_ids = self._match_payment_references(
                 st_move_ids, account_ids, remaining_st_line_ids
             )
+            dbg.pipeline.debug(
+                "[automatch:%s] after payment references: %d remaining",
+                dbg.ids(self),
+                len(remaining_st_line_ids),
+            )
             if not remaining_st_line_ids:
                 return
 
             remaining_st_line_ids -= self._handle_reconciliation_matching_amount(
                 st_move_ids, account_ids, remaining_st_line_ids
+            )
+            dbg.pipeline.debug(
+                "[automatch:%s] after amount matching: %d remaining",
+                dbg.ids(self),
+                len(remaining_st_line_ids),
             )
             if not remaining_st_line_ids:
                 return

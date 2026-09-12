@@ -3,6 +3,8 @@ from odoo.db.schema import get_table_columns
 from odoo.exceptions import UserError
 from odoo.tools import SQL, Query
 
+from ..tools import debug_log as dbg
+
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
@@ -26,6 +28,7 @@ class AccountMoveLine(models.Model):
             )
 
     @api.constrains("tax_ids", "tax_tag_ids")
+    @dbg.timed
     def _check_taxes_on_closing_entries(self):
         for aml in self:
             if aml.move_id.closing_return_id and (aml.tax_ids or aml.tax_tag_ids):
@@ -62,6 +65,7 @@ class AccountMoveLine(models.Model):
         return attachment_id
 
     @api.model
+    @dbg.timed
     def _prepare_aml_shadowing_for_report(
         self, change_equivalence_dict, prefix_fields=False, prefix_fields_to_insert=True
     ):
@@ -146,6 +150,7 @@ class AccountMoveLine(models.Model):
         return super()._field_to_sql(alias, fname, query)
 
     @api.depends("analytic_distribution", "distribution_analytic_account_ids")
+    @dbg.timed
     def _compute_analytic_coverage(self):
         plan_id = self.env.context.get("selected_analytic_plan")
 

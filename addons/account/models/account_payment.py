@@ -5,6 +5,8 @@ from odoo import Command, _, api, fields, models
 from odoo.exceptions import MissingError, UserError, ValidationError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 _SQL_RECONCILED_INVOICES_PER_PAYMENT = """
     SELECT
         payment.id,
@@ -432,10 +434,12 @@ class AccountPayment(models.Model):
             ("label", label),
         ]
 
+    @dbg.timed
     def _prepare_move_withholding_lines(self, default_values):
         self.check_singleton()
         return []
 
+    @dbg.timed
     def _prepare_move_liquidity_lines(self, default_values):
         self.check_singleton()
         return [
@@ -450,6 +454,7 @@ class AccountPayment(models.Model):
             }
         ]
 
+    @dbg.timed
     def _prepare_move_counterpart_lines(self, default_values):
         self.check_singleton()
         return [
@@ -464,6 +469,7 @@ class AccountPayment(models.Model):
             }
         ]
 
+    @dbg.timed
     def _prepare_move_lines_per_type(
         self, write_off_line_vals=None, force_balance=None
     ):
@@ -546,6 +552,7 @@ class AccountPayment(models.Model):
             "withholding_lines": withholding_lines,
         }
 
+    @dbg.timed
     def _prepare_move_line_default_vals(
         self, write_off_line_vals=None, force_balance=None
     ):
@@ -573,6 +580,7 @@ class AccountPayment(models.Model):
             ).next_by_code("account.payment", sequence_date=payment.date)
 
     @api.depends("company_id", "partner_id", "payment_type")
+    @dbg.timed
     def _compute_journal_id(self):
         default_journal_by_company = {}
         for payment in self:
@@ -624,6 +632,7 @@ class AccountPayment(models.Model):
         "move_id.line_ids.account_id.reconcile",
         *_SEEK_FOR_LINES_DEPENDS,
     )
+    @dbg.timed
     def _compute_state(self):
         for payment in self:
             if not payment.state:
@@ -647,7 +656,16 @@ class AccountPayment(models.Model):
                 )
                 and all(invoice.payment_state == "paid" for invoice in moves)
             ):
+                dbg.logic.debug(
+                    "[payment:%s] all reconciled invoices paid -> paid", payment.id
+                )
                 payment.state = "paid"
+            dbg.logic.debug(
+                "[payment:%s] state=%s move=%s",
+                payment.id,
+                payment.state,
+                payment.move_id.id,
+            )
 
     @api.depends(
         "move_id.line_ids.amount_residual",
@@ -658,6 +676,7 @@ class AccountPayment(models.Model):
         "company_id.currency_id",
         *_SEEK_FOR_LINES_DEPENDS,
     )
+    @dbg.timed
     def _compute_reconciliation_status(self):
         for pay in self:
             liquidity_lines, counterpart_lines, writeoff_lines = pay._seek_for_lines()
@@ -702,7 +721,9 @@ class AccountPayment(models.Model):
     def _get_method_codes_needing_bank_account(self):
         return []
 
+    @dbg.timed
     def action_view_business_doc(self):
+        dbg.lifecycle.debug("action_view_business_doc on %s", dbg.rec(self))
         return {
             "name": _("Payment"),
             "type": "ir.actions.act_window",
@@ -779,6 +800,7 @@ class AccountPayment(models.Model):
                 pay.partner_bank_id = pay.available_partner_bank_ids[:1]._origin
 
     @api.depends("available_payment_channel_ids", "partner_id", "company_id")
+    @dbg.timed
     def _compute_payment_channel_id(self):
         for pay in self:
             available = pay.available_payment_channel_ids
@@ -859,10 +881,22 @@ class AccountPayment(models.Model):
                     fallback[key] = pay._get_outstanding_account(pay.payment_type)
                 account = fallback[key]
             if not account and pay.move_id:
+                dbg.logic.debug(
+                    "[payment:%s] outstanding account kept (no channel account, move exists)",
+                    pay.id,
+                )
                 continue
+            dbg.logic.debug(
+                "[payment:%s] outstanding account %s (channel=%s mandatory=%s)",
+                pay.id,
+                account.id,
+                pay.payment_channel_id.id,
+                mandatory,
+            )
             pay.outstanding_account_id = account
 
     @api.depends("journal_id", "partner_id", "partner_type")
+    @dbg.timed
     def _compute_destination_account_id(self):
         self.destination_account_id = False
         fallback_account = {}
@@ -895,6 +929,12 @@ class AccountPayment(models.Model):
                 pay.partner_id.with_company(pay.company_id)[property_name]
                 if pay.partner_id
                 else _fallback(pay.company_id, account_type)
+            )
+            dbg.logic.debug(
+                "[payment:%s] destination account %s via %s",
+                pay.id,
+                pay.destination_account_id.id,
+                property_name if pay.partner_id else f"fallback {account_type}",
             )
 
     @api.depends(
@@ -944,6 +984,7 @@ class AccountPayment(models.Model):
         "move_id.line_ids.matched_credit_ids",
         "invoice_ids",
     )
+    @dbg.timed
     def _compute_stat_buttons_from_reconciliation(self):
         stored_payments = self.filtered("id")
         if not stored_payments:
@@ -1015,6 +1056,7 @@ class AccountPayment(models.Model):
                 payment._origin.id, self.env["account.payment"]
             )
 
+    @dbg.timed
     def _search_reconciled_move_ids(self, operator, value, move_filter=None):
         if operator not in ("in", "="):
             return NotImplemented
@@ -1031,16 +1073,19 @@ class AccountPayment(models.Model):
             ids = payment_ids(moves.exists())
         return [("id", "in", ids)]
 
+    @dbg.timed
     def _search_reconciled_invoice_ids(self, operator, value):
         return self._search_reconciled_move_ids(
             operator, value, lambda move: move.is_sale_document(True)
         )
 
+    @dbg.timed
     def _search_reconciled_bill_ids(self, operator, value):
         return self._search_reconciled_move_ids(
             operator, value, lambda move: move.is_purchase_document(True)
         )
 
+    @dbg.timed
     def _get_duplicate_reference(self, matching_states=("draft", "in_process")):
         payments = self.filtered(
             lambda p: p.partner_id and p.amount and p.state != "in_process"
@@ -1115,6 +1160,7 @@ class AccountPayment(models.Model):
             payment.move_id.ref = payment.memo
 
     @api.constrains("payment_channel_id")
+    @dbg.timed
     def _check_payment_channel_id(self):
         for pay in self:
             if not pay.payment_channel_id:
@@ -1132,6 +1178,7 @@ class AccountPayment(models.Model):
                 )
 
     @api.constrains("state", "move_id")
+    @dbg.timed
     def _check_move_id(self):
         for payment in self:
             if (
@@ -1149,7 +1196,14 @@ class AccountPayment(models.Model):
                 )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         entry_vals_list = [
             (
                 vals.pop("write_off_line_vals", None),
@@ -1170,6 +1224,13 @@ class AccountPayment(models.Model):
                 and line_ids is None
             ):
                 continue
+            dbg.pipeline.debug(
+                "[payment:%s] create: journal entry from explicit vals (write_off=%s force_balance=%s line_ids=%s)",
+                pay.id,
+                write_off_line_vals is not None,
+                force_balance is not None,
+                line_ids is not None,
+            )
             pay._create_journal_entry(
                 write_off_line_vals=write_off_line_vals,
                 force_balance=force_balance,
@@ -1205,17 +1266,34 @@ class AccountPayment(models.Model):
             )
         return outstanding_account
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
+        if "state" in vals:
+            dbg.lifecycle.debug(
+                "[payment:%s] state %s -> %s",
+                dbg.ids(self),
+                dbg.lazy(lambda: set(self.mapped("state"))),
+                vals["state"],
+            )
         if vals.get("state") in ("in_process", "paid") and not vals.get("move_id"):
             self.filtered(lambda p: not p.move_id)._create_journal_entry()
-            self.move_id.filtered(lambda m: m.state == "draft").action_post()
+            draft_moves = self.move_id.filtered(lambda m: m.state == "draft")
+            dbg.pipeline.debug(
+                "[payment:%s] posting payment moves %s",
+                dbg.ids(self),
+                dbg.rec(draft_moves),
+            )
+            draft_moves.action_post()
 
         res = super().write(vals)
         if self.move_id:
             self._sync_to_moves(set(vals.keys()))
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         moves = self.move_id
         res = super().unlink()
         moves.filtered(lambda m: m.state != "draft").action_draft()
@@ -1227,7 +1305,9 @@ class AccountPayment(models.Model):
         for payment in self:
             payment.display_name = payment.name or _("Draft Payment")
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         vals_list = super().copy_data(dict(default or {}))
         for payment, vals in zip(self, vals_list, strict=True):
             vals.setdefault("payment_channel_id", payment.payment_channel_id.id)
@@ -1246,6 +1326,7 @@ class AccountPayment(models.Model):
         return super()._message_mail_after_hook(mails)
 
     @api.model
+    @dbg.timed
     def _prepare_line_commands(self, lines, line_vals):
         commands = []
         for line, vals in zip_longest(lines, line_vals):
@@ -1257,6 +1338,7 @@ class AccountPayment(models.Model):
                 commands.append(Command.delete(line.id))
         return commands
 
+    @dbg.timed
     def _sync_to_moves(self, changed_fields):
         if not any(
             field_name in changed_fields
@@ -1266,8 +1348,19 @@ class AccountPayment(models.Model):
 
         for pay in self:
             if pay.move_id.state == "posted":
+                dbg.logic.debug(
+                    "[payment:%s] _sync_to_moves: move posted, not synced", pay.id
+                )
                 continue
             liquidity_lines, counterpart_lines, writeoff_lines = pay._seek_for_lines()
+            dbg.pipeline.debug(
+                "[payment:%s] _sync_to_moves fields=%s liquidity=%s counterpart=%s writeoff=%s",
+                pay.id,
+                dbg.lazy(lambda: sorted(changed_fields)),
+                dbg.rec(liquidity_lines),
+                dbg.rec(counterpart_lines),
+                dbg.rec(writeoff_lines),
+            )
 
             if "amount" in changed_fields and len(liquidity_lines) > 1:
                 raise UserError(
@@ -1339,6 +1432,7 @@ class AccountPayment(models.Model):
             "journal_id",
         )
 
+    @dbg.timed
     def _create_journal_entry(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
@@ -1354,9 +1448,16 @@ class AccountPayment(models.Model):
             for pay in need_move
         ]
         moves = self.env["account.move"].with_context(is_payment=True).create(move_vals)
+        dbg.pipeline.debug(
+            "[payment:%s] _create_journal_entry: %s (skipped without outstanding account: %s)",
+            dbg.ids(need_move),
+            dbg.rec(moves),
+            dbg.rec(self - need_move),
+        )
         for pay, move in zip(need_move, moves, strict=True):
             pay.write({"move_id": move.id, "state": "in_process"})
 
+    @dbg.timed
     def _generate_move_vals(
         self, write_off_line_vals=None, force_balance=None, line_ids=None
     ):
@@ -1393,7 +1494,9 @@ class AccountPayment(models.Model):
     def unmark_as_sent(self):
         self.write({"is_sent": False})
 
+    @dbg.timed
     def action_post(self):
+        dbg.lifecycle.debug("action_post on %s", dbg.rec(self))
         for payment in self:
             if (
                 payment.require_partner_bank_account
@@ -1408,34 +1511,50 @@ class AccountPayment(models.Model):
                         partner=payment.partner_id.display_name,
                     )
                 )
-        self.filtered(
+        cash_payments = self.filtered(
             lambda pay: pay.outstanding_account_id.account_type == "asset_cash"
-        ).state = "paid"
+        )
+        dbg.logic.debug(
+            "action_post: cash payments straight to paid %s", dbg.rec(cash_payments)
+        )
+        cash_payments.state = "paid"
         self.filtered(
             lambda pay: pay.state in {False, "draft", "in_process"}
         ).state = "in_process"
 
+    @dbg.timed
     def action_validate(self):
+        dbg.lifecycle.debug("action_validate on %s", dbg.rec(self))
         self.state = "paid"
 
+    @dbg.timed
     def action_reject(self):
+        dbg.lifecycle.debug("action_reject on %s", dbg.rec(self))
         self.state = "rejected"
 
+    @dbg.timed
     def action_cancel(self):
+        dbg.lifecycle.debug("action_cancel on %s", dbg.rec(self))
         moves = self.move_id
         draft_moves = moves.filtered(lambda m: m.state == "draft")
         self.state = "canceled"
         (moves - draft_moves).action_cancel()
         draft_moves.unlink()
 
+    @dbg.timed
     def button_request_cancel(self):
+        dbg.lifecycle.debug("button_request_cancel on %s", dbg.rec(self))
         return self.move_id.button_request_cancel()
 
+    @dbg.timed
     def action_draft(self):
+        dbg.lifecycle.debug("action_draft on %s", dbg.rec(self))
         self.state = "draft"
         self.move_id.action_draft()
 
+    @dbg.timed
     def button_open_invoices(self):
+        dbg.lifecycle.debug("button_open_invoices on %s", dbg.rec(self))
         self.check_singleton()
         return self.reconciled_invoice_ids.with_context(
             create=False
@@ -1443,13 +1562,17 @@ class AccountPayment(models.Model):
             name=_("Paid Invoices"),
         )
 
+    @dbg.timed
     def button_open_bills(self):
+        dbg.lifecycle.debug("button_open_bills on %s", dbg.rec(self))
         self.check_singleton()
         return self.reconciled_bill_ids.with_context(create=False)._get_records_action(
             name=_("Paid Bills"),
         )
 
+    @dbg.timed
     def button_open_statement_lines(self):
+        dbg.lifecycle.debug("button_open_statement_lines on %s", dbg.rec(self))
         self.check_singleton()
         return self.reconciled_statement_line_ids.with_context(
             create=False
@@ -1457,7 +1580,9 @@ class AccountPayment(models.Model):
             name=_("Matched Transactions"),
         )
 
+    @dbg.timed
     def button_open_journal_entry(self):
+        dbg.lifecycle.debug("button_open_journal_entry on %s", dbg.rec(self))
         self.check_singleton()
         return self.move_id.with_context(create=False)._get_records_action(
             name=_("Journal Entry"),

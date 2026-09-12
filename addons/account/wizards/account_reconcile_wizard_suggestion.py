@@ -1,6 +1,8 @@
 from odoo import _, api, models
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileWizard(models.TransientModel):
     _inherit = "account.reconcile.wizard"
@@ -20,6 +22,7 @@ class AccountReconcileWizard(models.TransientModel):
             )
 
     @api.depends("company_id", "move_line_ids.partner_id", "amount")
+    @dbg.timed
     def _compute_reco_model_autocomplete_ids(self):
         for wizard in self:
             domain = [

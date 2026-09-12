@@ -2,6 +2,8 @@ from ast import literal_eval
 
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class MailComposeMessage(models.TransientModel):
     _inherit = "mail.compose.message"
@@ -16,6 +18,7 @@ class MailComposeMessage(models.TransientModel):
     # cannot silently flip its state to Paid.
     account_reports_finalize_payment = fields.Boolean()
 
+    @dbg.timed
     def _prepare_schedule_message_post_values(self, post_values):
         return {
             **super()._prepare_schedule_message_post_values(post_values),
@@ -28,21 +31,27 @@ class MailComposeMessage(models.TransientModel):
                 [{"message_id": msg.id, "date": annotation_date} for msg in messages]
             )
 
+    @dbg.timed
     def _action_send_mail_comment(self, res_ids):
         # Read the date before the super call; it invalidates the ORM cache.
+        dbg.lifecycle.debug("_action_send_mail_comment on %s", dbg.rec(self))
         annotation_date = self.account_reports_annotation_date
         messages = super()._action_send_mail_comment(res_ids)
         self._annotate_sent_messages(annotation_date, messages)
         return messages
 
+    @dbg.timed
     def _action_send_mail(self, auto_commit=False):
         # Read the date before the super call; it invalidates the ORM cache.
+        dbg.lifecycle.debug("_action_send_mail on %s", dbg.rec(self))
         annotation_date = self.account_reports_annotation_date
         mails, messages = super()._action_send_mail(auto_commit=auto_commit)
         self._annotate_sent_messages(annotation_date, messages)
         return mails, messages
 
+    @dbg.timed
     def action_send_mail(self):
+        dbg.lifecycle.debug("action_send_mail on %s", dbg.rec(self))
         if self.model != "account.return":
             return super().action_send_mail()
 

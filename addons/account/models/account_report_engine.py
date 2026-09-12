@@ -11,6 +11,7 @@ from odoo.fields import Command, Domain
 from odoo.tools import SQL, LazyTranslate, date_utils
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 _lt = LazyTranslate(__name__)
@@ -84,6 +85,7 @@ class AccountReport(models.Model):
     )
 
     @api.constrains("custom_handler_model_id")
+    @dbg.timed
     def _check_custom_handler_model_id(self):
         for report in self:
             if report.custom_handler_model_id:
@@ -99,14 +101,18 @@ class AccountReport(models.Model):
                         )
                     )
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         for report in self:
             action, menuitem = report._get_existing_menuitem()
             menuitem.unlink()
             action.unlink()
         return super().unlink()
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if "active" in vals:
             reports = {r.id: r.name for r in self}
             actions = (
@@ -143,7 +149,14 @@ class AccountReport(models.Model):
         return super().write(vals)
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         reports = super().create(vals_list)
 
         reports_by_impacted_field = {}
@@ -193,6 +206,7 @@ class AccountReport(models.Model):
             ),  # the report has to be localized
         ]
 
+    @dbg.timed
     def _link_annual_statements(self, root_annual_statements):
         Report = self.env["account.report"].with_context(active_test=False)
         existing_statements = Report.search(
@@ -333,6 +347,7 @@ class AccountReport(models.Model):
     # QUERIES
     ####################################################
 
+    @dbg.timed
     def _create_aml_shadowing_query_for_budget(self, options):
         _stored_fields, fields_to_insert = self.env[
             "account.move.line"
@@ -430,6 +445,7 @@ class AccountReport(models.Model):
             or None
         )
 
+    @dbg.timed
     def _add_common_warnings(self, options, warnings):
         # Display a warning if we're displaying only the data of the current company, but it's also part of a tax unit
         if options.get("available_tax_units") and options["tax_unit"] == "company_only":
@@ -527,6 +543,7 @@ class AccountReport(models.Model):
                 if account_code and account_name:
                     line["name"] = f"{account_code} {account_name}"
 
+    @dbg.timed
     def _create_carryover_external_values(self, options):
         """Generates the account.report.external.value objects corresponding to this report's carryover under the provided options.
 
@@ -617,6 +634,7 @@ class AccountReport(models.Model):
                 )
 
     @api.model
+    @dbg.timed
     def _create_default_external_values(
         self, date_from, date_to, is_tax_report=False, company=None
     ):
@@ -729,6 +747,7 @@ class AccountReport(models.Model):
 
         self.env["account.report.external.value"].create(external_values_create_vals)
 
+    @dbg.timed
     def _create_carryover_for_company(
         self, options, company, carryover_per_expression, label=None
     ):
@@ -758,6 +777,7 @@ class AccountReport(models.Model):
 
         self.env["account.report.external.value"].create(external_values_create_vals)
 
+    @dbg.timed
     def get_report_information(self, options):
         """Return the dictionary of information consumed by the AccountReport component."""
         self.check_singleton()
@@ -765,21 +785,34 @@ class AccountReport(models.Model):
 
         warnings = {}
         self._init_currency_table(options)
-        all_column_groups_expression_totals = (
-            self._compute_expression_totals_for_each_column_group(
-                self.line_ids.expression_ids, options, warnings=warnings
+        with dbg.timer(
+            self.env,
+            "[report:%s] expression totals x%d",
+            self.id,
+            len(self.line_ids.expression_ids),
+        ):
+            all_column_groups_expression_totals = (
+                self._compute_expression_totals_for_each_column_group(
+                    self.line_ids.expression_ids, options, warnings=warnings
+                )
             )
-        )
 
         # Convert all_column_groups_expression_totals to a json-friendly form (its keys are records)
         json_friendly_column_group_totals = self._get_json_friendly_column_group_totals(
             all_column_groups_expression_totals
         )
 
-        lines = self._get_lines(
-            options,
-            all_column_groups_expression_totals=all_column_groups_expression_totals,
-            warnings=warnings,
+        with dbg.timer(self.env, "[report:%s] _get_lines", self.id):
+            lines = self._get_lines(
+                options,
+                all_column_groups_expression_totals=all_column_groups_expression_totals,
+                warnings=warnings,
+            )
+        dbg.pipeline.debug(
+            "[report:%s] get_report_information: %d line(s), warnings=%s",
+            self.id,
+            len(lines),
+            dbg.keys(warnings),
         )
         return {
             "caret_options": self._get_caret_options(),
@@ -805,6 +838,7 @@ class AccountReport(models.Model):
         """
         return self.get_report_information(options)
 
+    @dbg.timed
     def _is_available_for(self, options):
         """Called on report variants to know whether they are available for the provided options or not, computed for their root report,
         computing their availability_condition field.
@@ -889,6 +923,7 @@ class AccountReport(models.Model):
             domain += [("company_id", "=", company_id)]
         return domain
 
+    @dbg.timed
     def _get_unallocated_earnings_lines(self, options, date_scope, auditable=False):
         def get_column_group_result(query_options, date_scope):
             query = self._get_report_query(
@@ -998,6 +1033,7 @@ class AccountReport(models.Model):
             for company_id, line_id in company_to_line_id.items()
         ]
 
+    @dbg.timed
     def _get_partner_and_general_ledger_initial_balance_line(
         self, options, parent_line_id, eval_dict, account_currency=None, level_shift=0
     ):
@@ -1043,6 +1079,7 @@ class AccountReport(models.Model):
             "columns": line_columns,
         }
 
+    @dbg.timed
     def _set_budget_column_comparisons(self, options, line):
         """Set the percentage values in the budget columns."""
         for col_index, col in enumerate(line["columns"]):
@@ -1131,6 +1168,7 @@ class AccountReport(models.Model):
             else column_value,
         }
 
+    @dbg.timed
     def _create_hierarchy(self, lines, options):
         """Compute the hierarchy based on account groups when the option is activated.
 
@@ -1408,6 +1446,7 @@ class AccountReport(models.Model):
 
         return new_lines + total_lines
 
+    @dbg.timed
     def _get_annotations_domain_date_from(self, options):
         if (
             options["date"]["filter"] in {"today", "custom"}
@@ -1526,12 +1565,14 @@ class AccountReportLine(models.Model):
             )
 
     @api.constrains("groupby", "user_groupby")
+    @dbg.timed
     def _check_groupby(self):
         super()._check_groupby()
         for report_line in self:
             report_line.report_id._check_groupby_fields(report_line.user_groupby)
             report_line.report_id._check_groupby_fields(report_line.groupby)
 
+    @dbg.timed
     def _expand_groupby(
         self,
         line_dict_id,
@@ -1824,6 +1865,7 @@ class AccountReportLine(models.Model):
 
         return group_lines
 
+    @dbg.timed
     def _parse_groupby(self, options, groupby_to_expand=None):
         """Retrieves the information needed to handle the groupby feature on the current line.
 
@@ -1901,7 +1943,9 @@ class AccountReportLine(models.Model):
 
         return self.user_groupby
 
+    @dbg.timed
     def action_reset_custom_groupby(self):
+        dbg.lifecycle.debug("action_reset_custom_groupby on %s", dbg.rec(self))
         self.check_singleton()
         self.user_groupby = self.groupby
 
@@ -1909,7 +1953,9 @@ class AccountReportLine(models.Model):
 class AccountReportExpression(models.Model):
     _inherit = "account.report.expression"
 
+    @dbg.timed
     def action_view_carryover_lines(self, options, column_group_key=None):
+        dbg.lifecycle.debug("action_view_carryover_lines on %s", dbg.rec(self))
         if column_group_key:
             options = self.report_line_id.report_id._get_column_group_options(
                 options, column_group_key
@@ -1936,17 +1982,26 @@ class AccountReportExternalValue(models.Model):
     _inherit = "account.report.external.value"
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         records = super().create(vals_list)
         self._check_lock_date_violation(
             set(self._prepare_vals_to_check_for_lock_date(records))
         )
         return records
 
+    @dbg.timed
     def write(self, vals):
         # We need to build vals_to_check before the super() call because of the 'target_report_expression_id' field :
         # if the user tries to modify this specific field, it'll potentially change the linked report id, and so he can
         # bypass the lock dates from the original report (if it was a tax report for example)
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         vals_to_check = set(self._prepare_vals_to_check_for_lock_date(self))
         res = super().write(vals)
         # Then we add the modified records
@@ -1977,6 +2032,7 @@ class AccountReportExternalValue(models.Model):
                 external_value.company_id,  # company
             )
 
+    @dbg.timed
     def _check_lock_date_violation(self, vals_to_check):
         """Raise if a company has a lock date after the date we want to create/write the values for.
 

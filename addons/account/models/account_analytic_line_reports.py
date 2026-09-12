@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.tools import SQL, Query
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticLine(models.Model):
     _inherit = "account.analytic.line"
@@ -10,6 +12,7 @@ class AccountAnalyticLine(models.Model):
         compute="_compute_analytic_coverage",
     )
 
+    @dbg.timed
     def _field_to_sql(
         self, alias: str, fname: str, query: (Query | None) = None
     ) -> SQL:

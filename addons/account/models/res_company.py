@@ -9,6 +9,7 @@ from odoo.tools import SQL, date_utils, format_list
 from odoo.tools.mail import is_html_empty
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.models.account_move import MAX_HASH_VERSION
 from odoo.addons.account.models.product import ACCOUNT_DOMAIN
 
@@ -462,6 +463,7 @@ class ResCompany(models.Model):
     )
 
     @api.constrains("restrictive_audit_trail")
+    @dbg.timed
     def _check_audit_trail_restriction(self):
         companies = self.filtered(
             lambda c: not c.restrictive_audit_trail and c.force_restrictive_audit_trail
@@ -472,6 +474,7 @@ class ResCompany(models.Model):
             )
 
     @api.constrains("account_price_include")
+    @dbg.timed
     def _check_set_account_price_include(self):
         if any(company.sudo()._existing_accounting() for company in self):
             raise ValidationError(
@@ -483,6 +486,7 @@ class ResCompany(models.Model):
     @api.constrains(
         "account_opening_move_id", "fiscalyear_last_day", "fiscalyear_last_month"
     )
+    @dbg.timed
     def _check_fiscalyear_last_day(self):
         for rec in self:
             if rec.fiscalyear_last_day == 29 and rec.fiscalyear_last_month == "2":
@@ -508,6 +512,7 @@ class ResCompany(models.Model):
         "fiscal_position_ids.country_id",
         "fiscal_position_ids.country_group_id",
     )
+    @dbg.timed
     def _compute_domestic_fiscal_position_id(self):
         for company in self:
             potential_domestic_fps = company.fiscal_position_ids.filtered_domain(
@@ -613,6 +618,7 @@ class ResCompany(models.Model):
             )
 
     @api.depends("terms_type")
+    @dbg.timed
     def _compute_invoice_terms_html(self):
         for company in self.filtered(
             lambda company: (
@@ -695,10 +701,22 @@ class ResCompany(models.Model):
             onboardings.with_company(company)._search_or_create_progress()
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         companies = super().create(vals_list)
         for company in companies:
             if root_template := company.root_id.chart_template:
+                dbg.pipeline.debug(
+                    "[company:%s] created under root template %s, chart load at precommit",
+                    company.id,
+                    root_template,
+                )
 
                 def try_loading(company=company, root_template=root_template):
                     self.env["account.chart.template"]._load(
@@ -771,6 +789,7 @@ class ResCompany(models.Model):
             ("move_id.state", "in", ("draft", "posted")),
         ]
 
+    @dbg.timed
     def _check_locks(self, values):
         new_locks = {
             field: fields.Date.to_date(values[field])
@@ -902,6 +921,7 @@ class ResCompany(models.Model):
         ]
         return None if accounting_date > user_lock_date else user_lock_date
 
+    @dbg.timed
     def _get_lock_date_violations(
         self,
         accounting_date,
@@ -935,6 +955,13 @@ class ResCompany(models.Model):
             if accounting_date <= hard_lock_date:
                 locks.append((hard_lock_date, "hard_lock_date"))
 
+        if locks:
+            dbg.logic.debug(
+                "[company:%s] lock dates violated for %s: %s",
+                self.id,
+                accounting_date,
+                locks,
+            )
         return locks
 
     @api.model
@@ -962,8 +989,14 @@ class ResCompany(models.Model):
         locks.sort()
         return locks
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         self._check_locks(vals)
+        if lock_changes := {k: v for k, v in vals.items() if k in LOCK_DATE_FIELDS}:
+            dbg.lifecycle.debug(
+                "[company:%s] lock dates -> %s", dbg.ids(self), lock_changes
+            )
 
         self.env["res.company"].invalidate_model(
             fnames=[f"user_{field}" for field in LOCK_DATE_FIELDS if field in vals]
@@ -1002,7 +1035,14 @@ class ResCompany(models.Model):
                 )
                 for company in self
             )
-            LockException.search(domain)._recreate()
+            exceptions = LockException.search(domain)
+            dbg.logic.debug(
+                "[company:%s] recreating %d lock exception(s) for %s",
+                dbg.ids(self),
+                len(exceptions),
+                changed_soft_lock_fields,
+            )
+            exceptions._recreate()
 
         return res
 
@@ -1068,6 +1108,7 @@ class ResCompany(models.Model):
             and self.account_opening_move_id.state == "posted"
         )
 
+    @dbg.timed
     def get_unaffected_earnings_account(self):
         unaffected_earnings_type = "equity_unaffected"
         account = (
@@ -1177,6 +1218,7 @@ class ResCompany(models.Model):
         emit(balancing_account, "credit", -max(open_balance, 0), True)
         return commands
 
+    @dbg.timed
     def _update_opening_move(self, to_update):
         self.check_singleton()
 
@@ -1243,12 +1285,16 @@ class ResCompany(models.Model):
         else:
             self.account_opening_move_id = self.env["account.move"].create(move_values)
 
+    @dbg.timed
     def action_save_onboarding_sale_tax(self):
+        dbg.lifecycle.debug("action_save_onboarding_sale_tax on %s", dbg.rec(self))
         self.env["onboarding.onboarding.step"].action_validate_step(
             "account.onboarding_onboarding_step_sales_tax"
         )
 
+    @dbg.timed
     def action_save_onboarding_company_data(self):
+        dbg.lifecycle.debug("action_save_onboarding_company_data on %s", dbg.rec(self))
         self.check_singleton()
         if self.street:
             ref = "account.onboarding_onboarding_step_company_data"
@@ -1270,6 +1316,12 @@ class ResCompany(models.Model):
                 template_code = company.parent_id.chart_template or self.env[
                     "account.chart.template"
                 ]._guess_chart_template(company.country_id)
+                dbg.logic.debug(
+                    "[company:%s] install_l10n_modules: guessed template %s for country %s",
+                    company.id,
+                    template_code,
+                    company.country_id.code,
+                )
                 if template_code != "generic_coa":
 
                     @self.env.cr.precommit.add
@@ -1295,11 +1347,14 @@ class ResCompany(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _action_check_hash_integrity(self):
+        dbg.lifecycle.debug("_action_check_hash_integrity on %s", dbg.rec(self))
         return self.env.ref(
             "account.action_report_account_hash_integrity"
         ).report_action(self.id)
 
+    @dbg.timed
     def _check_hash_integrity(self):
         if not self.env.user.has_group("account.group_account_user"):
             raise UserError(
@@ -1317,6 +1372,7 @@ class ResCompany(models.Model):
             "printing_date": format_date(self.env, fields.Date.context_today(self)),
         }
 
+    @dbg.timed
     def _check_journal_hash_integrity(self, journal):
         restricted_flag = "V" if journal.restrict_mode_hash_table else "X"
         query = (
@@ -1366,6 +1422,13 @@ class ResCompany(models.Model):
                         move, previous_move.inalterable_hash or "", hash_version
                     )
                     if move.inalterable_hash != computed_hash:
+                        dbg.logic.debug(
+                            "[journal:%s] hash integrity: %s corrupted (prefix %s, version %s)",
+                            journal.id,
+                            move.id,
+                            move.sequence_prefix,
+                            hash_version,
+                        )
                         prefix_result["corrupted_move"] = move
                         continue
                     if not prefix_result["first_move"]:
@@ -1375,6 +1438,17 @@ class ResCompany(models.Model):
         finally:
             self.env.execute_query(SQL("CLOSE hashed_moves"))
 
+        dbg.pipeline.debug(
+            "[journal:%s] hash integrity: hashed=%s prefixes=%s",
+            journal.id,
+            any_hashed_move,
+            dbg.lazy(
+                lambda: {
+                    p: (r["first_move"].id, r["last_move"].id, r["corrupted_move"].id)
+                    for p, r in prefix2result.items()
+                }
+            ),
+        )
         if not any_hashed_move:
             return [self._hash_integrity_no_data_result(journal, restricted_flag)]
         return [

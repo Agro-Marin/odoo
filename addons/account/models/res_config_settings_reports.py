@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
@@ -28,7 +30,9 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
 
+    @dbg.timed
     def open_tax_group_list(self):
+        dbg.lifecycle.debug("open_tax_group_list on %s", dbg.rec(self))
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",

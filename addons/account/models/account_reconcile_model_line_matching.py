@@ -6,10 +6,13 @@ from odoo import Command, api, models
 from odoo.exceptions import RedirectWarning, UserError
 from odoo.libs.numbers import split_amount_str
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileModelLine(models.Model):
     _inherit = "account.reconcile.model.line"
 
+    @dbg.timed
     def _prepare_aml_vals(self, partner):
         self.check_singleton()
 
@@ -33,6 +36,7 @@ class AccountReconcileModelLine(models.Model):
             values["account_id"] = self.account_id.id
         return values
 
+    @dbg.timed
     def _apply_in_manual_widget(
         self, residual_amount_currency, residual_balance, partner, st_line
     ):
@@ -71,6 +75,7 @@ class AccountReconcileModelLine(models.Model):
             "amount_currency": amount_currency,
         }
 
+    @dbg.timed
     def _apply_in_bank_widget(
         self, residual_amount_currency, residual_balance, partner, st_line
     ):
@@ -121,10 +126,20 @@ class AccountReconcileModelLine(models.Model):
 
         if not aml_values.get("name"):
             aml_values["name"] = st_line.payment_ref
+        dbg.logic.debug(
+            "[stline:%s] reco model line %s (%s): balance=%s amount_currency=%s account=%s",
+            st_line.id,
+            self.id,
+            self.amount_type,
+            aml_values.get("balance"),
+            aml_values.get("amount_currency"),
+            aml_values.get("account_id"),
+        )
 
         return aml_values
 
     @api.model
+    @dbg.timed
     def _get_amount_currency_by_regex(
         self, st_line, residual_amount_currency, amount_string
     ):

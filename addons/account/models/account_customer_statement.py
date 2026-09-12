@@ -1,5 +1,7 @@
 from odoo import _, models
 
+from ..tools import debug_log as dbg
+
 
 class CustomerStatementCustomHandler(models.AbstractModel):
     _name = "account.customer.statement.report.handler"
@@ -32,7 +34,9 @@ class CustomerStatementCustomHandler(models.AbstractModel):
                 "pdf_export_main"
             ] = "account.pdf_export_main_customer_report"
 
+    @dbg.timed
     def action_send_statements(self, options):
+        dbg.lifecycle.debug("action_send_statements on %s", dbg.rec(self))
         template = self.env.ref("account.email_template_customer_statement", False)
         partners = self.env["res.partner"].browse(options.get("partner_ids", []))
         return {

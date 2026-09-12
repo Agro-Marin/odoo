@@ -5,6 +5,8 @@ from inspect import getmembers, isclass, isfunction, ismodule
 from odoo import api, fields, models
 from odoo.tools.misc import get_flag
 
+from ..tools import debug_log as dbg
+
 
 def _flag(country_code):
     with contextlib.suppress(ValueError):
@@ -50,6 +52,7 @@ class IrModuleModule(models.Model):
     )
 
     @api.depends("state", "category_id")
+    @dbg.timed
     def _compute_account_templates(self):
         chart_category = self.env.ref(
             "base.module_category_accounting_localizations_account_charts",
@@ -102,7 +105,9 @@ class IrModuleModule(models.Model):
             None,
         )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         was_installed = len(self) == 1 and self.state in (
             "installed",
             "to upgrade",
@@ -127,6 +132,7 @@ class IrModuleModule(models.Model):
             self.env.registry._auto_install_template = try_loading
         return res
 
+    @dbg.timed
     def _load_module_terms(self, modules, langs, overwrite=False):
         super()._load_module_terms(modules, langs, overwrite=overwrite)
         if "account" in modules:
@@ -142,7 +148,9 @@ class IrModuleModule(models.Model):
                     load_account_translations
                 )
 
+    @dbg.timed
     def _register_hook(self):
+        dbg.lifecycle.debug("_register_hook on %s", dbg.rec(self))
         super()._register_hook()
         if hasattr(self.env.registry, "_delayed_account_translator"):
             self.env.registry._delayed_account_translator(self.env)

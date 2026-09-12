@@ -8,6 +8,8 @@ from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools.misc import file_open, formatLang
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -16,6 +18,9 @@ class AccountChartTemplate(models.AbstractModel):
 
     @api.model
     def _get_demo_data(self, company=False):
+        dbg.pipeline.debug(
+            "[demo] _get_demo_data for company %s", company.id if company else None
+        )
         return {
             **self._get_demo_data_products(company),
             "account.move": self._get_demo_data_move(company),
@@ -38,6 +43,7 @@ class AccountChartTemplate(models.AbstractModel):
     def _get_demo_exception_product_variant_xml_ids(self):
         return ["product.office_combo"]
 
+    @dbg.timed
     def _get_demo_data_products(self, company):
         if company != self.env.ref("base.main_company", raise_if_not_found=False):
             return {}
@@ -71,7 +77,9 @@ class AccountChartTemplate(models.AbstractModel):
             "product.product": dict.fromkeys(product_variants, taxes),
         }
 
+    @dbg.timed
     def _post_load_demo_data(self, company=False):
+        dbg.lifecycle.debug("_post_load_demo_data on %s", dbg.rec(self))
         invoices = (
             self.ref("demo_invoice_1")
             + self.ref("demo_invoice_2")
@@ -93,6 +101,7 @@ class AccountChartTemplate(models.AbstractModel):
             + self.ref("demo_move_auto_reconcile_7")
         )
 
+        dbg.pipeline.debug("[demo] posting %s", dbg.rec(invoices))
         for move in invoices:
             try:
                 move.action_post()
@@ -162,6 +171,7 @@ class AccountChartTemplate(models.AbstractModel):
         return {}
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move(self, company=False):
         one_month_ago = fields.Date.today() + relativedelta(months=-1)
         cid = company.id or self.env.company.id
@@ -212,6 +222,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move_invoices_1_3(self):
         return {
             self.company_xmlid("demo_invoice_1"): {
@@ -271,6 +282,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move_invoices_followup_6(self):
         return {
             self.company_xmlid("demo_invoice_followup"): {
@@ -338,6 +350,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move_invoices_7_equipment(self):
         return {
             self.company_xmlid("demo_invoice_7"): {
@@ -410,6 +423,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move_invoices_9_10(self):
         return {
             self.company_xmlid("demo_invoice_9"): {
@@ -451,6 +465,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move_auto_reconcile_1_4(self, one_month_ago):
         return {
             self.company_xmlid("demo_move_auto_reconcile_1"): {
@@ -519,6 +534,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_move_auto_reconcile_5_7(
         self, misc_journal, bank_journal, default_receivable, income_account
     ):
@@ -592,6 +608,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_statement(self, company=False):
         cid = company.id or self.env.company.id
         bnk_journal = self.env["account.journal"].search(
@@ -665,6 +682,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_transactions(self, company=False):
         cid = company.id or self.env.company.id
         bnk_journal = self.env["account.journal"].search(
@@ -711,6 +729,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_reconcile_model(self, company=False):
         return {
             "reconcile_from_label": {
@@ -764,6 +783,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_attachment(self, company=False):
         return {
             "ir_attachment_in_invoice_1": {
@@ -807,6 +827,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_mail_message(self, company=False):
         return {
             "mail_message_in_invoice_1": {
@@ -868,6 +889,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_data_mail_activity(self, company=False):
         return {
             "invoice_activity_1": {
@@ -915,6 +937,7 @@ class AccountChartTemplate(models.AbstractModel):
         }
 
     @api.model
+    @dbg.timed
     def _get_demo_account(self, xml_id, account_type, company):
         return (
             self.env["account.account"].browse(

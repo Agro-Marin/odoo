@@ -7,6 +7,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Command, Date
 from odoo.tools import format_date
 
+from ..tools import debug_log as dbg
+
 
 class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     _name = "account.multicurrency.revaluation.wizard"
@@ -53,7 +55,9 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     )
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         rec = super().default_get(fields)
         if "reversal_date" in fields:
             report_options = self.env.context[
@@ -74,6 +78,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
     @api.depends(
         "expense_provision_account_id", "income_provision_account_id", "reversal_date"
     )
+    @dbg.timed
     def _compute_show_warning_move_id(self):
         for record in self:
             last_move = (
@@ -105,6 +110,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         "date",
         "journal_id",
     )
+    @dbg.timed
     def _compute_preview_data(self):
         preview_columns = [
             {"field": "account_id", "label": _("Account")},
@@ -153,6 +159,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             )
 
     @api.model
+    @dbg.timed
     def _get_move_vals(self):
         def _get_model_id(parsed_line, selected_model):
             for _dummy, parsed_res_model, parsed_res_id in parsed_line:
@@ -249,9 +256,16 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             "line_ids": move_lines,
         }
 
+    @dbg.timed
     def create_entries(self):
         self.check_singleton()
         move_vals = self._get_move_vals()
+        dbg.pipeline.debug(
+            "[revaluation:%s] create_entries: %d line(s), reversal on %s",
+            self.id,
+            len(move_vals["line_ids"]),
+            self.reversal_date,
+        )
         if move_vals["line_ids"]:
             move = (
                 self.env["account.move"]

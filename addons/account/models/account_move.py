@@ -29,6 +29,7 @@ from odoo.tools.mail import is_html_empty
 from odoo.tools.misc import StackMap
 from odoo.tools.safe_eval import safe_eval
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 _logger = logging.getLogger(__name__)
@@ -1157,7 +1158,9 @@ class AccountMove(models.Model):
         "(ref) WHERE (move_type IN ('in_invoice', 'in_refund'))"
     )
 
+    @dbg.timed
     def _auto_init(self):
+        dbg.lifecycle.debug("_auto_init on %s", dbg.rec(self))
         super()._auto_init()
         if not column_exists(
             self.env.cr, "account_move", "preferred_payment_channel_id"
@@ -1168,6 +1171,7 @@ class AccountMove(models.Model):
 
     @api.depends("move_type", "partner_id")
     @api.depends_context("uid")
+    @dbg.timed
     def _compute_invoice_user_id(self):
         env_user = self.env.user
         default_user = (
@@ -1201,6 +1205,7 @@ class AccountMove(models.Model):
         for move in self:
             move.move_sent_values = "sent" if move.is_move_sent else "not_sent"
 
+    @dbg.timed
     def _search_move_sent_values(self, operator, value):
         if operator != "in" or value - {"sent", "not_sent"}:
             return NotImplemented
@@ -1269,6 +1274,7 @@ class AccountMove(models.Model):
         for move in self:
             move.origin_payment_id = move.payment_ids[:1]
 
+    @dbg.timed
     def _search_origin_payment_id(self, operator, value):
         return [("payment_ids", operator, value)]
 
@@ -1293,6 +1299,7 @@ class AccountMove(models.Model):
             return ["bank", "cash", "credit"]
         return ["general"]
 
+    @dbg.timed
     def _search_default_journal(self):
         if self.statement_line_ids.statement_id.journal_id:
             return self.statement_line_ids.statement_id.journal_id[:1]
@@ -1315,6 +1322,12 @@ class AccountMove(models.Model):
 
         if not journal:
             journal = self.env["account.journal"].search(domain, limit=1)
+        dbg.logic.debug(
+            "_search_default_journal types=%s company=%s -> %s",
+            journal_types,
+            company.id,
+            dbg.rec(journal) if journal else None,
+        )
 
         if not journal:
             error_msg = self.env["account.journal"]._prepare_no_journal_error_msg(
@@ -1361,6 +1374,10 @@ class AccountMove(models.Model):
 
             move_has_name = move.name and move.name != "/"
             if not move.posted_before and not move._sequence_matches_date():
+                dbg.logic.debug(
+                    "[move:%s] _compute_name: sequence no longer matches date, name reset",
+                    move.id,
+                )
                 move.name = False
                 continue
             if move.date and not move_has_name and move.state != "draft":
@@ -1378,6 +1395,7 @@ class AccountMove(models.Model):
         "sequence_prefix",
         "state",
     )
+    @dbg.timed
     def _compute_name_placeholder(self):
         for move in self:
             if (
@@ -1417,6 +1435,7 @@ class AccountMove(models.Model):
         for move in self:
             move.secured = bool(move.inalterable_hash)
 
+    @dbg.timed
     def _search_secured(self, operator, value):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
@@ -1460,6 +1479,7 @@ class AccountMove(models.Model):
                 ]
 
     @api.depends("partner_id", "partner_shipping_id", "company_id", "move_type")
+    @dbg.timed
     def _compute_fiscal_position_id(self):
         for move in self:
             receipt_fiscal_position = {
@@ -1479,6 +1499,7 @@ class AccountMove(models.Model):
             )
 
     @api.depends("bank_partner_id", "currency_id", "preferred_payment_channel_id")
+    @dbg.timed
     def _compute_partner_bank_id(self):
         def _bank_selection_key(bank):
             if bank.currency_id == move.currency_id or not bank.currency_id:
@@ -1499,6 +1520,12 @@ class AccountMove(models.Model):
                 and payment_method.journal_id
             ):
                 move.partner_bank_id = payment_method.journal_id.bank_account_id
+                dbg.logic.debug(
+                    "[move:%s] partner bank %s from payment channel %s",
+                    move.id,
+                    move.partner_bank_id.id,
+                    payment_method.id,
+                )
                 continue
 
             move.partner_bank_id = move.bank_partner_id.bank_ids.filtered_domain(
@@ -1509,6 +1536,13 @@ class AccountMove(models.Model):
                     ("active", "=", True),
                 ]
             ).sorted(key=_bank_selection_key)[:1]
+            dbg.logic.debug(
+                "[move:%s] partner bank %s from bank partner %s (%d candidate(s))",
+                move.id,
+                move.partner_bank_id.id,
+                move.bank_partner_id.id,
+                len(move.bank_partner_id.bank_ids),
+            )
 
     @api.depends("partner_id", "move_type", "company_id")
     def _compute_invoice_payment_term_id(self):
@@ -1528,6 +1562,7 @@ class AccountMove(models.Model):
                 move.invoice_payment_term_id = False
 
     @api.depends("needed_terms")
+    @dbg.timed
     def _compute_invoice_date_due(self):
         today = fields.Date.context_today(self)
         for move in self:
@@ -1637,6 +1672,7 @@ class AccountMove(models.Model):
         "line_ids.tax_repartition_line_id",
         "state",
     )
+    @dbg.timed
     def _compute_amounts(self):
         self.line_ids.fetch(
             [
@@ -1777,6 +1813,7 @@ class AccountMove(models.Model):
         "line_ids.matched_debit_ids.debit_move_id.move_id.origin_payment_id.is_bank_matched",
         "line_ids.matched_credit_ids.credit_move_id.move_id.origin_payment_id.is_bank_matched",
     )
+    @dbg.timed
     def _compute_payment_state(self):
         def _invoice_qualifies(move):
             currency = move._get_payment_state_currency()
@@ -1798,6 +1835,10 @@ class AccountMove(models.Model):
         )
         groups.get("unpaid", self.browse()).payment_state = "not_paid"
         invoices = groups.get("invoices", self.browse())
+        dbg.logic.debug(
+            "_compute_payment_state groups: %s",
+            dbg.lazy(lambda: {k: len(v) for k, v in groups.items()}),
+        )
 
         payment_data = self._get_payment_state_reconciliation_data(list(invoices.ids))
         for invoice in invoices:
@@ -1808,6 +1849,14 @@ class AccountMove(models.Model):
             ]
             invoice.payment_state = self._get_invoice_payment_state(
                 invoice, reconciliation_vals
+            )
+            dbg.logic.debug(
+                "[move:%s] payment_state=%s residual=%s partials=%d state=%s",
+                invoice.id,
+                invoice.payment_state,
+                invoice.amount_residual,
+                len(reconciliation_vals),
+                invoice.state,
             )
 
     @api.depends("payment_state", "state", "is_move_sent")
@@ -1862,6 +1911,7 @@ class AccountMove(models.Model):
             else:
                 move.adjusting_entry_origin_label = False
 
+    @dbg.timed
     def _get_payment_term_base_amounts(self, invoice, sign):
         if invoice.id == invoice._origin.id:
             return {
@@ -1894,6 +1944,7 @@ class AccountMove(models.Model):
             amounts["tax_amount"] -= tax_line_vals["balance"]
         return amounts
 
+    @dbg.timed
     def _update_needed_terms_from_payment_term(self, invoice, sign):
         invoice_payment_terms = invoice.invoice_payment_term_id._compute_terms(
             date_ref=invoice.invoice_date
@@ -1998,6 +2049,7 @@ class AccountMove(models.Model):
             for key, group_account_ids in groups.items()
         }
 
+    @dbg.timed
     def _get_outstanding_widget_content(self, move, lines, account_id_set):
         content = []
         for line in lines:
@@ -2030,6 +2082,7 @@ class AccountMove(models.Model):
             )
         return content
 
+    @dbg.timed
     def _compute_invoice_outstanding_credits_debits_widget(self):
         self.invoice_outstanding_credits_debits_widget = False
 
@@ -2055,11 +2108,20 @@ class AccountMove(models.Model):
             return
 
         lines_per_group = self._get_outstanding_lines_per_group(groups)
+        dbg.logic.debug(
+            "outstanding widget: %d candidate(s) in %d group(s), lines per group %s",
+            len(candidates),
+            len(groups),
+            dbg.lazy(lambda: {k: len(v) for k, v in lines_per_group.items()}),
+        )
 
         for move, account_id_set in candidates.items():
             key = (move.company_id.id, move.commercial_partner_id.id, move.is_inbound())
             content = self._get_outstanding_widget_content(
                 move, lines_per_group[key], account_id_set
+            )
+            dbg.logic.debug(
+                "[move:%s] outstanding widget: %d entr(y/ies)", move.id, len(content)
             )
             if content:
                 move.invoice_outstanding_credits_debits_widget = {
@@ -2092,6 +2154,7 @@ class AccountMove(models.Model):
                 )
 
     @api.depends("move_type", "line_ids.amount_residual")
+    @dbg.timed
     def _compute_invoice_payments_widget(self):
         for move in self:
             payments_widget_vals = {
@@ -2172,6 +2235,7 @@ class AccountMove(models.Model):
             else 0.0
         )
 
+    @dbg.timed
     def _prepare_product_base_line_for_taxes_computation(self, product_line):
         self.check_singleton()
         is_invoice = self.is_invoice(include_receipts=True)
@@ -2202,6 +2266,7 @@ class AccountMove(models.Model):
     def _is_refund(self):
         return self.move_type in ("out_refund", "in_refund")
 
+    @dbg.timed
     def _prepare_special_base_line_for_taxes_computation(self, line, special_type):
         self.check_singleton()
         sign = self.direction_sign
@@ -2216,11 +2281,13 @@ class AccountMove(models.Model):
             rate=self.invoice_currency_rate,
         )
 
+    @dbg.timed
     def _prepare_epd_base_line_for_taxes_computation(self, epd_line):
         return self._prepare_special_base_line_for_taxes_computation(
             epd_line, "early_payment"
         )
 
+    @dbg.timed
     def _prepare_epd_base_lines_for_taxes_computation_from_product_lines(
         self, product_amls
     ):
@@ -2254,6 +2321,7 @@ class AccountMove(models.Model):
             )
         return epd_lines
 
+    @dbg.timed
     def _prepare_cash_rounding_base_line_for_taxes_computation(
         self, cash_rounding_line
     ):
@@ -2261,6 +2329,7 @@ class AccountMove(models.Model):
             cash_rounding_line, "cash_rounding"
         )
 
+    @dbg.timed
     def _prepare_tax_line_for_taxes_computation(self, tax_line):
         self.check_singleton()
         return self.env["account.tax"]._prepare_tax_line_for_taxes_computation(
@@ -2268,6 +2337,7 @@ class AccountMove(models.Model):
             sign=self.direction_sign,
         )
 
+    @dbg.timed
     def _prepare_non_deductible_base_line_for_taxes_computation(
         self, non_deductible_line
     ):
@@ -2275,6 +2345,7 @@ class AccountMove(models.Model):
             non_deductible_line, "non_deductible"
         )
 
+    @dbg.timed
     def _prepare_non_deductible_base_lines_for_taxes_computation_from_product_lines(
         self, product_amls
     ):
@@ -2332,6 +2403,7 @@ class AccountMove(models.Model):
         ]
         return non_deductible_lines
 
+    @dbg.timed
     def _get_rounded_base_and_tax_lines(
         self, round_from_tax_lines=True, reapply_currency_rate=False
     ):
@@ -2420,6 +2492,7 @@ class AccountMove(models.Model):
         "currency_id",
         "company_id",
     )
+    @dbg.timed
     def _compute_tax_totals(self):
         for move in self:
             if move.is_invoice(include_receipts=True):
@@ -2463,6 +2536,7 @@ class AccountMove(models.Model):
                 invoice.payment_term_details = payment_term_details
 
     @api.depends("move_type", "payment_state", "invoice_payment_term_id")
+    @dbg.timed
     def _compute_show_details(self):
         for invoice in self:
             if (
@@ -2607,6 +2681,7 @@ class AccountMove(models.Model):
         "company_id.terms_type",
         "company_id.invoice_terms",
     )
+    @dbg.timed
     def _compute_narration(self):
         use_invoice_terms = (
             self.env["ir.config_parameter"]
@@ -2638,6 +2713,7 @@ class AccountMove(models.Model):
     @api.depends(
         "company_id", "partner_id", "tax_totals", "currency_id", "state", "move_type"
     )
+    @dbg.timed
     def _compute_partner_credit_warning(self):
         for move in self:
             move = move.with_company(move.company_id)
@@ -2660,6 +2736,7 @@ class AccountMove(models.Model):
                     exclude_amount=move._get_partner_credit_warning_exclude_amount(),
                 )
 
+    @dbg.timed
     def _prepare_credit_warning_message(
         self, record, current_amount=0.0, exclude_amount=0.0
     ):
@@ -2813,6 +2890,7 @@ class AccountMove(models.Model):
             )
         return result
 
+    @dbg.timed
     def _get_duplicate_reference(self, matching_states=("draft", "posted")):
         moves = self.filtered(
             lambda m: m.is_sale_document() or m.is_purchase_document()
@@ -2860,6 +2938,13 @@ class AccountMove(models.Model):
             ._filtered_access("read")
             .ids
         )
+        if result:
+            dbg.logic.debug(
+                "_get_duplicate_reference states=%s: %s (readable %d)",
+                matching_states,
+                dbg.lazy(lambda: {m: d[:8] for m, d in result}),
+                len(readable_ids),
+            )
         return {
             (
                 self.browse(move_id) if move_id > 0 else move_by_synthetic_id[move_id]
@@ -2872,6 +2957,7 @@ class AccountMove(models.Model):
         }
 
     @api.depends("duplicated_ref_ids")
+    @dbg.timed
     def _compute_duplicates(self):
         for move in self:
             move.is_draft_duplicated_ref_ids = any(
@@ -3027,6 +3113,7 @@ class AccountMove(models.Model):
         "partner_id.ignore_abnormal_invoice_amount",
     )
     @api.depends_context("lang")
+    @dbg.timed
     def _compute_abnormal_warnings(self):
         if not self._is_abnormal_detection_enabled():
             draft_invoices = self.browse()
@@ -3068,6 +3155,18 @@ class AccountMove(models.Model):
             )
             move.abnormal_amount_warning = self._get_abnormal_amount_warning(
                 move, amount_mean, amount_deviation
+            )
+            dbg.logic.debug(
+                "[move:%s] abnormal: date=%s amount=%s (last=%s mean_days=%s ±%s, mean_amount=%s ±%s, total=%s)",
+                move.id,
+                bool(move.abnormal_date_warning),
+                bool(move.abnormal_amount_warning),
+                last_invoice_date,
+                date_diff_mean,
+                date_diff_deviation,
+                amount_mean,
+                amount_deviation,
+                move.amount_total,
             )
 
     @api.depends(
@@ -3136,6 +3235,7 @@ class AccountMove(models.Model):
         "matched_payment_ids",
         "matched_payment_ids.state",
     )
+    @dbg.timed
     def _compute_reconciled_payment_ids(self):
         self.env["account.payment"].flush_model(fnames=["move_id"])
         self.flush_model(fnames=["move_type"])
@@ -3176,6 +3276,7 @@ class AccountMove(models.Model):
                 | move.matched_payment_ids
             )
 
+    @dbg.timed
     def _search_next_payment_date(self, operator, value):
         if operator not in ("in", "<", "<="):
             return NotImplemented
@@ -3208,6 +3309,7 @@ class AccountMove(models.Model):
             if move.is_invoice():
                 move._get_receivable_payable_lines().no_followup = move.no_followup
 
+    @dbg.timed
     def _get_alerts(self):
         self.check_singleton()
         alerts = {}
@@ -3289,6 +3391,7 @@ class AccountMove(models.Model):
 
         return alerts
 
+    @dbg.timed
     def _search_journal_group_id(self, operator, value):
         positive_operator = {
             "!=": "=",
@@ -3312,6 +3415,7 @@ class AccountMove(models.Model):
         )
         return ~membership if positive_operator else membership
 
+    @dbg.timed
     def _search_reconciled_payment_ids(self, operator, value):
         if operator not in ("in", "="):
             return NotImplemented
@@ -3328,6 +3432,7 @@ class AccountMove(models.Model):
     def _inverse_delivery_date(self):
         pass
 
+    @dbg.timed
     def _inverse_tax_totals(self):
         with self._disable_recursion("skip_invoice_sync") as disabled:
             if disabled:
@@ -3369,6 +3474,7 @@ class AccountMove(models.Model):
                                 first_tax_line.amount_currency -= delta_amount * sign
             self.env.add_to_compute(self._fields["amount_total"], self)
 
+    @dbg.timed
     def _inverse_amount_total(self):
         for move in self:
             if len(move.line_ids) != 2 or move.is_invoice(include_receipts=True):
@@ -3408,6 +3514,7 @@ class AccountMove(models.Model):
                         line._inverse_partner_id()
 
     @api.onchange("company_id")
+    @dbg.timed
     def _inverse_company_id(self):
         for move in self:
             if not move.company_id:
@@ -3532,6 +3639,7 @@ class AccountMove(models.Model):
                 )
 
     @api.onchange("name", "highest_name")
+    @dbg.timed
     def _onchange_name_warning(self):
         if (
             self.name
@@ -3648,6 +3756,7 @@ class AccountMove(models.Model):
                 return
 
         if unbalanced_moves := self._get_unbalanced_moves(container):
+            dbg.logic.debug("_check_balanced: unbalanced rows %s", unbalanced_moves[:8])
             if len(unbalanced_moves) == 1:
                 raise UserError(_("The entry is not balanced."))
 
@@ -3684,6 +3793,7 @@ class AccountMove(models.Model):
             )
         )
 
+    @dbg.timed
     def _check_fiscal_lock_dates(self):
         if self.env.context.get("bypass_lock_check") is BYPASS_LOCK_CHECK:
             return None
@@ -3722,6 +3832,7 @@ class AccountMove(models.Model):
                 )
 
     @api.constrains("journal_id", "move_type")
+    @dbg.timed
     def _check_journal_move_type(self):
         for move in self:
             if (
@@ -3739,6 +3850,7 @@ class AccountMove(models.Model):
                     _("Cannot create a sale document in a non sale journal")
                 )
 
+    @dbg.timed
     def _prepare_epd_needed_per_line(self):
         self.check_singleton()
         AccountTax = self.env["account.tax"]
@@ -3811,6 +3923,7 @@ class AccountMove(models.Model):
 
         return result_per_invoice_line
 
+    @dbg.timed
     def _prepare_discountable_base_lines_for_epd(self, company):
         AccountTax = self.env["account.tax"]
         base_lines = [
@@ -3849,6 +3962,7 @@ class AccountMove(models.Model):
                 epd_needed[key_counterpart][fname] += amount
 
     @api.constrains("journal_id")
+    @dbg.timed
     def _check_journal_is_selectable(self):
         selectable_domain = self.env["account.journal"]._get_domain_selectable()
         if not selectable_domain:
@@ -3865,6 +3979,7 @@ class AccountMove(models.Model):
             )
 
     @api.constrains("line_ids", "fiscal_position_id", "company_id")
+    @dbg.timed
     def _check_taxes_country(self):
         self._update_tax_country_id()
         for record in self:
@@ -3887,6 +4002,7 @@ class AccountMove(models.Model):
                 )
 
     @api.constrains("invoice_currency_rate")
+    @dbg.timed
     def _check_invoice_currency_rate(self):
         for move in self:
             if (
@@ -3903,7 +4019,7 @@ class AccountMove(models.Model):
         payment_terms = self.line_ids.filtered(
             lambda line: line.display_type == "payment_term"
         )
-        return (
+        eligible = (
             self.currency_id == currency
             and self.move_type in self._early_payment_discount_move_types()
             and self.invoice_payment_term_id.early_discount
@@ -3920,6 +4036,15 @@ class AccountMove(models.Model):
                 + payment_terms.sudo().matched_credit_ids
             )
         )
+        dbg.logic.debug(
+            "[move:%s] early payment discount eligible=%s currency=%s ref=%s discount_date=%s",
+            self.id,
+            bool(eligible),
+            currency.id,
+            reference_date,
+            payment_terms[:1].discount_date,
+        )
+        return eligible
 
     def _early_payment_discount_move_types(self):
         return ("out_invoice", "out_receipt", "in_invoice", "in_receipt")
@@ -3935,14 +4060,24 @@ class AccountMove(models.Model):
             "date": format_date(self.env, line.discount_date),
         }
 
+    @dbg.timed
     def _sync_business_models(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
 
         self_sudo = self.sudo()
+        if self_sudo.statement_line_id:
+            dbg.pipeline.debug(
+                "[move:%s] syncing statement lines %s for %s",
+                dbg.ids(self),
+                dbg.rec(self_sudo.statement_line_id),
+                dbg.lazy(lambda: sorted(changed_fields)),
+            )
         self_sudo.statement_line_id._sync_from_moves(changed_fields)
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         default = dict(default or {})
         vals_list = super().copy_data(default)
         default_date = fields.Date.to_date(default.get("date"))
@@ -3967,7 +4102,9 @@ class AccountMove(models.Model):
                 del vals["journal_id"]
         return vals_list
 
+    @dbg.timed
     def copy(self, default=None):
+        dbg.lifecycle.debug("copy on %s", dbg.rec(self))
         default = dict(default or {})
         new_moves = super().copy(default)
         bodies = {}
@@ -3995,6 +4132,7 @@ class AccountMove(models.Model):
             else _("This entry has been duplicated from %s", self._get_html_link())
         )
 
+    @dbg.timed
     def _sanitize_vals(self, vals):
         if not (vals.get("invoice_line_ids") and vals.get("line_ids")):
             return vals
@@ -4052,7 +4190,14 @@ class AccountMove(models.Model):
         return [(protected, rec) for rec in records] if protected else []
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         if any(vals.get("state") == "posted" for vals in vals_list):
             raise UserError(
                 _(
@@ -4066,7 +4211,16 @@ class AccountMove(models.Model):
                 stolen_moves = self.browse(
                     {move for vals in vals_list for move in self._stolen_move(vals)}
                 )
+                if stolen_moves:
+                    dbg.logic.debug("create: stolen moves %s", dbg.rec(stolen_moves))
                 moves = super().create(vals_list)
+                dbg.pipeline.debug(
+                    "[move:%s] created types=%s",
+                    dbg.ids(moves),
+                    dbg.lazy(
+                        lambda: sorted({v.get("move_type", "entry") for v in vals_list})
+                    ),
+                )
                 exit_stack.enter_context(
                     self.env.protecting(
                         [
@@ -4097,6 +4251,7 @@ class AccountMove(models.Model):
         )
     )
 
+    @dbg.timed
     def _check_write_journal_change(self, move, vals):
         if (
             move.posted_before
@@ -4128,6 +4283,7 @@ class AccountMove(models.Model):
                 )
             )
 
+    @dbg.timed
     def _check_write_review_rights(self, move, vals):
         if vals.get("checked") and not move._is_user_able_to_review():
             raise AccessError(
@@ -4142,6 +4298,7 @@ class AccountMove(models.Model):
                 _("Validated entries can only be changed by your accountant.")
             )
 
+    @dbg.timed
     def _check_write_sequence_override(self, move, vals):
         if (
             move.journal_id.sequence_override_regex
@@ -4157,6 +4314,7 @@ class AccountMove(models.Model):
                 )
             move.journal_id.sequence_override_regex = False
 
+    @dbg.timed
     def _check_write_allowed(self, vals):
         vals_keys = set(vals)
         hashed_fnames = set(self._get_fields_integrity_hash()) | {"inalterable_hash"}
@@ -4206,14 +4364,33 @@ class AccountMove(models.Model):
 
             self._check_write_sequence_override(move, vals)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if not vals:
             return True
         vals = self._sanitize_vals(vals)
 
         self._check_write_allowed(vals)
 
+        if "state" in vals:
+            dbg.lifecycle.debug(
+                "[move:%s] state %s -> %s",
+                dbg.ids(self),
+                dbg.lazy(lambda: set(self.mapped("state"))),
+                vals["state"],
+            )
         if {"sequence_prefix", "sequence_number", "journal_id", "name"} & vals.keys():
+            dbg.logic.debug(
+                "write: sequence-affecting keys %s on %s",
+                dbg.lazy(
+                    lambda: sorted(
+                        vals.keys()
+                        & {"sequence_prefix", "sequence_number", "journal_id", "name"}
+                    )
+                ),
+                dbg.rec(self),
+            )
             self._update_sequence_made_gap(invalidate_current=True)
 
         renumbered_moves = (
@@ -4245,10 +4422,17 @@ class AccountMove(models.Model):
 
                 if "journal_id" in vals and "name" not in vals:
                     draft_move = self.filtered(lambda m: not m.posted_before)
+                    dbg.logic.debug(
+                        "write: journal changed, name reset on %s", dbg.rec(draft_move)
+                    )
                     draft_move.name = False
                     self.env.add_to_compute(self._fields["name"], draft_move)
 
                 if renumbered_moves:
+                    dbg.logic.debug(
+                        "write: payment_reference reset on renumbered %s",
+                        dbg.rec(renumbered_moves),
+                    )
                     renumbered_moves.payment_reference = False
 
                 if "date" in vals or "state" in vals:
@@ -4258,7 +4442,8 @@ class AccountMove(models.Model):
 
                 if vals.get("state") == "posted":
                     self.flush_recordset()
-                    self._hash_moves()
+                    with dbg.timer(self.env, "write: _hash_moves on %s", dbg.rec(self)):
+                        self._hash_moves()
 
             self._sync_business_models(set(vals.keys()))
 
@@ -4297,7 +4482,9 @@ class AccountMove(models.Model):
         return None
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_forbid_parts_of_chain(self):
+        dbg.lifecycle.debug("_unlink_forbid_parts_of_chain on %s", dbg.rec(self))
         if self.env.user.has_group(
             "account.group_account_manager"
         ) or self.env.context.get("force_delete"):
@@ -4314,7 +4501,9 @@ class AccountMove(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_forbid_hashed(self):
+        dbg.lifecycle.debug("_unlink_forbid_hashed on %s", dbg.rec(self))
         if not self.env.context.get("force_delete") and any(
             self.mapped("inalterable_hash")
         ):
@@ -4326,7 +4515,12 @@ class AccountMove(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _unlink_account_audit_trail_except_once_post(self):
+        dbg.lifecycle.debug(
+            "_unlink_account_audit_trail_except_once_post on %s",
+            dbg.rec(self),
+        )
         if not self.env.context.get("force_delete") and any(
             move.posted_before and move.company_id.restrictive_audit_trail
             for move in self
@@ -4338,7 +4532,9 @@ class AccountMove(models.Model):
                 )
             )
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         with self.env.cr.savepoint():
             self._update_sequence_made_gap(invalidate_current=True)
             moves = self.with_context(skip_invoice_sync=True, dynamic_unlink=True)
@@ -4358,6 +4554,7 @@ class AccountMove(models.Model):
         for move in self:
             move.display_name = move._get_move_display_name(show_ref=True)
 
+    @dbg.timed
     def onchange(self, values, field_names, fields_spec):
         if "line_ids" in field_names:
             values = {
@@ -4394,6 +4591,7 @@ class AccountMove(models.Model):
                     )
         return super().onchange(values, field_names, fields_spec)
 
+    @dbg.timed
     def _collect_tax_cash_basis_values(self):
         self.check_singleton()
 
@@ -4443,6 +4641,7 @@ class AccountMove(models.Model):
 
         return values
 
+    @dbg.timed
     def _prepare_tax_lines_for_taxes_computation(self, tax_amls, round_from_tax_lines):
         if round_from_tax_lines:
             return [self._prepare_tax_line_for_taxes_computation(x) for x in tax_amls]
@@ -4455,6 +4654,7 @@ class AccountMove(models.Model):
         "tax_amount_currency",
     )
 
+    @dbg.timed
     def _prepare_aggregated_taxes_base_lines(
         self,
         filter_invl_to_apply=None,
@@ -4533,6 +4733,7 @@ class AccountMove(models.Model):
             tax_details[grouping_key] = values
         return tax_details
 
+    @dbg.timed
     def _prepare_invoice_aggregated_taxes(
         self,
         filter_invl_to_apply=None,
@@ -4645,6 +4846,7 @@ class AccountMove(models.Model):
             )
         return bases_details
 
+    @dbg.timed
     def _get_early_payment_discount_tax_line_vals(
         self, base_lines, tax_amounts, payment_term_line, percentage_paid
     ):
@@ -4679,6 +4881,7 @@ class AccountMove(models.Model):
             }
         return tax_line_vals_list
 
+    @dbg.timed
     def _prepare_included_early_payment_discount_line_vals(
         self,
         base_lines,
@@ -4799,6 +5002,7 @@ class AccountMove(models.Model):
         )
         return cash_discount_account, epd_analytic_distribution
 
+    @dbg.timed
     def _get_invoice_counterpart_amls_for_early_payment_discount_per_payment_term_line(
         self,
     ):
@@ -4869,6 +5073,7 @@ class AccountMove(models.Model):
         return res
 
     @api.model
+    @dbg.timed
     def _get_invoice_counterpart_amls_for_early_payment_discount(
         self, aml_values_list, open_balance
     ):
@@ -4953,6 +5158,7 @@ class AccountMove(models.Model):
             for line in (self.line_ids | self.invoice_line_ids)
         )
 
+    @dbg.timed
     def _get_move_display_name(self, show_ref=False):
         self.check_singleton()
         if self.env.context.get("name_as_amount_total"):
@@ -5048,6 +5254,7 @@ class AccountMove(models.Model):
                 }
             )
 
+    @dbg.timed
     def _get_all_reconciled_invoice_partials(self):
         self.check_singleton()
         reconciled_lines = self._get_receivable_payable_lines()
@@ -5119,6 +5326,7 @@ class AccountMove(models.Model):
                 exchange_diff_moves.append(partial.exchange_move_id.id)
         return invoice_partials, exchange_diff_moves
 
+    @dbg.timed
     def _reconcile_reversed_moves(self, reverse_moves, move_reverse_cancel):
         for reverse_move in reverse_moves:
             move = reverse_move.reversed_entry_id
@@ -5139,13 +5347,20 @@ class AccountMove(models.Model):
                     ).reconcile()
         return reverse_moves
 
+    @dbg.timed
     def _reverse_moves(self, default_values_list=None, cancel=False):
+        dbg.lifecycle.debug("_reverse_moves on %s", dbg.rec(self))
         if not default_values_list:
             default_values_list = [{} for _move in self]
 
         if cancel:
             lines = self.mapped("line_ids")
             if lines:
+                dbg.pipeline.debug(
+                    "[move:%s] reverse(cancel): unreconciling %d lines",
+                    dbg.ids(self),
+                    len(lines),
+                )
                 lines.remove_move_reconcile()
 
         reverse_moves = self.browse()
@@ -5183,6 +5398,12 @@ class AccountMove(models.Model):
             }
         )
 
+        dbg.pipeline.debug(
+            "[move:%s] reversed into %s cancel=%s",
+            dbg.ids(self),
+            dbg.rec(reverse_moves),
+            cancel,
+        )
         if cancel:
             reverse_moves.with_context(move_reverse_cancel=cancel)._post(soft=False)
 
@@ -5211,7 +5432,9 @@ class AccountMove(models.Model):
             for move in self
         )
 
+    @dbg.timed
     def _unlink_or_reverse(self):
+        dbg.lifecycle.debug("_unlink_or_reverse on %s", dbg.rec(self))
         if not self:
             return None
         to_unlink = self.browse()
@@ -5224,6 +5447,12 @@ class AccountMove(models.Model):
                 to_cancel += move
             else:
                 to_unlink += move
+        dbg.logic.debug(
+            "_unlink_or_reverse: unlink=%s cancel=%s reverse=%s",
+            dbg.rec(to_unlink),
+            dbg.rec(to_cancel),
+            dbg.rec(to_reverse),
+        )
         to_unlink.filtered(lambda m: m.state in ("posted", "cancel")).action_draft()
         to_unlink.filtered(lambda m: m.state == "draft").unlink()
         to_cancel.filtered(lambda m: m.state != "cancel").action_cancel()
@@ -5250,7 +5479,9 @@ class AccountMove(models.Model):
                 )
             ]
 
+    @dbg.timed
     def _post_check_access(self):
+        dbg.lifecycle.debug("_post_check_access on %s", dbg.rec(self))
         if not self.env.su and not self.env.user.has_group(
             "account.group_account_invoice"
         ):
@@ -5259,6 +5490,7 @@ class AccountMove(models.Model):
     def _post_check_business_rules(self):
         return
 
+    @dbg.timed
     def _check_post_partner_bank(self, invoice, validation_msgs):
         if invoice.partner_bank_id and not invoice.partner_bank_id.active:
             validation_msgs.add(
@@ -5293,6 +5525,7 @@ class AccountMove(models.Model):
                     )
                 )
 
+    @dbg.timed
     def _check_post_invoice_date(self, invoice, validation_msgs):
         if invoice.invoice_date:
             return
@@ -5319,6 +5552,7 @@ class AccountMove(models.Model):
                 _("The Bill/Refund date is required to validate this document.")
             )
 
+    @dbg.timed
     def _check_post_invoices(self, validation_msgs):
         for invoice in self.filtered(
             lambda move: move.is_invoice(include_receipts=True)
@@ -5381,6 +5615,7 @@ class AccountMove(models.Model):
 
             self._check_post_invoice_date(invoice, validation_msgs)
 
+    @dbg.timed
     def _check_post_moves(self, validation_msgs, posting_now=True):
         for move in self:
             if move.state in ["posted", "cancel"]:
@@ -5447,7 +5682,9 @@ class AccountMove(models.Model):
                     )
                 )
 
+    @dbg.timed
     def _post_validate(self, posting_now=True):
+        dbg.lifecycle.debug("_post_validate on %s", dbg.rec(self))
         validation_msgs = set()
 
         self._check_post_invoices(validation_msgs)
@@ -5456,6 +5693,11 @@ class AccountMove(models.Model):
         self._check_post_moves(validation_msgs, posting_now)
 
         if validation_msgs:
+            dbg.logic.debug(
+                "_post_validate refused %s: %d message(s)",
+                dbg.rec(self),
+                len(validation_msgs),
+            )
             msg = "\n".join(sorted(validation_msgs))
             raise UserError(msg)
 
@@ -5471,14 +5713,18 @@ class AccountMove(models.Model):
                 )
             )
 
+    @dbg.timed
     def _post_get_draft_reverse_moves(self):
+        dbg.lifecycle.debug("_post_get_draft_reverse_moves on %s", dbg.rec(self))
         return self.filtered(
             lambda move: (
                 move.reversed_entry_id and move.reversed_entry_id.state == "posted"
             )
         )
 
+    @dbg.timed
     def _post_prepare_reconciliation(self):
+        dbg.lifecycle.debug("_post_prepare_reconciliation on %s", dbg.rec(self))
         side_move_ids = set()
         partial_ids_to_unlink = set()
         reachable_ids = set(self.ids)
@@ -5524,7 +5770,9 @@ class AccountMove(models.Model):
 
         return self.browse(side_move_ids) - self
 
+    @dbg.timed
     def _post_update_partner_ranks(self):
+        dbg.lifecycle.debug("_post_update_partner_ranks on %s", dbg.rec(self))
         customer_count, supplier_count = defaultdict(int), defaultdict(int)
         for invoice in self:
             if invoice.is_sale_document():
@@ -5557,12 +5805,18 @@ class AccountMove(models.Model):
                 "supplier_rank", count
             )
 
+    @dbg.timed
     def _post_defer_future_moves(self):
+        dbg.lifecycle.debug("_post_defer_future_moves on %s", dbg.rec(self))
         future_moves = self.filtered(
             lambda move: move.date > fields.Date.context_today(self)
         )
         if not future_moves:
             return self
+        dbg.logic.debug(
+            "_post_defer_future_moves: deferring %s to auto_post at date",
+            dbg.rec(future_moves),
+        )
         future_moves._post_validate(posting_now=False)
         future_moves.filtered(lambda move: move.auto_post == "no").auto_post = "at_date"
         future_moves._message_log_batch(
@@ -5576,7 +5830,9 @@ class AccountMove(models.Model):
         )
         return self - future_moves
 
+    @dbg.timed
     def _post_update_accounting_dates(self):
+        dbg.lifecycle.debug("_post_update_accounting_dates on %s", dbg.rec(self))
         move_ids_per_accounting_date = defaultdict(list)
         for move in self:
             affects_tax_report = move._affect_tax_report()
@@ -5590,9 +5846,16 @@ class AccountMove(models.Model):
                     )
                 ].append(move.id)
         for accounting_date, move_ids in move_ids_per_accounting_date.items():
+            dbg.logic.debug(
+                "_post_update_accounting_dates: lock date violated, moving %s to %s",
+                move_ids[:8],
+                accounting_date,
+            )
             self.browse(move_ids).date = accounting_date
 
+    @dbg.timed
     def _post_update_line_partners(self):
+        dbg.lifecycle.debug("_post_update_line_partners on %s", dbg.rec(self))
         wrong_line_ids_per_partner = defaultdict(list)
         for invoice in self.filtered(lambda move: move.is_invoice()):
             wrong_lines = invoice.line_ids.filtered(
@@ -5610,7 +5873,9 @@ class AccountMove(models.Model):
                 {"partner_id": partner_id}
             )
 
+    @dbg.timed
     def _post_update_non_deductible_names(self):
+        dbg.lifecycle.debug("_post_update_non_deductible_names on %s", dbg.rec(self))
         non_deductible_lines = self.line_ids.filtered(
             lambda line: (
                 line.display_type
@@ -5629,15 +5894,25 @@ class AccountMove(models.Model):
         for name, line_ids in line_ids_per_name.items():
             self.env["account.move.line"].browse(line_ids).name = name
 
+    @dbg.timed
     def _post(self, soft=True):
+        dbg.lifecycle.debug("_post on %s", dbg.rec(self))
         self._post_check_access()
 
         moves = self.with_context(skip_is_manually_modified=True)
         to_post = moves._post_defer_future_moves() if soft else moves
+        dbg.pipeline.debug(
+            "[move:%s] _post soft=%s -> posting %s",
+            dbg.ids(self),
+            soft,
+            dbg.rec(to_post),
+        )
 
         return to_post._post_entries() if to_post else to_post
 
+    @dbg.timed
     def _post_entries(self):
+        dbg.lifecycle.debug("_post_entries on %s", dbg.rec(self))
         self._post_validate()
 
         self._post_update_accounting_dates()
@@ -5652,6 +5927,12 @@ class AccountMove(models.Model):
 
         draft_reverse_moves = self._post_get_draft_reverse_moves()
         side_moves = self._post_prepare_reconciliation()
+        dbg.pipeline.debug(
+            "[move:%s] _post_entries: draft_reverse=%s side=%s",
+            dbg.ids(self),
+            dbg.rec(draft_reverse_moves),
+            dbg.rec(side_moves),
+        )
 
         (self | side_moves).write({"state": "posted", "posted_before": True})
         self._reveal_partial_deductibility_group()
@@ -5663,15 +5944,22 @@ class AccountMove(models.Model):
         (self | side_moves).line_ids._reconcile_marked()
         self._post_update_partner_ranks()
 
-        self.filtered(
+        zero_invoices = self.filtered(
             lambda m: (
                 m.is_invoice(include_receipts=True)
                 and m.currency_id.is_zero(m.amount_total)
             )
-        )._invoice_paid_hook()
+        )
+        if zero_invoices:
+            dbg.logic.debug(
+                "_post_entries: zero-total invoices treated as paid %s",
+                dbg.rec(zero_invoices),
+            )
+        zero_invoices._invoice_paid_hook()
 
         return self
 
+    @dbg.timed
     def _check_sequence_gap_around(self, previous, current, next_move):
         return (
             current.name
@@ -5718,6 +6006,7 @@ class AccountMove(models.Model):
         )
         return made_gap_data, all_ids
 
+    @dbg.timed
     def _update_sequence_made_gap(self, invalidate_current=False):
         if not self:
             return
@@ -5795,14 +6084,22 @@ class AccountMove(models.Model):
 
     def _autopost_bill(self):
         self.check_singleton()
-        if (
+        eligible = bool(
             self.company_id.autopost_bills
             and self.partner_id
             and self.is_purchase_document(include_receipts=True)
             and self.partner_id.autopost_bills == "always"
             and not self.abnormal_amount_warning
             and not self.restrict_mode_hash_table
-        ):
+        )
+        dbg.logic.debug(
+            "[move:%s] _autopost_bill eligible=%s partner_setting=%s duplicates=%s",
+            self.id,
+            eligible,
+            self.partner_id.autopost_bills,
+            bool(self.duplicated_ref_ids),
+        )
+        if eligible:
             if self.duplicated_ref_ids:
                 self.message_post(
                     body=_(
@@ -5812,6 +6109,7 @@ class AccountMove(models.Model):
             else:
                 self.action_post()
 
+    @dbg.timed
     def _show_autopost_bills_wizard(self):
         if (
             len(self) != 1
@@ -5858,14 +6156,20 @@ class AccountMove(models.Model):
             "target": "new",
         }
 
+    @dbg.timed
     def open_payments(self):
+        dbg.lifecycle.debug("open_payments on %s", dbg.rec(self))
         payments = self.reconciled_payment_ids
         return payments._get_records_action(name=_("Payments"))
 
+    @dbg.timed
     def open_reconcile_view(self):
+        dbg.lifecycle.debug("open_reconcile_view on %s", dbg.rec(self))
         return self.line_ids.open_reconcile_view()
 
+    @dbg.timed
     def action_view_business_doc(self):
+        dbg.lifecycle.debug("action_view_business_doc on %s", dbg.rec(self))
         self.check_singleton()
         if self.origin_payment_id:
             name = _("Payment")
@@ -5890,7 +6194,9 @@ class AccountMove(models.Model):
             "target": "current",
         }
 
+    @dbg.timed
     def action_update_fpos_values(self):
+        dbg.lifecycle.debug("action_update_fpos_values on %s", dbg.rec(self))
         if any(move.state != "draft" for move in self):
             raise UserError(
                 _("The fiscal position values can only be updated on draft entries.")
@@ -5924,7 +6230,9 @@ class AccountMove(models.Model):
             )
             self.env.add_to_compute(self.line_ids._fields["account_id"], self.line_ids)
 
+    @dbg.timed
     def open_created_caba_entries(self):
+        dbg.lifecycle.debug("open_created_caba_entries on %s", dbg.rec(self))
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",
@@ -5938,13 +6246,17 @@ class AccountMove(models.Model):
             ],
         }
 
+    @dbg.timed
     def open_adjusting_entries(self):
+        dbg.lifecycle.debug("open_adjusting_entries on %s", dbg.rec(self))
         self.check_singleton()
         return self.adjusting_entries_move_ids._get_records_action(
             name="Adjusting Entries"
         )
 
+    @dbg.timed
     def open_adjusting_entry_origin_moves(self):
+        dbg.lifecycle.debug("open_adjusting_entry_origin_moves on %s", dbg.rec(self))
         self.check_singleton()
         label = (
             self.adjusting_entry_origin_label
@@ -5953,7 +6265,9 @@ class AccountMove(models.Model):
         )
         return self.adjusting_entry_origin_move_ids._get_records_action(name=label)
 
+    @dbg.timed
     def action_switch_move_type(self):
+        dbg.lifecycle.debug("action_switch_move_type on %s", dbg.rec(self))
         if any((move.posted_before and move.name) for move in self):
             raise ValidationError(
                 _(
@@ -6013,14 +6327,18 @@ class AccountMove(models.Model):
     def refresh_invoice_currency_rate(self):
         self._update_invoice_currency_rate()
 
+    @dbg.timed
     def action_register_payment(self):
+        dbg.lifecycle.debug("action_register_payment on %s", dbg.rec(self))
         if any(m.state != "posted" for m in self):
             raise UserError(
                 _("You can only register payment for posted journal entries.")
             )
         return self.action_force_register_payment()
 
+    @dbg.timed
     def action_force_register_payment(self):
+        dbg.lifecycle.debug("action_force_register_payment on %s", dbg.rec(self))
         if any(m.move_type == "entry" for m in self):
             raise UserError(
                 _("You cannot register payments for miscellaneous entries.")
@@ -6035,7 +6353,9 @@ class AccountMove(models.Model):
             )
         return self.line_ids.action_register_payment()
 
+    @dbg.timed
     def action_duplicate(self):
+        dbg.lifecycle.debug("action_duplicate on %s", dbg.rec(self))
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
@@ -6046,7 +6366,9 @@ class AccountMove(models.Model):
         action["res_id"] = self.copy().id
         return action
 
+    @dbg.timed
     def action_send_and_print(self):
+        dbg.lifecycle.debug("action_send_and_print on %s", dbg.rec(self))
         self.env["mixin.account.move.send"]._check_move_constraints(self)
         return {
             "name": _("Send"),
@@ -6062,27 +6384,35 @@ class AccountMove(models.Model):
             },
         }
 
+    @dbg.timed
     def action_invoice_sent(self):
+        dbg.lifecycle.debug("action_invoice_sent on %s", dbg.rec(self))
         self.check_singleton()
         report_action = self.action_send_and_print()
         report_action["context"].update({"allow_partners_without_mail": True})
         return self._get_action_with_base_document_layout_configurator(report_action)
 
+    @dbg.timed
     def action_invoice_download_pdf(self, target="download"):
+        dbg.lifecycle.debug("action_invoice_download_pdf on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_url",
             "url": f"/account/download_invoice_documents/{','.join(map(str, self.ids))}/pdf",
             "target": target,
         }
 
+    @dbg.timed
     def action_move_download_all(self):
+        dbg.lifecycle.debug("action_move_download_all on %s", dbg.rec(self))
         return {
             "type": "ir.actions.act_url",
             "url": f"/account/download_move_attachments/{','.join(str(move_id) for move_id in self.ids)}",
             "target": "download",
         }
 
+    @dbg.timed
     def action_print_pdf(self):
+        dbg.lifecycle.debug("action_print_pdf on %s", dbg.rec(self))
         self.check_singleton()
         invoice_template = self.env[
             "mixin.account.move.send"
@@ -6098,7 +6428,9 @@ class AccountMove(models.Model):
             "url": self.get_portal_url(),
         }
 
+    @dbg.timed
     def action_reverse(self):
+        dbg.lifecycle.debug("action_reverse on %s", dbg.rec(self))
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_view_account_move_reversal"
         )
@@ -6126,7 +6458,9 @@ class AccountMove(models.Model):
             action["view_id"] = view_id
         return action
 
+    @dbg.timed
     def _post_needing_confirmation(self, need_confirmation, view_id=None):
+        dbg.lifecycle.debug("_post_needing_confirmation on %s", dbg.rec(self))
         to_post = self - need_confirmation
         if to_post:
             to_post._post_check_business_rules()
@@ -6137,7 +6471,9 @@ class AccountMove(models.Model):
             return autopost_bills_wizard
         return False
 
+    @dbg.timed
     def action_post(self):
+        dbg.lifecycle.debug("action_post on %s", dbg.rec(self))
         need_confirmation = (
             self.filtered(
                 lambda m: m.abnormal_amount_warning or m.abnormal_date_warning
@@ -6145,6 +6481,11 @@ class AccountMove(models.Model):
             if self._is_abnormal_confirmation_requested()
             else self.browse()
         )
+        if need_confirmation:
+            dbg.logic.debug(
+                "action_post: abnormal warnings need confirmation on %s",
+                dbg.rec(need_confirmation),
+            )
         return self._post_needing_confirmation(need_confirmation)
 
     def _filtered_requiring_confirmation(self):
@@ -6155,7 +6496,9 @@ class AccountMove(models.Model):
             ),
         )
 
+    @dbg.timed
     def action_post_moves_with_confirmation(self):
+        dbg.lifecycle.debug("action_post_moves_with_confirmation on %s", dbg.rec(self))
         draft_moves = self.filtered(lambda m: m.state == "draft" and m.line_ids)
         if not draft_moves:
             raise UserError(_("There are no journal items in the draft state to post."))
@@ -6165,7 +6508,9 @@ class AccountMove(models.Model):
             view_id=self.env.ref("account.validate_account_move_view").id,
         )
 
+    @dbg.timed
     def js_add_outstanding_line(self, line_id):
+        dbg.lifecycle.debug("js_add_outstanding_line on %s", dbg.rec(self))
         self.check_singleton()
         counterpart_line = self.env["account.move.line"].browse(line_id).exists()
         if (
@@ -6183,9 +6528,17 @@ class AccountMove(models.Model):
                 line.account_id == counterpart_line.account_id and not line.reconciled
             )
         )
+        dbg.pipeline.debug(
+            "[move:%s] widget: reconciling outstanding line %s with %s",
+            self.id,
+            counterpart_line.id,
+            dbg.rec(lines - counterpart_line),
+        )
         return lines.reconcile()
 
+    @dbg.timed
     def js_remove_outstanding_partial(self, partial_id):
+        dbg.lifecycle.debug("js_remove_outstanding_partial on %s", dbg.rec(self))
         self.check_singleton()
         partial = self.env["account.partial.reconcile"].browse(partial_id).exists()
         if not (partial.debit_move_id + partial.credit_move_id) & self.line_ids:
@@ -6194,7 +6547,9 @@ class AccountMove(models.Model):
             )
         return partial.unlink()
 
+    @dbg.timed
     def button_set_checked(self):
+        dbg.lifecycle.debug("button_set_checked on %s", dbg.rec(self))
         self.set_moves_checked()
 
     def check_selected_moves(self):
@@ -6203,7 +6558,9 @@ class AccountMove(models.Model):
     def set_moves_checked(self, is_checked=True):
         self.filtered(lambda m: m.state == "posted").checked = is_checked
 
+    @dbg.timed
     def action_draft(self):
+        dbg.lifecycle.debug("action_draft on %s", dbg.rec(self))
         if any(move.state not in ("cancel", "posted") for move in self):
             raise UserError(
                 _("Only posted/cancelled journal entries can be reset to draft.")
@@ -6217,13 +6574,21 @@ class AccountMove(models.Model):
 
         self._check_draftable()
         self._unlink_next_draft_auto_post_moves()
+        dbg.pipeline.debug(
+            "[move:%s] action_draft from %s, dropping %d analytic line(s)",
+            dbg.ids(self),
+            dbg.lazy(lambda: set(self.mapped("state"))),
+            len(self.line_ids.analytic_line_ids),
+        )
         self.line_ids.analytic_line_ids.with_context(skip_analytic_sync=True).unlink()
         self.state = "draft"
         self.sending_data = False
 
         self._detach_attachments()
 
+    @dbg.timed
     def _unlink_next_draft_auto_post_moves(self):
+        dbg.lifecycle.debug("_unlink_next_draft_auto_post_moves on %s", dbg.rec(self))
         recurring_moves = self.filtered(
             lambda move: move.id and move.auto_post_origin_id.id
         )
@@ -6289,6 +6654,7 @@ class AccountMove(models.Model):
                     date=today,
                 )
 
+    @dbg.timed
     def _check_draftable(self):
         exchange_move_ids = set()
         if self:
@@ -6315,10 +6681,14 @@ class AccountMove(models.Model):
             if move.inalterable_hash:
                 raise UserError(_("You cannot reset to draft a locked journal entry."))
 
+    @dbg.timed
     def button_hash(self):
+        dbg.lifecycle.debug("button_hash on %s", dbg.rec(self))
         self._hash_moves(force_hash=True)
 
+    @dbg.timed
     def button_request_cancel(self):
+        dbg.lifecycle.debug("button_request_cancel on %s", dbg.rec(self))
         self.check_singleton()
         if not self.need_cancel_request:
             raise UserError(
@@ -6327,7 +6697,9 @@ class AccountMove(models.Model):
                 )
             )
 
+    @dbg.timed
     def action_cancel(self):
+        dbg.lifecycle.debug("action_cancel on %s", dbg.rec(self))
         moves_to_reset_draft = self.filtered(lambda x: x.state == "posted")
         if moves_to_reset_draft:
             moves_to_reset_draft.action_draft()
@@ -6339,7 +6711,9 @@ class AccountMove(models.Model):
         self.payment_ids.state = "canceled"
         self.write({"auto_post": "no", "state": "cancel"})
 
+    @dbg.timed
     def action_toggle_block_payment(self):
+        dbg.lifecycle.debug("action_toggle_block_payment on %s", dbg.rec(self))
         self.check_singleton()
         if self.payment_state == "blocked":
             self.payment_state = "not_paid"
@@ -6349,12 +6723,16 @@ class AccountMove(models.Model):
                 raise UserError(_("You can't block a paid invoice."))
             self.payment_state = "blocked"
 
+    @dbg.timed
     def action_activate_currency(self):
+        dbg.lifecycle.debug("action_activate_currency on %s", dbg.rec(self))
         self.currency_id.filtered(lambda currency: not currency.active).write(
             {"active": True}
         )
 
+    @dbg.timed
     def action_remove_duplicates(self):
+        dbg.lifecycle.debug("action_remove_duplicates on %s", dbg.rec(self))
         for move in self:
             move.duplicated_ref_ids.unlink()
 
@@ -6375,6 +6753,7 @@ class AccountMove(models.Model):
                 return self.env.ref(self._SELF_BILLING_MAIL_TEMPLATES[move_type])
         return self.env.ref("account.email_template_edi_invoice")
 
+    @dbg.timed
     def _notify_get_recipients_groups(self, message, model_description, msg_vals=False):
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
@@ -6410,9 +6789,11 @@ class AccountMove(models.Model):
 
         return groups
 
+    @dbg.timed
     def _get_report_base_filename(self):
         return self._get_move_display_name()
 
+    @dbg.timed
     def _autopost_draft_entries(self, batch_size=100):
         domain = [
             ("state", "=", "draft"),
@@ -6422,6 +6803,9 @@ class AccountMove(models.Model):
         moves = self.search(domain, limit=batch_size).try_lock_for_update()
         remaining = len(moves) if len(moves) < batch_size else self.search_count(domain)
         self.env["ir.cron"]._commit_progress(remaining=remaining)
+        dbg.lifecycle.debug(
+            "[cron:autopost] batch %s, remaining=%d", dbg.rec(moves), remaining
+        )
 
         try:
             moves._post_check_business_rules()
@@ -6431,6 +6815,10 @@ class AccountMove(models.Model):
         except PG_RETRY_EXCEPTIONS:
             raise
         except Exception:
+            dbg.logic.debug(
+                "[cron:autopost] batch post failed, falling back to one by one",
+                exc_info=True,
+            )
             self.env.cr.rollback()
 
         for move in moves:
@@ -6463,7 +6851,9 @@ class AccountMove(models.Model):
                 self.env["ir.cron"]._commit_progress(1)
 
     @api.model
+    @dbg.timed
     def _cron_account_move_send(self, job_count=10):
+        dbg.lifecycle.debug("_cron_account_move_send on %s", dbg.rec(self))
         domain = [
             ("sending_data", "!=", False),
             ("state", "=", "posted"),
@@ -6477,6 +6867,7 @@ class AccountMove(models.Model):
         if not to_process:
             return
 
+        dbg.pipeline.debug("[cron:send] processing %s", dbg.rec(to_process))
         self.env["mixin.account.move.send"]._generate_and_send_invoices(
             to_process,
             from_cron=True,
@@ -6641,6 +7032,7 @@ class AccountMove(models.Model):
             "epd_discount_msg": discount_msg,
         }
 
+    @dbg.timed
     def _get_next_installment_values(self, installments):
         not_reconciled = [x for x in installments if not x["reconciled"]]
         overdue = [x for x in not_reconciled if x["type"] == "overdue"]
@@ -6696,6 +7088,7 @@ class AccountMove(models.Model):
             "additional_info": {},
         }
 
+    @dbg.timed
     def _get_invoice_next_payment_values(self, custom_amount=None):
         self.check_singleton()
         term_lines = self.line_ids.filtered(
@@ -6793,6 +7186,7 @@ class AccountMove(models.Model):
         return False
 
     @api.model
+    @dbg.timed
     def _move_dict_to_preview_vals(self, move_vals, currency_id=None):
         preview_vals = {
             "group_name": "%s, %s"
@@ -6850,6 +7244,7 @@ class AccountMove(models.Model):
             return
         self.qr_code_method = qr_code_method
 
+    @dbg.timed
     def _generate_qr_code(self, silent_errors=False):
         self.check_singleton()
 
@@ -6875,12 +7270,14 @@ class AccountMove(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _generate_portal_payment_qr(self):
         self.check_singleton()
 
     def _get_portal_payment_link(self):
         self.check_singleton()
 
+    @dbg.timed
     def _generate_and_send(
         self, force_synchronous=True, allow_fallback_pdf=True, **custom_settings
     ):
@@ -6954,6 +7351,7 @@ class AccountMove(models.Model):
             return [self._get_invoice_pdf_proforma()]
         return None
 
+    @dbg.timed
     def _get_report_filename(self, file_name, extension):
         self.check_singleton()
         stem = file_name or self._get_move_display_name()
@@ -7103,6 +7501,7 @@ class AccountMove(models.Model):
     def _invoice_paid_hook(self):
         pass
 
+    @dbg.timed
     def _get_lines_onchange_currency(self):
         return self.line_ids
 

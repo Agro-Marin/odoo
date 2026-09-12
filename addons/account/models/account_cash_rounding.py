@@ -2,6 +2,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import float_round
 
+from ..tools import debug_log as dbg
+
 
 class AccountCashRounding(models.Model):
     _name = "account.cash.rounding"
@@ -50,6 +52,7 @@ class AccountCashRounding(models.Model):
     )
 
     @api.constrains("rounding")
+    @dbg.timed
     def _check_rounding(self):
         for record in self:
             if record.rounding <= 0:

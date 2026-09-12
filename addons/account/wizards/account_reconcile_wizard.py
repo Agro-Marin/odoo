@@ -3,6 +3,8 @@ from datetime import timedelta
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileWizard(models.TransientModel):
     _name = "account.reconcile.wizard"
@@ -10,7 +12,9 @@ class AccountReconcileWizard(models.TransientModel):
     _check_company_auto = True
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         res = super().default_get(fields)
         if "move_line_ids" not in fields:
             return res
@@ -260,6 +264,7 @@ class AccountReconcileWizard(models.TransientModel):
             )
 
     @api.constrains("edit_mode_amount_currency")
+    @dbg.timed
     def _check_min_max_edit_mode_amount_currency(self):
         for wizard in self:
             if wizard.edit_mode:
@@ -286,7 +291,9 @@ class AccountReconcileWizard(models.TransientModel):
                         )
                     )
 
+    @dbg.timed
     def _action_view_wizard(self):
+        dbg.lifecycle.debug("_action_view_wizard on %s", dbg.rec(self))
         self.check_singleton()
         return {
             "name": _("Write-Off Entry"),
@@ -306,12 +313,22 @@ class AccountReconcileWizard(models.TransientModel):
             return lock_dates[-1][0] + timedelta(days=1)
         return None
 
+    @dbg.timed
     def reconcile(self):
         self.check_singleton()
         move_lines_to_reconcile = self.move_line_ids._origin
         do_transfer = self.is_transfer_required
         do_write_off = self.edit_mode or (
             self.is_write_off_required and not self.allow_partials
+        )
+        dbg.logic.debug(
+            "[recwizard:%s] reconcile %s transfer=%s write_off=%s partials=%s edit=%s",
+            self.id,
+            dbg.rec(move_lines_to_reconcile),
+            do_transfer,
+            do_write_off,
+            self.allow_partials,
+            self.edit_mode,
         )
         if do_transfer:
             transfer_move = self.create_transfer()

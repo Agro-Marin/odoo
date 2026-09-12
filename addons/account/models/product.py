@@ -8,6 +8,8 @@ from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.models import PREFETCH_MAX
 from odoo.tools import SQL, format_amount
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -121,6 +123,7 @@ class ProductTemplate(models.Model):
         for record in self:
             record.tax_string = record._prepare_tax_string(record.list_price)
 
+    @dbg.timed
     def _prepare_tax_string(self, price):
         currency = self.currency_id
         res = self.taxes_id._filter_taxes_by_company(self.env.company).compute_all(
@@ -149,6 +152,7 @@ class ProductTemplate(models.Model):
             tax_string = " "
         return tax_string
 
+    @dbg.timed
     def _check_uom_not_used_on_a_posted_entry(self):
         if not self:
             return
@@ -207,7 +211,14 @@ class ProductTemplate(models.Model):
         )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         products = super().create(vals_list)
         products_without_company = products.filtered(lambda p: not p.company_id)
         if products_without_company:
@@ -221,7 +232,9 @@ class ProductTemplate(models.Model):
         products.sudo()._clear_taxes_of_combo_products()
         return products
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         if "uom_id" in vals:
             self.filtered(
                 lambda product: product.uom_id.id != vals["uom_id"]
@@ -255,6 +268,7 @@ class ProductProduct(models.Model):
     def _get_product_accounts(self, fiscal_pos=None):
         return self.product_tmpl_id._get_product_accounts(fiscal_pos=fiscal_pos)
 
+    @dbg.timed
     def _get_tax_included_unit_price(
         self,
         company,
@@ -464,6 +478,7 @@ class ProductProduct(models.Model):
         return extra_domain, order_fields
 
     @api.model
+    @dbg.timed
     def _get_product_from_search_plan(
         self, search_plan, company, product_values, extra_domain=None
     ):
@@ -495,7 +510,13 @@ class ProductProduct(models.Model):
                 else:
                     continue
                 if product:
+                    dbg.logic.debug(
+                        "[import] product %s matched by %s",
+                        product.id,
+                        criteria.get("domain") or search_method.__name__,
+                    )
                     return product
+        dbg.logic.debug("[import] no product matched %s", dbg.keys(product_values))
         return self.browse()
 
     @api.model

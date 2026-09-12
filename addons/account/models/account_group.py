@@ -3,6 +3,8 @@ from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountGroup(models.Model):
     _name = "account.group"
@@ -74,6 +76,7 @@ class AccountGroup(models.Model):
             )
 
     @api.constrains("parent_id")
+    @dbg.timed
     def _check_parent_not_circular(self):
         if self._has_cycle():
             raise ValidationError(
@@ -81,18 +84,29 @@ class AccountGroup(models.Model):
             )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         groups = super().create([self._sanitize_vals(vals) for vals in vals_list])
         groups._adapt_parent_account_group()
         return groups
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         res = super().write(self._sanitize_vals(vals))
         if "code_prefix_start" in vals or "code_prefix_end" in vals:
             self._adapt_parent_account_group()
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         children = self.env["account.group"].search(
             [("parent_id", "in", self.ids)],
         )
@@ -129,6 +143,7 @@ class AccountGroup(models.Model):
             )
 
     @api.model
+    @dbg.timed
     def _search_display_name(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
@@ -146,6 +161,7 @@ class AccountGroup(models.Model):
             ]
         return [("name", operator, value)]
 
+    @dbg.timed
     def _adapt_parent_account_group(self, company=None):
         if self.env.context.get("delay_account_group_sync"):
             return

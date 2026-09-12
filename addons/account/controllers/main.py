@@ -5,6 +5,7 @@ from odoo import http
 from odoo.http import InternalServerError, prepare_content_disposition_header, request
 from odoo.tools.misc import html_escape
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.controllers.download_docs import _get_headers
 from odoo.addons.account.models.account_report_engine import (
     AccountReportFileDownloadException,
@@ -14,6 +15,7 @@ from odoo.addons.account.models.account_report_engine import (
 class AccountReportController(http.Controller):
     @http.route("/account_reports", type="http", auth="user", methods=["POST"])
     def get_report(self, options, file_generator, **kwargs):
+        dbg.pipeline.debug("route AccountReportController.get_report")
         uid = request.env.uid
         options = json.loads(options)
 
@@ -36,7 +38,16 @@ class AccountReportController(http.Controller):
         )
 
         try:
-            generated_file_data = report.dispatch_report_action(options, file_generator)
+            with dbg.timer(
+                request.env,
+                "[report:%s] get_report %s companies=%s",
+                report.id,
+                file_generator,
+                allowed_company_ids,
+            ):
+                generated_file_data = report.dispatch_report_action(
+                    options, file_generator
+                )
             file_content = generated_file_data["file_content"]
             file_type = generated_file_data["file_type"]
             response_headers = self._get_response_headers(
@@ -100,6 +111,7 @@ class AccountReportController(http.Controller):
         auth="user",
     )
     def download_report_attachments(self, attachments):
+        dbg.pipeline.debug("route AccountReportController.download_report_attachments")
         attachments.check_access("read")
         assert all(
             attachment.res_id and attachment.res_model == "res.partner"

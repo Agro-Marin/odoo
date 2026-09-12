@@ -1,6 +1,8 @@
 from odoo import Command, api, models
 from odoo.tools import float_is_zero
 
+from ..tools import debug_log as dbg
+
 
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
@@ -31,6 +33,7 @@ class AccountBankStatementLine(models.Model):
         )
         return transaction_currency.round(balance * company_transaction_rate)
 
+    @dbg.timed
     def _apply_early_payment_discount(
         self,
         move_line,
@@ -43,11 +46,20 @@ class AccountBankStatementLine(models.Model):
             move_line.amount_currency - move_line.discount_amount_currency
         )
         total_amount = total_amount_currency = 0.0
-        if move_line.move_id._is_eligible_for_early_payment_discount(
+        eligible = move_line.move_id._is_eligible_for_early_payment_discount(
             transaction_currency, self.date
         ) and self._qualifies_for_early_payment(
             transaction_currency, open_amount_currency, epd_amount_currency
-        ):
+        )
+        dbg.logic.debug(
+            "[stline:%s] early payment discount on line %s: eligible=%s open=%s epd=%s",
+            self.id,
+            move_line.id,
+            eligible,
+            open_amount_currency,
+            epd_amount_currency,
+        )
+        if eligible:
             if not move_line.currency_id.is_zero(exchange_diff_balance):
                 payment_with_move = self._create_payment_with_move_from_invoice(
                     move_line.move_id
@@ -99,6 +111,7 @@ class AccountBankStatementLine(models.Model):
                     )
         return epd_lines_vals, total_amount, total_amount_currency
 
+    @dbg.timed
     def _get_partial_amounts(
         self, current_balance, move_line, open_amount_currency, open_balance
     ):
@@ -234,6 +247,7 @@ class AccountBankStatementLine(models.Model):
             return transaction_currency.compare_amounts(remaining, 0.0) <= 0
         return transaction_currency.compare_amounts(remaining, 0.0) >= 0
 
+    @dbg.timed
     def _set_early_payment_discount_lines(
         self, early_pay_aml_values_list, open_balance
     ):

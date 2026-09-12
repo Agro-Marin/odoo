@@ -3,6 +3,8 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class QRCodePaymentWizard(models.TransientModel):
     _name = "qr.code.payment.wizard"
@@ -12,6 +14,7 @@ class QRCodePaymentWizard(models.TransientModel):
     qr_code = fields.Html(compute="_compute_qr_code")
 
     @api.depends("partner_bank_id", "communication", "amount_to_pay")
+    @dbg.timed
     def _compute_qr_code(self):
         for wizard in self:
             qr_html = False

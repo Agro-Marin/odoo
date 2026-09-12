@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class AccountPaymentMethod(models.Model):
     _name = "account.payment.method"
@@ -18,7 +20,14 @@ class AccountPaymentMethod(models.Model):
     )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         payment_methods = super().create(vals_list)
         methods_info = self._get_payment_method_information()
         return self._auto_link_payment_methods(payment_methods, methods_info)
@@ -79,7 +88,9 @@ class AccountPaymentMethod(models.Model):
     def _get_sdd_payment_method_code(self):
         return []
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         self.env["account.payment.channel"].search(
             [("payment_method_id", "in", self.ids)]
         ).unlink()

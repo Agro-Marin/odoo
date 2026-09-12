@@ -3,11 +3,15 @@ from collections import defaultdict
 from odoo import models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    @dbg.timed
     def action_add_from_catalog(self):
+        dbg.lifecycle.debug("action_add_from_catalog on %s", dbg.rec(self))
         res = super().action_add_from_catalog()
         res["search_view_id"] = [
             self.env.ref("account.product_view_search_catalog").id,
@@ -92,6 +96,7 @@ class AccountMove(models.Model):
                 grouped_lines[line.product_id] |= line
         return grouped_lines
 
+    @dbg.timed
     def _update_order_line_info(
         self,
         product_id,

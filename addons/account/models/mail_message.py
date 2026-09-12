@@ -2,6 +2,8 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 def _subselect_domain(model, field_name, domain):
     query = model._search(
@@ -86,6 +88,7 @@ class MailMessage(models.Model):
     @api.depends(
         "tracking_value_ids", "message_type", "subject", "preview", "subtype_id"
     )
+    @dbg.timed
     def _compute_account_audit_log_preview(self):
         audit_messages = self.filtered(lambda m: m.message_type == "notification")
         (self - audit_messages).account_audit_log_preview = False
@@ -110,6 +113,7 @@ class MailMessage(models.Model):
             )
             message.account_audit_log_preview = audit_log_preview
 
+    @dbg.timed
     def _search_account_audit_log_preview(self, operator, value):
         if operator not in ["=", "like", "=like", "ilike"] or not isinstance(
             value, str
@@ -130,6 +134,7 @@ class MailMessage(models.Model):
             "account.move", "account_audit_log_move_id"
         )
 
+    @dbg.timed
     def _search_account_audit_log_move_id(self, operator, value):
         return self._search_audit_log_related_record_id("account.move", operator, value)
 
@@ -138,6 +143,7 @@ class MailMessage(models.Model):
             "account.account", "account_audit_log_account_id"
         )
 
+    @dbg.timed
     def _search_account_audit_log_account_id(self, operator, value):
         return self._search_audit_log_related_record_id(
             "account.account", operator, value
@@ -148,6 +154,7 @@ class MailMessage(models.Model):
             "account.tax", "account_audit_log_tax_id"
         )
 
+    @dbg.timed
     def _search_account_audit_log_tax_id(self, operator, value):
         return self._search_audit_log_related_record_id("account.tax", operator, value)
 
@@ -156,6 +163,7 @@ class MailMessage(models.Model):
             "res.company", "account_audit_log_company_id"
         )
 
+    @dbg.timed
     def _search_account_audit_log_company_id(self, operator, value):
         return self._search_audit_log_related_record_id("res.company", operator, value)
 
@@ -164,6 +172,7 @@ class MailMessage(models.Model):
             "res.partner", "account_audit_log_partner_id"
         )
 
+    @dbg.timed
     def _search_account_audit_log_partner_id(self, operator, value):
         return self._search_audit_log_related_record_id("res.partner", operator, value)
 
@@ -178,6 +187,7 @@ class MailMessage(models.Model):
             )
             restricted.account_audit_log_restricted = True
 
+    @dbg.timed
     def _search_account_audit_log_restricted(self, operator, value):
         if operator not in ("in", "not in"):
             return NotImplemented
@@ -200,6 +210,7 @@ class MailMessage(models.Model):
         for message in messages_of_related:
             message[fname] = message.res_id
 
+    @dbg.timed
     def _search_audit_log_related_record_id(self, model, operator, value):
         if (
             operator in ("like", "ilike", "not ilike", "not like")
@@ -227,7 +238,9 @@ class MailMessage(models.Model):
         return [("model", "=", model)] + res_id_domain
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _except_audit_log(self):
+        dbg.lifecycle.debug("_except_audit_log on %s", dbg.rec(self))
         if self.env.context.get("bypass_audit") is bypass_token:
             return
         for message in self:
@@ -243,7 +256,9 @@ class MailMessage(models.Model):
                     )
                 )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         normalized_subject = (
             " ".join(vals["subject"].split()) if vals.get("subject") else None
         )

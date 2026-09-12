@@ -9,6 +9,8 @@ from odoo.libs.numbers import float_repr
 from odoo.tools import frozendict, groupby
 from odoo.tools.misc import format_date, formatLang
 
+from ..tools import debug_log as dbg
+
 
 class AccountAutomaticEntryWizard(models.TransientModel):
     _name = "account.automatic.entry.wizard"
@@ -129,6 +131,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
 
     @api.constrains("percentage", "action")
+    @dbg.timed
     def _check_percentage(self):
         for record in self:
             if (
@@ -187,6 +190,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             )
 
     @api.constrains("date", "move_line_ids")
+    @dbg.timed
     def _check_date(self):
         for wizard in self:
             for move in wizard.move_line_ids.move_id:
@@ -202,7 +206,9 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                     )
 
     @api.model
+    @dbg.timed
     def default_get(self, fields_list):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         res = super().default_get(fields_list)
         if not set(fields_list) & {"move_line_ids", "company_id"}:
             return res
@@ -260,6 +266,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             else _("Cut-off {label} {percent}%")
         )
 
+    @dbg.timed
     def _get_change_account_groupings(self):
         counterpart_balances = defaultdict(lambda: defaultdict(lambda: 0))
         counterpart_distribution_amount = defaultdict(lambda: defaultdict(dict))
@@ -311,6 +318,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             ] += line
         return counterpart_balances, grouped_source_lines
 
+    @dbg.timed
     def _get_change_account_counterpart_line_vals(self, counterpart_balances):
         line_vals = []
         for (
@@ -367,6 +375,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
         return line_vals
 
+    @dbg.timed
     def _get_change_account_source_line_vals(self, grouped_source_lines):
         line_vals = []
         for (
@@ -406,6 +415,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
         return line_vals
 
+    @dbg.timed
     def _get_move_dict_vals_change_account(self):
         counterpart_balances, grouped_source_lines = (
             self._get_change_account_groupings()
@@ -442,6 +452,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             }
         ]
 
+    @dbg.timed
     def _get_move_line_dict_vals_change_period(self, aml, date):
         accrual_account = (
             self.revenue_accrual_account
@@ -531,6 +542,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         )
         return reference_move._get_accounting_date(date, False)
 
+    @dbg.timed
     def _get_move_dict_vals_change_period(self):
         lock_safe_dates = {
             date: self._get_lock_safe_date(date)
@@ -588,6 +600,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         "action",
         "destination_account_id",
     )
+    @dbg.timed
     def _compute_move_data(self):
         for record in self:
             if record.action == "change_period":
@@ -608,6 +621,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 )
 
     @api.depends("move_data")
+    @dbg.timed
     def _compute_preview_move_data(self):
         for record in self:
             preview_columns = [
@@ -651,6 +665,13 @@ class AccountAutomaticEntryWizard(models.TransientModel):
 
     def do_action(self):
         move_vals = json.loads(self.move_data)
+        dbg.pipeline.debug(
+            "[autoentry:%s] do_action %s on %d line(s): %d move(s) to create",
+            self.id,
+            self.action,
+            len(self.move_line_ids),
+            len(move_vals),
+        )
         self = self.with_context(skip_computed_taxes=True)
         if self.action == "change_period":
             return self._do_action_change_period(move_vals)
@@ -658,6 +679,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             return self._do_action_change_account(move_vals)
         return None
 
+    @dbg.timed
     def _reconcile_accrual_lines(
         self,
         accrual_account,
@@ -678,7 +700,9 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             lambda line: not line.currency_id.is_zero(line.balance)
         ).reconcile()
 
+    @dbg.timed
     def _post_accrual_messages(self, move, accrual_move, destination_move, amount):
+        dbg.lifecycle.debug("_post_accrual_messages on %s", dbg.rec(self))
         body = Markup(
             "%(title)s<ul><li>%(link1)s %(second)s</li><li>%(link2)s %(third)s</li></ul>"
         ) % {
@@ -730,6 +754,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             action.update({"view_mode": "form", "res_id": created_moves.id})
         return action
 
+    @dbg.timed
     def _do_action_change_period(self, move_vals):
         accrual_account = (
             self.revenue_accrual_account
@@ -739,6 +764,12 @@ class AccountAutomaticEntryWizard(models.TransientModel):
 
         created_moves = self.env["account.move"].create(move_vals)
         created_moves._post()
+        dbg.pipeline.debug(
+            "[autoentry:%s] change_period: created %s accrual_account=%s",
+            self.id,
+            dbg.rec(created_moves),
+            accrual_account.id,
+        )
 
         destination_move = created_moves[0]
         destination_move_offset = 0
@@ -757,6 +788,12 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 and accrual_move.state == "posted"
                 and destination_move.state == "posted"
             ):
+                dbg.logic.debug(
+                    "[autoentry:%s] reconciling accrual %s with destination %s",
+                    self.id,
+                    accrual_move.id,
+                    destination_move.id,
+                )
                 self._reconcile_accrual_lines(
                     accrual_account,
                     accrual_move,
@@ -777,6 +814,7 @@ class AccountAutomaticEntryWizard(models.TransientModel):
 
         return self._get_generated_entries_action(created_moves)
 
+    @dbg.timed
     def _do_action_change_account(self, move_vals):
         new_move = self.env["account.move"].create(move_vals)
         new_move._post()

@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
 from .account_return_type import PERIODS
 
 
@@ -77,6 +78,7 @@ class ResCompany(models.Model):
         # Hook: to be overridden in localisation modules.
         return set()
 
+    @dbg.timed
     def _get_tax_closing_journal(self):
         if not self.account_tax_return_journal_id:
             closing_journal = self.env["account.journal"]
@@ -119,7 +121,14 @@ class ResCompany(models.Model):
         return self.account_tax_return_journal_id
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         companies = super().create(vals_list)
         companies._initiate_account_onboardings()
 
@@ -136,7 +145,9 @@ class ResCompany(models.Model):
         self.env["account.return.type"]._sync_all_returns(companies.root_id)
         return companies
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         companies = self.exists()
         root_companies_before = companies.root_id
         res = super().write(vals)
@@ -178,6 +189,7 @@ class ResCompany(models.Model):
             limit=limit,
         )
 
+    @dbg.timed
     def _get_branches_with_same_vat(self, accessible_only=False):
         """Returns all companies among self and its branch hierarchy (children and parents) sharing self's VAT number.
 

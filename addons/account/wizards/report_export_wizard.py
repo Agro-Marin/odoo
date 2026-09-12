@@ -6,6 +6,8 @@ from urllib.parse import parse_qs, urlparse
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class Account_ReportsExportWizard(models.TransientModel):
     """Export an accounting report in one or more formats as attachments."""
@@ -26,7 +28,14 @@ class Account_ReportsExportWizard(models.TransientModel):
     )
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         wizards = super().create(vals_list)
         for wizard in wizards:
             wizard.doc_name = wizard.report_id.name
@@ -91,6 +100,7 @@ class Account_ReportsExportWizardFormat(models.TransientModel):
         ondelete="cascade",
     )
 
+    @dbg.timed
     def apply_export(self, report_action):
         self.check_singleton()
 

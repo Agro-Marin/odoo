@@ -6,6 +6,8 @@ from odoo import _, http
 from odoo.exceptions import UserError
 from odoo.http import prepare_content_disposition_header, request
 
+from ..tools import debug_log as dbg
+
 
 def _get_headers(filename, filetype, content):
     return [
@@ -31,6 +33,9 @@ class AccountDocumentDownloadController(http.Controller):
         auth="user",
     )
     def download_invoice_attachments(self, attachments):
+        dbg.pipeline.debug(
+            "route AccountDocumentDownloadController.download_invoice_attachments"
+        )
         attachments.check_access("read")
         if not all(
             attachment.res_id and attachment.res_model == "account.move"
@@ -61,6 +66,9 @@ class AccountDocumentDownloadController(http.Controller):
     def download_invoice_documents_filetype(
         self, invoices, filetype, allow_fallback=True
     ):
+        dbg.pipeline.debug(
+            "route AccountDocumentDownloadController.download_invoice_documents_filetype"
+        )
         invoices.check_access("read")
         invoices.line_ids.check_access("read")
         docs_data = []
@@ -99,6 +107,9 @@ class AccountDocumentDownloadController(http.Controller):
         auth="user",
     )
     def download_move_attachments(self, moves):
+        dbg.pipeline.debug(
+            "route AccountDocumentDownloadController.download_move_attachments"
+        )
         moves.check_access("read")
 
         def rename_duplicates(docs):

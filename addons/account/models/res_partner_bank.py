@@ -9,6 +9,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tools import SQL
 from odoo.tools.image import image_data_uri
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.res_bank import sanitize_account_number
 
 MONEY_TRANSFER_SERVICES = {
@@ -69,6 +70,7 @@ class ResPartnerBank(models.Model):
     )
 
     @api.constrains("journal_id")
+    @dbg.timed
     def _check_journal_id(self):
         for bank in self:
             if len(bank.journal_id) > 1:
@@ -76,6 +78,7 @@ class ResPartnerBank(models.Model):
                     self.env._("A bank account can belong to only one journal.")
                 )
 
+    @dbg.timed
     def _check_allow_out_payment(self):
         for bank in self:
             if bank.allow_out_payment and not bank._can_user_trust():
@@ -86,6 +89,7 @@ class ResPartnerBank(models.Model):
                 )
 
     @api.depends("acc_number")
+    @dbg.timed
     def _compute_duplicate_bank_partner_ids(self):
         id2duplicates = dict(
             self.env.execute_query(
@@ -122,6 +126,7 @@ class ResPartnerBank(models.Model):
     @api.depends(
         "partner_id.country_id", "sanitized_acc_number", "allow_out_payment", "acc_type"
     )
+    @dbg.timed
     def _compute_display_account_warning(self):
         for bank in self:
             if (
@@ -165,6 +170,7 @@ class ResPartnerBank(models.Model):
         for bank in self:
             bank.lock_trust_fields = bool(bank._origin) and bool(bank.allow_out_payment)
 
+    @dbg.timed
     def _prepare_qr_code_vals(
         self,
         amount,
@@ -379,11 +385,20 @@ class ResPartnerBank(models.Model):
             )
         )
 
+    @dbg.timed
     def action_view_business_doc(self):
+        dbg.lifecycle.debug("action_view_business_doc on %s", dbg.rec(self))
         return self._get_records_action()
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         to_trust = []
         for vals in vals_list:
             to_trust.append(vals.get("allow_out_payment"))
@@ -402,6 +417,7 @@ class ResPartnerBank(models.Model):
             account.partner_id._message_log(body=msg)
         return accounts
 
+    @dbg.timed
     def _raise_if_archived_account_exists(self, vals_list):
         pairs = [
             (vals["partner_id"], vals["acc_number"])
@@ -435,7 +451,9 @@ class ResPartnerBank(models.Model):
                     )
                 )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         account_initial_values = defaultdict(dict)
         tracking_fields = [
             field_name
@@ -503,7 +521,9 @@ class ResPartnerBank(models.Model):
                     )
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         for account in self:
             msg = self.env._(
                 "Bank Account %(link)s with number %(number)s archived",
@@ -514,7 +534,9 @@ class ResPartnerBank(models.Model):
         return super().unlink()
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         if "acc_number" not in fields:
             return super().default_get(fields)
 

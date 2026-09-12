@@ -4,6 +4,8 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.numbers import parse_amount
 
+from ..tools import debug_log as dbg
+
 
 class AccountReconcileModelLine(models.Model):
     _name = "account.reconcile.model.line"
@@ -81,6 +83,7 @@ class AccountReconcileModelLine(models.Model):
             )
 
     @api.constrains("amount_string", "amount_type")
+    @dbg.timed
     def _check_amount(self):
         for record in self:
             if record.amount_type == "regex":
@@ -206,6 +209,7 @@ class AccountReconcileModel(models.Model):
     )
 
     @api.constrains("match_label", "match_label_param")
+    @dbg.timed
     def _check_match_label_param(self):
         for record in self:
             if not record.match_label:
@@ -265,13 +269,19 @@ class AccountReconcileModel(models.Model):
                 is_partner_mapping and model.line_ids[0].partner_id.id
             )
 
+    @dbg.timed
     def action_set_manual(self):
+        dbg.lifecycle.debug("action_set_manual on %s", dbg.rec(self))
         self.trigger = "manual"
 
+    @dbg.timed
     def action_set_auto_reconcile(self):
+        dbg.lifecycle.debug("action_set_auto_reconcile on %s", dbg.rec(self))
         self.trigger = "auto_reconcile"
 
+    @dbg.timed
     def action_reconcile_stat(self):
+        dbg.lifecycle.debug("action_reconcile_stat on %s", dbg.rec(self))
         self.check_singleton()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "account.action_move_journal_line"
@@ -302,7 +312,9 @@ class AccountReconcileModel(models.Model):
             name, rounds = longer, rounds + 1
         return rounds
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         default = dict(default or {})
         vals_list = super().copy_data(default)
         if default.get("name"):

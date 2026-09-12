@@ -2,6 +2,8 @@ import re
 
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticApplicability(models.Model):
     _inherit = "account.analytic.applicability"
@@ -34,6 +36,7 @@ class AccountAnalyticApplicability(models.Model):
     )
 
     @api.depends("account_prefix", "business_domain")
+    @dbg.timed
     def _compute_account_prefix_placeholder(self):
         account_expense = self.env["account.account"].search(
             [

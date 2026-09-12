@@ -1,5 +1,7 @@
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
@@ -30,6 +32,7 @@ class AccountAnalyticAccount(models.Model):
             account.invoice_count = data.get(account.id, 0)
 
     @api.depends("line_ids")
+    @dbg.timed
     def _compute_vendor_bill_count(self):
         purchase_types = self.env["account.move"].get_purchase_types(
             include_receipts=True
@@ -47,7 +50,9 @@ class AccountAnalyticAccount(models.Model):
         for account in self:
             account.vendor_bill_count = data.get(account.id, 0)
 
+    @dbg.timed
     def action_view_invoice(self):
+        dbg.lifecycle.debug("action_view_invoice on %s", dbg.rec(self))
         self.check_singleton()
         account_move_lines = self.env["account.move.line"].search_fetch(
             [
@@ -65,7 +70,9 @@ class AccountAnalyticAccount(models.Model):
             "view_mode": "list,form",
         }
 
+    @dbg.timed
     def action_view_vendor_bill(self):
+        dbg.lifecycle.debug("action_view_vendor_bill on %s", dbg.rec(self))
         self.check_singleton()
         account_move_lines = self.env["account.move.line"].search_fetch(
             [

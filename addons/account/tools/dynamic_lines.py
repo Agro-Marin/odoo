@@ -1,3 +1,6 @@
+from . import debug_log as dbg
+
+
 def filter_trivial(mapping):
     return {k: v for k, v in mapping.items() if "id" not in v}
 
@@ -10,10 +13,12 @@ def plan_dynamic_line_sync(
     values_differ,
 ):
     if needed_after == needed_before:
+        dbg.logic.debug("plan_dynamic_line_sync: needed values unchanged")
         return None
     if not needed_before and (
         filter_trivial(existing_after) != filter_trivial(existing_before)
     ):
+        dbg.logic.debug("plan_dynamic_line_sync: existing lines changed by hand, kept")
         return None
 
     lines_by_after_key = {}

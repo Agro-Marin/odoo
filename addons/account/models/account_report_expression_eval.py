@@ -12,6 +12,7 @@ from odoo.libs.numbers import float_round
 from odoo.tools import SQL, Query
 from odoo.tools.safe_eval import expr_eval, safe_eval
 
+from ..tools import debug_log as dbg
 from .account_report_engine import (
     ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
     NO_NEXT_GROUPBY_ENGINES,
@@ -25,6 +26,7 @@ from odoo.addons.account.models.account_report import (
 class AccountReportExpressionEval(models.Model):
     _inherit = "account.report"
 
+    @dbg.timed
     def _compute_expression_totals_for_each_column_group(
         self,
         expressions,
@@ -189,6 +191,7 @@ class AccountReportExpressionEval(models.Model):
 
         return all_column_groups_expression_totals
 
+    @dbg.timed
     def _compute_expression_totals_for_single_column_group(
         self,
         column_group_options,
@@ -417,6 +420,7 @@ class AccountReportExpressionEval(models.Model):
 
         return column_group_expression_totals
 
+    @dbg.timed
     def _compute_totals_no_batch_aggregation(
         self,
         column_group_options,
@@ -794,6 +798,7 @@ class AccountReportExpressionEval(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _aggregation_apply_bounds(
         self, column_group_options, subformula, unbounded_value
     ):
@@ -932,6 +937,7 @@ class AccountReportExpressionEval(models.Model):
 
         return unbounded_value
 
+    @dbg.timed
     def _compute_formula_batch(
         self,
         column_group_options,
@@ -976,18 +982,28 @@ class AccountReportExpressionEval(models.Model):
             (e.g. 'sum', 'sum_if_pos', ...)
         """
         engine_function_name = f"_compute_formula_batch_with_engine_{formula_engine}"
-        return getattr(self, engine_function_name)(
-            column_group_options,
+        with dbg.timer(
+            self.env,
+            "[report:%s] engine=%s scope=%s formulas=%d groupby=%s",
+            self.id,
+            formula_engine,
             date_scope,
-            formulas_dict,
+            len(formulas_dict),
             current_groupby,
-            next_groupby,
-            offset=offset,
-            limit=limit,
-            warnings=warnings,
-            batch_ids_cache=batch_ids_cache,
-        )
+        ):
+            return getattr(self, engine_function_name)(
+                column_group_options,
+                date_scope,
+                formulas_dict,
+                current_groupby,
+                next_groupby,
+                offset=offset,
+                limit=limit,
+                warnings=warnings,
+                batch_ids_cache=batch_ids_cache,
+            )
 
+    @dbg.timed
     def _compute_formula_batch_with_engine_tax_tags(
         self,
         options,
@@ -1093,6 +1109,7 @@ class AccountReportExpressionEval(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _compute_formula_batch_with_engine_domain(
         self,
         options,
@@ -1395,6 +1412,7 @@ class AccountReportExpressionEval(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _compute_formula_batch_with_engine_account_codes(
         self,
         options,
@@ -1671,6 +1689,7 @@ class AccountReportExpressionEval(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _compute_formula_batch_with_engine_external(
         self,
         options,
@@ -1822,6 +1841,7 @@ class AccountReportExpressionEval(models.Model):
 
         return rslt
 
+    @dbg.timed
     def _compute_formula_batch_with_engine_custom(
         self,
         options,
@@ -1856,6 +1876,7 @@ class AccountReportExpressionEval(models.Model):
             )
         return rslt
 
+    @dbg.timed
     def _get_domain_expression_audit_aml(self, expression_to_audit, options):
         """Returns the domain used to audit a single provided expression.
 
@@ -1931,6 +1952,7 @@ class AccountReportExpressionEval(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def _currency_table_aml_join(
         self,
         options,
@@ -1988,6 +2010,7 @@ class AccountReportExpressionEval(models.Model):
 
         return SQL("account_currency_table")
 
+    @dbg.timed
     def _get_report_query(self, options, date_scope, domain=None) -> Query:
         """Get a Query object that references the records needed for this report."""
         domain = self._get_domain_options(options, date_scope) & Domain(
@@ -2068,6 +2091,7 @@ class AccountReportExpressionEval(models.Model):
             )
         return False
 
+    @dbg.timed
     def _check_groupby_fields(self, groupby_fields_name: list[str] | str):
         """Checks that each string in the groupby_fields_name list is a valid groupby value for an accounting report.
         So it must be:

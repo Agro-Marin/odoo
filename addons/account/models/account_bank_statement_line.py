@@ -6,6 +6,7 @@ from odoo.fields import Command
 from odoo.tools import SQL
 from odoo.tools.misc import str2bool
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 
 _RUNNING_BALANCE_INPUTS = {
@@ -221,6 +222,7 @@ class AccountBankStatementLine(models.Model):
                 reached |= line
         return reached
 
+    @dbg.timed
     def _get_running_balance_before(self, journal, companies, min_index):
         self.env.cr.execute(
             """
@@ -310,6 +312,7 @@ class AccountBankStatementLine(models.Model):
         "move_id.line_ids.matched_debit_ids",
         "move_id.line_ids.matched_credit_ids",
     )
+    @dbg.timed
     def _compute_reconciliation(self):
         for st_line in self:
             _liquidity_lines, suspense_lines, _other_lines = st_line._seek_for_lines()
@@ -339,6 +342,7 @@ class AccountBankStatementLine(models.Model):
     @api.constrains(
         "amount", "amount_currency", "currency_id", "foreign_currency_id", "journal_id"
     )
+    @dbg.timed
     def _check_amounts_currencies(self):
         for st_line in self:
             if st_line.foreign_currency_id == st_line.currency_id:
@@ -368,7 +372,9 @@ class AccountBankStatementLine(models.Model):
                 )
 
     @api.model
+    @dbg.timed
     def default_get(self, fields):
+        dbg.lifecycle.debug("default_get on %s", dbg.rec(self))
         self_ctx = self.with_context(is_statement_line=True)
         defaults = super(AccountBankStatementLine, self_ctx).default_get(fields)
         if "journal_id" in fields and not defaults.get("journal_id"):
@@ -396,6 +402,7 @@ class AccountBankStatementLine(models.Model):
             AccountBankStatementLine, self.with_context(is_statement_line=True)
         ).new(values, origin, ref)
 
+    @dbg.timed
     def _prepare_create_vals(self, vals):
         line_vals = {"name": False, **vals, "move_type": "entry"}
         counterpart_account_id = line_vals.pop("counterpart_account_id", None)
@@ -418,7 +425,14 @@ class AccountBankStatementLine(models.Model):
         return line_vals, counterpart_account_id
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         prepared = [self._prepare_create_vals(vals) for vals in vals_list]
         st_lines = super(
             AccountBankStatementLine, self.with_context(is_statement_line=True)
@@ -443,6 +457,12 @@ class AccountBankStatementLine(models.Model):
                 st_line.move_id.with_context(clear_sequence_mixin_cache=False).write(
                     to_write
                 )
+        dbg.pipeline.debug(
+            "[stline:%s] created with moves %s, %d default line(s)",
+            dbg.ids(st_lines),
+            dbg.rec(st_lines.move_id),
+            len(to_create_lines_vals),
+        )
         self.env["account.move.line"].create(to_create_lines_vals)
         self.env.add_to_compute(
             self.env["account.move"]._fields["name"], st_lines.move_id
@@ -456,7 +476,9 @@ class AccountBankStatementLine(models.Model):
         self._invalidate_running_balance()
         return st_lines.with_env(self.env)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug("write on %s: keys=%s", dbg.rec(self), dbg.keys(vals))
         res = super(
             AccountBankStatementLine, self.with_context(skip_readonly_check=True)
         ).write(vals)
@@ -465,9 +487,16 @@ class AccountBankStatementLine(models.Model):
             self._invalidate_running_balance()
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("unlink %s", dbg.rec(self))
         tracked_lines = self.filtered(
             lambda stl: stl.company_id.restrictive_audit_trail
+        )
+        dbg.logic.debug(
+            "unlink statement lines: cancel (audit trail) %s, delete %s",
+            dbg.rec(tracked_lines),
+            dbg.rec(self - tracked_lines),
         )
         tracked_lines.move_id.action_cancel()
         moves_to_delete = (self - tracked_lines).move_id
@@ -532,7 +561,15 @@ class AccountBankStatementLine(models.Model):
         for group_line, index in zip(result, anchor_indexes, strict=True):
             group_line["running_balance"] = balance_by_index.get(index) or 0.0
 
+    @dbg.timed
     def action_undo_reconciliation(self):
+        dbg.lifecycle.debug("action_undo_reconciliation on %s", dbg.rec(self))
+        dbg.pipeline.debug(
+            "[stline:%s] undo: %d line(s), payments %s",
+            dbg.ids(self),
+            len(self.line_ids),
+            dbg.rec(self.payment_ids),
+        )
         self.line_ids.remove_move_reconcile()
         self.payment_ids.unlink()
 
@@ -549,7 +586,9 @@ class AccountBankStatementLine(models.Model):
             )
 
     @api.ondelete(at_uninstall=False)
+    @dbg.timed
     def _check_allow_unlink(self):
+        dbg.lifecycle.debug("_check_allow_unlink on %s", dbg.rec(self))
         if self.statement_id.filtered(lambda stmt: stmt.is_valid and stmt.is_complete):
             raise UserError(
                 _(
@@ -581,6 +620,7 @@ class AccountBankStatementLine(models.Model):
             company=self.company_id,
         )
 
+    @dbg.timed
     def _get_domain_default_amls_matching(self):
         self.check_singleton()
         all_reconcilable_account_ids = (
@@ -642,6 +682,7 @@ class AccountBankStatementLine(models.Model):
             liquidity_line.company_currency_id,
         )
 
+    @dbg.timed
     def _prepare_counterpart_amounts_using_st_line_rate(
         self, currency, balance, amount_currency
     ):
@@ -695,6 +736,7 @@ class AccountBankStatementLine(models.Model):
     def _rounded_quotient(self, currency, amount, rate):
         return currency.round(amount / rate) if rate else 0.0
 
+    @dbg.timed
     def _prepare_move_line_default_vals(self, counterpart_account_id=None):
         self.check_singleton()
 
@@ -748,6 +790,7 @@ class AccountBankStatementLine(models.Model):
         }
         return [liquidity_line_vals, counterpart_line_vals]
 
+    @dbg.timed
     def _prepare_move_line_common_vals(self):
         self.check_singleton()
         return {
@@ -778,6 +821,7 @@ class AccountBankStatementLine(models.Model):
             other_lines -= liquidity_lines
         return liquidity_lines, suspense_lines, other_lines
 
+    @dbg.timed
     def _sync_from_moves(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
@@ -787,11 +831,18 @@ class AccountBankStatementLine(models.Model):
         for st_line in self.with_context(skip_account_move_synchronization=True):
             move = st_line.move_id
             move_vals, st_line_vals = st_line._prepare_synchronized_vals_from_move()
+            dbg.pipeline.debug(
+                "[stline:%s] _sync_from_moves: move keys=%s st_line keys=%s",
+                st_line.id,
+                dbg.keys(move_vals),
+                dbg.keys(st_line_vals),
+            )
             move.with_context(skip_readonly_check=True).write(
                 move._cleanup_write_orm_values(move, move_vals)
             )
             st_line.write(move._cleanup_write_orm_values(st_line, st_line_vals))
 
+    @dbg.timed
     def _prepare_synchronized_vals_from_move(self):
         self.check_singleton()
         liquidity_lines, suspense_lines, other_lines = self._seek_for_lines()
@@ -845,6 +896,7 @@ class AccountBankStatementLine(models.Model):
         }
         return move_vals, st_line_vals
 
+    @dbg.timed
     def _sync_to_moves(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
@@ -852,12 +904,19 @@ class AccountBankStatementLine(models.Model):
         rebuild = not _AMOUNT_SYNCED_FIELDS.isdisjoint(changed_fields)
         if not rebuild and _LABEL_SYNCED_FIELDS.isdisjoint(changed_fields):
             return
+        dbg.pipeline.debug(
+            "[stline:%s] _sync_to_moves rebuild=%s fields=%s",
+            dbg.ids(self),
+            rebuild,
+            dbg.lazy(lambda: sorted(changed_fields)),
+        )
 
         for st_line in self.with_context(skip_account_move_synchronization=True):
             st_line.move_id.with_context(skip_readonly_check=True).write(
                 st_line._prepare_synchronized_move_vals(rebuild=rebuild)
             )
 
+    @dbg.timed
     def _prepare_synchronized_move_vals(self, rebuild):
         self.check_singleton()
         liquidity_lines, suspense_lines, other_lines = self._seek_for_lines()

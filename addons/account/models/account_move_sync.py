@@ -6,6 +6,7 @@ from odoo.fields import Command
 from odoo.tools import float_compare, frozendict
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.tools.dynamic_lines import plan_dynamic_line_sync
 
 TAX_BASE_DISPLAY_TYPES = (
@@ -90,6 +91,7 @@ class AccountMove(models.Model):
     def _get_single_dynamic_line(self, lines):
         return lines[:1]
 
+    @dbg.timed
     def _get_cash_rounding_line_vals(self, diff_balance, diff_amount_currency):
         self.check_singleton()
         vals = {
@@ -134,6 +136,7 @@ class AccountMove(models.Model):
         )
         return vals
 
+    @dbg.timed
     def _recompute_cash_rounding_lines(self):
         self.check_singleton()
         existing_cash_rounding_line = self._get_single_dynamic_line(
@@ -207,6 +210,7 @@ class AccountMove(models.Model):
             or self.company_id.account_journal_suspense_account_id
         )
 
+    @dbg.timed
     def _sync_unbalanced_lines(self, container):
         def has_tax(move):
             return bool(move.line_ids.tax_ids)
@@ -236,6 +240,10 @@ class AccountMove(models.Model):
                 balancing_line_by_move[move] = existing_balancing_line
 
             if detaxed_moves:
+                dbg.logic.debug(
+                    "_sync_unbalanced_lines: taxes removed, dropping tax lines on %s",
+                    dbg.rec(detaxed_moves),
+                )
                 detaxed_moves.line_ids.filtered("tax_line_id").unlink()
                 detaxed_moves.line_ids.tax_tag_ids = [Command.set([])]
             if existing_balancing_lines:
@@ -243,10 +251,15 @@ class AccountMove(models.Model):
 
             if not balancing_line_by_move:
                 return
+            dbg.pipeline.debug(
+                "_sync_unbalanced_lines: balancing %d move(s)",
+                len(balancing_line_by_move),
+            )
             self._apply_balancing_lines(balancing_line_by_move)
 
         return sync_boundary(prepare, commit)
 
+    @dbg.timed
     def _apply_balancing_lines(self, balancing_line_by_move):
         moves = self.env["account.move"].union(*balancing_line_by_move)
         unbalanced_by_move_id = {
@@ -292,6 +305,7 @@ class AccountMove(models.Model):
         if to_create:
             self.env["account.move.line"].create(to_create)
 
+    @dbg.timed
     def _sync_rounding_lines(self, container):
         def commit(_state):
             for invoice in container["records"]:
@@ -301,6 +315,7 @@ class AccountMove(models.Model):
         return sync_boundary(lambda: None, commit)
 
     @api.model
+    @dbg.timed
     def _sync_dynamic_line_needed_values(self, values_list):
         line_fields = self.env["account.move.line"]._fields
         res = {}
@@ -367,6 +382,7 @@ class AccountMove(models.Model):
         )
         return (*grouping_key_fields, *extra_fields)
 
+    @dbg.timed
     def _get_tax_rounding_mode(self, move, before):
 
         def field_has_changed(values, record, field):
@@ -427,6 +443,7 @@ class AccountMove(models.Model):
 
         return SKIP
 
+    @dbg.timed
     def _get_non_deductible_tax_line_vals(self, move, base_lines_values):
         non_deductible_lines_values = [
             line_values
@@ -470,6 +487,7 @@ class AccountMove(models.Model):
             + 1,
         }
 
+    @dbg.timed
     def _sync_tax_lines(self, container):
         AccountTax = self.env["account.tax"]
         grouping_key_fields = tuple(
@@ -515,9 +533,20 @@ class AccountMove(models.Model):
                     continue
                 mode = self._get_tax_rounding_mode(move, before)
                 if mode is SKIP:
+                    dbg.logic.debug(
+                        "[move:%s] _sync_tax_lines: unchanged, skipped", move.id
+                    )
                     continue
                 move_delete, move_create, move_update = self._get_tax_line_changes(
                     move, *mode
+                )
+                dbg.pipeline.debug(
+                    "[move:%s] _sync_tax_lines mode=%s delete=%d create=%d update=%d",
+                    move.id,
+                    mode,
+                    len(move_delete),
+                    len(move_create),
+                    len(move_update),
                 )
                 to_delete += move_delete
                 to_create += move_create
@@ -535,6 +564,7 @@ class AccountMove(models.Model):
 
         return sync_boundary(prepare, commit)
 
+    @dbg.timed
     def _get_tax_line_changes(self, move, round_from_tax_lines, reapply_currency_rate):
         AccountTax = self.env["account.tax"]
         to_delete = []
@@ -599,6 +629,7 @@ class AccountMove(models.Model):
 
         return to_delete, to_create, to_update
 
+    @dbg.timed
     def _get_non_deductible_line_vals(self, move):
         product_lines = move.line_ids.filtered(
             lambda line: line.display_type == "product"
@@ -660,6 +691,7 @@ class AccountMove(models.Model):
         )
         return vals_list
 
+    @dbg.timed
     def _sync_non_deductible_base_lines(self, container):
         def product_line_fingerprint(move):
             return move.journal_id, Counter(
@@ -712,6 +744,7 @@ class AccountMove(models.Model):
 
         return sync_boundary(prepare, commit)
 
+    @dbg.timed
     def _sync_dynamic_line(
         self,
         existing_key_fname,
@@ -757,8 +790,18 @@ class AccountMove(models.Model):
             return state
 
         def commit(state):
-            if not dirty_records():
+            dirty = dirty_records()
+            if not dirty:
+                dbg.logic.debug(
+                    "_sync_dynamic_line %s: nothing dirty, skipped", line_type
+                )
                 return
+            dbg.pipeline.debug(
+                "_sync_dynamic_line %s: dirty %s on %s",
+                line_type,
+                dbg.rec(dirty),
+                dbg.rec(container["records"]),
+            )
             inv_existing_before, needed_before = state
             self._apply_dynamic_line_plan(
                 inv_existing_before, existing(), needed_before, needed(), line_type
@@ -766,6 +809,7 @@ class AccountMove(models.Model):
 
         return sync_boundary(prepare, commit)
 
+    @dbg.timed
     def _apply_dynamic_line_plan(
         self, existing_before, existing_after, needed_before, needed_after, line_type
     ):
@@ -789,8 +833,18 @@ class AccountMove(models.Model):
             values_differ,
         )
         if plan is None:
+            dbg.logic.debug(
+                "_apply_dynamic_line_plan %s: no plan (unchanged)", line_type
+            )
             return
         to_delete, to_create, to_write = plan
+        dbg.pipeline.debug(
+            "_apply_dynamic_line_plan %s: delete=%d create=%d write=%d",
+            line_type,
+            len(to_delete),
+            len(to_create),
+            len(to_write),
+        )
 
         recyclable = defaultdict(list)
         for line in AccountMoveLine.browse([line.id for line in to_delete]).exists():
@@ -814,6 +868,7 @@ class AccountMove(models.Model):
         for line, values in to_write.items():
             line.write(values)
 
+    @dbg.timed
     def _sync_invoice(self, container):
         def commercial_partner_by_move():
             return {
@@ -829,10 +884,16 @@ class AccountMove(models.Model):
                     line_ids_by_partner[partner].update(move.line_ids.ids)
 
             for partner, line_ids in line_ids_by_partner.items():
+                dbg.logic.debug(
+                    "_sync_invoice: commercial partner changed, %d lines -> partner %s",
+                    len(line_ids),
+                    partner.id,
+                )
                 self.env["account.move.line"].browse(line_ids).partner_id = partner
 
         return sync_boundary(commercial_partner_by_move, commit)
 
+    @dbg.timed
     def _get_sync_stack(self, container):
         tax_container, invoice_container, misc_container = ({} for _ in range(3))
 
@@ -888,9 +949,16 @@ class AccountMove(models.Model):
     def _sync_dynamic_lines(self, container):
         with self._disable_recursion("skip_invoice_sync") as disabled:
             if disabled:
+                dbg.logic.debug(
+                    "_sync_dynamic_lines skipped (recursion guard) on %s",
+                    dbg.rec(container["records"]),
+                )
                 yield
                 return
 
+            dbg.pipeline.debug(
+                "_sync_dynamic_lines enter on %s", dbg.rec(container["records"])
+            )
             stack_list, update_containers = self._get_sync_stack(container)
             update_containers()
             with ExitStack() as stack:

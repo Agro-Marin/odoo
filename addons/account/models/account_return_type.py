@@ -9,6 +9,8 @@ from odoo.fields import Domain
 from odoo.tools import date_utils
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
+
 PERIODS = [
     ("monthly", "Monthly"),
     ("2_months", "Every 2 months"),
@@ -120,7 +122,14 @@ class AccountReturnType(models.Model):
     is_master_data = fields.Boolean(compute="_compute_is_master_data")
 
     @api.model_create_multi
+    @dbg.timed
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "create %s: %d vals, keys=%s",
+            self._name,
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         return_types = super().create(vals_list)
 
         all_companies = self.env["res.company"].sudo().search([])
@@ -200,7 +209,9 @@ class AccountReturnType(models.Model):
         for record in self:
             record.is_master_data = bool(xml_id.get(record.id))
 
+    @dbg.timed
     def copy_data(self, default=None):
+        dbg.lifecycle.debug("copy_data on %s", dbg.rec(self))
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         if "name" not in default:
@@ -240,7 +251,9 @@ class AccountReturnType(models.Model):
         return is_foreign_vat or (is_tax_unit_main_comp and is_main_branch)
 
     @api.model
+    @dbg.timed
     def _cron_sync_all_returns(self):
+        dbg.lifecycle.debug("_cron_sync_all_returns on %s", dbg.rec(self))
         now = fields.Datetime.now()
         date_upper_bound = now - relativedelta(days=1)  # -1 day to cope for precision
         root_companies = (
@@ -301,6 +314,7 @@ class AccountReturnType(models.Model):
                 )
 
     @api.model
+    @dbg.timed
     def _sync_all_returns(self, root_companies):
         """Generate or update the returns of every root company, non domestic tax unit and
         foreign VAT fiscal position, then vacuum the returns that configuration changes made
@@ -310,7 +324,9 @@ class AccountReturnType(models.Model):
         """
         root_companies = root_companies.filtered(lambda x: x.account_opening_date)
         if not root_companies:
+            dbg.logic.debug("_sync_all_returns: no root company with opening date")
             return
+        dbg.pipeline.debug("_sync_all_returns for %s", dbg.rec(root_companies))
 
         all_tax_units_root_domain = [("company_ids", "child_of", root_companies.ids)]
         all_tax_units = (
@@ -370,9 +386,15 @@ class AccountReturnType(models.Model):
                 < return_to_check.company_id.account_opening_date
             ):
                 returns_to_unlink |= return_to_check
+        dbg.pipeline.debug(
+            "_sync_all_returns vacuum: %d candidate(s), unlinking %s",
+            len(all_return_that_might_be_deleted),
+            dbg.rec(returns_to_unlink),
+        )
         returns_to_unlink.sudo().unlink()
 
     @api.model
+    @dbg.timed
     def _generate_all_returns(self, country_code, main_company, tax_unit=None):
         """
         Hook to override to enable the generation of new return types.
@@ -406,7 +428,15 @@ class AccountReturnType(models.Model):
                 ]
             )
 
-        for report_type in self.env["account.return.type"].sudo().search(search_domain):
+        report_types = self.env["account.return.type"].sudo().search(search_domain)
+        dbg.pipeline.debug(
+            "[company:%s] _generate_all_returns country=%s tax_unit=%s types=%s",
+            main_company.id,
+            country_code,
+            tax_unit.id if tax_unit else None,
+            dbg.ids(report_types),
+        )
+        for report_type in report_types:
             report_type._try_create_returns_for_fiscal_year(
                 main_company, tax_unit=tax_unit
             )
@@ -417,6 +447,7 @@ class AccountReturnType(models.Model):
             if return_type.category == "audit":
                 return_type.with_company(self.env.company).deadline_periodicity = "year"
 
+    @dbg.timed
     def _try_create_returns_for_fiscal_year(
         self, main_company, tax_unit, allow_duplicates=False, bypass_period_check=False
     ):
@@ -622,6 +653,7 @@ class AccountReturnType(models.Model):
         account_returns._update_translated_name()
         return account_returns
 
+    @dbg.timed
     def _try_create_return_for_period(
         self, date_in_period, main_company, tax_unit, allow_duplicates=False
     ):
@@ -649,9 +681,22 @@ class AccountReturnType(models.Model):
             ._get_company_ids(main_company, tax_unit, self.report_id)
         )
         if existing_return.company_ids != expected_companies:
+            dbg.logic.debug(
+                "[return:%s] companies %s -> %s",
+                dbg.ids(existing_return),
+                dbg.ids(existing_return.company_ids),
+                dbg.ids(expected_companies),
+            )
             existing_return.company_ids = expected_companies
 
         if not existing_return or allow_duplicates:
+            dbg.lifecycle.debug(
+                "[returntype:%s] creating return %s..%s for company %s",
+                self.id,
+                period_start,
+                period_end,
+                main_company.id,
+            )
             account_return = self.env["account.return"].create(
                 [
                     {
@@ -668,6 +713,7 @@ class AccountReturnType(models.Model):
             )
             account_return._update_translated_name()
 
+    @dbg.timed
     def _get_return_name(
         self,
         main_company,
@@ -720,6 +766,7 @@ class AccountReturnType(models.Model):
             return return_dict
 
     @api.model
+    @dbg.timed
     def _get_period_name(
         self,
         main_company=None,
@@ -833,6 +880,7 @@ class AccountReturnType(models.Model):
         start_date = self.with_company(main_company)._get_start_date()
         return start_date.day, start_date.month
 
+    @dbg.timed
     def _get_period_boundaries(
         self, company_id, date, override_period_months=None, override_start_date=None
     ):
@@ -884,6 +932,7 @@ class AccountReturnType(models.Model):
 
     @api.depends_context("company")
     @api.depends("name", "report_id")
+    @dbg.timed
     def _compute_display_name(self):
         has_foreign_fiscal_pos = bool(
             self.env["account.fiscal.position"].search_count(

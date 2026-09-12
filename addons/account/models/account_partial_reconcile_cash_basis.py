@@ -5,6 +5,8 @@ from odoo import Command, _, api, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import frozendict
 
+from ..tools import debug_log as dbg
+
 
 class AccountPartialReconcile(models.Model):
     _inherit = "account.partial.reconcile"
@@ -50,9 +52,20 @@ class AccountPartialReconcile(models.Model):
                 move=move.display_name,
             )
         if currency.is_zero(paid):
+            dbg.logic.debug(
+                "[partial:%s] cash basis: zero payment, no allocation", self.id
+            )
             return None
         if currency.is_zero(total):
             raise ValidationError(reason)
+        dbg.logic.debug(
+            "[partial:%s] [move:%s] cash basis percentage %s/%s in currency %s",
+            self.id,
+            move.id,
+            paid,
+            total,
+            currency.id,
+        )
         return paid / total
 
     def _get_cash_basis_payment_rate(
@@ -87,6 +100,7 @@ class AccountPartialReconcile(models.Model):
             "rate_amount_currency": sign * counterpart_line.amount_currency,
         }
 
+    @dbg.timed
     def _prepare_cash_basis_partial_vals(
         self, source_line, counterpart_line, move_values
     ):
@@ -142,6 +156,7 @@ class AccountPartialReconcile(models.Model):
         return values_per_move
 
     @api.model
+    @dbg.timed
     def _prepare_cash_basis_base_line_vals(self, base_line, balance, amount_currency):
         account = (
             base_line.company_id.account_cash_basis_base_account_id
@@ -172,6 +187,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _prepare_cash_basis_counterpart_base_line_vals(self, cb_base_line_vals):
         return {
             "name": cb_base_line_vals["name"],
@@ -186,6 +202,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _prepare_cash_basis_tax_line_vals(self, tax_line, balance, amount_currency):
         tax_ids = tax_line.tax_ids.filtered(lambda x: x.tax_exigibility == "on_payment")
         base_tags = tax_ids._get_repartition_tags(
@@ -216,6 +233,7 @@ class AccountPartialReconcile(models.Model):
         }
 
     @api.model
+    @dbg.timed
     def _prepare_cash_basis_counterpart_tax_line_vals(self, tax_line, cb_tax_line_vals):
         return {
             "name": cb_tax_line_vals["name"],
@@ -256,6 +274,7 @@ class AccountPartialReconcile(models.Model):
             frozendict(tax_line_vals["analytic_distribution"] or {}),
         )
 
+    @dbg.timed
     def _prepare_cash_basis_move_vals(self, move, partial_values):
         partial = partial_values["partial"]
         journal = partial._get_cash_basis_journal()
@@ -291,6 +310,7 @@ class AccountPartialReconcile(models.Model):
         residual_per_tax_line[line.id] -= amount_currency
         return amount_currency
 
+    @dbg.timed
     def _prepare_cash_basis_line_vals(
         self, partial_values, caba_treatment, line, balance, amount_currency
     ):
@@ -346,6 +366,7 @@ class AccountPartialReconcile(models.Model):
                     lines_to_create[grouping_key]["tax_line"] = line
         return lines_to_create
 
+    @dbg.timed
     def _get_cash_basis_move_line_commands(
         self, lines_to_create, move_index, to_reconcile_after
     ):
@@ -379,6 +400,7 @@ class AccountPartialReconcile(models.Model):
         return commands
 
     @api.model
+    @dbg.timed
     def _reconcile_cash_basis_transition_lines(self, moves, to_reconcile_after):
         reconciliation_plan = []
         for tax_lines, move_index, sequence in to_reconcile_after:
@@ -396,6 +418,7 @@ class AccountPartialReconcile(models.Model):
             reconciliation_plan
         )
 
+    @dbg.timed
     def _create_tax_cash_basis_moves(self):
         values_per_move = self._collect_tax_cash_basis_values()
         moves_to_create = []
@@ -429,6 +452,13 @@ class AccountPartialReconcile(models.Model):
                 skip_account_move_synchronization=True,
             )
             .create(moves_to_create)
+        )
+        dbg.pipeline.debug(
+            "[partial:%s] cash basis moves %s, posting %d of %d",
+            dbg.ids(self),
+            dbg.rec(moves),
+            sum(post_after_create),
+            len(moves_to_create),
         )
         moves.browse(
             move.id for move, post in zip(moves, post_after_create, strict=True) if post

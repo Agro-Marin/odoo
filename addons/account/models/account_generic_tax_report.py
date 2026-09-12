@@ -5,12 +5,15 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class AccountTaxReportHandler(models.AbstractModel):
     _name = "account.tax.report.handler"
     _inherit = ["account.report.custom.handler"]
     _description = "Account Report Handler for Tax Reports"
 
+    @dbg.timed
     def _customize_warnings(
         self, report, options, all_column_groups_expression_totals, warnings
     ):
@@ -58,7 +61,9 @@ class AccountTaxReportHandler(models.AbstractModel):
             domain.append(("date", "<=", options["date"]["date_to"]))
         return domain
 
+    @dbg.timed
     def action_view_amls_with_archived_tags(self, options, params=None):
+        dbg.lifecycle.debug("action_view_amls_with_archived_tags on %s", dbg.rec(self))
         return {
             "name": _("Journal items with archived tax tags"),
             "type": "ir.actions.act_window",
@@ -96,6 +101,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
             ]
         }
 
+    @dbg.timed
     def _get_dynamic_lines(self, report, options, grouping, warnings=None):
         """Compute the report lines for the generic tax report.
 
@@ -194,6 +200,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
     # -------------------------------------------------------------------------
 
     @api.model
+    @dbg.timed
     def _read_generic_tax_report_amounts_no_tax_details(
         self, report, options, options_by_column_group
     ):
@@ -468,6 +475,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
 
         return results
 
+    @dbg.timed
     def _read_generic_tax_report_amounts(
         self, report, options_by_column_group, groupby_fields
     ):
@@ -607,6 +615,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
 
         return res
 
+    @dbg.timed
     def _update_lines_recursively(
         self,
         report,
@@ -730,6 +739,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
                 warnings=warnings,
             )
 
+    @dbg.timed
     def _prepare_report_line(
         self,
         report,
@@ -802,6 +812,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
 
         return report_line
 
+    @dbg.timed
     def _check_line_consistency(self, report, options, report_line, tax, warnings=None):
         tax_applied = (
             tax.amount
@@ -858,6 +869,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
     # BUTTONS & CARET OPTIONS
     # -------------------------------------------------------------------------
 
+    @dbg.timed
     def caret_option_audit_tax(self, options, params):
         report = self.env["account.report"].browse(options["report_id"])
         model, tax_id = report._get_model_info_from_id(params["line_id"])

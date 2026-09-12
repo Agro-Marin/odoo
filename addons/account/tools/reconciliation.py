@@ -1,3 +1,6 @@
+from . import debug_log as dbg
+
+
 def amount_range_after_rate(currency_from, currency_to, amount, rate):
     if not rate:
         return 0.0, 0.0, 0.0
@@ -27,7 +30,15 @@ def pick_reconciliation_currency(
 
 
 def prepare_partial_amounts(context):
-    if context["recon_currency"] == context["company_currency"]:
+    at_par = context["recon_currency"] == context["company_currency"]
+    dbg.logic.debug(
+        "prepare_partial_amounts debit=%s credit=%s at_par=%s recon_currency=%s",
+        dbg.lazy(lambda: getattr(context.get("debit_aml"), "id", None)),
+        dbg.lazy(lambda: getattr(context.get("credit_aml"), "id", None)),
+        at_par,
+        dbg.lazy(lambda: getattr(context["recon_currency"], "id", None)),
+    )
+    if at_par:
         return _partial_amounts_at_par(context)
     return _partial_amounts_across_rates(context)
 

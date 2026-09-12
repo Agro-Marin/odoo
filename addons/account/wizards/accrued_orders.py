@@ -8,6 +8,8 @@ from odoo.exceptions import UserError
 from odoo.tools import date_utils, format_date
 from odoo.tools.misc import formatLang
 
+from ..tools import debug_log as dbg
+
 
 def _ellipsis(string, size):
     if len(string) > size:
@@ -130,6 +132,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             )[:1]
 
     @api.depends("date", "journal_id", "account_id", "amount", "res_model", "res_ids")
+    @dbg.timed
     def _compute_preview_data(self):
         for record in self:
             preview_vals = [
@@ -255,6 +258,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             )
         )
 
+    @dbg.timed
     def _get_purchase_accrual_line_amounts(self, order, order_line):
         product = order_line.product_id
         _expense_account, stock_variation_account = (
@@ -296,6 +300,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         )
         return amount, amount_currency, account, label
 
+    @dbg.timed
     def _get_sale_accrual_line_amounts(
         self, order, order_line, amounts_by_perpetual_account
     ):
@@ -403,6 +408,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             )
         return values
 
+    @dbg.timed
     def _get_move_vals(self):
         self.check_singleton()
         orders, lines, is_purchase = self._get_accrual_orders_and_lines()
@@ -486,6 +492,13 @@ class AccountAccruedOrdersWizard(models.TransientModel):
         if self.reversal_date <= self.date:
             raise UserError(_("Reversal date must be posterior to date."))
         move_vals, orders_with_entries = self._get_move_vals()
+        dbg.pipeline.debug(
+            "[accrual:%s] %d line(s) for %s, reversal on %s",
+            self.id,
+            len(move_vals.get("line_ids", [])),
+            dbg.rec(orders_with_entries),
+            self.reversal_date,
+        )
         move = self.env["account.move"].create(move_vals)
         move._post()
         reverse_move = move._reverse_moves(
