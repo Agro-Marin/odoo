@@ -37,6 +37,7 @@ dashboards.
 |------|--------|---------|
 | `approval_category.py` | `approval.category` | Category blueprint: field visibility, privacy visibility, approval minimums, escalation, SLA, consent, dashboard |
 | `approval_category_approver.py` | `approval.category.approver` | M2M with attrs between category and users (required, sequence) |
+| `approval_category_conversion.py` | `approval.category` (extension) | `action_convert_routing_to_steps`: rewrites a flat category's approvers, sequencing, group and add/replace rules as equivalent steps, archiving the rules it replaces. `_get_steps_conversion_blockers` refuses what steps cannot reproduce (several add rules, closed bands, document-reading rules, optional rule approvers, group categories that notify members, ...); approval_hr adds the manager. Every flat routing probe, converted first, reads as its flat script |
 | `approval_request.py` | `approval.request` | Core request: fields, CRUD, smart-copy defaults, `ESCALATION_RULES` constant |
 | `approval_request_access.py` | extends `approval.request` | Who may write, unlink, decide or re-route: the `_check_access_*` and locked-field rules |
 | `approval_request_lifecycle.py` | extends `approval.request` | The transitions: confirm, approve/refuse (`_apply_decision` funnel), withdraw, cancel, reset, change requests, `_force_terminal`, activities and row locking |
@@ -198,6 +199,7 @@ approval/
 +-- models/
 |   +-- approval_category.py          # Category blueprint
 |   +-- approval_category_approver.py # Category-approver M2M
+|   +-- approval_category_conversion.py # Flat routing rewritten as steps
 |   +-- approval_category_step.py      # Steps and their members
 |   +-- approval_request.py           # Core fields + CRUD + smart copy
 |   +-- approval_request_access.py    # Who may do what (split by concern)

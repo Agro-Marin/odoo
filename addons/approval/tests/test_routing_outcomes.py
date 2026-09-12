@@ -498,3 +498,47 @@ class TestStepRoutingOutcomes(RoutingOutcomesCase):
     def test_a_figure_condition_needs_a_comparison(self):
         with self.assertRaises(ValidationError):
             self._amount_steps([(("a",), 1, {"condition_field": "amount"})])
+
+
+@tagged("post_install", "-at_install")
+class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
+    """Every flat scenario, converted to steps first, reads as its flat script."""
+
+    allow_inherited_tests_method = True
+
+    def _run(self, category, script_name, request_vals=None, after_confirm=None):
+        category.action_convert_routing_to_steps()
+        self.assertTrue(category.step_ids)
+        self.assertFalse(category.approve_sequentially)
+        self.assertFalse(
+            category.rule_ids.filtered(
+                lambda rule: (
+                    rule.active
+                    and rule.action_type in ("add_approver", "set_approvers")
+                )
+            )
+        )
+        return super()._run(category, script_name, request_vals, after_confirm)
+
+    def test_a_configuration_steps_cannot_reproduce_is_refused(self):
+        category = self._flat(
+            [("a", False, 10), ("b", False, 20)],
+            approval_minimum=1,
+            has_amount="required",
+        )
+        for index in range(2):
+            self.env["approval.rule"].create(
+                {
+                    "name": f"Adds {index}",
+                    "category_id": category.id,
+                    "condition_type": "threshold",
+                    "condition_field": "amount",
+                    "operator": "gte",
+                    "threshold": 1000 * (index + 1),
+                    "action_type": "add_approver",
+                    "approver_ids": [(6, 0, [self.people["c"].id])],
+                }
+            )
+        with self.assertRaisesRegex(UserError, "More than one rule adds approvers"):
+            category.action_convert_routing_to_steps()
+        self.assertFalse(category.step_ids)

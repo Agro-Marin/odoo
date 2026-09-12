@@ -149,6 +149,15 @@
                     <group>
                         <field name="notify_sequentially" invisible="not step_ids" />
                     </group>
+                    <div invisible="step_ids" class="mb-2">
+                        <button
+                            name="action_convert_routing_to_steps"
+                            type="object"
+                            string="Convert Approvers to Steps"
+                            confirm="Rewrite this category's approvers and routing rules as steps? Requests already raised keep their approvers."
+                            groups="approval.group_approval_manager"
+                            class="btn-secondary" />
+                    </div>
                     <field name="step_ids" context="{'default_category_id': id}" />
                 </page>
             </xpath>
