@@ -138,8 +138,10 @@ class RecomputeMixin(_ModelStubs):
                 len(self),
                 create,
             )
-            if prof.agg and (p := self.env.transaction._orm_profiler):
-                p.record("modified", self._name, len(self), prof.elapsed)
+            if prof.agg and self.env.transaction.observers:
+                self.env.transaction.observe_timing(
+                    "modified", self._name, len(self), prof.elapsed
+                )
             return
 
         todo = [self._modified(fields, create)]
@@ -169,8 +171,10 @@ class RecomputeMixin(_ModelStubs):
             _mark_count,
             _invalidate_count,
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("modified", self._name, len(self), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "modified", self._name, len(self), prof.elapsed
+            )
 
     def _modified(
         self, fields: list[Field], create: bool
@@ -326,8 +330,10 @@ class RecomputeMixin(_ModelStubs):
             field.name,
             len(records),
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("recompute", field.model_name, len(records), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "recompute", field.model_name, len(records), prof.elapsed
+            )
 
     @api.private
     def flush_model(self, fnames: Collection[str] | None = None) -> None:
@@ -476,5 +482,7 @@ class RecomputeMixin(_ModelStubs):
             len(dirty_ids),
             _batch_count,
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("flush", self._name, len(dirty_ids), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "flush", self._name, len(dirty_ids), prof.elapsed
+            )

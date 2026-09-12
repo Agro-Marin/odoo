@@ -103,6 +103,24 @@ class NplusOneTracker:
         entry.total_records += record_count
         entry.vals_fingerprints.add(field_fingerprint)
 
+    def on_operation(
+        self,
+        operation: str,
+        model_name: str,
+        record_count: int,
+        fields: frozenset[str],
+    ) -> None:
+        self.record(operation, model_name, record_count, fields)
+
+    def on_operation_done(
+        self,
+        operation: str,
+        model_name: str,
+        record_count: int,
+        elapsed: float,
+    ) -> None:
+        pass
+
     def report(self) -> None:
         if not _logger.isEnabledFor(logging.WARNING):
             return

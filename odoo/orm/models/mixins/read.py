@@ -6,7 +6,7 @@ from typing import Self
 from odoo.exceptions import MissingError
 from odoo.libs.accel import batch_cache_fill as _batch_cache_fill
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import OrderedSet
 from odoo.tools.misc import PENDING, SENTINEL
 
@@ -97,8 +97,10 @@ class ReadMixin(_ModelStubs):
             len(self),
             len(fields),
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("read", self._name, len(self), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "read", self._name, len(self), prof.elapsed
+            )
 
         return result
 
@@ -359,8 +361,8 @@ class ReadMixin(_ModelStubs):
         )
         fetched = self._fetch_query(query, fields_to_fetch)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record(
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
                 "fetch",
                 self._name,
                 len(fetched),

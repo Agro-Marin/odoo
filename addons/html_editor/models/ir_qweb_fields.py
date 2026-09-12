@@ -188,7 +188,9 @@ class IrQwebField(models.AbstractModel):
     @api.model
     def attributes(self, record, field_name, options, values=None):
         attrs = super().attributes(record, field_name, options, values)
-        field = record._fields[field_name]
+        field = record._fields.get(field_name)
+        if field is None:
+            return attrs
 
         placeholder = options.get("placeholder") or getattr(field, "placeholder", None)
         if placeholder:

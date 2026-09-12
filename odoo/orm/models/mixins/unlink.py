@@ -3,7 +3,7 @@ from itertools import batched
 from typing import Self
 
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.profiling import _OrmProfile
 
 from ...fields.reference import REFERENCE_VERIFIED_CACHE_KEY, Reference
 from ...primitives import MODULE_UNINSTALL_FLAG
@@ -27,8 +27,10 @@ class UnlinkMixin(_ModelStubs):
 
         prof = _OrmProfile(_orm_crud)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record("unlink", self._name, len(self), frozenset())
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
+                "unlink", self._name, len(self), frozenset()
+            )
 
         self.check_access("unlink")
         prof.mark("acl")
@@ -149,8 +151,10 @@ class UnlinkMixin(_ModelStubs):
 
     def _log_unlink_profile(self, prof: _OrmProfile, record_count: int) -> None:
         prof.report(_orm_crud, "unlink %s: %d records", self._name, record_count)
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("unlink", self._name, record_count, prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "unlink", self._name, record_count, prof.elapsed
+            )
 
     def _invalidate_after_unlink(self) -> None:
         env = self.env

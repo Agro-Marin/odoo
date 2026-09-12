@@ -5,7 +5,7 @@ from typing import Self
 
 from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import ormcache
 
 from ... import decorators as api
@@ -42,8 +42,10 @@ class SearchMixin(_ModelStubs):
         query = self._search(domain, limit=limit)
         count = len(query)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record("search", self._name, count, frozenset())
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
+                "search", self._name, count, frozenset()
+            )
 
         prof.stop()
         prof.report(
@@ -54,8 +56,10 @@ class SearchMixin(_ModelStubs):
             limit,
             count,
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("search", self._name, count, prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "search", self._name, count, prof.elapsed
+            )
 
         return count
 
@@ -104,10 +108,14 @@ class SearchMixin(_ModelStubs):
                 self._name,
                 str(domain)[:200],
             )
-            if prof.agg and (p := self.env.transaction._orm_profiler):
-                p.record("search", self._name, 0, prof.elapsed)
-            if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-                tracker.record("search", self._name, 0, frozenset(field_names or ()))
+            if prof.agg and self.env.transaction.observers:
+                self.env.transaction.observe_timing(
+                    "search", self._name, 0, prof.elapsed
+                )
+            if self.env.transaction.observers:
+                self.env.transaction.observe_operation(
+                    "search", self._name, 0, frozenset(field_names or ())
+                )
             return self.browse()
 
         fields_to_fetch = self._get_fields_to_fetch(field_names)
@@ -115,8 +123,8 @@ class SearchMixin(_ModelStubs):
 
         result = self._fetch_query(query, fields_to_fetch)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record(
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
                 "search", self._name, len(result), frozenset(field_names or ())
             )
 
@@ -130,8 +138,10 @@ class SearchMixin(_ModelStubs):
             limit,
             len(result),
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("search", self._name, len(result), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "search", self._name, len(result), prof.elapsed
+            )
 
         return result
 

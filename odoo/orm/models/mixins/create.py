@@ -5,7 +5,7 @@ from operator import attrgetter
 from typing import Self
 
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL, OrderedSet, clean_context
 from odoo.tools.misc import PENDING
 
@@ -317,9 +317,11 @@ class CreateMixin(_ModelStubs):
 
         prof = _OrmProfile(_orm_crud)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
+        if self.env.transaction.observers:
             fnames = frozenset(fname for vals in vals_list for fname in vals)
-            tracker.record("create", self._name, len(vals_list), fnames)
+            self.env.transaction.observe_operation(
+                "create", self._name, len(vals_list), fnames
+            )
 
         self = self.browse()
         self.check_access("create")
@@ -353,8 +355,10 @@ class CreateMixin(_ModelStubs):
             len(records),
             len(field_names),
         )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("create", self._name, len(records), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "create", self._name, len(records), prof.elapsed
+            )
 
         _debug.lifecycle(
             "create.records",

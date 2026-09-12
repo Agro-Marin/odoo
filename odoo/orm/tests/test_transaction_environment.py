@@ -107,23 +107,25 @@ def test_flush_through_an_env_binds_that_env_and_skips_the_profiler_report():
         with patch.object(
             UnitOfWork, "flush_until_converged", side_effect=record_bindings
         ):
-            tx._n1_tracker = MagicMock()
+            observer = MagicMock()
+            tx.observers = (observer,)
             tx.flush(user_env)
         assert seen, "the unit of work was not driven"
         bound = {c.cell_contents for cells in seen[0] for c in cells}
         assert user_env in bound, "the callbacks are not bound to the env given"
-        tx._n1_tracker.report.assert_not_called()
+        observer.report.assert_not_called()
 
 
 def test_the_cursor_form_flushes_through_default_env_and_reports():
     with model_test_env(Gadget) as env:
         tx = env.transaction
-        tx._n1_tracker = MagicMock()
+        observer = MagicMock()
+        tx.observers = (observer,)
         with patch.object(Transaction, "_flush_as") as flush_as:
             tx.flush()
         flush_as.assert_called_once_with(tx.default_env)
-        tx._n1_tracker.report.assert_called_once_with()
-        tx._n1_tracker.clear.assert_called_once_with()
+        observer.report.assert_called_once_with()
+        observer.clear.assert_called_once_with()
 
 
 def test_non_convergence_is_the_transactions_error(caplog):

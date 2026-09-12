@@ -5,13 +5,7 @@ from weakref import WeakSet, WeakValueDictionary
 from weakref import ref as weakref_ref
 
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.profiling import (
-    NplusOneTracker,
-    OrmProfiler,
-    _n1_enabled,
-    _orm_profiling_enabled,
-    _OrmProfile,
-)
+from odoo.libs.profiling import OrmObserver, _OrmProfile, enabled_observers
 from odoo.tools import OrderedSet, frozendict, reset_cached_properties
 
 from ..components.cache import FieldCache
@@ -86,14 +80,13 @@ class Transaction:
         "_cache_store",
         "_compute_engine",
         "_last_env",
-        "_n1_tracker",
-        "_orm_profiler",
         "_ref_cache",
         "backend",
         "cache",
         "core",
         "default_env",
         "envs",
+        "observers",
         "registry",
         "unit_of_work",
     )
@@ -129,19 +122,12 @@ class Transaction:
         self.cache = Cache(self)
         self._ref_cache: dict[tuple[str, int], bool] = {}
 
-        self._n1_tracker: NplusOneTracker | None = (
-            NplusOneTracker() if _n1_enabled else None
-        )
-
-        self._orm_profiler: OrmProfiler | None = (
-            OrmProfiler() if _orm_profiling_enabled else None
-        )
+        self.observers: tuple[OrmObserver, ...] = enabled_observers()
         _debug.lifecycle(
             "transaction.new",
             db=registry.db_name,
             backend=type(self.backend).__name__,
-            n1_tracker=self._n1_tracker is not None,
-            orm_profiler=self._orm_profiler is not None,
+            observers=len(self.observers),
         )
 
     def environment(
@@ -253,13 +239,26 @@ class Transaction:
         prof.stop()
         prof.report(_orm_cache, "flush_all: %d iterations", result.iterations)
 
+    def observe_operation(
+        self,
+        operation: str,
+        model_name: str,
+        record_count: int,
+        fields: frozenset[str],
+    ) -> None:
+        for observer in self.observers:
+            observer.on_operation(operation, model_name, record_count, fields)
+
+    def observe_timing(
+        self, operation: str, model_name: str, record_count: int, elapsed: float
+    ) -> None:
+        for observer in self.observers:
+            observer.on_operation_done(operation, model_name, record_count, elapsed)
+
     def _report_profilers(self) -> None:
-        if self._n1_tracker is not None:
-            self._n1_tracker.report()
-            self._n1_tracker.clear()
-        if self._orm_profiler is not None:
-            self._orm_profiler.report()
-            self._orm_profiler.clear()
+        for observer in self.observers:
+            observer.report()
+            observer.clear()
 
     def _drop_field_cache_memos(self) -> None:
         for env in self.envs:

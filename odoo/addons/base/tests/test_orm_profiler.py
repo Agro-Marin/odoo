@@ -9,18 +9,18 @@ class TestOrmProfiler(TransactionCase):
         super().setUpClass()
         cls._original_enabled = orm_profiler._orm_profiling_enabled
         orm_profiler._orm_profiling_enabled = True
-        cls._original_profiler = cls.env.transaction._orm_profiler
-        cls.env.transaction._orm_profiler = orm_profiler.OrmProfiler()
+        cls._original_observers = cls.env.transaction.observers
+        cls.env.transaction.observers = (orm_profiler.OrmProfiler(),)
 
     @classmethod
     def tearDownClass(cls):
         orm_profiler._orm_profiling_enabled = cls._original_enabled
-        cls.env.transaction._orm_profiler = cls._original_profiler
+        cls.env.transaction.observers = cls._original_observers
         super().tearDownClass()
 
     def setUp(self):
         super().setUp()
-        self.profiler = self.env.transaction._orm_profiler
+        (self.profiler,) = self.env.transaction.observers
         self.profiler.clear()
 
     def test_create_recorded(self):

@@ -100,6 +100,24 @@ class OrmProfiler:
         stats.time += elapsed
         self._total_time += elapsed
 
+    def on_operation(
+        self,
+        operation: str,
+        model_name: str,
+        record_count: int,
+        fields: frozenset[str],
+    ) -> None:
+        pass
+
+    def on_operation_done(
+        self,
+        operation: str,
+        model_name: str,
+        record_count: int,
+        elapsed: float,
+    ) -> None:
+        self.record(operation, model_name, record_count, elapsed)
+
     def report(self) -> None:
         if not self._data or not _logger.isEnabledFor(logging.WARNING):
             return

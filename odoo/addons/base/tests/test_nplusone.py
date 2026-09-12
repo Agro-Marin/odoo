@@ -1,12 +1,5 @@
-from odoo.libs.profiling import nplusone
-from odoo.orm.models.mixins import create as _create_mod
-from odoo.orm.models.mixins import read as _read_mod
-from odoo.orm.models.mixins import search as _search_mod
-from odoo.orm.models.mixins import unlink as _unlink_mod
-from odoo.orm.models.mixins import write as _write_mod
+from odoo.libs.profiling import enabled_observers, nplusone
 from odoo.tests.common import TransactionCase, tagged
-
-_CRUD_MODS = (_create_mod, _write_mod, _unlink_mod, _search_mod, _read_mod)
 
 
 @tagged("-standard", "nplusone")
@@ -16,23 +9,18 @@ class TestNplusOneDetection(TransactionCase):
         super().setUpClass()
         cls._original_enabled = nplusone._n1_enabled
         nplusone._n1_enabled = True
-        cls._original_crud_enabled = [m._n1_enabled for m in _CRUD_MODS]
-        for _mod in _CRUD_MODS:
-            _mod._n1_enabled = True
-        cls._original_tracker = cls.env.transaction._n1_tracker
-        cls.env.transaction._n1_tracker = nplusone.NplusOneTracker()
+        cls._original_observers = cls.env.transaction.observers
+        cls.env.transaction.observers = (nplusone.NplusOneTracker(),)
 
     @classmethod
     def tearDownClass(cls):
         nplusone._n1_enabled = cls._original_enabled
-        for _mod, _orig in zip(_CRUD_MODS, cls._original_crud_enabled, strict=True):
-            _mod._n1_enabled = _orig
-        cls.env.transaction._n1_tracker = cls._original_tracker
+        cls.env.transaction.observers = cls._original_observers
         super().tearDownClass()
 
     def setUp(self):
         super().setUp()
-        self.tracker = self.env.transaction._n1_tracker
+        (self.tracker,) = self.env.transaction.observers
         self.tracker.clear()
 
     def test_write_n1_detected(self):
@@ -122,7 +110,7 @@ class TestNplusOneDetection(TransactionCase):
             self.tracker.report()
 
         self.assertTrue(
-            any("N+1 detected" in msg for msg in log.output),
+            any("N+1 CRUD detected" in msg for msg in log.output),
             "Report should emit N+1 warning",
         )
         self.assertTrue(
@@ -166,6 +154,9 @@ class TestNplusOneDisabled(TransactionCase):
 
     def test_no_tracker_when_disabled(self):
         self.assertFalse(nplusone._n1_enabled)
+        self.assertFalse(
+            [o for o in enabled_observers() if isinstance(o, nplusone.NplusOneTracker)]
+        )
         cat = self.env["res.partner.tag"].create({"name": "Disabled Test"})
         cat.write({"name": "Updated"})
         cat.unlink()

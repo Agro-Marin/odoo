@@ -4,7 +4,7 @@ from typing import Self
 
 from odoo.exceptions import AccessError, UserError
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.profiling import _n1_enabled, _OrmProfile
+from odoo.libs.profiling import _OrmProfile
 from odoo.libs.sql import SQL
 from odoo.tools.translate import _
 
@@ -175,8 +175,10 @@ class WriteMixin(_ModelStubs):
 
         prof = _OrmProfile(_orm_crud)
 
-        if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
-            tracker.record("write", self._name, len(self), frozenset(vals))
+        if self.env.transaction.observers:
+            self.env.transaction.observe_operation(
+                "write", self._name, len(self), frozenset(vals)
+            )
 
         self._write_check_field_access(vals)
         prof.mark("acl")
@@ -255,8 +257,10 @@ class WriteMixin(_ModelStubs):
             prof.report(
                 _orm_crud, "write %s: %d records, %s", self._name, len(self), _fnames
             )
-        if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record("write", self._name, len(self), prof.elapsed)
+        if prof.agg and self.env.transaction.observers:
+            self.env.transaction.observe_timing(
+                "write", self._name, len(self), prof.elapsed
+            )
 
         return True
 
