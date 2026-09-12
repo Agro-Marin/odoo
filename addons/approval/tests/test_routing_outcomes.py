@@ -395,3 +395,74 @@ class TestStepRoutingOutcomes(RoutingOutcomesCase):
             self._stepped([(("owner", "a"), 1, {})], allow_self_approval=True),
             "owner_allowed",
         )
+
+    def _amount_steps(self, steps):
+        return self._stepped(steps, has_amount="required")
+
+    def test_rule_adds_a_required_approver(self):
+        # The rule's approver is a step of its own, applicable above the threshold.
+        category = self._amount_steps(
+            [
+                (("a",), 1, {"sequence": 10}),
+                (
+                    ("c",),
+                    1,
+                    {
+                        "sequence": 10,
+                        "condition_field": "amount",
+                        "operator": "gte",
+                        "threshold": 1000,
+                    },
+                ),
+            ]
+        )
+        self._run(
+            category, "rule_adds_a_required_approver", request_vals={"amount": 5000}
+        )
+
+    def test_rule_below_its_threshold(self):
+        category = self._amount_steps(
+            [
+                (("a",), 1, {"sequence": 10}),
+                (
+                    ("c",),
+                    1,
+                    {
+                        "sequence": 10,
+                        "condition_field": "amount",
+                        "operator": "gte",
+                        "threshold": 1000,
+                    },
+                ),
+            ]
+        )
+        self._run(category, "rule_below_its_threshold", request_vals={"amount": 10})
+
+    def test_band_replaces_the_approvers(self):
+        # Each band is a step applicable over its own range.
+        category = self._amount_steps(
+            [
+                (
+                    ("a",),
+                    1,
+                    {"condition_field": "amount", "operator": "lt", "threshold": 1000},
+                ),
+                (
+                    ("b",),
+                    1,
+                    {
+                        "condition_field": "amount",
+                        "operator": "between",
+                        "threshold": 1000,
+                        "threshold_max": 0,
+                    },
+                ),
+            ]
+        )
+        self._run(
+            category, "band_replaces_the_approvers", request_vals={"amount": 5000}
+        )
+
+    def test_a_figure_condition_needs_a_comparison(self):
+        with self.assertRaises(ValidationError):
+            self._amount_steps([(("a",), 1, {"condition_field": "amount"})])

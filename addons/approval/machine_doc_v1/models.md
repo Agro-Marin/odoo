@@ -12,7 +12,7 @@ approval.category                       [inherits mixin.mail.thread, mixin.catal
     |                           +-- approver_ids -> res.users (m2m)
     |                           +-- currency_id -> res.currency
     |                           +-- subject_model_id -> ir.model
-    +-- step_ids ---------> approval.category.step   [inherits mixin.approval.domain]
+    +-- step_ids ---------> approval.category.step   [inherits mixin.approval.threshold, mixin.approval.domain]
     |                           +-- member_ids -> approval.category.step.member
     |                           |                   +-- user_id / delegated_by_id -> res.users
     |                           +-- group_id -> res.groups
@@ -926,7 +926,7 @@ question the table answers needs the breakdown rather than a total.
 | Model | `approval.category.step` |
 | File | `models/approval_category_step.py` |
 | Type | Model |
-| Inherits | `mixin.approval.domain` (parses and path-checks `subject_domain` and `subject_user_path`) |
+| Inherits | `mixin.approval.threshold` (a numeric condition on the request's own figures), `mixin.approval.domain` (parses and path-checks `subject_domain` and `subject_user_path`) |
 | Order | `category_id, sequence, id` |
 
 One step of a category's approval: a pool of users, and how many of them must
@@ -954,6 +954,7 @@ does not is left as it was.
 | `subject_model_id` | Many2one(`ir.model`) | Yes | No | the model the condition and the approver path read; required when `subject_domain` or `subject_user_path` is set |
 | `subject_model_name` | Char | No | No | related `subject_model_id.model`. The domain editor in the form reads its fields from it: the widget takes a model name, and handed the many2one it crashed the form |
 | `subject_domain` | Char | Yes | No | string="Applies When". The step applies only to requests whose source document matches |
+| `condition_field` / `operator` / `threshold` / `threshold_max` / `currency_id` | Selection / Selection / Float / Float / Many2one | Yes | No | from `mixin.approval.threshold`. The step applies only when the request's amount (converted into `currency_id`), quantity, date range in days or priority compares true. Unlike `subject_domain` it needs no source document, which is what lets a threshold rule or a replacement band be written as a step |
 | `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
 | `activity_type_id` | Many2one(`mail.activity.type`) | Yes | No | The activity this step's asked approvers get; empty uses `approval.mail_activity_data_approval` |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
@@ -966,6 +967,7 @@ does not is left as it was.
 - `_check_pool`: a quorum of at least one, and members, a group or an approver path to give it
 - `_check_source_user_path`: an approver path names its source model, every part of it exists there, and it ends in a field whose comodel is `res.users`
 - `_check_condition`: a condition names its source model, and every path it reads exists there
+- `_check_figure_condition`: a figure condition has a comparison, and a `between` band's upper bound is above its lower one (or 0 for none)
 - `_check_category_not_sequential`: the same refusal as `approval.category._constrains_steps_not_sequential`, from the step's side, since creating a step does not write the category
 
 ### Key Methods
@@ -976,7 +978,7 @@ does not is left as it was.
 | `_get_candidate_user_ids(document)` | Members, path users and group users with neither the company nor the document narrowing them: the set routing owns rows for |
 | `_filter_document_user_ids(user_ids, document)` | Hands the pool to `document._filter_approval_step_user_ids(step, user_ids)` (under `sudo`) when the record adopts `mixin.approval.source` (`mixin.approval` or `mixin.approval.subjects`); any other record, such as one gated by a binding button, keeps its pool |
 | `_get_source_user_ids(document)` | The users the path names on this document; empty for another model, no document, or no path. Confirm refuses a step whose document names nobody through `_check_steps_can_be_met` |
-| `_is_applicable_to_request(request)` | No condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
+| `_is_applicable_to_request(request)` | The figure condition first (`_matches_request_figure`), then the document condition: no document condition means every request; otherwise the request's source document must be of `subject_model_id` and match |
 
 ---
 

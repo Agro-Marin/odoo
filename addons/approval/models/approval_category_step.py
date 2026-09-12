@@ -7,7 +7,7 @@ from . import approval_trace as trace
 
 class ApprovalCategoryStep(models.Model):
     _name = "approval.category.step"
-    _inherit = ["mixin.approval.domain"]
+    _inherit = ["mixin.approval.threshold", "mixin.approval.domain"]
     _description = "Approval Step"
     _order = "category_id, sequence, id"
 
@@ -97,6 +97,44 @@ class ApprovalCategoryStep(models.Model):
         help="Field path on the source document naming users who approve this step, "
         "e.g. employee_id.leave_manager_id. Each document names its own approvers.",
     )
+
+    @api.constrains("condition_field", "operator", "threshold", "threshold_max")
+    def _check_figure_condition(self) -> None:
+        for step in self.filtered("condition_field"):
+            if not step.operator:
+                trace.REFUSAL.event(
+                    "step_figure_without_operator",
+                    step=step.id,
+                    field=step.condition_field,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' compares the request's %(field)s but says "
+                        "not how: choose a comparison.",
+                        step=step.name,
+                        field=step.condition_field,
+                    )
+                )
+            if (
+                step.operator == "between"
+                and step.threshold_max
+                and step.threshold_max <= step.threshold
+            ):
+                trace.REFUSAL.event(
+                    "step_figure_band_inverted",
+                    step=step.id,
+                    threshold=step.threshold,
+                    threshold_max=step.threshold_max,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' applies between %(low)s and %(high)s: the "
+                        "upper bound must be above the lower one, or 0 for no bound.",
+                        step=step.name,
+                        low=step.threshold,
+                        high=step.threshold_max,
+                    )
+                )
 
     def _domain_source_field(self) -> str:
         return "subject_domain"
@@ -349,9 +387,29 @@ class ApprovalCategoryStep(models.Model):
 
     def _is_applicable_to_request(self, request) -> bool:
         self.check_singleton()
+        if self.condition_field and not self._matches_request_figure(request):
+            return False
         if not self.subject_domain:
             return True
         return self._is_applicable_to_document(request.get_source_document())
+
+    def _matches_request_figure(self, request) -> bool:
+        """The step's numeric condition on the request itself: its amount, quantity,
+        date range or priority, which a request with no source document has too."""
+        self.check_singleton()
+        measured = self._get_field_value(request)
+        matches = measured is not None and self._compare(measured, self.threshold)
+        trace.STEPS.event(
+            "figure_condition",
+            step=self.id,
+            request=request.id,
+            field=self.condition_field,
+            operator=self.operator,
+            value=measured,
+            threshold=self.threshold,
+            matches=matches,
+        )
+        return matches
 
     def _is_applicable_to_document(self, document) -> bool:
         self.check_singleton()

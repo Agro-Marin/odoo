@@ -31,6 +31,19 @@
                                 widget="domain"
                                 options="{'model': 'subject_model_name'}"
                                 invisible="not subject_model_id" />
+                            <field name="condition_field" />
+                            <field
+                                name="operator"
+                                invisible="not condition_field"
+                                required="condition_field" />
+                            <field name="threshold" invisible="not condition_field" />
+                            <field
+                                name="threshold_max"
+                                invisible="operator != 'between'" />
+                            <field
+                                name="currency_id"
+                                groups="base.group_multi_currency"
+                                invisible="condition_field != 'amount'" />
                             <field name="active" invisible="1" />
                         </group>
                     </group>

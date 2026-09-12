@@ -8,9 +8,6 @@ from . import approval_trace as trace
 
 _logger = logging.getLogger(__name__)
 
-_FLOAT_EQ_ABS_TOL = 1e-6
-_FLOAT_EQ_REL_TOL = 1e-9
-
 
 class ApprovalRule(models.Model):
     _name = "approval.rule"
@@ -53,14 +50,12 @@ class ApprovalRule(models.Model):
         another model, never matches them.""",
     )
     condition_field = fields.Selection(
-        selection=[
-            ("amount", "Amount"),
-            ("quantity", "Quantity"),
-            ("date_range_days", "Date Range (Days)"),
-            ("priority", "Priority"),
-        ],
         help="Request field to evaluate. Required for the 'Numeric threshold' "
         "condition type and ignored by the others.",
+    )
+    operator = fields.Selection(
+        help="Required for the 'Numeric threshold' condition type and ignored "
+        "by the others.",
     )
     subject_model_id = fields.Many2one(
         comodel_name="ir.model",
@@ -90,31 +85,6 @@ class ApprovalRule(models.Model):
         "field's raw value, so a Selection is matched on its stored key and a "
         "Many2one on its id.",
     )
-    operator = fields.Selection(
-        selection=[
-            ("gt", "Greater than"),
-            ("gte", "Greater than or equal"),
-            ("lt", "Less than"),
-            ("lte", "Less than or equal"),
-            ("eq", "Equal to"),
-            ("neq", "Not equal to"),
-            ("between", "Between"),
-        ],
-        string="Comparison",
-        help="Required for the 'Numeric threshold' condition type and ignored "
-        "by the others.",
-    )
-    threshold = fields.Float(
-        help="Numeric threshold to compare against, and the lower bound "
-        "(inclusive) when the comparison is 'Between'. "
-        "For priority: 0=Low, 1=Normal, 2=High, 3=Urgent.",
-    )
-    threshold_max = fields.Float(
-        string="Upper Bound (exclusive)",
-        help="Only for the 'Between' comparison: the upper bound, exclusive. "
-        "0 means unlimited, which is how the highest band is expressed.",
-    )
-
     action_type = fields.Selection(
         selection=[
             ("add_approver", "Add Approver"),
@@ -647,74 +617,6 @@ class ApprovalRule(models.Model):
             matched=matched,
         )
         return matched
-
-    def _get_field_value(self, request) -> float | None:
-        match self.condition_field:
-            case "amount":
-                return self._convert_request_amount(request)
-            case "quantity":
-                return request.quantity
-            case "priority":
-                return int(request.priority)
-            case "date_range_days":
-                if request.date_start and request.date_end:
-                    delta = request.date_end - request.date_start
-                    return delta.total_seconds() / 86400
-                trace.RULES.event(
-                    "condition_value_missing",
-                    rule=self.id,
-                    request=request.id,
-                    field=self.condition_field,
-                    has_start=bool(request.date_start),
-                    has_end=bool(request.date_end),
-                )
-                return None
-            case _:
-                trace.RULES.event(
-                    "condition_field_unknown",
-                    rule=self.id,
-                    request=request.id,
-                    field=self.condition_field,
-                )
-                return None
-
-    def _compare(self, value: float, threshold: float) -> bool:
-        self.check_singleton()
-        op = self.operator
-        if op == "gt":
-            return value > threshold
-        if op == "gte":
-            return value >= threshold
-        if op == "lt":
-            return value < threshold
-        if op == "lte":
-            return value <= threshold
-        if op == "eq":
-            return math.isclose(
-                value,
-                threshold,
-                rel_tol=_FLOAT_EQ_REL_TOL,
-                abs_tol=_FLOAT_EQ_ABS_TOL,
-            )
-        if op == "neq":
-            return not math.isclose(
-                value,
-                threshold,
-                rel_tol=_FLOAT_EQ_REL_TOL,
-                abs_tol=_FLOAT_EQ_ABS_TOL,
-            )
-        if op == "between":
-            if value < threshold:
-                return False
-            return not (self.threshold_max and value >= self.threshold_max)
-        trace.REFUSAL.event("unknown_operator", rule=self.id, operator=op)
-        raise ValidationError(
-            self.env._(
-                "Unknown operator '%(op)s' on approval rule '%(name)s'.",
-                op=op,
-                name=self.name,
-            ),
-        )
 
     def _condition_bounds(self) -> tuple[float, bool, float, bool] | None:
         self.check_singleton()
