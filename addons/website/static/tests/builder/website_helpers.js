@@ -224,6 +224,12 @@ export async function setupWebsiteBuilder(
             return true;
         },
     });
+    if (snippets) {
+        // the action preloads the snippets as soon as it mounts
+        patchWithCleanup(IrUiView.prototype, {
+            render_public_asset: () => getSnippetView(snippets),
+        });
+    }
     await getService("action").doAction({
         name: "Website Builder",
         tag: "website_preview",
@@ -279,12 +285,6 @@ export async function setupWebsiteBuilder(
             return {};
         },
     });
-
-    if (snippets) {
-        patchWithCleanup(IrUiView.prototype, {
-            render_public_asset: () => getSnippetView(snippets),
-        });
-    }
 
     patchWithCleanupImg();
 

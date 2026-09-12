@@ -133,7 +133,7 @@ test("Background position overlay layout", async () => {
     const { getEditor, waitSidebarUpdated } = await setupWebsiteBuilder(
         `<section>
             <div class="container">
-                <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height: 500px">
+                <section style="background-image: url('/web/static/img/transparent.png'); width: 500px; height: 500px">
                 </section>
             </div>
         </section>`,
@@ -219,7 +219,7 @@ test("Background position overlay behavior", async () => {
     const { getEditor, waitSidebarUpdated } = await setupWebsiteBuilder(
         `<section>
             <div class="container">
-                <section style="background-image: url('/web/image/123/transparent.png'); width: 500px;">
+                <section style="background-image: url('/web/static/img/transparent.png'); width: 500px;">
                 </section>
             </div>
         </section>`,
@@ -306,7 +306,7 @@ function patchDragBackground(el, from, to) {
 
 async function dragAndDropBgImage() {
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`
-        <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height:500px">
+        <section style="background-image: url('/web/static/img/transparent.png'); width: 500px; height:500px">
             <div class="o_we_shape o_html_builder_Connections_01">
                 AAAA
             </div>
@@ -363,7 +363,7 @@ test("open the media dialog to toggle the image background but do not choose an 
 
 test("remove the background image of a snippet", async () => {
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`
-        <section style="background-image: url('/web/image/123/transparent.png'); width: 500px; height:500px">
+        <section style="background-image: url('/web/static/img/transparent.png'); width: 500px; height:500px">
             <div class="o_we_shape o_html_builder_Connections_01">
                 AAAA
             </div>
@@ -409,9 +409,14 @@ test("remove background image removes color filter", async () => {
     expect(":iframe section .o_we_bg_filter").not.toHaveCount();
 });
 
+// Chrome serialises a one-value background-size with its implied `auto`
+function expectBackgroundSize(el, expected) {
+    expect(el.style.backgroundSize.replace(/ auto$/, "")).toBe(expected);
+}
+
 test("change background size", async () => {
     const { waitSidebarUpdated } = await setupWebsiteBuilder(`
-        <section class="o_bg_img_opt_repeat" style="background-image: url('/web/image/123/transparent.png'); width: 500px; height:500px; background-size: 100px;">
+        <section class="o_bg_img_opt_repeat" style="background-image: url('/web/static/img/transparent.png'); width: 500px; height:500px; background-size: 100px;">
         </section>`);
 
     const section = await waitFor(":iframe section");
@@ -430,20 +435,20 @@ test("change background size", async () => {
 
     await contains(heightInput).edit("0");
     expect(heightInput).toHaveValue("1", { message: "minimum value is 1" });
-    expect(section).toHaveStyle("background-size: 100px 1px");
+    expectBackgroundSize(section, "100px 1px");
 
     await contains(heightInput).edit("");
     expect(heightInput).toHaveValue("");
-    expect(section).toHaveStyle("background-size: 100px");
+    expectBackgroundSize(section, "100px");
 
     await contains(widthInput).edit("");
     expect(widthInput).toHaveValue("");
     expect(heightInput).toHaveValue("", { message: "height input should stay empty" });
-    expect(section).toHaveStyle("background-size: auto");
+    expectBackgroundSize(section, "auto");
 
     await contains(widthInput).edit("0");
     expect(widthInput).toHaveValue("1", { message: "minimum value is 1" });
-    expect(section).toHaveStyle("background-size: 1px");
+    expectBackgroundSize(section, "1px");
 });
 
 test("background shape detection is compatible with previous ones (web_editor)", async () => {

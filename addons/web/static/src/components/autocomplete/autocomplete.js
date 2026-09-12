@@ -146,10 +146,14 @@ export class AutoComplete extends Component {
         onWillUpdateProps((nextProps) => {
             if (this.props.value !== nextProps.value || this.forceValFromProp) {
                 this.forceValFromProp = false;
-                if (!this.inEdition) {
+                if (this.inEdition) {
+                    // the value echoes what is being typed: the pending
+                    // processing of that input is what opens the dropdown
+                    this.closeDropdown();
+                } else {
                     this.setInputValue(nextProps.value);
+                    this.close();
                 }
-                this.close();
             }
         });
 
@@ -310,6 +314,14 @@ export class AutoComplete extends Component {
     }
 
     close() {
+        this.closeDropdown();
+        this.debouncedProcessInput.cancel();
+        this.pendingPromise?.resolve();
+        this.pendingPromise = null;
+        this.loadingPromise = null;
+    }
+
+    closeDropdown() {
         this.state.open = false;
         this.navigator.clearActiveItem();
         this.navigationRev = 0;
@@ -318,10 +330,6 @@ export class AutoComplete extends Component {
             this._entry.applied.resolve();
             this._entry = null;
         }
-        this.debouncedProcessInput.cancel();
-        this.pendingPromise?.resolve();
-        this.pendingPromise = null;
-        this.loadingPromise = null;
         this._removeGlobalListeners();
     }
 

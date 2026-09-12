@@ -3,6 +3,7 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { parseBoxShadow } from "@html_builder/utils/utils_css";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
+import { normalizeCSSColor } from "@web/core/utils/format/colors";
 
 const shadowClass = "shadow";
 
@@ -21,9 +22,10 @@ export function getDefaultShadow(mode) {
     const el = document.createElement("div");
     el.classList.add(shadowClass);
     document.body.appendChild(el);
-    const shadow = `${getComputedStyle(el).boxShadow}${mode === "inset" ? " inset" : ""}`;
+    const shadow = parseShadow(getComputedStyle(el).boxShadow);
     el.remove();
-    return shadow;
+    shadow.mode = mode === "inset" ? "inset" : "";
+    return shadowToString(shadow);
 }
 
 function getShadowMode(editingElement) {
@@ -51,7 +53,13 @@ function parseShadow(value) {
     if (!value || value === "none") {
         return {};
     }
-    return parseBoxShadow(value);
+    const shadow = parseBoxShadow(value);
+    if (shadow.color) {
+        // a computed color-mix() comes back as color(srgb ...); what gets
+        // written into the page is the portable spelling
+        shadow.color = normalizeCSSColor(shadow.color);
+    }
+    return shadow;
 }
 
 export function shadowToString(shadow) {

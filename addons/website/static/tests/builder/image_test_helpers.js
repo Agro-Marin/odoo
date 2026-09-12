@@ -60,7 +60,7 @@ export function mockImageRequests() {
         onRpcReal(
             "/website/static/src/img/snippets_options/header_effect_fade_out.gif",
         );
-        onRpcReal("/web/image/123/transparent.png");
+        onRpcReal("/web/static/img/transparent.png");
         onRpcReal("/website/static/src/svg/hover_effects.svg");
         onRpcReal("/html_builder/static/image_shapes/geometric/geo_square.svg");
     });

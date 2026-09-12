@@ -229,6 +229,9 @@ export class CarouselOptionPlugin extends Plugin {
             const win = editingElement.ownerDocument.defaultView;
             const Carousel = getBootstrapComponent(win, "Carousel");
             if (!Carousel) {
+                // a page that publishes no edit bundle still gets the move,
+                // without the transition
+                this.moveActiveItem(editingElement, direction);
                 finalize();
                 return;
             }
@@ -243,6 +246,28 @@ export class CarouselOptionPlugin extends Plugin {
                 carouselInstance[direction]();
             }
         });
+    }
+
+    /**
+     * @param {Element} editingElement
+     * @param {String|Number} direction
+     */
+    moveActiveItem(editingElement, direction) {
+        const itemEls = [...editingElement.querySelectorAll(".carousel-item")];
+        if (!itemEls.length) {
+            return;
+        }
+        const activeIndex = itemEls.findIndex((el) => el.classList.contains("active"));
+        let index;
+        if (typeof direction === "number") {
+            index = direction;
+        } else if (direction === "prev") {
+            index = activeIndex - 1;
+        } else {
+            index = activeIndex + 1;
+        }
+        index = ((index % itemEls.length) + itemEls.length) % itemEls.length;
+        itemEls.forEach((el, i) => el.classList.toggle("active", i === index));
     }
 
     onCloned({ cloneEl }) {

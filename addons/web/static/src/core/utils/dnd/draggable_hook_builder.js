@@ -158,7 +158,13 @@ export function makeNativeDraggableHook(hookParams) {
                     });
                     return session.effectCleanup.cleanup;
                 },
-                () => computeParamValues(paramKeys, allAcceptedParams, params),
+                // the element is a dependency too: a ref rendered under a
+                // t-if appears after setup, and the params applied then are
+                // the ones its listeners will read
+                () => [
+                    ...computeParamValues(paramKeys, allAcceptedParams, params),
+                    ctx.ref.el,
+                ],
             );
 
             setupHooks.setup(

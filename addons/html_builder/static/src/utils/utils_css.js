@@ -482,10 +482,56 @@ export function setBuilderCSSVariables(htmlStyle) {
     }
 }
 
+const CSS_LENGTH_RE = /^-?\d+\.?\d*px$/;
+
+/**
+ * Split a CSS value on whitespace, keeping the whitespace inside parentheses:
+ * `color-mix(in srgb, var(--o-black) 15%, transparent)` is one token.
+ *
+ * @param {string} value
+ * @returns {string[]}
+ */
+function splitCssTokens(value) {
+    const tokens = [];
+    let depth = 0;
+    let current = "";
+    for (const char of value) {
+        if (char === "(") {
+            depth++;
+        } else if (char === ")") {
+            depth--;
+        }
+        if (/\s/.test(char) && depth === 0) {
+            if (current) {
+                tokens.push(current);
+                current = "";
+            }
+        } else {
+            current += char;
+        }
+    }
+    if (current) {
+        tokens.push(current);
+    }
+    return tokens;
+}
+
+/**
+ * @param {string} value a single box-shadow, computed or authored
+ * @returns {{color?: string, offsetX?: string, offsetY?: string, blur?: string, spread?: string, mode?: string}}
+ */
 export function parseBoxShadow(value) {
-    const regex =
-        /(?<color>(rgb(a)?\([^)]*\))|(var\([^)]+\)))\s+(?<offsetX>-?\d+\.?\d*px)\s+(?<offsetY>-?\d+\.?\d*px)\s+(?<blur>-?\d+\.?\d*px)\s+(?<spread>-?\d+\.?\d*px)(?:\s+(?<mode>\w+))?/;
-    return value.match(regex)?.groups ?? {};
+    const tokens = splitCssTokens(value);
+    const lengths = tokens.filter((token) => CSS_LENGTH_RE.test(token));
+    if (lengths.length !== 4) {
+        return {};
+    }
+    const mode = tokens.includes("inset") ? "inset" : undefined;
+    const color = tokens.find(
+        (token) => !CSS_LENGTH_RE.test(token) && token !== "inset",
+    );
+    const [offsetX, offsetY, blur, spread] = lengths;
+    return { color, offsetX, offsetY, blur, spread, mode };
 }
 
 export function getAllUsedColors(el) {

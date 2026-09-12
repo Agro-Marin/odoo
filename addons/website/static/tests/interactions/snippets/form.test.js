@@ -409,11 +409,13 @@ test("form submit result cleaned but not removed on stop", async () => {
 });
 
 test("form prefilled conditional", async () => {
+    // a user's phone is a phone.number record behind phone_ids
     onRpc("res.users", "read", ({ parent }) => {
         const result = parent();
-        result[0].phone = "+1-555-5555";
+        result[0].phone_ids = [7];
         return result;
     });
+    onRpc("phone.number", "read", () => [{ id: 7, number: "+1-555-5555" }]);
 
     const { core } = await startInteractions(`
         <div id="wrapwrap">

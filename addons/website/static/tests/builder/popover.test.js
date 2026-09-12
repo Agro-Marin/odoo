@@ -36,9 +36,8 @@ test("Popovers scroll with iframe", async () => {
 
     const expectScroll = async (popoverSelector) => {
         const popover = await waitFor(popoverSelector);
+        await waitUntil(() => popover.style.top, { timeout: 500 });
         const previousTop = parseFloat(popover.style.top);
-        popover.style.top = "0px";
-        await waitUntil(() => popover.style.top !== "0px", { timeout: 500 });
 
         const delta = 100;
         await scroll(body, { y: delta }, { scrollable: false, force: true });

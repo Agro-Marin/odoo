@@ -158,6 +158,7 @@ test("basic many2many: search with uncreated records", async () => {
         static selector = ".test-options-target";
         static template = xml`<BasicMany2Many selection="this.selection" model="'test'" limit="1" setSelection="this.setSelection.bind(this)"/>`;
         setup() {
+            super.setup();
             this.selection = [
                 { id: 1, name: "First" },
                 { id: 2, name: "Second" },

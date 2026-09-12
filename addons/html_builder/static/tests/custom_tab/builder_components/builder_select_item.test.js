@@ -377,6 +377,6 @@ test("isApplied shouldn't be called when the element is removed from the DOM", a
     );
     await setupHTMLBuilder(`<div class="test">Test</div>`);
     await contains(":iframe .test").click();
-    await contains(".fa-trash ").click();
+    await contains(".oe_snippet_remove").click();
     expect(":iframe .test").toHaveCount(0);
 });
