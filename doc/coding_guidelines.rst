@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.35
+:Version: 6.36
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -803,13 +803,31 @@ A mixin's ``depends`` beyond ``base`` is a third ground only when the mixin
 genuinely reads that module's models; a ``depends`` on ``mail`` for a
 ``_inherit`` of ``mail.thread`` is real, one copied from a neighbour is not.
 
-**``mixin_recurrence`` is the one that should move.** It depends on ``base``
-alone, ships one abstract model and nothing else, and is inherited by
-``project.task.recurrence``, ``maintenance`` and ``planning.recurrency``. The
-move is a follow-up for whoever next holds ``base/models/__init__.py``: the
-file relocates to ``odoo/addons/base/models/mixin_recurrence_rule.py``, the
-three consumers drop the ``depends`` entry, and the module directory goes.
-Nothing stored changes -- a mixin has no table (§2.2.1).
+**A mixin may instead live with the module that owns its subject matter**, when
+one clearly does and every consumer already reaches it. ``base`` is the default
+because it is free; a subject-matter home is worth the dependency when it is the
+place a reader would look and when it keeps a vocabulary whole rather than
+scattering it.
+
+**``mixin_recurrence`` is the worked example, and it went to ``resource``.** It
+depended on ``base`` alone and shipped one abstract model, so by the paragraphs
+above it was a fold waiting to happen, and this section used to nominate
+``base`` for it. It is dissolved into ``resource`` instead: recurrence is
+scheduling vocabulary, ``resource`` is where this fork's scheduling mixins
+already live (``mixin.resource.scheduling``, ``mixin.resource.allocation``,
+``resource.reservation``), and keeping ``mixin.recurrence.rule`` there let the
+iCalendar engine lifted out of ``calendar.recurrence`` land beside it as
+``mixin.recurrence.rrule`` rather than in a second place. One module answers
+"how does this repeat" for ``project.task.recurrence``, ``planning.recurrency``,
+``maintenance.request``, ``calendar.recurrence`` and ``calendar.event``.
+
+The cost is named rather than waved away: ``maintenance`` gains a ``depends`` on
+``resource`` it did not have, and so will ``fleet`` when its recurring-cost pair
+follows. ``resource`` depends on ``web`` alone and every one of those modules
+already carries ``web``, so the edge is one row in a manifest, not new reach.
+Nothing stored changed in the fold itself -- a mixin has no table (§2.2.1) --
+and the migration only re-points ``ir_model_data`` and marks the dissolved
+module uninstalled.
 
 2.3 Field conventions
 ---------------------
@@ -7956,6 +7974,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.36
+     - 2026-09-12
+     - §2.2.2: a mixin may live with the module that owns its subject matter
+       instead of in ``base``; ``mixin_recurrence`` is dissolved into
+       ``resource`` rather than ``base``, which is where the iCalendar engine
+       lifted out of ``calendar.recurrence`` joins it.
    * - 6.35
      - 2026-09-12
      - §1.2: a demo or data file never stores a secret -- a
