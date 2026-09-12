@@ -4,6 +4,7 @@ import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { useDiscussSystray } from "@mail/utils/common/hooks";
+import { navigateIndex } from "@mail/utils/common/misc";
 import {
     Component,
     onWillDestroy,
@@ -118,35 +119,13 @@ export class MessagingMenu extends Component {
 
     /** @param {"first"|"last"|"previous"|"next"} direction */
     navigate(direction) {
-        if (this.notificationItems.length === 0) {
+        const targetId = navigateIndex(
+            direction,
+            this.state.activeIndex,
+            this.notificationItems.length,
+        );
+        if (targetId === undefined) {
             return;
-        }
-        const activeOptionId =
-            this.state.activeIndex !== null ? this.state.activeIndex : 0;
-        let targetId;
-        switch (direction) {
-            case "first":
-                targetId = 0;
-                break;
-            case "last":
-                targetId = this.notificationItems.length - 1;
-                break;
-            case "previous":
-                targetId = activeOptionId - 1;
-                if (targetId < 0) {
-                    this.navigate("last");
-                    return;
-                }
-                break;
-            case "next":
-                targetId = activeOptionId + 1;
-                if (targetId > this.notificationItems.length - 1) {
-                    this.navigate("first");
-                    return;
-                }
-                break;
-            default:
-                return;
         }
         this.state.activeIndex = targetId;
         this.notificationItems[targetId]?.scrollIntoView({ block: "nearest" });

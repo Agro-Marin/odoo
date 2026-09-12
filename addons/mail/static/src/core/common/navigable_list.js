@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
+import { navigateIndex } from "@mail/utils/common/misc";
 import {
     Component,
     onWillRender,
@@ -172,37 +173,14 @@ export class NavigableList extends Component {
 
     /** @param {"first"|"last"|"previous"|"next"} direction */
     navigate(direction) {
-        if (this.props.options.length === 0) {
-            return;
+        const targetId = navigateIndex(
+            direction,
+            this.state.activeIndex,
+            this.props.options.length,
+        );
+        if (targetId !== undefined) {
+            this.state.activeIndex = targetId;
         }
-        const activeOptionId =
-            this.state.activeIndex !== null ? this.state.activeIndex : 0;
-        let targetId;
-        switch (direction) {
-            case "first":
-                targetId = 0;
-                break;
-            case "last":
-                targetId = this.props.options.length - 1;
-                break;
-            case "previous":
-                targetId = activeOptionId - 1;
-                if (targetId < 0) {
-                    this.navigate("last");
-                    return;
-                }
-                break;
-            case "next":
-                targetId = activeOptionId + 1;
-                if (targetId > this.props.options.length - 1) {
-                    this.navigate("first");
-                    return;
-                }
-                break;
-            default:
-                return;
-        }
-        this.state.activeIndex = targetId;
     }
 
     /** @param {KeyboardEvent} ev */

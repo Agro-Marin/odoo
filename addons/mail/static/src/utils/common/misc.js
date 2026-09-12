@@ -458,3 +458,28 @@ export function awaitScrollEnd({ target, onSettle } = {}) {
     deferred.settle = settle;
     return deferred;
 }
+
+/**
+ * @param {"first"|"last"|"previous"|"next"} direction
+ * @param {number|null} activeIndex
+ * @param {number} length
+ * @returns {number|undefined} the index to activate, wrapping at both ends
+ */
+export function navigateIndex(direction, activeIndex, length) {
+    if (length === 0) {
+        return undefined;
+    }
+    const current = activeIndex ?? 0;
+    switch (direction) {
+        case "first":
+            return 0;
+        case "last":
+            return length - 1;
+        case "previous":
+            return current - 1 < 0 ? length - 1 : current - 1;
+        case "next":
+            return current + 1 > length - 1 ? 0 : current + 1;
+        default:
+            return undefined;
+    }
+}
