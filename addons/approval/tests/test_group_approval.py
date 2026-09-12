@@ -254,3 +254,38 @@ class TestGroupApproval(common.TransactionCase):
             "approved",
             "Request should be approved after 2 approvals (minimum met)",
         )
+
+    def test_group_approval_only_asks_the_members_who_work_in_the_company(self):
+        other_company = self.env["res.company"].create({"name": "Elsewhere Co"})
+        elsewhere_only = self.env["res.users"].create(
+            {
+                "name": "Elsewhere Member",
+                "login": "grp_member_elsewhere",
+                "email": "grp_member_elsewhere@test.com",
+                "company_id": other_company.id,
+                "company_ids": [(6, 0, [other_company.id])],
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        self.approval_group.user_ids = [(4, elsewhere_only.id)]
+        category = self.env["approval.category"].create(
+            {
+                "sequence_code": "SC0051",
+                "name": "Test Group Across Companies",
+                "company_id": False,
+                "approval_minimum": 1,
+                "group_approval": "exclusive",
+                "approver_group_id": self.approval_group.id,
+            }
+        )
+
+        request = self.env["approval.request"].create(
+            {
+                "name": "Raised in the current company",
+                "request_owner_id": self.admin_user.id,
+                "category_id": category.id,
+            }
+        )
+
+        self.assertEqual(request.company_id, self.env.company)
+        self.assertEqual(request.approver_ids.user_id, self.user1 | self.user2)

@@ -668,10 +668,15 @@ class ApprovalRequestRouting(models.Model):
                     )
 
         if not steps and self.group_approval != "no" and self.approver_group_id:
-            for user in self.approver_group_id.all_user_ids:
+            group_user_ids = self.env[
+                "approval.category.step"
+            ]._filter_company_user_ids(
+                set(self.approver_group_id.all_user_ids.ids), self.company_id
+            )
+            for user_id in sorted(group_user_ids):
                 self._merge_approver_to_staging(
                     approver_staging,
-                    user.id,
+                    user_id,
                     False,
                     group_sequence,
                 )
