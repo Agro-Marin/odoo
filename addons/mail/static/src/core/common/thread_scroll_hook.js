@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { Record } from "@mail/core/common/record";
 import { useVisible } from "@mail/utils/common/hooks";
+import { awaitScrollEnd } from "@mail/utils/common/misc";
 import {
     onWillDestroy,
     onWillPatch,
@@ -9,9 +10,7 @@ import {
     toRaw,
     useEffect,
 } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { Deferred } from "@web/core/utils/concurrency";
 
 const log = makeLogger("mail.thread.scroll");
 
@@ -154,10 +153,8 @@ export class ThreadScroll {
     loadOlderState;
     /** @type {ReturnType<typeof useVisible>} */
     loadNewerState;
-    /** @type {Deferred|undefined} */
+    /** @type {ReturnType<typeof awaitScrollEnd>|undefined} */
     smoothScrollingDeferred;
-    /** @type {number|undefined} */
-    smoothScrollingTimeout;
     isSmoothScrolling = false;
 
     /** @param {import("@mail/core/common/thread_scroll_hook").ThreadScrollOptions} options */
@@ -280,30 +277,19 @@ export class ThreadScroll {
     setScroll(value, { smooth = false } = {}) {
         if (smooth) {
             const el = this.el;
-            browser.clearTimeout(this.smoothScrollingTimeout);
-            this.smoothScrollingDeferred?.resolve();
-            const deferred = new Deferred();
+            this.smoothScrollingDeferred?.settle();
+            const deferred = awaitScrollEnd({
+                target: el,
+                onSettle: () => {
+                    log.logic("smooth scroll end", () => ({ value }));
+                    if (this.smoothScrollingDeferred === deferred) {
+                        this.smoothScrollingDeferred = undefined;
+                        this.isSmoothScrolling = false;
+                    }
+                },
+            });
             this.smoothScrollingDeferred = deferred;
             this.isSmoothScrolling = true;
-            const onSmoothScrollingEnd = () => {
-                log.logic("smooth scroll end", () => ({ value }));
-                browser.clearTimeout(this.smoothScrollingTimeout);
-                document.removeEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                });
-                if (this.smoothScrollingDeferred === deferred) {
-                    this.smoothScrollingDeferred = undefined;
-                    this.isSmoothScrolling = false;
-                }
-                deferred.resolve();
-            };
-            /** @param {Event} ev */
-            const onScrollEnd = (ev) => {
-                if (ev.target !== el) {
-                    return;
-                }
-                onSmoothScrollingEnd();
-            };
             const { noMovement } = computeSmoothScrollTarget({
                 value,
                 scrollTop: el.scrollTop,
@@ -311,20 +297,7 @@ export class ThreadScroll {
                 clientHeight: el.clientHeight,
             });
             if (noMovement) {
-                onSmoothScrollingEnd();
-            } else if ("onscrollend" in window) {
-                document.addEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                });
-                this.smoothScrollingTimeout = browser.setTimeout(
-                    onSmoothScrollingEnd,
-                    3000,
-                );
-            } else {
-                this.smoothScrollingTimeout = browser.setTimeout(
-                    onSmoothScrollingEnd,
-                    250,
-                );
+                deferred.settle();
             }
         }
         this.el.scrollTo({

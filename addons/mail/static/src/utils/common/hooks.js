@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
-import { onChange } from "@mail/utils/common/misc";
+import { awaitScrollEnd, onChange } from "@mail/utils/common/misc";
 import {
     Component,
     onMounted,
@@ -509,27 +509,9 @@ export function useMessageScrolling(duration = 2000) {
         scrollPromise: null,
         /** @param {Element} el */
         scrollTo(el) {
-            state.scrollPromise?.resolve();
-            const scrollPromise = new Deferred();
+            state.scrollPromise?.settle();
+            const scrollPromise = awaitScrollEnd();
             state.scrollPromise = scrollPromise;
-            /** @type {ReturnType<typeof browser.setTimeout>} */
-            let scrollTimeout;
-            const onScrollEnd = () => {
-                browser.clearTimeout(scrollTimeout);
-                document.removeEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                });
-                scrollPromise.resolve();
-            };
-            if ("onscrollend" in window) {
-                document.addEventListener("scrollend", onScrollEnd, {
-                    capture: true,
-                    once: true,
-                });
-                scrollTimeout = browser.setTimeout(onScrollEnd, 3000);
-            } else {
-                scrollTimeout = browser.setTimeout(onScrollEnd, 250);
-            }
             el.scrollIntoView({ behavior: "smooth", block: "center" });
             return scrollPromise;
         },
@@ -539,7 +521,7 @@ export function useMessageScrolling(duration = 2000) {
         browser.clearTimeout(timeout);
         timeout = null;
         state.startupDeferred?.resolve();
-        state.scrollPromise?.resolve();
+        state.scrollPromise?.settle();
     });
     return state;
 }
