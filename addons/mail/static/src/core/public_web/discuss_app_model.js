@@ -1,7 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
-import { browser } from "@web/core/browser/browser";
+import {
+    readLocalStorageItem,
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { makeLogger } from "@web/core/debug/debug_logger";
 
 const log = makeLogger("mail.discuss");
@@ -16,36 +20,39 @@ export class DiscussApp extends Record {
     activeTab = "notification";
     searchTerm = "";
     isActive = false;
-    _recomputeIsMemberPanelOpenByDefault = 0;
     isMemberPanelOpenByDefault = fields.Attr(true, {
         /** @this {import("models").DiscussApp} */
         compute() {
-            void this._recomputeIsMemberPanelOpenByDefault;
-            return browser.localStorage.getItem(NO_MEMBERS_DEFAULT_OPEN_LS) !== "true";
+            return (
+                readLocalStorageItem(this.store, NO_MEMBERS_DEFAULT_OPEN_LS) !== "true"
+            );
         },
     });
-    _recomputeIsSidebarCompact = 0;
     isSidebarCompact = fields.Attr(false, {
         /** @this {import("models").DiscussApp} */
         compute() {
-            void this._recomputeIsSidebarCompact;
-            return browser.localStorage.getItem(DISCUSS_SIDEBAR_COMPACT_LS) === "true";
+            return (
+                readLocalStorageItem(this.store, DISCUSS_SIDEBAR_COMPACT_LS) === "true"
+            );
         },
     });
     lastActiveId = fields.Attr(undefined, {
         /** @this {import("models").DiscussApp} */
         compute() {
-            return browser.localStorage.getItem(LAST_DISCUSS_ACTIVE_ID_LS) ?? undefined;
+            return (
+                readLocalStorageItem(this.store, LAST_DISCUSS_ACTIVE_ID_LS) ?? undefined
+            );
         },
         /** @this {import("models").DiscussApp} */
         onUpdate() {
             if (this.lastActiveId) {
-                browser.localStorage.setItem(
+                setLocalStorageItem(
+                    this.store,
                     LAST_DISCUSS_ACTIVE_ID_LS,
                     this.lastActiveId,
                 );
             } else {
-                browser.localStorage.removeItem(LAST_DISCUSS_ACTIVE_ID_LS);
+                removeLocalStorageItem(this.store, LAST_DISCUSS_ACTIVE_ID_LS);
             }
         },
     });
@@ -56,39 +63,6 @@ export class DiscussApp extends Record {
         },
     });
     hasRestoredThread = false;
-
-    /**
-     * @template {typeof Record} T
-     * @this {T}
-     * @param {import("@mail/model/record").RecordData} data
-     * @param {import("@mail/model/record").RecordData} ids
-     * @returns {InstanceType<T>}
-     */
-    static new(data, ids) {
-        /** @type {import("models").DiscussApp} */
-        const record = /** @type {import("models").DiscussApp} */ (
-            /** @type {unknown} */ (super.new(data, ids))
-        );
-        record.onStorage = record.onStorage.bind(record);
-        browser.addEventListener("storage", record.onStorage);
-        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
-    }
-
-    delete() {
-        browser.removeEventListener("storage", this.onStorage);
-        super.delete();
-    }
-
-    /** @param {StorageEvent} ev */
-    onStorage(ev) {
-        log.pipeline("crosstab storage", () => ({ key: ev.key }));
-        if (ev.key === DISCUSS_SIDEBAR_COMPACT_LS) {
-            this._recomputeIsSidebarCompact++;
-        }
-        if (ev.key === NO_MEMBERS_DEFAULT_OPEN_LS) {
-            this._recomputeIsMemberPanelOpenByDefault++;
-        }
-    }
 
     /** @param {import("@mail/core/common/action").Action} [nextActiveAction] */
     shouldDisableMemberPanelAutoOpenFromClose(nextActiveAction) {

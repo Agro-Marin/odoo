@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { DiscussApp } from "@mail/core/public_web/discuss_app_model";
+import { readLocalStorageItem } from "@mail/utils/common/local_storage";
 import { effectWithDebouncedCleanup } from "@mail/utils/common/misc";
-import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
@@ -81,12 +81,10 @@ patch(DiscussApp.prototype, {
         });
         this.lastThread = fields.One("Thread");
         this.livechats = fields.Many("Thread", { inverse: "appAsLivechats" });
-        this._recomputeIsLivechatInfoPanelOpenedByDefault = 0;
         this.isLivechatInfoPanelOpenByDefault = fields.Attr(true, {
             compute() {
-                void this._recomputeIsLivechatInfoPanelOpenedByDefault;
                 return (
-                    browser.localStorage.getItem(LIVECHAT_INFO_DEFAULT_OPEN_LS) !==
+                    readLocalStorageItem(this.store, LIVECHAT_INFO_DEFAULT_OPEN_LS) !==
                     "false"
                 );
             },
@@ -116,12 +114,5 @@ patch(DiscussApp.prototype, {
         }
         this.lastThread = this.thread;
         super._threadOnUpdate();
-    },
-
-    onStorage(ev) {
-        super.onStorage(ev);
-        if (ev.key === LIVECHAT_INFO_DEFAULT_OPEN_LS) {
-            this._recomputeIsLivechatInfoPanelOpenedByDefault++;
-        }
     },
 });

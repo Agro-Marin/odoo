@@ -6,6 +6,13 @@ import "./_models.js";
 import { FETCH_DATA_DEBOUNCE_DELAY } from "@mail/core/common/constants";
 import { fields, makeStore, Store as BaseStore } from "@mail/core/common/record";
 import { attClassObjectToString, prettifyMessageText } from "@mail/utils/common/format";
+import {
+    initLocalStorageMirror,
+    readLocalStorageItem,
+    removeLocalStorageItem,
+    setLocalStorageItem,
+    startLocalStorageMirror,
+} from "@mail/utils/common/local_storage";
 import { compareDatetime } from "@mail/utils/common/misc";
 import { reactive } from "@odoo/owl";
 import { loader } from "@web/components/emoji_picker";
@@ -28,6 +35,8 @@ const pyToJsModels = {
     "discuss.channel": "Thread",
     "mixin.mail.thread": "Thread",
 };
+
+const PUSH_NOTIFICATION_DISMISSED_LS = "mail.user_setting.push_notification_dismissed";
 
 const addFieldsByPyModel = {
     "discuss.channel": { model: "discuss.channel" },
@@ -58,6 +67,10 @@ export class Store extends BaseStore {
         return addFieldsByPyModel[pyOrJsModelName];
     }
 
+    /** @type {Object<string, string|null>} */
+    localStorageValues;
+    /** @type {Map<string, Set<(newValue: string|null) => void>>} */
+    _localStorageSubscribers;
     FETCH_LIMIT = 30;
     DEFAULT_AVATAR = "/mail/static/src/img/smiley/avatar.jpg";
     isReady = new Deferred();
@@ -133,22 +146,16 @@ export class Store extends BaseStore {
         /** @this {import("models").Store} */
         compute() {
             return (
-                browser.localStorage.getItem(
-                    "mail.user_setting.push_notification_dismissed",
-                ) === "true"
+                readLocalStorageItem(this.store, PUSH_NOTIFICATION_DISMISSED_LS) ===
+                "true"
             );
         },
         /** @this {import("models").Store} */
         onUpdate() {
             if (this.isNotificationPermissionDismissed) {
-                browser.localStorage.setItem(
-                    "mail.user_setting.push_notification_dismissed",
-                    "true",
-                );
+                setLocalStorageItem(this.store, PUSH_NOTIFICATION_DISMISSED_LS, "true");
             } else {
-                browser.localStorage.removeItem(
-                    "mail.user_setting.push_notification_dismissed",
-                );
+                removeLocalStorageItem(this.store, PUSH_NOTIFICATION_DISMISSED_LS);
             }
         },
     });
@@ -491,6 +498,7 @@ export class Store extends BaseStore {
 
     setup() {
         super.setup();
+        initLocalStorageMirror(this);
         this._prevLastMessageId = null;
         this._temporaryIdOffset = 0.01;
         this._fetchStoreDataDebounced = debounce(
@@ -749,6 +757,7 @@ export const storeService = {
     start(env, services) {
         const endStart = debugLog.perf("service start");
         const store = makeStore(env);
+        startLocalStorageMirror(store);
         store.insert(session.storeData);
         debugLog.lifecycle("service start", () => ({
             sessionModels: Object.keys(session.storeData || {}),

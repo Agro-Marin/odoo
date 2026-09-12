@@ -1,5 +1,11 @@
 // @ts-check
 /** @odoo-module native */
+import {
+    onLocalStorageChange,
+    readLocalStorageItem,
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { hasHardwareAcceleration } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -13,10 +19,13 @@ import { fields, Record } from "./record.js";
 const log = makeLogger("mail.settings");
 export const MESSAGE_SOUND = "mail.user_setting.message_sound";
 export const USE_BLUR_LS = "mail_user_setting_use_blur";
+const DISABLE_CALL_AUTO_FOCUS_LS = "mail_user_setting_disable_call_auto_focus";
 
 export class Settings extends Record {
     /** @type {number} */
     id;
+    /** @type {() => void} */
+    _stopDeviceIdsWatch;
 
     /**
      * @template {typeof Record} T
@@ -30,8 +39,7 @@ export class Settings extends Record {
         const record = /** @type {import("models").Settings} */ (
             /** @type {unknown} */ (super.new(data, ids))
         );
-        record.onStorage = record.onStorage.bind(record);
-        browser.addEventListener("storage", record.onStorage);
+        record._stopDeviceIdsWatch = record._watchDeviceIdsAcrossTabs();
         return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (record));
     }
 
@@ -58,7 +66,7 @@ export class Settings extends Record {
             id: this.id,
             pendingVolumeSaves: this.volumeSettingsTimeouts.size,
         }));
-        browser.removeEventListener("storage", this.onStorage);
+        this._stopDeviceIdsWatch();
         for (const timeoutId of this.volumeSettingsTimeouts.values()) {
             browser.clearTimeout(timeoutId);
         }
@@ -77,33 +85,24 @@ export class Settings extends Record {
                 : this.channel_notifications;
         },
     });
-    _recomputeMessageSound = 0;
     messageSound = fields.Attr(true, {
         /** @this {import("models").Settings} */
         compute() {
-            void this._recomputeMessageSound;
-            return browser.localStorage.getItem(MESSAGE_SOUND) !== "false";
+            return readLocalStorageItem(this.store, MESSAGE_SOUND) !== "false";
         },
     });
     useCallAutoFocus = fields.Attr(true, {
         /** @this {import("models").Settings} */
         compute() {
-            return !browser.localStorage.getItem(
-                "mail_user_setting_disable_call_auto_focus",
-            );
+            return !readLocalStorageItem(this.store, DISABLE_CALL_AUTO_FOCUS_LS);
         },
         /** @this {import("models").Settings} */
         onUpdate() {
             if (this.useCallAutoFocus) {
-                browser.localStorage.removeItem(
-                    "mail_user_setting_disable_call_auto_focus",
-                );
+                removeLocalStorageItem(this.store, DISABLE_CALL_AUTO_FOCUS_LS);
                 return;
             }
-            browser.localStorage.setItem(
-                "mail_user_setting_disable_call_auto_focus",
-                "true",
-            );
+            setLocalStorageItem(this.store, DISABLE_CALL_AUTO_FOCUS_LS, "true");
         },
     });
 
@@ -123,12 +122,10 @@ export class Settings extends Record {
     backgroundBlurAmount = 10;
     edgeBlurAmount = 10;
     showOnlyVideo = false;
-    _recomputeUseBlur = 0;
     useBlur = fields.Attr(false, {
         /** @this {import("models").Settings} */
         compute() {
-            void this._recomputeUseBlur;
-            return browser.localStorage.getItem(USE_BLUR_LS) === "true";
+            return readLocalStorageItem(this.store, USE_BLUR_LS) === "true";
         },
     });
     blurPerformanceWarning = fields.Attr(false, {
@@ -225,11 +222,10 @@ export class Settings extends Record {
     setUseBlur(newValue) {
         log.logic("setUseBlur", () => ({ newValue }));
         if (newValue) {
-            browser.localStorage.setItem(USE_BLUR_LS, "true");
+            setLocalStorageItem(this.store, USE_BLUR_LS, "true");
         } else {
-            browser.localStorage.removeItem(USE_BLUR_LS);
+            removeLocalStorageItem(this.store, USE_BLUR_LS);
         }
-        this._recomputeUseBlur++;
     }
 
     /**
@@ -507,24 +503,19 @@ export class Settings extends Record {
             );
         }
     }
-    /** @param {StorageEvent} ev */
-    onStorage(ev) {
-        log.logic("onStorage", () => ({ key: ev.key, newValue: ev.newValue }));
-        if (ev.key === MESSAGE_SOUND) {
-            this._recomputeMessageSound++;
-        }
-        if (ev.key === USE_BLUR_LS) {
-            this._recomputeUseBlur++;
-        }
-        if (ev.key === "mail_user_setting_audio_input_device_id") {
-            this.audioInputDeviceId = ev.newValue;
-        }
-        if (ev.key === "mail_user_setting_audio_output_device_id") {
-            this.audioOutputDeviceId = ev.newValue;
-        }
-        if (ev.key === "mail_user_setting_camera_input_device_id") {
-            this.cameraInputDeviceId = ev.newValue;
-        }
+    /** @returns {() => void} */
+    _watchDeviceIdsAcrossTabs() {
+        const stops = Object.entries({
+            mail_user_setting_audio_input_device_id: "audioInputDeviceId",
+            mail_user_setting_audio_output_device_id: "audioOutputDeviceId",
+            mail_user_setting_camera_input_device_id: "cameraInputDeviceId",
+        }).map(([key, fieldName]) =>
+            onLocalStorageChange(this.store, key, (newValue) => {
+                log.logic("device id from another tab", () => ({ key, newValue }));
+                this[fieldName] = newValue;
+            }),
+        );
+        return () => stops.forEach((stop) => stop());
     }
     async _saveSettings() {
         if (!this.store.self_partner) {

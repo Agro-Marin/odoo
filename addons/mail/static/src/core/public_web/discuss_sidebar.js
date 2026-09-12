@@ -1,9 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 import { DISCUSS_SIDEBAR_COMPACT_LS } from "@mail/core/public_web/discuss_app_model";
+import {
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { Component, onMounted, useSubEnv } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel";
-import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -47,10 +50,9 @@ export class DiscussSidebar extends Component {
         }
         log.logic("onResize", () => ({ width, compact: width <= 100 }));
         if (width <= 100) {
-            browser.localStorage.setItem(DISCUSS_SIDEBAR_COMPACT_LS, String(true));
+            setLocalStorageItem(this.store, DISCUSS_SIDEBAR_COMPACT_LS, String(true));
         } else {
-            browser.localStorage.removeItem(DISCUSS_SIDEBAR_COMPACT_LS);
+            removeLocalStorageItem(this.store, DISCUSS_SIDEBAR_COMPACT_LS);
         }
-        this.store.discuss._recomputeIsSidebarCompact++;
     }
 }

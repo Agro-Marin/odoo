@@ -1,5 +1,10 @@
 // @ts-check
 /** @odoo-module native */
+import {
+    onLocalStorageChange,
+    readLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
@@ -31,18 +36,14 @@ export class ChatHub extends Record {
         const chatHub = /** @type {import("models").ChatHub} */ (
             /** @type {unknown} */ (super.new(data, ids))
         );
-        chatHub._onStorage = /** @param {StorageEvent} ev */ (ev) => {
-            log.pipeline("crosstab storage", () => ({ key: ev.key }));
-            if (ev.key === CHAT_HUB_KEY) {
-                chatHub.load(ev.newValue || undefined).catch(() => {});
-            } else if (ev.key === null) {
-                chatHub.load().catch(() => {});
-            }
-            if (ev.key === CHAT_HUB_COMPACT_LS) {
-                chatHub._recomputeCompact++;
-            }
-        };
-        browser.addEventListener("storage", chatHub._onStorage);
+        chatHub._stopStorage = onLocalStorageChange(
+            chatHub.store,
+            CHAT_HUB_KEY,
+            (newValue) => {
+                log.pipeline("crosstab storage", () => ({ key: CHAT_HUB_KEY }));
+                chatHub.load(newValue || undefined).catch(() => {});
+            },
+        );
         const endInit = log.perf("init");
         chatHub
             .load(browser.localStorage.getItem(CHAT_HUB_KEY) ?? undefined)
@@ -58,17 +59,15 @@ export class ChatHub extends Record {
     }
 
     delete() {
-        browser.removeEventListener("storage", this._onStorage);
+        this._stopStorage();
         super.delete();
     }
-    /** @type {(event: StorageEvent) => void} */
-    _onStorage;
-    _recomputeCompact = 0;
+    /** @type {() => void} */
+    _stopStorage;
     compact = fields.Attr(false, {
         /** @this {import("models").ChatHub} */
         compute() {
-            void this._recomputeCompact;
-            return browser.localStorage.getItem(CHAT_HUB_COMPACT_LS) === "true";
+            return readLocalStorageItem(this.store, CHAT_HUB_COMPACT_LS) === "true";
         },
     });
     canShowOpened = fields.Many("ChatWindow");
@@ -104,8 +103,7 @@ export class ChatHub extends Record {
         for (const cw of this.opened) {
             cw.bypassCompact = false;
         }
-        browser.localStorage.setItem(CHAT_HUB_COMPACT_LS, String(true));
-        this._recomputeCompact++;
+        setLocalStorageItem(this.store, CHAT_HUB_COMPACT_LS, String(true));
     }
 
     onRecompute() {
