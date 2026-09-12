@@ -36,6 +36,7 @@ from . import (
     test_request_change,
     test_request_grant,
     test_request_revocation,
+    test_routing_outcomes,
     test_security,
     test_sequential_approval,
     test_sla_tracking,

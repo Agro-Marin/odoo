@@ -25,7 +25,7 @@ dashboards.
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 4 (escalation, auto-expire, consent, delegated activity hand-over) |
-| Test files | 46 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
+| Test files | 47 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
 | JS files | 25 (14 `static/src` + 11 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
@@ -131,6 +131,7 @@ dashboards.
 | `test_category.py` | Category configuration: approver-list domain helper, sequence-code derivation |
 | `test_category_steps.py` | Steps: two one-of-two steps need one approval from each, per-step quorum, one row per user counting toward every step, exclusivity in both directions, group and expired members, step conditions, refusal, asking steps in order while deciding freely, notify lists, configuration that could never be met, and a category without steps untouched |
 | `test_request_revocation.py` | Revoking an approved request from outside its decisions (`_revoke`): refused or cancelled, the rows keep their decisions and the request its approval date, only an approved request is revoked, the reason is recorded, a reset gives a clean draft, withdraw is refused afterwards |
+| `test_routing_outcomes.py` | The routing contract: scripted readings of state, who could approve and who holds an activity after each decision, for flat categories and their step twins -- required approvers, quorum, sequencing, refusal, withdrawal, group queues, owner exclusion, rules, bands and delegation. Sequential approval has no step form yet, and a twin pins what steps do instead |
 | `test_request_grant.py` | Approving a pending request from outside its decisions (`_approve_without_decision`): no row is named as deciding and none stays pending, an earlier decision stays as given, only a pending request is granted, withdrawal is refused, a grant can still be revoked and reset; the source document being told once is `test_approval/tests/test_source_document.py` |
 | `test_step_decisions.py` | Decisions given for steps: a named step counts toward that step only, an unnamed decision takes every step of the row, a step decided once per user, a step outside the row refused, exclusivity in both directions, withdrawing one step keeps the other and re-asks, withdrawing the only step withdraws the decision, a step never decided cannot be withdrawn, a refusal naming a step, a reset clearing decided steps, the note naming where the decision counts, an approver whose step is met no longer asked |
 | `test_step_source_approvers.py` | Steps whose approvers come from a field path on the source document (`subject_user_path`): each document names its own approver, only that user decides, members and the named user share the pool, confirm refuses a document naming nobody, the path must exist and end in `res.users` |
@@ -232,7 +233,7 @@ approval/
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 25 script directories (1.0.1 .. 2.3)
-+-- tests/                            # 46 test modules + common.py
++-- tests/                            # 47 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- security/                         # Groups, rules, ACL
@@ -244,7 +245,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 46 (+ `common.py`) |
+| Python test files | 47 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 25 |
