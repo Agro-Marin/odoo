@@ -2,8 +2,6 @@ import logging
 
 from odoo import api, fields, models
 
-from odoo.addons.event.models.event_mail import _INTERVALS
-
 _logger = logging.getLogger(__name__)
 
 
@@ -37,7 +35,7 @@ class EventMailRegistration(models.Model):
             if mail.registration_id:
                 mail.scheduled_date = mail.registration_id.create_date.replace(
                     microsecond=0
-                ) + _INTERVALS[mail.scheduler_id.interval_unit](
+                ) + mail.scheduler_id._get_schedule_delta(
                     mail.scheduler_id.interval_nbr
                 )
             else:

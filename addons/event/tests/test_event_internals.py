@@ -55,7 +55,7 @@ class TestEventInternalsCommon(EventCase):
                         0,
                         {  # 1 days before event
                             "interval_nbr": 1,
-                            "interval_unit": "days",
+                            "interval_unit": "day",
                             "interval_type": "before_event",
                             "template_ref": "mail.template,%i"
                             % cls.env["ir.model.data"]._xmlid_to_res_id(
@@ -206,7 +206,7 @@ class TestEventData(TestEventInternalsCommon):
                         0,
                         {
                             "interval_nbr": 1,
-                            "interval_unit": "days",
+                            "interval_unit": "day",
                             "interval_type": "before_event",
                             "template_ref": "mail.template,%i"
                             % self.env["ir.model.data"]._xmlid_to_res_id(
@@ -225,7 +225,7 @@ class TestEventData(TestEventInternalsCommon):
         # check 2many fields being populated
         self.assertEqual(len(event.event_mail_ids), 1)
         self.assertEqual(event.event_mail_ids.interval_nbr, 1)
-        self.assertEqual(event.event_mail_ids.interval_unit, "days")
+        self.assertEqual(event.event_mail_ids.interval_unit, "day")
         self.assertEqual(event.event_mail_ids.interval_type, "before_event")
         self.assertEqual(
             event.event_mail_ids.template_ref, self.env.ref("event.event_reminder")
@@ -271,7 +271,7 @@ class TestEventData(TestEventInternalsCommon):
                     Command.create(
                         {
                             "interval_nbr": 77,
-                            "interval_unit": "days",
+                            "interval_unit": "day",
                             "interval_type": "after_event",
                             "template_ref": "mail.template,%i"
                             % self.env["ir.model.data"]._xmlid_to_res_id(
@@ -346,7 +346,7 @@ class TestEventData(TestEventInternalsCommon):
             {},
         )
         self.assertEqual(computed_mail.get("interval_nbr", None), 77)
-        self.assertEqual(computed_mail.get("interval_unit", None), "days")
+        self.assertEqual(computed_mail.get("interval_unit", None), "day")
         self.assertEqual(computed_mail.get("interval_type", None), "after_event")
         # switch back to an event type without a mail template
         event_form.event_type_id = event_type_default
@@ -665,13 +665,13 @@ class TestEventData(TestEventInternalsCommon):
             self.env.ref("event.event_subscription"),
         )
         self.assertEqual(event.event_mail_ids[1].interval_nbr, 1)
-        self.assertEqual(event.event_mail_ids[1].interval_unit, "hours")
+        self.assertEqual(event.event_mail_ids[1].interval_unit, "hour")
         self.assertEqual(event.event_mail_ids[1].interval_type, "before_event")
         self.assertEqual(
             event.event_mail_ids[1].template_ref, self.env.ref("event.event_reminder")
         )
         self.assertEqual(event.event_mail_ids[2].interval_nbr, 3)
-        self.assertEqual(event.event_mail_ids[2].interval_unit, "days")
+        self.assertEqual(event.event_mail_ids[2].interval_unit, "day")
         self.assertEqual(event.event_mail_ids[2].interval_type, "before_event")
         self.assertEqual(
             event.event_mail_ids[2].template_ref, self.env.ref("event.event_reminder")

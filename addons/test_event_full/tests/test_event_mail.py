@@ -81,7 +81,7 @@ class TestEventMailSchedule(TestEventMailCommon):
         mail_schedulers = test_event.event_mail_ids
         self.assertEqual(len(mail_schedulers), 6)
         before = mail_schedulers.filtered(
-            lambda m: m.interval_type == "before_event" and m.interval_unit == "days"
+            lambda m: m.interval_type == "before_event" and m.interval_unit == "day"
         )
         self.assertEqual(len(before), 2)
 

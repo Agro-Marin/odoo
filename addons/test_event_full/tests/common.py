@@ -218,7 +218,7 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                         0,
                         {
                             "interval_nbr": 1,  # 1 days before event
-                            "interval_unit": "days",
+                            "interval_unit": "day",
                             "interval_type": "before_event",
                             "template_ref": "mail.template,%i"
                             % cls.env["ir.model.data"]._xmlid_to_res_id(
@@ -231,7 +231,7 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                         0,
                         {
                             "interval_nbr": 1,  # 1 days after event
-                            "interval_unit": "days",
+                            "interval_unit": "day",
                             "interval_type": "after_event",
                             "template_ref": "sms.template,%i"
                             % cls.env["ir.model.data"]._xmlid_to_res_id(
@@ -527,7 +527,7 @@ class TestEventMailCommon(EventCase, SMSCase, MailCase, CronMixinCase):
                             0,
                             {  # 3 days before event: mail
                                 "interval_nbr": 3,
-                                "interval_unit": "days",
+                                "interval_unit": "day",
                                 "interval_type": "before_event",
                                 "notification_type": "mail",
                                 "template_ref": f"mail.template,{cls.template_reminder.id}",
@@ -538,7 +538,7 @@ class TestEventMailCommon(EventCase, SMSCase, MailCase, CronMixinCase):
                             0,
                             {  # 3 days before event: SMS
                                 "interval_nbr": 3,
-                                "interval_unit": "days",
+                                "interval_unit": "day",
                                 "interval_type": "before_event",
                                 "notification_type": "sms",
                                 "template_ref": f"sms.template,{cls.sms_template_rem.id}",
@@ -549,7 +549,7 @@ class TestEventMailCommon(EventCase, SMSCase, MailCase, CronMixinCase):
                             0,
                             {  # 1h after event: mail
                                 "interval_nbr": 1,
-                                "interval_unit": "hours",
+                                "interval_unit": "hour",
                                 "interval_type": "after_event",
                                 "notification_type": "mail",
                                 "template_ref": f"mail.template,{cls.template_reminder.id}",
@@ -560,7 +560,7 @@ class TestEventMailCommon(EventCase, SMSCase, MailCase, CronMixinCase):
                             0,
                             {  # 1h after event: SMS
                                 "interval_nbr": 1,
-                                "interval_unit": "hours",
+                                "interval_unit": "hour",
                                 "interval_type": "after_event",
                                 "notification_type": "sms",
                                 "template_ref": f"sms.template,{cls.sms_template_rem.id}",

@@ -1,6 +1,6 @@
 {
     "name": "Events Organization",
-    "version": "1.11",
+    "version": "1.12",
     "category": "Marketing/Events",
     "summary": "Trainings, Conferences, Meetings, Exhibitions, Registrations",
     "description": """

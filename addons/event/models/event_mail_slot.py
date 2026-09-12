@@ -1,7 +1,5 @@
 from odoo import api, fields, models
 
-from odoo.addons.event.models.event_mail import _INTERVALS
-
 
 class EventMailSlot(models.Model):
     _name = "event.mail.slot"
@@ -44,7 +42,7 @@ class EventMailSlot(models.Model):
                 )
             mail_slot.scheduled_date = (
                 date.replace(microsecond=0)
-                + _INTERVALS[scheduler.interval_unit](sign * scheduler.interval_nbr)
+                + scheduler._get_schedule_delta(sign * scheduler.interval_nbr)
                 if date
                 else False
             )

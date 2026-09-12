@@ -26,7 +26,7 @@ class EventType(models.Model):
                 0,
                 {
                     "interval_nbr": 1,
-                    "interval_unit": "hours",
+                    "interval_unit": "hour",
                     "interval_type": "before_event",
                     "template_ref": "mail.template, %i"
                     % self.env.ref("event.event_reminder").id,
@@ -37,7 +37,7 @@ class EventType(models.Model):
                 0,
                 {
                     "interval_nbr": 3,
-                    "interval_unit": "days",
+                    "interval_unit": "day",
                     "interval_type": "before_event",
                     "template_ref": "mail.template, %i"
                     % self.env.ref("event.event_reminder").id,

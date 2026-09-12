@@ -10,14 +10,6 @@ from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
 
-_INTERVALS = {
-    "hours": lambda interval: relativedelta(hours=interval),
-    "days": lambda interval: relativedelta(days=interval),
-    "weeks": lambda interval: relativedelta(days=7 * interval),
-    "months": lambda interval: relativedelta(months=interval),
-    "now": lambda interval: relativedelta(hours=0),
-}
-
 
 class EventMail(models.Model):
     """Automated mailing scheduled on an event."""
@@ -83,7 +75,7 @@ class EventMail(models.Model):
 
             scheduler.scheduled_date = (
                 date.replace(microsecond=0)
-                + _INTERVALS[scheduler.interval_unit](sign * scheduler.interval_nbr)
+                + scheduler._get_schedule_delta(sign * scheduler.interval_nbr)
                 if date
                 else False
             )
