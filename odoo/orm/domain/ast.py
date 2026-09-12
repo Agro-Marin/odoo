@@ -464,12 +464,17 @@ class Domain:
             previous, domain = domain, domain._optimize_step(model, next_level)
             if domain == previous and domain._opt[0] < next_level:
                 object.__setattr__(domain, "_opt", (next_level, model_name))
-        if _debug.perf.enabled and count > 2:
+        if _debug.perf.enabled and count > 4:
             _debug.perf.count(
                 "domain.optimize.iterations",
                 model=model_name,
                 level=level.name,
                 iterations=count,
+                conditions=sum(1 for _condition in domain.iter_conditions()),
+                head=next(
+                    (condition.field_expr for condition in domain.iter_conditions()),
+                    None,
+                ),
             )
         return domain
 

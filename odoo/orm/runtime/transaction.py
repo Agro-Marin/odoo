@@ -171,6 +171,12 @@ class Transaction:
                 context_keys=len(frozen_context),
                 envs=len(envs),
             )
+            if _debug.lifecycle.enabled and len(envs) % 100 == 0:
+                _debug.lifecycle(
+                    "transaction.environment_keys",
+                    envs=len(envs),
+                    keys=",".join(sorted(frozen_context)),
+                )
         self._last_env = weakref_ref(env)
         return env
 
