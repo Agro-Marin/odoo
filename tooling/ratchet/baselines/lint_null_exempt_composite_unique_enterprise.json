@@ -1,6 +1,0 @@
-{
-  "count": 23,
-  "measured_at": "0546cfa0a8ef409ce7df2c793b5bfe4d96045aab",
-  "measured_root": "enterprise",
-  "note": "Opening floor for the gate added in odoo 9faddca461e1. Measured with tooling/lint/py_lint.py enterprise --rule null-exempt-composite-unique on a clean enterprise at 0546cfa0a8e. The population is untriaged on purpose: the rule reports the SILENCE, not either choice, so every site is a per-model decision between NULLS NOT DISTINCT where the key must hold over the empty rows and a partial WHERE where the exemption is meant. Banked so the gate is green and any NEW one is visible; driving it down is per-site work for whoever owns each model."
-}

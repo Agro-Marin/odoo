@@ -4,7 +4,7 @@ Fork of Odoo Community 19.0 (`github.com/Agro-Marin/odoo`).
 
 | Document | Role |
 |---|---|
-| `doc/architecture/module.md` | Canonical subsystem map: what the core contains, how it is layered, which dependencies are legal. Enforced by `tooling/architecture/`. Read before restructuring core. |
+| `doc/architecture/module.md` | Canonical subsystem map: what the core contains, how it is layered, which dependencies are legal. Read before restructuring core. |
 | `doc/architecture/ARCHITECTURE.md` | Front door indexing the above: context, design forces, cross-cutting mechanisms, where new code goes. |
 
 > **"Repo root"** = the directory containing this file. Inside it, `odoo/` is the framework core *package*, not the checkout — which is why `ruff check odoo/` measures the core and not `addons/`.
@@ -24,8 +24,6 @@ Diverged from upstream past the point where merging or cherry-picking between th
 **Rebase, never merge.** A feature branch is updated by rebasing it onto `19.0-marin`, and syncing is `git pull --rebase`. No merge commits. Rebase before pushing — rewriting an already-pushed branch needs a force-push, which is a separate confirmed action. Workspace rule: `~/Odoo/CLAUDE.md` §Rebasing.
 
 ## Checkout Requirements
-
-`tooling/` resolves paths from the `odoo-bin` marker at the repo root rather than by climbing above it (`tooling/_repo_root.py`). The tools work with this repo checked out alone.
 
 | Requirement | Detail |
 |---|---|
@@ -133,46 +131,15 @@ pytest tests/process                                 # boots real odoo-bin proce
 odoo-bin -d <db> -i <module> --test-enable --stop-after-init
 ```
 
-**Before re-running one to find out whether a failure is yours, diff it against the recorded set.** `tooling/testbaseline/` holds an expected-failure baseline per suite:
+### JS (HOOT)
+
+HOOT suites run through `WebSuite` / `MobileWebSuite` in `addons/web/tests/test_js.py`, which need the HTTP server (`--http-port <n>`, never `--no-http`) and Chrome:
 
 ```bash
-odoo-bin -d <db> -i <module> --test-enable --stop-after-init \
-    --test-tags '/<module>' --logfile run.log
-tooling/testbaseline/testbaseline.py /<module> run.log   # 0 new, 0 newly-passing = green
+odoo-bin -d <db> -i web --test-enable --test-tags /web:WebSuite --http-port 8079 --stop-after-init
 ```
 
-It diffs failure **names**, not counts — `quality_control` held at 2 across a day in which one recorded test was fixed and an unrecorded one broke, and a count comparison calls that "both known". `--list` is the roster; a suite with no baseline gets no verdict rather than a guess. Its README carries the measurements behind each choice.
-
-### JS (HOOT) — use the warm runner
-
-`tooling/hoot/hoot` keeps one dev server warm across invocations and drives Chrome through Odoo's own `ChromeBrowser` CDP driver, so a run costs neither an ERP boot nor a bundle build. Prefer it to `odoo-bin`, which pays both every time.
-
-```bash
-cd tooling/hoot
-./hoot '@web/core/domain'                  # one suite
-./hoot --affected <changed files…>         # suites those files touch
-./hoot --preset mobile '@web/webclient'    # mobile pass — resizes Chrome, toggles touch
-./hoot-shard -j 4                          # the whole WEB suite, sharded
-./hoot-shard --addons -j 4 --db-prefix hoot_all   # every addon that ships a suite
-```
-
-**`hoot-shard` without `--addons` is web and `html_editor`, which is 849 of the 1,979 JS test files in the workspace.** Its plan comes from each addon's `tests/test_js.py`, and 16 of the 184 addons that ship a `static/tests/**/*.test.js` wrote one — so everything else is reported as neither passed nor failed, not as skipped. `@hr` carried eight failing tests through a run printing `0 failed / 16294 passed` for exactly this reason. `--addons` enumerates from the tree instead; give it its own `--db-prefix`, because a shard installs every module its suites name.
-
-**Name the paths for `--affected`.** Bare, it selects from the entire `git diff`, widening the run beyond your change.
-
-Falling back to `odoo-bin`, select **one file**; the suite path is a bracketed parameter, not a dotted path:
-
-```bash
-odoo-bin -d <db> --test-enable --stop-after-init \
-    --test-tags '/web:WebSuite.test_core[@web/core/domain]'   # 78 tests, measured 6.1s
-```
-
-- Dropping the bracket runs the whole group: 1803 tests, ~50s.
-- The `web_js` tag runs for hours. The tag table estimates 1–2 and flags that as an estimate, not a measurement.
-- Do not add `-u web`: it is not needed to pick up JS changes and costs ~50%.
-- A spec matching no test exits non-zero, but still read `odoo.tests.result: … of N tests`.
-
-Full recipes, preset/tag semantics and the stale-source caveat: `addons/web/machine_doc_v1/TEST_TAGS.md`. Which tag a test carries is a coding standard: `doc/coding_guidelines.rst` §6.7.
+Run **both presets** — desktop (`WebSuite`) and mobile (`MobileWebSuite`) select by tag and neither is a superset of the other.
 
 ## Coding Guidelines
 
@@ -186,11 +153,8 @@ Sections: 1. Module Structure · 2. Python · 3. XML · 4. JavaScript (OWL) · 5
 
 Linter and formatter config, with the rationale for every suppression.
 
-- `ruff check` is **not** expected to be clean: it runs as a ratchet against a committed floor (`tooling/ratchet/baselines/`), and **a ratchet fails in both directions** — lowering a count without committing the new floor fails the build too.
-- `pyfunclen_addons` is the single exception, invoked `--mode no-increase` because the bundled-addons tree is too wide to hold still; argument in *The ratchets*.
-- Ruff is one of several ratcheted gates. **The baselines directory is the list of debt and `tooling/ratchet/ratchet.py --list` is the reading** — no file states how many there are or what they hold, because a restated floor is a second copy that drifts. The guide's table is a deliberate sample, not the membership. A gate handed to `ratchet.py` with no baseline file is a **hard zero**: it passes at 0 and fails above, and `--update` is what opens a floor.
-- Per-gate scope, commands and the `--update` recipe: *The ratchets* in the guide, the canonical account. It also covers the trap that the ruff floor measures `odoo/`, not `addons/`.
-- Not in the guide: **`tooling/` and `tests/` are linted at a hard zero**, with no floor to absorb a new finding.
+- `ruff check odoo/` (the core package) and `ruff check tests/` are hard zeros. `addons/` carries findings; do not add to them.
+- The ratchet floors that used to sit under `tooling/ratchet/baselines/` are gone with `tooling/` (2026-09-11). `ruff`, `mypy`, `tsc`, `eslint` and `prettier` are run by hand on their pinned versions (`requirements-dev.txt`, `package.json`).
 
 ### `odoo/addons/test_lint/`
 
@@ -205,11 +169,7 @@ odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint \
     --test-enable --test-tags /test_lint --stop-after-init --no-http
 ```
 
-**The floors are not in Python.** `LintCase.assert_ratchet` takes a ratchet gate name and reads `tooling/ratchet/baselines/` like every other gate; handed an integer it raises, so one cannot go back. Absence of a baseline file means a floor of zero, which keeps `ratchet.py --list` a list of debt rather than of every assertion. Move one like any other gate:
-
-```bash
-python tooling/ratchet/ratchet.py lint_<rule> --count N --update --note '<what moved and why>'
-```
+**The floors are in `odoo/addons/test_lint/tests/floors.json`**, one integer per gate name; `LintCase.assert_ratchet` reads that file and treats an absent gate as zero. Handed an integer it raises. Move a floor by editing the file in the same change that moves the count.
 
 Gates that read the *installed registry* rather than the tree cannot be graded at the narrow scope at all:
 
@@ -222,7 +182,7 @@ Gates that read the *installed registry* rather than the tree cannot be graded a
 
 ### Other gates
 
-`tooling/` — **check it before assuming a gate does not exist.** The ratchets, architecture, doc-link and typecheck gates all live there; the Rust checks are the crate workspace's own `cargo` commands.
+The Rust checks are the crate workspace's own `cargo` commands. There is no other gate tree: `tooling/` was removed on 2026-09-11.
 
 ### Changing the guidelines
 

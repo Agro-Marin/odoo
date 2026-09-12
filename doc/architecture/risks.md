@@ -225,9 +225,9 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **237 specifiers**
-(`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
-resolved.
+the surface can only shrink. It stood at **237 specifiers** when the pin
+(`public_surface_web.txt`, removed with `tooling/` on 2026-09-11) was last
+measured. What remains is *recorded*, not resolved.
 
 **Cost.** Every pinned specifier is a rename `web` cannot perform unilaterally.
 
@@ -284,8 +284,8 @@ because a consumer reached deeper, and this file cannot tell the two apart —
 which is why the shape gate (`js_face_boundary.py`) was added alongside: it
 refuses a specifier that steps over a face regardless of how the count moves.
 
-**Evidence.** `tooling/architecture/public_surface_web.txt`;
-`js_public_surface.py`. The pin's size and this page are two copies of one
+**Evidence.** the `public_surface_web.txt` pin and `js_public_surface.py`, both
+removed with `tooling/` on 2026-09-11. The pin's size and this page are two copies of one
 number, and `test_the_public_surface_pin_size_is_measured` reads both:
 regenerating the pin without editing this entry fails that gate.
 
@@ -475,8 +475,8 @@ register held it, so the deletion left most gates stating their reason nowhere
 — the removal commit records that cost against itself. `44abc16805b` replaced
 every dangling `ADR-NNNN` token with the decision text the record had carried,
 and wrote a docstring for each gate module that had cited a record and had none.
-Today **55** of the **95** gate modules under `tooling/architecture/` carry no
-module docstring — a gate module being every `.py` there that is neither a test
+On 2026-09-01, **55** of the **95** gate modules under `tooling/architecture/`
+(removed on 2026-09-11) carried no module docstring — a gate module being every `.py` there that is neither a test
 nor a private helper.
 
 **Evidence.** The figure above is measured from the tree by

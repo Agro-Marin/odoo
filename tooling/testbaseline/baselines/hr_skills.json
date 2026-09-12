@@ -1,8 +1,0 @@
-{
-  "expected": {},
-  "note": "Green at 99. HOOT is a separate gate this does not cover: ./hoot '@hr_skills' is 2 passed and must be run before anything under static/ is committed -- 98550e4e217 shipped it red while this baseline read green.",
-  "run_spec": "-u hr_skills --test-enable --test-tags /hr_skills",
-  "suite": "/hr_skills",
-  "tests_total": 99,
-  "verified_at": "f90ff50ed46"
-}

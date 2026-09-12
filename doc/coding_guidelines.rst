@@ -38,12 +38,15 @@ Each rule carries a bracketed label naming what catches it.
    * - ``[fixer NAME]``
      - A behaviour-preserving fixer owns the formatting. Run it; do not hand-edit.
    * - ``[ratchet NAME]``
-     - A committed floor in ``tooling/ratchet/baselines/`` holds the count;
-       with no file, the count is held at zero.
+     - A ``test_lint`` floor in ``odoo/addons/test_lint/tests/floors.json``
+       holds the count; with no entry, the count is held at zero. Every other
+       ratchet went with ``tooling/`` on 2026-09-11 and the label now reads as
+       ``[review]``.
    * - ``[gate NAME]``
-     - A ``tooling/`` gate checks it exactly, both directions. Where the gate
-       rewrites the text (``doc_restated_counts`` for prose figures and the
-       census table; ``--update <name>`` refreshes one), run it.
+     - A ``tooling/`` gate checked it exactly, both directions, until
+       ``tooling/`` was removed on 2026-09-11. Read as ``[review]``; the
+       figures such a gate rewrote (the census table below among them) are as
+       of the day they were last regenerated.
    * - ``[review]``
      - No tool checks this. A human does, using §9.
 
@@ -51,35 +54,14 @@ Do not infer enforcement from phrasing: several rules that read like lint rules
 are ``[review]`` because the ``ruff`` code is disabled with a rationale in
 ``ruff.toml``.
 
-The ratchets
-------------
+The floors
+----------
 
-``ruff check`` is not clean and the gate does not require it to be. Countable gates are
-*ratchets*: a total measured against a committed floor in
-``tooling/ratchet/baselines/``. Rationale: a baseline nothing enforces is a
-comment, and a floor turns any gate reducible to one number into a one-way
-contract that locks every improvement in.
-
-**A ratchet fails in both directions.** ``ratchet.py`` defaults to ``exact``, so
-an improvement fails the build as a regression does. Commit the new floor in the
-same PR:
-
-.. code-block:: bash
-
-   python tooling/ratchet/ratchet.py <gate> --count <N> --update
-
-``.pre-commit-config.yaml`` runs ``ruff-check --fix``, so touching a file that
-carries baseline findings can repair unrelated ones and drop the count. A green
-local commit is not a green gate run unless the floor moved with it.
-
-``pyfunclen_addons`` is this repository's one ``--mode no-increase`` floor: it
-measures the whole bundled-addons tree, which moves both ways continuously. The
-siblings' cross-repo floors take that mode for a different reason -- an exact
-floor across a repository boundary is red on every fix until ``odoo`` banks the
-new number. Prefer ``exact`` for a new floor here, and put the argument in the
-baseline note if you cannot have it.
-
-Thirteen of the floors, to fix the shape of the set:
+Until 2026-09-11 every countable gate was a *ratchet*: a total measured against
+a committed floor in ``tooling/ratchet/baselines/``, held exactly in both
+directions by ``ratchet.py``. That tree -- 84 floors, the architecture gates,
+the naming vocabulary, the length and complexity counts, the sibling-repo lint
+runner -- is deleted. What remains countable is held as follows:
 
 .. list-table::
    :header-rows: 1
@@ -87,90 +69,58 @@ Thirteen of the floors, to fix the shape of the set:
 
    * - Gate
      - Command
-     - Scope
+     - Held at
    * - ruff
      - ``ruff check odoo/ --no-cache --statistics``
      - ``odoo/`` only -- a **hard zero**
-   * - c901
-     - ``ruff check odoo/ --no-cache --select C901 --statistics``
-     - ``odoo/``, complexity > 20
-   * - c901_addons
-     - ``ruff check addons/ --no-cache --select C901 --statistics``
-     - ``addons/``, complexity > 20
+   * - ruff (tests)
+     - ``ruff check tests/ --no-cache`` and ``ruff format --check tests/``
+     - a **hard zero**
    * - mypy
      - ``mypy -p odoo.orm -p odoo.db -p odoo.libs -p odoo.http -p odoo.service -p odoo.modules``
-     - typed packages
+     - typed packages; last banked at zero. Measure with mypy alone installed,
+       never in the workspace venv, whose stubs move the count
    * - ESLint
-     - ``npx eslint . --format=json``
-     - every JS/MJS the config does not ignore (vendored ``static/lib`` is) -- a **hard zero**
+     - ``npx eslint .``
+     - every JS/MJS the config does not ignore -- a **hard zero**
    * - ``tsc``
      - ``npx tsc --project tsconfig.json --noEmit``
-     - all checked JS
-   * - naming vocabulary
-     - ``tooling/architecture/naming_vocabulary.py``
-     - §2.4 abolished verbs
-   * - Python function length
-     - ``tooling/architecture/py_function_length.py``
-     - core Python, **excess lines** over 90
-   * - Python function length (addons)
-     - ``tooling/architecture/py_function_length.py --addon addons``
-     - all of ``addons/``, same metric, **one-sided**
-   * - JS function length
-     - ``tooling/architecture/js_function_length.py``
-     - ``web`` JS
-   * - JS private access
-     - ``tooling/architecture/js_private_access.py``
-     - ``web`` JS, cross-module
-   * - JS service shape
-     - ``tooling/architecture/js_service_shape.py``
-     - ``web`` JS services
-   * - JS forced render
-     - ``tooling/architecture/js_forced_render.py``
-     - ``web`` JS
+     - all checked JS; last banked at zero
+   * - prettier (SCSS)
+     - ``npx prettier --list-different "**/*.scss"``
+     - last banked at zero
+   * - ``test_lint``
+     - ``odoo-bin -i test_lint --test-enable --test-tags /test_lint``
+     - ``odoo/addons/test_lint/tests/floors.json``, one integer per gate, exact
+       in both directions
 
-The directory holds many more, including per-addon scopes of the same script
-(``jsfunclen_mail``, ``py_x2many_count_stock``) and per-repository scopes measured
-with ``--roots`` (``naming_enterprise``).
-``tooling/ratchet/baselines/`` is the authoritative list of *debt* -- one JSON
-per floor above zero, and the directory is the count. A gate with no file is a
-hard zero: ``ratchet.py`` passes it at 0 and fails it above, and ``--update``
-is what opens a floor. No number is written here on purpose:
-
-.. code-block:: bash
-
-   python tooling/ratchet/ratchet.py --list
+There is no tool to move a ``test_lint`` floor: edit the JSON in the same change
+that moves the count. A gate with no entry is a hard zero.
 
 Consequences:
 
-* **The ruff ratchet measures ``odoo/``, not ``addons/``.** For addons, ``ruff``
-  is pre-commit and review discipline.
+* **``ruff`` measures ``odoo/``, not ``addons/``.** For addons, ``ruff`` is
+  pre-commit and review discipline.
 * **A finding on a file you touched may predate you.** Compare against
   ``git diff``, not a whole-file lint report.
-* **``ruff`` is a hard zero over the whole selected ruleset.** A nonzero floor
-  launders a regression against an unrelated improvement.
-* **``ruff`` and ``c901`` are two floors over one command.** ``ruff.toml``
-  ignores ``C901`` to keep it out of the aggregate; the ``c901`` step re-selects
-  it on the CLI. Raising ``[lint.mccabe] max-complexity`` lowers the count
-  without fixing anything -- move it as deliberately as the floor, and say so in
-  the baseline note.
-* **The architecture gate is not a ratchet.** Layer crossings and JS import
-  cycles are held at zero (``tooling/architecture/js_cycle_check.py``;
-  ``py_cycle_check.py`` is the Python counterpart, since a permitted direction
-  on every edge does not rule out a loop), with pre-existing ones pinned in
-  ``KNOWN_CYCLES`` / ``KNOWN_VIOLATIONS`` with a rationale. ``test_lint``'s own
-  floors are in ``baselines/`` too, read by ``assert_ratchet`` and named
-  ``lint_<rule>``; a baseline that is absent means a floor of zero there as
-  everywhere else.
+* **``ruff`` is a hard zero over the whole selected ruleset.** ``ruff.toml``
+  ignores ``C901`` to keep complexity out of the aggregate;
+  ``ruff check odoo/ --select C901`` re-selects it, and raising
+  ``[lint.mccabe] max-complexity`` lowers that count without fixing anything.
+* **The architecture contracts are review rules now.** Layer crossings, the
+  façade boundary and import cycles were held at zero by ``layer_check.py``,
+  ``py_cycle_check.py`` and ``js_cycle_check.py``; ``doc/architecture/module.md``
+  still states the legal directions and nothing checks them.
 
-Each gate runs on ``pull_request`` and on ``push`` to ``19.0-marin`` / ``19.0``.
+Nothing runs any of this on a schedule; there is no CI.
 
 The ``test_lint`` module
 ------------------------
 
 ``odoo/addons/test_lint`` holds AST checkers and registry-level tests encoding
 Odoo-specific rules no general linter knows. **Every rule is an exact-match
-ratchet** (``LintCase.assert_ratchet``, floors in ``tooling/ratchet/baselines/``
-like every other gate): the count may not rise, and may not fall silently. No
+ratchet** (``LintCase.assert_ratchet``, floors in ``tests/floors.json`` beside
+it): the count may not rise, and may not fall silently. No
 rule is advisory and none fails outright -- the floor is what decides.
 
 Two scopes. Installing ``base`` + ``test_lint`` and running ``/test_lint``
@@ -3534,18 +3484,12 @@ the opposite one: over ``odoo/odoo/addons/base`` the sibling gate's 0 is entirel
 every finding there was ``[review]`` tier. **The right gate reading 0 is the more
 dangerous of the two, because nothing about it looks wrong.**
 
-**Adoption** ``[ratchet naming]``. As with §2.2, apply the vocabulary to methods
-you create or substantially rework. ``naming_vocabulary.py`` counts definitions
-still using an abolished verb and feeds the shared ratchet; this section is
-counted rather than blocked because a backlog this size would fail every build
-and the gate would be off within a week. The sibling repositories carry their
-own floors (``naming_enterprise``, ``naming_agromarin``,
-``naming_design-themes``), measured with ``--roots`` and held
-``--mode no-increase``; the census figures in this
-section still stop at this repository, so every one of them is a floor::
-
-    python tooling/architecture/naming_vocabulary.py --count \
-        | xargs python tooling/ratchet/ratchet.py naming --count
+**Adoption** ``[review]``. As with §2.2, apply the vocabulary to methods
+you create or substantially rework. ``naming_vocabulary.py`` counted definitions
+still using an abolished verb in all four repositories and every scope had
+reached **zero** when the gate was removed with ``tooling/`` on 2026-09-11; the
+census figures in this section are as of that day. A new abolished verb is a
+review finding now.
 
 It measures the **mechanically decidable** rules only -- the abolished-verb list.
 The ``_get_``/``_prepare_`` split and the two *provisional* rules are excluded by
@@ -4783,7 +4727,7 @@ leaves ``action_unlink_wizard`` alone, and a migration that gets this wrong is
 found by reading the column, not by any test.
 
 **Do not run a formatter over a directory to tidy up after a rename**
-``[review]``. ``ruff format`` blocks on ``tooling/`` and ``tests/`` only, so
+``[review]``. ``ruff format`` blocks on ``tests/`` only, so
 ``addons/`` and the sibling repositories are **not** format-clean at ``HEAD``, and
 a directory-wide run rewrites files the rename never touched -- 35 of them in the
 pass behind this entry, most of ``enterprise/helpdesk`` among them, in a workspace
@@ -5106,18 +5050,18 @@ writing a wrong one still fails.
 ``help.py`` and fed to argparse by ``command.py``; the since-deleted
 ``upgrade_code.py`` string-replaced one and raised ``AttributeError`` the moment
 it became ``None``. A handful more are machine-checked contracts read by
-``tooling/architecture/`` and ``tests/service/``: ``orm/__init__.py``,
-``orm/models/mixins/_metadata.py``, ``http/tests/test_openapi.py``. Deleting one
-of those breaks a test, not a style gate.
+``tests/service/`` (``http/tests/test_openapi.py``; ``orm/__init__.py`` and
+``orm/models/mixins/_metadata.py`` were read by ``tooling/architecture/``,
+gone since 2026-09-11). Deleting one of those breaks a test, not a style gate.
 
 ``service/__init__.py`` and ``service/db/`` were on that list and are **no longer
 load-bearing**. Their reader was ``tests/service/test_module_layout.py``, which
 parsed a "Module layout:" block out of ``odoo.service.__doc__`` — and the
 prose-and-docstring strip emptied it, so the gate passed while detecting nothing,
 failing for exactly the reason it existed to prevent. It now reads
-``doc/architecture/module.md``: a gate-enforced document rather than a docstring,
-which a strip cannot empty. Verified: nothing under ``tooling/`` or ``tests/``
-reads either module's ``__doc__``, and ``service/db/listing.py`` sat at zero
+``doc/architecture/module.md``: a document rather than a docstring, which a
+strip cannot empty. Verified: nothing under ``tests/`` reads either module's
+``__doc__``, and ``service/db/listing.py`` sat at zero
 documented definitions with ``tests/service`` fully green.
 
 The general rule above still applies to both — a docstring there is optional and
@@ -6764,19 +6708,11 @@ and keeps holding its HTTP port.
 6.9 Pre-existing failures
 -------------------------
 
-**Do not re-run a suite to find out whether a red test was already red.** Diff the
-run against its recorded failure set instead ``[review]``:
-
-.. code-block:: bash
-
-   odoo-bin -d <db> -i <module> --test-enable --test-tags /<module> \
-       --stop-after-init --logfile run.log
-   tooling/testbaseline/testbaseline.py /<module> run.log
-
-``0 new, 0 newly-passing`` means nothing in the run is attributable to your change.
-A newly-passing test is reported too, and is banked with ``--update`` in the commit
-that fixed it -- the same one-way discipline the ratchets apply to counts, for the
-same reason: a win nobody records is one that silently reverts.
+**Do not re-run a suite to find out whether a red test was already red.** Diff
+the run's failure *names* against a run of the same suite at ``HEAD`` in a
+detached worktree ``[review]``. (``tooling/testbaseline`` kept a recorded
+failure set per suite and diffed against it; it went with ``tooling/`` on
+2026-09-11, and its expected-failure files with it.)
 
 Two rules the tool exists to enforce, both measured rather than assumed:
 
@@ -6790,8 +6726,7 @@ Two rules the tool exists to enforce, both measured rather than assumed:
   across a day in which one recorded test was fixed and an unrecorded one broke:
   a matching count reads as "both known" and ships the regression.
 
-A suite with no baseline gets no verdict rather than a guess. ``tooling/testbaseline/README.md``
-carries the measurement behind each choice.
+A suite with no recorded set gets no verdict rather than a guess.
 
 ----
 
@@ -7274,7 +7209,7 @@ Every new model ships explicit access rules ``[review]``. A model with no
   purchase, User in stock and mrp, Invoicing in account -- and a gate on an
   affordance the tier must reach spells the pair
   ``groups="<transacting rung>,<tier>"``. A sixth app copies the rule, not a
-  module: ``tooling/architecture/readonly_tiers.py`` names the tiers.
+  module.
 
 10.9 Configuration and secrets
 ------------------------------
@@ -7889,8 +7824,8 @@ converted from ``product_uom_id`` or compared with a BoM's ``product_qty``. Read
 line against free stock. ``stock.move.product_uom_qty`` is unrelated and
 unchanged: a real, writable field there.
 
-Counted by ``tooling/architecture/order_line_qty.py`` and ratcheted as
-``orderlineqty``, which was floored at 31 while the write was silent and driven
+Counted by ``order_line_qty.py`` (removed with ``tooling/`` on 2026-09-11) and
+ratcheted as ``orderlineqty``, which was floored at 31 while the write was silent and driven
 down module by module. The raise arrived first, so every remaining site was a
 red test rather than drift, and the floor went to **zero** in one sweep: **33**
 writes across 21 test files, every one a fixture building an order line, none of
@@ -7940,7 +7875,7 @@ In this repo:
 * ``ruff.toml`` -- linter and formatter configuration, with the rationale for
   every suppression
 * ``odoo/addons/test_lint/`` -- the fork's own checkers
-* ``tooling/ratchet/baselines/`` -- the committed floors
+* ``odoo/addons/test_lint/tests/floors.json`` -- the committed ``test_lint`` floors
 * ``pytest.ini`` -- the Tier 1 suite definition
 
 In the knowledge repository's ``reference/``:

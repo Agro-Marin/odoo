@@ -1,0 +1,15 @@
+{
+  "bundle_double_eval": 5,
+  "lint_docstring": 32,
+  "lint_gettext_developer_error": 36,
+  "lint_gettext_placeholders": 2,
+  "lint_gettext_repr": 0,
+  "lint_gettext_variable": 0,
+  "lint_missing_gettext": 0,
+  "lint_n_plus_one_query": 295,
+  "lint_noqa_rationale": 23,
+  "lint_null_exempt_composite_unique": 23,
+  "lint_raise_unlink_override": 0,
+  "lint_record_reference": 2,
+  "lint_sql_injection": 9
+}

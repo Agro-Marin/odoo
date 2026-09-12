@@ -15,19 +15,13 @@
   // SAME full program (so all ambients resolve exactly as in the real build and
   // the reported errors are REAL — the TS70xx family plus the base errors).
   //
-  // It is NOT expected to reach zero project-wide yet. Enforcement is
-  // DEFAULT-DENY over the web module: every .js/.ts under
-  // addons/web/static/{src,tests} must be clean unless it is listed in
-  // tooling/typecheck/exceptions/noimplicitany/web.txt, and that list may
-  // only shrink. CI:
+  // It is NOT expected to reach zero project-wide yet. Read it per file:
   //
-  //     npx tsc -p tsconfig.noimplicitany.json --noEmit --listFiles > /tmp/nia.log 2>&1 || true
-  //     python tooling/typecheck/scope_gate.py noimplicitany --log /tmp/nia.log
+  //     npx tsc -p tsconfig.noimplicitany.json --noEmit
   //
   // Sibling of tsconfig.strict.json (strictNullChecks); same full-program +
   // scoped-verdict rationale (see that file's header). The two locks advance the
-  // same foundation together, so prefer locking a file in BOTH. See
-  // tooling/typecheck/README.md.
+  // same foundation together, so prefer fixing a file under BOTH.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noImplicitAny": true,

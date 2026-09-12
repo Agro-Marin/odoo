@@ -1,8 +1,0 @@
-{
-  "expected": {},
-  "note": "Empty. The one failure this recorded -- TestPropertiesExportImport.test_import_properties, where a sub-field path on a properties field did not resolve and the import reported 'properties.m2o_prop is not a relation on model import.properties' -- passes now, fixed by somebody between d27011ab39f and here; the diagnosis is kept in this sentence in case it recurs, since _check_import_paths / _resolve_import_path / _expand_properties_fields is where it lived. Re-measured under this file's own recorded run_spec rather than a wider one: a run naming test_import_export and base_import together reads 327 where the recorded spec reads 321, and banking the wider number would have made the record incomparable with itself. The count moved 330 -> 321 by tests removed elsewhere, not by anything here.",
-  "run_spec": "-i test_import_export --test-enable --test-tags '/test_import_export'",
-  "suite": "/test_import_export",
-  "tests_total": 321,
-  "verified_at": "edd08a14bc5"
-}

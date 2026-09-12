@@ -78,25 +78,9 @@ force-exclude = true
 # only the log a human reads was degraded.
 output-prefer-rule-codes = true
 
-# Extension-less executables ruff's own discovery would never find. `odoo-bin`
-# is the famous one; the three hoot runners are 961 lines — 23% of tooling/'s
-# Python — that `ruff check tooling/` reported "All checks passed!" over,
-# because it walks for `*.py`. The gates in tooling/ police this repo, and
-# ruff.yml lints them "at zero"; a fifth of them being invisible to that step
-# is the same fail-open those gates exist to end.
-#
-# The two bench runners are the same fail-open, missed when the hoot three were
-# listed: identical `#!/bin/sh` polyglots, same invisibility, and they were
-# carrying 11 real findings that `ruff check tooling/` had never once reported.
-# The list is every extension-less python in the tree, not the ones that came to
-# mind — `grep -rl "^''':'" tooling` enumerates the polyglots.
+# Extension-less executables ruff's own discovery would never find.
 extend-include = [
     "odoo-bin",
-    "tooling/hoot/hoot",
-    "tooling/hoot/hoot-shard",
-    "tooling/hoot/hoot-affected",
-    "tooling/bench/render_bench",
-    "tooling/bench/discuss_bench",
 ]
 
 exclude = [
@@ -612,12 +596,9 @@ ignore = [
     "PERF203",    # try-except-in-loop (Odoo processes records individually in try/except)
 
     # --- PLR adjustments (Odoo models are inherently complex) ---
-    # C901 is ignored HERE so it stays out of the aggregate the `ruff` floor
-    # measures, not because complexity is unpoliced. It has a ratchet of its own
-    # (tooling/ratchet/baselines/c901.json, enforced in .github/workflows/ruff.yml)
-    # measured with `ruff check odoo/ --no-cache --select C901`, which overrides
-    # this ignore; `[lint.mccabe] max-complexity` below is that gate's threshold
-    # and is live config, not a leftover.
+    # C901 is ignored HERE so it stays out of the aggregate `ruff check` reports;
+    # `ruff check odoo/ --no-cache --select C901` overrides this ignore and reads
+    # `[lint.mccabe] max-complexity` below, which is live config, not a leftover.
     #
     # Splitting it out rather than folding it into the 761 aggregate keeps it
     # legible: in one bucket a complexity fix could be masked by an unrelated new
@@ -819,18 +800,6 @@ ignore = [
 
 # CLI/scripts — print() is legitimate user output in CLI commands
 "**/odoo-bin" = ["E402", "T201"]
-# The hoot and bench runners are sh/python polyglots: the file opens with a
-# `#!/bin/sh` trampoline inside a string literal, so every import is legitimately
-# "not at top of file" (E402) and the shebang legitimately is not python
-# (EXE003). Both are properties of the trampoline, not defects — everything else
-# about these files is linted normally. The `# fmt: off` guarding that same
-# string literal is not decoration either: tooling/_trampoline.sh explains what
-# reformatting it breaks.
-"tooling/hoot/hoot" = ["E402", "EXE003"]
-"tooling/hoot/hoot-shard" = ["E402", "EXE003"]
-"tooling/hoot/hoot-affected" = ["E402", "EXE003"]
-"tooling/bench/render_bench" = ["E402", "EXE003"]
-"tooling/bench/discuss_bench" = ["E402", "EXE003"]
 "odoo/cli/**" = ["T201"]           # print() is legitimate user output in CLI commands
 # compare.py is a standalone `#!/usr/bin/env python3` report generator with its own
 # argparse main() — it happens to live inside an addon, but it is a CLI script like
@@ -838,7 +807,7 @@ ignore = [
 "odoo/addons/test_performance_compare/compare.py" = ["T201"]
 "doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
 "tools/**" = ["T201"]              # FA4 migration scripts: print() is user-facing output
-"**/tooling/**" = ["T201"]         # architecture/dev tooling (root + per-addon, e.g. addons/web/tooling)
+"**/tooling/**" = ["T201"]         # per-addon dev tooling, e.g. addons/web/tooling
 # A machine_doc harness is dev tooling that happens to sit beside the document it
 # derives rather than under a `tooling/` directory, so the glob above misses it.
 # Its print() calls are its interface: `factcheck.sh` reads UPDATED/CURRENT/STALE
@@ -953,11 +922,9 @@ extend-immutable-calls = [
 ]
 
 [lint.mccabe]
-# The threshold for the C901 ratchet (tooling/ratchet/baselines/c901.json), NOT
-# dead config: the main run ignores C901, but the gate re-selects it on the CLI
-# and reads this. Raising this number lowers the count without fixing anything,
-# so treat it as part of the floor -- move it only with the same deliberation,
-# and say so in the baseline note.
+# The threshold `ruff check --select C901` reads, NOT dead config: the main run
+# ignores C901, but a CLI re-select reads this. Raising this number lowers the
+# count without fixing anything.
 max-complexity = 20
 
 [lint.flake8-builtins]

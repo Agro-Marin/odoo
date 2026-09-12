@@ -586,7 +586,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         // =========================================================================
         // Node tooling scripts — build/typecheck helpers, not browser code
         //
-        // Files under the repo-root tooling/ tree run under Node, so they
+        // Files under an addon's tooling/ tree run under Node, so they
         // legitimately use `process`,
         // `console`, etc. They are matched by `js.configs.recommended` (no `files`
         // key → repo-wide, and eslint lints .mjs by default) but were never given
@@ -697,7 +697,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         // ── Shared layer: core/ ──────────────────────────────────────────────
         // The shared tier is ORDERED: core < ui < components. It used to be flat,
         // and that is what let `services/` grow inside it importing freely across
-        // all three. Mirrors tooling/architecture/js_layer_check.py.
+        // all three.
         {
             files: ["**/web/static/src/core/**/*.js"],
             rules: {

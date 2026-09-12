@@ -3,9 +3,8 @@
 This used to parse a "Module layout:" block out of `odoo.service.__doc__`, which
 the prose-and-docstring strip emptied -- so the gate failed for the reason it was
 supposed to prevent and detected nothing.  It reads `doc/architecture/module.md`
-instead: that is the canonical subsystem map, it is CI-enforced by
-`tooling/architecture/`, and it is a document rather than a docstring, so the
-strip cannot empty it.
+instead: that is the canonical subsystem map, and it is a document rather than
+a docstring, so the strip cannot empty it.
 """
 
 import pathlib

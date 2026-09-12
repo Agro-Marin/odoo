@@ -24,13 +24,13 @@ set -u
 # the ORIGINAL tree and report a clean pass.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$SCRIPT_DIR"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 WEB="$(dirname "$SCRIPT_DIR")"                 # <repo>/addons/web
 REPO="$(cd "$WEB/../.." && pwd)"               # <repo>  (the odoo fork)
@@ -1245,37 +1245,6 @@ fi
 
 # 20. (removed) JS_FILE_INDEX body-header assertions — JS_FILE_INDEX.md deleted
 
-# 22. CI typecheck gate is a blocking ratchet, floor in
-#     tooling/ratchet/baselines/tsc.json.
-if skip_missing "$REPO/.github/workflows/typecheck.yml" "CI typecheck-gate assertions" 7; then :; else
-TYPECHECK_YML="$REPO/.github/workflows/typecheck.yml"
-assert_eq "typecheck.yml has no continue-on-error key (blocking gate)" \
-    "$(grep -c 'continue-on-error:' "$TYPECHECK_YML")" "0"
-# `tsc\b` is load-bearing: unanchored, `ratchet.py tsc` is a SUBSTRING match that
-# also counts the `tsc_serviceworker` gate 96f67b1067e added, so onboarding a
-# sibling lane reported this gate as having grown an invocation it never grew.
-# `_` is a word character, so `\b` refuses the prefixed name. Assert the sibling
-# separately rather than widening this count — a single number over both gates
-# cannot say which one moved.
-assert_eq "typecheck.yml enforces via tooling/ratchet" \
-    "$(grep -cE 'tooling/ratchet/ratchet\.py tsc\b' "$TYPECHECK_YML")" "3"
-assert_eq "typecheck.yml enforces the serviceworker lane via tooling/ratchet" \
-    "$(grep -cE 'tooling/ratchet/ratchet\.py tsc_serviceworker\b' "$TYPECHECK_YML")" "1"
-assert_eq "JSDOC doc: warn-only claim replaced by blocking ratchet" \
-    "$(grep -c 'continue-on-error: true' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
-# Neither the doc nor the workflow may restate the floor: that duplication is
-# what drifted last time (four sources, four different numbers).
-assert_eq "JSDOC doc does not restate the tsc floor" \
-    "$(grep -cE '\*\*(1917|2002|2274|2155)\*\* errors' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
-assert_eq "typecheck.yml does not restate the tsc floor" \
-    "$(grep -cE '^# \(Floor [0-9]+ as of' "$TYPECHECK_YML")" "0"
-tsc_floor=$("$PY" -c "import json;print(json.load(open('$REPO/tooling/ratchet/baselines/tsc.json'))['count'])" 2>/dev/null || echo "missing")
-# The floor must equal what tsc actually reports; a floor above reality makes
-# the ratchet exit 1 on "improvement" and leaves mainline red.
-assert_eq "committed tsc ratchet floor is a plausible current value" \
-    "$([ "$tsc_floor" -gt 0 ] 2>/dev/null && echo ok || echo bad)" "ok"
-fi
-
 # 23. Conditional /web/webclient/load_menus (X-Menus-Hash round-trip).
 assert_eq "home.py sends X-Menus-Hash" \
     "$(grep -c '"X-Menus-Hash"' "$WEB/controllers/home.py")" "1"
@@ -1709,20 +1678,6 @@ if skip_missing "$REPO/.github/workflows" "CI checkout-scope assertion" 1; then 
         "$(grep -hE '^[[:space:]]*repository:' "$REPO"/.github/workflows/*.yml 2>/dev/null | wc -l)" "0"
 fi
 
-# EXTENSION_ARCHITECTURE_REVIEW's summary table sizes web's pinned import
-# surface. Derive it from the gate that owns the pin rather than from the pin
-# file's line count -- `public_surface_web.txt` opens with a 16-line comment
-# header, so `wc -l` overstates it by exactly that, which is how the table came
-# to read 235 against a measured 218 on the very day it was written.
-if skip_missing "$REPO/tooling/architecture/js_public_surface.py" \
-        "EXTENSION_ARCHITECTURE_REVIEW surface-size assertion" 1; then :; else
-    SURFACE_N=$("$VENV_PY" "$REPO/tooling/architecture/js_public_surface.py" \
-        --addon web --json 2>/dev/null \
-        | sed -n 's/.*"measured": *\([0-9]\+\).*/\1/p' | head -1)
-    assert_doc_cites "EXTENSION_ARCHITECTURE_REVIEW cites the real pinned surface" \
-        "${SURFACE_N:-MEASURE_FAILED}" '| %s pinned |' EXTENSION_ARCHITECTURE_REVIEW.md
-fi
-
 # VIEW_TEARDOWN_COST cites a profiler stack as `owl.es.js:<line>`. Resolve each
 # one: a re-vendored OWL shifts them silently, and they were ALREADY wrong once
 # in a way no reading caught -- every frame off by exactly one, because CDP
@@ -1781,24 +1736,6 @@ assert_doc_cites "OBSERVABILITY cites the src JS count for the stamp round-trip"
 OBS_HAND=$(grep -rl 'useRenderCounter(' "$WEB/static/src" --include=*.js | wc -l)
 assert_doc_cites "OBSERVABILITY cites the hand-instrumented file count" \
     "$OBS_HAND" '%s files place' OBSERVABILITY.md
-
-# The stamper's budget warning must track js_function_length.py, not a literal.
-OBS_BUDGET=$(grep -oE '^MAX_LINES = [0-9]+' "$REPO/tooling/architecture/js_function_length.py" \
-    | grep -oE '[0-9]+')
-assert_doc_cites "OBSERVABILITY cites jsfunclen's line budget" \
-    "$OBS_BUDGET" "%s-line budget" OBSERVABILITY.md
-assert_eq "stamp.py mirrors js_function_length.py's budget" \
-    "$(grep -oE '^FUNCTION_LINE_BUDGET = [0-9]+' "$REPO/tooling/trace/stamp.py" | grep -oE '[0-9]+')" \
-    "$OBS_BUDGET"
-
-# The sentinel is the whole basis of exact removal, so the doc must name the
-# string the tool actually inserts -- derived from stamp.py, not retyped here.
-OBS_SENTINEL=$(grep -oE '^SENTINEL = "[^"]+"' "$REPO/tooling/trace/stamp.py" \
-    | sed -E 's/.*"(.*)"/\1/')
-assert_eq "OBSERVABILITY names the sentinel stamp.py actually inserts" \
-    "$([ -n "$OBS_SENTINEL" ] && [ "$(grep -cF "$OBS_SENTINEL" "$DOC/OBSERVABILITY.md")" -ge 1 ] \
-        && echo yes || echo no)" \
-    "yes"
 
 # addons/web must stay on the no-console list, or the doc's gate posture is wrong.
 # Scoped to that array: "addons/web", also appears in the module list above it,
@@ -1910,18 +1847,6 @@ assert_eq "esbuild registers only declared members (the blind spot's mechanism)"
     "$(grep -c 'for i, asset in enumerate(modules):' \
         "$REPO/odoo/tools/assets/esbuild.py")" "1"
 
-# The stamper's lint-cleanliness rests on three behaviours the first --apply
-# lacked. Each is pinned so a refactor cannot quietly drop one and reintroduce
-# the 244 findings.
-assert_eq "stamp.py inserts its import in sorted position" \
-    "$(grep -c 'def insert_import' "$REPO/tooling/trace/stamp.py")" "1"
-assert_eq "stamp.py understands multi-line imports" \
-    "$(grep -c 'def import_spans' "$REPO/tooling/trace/stamp.py")" "1"
-assert_eq "stamp.py sizes labels to prettier's width" \
-    "$(grep -c '^PRINT_WIDTH = ' "$REPO/tooling/trace/stamp.py")" "1"
-OBS_WIDTH=$(grep -oE '^PRINT_WIDTH = [0-9]+' "$REPO/tooling/trace/stamp.py" | grep -oE '[0-9]+')
-assert_eq "stamp.py's width matches .prettierrc" \
-    "$OBS_WIDTH" "$(grep -oE '"printWidth": [0-9]+' "$REPO/.prettierrc.json" | grep -oE '[0-9]+')"
 assert_doc_cites "OBSERVABILITY cites the stamped jsfunclen delta" \
     "77 78" '%s -> %s' OBSERVABILITY.md
 assert_eq "OBSERVABILITY freezes the full render profile to a base commit" \
@@ -1963,7 +1888,6 @@ assert_eq "the slow-load case asserts the shell MOUNTS before the data" \
 # The teardown plan must keep naming every artefact that actually exists, or a
 # removal following it leaves orphans behind and a red lane.
 for _obs_artefact in \
-    "tooling/trace" \
     "core/utils/asset_log.js" \
     "core/network/rpc.js" \
     "trace_choke_points.test.js" \

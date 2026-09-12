@@ -98,8 +98,7 @@ three jobs shared one module the graph was two-way, and `lifecycle`, `_watcher`,
 `metrics`, `_threaded` and `_prefork` each carried a function-body import to
 work around it. None does now.
 
-> **Notation.** A name ending in `/` is a directory and a bare name is a module,
-> both checked against the tree by `tooling/architecture/subsystem_map_check.py`.
+> **Notation.** A name ending in `/` is a directory and a bare name is a module.
 > A name in `[brackets]` is a **logical grouping, not a directory** — `db/` and
 > `http/` are flat packages, and the bracketed labels group their modules by
 > role. Where the map enumerates a package's contents it must do so
@@ -446,14 +445,6 @@ rather than against themselves — and they are not the bases. It counts
 *file-level* units — 31, since `read_group/` contributes five (`_empty`, `fill`,
 `format`, `mixin`, `sql`) and `base.py` is itself a unit — not the 26 bases.
 
-```bash
-python tooling/architecture/mixin_coupling_check.py            # report
-python tooling/architecture/mixin_coupling_check.py --check    # blocking
-python tooling/architecture/mixin_coupling_check.py --explain search read
-python tooling/architecture/mixin_coupling_check.py --composition Field \
-    --explain _field_convert _field_metadata
-```
-
 #### The design rule for a new mixin
 
 **A leaf that nothing in the composition depends on cannot close a cycle.** Put
@@ -526,9 +517,8 @@ does not follow a value once it is bound to a name.
 
 **Consequence:** a reader who takes the contracts as the whole picture predicts
 the wrong blast radius for a change to `Environment` or `Registry`. Recorded as
-[`risks.md`](risks.md) R2. Both gates draw their layer scope from the shared
-`tooling/architecture/_orm_layer_scope.py`, so the two cannot drift apart, and a
-new ORM module must be given a layer there or an argued exemption.
+[`risks.md`](risks.md) R2. A new ORM module must be given a layer in the map
+above or an argued exemption.
 
 Two counting traps in that table, both of which produced a wrong figure before
 they were named:

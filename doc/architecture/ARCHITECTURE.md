@@ -67,12 +67,13 @@ a reason.
 | **Write throughput** | a loop that touches 10k records must not issue 10k `UPDATE`s | deferred writes; the flush fixpoint loop; `cr.pipeline()` |
 | **Correctness under contention** | concurrent requests must not corrupt or silently lose writes | `retrying()` on serialization/deadlock; savepoints; the RO→RW promotion |
 | **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` behind the `env.backend` port |
-| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts, each held at zero by its gate |
+| **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts |
 
-The last is this fork's addition and the reason `tooling/architecture/` exists.
-Upstream treats the core's internal shape as fixed; `19.0-marin` treats it as
-the thing most worth improving, which is safe only while the public surface is
-mechanically pinned.
+The last is this fork's addition. Upstream treats the core's internal shape as
+fixed; `19.0-marin` treats it as the thing most worth improving. The checkers
+that pinned the public surface and held the contracts at zero were removed with
+`tooling/` on 2026-09-11 (see [`gates.md`](gates.md)); the contracts stand as
+stated rules.
 
 ## Non-goals
 
@@ -155,34 +156,22 @@ lifecycle*](runtime.md#request-lifecycle-http).
 | **Qualities** | how much the forces cost, measured — so a change can fail one | [`qualities.md`](qualities.md) |
 | **Risks** | where the implementation and the design demonstrably disagree | [`risks.md`](risks.md) |
 
-Rationale is not a view. Each gate's module docstring carries its own, beside
-the `MEASURED` block `doc_measured.py` keeps fresh; investigation write-ups are
-in `agromarin-knowledge/research/`.
+Rationale is not a view. Investigation write-ups are in
+`agromarin-knowledge/research/`.
 
 Two subsystems document themselves deeper than any view:
 `odoo/db/README.md` and `odoo/http/README.md` — the latter carries the
 canonical, unflattened HTTP call graph.
 
-> **These documents are enforced.** The dependency rules in the module view are
-> checked by `tooling/architecture/layer_check.py`. The claims *about* the
-> checkers are pinned by `tooling/architecture/test_architecture_doc.py`:
-> contract names and row bodies, pinned counts, the mixin composition, the
-> runtime floors, the module inventories, the gate table against the roster,
-> and every measured figure, derived from a live run of the checker that
-> produces it.
->
-> **A number added here arrives with the assertion that re-derives it.** Prose
-> no test reads has already drifted: a mixin count copied into three files and
-> stale in all three, an `env` surface figure two documents agreed on and no run
-> reproduced, a ratchet table stating nine floors against thirteen baseline
-> files.
->
-> That rule selects for claims that are *checkable*, not claims that are
-> *important*. The forces above, which no checker can verify, belong here too.
+> **These documents were enforced until 2026-09-11.** The dependency rules
+> in the module view were checked by `layer_check.py`, and every measured
+> figure in these pages was re-derived by `test_architecture_doc.py`; both
+> went with `tooling/`. A figure stated here is as of the day it was last
+> measured, and nothing fails when it drifts.
 
 ## Where to add code
 
-| You are adding | It goes in | The constraint | Caught by |
+| You are adding | It goes in | The constraint | Was caught by, until 2026-09-11 |
 |---|---|---|---|
 | A dependency-free helper | `odoo/libs/<area>/` | no `odoo` imports; if it needs model data, take it through a `Protocol` (see `libs/locale/number_format.py`) | `libs-is-dependency-free` |
 | An Odoo-coupled helper | `odoo/tools/` | may use ORM values and types, never the ORM runtime | `tools-does-not-reach-the-orm-runtime` |
@@ -197,4 +186,4 @@ canonical, unflattened HTTP call graph.
 
 Two rules over all of the above: a new module must appear in the **Subsystem
 map** in [`module.md`](module.md) if its package's contents are enumerated
-there, and a new number must arrive with the assertion that re-derives it.
+there, and a new number must say when it was measured.

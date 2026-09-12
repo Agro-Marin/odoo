@@ -1,8 +1,0 @@
-{
-  "expected": {},
-  "note": "Empty, for the first time since this baseline was recorded. All four went green in\nthe same change, and three of them because it paid the debt rather than because the\ncount drifted:\n\n  TestPythonLint.test_gettext_repr             8 vs floor 7  -> 7   %r -> %s in\n                                                                   account_journal\n  TestPythonLint.test_gettext_variable         2 vs floor 1  -> 1   _log_tracked_change\n                                                                   takes the caller's\n                                                                   own _() as a lambda\n  XmlRecordLinter.test_xml_record_field_order  791 vs 789    -> 789 two server actions\n                                                                   in approval put\n                                                                   group_ids after code\n  PrettyXmlLinter.test_xml_formatting          3659 vs 3658  -> 3658 NOT this change's;\n                                                                   already green at HEAD\n\nThe floors this change had to move are in test_python_lint.py's FLOORS with their own\nattributions: sql-injection 36 -> 34 (all three units here), and noqa-rationale 66 -> 63\nand n-plus-one-query 369 -> 368, both of which were already standing at HEAD.\n\nMeasured at the CI scope this file's run_spec names -- odoo/addons + addons, test_lint\nalone, template0 -- in a detached worktree at 1df63d05669 carrying this change's files\nand nothing else. The shared checkout is holding another session's in-flight\npurchase/sale work and cannot be counted in.",
-  "run_spec": "",
-  "suite": "/test_lint",
-  "tests_total": 257,
-  "verified_at": "1df63d05669"
-}

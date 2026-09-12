@@ -8,17 +8,9 @@
   // (`@odoo/owl`, the `odoo` global, registries.d.ts / services.d.ts / models/)
   // resolves exactly as in the real build, and the errors reported are REAL.
   //
-  // It is NOT expected to reach zero project-wide yet. Enforcement is
-  // DEFAULT-DENY over the web module: every .js/.ts under
-  // addons/web/static/{src,tests} must be clean unless it is listed in
-  // tooling/typecheck/exceptions/strict/web.txt, and that list may only
-  // shrink. CI:
+  // It is NOT expected to reach zero project-wide yet. Read it per file:
   //
-  //     npx tsc -p tsconfig.strict.json --noEmit --listFiles > /tmp/strict.log 2>&1 || true
-  //     python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log
-  //
-  // Everything outside that scope is covered by the project-wide count ratchet
-  // (tooling/ratchet/baselines/tsc.json) instead.
+  //     npx tsc -p tsconfig.strict.json --noEmit
   //
   // Why full-program + scoped verdict instead of an isolated `files` program:
   // an isolated program can only include the two self-contained ambients
@@ -30,8 +22,8 @@
   //
   // Sibling of tsconfig.noimplicitany.json; same design (see that file's
   // header). The two locks advance the same foundation together: noImplicitAny
-  // makes the strictNullChecks guarantee REAL on a file, so prefer locking a
-  // file in BOTH. See tooling/typecheck/README.md.
+  // makes the strictNullChecks guarantee REAL on a file, so prefer fixing a
+  // file under BOTH.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "strictNullChecks": true,

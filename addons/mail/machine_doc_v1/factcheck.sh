@@ -34,13 +34,13 @@ set -u
 # "failures" that were really one path error.
 DOC="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$DOC"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MAIL="$(dirname -- "$DOC")"
 # A couple of claims depend on the FRAMEWORK, not on mail. Resolve it once, here,
@@ -800,15 +800,6 @@ assert_eq "no such file as web/static/src/fields/formatters.js" \
 assert_eq "ASSET_LAYERS.md cites the core/ formatters path" \
     "$(grep -c 'web/static/src/core/formatters.js' "$DOC/ASSET_LAYERS.md")" "1"
 
-# Layer gate: ASSET_LAYERS claims it is drift-zero with an empty KNOWN_VIOLATIONS.
-assert_eq "js_deployment_layers.py gate exists" \
-    "$([ -f "$ODOO/tooling/architecture/js_deployment_layers.py" ] && echo 1 || echo 0)" "1"
-assert_eq "KNOWN_VIOLATIONS is empty" \
-    "$(grep -c 'KNOWN_VIOLATIONS: tuple\[Known, ...\] = ()' "$ODOO/tooling/architecture/js_deployment_layers.py")" "1"
-# 532091ea401 deleted every workflow; the gates run by hand now, so what makes
-# this one enforced is its presence in the roster gates.md drives, not a lane.
-assert_eq "the gate is in the roster gates.md runs" \
-    "$(grep -qE '^ *js_deployment_layers ' "$ODOO/doc/architecture/gates.md" && echo 1 || echo 0)" "1"
 
 # Per-subtree JS counts DIRECTORY_MAP states. Round 3 pinned only views/ and js/, so core/,
 # discuss/ and utils/ drifted unnoticed.

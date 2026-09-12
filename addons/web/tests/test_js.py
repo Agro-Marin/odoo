@@ -1,9 +1,5 @@
 import ast
-import importlib
-import importlib.machinery
-import importlib.util
 import re
-import sys
 from contextlib import suppress
 from pathlib import Path
 
@@ -359,42 +355,6 @@ class WebSuite(HOOTCommon):
 
     def test_check_suite(self):
         self._check_forbidden_statements("web.assets_unit_tests")
-
-    def test_shard_runner_covers_ci(self):
-        hoot_lib, hoot_shard = self._load_shard_runner()
-        weights = hoot_shard.load_weights()
-        declared = hoot_shard.default_web_suites()
-        scheduled = hoot_shard.refine(declared, 4, weights)
-
-        def files(suites):
-            return {p for s in suites for p in hoot_lib.suite_test_files(s)}
-
-        expected = files(self._runner_suite_prefixes(Path(__file__)))
-        self.assertTrue(expected, "no test files resolved for the CI suites")
-        self.assertFalse(
-            expected - files(scheduled),
-            "hoot-shard's plan does not cover every test file WebSuite runs:"
-            "\n- " + "\n- ".join(sorted(str(p) for p in expected - files(scheduled))),
-        )
-
-    @staticmethod
-    def _load_shard_runner():
-        root = next(
-            p for p in Path(__file__).resolve().parents if (p / "odoo-bin").is_file()
-        )
-        scripts = root / "tooling" / "hoot"
-        sys.path.insert(0, str(scripts))
-        try:
-            hoot_lib = importlib.import_module("hoot_lib")
-            loader = importlib.machinery.SourceFileLoader(
-                "hoot_shard", str(scripts / "hoot-shard")
-            )
-            spec = importlib.util.spec_from_loader("hoot_shard", loader)
-            hoot_shard = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(hoot_shard)
-        finally:
-            sys.path.remove(str(scripts))
-        return hoot_lib, hoot_shard
 
     def test_suite_filters_cover_every_test_file(self):
         tests_root = Path(file_path("web/static/tests"))

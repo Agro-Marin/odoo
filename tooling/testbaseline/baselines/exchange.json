@@ -1,8 +1,0 @@
-{
-  "expected": {},
-  "note": "green; a red entry here is a regression, not debt",
-  "run_spec": "-u exchange --test-enable --test-tags /exchange",
-  "suite": "/exchange",
-  "tests_total": 68,
-  "verified_at": "9928d35dcbf"
-}

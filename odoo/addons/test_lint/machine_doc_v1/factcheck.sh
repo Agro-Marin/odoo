@@ -12,13 +12,13 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Interpreter resolution + a scan that cannot fail silently. See the header of
-# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+# doc/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
 _fc_root="$SCRIPT_DIR"
 while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
     _fc_root="$(dirname -- "$_fc_root")"
 done
 # shellcheck source=/dev/null
-source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+source "$_fc_root/doc/machine_doc/factcheck_env.sh"
 
 MOD="$(dirname "$SCRIPT_DIR")"                    # <repo>/odoo/addons/test_lint
 REPO="$(cd "$MOD/../../.." && pwd)"
@@ -61,13 +61,7 @@ assert_file "$MOD/tests/_xml_sweep.py" "the shared fixer sweep"
 assert_doc_cites "is_faithful" "the order-preserving invariant"
 assert_doc_cites "preserves_content" "the order-insensitive invariant"
 
-# The floors are in the ratchet, and at least one lint_* baseline exists there.
-assert_file "$REPO/tooling/ratchet/ratchet.py" "the ratchet tool"
-if ls "$REPO"/tooling/ratchet/baselines/lint_*.json >/dev/null 2>&1; then
-    ok
-else
-    bad "no lint_* baseline in tooling/ratchet/baselines/"
-fi
+assert_file "$MOD/tests/floors.json" "the lint floors"
 
 # No floor may live in Python any more: assert_ratchet must refuse an integer.
 if grep -q "raise TypeError" "$MOD/tests/lint_case.py"; then
