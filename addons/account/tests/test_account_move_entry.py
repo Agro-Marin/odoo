@@ -163,7 +163,9 @@ class TestAccountMove(AccountTestInvoicingCommon):
 
     def test_posting_future_invoice_fails(self):
         self.test_move.date = fields.Date.today() + relativedelta(days=1)
-        self.test_move.auto_post = "quarterly"
+        self.test_move.auto_post = "recurring"
+        self.test_move.repeat_interval = 3
+        self.test_move.repeat_unit = "month"
         self.test_move._post()
         self.assertEqual(self.test_move.state, "draft")
         with self.assertRaisesRegex(
@@ -173,8 +175,11 @@ class TestAccountMove(AccountTestInvoicingCommon):
 
     def test_out_invoice_auto_post_monthly(self):
         prev_invoices = self.env["account.move"].search(domain=[])
-        self.test_move.auto_post = "monthly"
-        self.test_move.auto_post_until = fields.Date.from_string("2022-02-28")
+        self.test_move.auto_post = "recurring"
+        self.test_move.repeat_interval = 1
+        self.test_move.repeat_unit = "month"
+        self.test_move.repeat_type = "until"
+        self.test_move.repeat_until = fields.Date.from_string("2022-02-28")
         date = fields.Date.from_string("2021-12-30")
         self.test_move.invoice_date = date
         self.test_move.date = date
@@ -188,7 +193,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         new_date_1 = fields.Date.from_string("2022-01-30")
         self.assertEqual(self.test_move.state, "posted")
         self.assertEqual(1, len(new_invoices_1))
-        self.assertEqual("monthly", new_invoices_1.auto_post)
+        self.assertEqual("recurring", new_invoices_1.auto_post)
         self.assertEqual(new_date_1, new_invoices_1.date)
         self.assertEqual(
             new_date_1 + relativedelta(days=1), new_invoices_1.invoice_date_due
@@ -204,7 +209,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         new_date_2 = fields.Date.from_string("2022-02-28")
         self.assertEqual(new_invoices_1.state, "posted")
         self.assertEqual(1, len(new_invoices_2))
-        self.assertEqual("monthly", new_invoices_2.auto_post)
+        self.assertEqual("recurring", new_invoices_2.auto_post)
         self.assertEqual(new_date_2, new_invoices_2.date)
         self.assertEqual(
             new_date_2 + relativedelta(days=1), new_invoices_2.invoice_date_due

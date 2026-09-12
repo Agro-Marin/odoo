@@ -1938,8 +1938,20 @@
                                         invisible="move_type in ('out_receipt', 'in_receipt')"
                                         readonly="state != 'draft'" />
                                     <field
-                                        name="auto_post_until"
-                                        invisible="auto_post in ('no', 'at_date')"
+                                        name="repeat_interval"
+                                        invisible="auto_post != 'recurring'"
+                                        readonly="state != 'draft'" />
+                                    <field
+                                        name="repeat_unit"
+                                        invisible="auto_post != 'recurring'"
+                                        readonly="state != 'draft'" />
+                                    <field
+                                        name="repeat_type"
+                                        invisible="auto_post != 'recurring'"
+                                        readonly="state != 'draft'" />
+                                    <field
+                                        name="repeat_until"
+                                        invisible="auto_post != 'recurring' or repeat_type != 'until'"
                                         readonly="state != 'draft'" />
                                     <field name="checked" />
                                 </group>
@@ -1960,8 +1972,20 @@
                                         name="reversed_entry_id"
                                         invisible="move_type != 'entry' or not reversed_entry_id" />
                                     <field
-                                        name="auto_post_until"
-                                        invisible="auto_post in ('no', 'at_date')"
+                                        name="repeat_interval"
+                                        invisible="auto_post != 'recurring'"
+                                        readonly="state != 'draft'" />
+                                    <field
+                                        name="repeat_unit"
+                                        invisible="auto_post != 'recurring'"
+                                        readonly="state != 'draft'" />
+                                    <field
+                                        name="repeat_type"
+                                        invisible="auto_post != 'recurring'"
+                                        readonly="state != 'draft'" />
+                                    <field
+                                        name="repeat_until"
+                                        invisible="auto_post != 'recurring' or repeat_type != 'until'"
                                         readonly="state != 'draft'" />
                                 </group>
                                 <group>

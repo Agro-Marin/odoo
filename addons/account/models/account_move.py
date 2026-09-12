@@ -24,6 +24,7 @@ from odoo.tools import (
     get_lang,
     groupby,
 )
+from odoo.tools.date_utils import time_unit_selection
 from odoo.tools.mail import is_html_empty
 from odoo.tools.misc import StackMap
 from odoo.tools.safe_eval import safe_eval
@@ -276,6 +277,7 @@ class AccountMove(models.Model):
         "mixin.product.catalog",
         "mixin.account.document.import",
         "mixin.default.read.fields",
+        "mixin.recurrence.rule",
     ]
     _description = "Journal Entry"
     _order = "date desc, name desc, invoice_date desc, id desc"
@@ -509,19 +511,26 @@ class AccountMove(models.Model):
         selection=[
             ("no", "No"),
             ("at_date", "At Date"),
-            ("monthly", "Monthly"),
-            ("quarterly", "Quarterly"),
-            ("yearly", "Yearly"),
+            ("recurring", "Recurring"),
         ],
         default="no",
         required=True,
         copy=False,
         help="Specify whether this entry is posted automatically on its accounting date, and any similar recurring invoices.",
     )
-    auto_post_until = fields.Date(
+    # The cadence is `mixin.recurrence.rule`'s. `auto_post` used to answer three
+    # questions at once -- whether the entry posts itself, whether it repeats,
+    # and how often -- with `monthly`, `quarterly` and `yearly` standing in for
+    # intervals of 1, 3 and 12 months that `_apply_delta_recurring_entries`
+    # then decoded from a table of its own.
+    repeat_unit = fields.Selection(
+        selection=time_unit_selection("month", "year"),
+        default="month",
+    )
+    repeat_until = fields.Date(
         string="Auto-post until",
         copy=False,
-        compute="_compute_auto_post_until",
+        compute="_compute_repeat_until",
         store=True,
         readonly=False,
         help="This recurring move will be posted up to and including this date.",
@@ -1229,11 +1238,14 @@ class AccountMove(models.Model):
                 self.env.add_to_compute(move.line_ids._fields["date"], move.line_ids)
                 self.env.add_to_compute(self._fields["name"], move)
 
-    @api.depends("auto_post")
-    def _compute_auto_post_until(self):
+    @api.depends("auto_post", "repeat_type")
+    def _compute_repeat_until(self):
+        # Cleared unless the series both recurs and says it ends, so that
+        # `_copy_recurring_entries` can read the date alone as the cut-off
+        # rather than having to agree with `repeat_type` about it.
         for record in self:
-            if record.auto_post in ("no", "at_date"):
-                record.auto_post_until = False
+            if record.auto_post != "recurring" or record.repeat_type != "until":
+                record.repeat_until = False
 
     @api.depends("state", "date", "auto_post")
     def _compute_hide_post_button(self):
@@ -3065,7 +3077,9 @@ class AccountMove(models.Model):
         "invoice_line_ids.price_total",
         "tax_lock_date_message",
         "auto_post",
-        "auto_post_until",
+        "repeat_until",
+        "repeat_interval",
+        "repeat_unit",
         "is_being_sent",
         "partner_credit_warning",
         "abnormal_amount_warning",
@@ -3215,17 +3229,22 @@ class AccountMove(models.Model):
                         self.date,
                     ),
                 }
-            if self.auto_post in ("yearly", "quarterly", "monthly"):
+            if self.auto_post == "recurring":
+                unit_labels = dict(
+                    self._fields["repeat_unit"]._description_selection(self.env)
+                )
                 message = _(
-                    "%(auto_post_name)s auto-posting enabled. Next accounting date: %(move_date)s.",
-                    auto_post_name=self.auto_post,
+                    "Recurring auto-posting enabled, every %(interval)s"
+                    " %(unit)s. Next accounting date: %(move_date)s.",
+                    interval=self.repeat_interval,
+                    unit=unit_labels[self.repeat_unit].lower(),
                     move_date=self.date,
                 )
-                if self.auto_post_until:
+                if self.repeat_until:
                     message += " "
                     message += _(
                         "The recurrence will end on %s (included).",
-                        self.auto_post_until,
+                        self.repeat_until,
                     )
                 alerts["account_auto_post_on_period"] = {
                     "level": "info",
@@ -5626,7 +5645,7 @@ class AccountMove(models.Model):
 
         if not self.env.context.get("skip_recurring_copy"):
             self.filtered(
-                lambda m: m.auto_post not in ("no", "at_date")
+                lambda m: m.auto_post == "recurring"
             )._copy_recurring_entries()
 
         self._post_update_line_partners()
