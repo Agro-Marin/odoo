@@ -4,6 +4,7 @@ import warnings
 from datetime import UTC, date, datetime, time, timedelta
 from typing import override
 
+from odoo.libs.collections import FrozenOrderedSet
 from odoo.libs.datetime import TIMEZONE_ALIASES, all_timezones, utc
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DATE_FORMAT
@@ -162,9 +163,10 @@ def _is_relative_temporal_value(condition: DomainCondition) -> bool:
     return (
         condition.operator in _TEMPORAL_COMPARISON_OPERATORS
         and "." not in condition.field_expr
-        and isinstance(value, (str, OrderedSet))
+        and isinstance(value, (str, FrozenOrderedSet))
         and (
-            not isinstance(value, OrderedSet) or any(isinstance(v, str) for v in value)
+            not isinstance(value, FrozenOrderedSet)
+            or any(isinstance(v, str) for v in value)
         )
     )
 
@@ -390,7 +392,7 @@ class Datetime(BaseDate[datetime]):
             value = condition.value
             resolved = (
                 OrderedSet(parse(v) for v in value)
-                if isinstance(value, OrderedSet)
+                if isinstance(value, FrozenOrderedSet)
                 else parse(value)
             )
             return DomainCondition(condition.field_expr, condition.operator, resolved)
@@ -408,7 +410,7 @@ class Datetime(BaseDate[datetime]):
         dates: set = set()
         if isinstance(value, COLLECTION_TYPES):
             pairs = [_value_to_datetime(v, model.env, iso_only=True) for v in value]
-            value = OrderedSet(v for v, _is_date in pairs)
+            value = FrozenOrderedSet(v for v, _is_date in pairs)
             dates = {v for v, is_date in pairs if is_date and isinstance(v, datetime)}
             is_date = False
         else:

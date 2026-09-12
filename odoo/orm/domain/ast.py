@@ -12,7 +12,8 @@ import typing
 import warnings
 
 from odoo.exceptions import UserError
-from odoo.tools import SQL, OrderedSet, Query, classproperty
+from odoo.libs.collections import FrozenOrderedSet
+from odoo.tools import SQL, OrderedSet, Query, classproperty, frozendict
 
 from .._recordset import is_recordset
 from ..parsing import parse_field_expr
@@ -94,7 +95,7 @@ MAX_DOMAIN_NESTING = 100
 
 
 def _is_comparand_equal(left: typing.Any, right: typing.Any) -> bool:
-    if left.__class__ in (list, tuple, set, frozenset, OrderedSet):
+    if left.__class__ in (list, tuple, set, frozenset, OrderedSet, FrozenOrderedSet):
         if len(left) != len(right):
             return False
         try:
@@ -102,6 +103,32 @@ def _is_comparand_equal(left: typing.Any, right: typing.Any) -> bool:
         except TypeError:
             return left == right
     return left == right
+
+
+def _freeze_comparand(value: typing.Any, path: set[int] | None = None) -> typing.Any:
+    if not isinstance(value, (list, tuple, set, frozenset, dict, OrderedSet)):
+        return value
+    if path is None:
+        path = set()
+    marker = id(value)
+    if marker in path:
+        raise ValueError("Cyclic domain operand")
+    if len(path) >= MAX_DOMAIN_NESTING:
+        raise ValueError("Domain nesting too deep to freeze")
+    path.add(marker)
+    try:
+        if isinstance(value, dict):
+            return frozendict(
+                (key, _freeze_comparand(item, path)) for key, item in value.items()
+            )
+        items = (_freeze_comparand(item, path) for item in value)
+        if isinstance(value, OrderedSet):
+            return FrozenOrderedSet(items)
+        if isinstance(value, (set, frozenset)):
+            return frozenset(items)
+        return tuple(items)
+    finally:
+        path.remove(marker)
 
 
 class DomainOptimizationError(ValueError):
@@ -790,7 +817,7 @@ class DomainCondition(Domain):
         self = object.__new__(cls)
         object.__setattr__(self, "field_expr", field_expr)
         object.__setattr__(self, "operator", operator)
-        object.__setattr__(self, "value", value)
+        object.__setattr__(self, "value", _freeze_comparand(value))
         object.__setattr__(
             self,
             "_depth",
@@ -871,7 +898,12 @@ class DomainCondition(Domain):
             and self.field_expr == other.field_expr
             and self.operator == other.operator
             and self.value.__class__ is other.value.__class__
-            and _is_comparand_equal(self.value, other.value)
+            and (
+                self.value == other.value
+                if self.operator in SUBDOMAIN_OPERATORS
+                and isinstance(self.value, tuple)
+                else _is_comparand_equal(self.value, other.value)
+            )
         )
 
     def __hash__(self) -> int:
@@ -881,7 +913,14 @@ class DomainCondition(Domain):
             pass
         value = self.value
         try:
-            if value.__class__ in (list, tuple, set, frozenset, OrderedSet):
+            if value.__class__ in (
+                list,
+                tuple,
+                set,
+                frozenset,
+                OrderedSet,
+                FrozenOrderedSet,
+            ):
                 h = hash(
                     (
                         self.field_expr,

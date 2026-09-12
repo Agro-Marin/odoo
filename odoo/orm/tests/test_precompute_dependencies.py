@@ -80,7 +80,7 @@ class Child(models.Model):
     @api.depends("parent_id.doubled")
     def _compute_inherited(self):
         for record in self:
-            record.inherited = record.parent_id.doubled
+            record.inherited = record.parent_id["doubled"]
 
 
 def test_a_precompute_over_a_precomputed_dependency_holds():

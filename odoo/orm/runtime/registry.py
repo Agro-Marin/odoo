@@ -22,8 +22,8 @@ from .. import registration
 from ..primitives import SUPERUSER_ID
 from ._registry_capabilities import (
     _RegistryCapabilitiesMixin,
-    clear_unaccent_table,
-    clear_unaccent_tables,
+    clear_all_text_transforms,
+    clear_text_transforms,
 )
 from ._registry_fields import _RegistryFieldsMixin
 from ._registry_init_phase import _RegistryInitPhaseMixin
@@ -257,14 +257,14 @@ class Registry(
     @locked
     def clear_database_state(cls, db_name: str) -> None:
         cls.remove(db_name)
-        clear_unaccent_table(db_name)
+        clear_text_transforms(db_name)
         _ASSERTION_REPORTS.pop(db_name, None)
 
     @classmethod
     @locked
     def remove_all(cls):
         cls.registries.clear()
-        clear_unaccent_tables()
+        clear_all_text_transforms()
         _ASSERTION_REPORTS.clear()
 
     __eq__ = object.__eq__

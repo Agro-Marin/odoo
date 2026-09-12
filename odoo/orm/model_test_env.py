@@ -319,6 +319,15 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
     def unaccent_python(text):
         return text
 
+    def get_ilike_normalizer(self, env):
+        def normalize(value):
+            text = self.unaccent_python(value)
+            if text.isascii():
+                return text.lower()
+            return "".join(char.lower()[0] for char in text)
+
+        return normalize
+
     def get_descendants(
         self,
         model_names: Iterable[str],

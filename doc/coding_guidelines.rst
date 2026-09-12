@@ -1291,7 +1291,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   330
 §2.4.2   … of those, spelled ``_check_<field>``                        146
 §2.4.2   Multi-field constraints named for one trigger                  62
-§2.4.3   Non-test methods declared on a model class                 27,487
+§2.4.3   Non-test methods declared on a model class                 27,489
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               105
 §2.4.4   Model methods with an abolished verb behind a noun            171
@@ -1330,9 +1330,9 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        93
 §2.4.12  ``_synchronize_*`` definitions                                  0
 §2.4.12  ``_post_*`` definitions                                       144
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      365
-§2.4.13  Methods on plain classes in model files                       421
-§2.4.13  … such classes                                                169
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      376
+§2.4.13  Methods on plain classes in model files                       429
+§2.4.13  … such classes                                                171
 §2.4.13  Functions nested inside model methods                         659
 §2.4.14  Private method names reached from stored Python               118
 §2.4.14  … code blocks reaching them                                   128

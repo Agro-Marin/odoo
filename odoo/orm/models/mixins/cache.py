@@ -48,8 +48,11 @@ class RecordCache(Mapping):
         record = self._record
         id_ = record.id
         env = record.env
+        get_data = env._core.get_field_data_or_none
+        depends_context = env._field_depends_context
         for name, field in record._fields.items():
-            if id_ in field._get_cache(env):
+            cache = self._peek(field) if field in depends_context else get_data(field)
+            if cache is not None and id_ in cache:
                 yield name
 
     def __len__(self) -> int:

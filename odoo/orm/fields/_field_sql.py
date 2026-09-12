@@ -1,3 +1,4 @@
+import fnmatch
 import operator as pyoperator
 import re
 import typing
@@ -34,23 +35,25 @@ PYTHON_INEQUALITY_OPERATOR: dict[str, Callable[[typing.Any, typing.Any], bool]] 
 IN_TO_ANY_THRESHOLD = 100
 
 
-def _iter_like_regex_parts(value: str, exact: bool):
-    yield "^" if exact else ".*"
+def _get_like_regex(value: str, exact: bool) -> str:
+    if not exact:
+        value = f"%{value}%"
+    parts = []
     escaped = False
     for char in value:
-        if escaped:
-            escaped = False
-            yield re.escape(char)
-        elif char == "\\":
+        if not escaped and char == "\\":
             escaped = True
-        elif char == "%":
-            yield ".*"
-        elif char == "_":
-            yield "."
+            continue
+        if not escaped and char == "%":
+            parts.append("*")
+        elif not escaped and char == "_":
+            parts.append("?")
         else:
-            yield re.escape(char)
-    if exact:
-        yield "$"
+            parts.append(f"[{char}]" if char in "*?[" else char)
+        escaped = False
+    if escaped:
+        raise ValueError("LIKE pattern must not end with an escape character")
+    return fnmatch.translate("".join(parts))
 
 
 class _FieldSqlMixin(_FieldStubs):
@@ -352,10 +355,7 @@ class _FieldSqlMixin(_FieldStubs):
         self, records: M, field_expr: str, getter, operator: str, value
     ) -> Callable:
         if operator.endswith("ilike"):
-            unaccent_python = records.env.registry.unaccent_python
-
-            def unaccent(x):
-                return unaccent_python(x).lower()
+            unaccent = records.env.registry.get_ilike_normalizer(records.env)
 
         else:
 
@@ -364,8 +364,7 @@ class _FieldSqlMixin(_FieldStubs):
 
         pattern = value if isinstance(value, str) else self._get_pattern_text(value)
         like_regex = re.compile(
-            "".join(_iter_like_regex_parts(unaccent(pattern), "=" in operator)),
-            flags=re.DOTALL,
+            _get_like_regex(unaccent(pattern), "=" in operator),
         )
         render = self._get_pattern_getter(records, field_expr, getter)
         return lambda rec: like_regex.match(unaccent(render(rec)))

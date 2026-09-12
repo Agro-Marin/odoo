@@ -1,8 +1,11 @@
 import logging
+import math
 from collections import defaultdict
 from datetime import datetime
 
-from odoo import models
+from psycopg.errors import UntranslatableCharacter
+
+from odoo import fields, models
 from odoo.fields import Command
 from odoo.libs.lru import LRU
 from odoo.orm.model_test_env import (
@@ -18,6 +21,7 @@ from odoo.addons.test_orm.models.test_orm import (
     CalendarTest,
     TestOrmAutovacuumed,
     TestOrmCategory,
+    TestOrmCompany,
     TestOrmFoo,
     TestOrmModel_A,
     TestOrmModel_B,
@@ -45,6 +49,32 @@ class _StubIrAttachment(models.Model):
     _module = _STUB_MODULE
     _description = "ir.attachment (differential test stub)"
     _log_access = False
+
+
+class _StubPartner(models.Model):
+    _name = "res.partner"
+    _module = _STUB_MODULE
+    _description = "Partner (differential test stub)"
+    _log_access = False
+
+
+class _StubCompanyDefault(models.AbstractModel):
+    _name = "ir.default"
+    _module = _STUB_MODULE
+    _description = "Company default (differential test stub)"
+
+    def _get_model_defaults(self, model_name):
+        return {"date": "2026-09-11"} if model_name == "test_orm.company" else {}
+
+
+class _StubJsonDiscussion(models.Model):
+    _name = "test_orm.discussion"
+    _module = _STUB_MODULE
+    _description = "JSON field boundary (differential test fixture)"
+    _log_access = False
+
+    name = fields.Char()
+    history = fields.Json()
 
 
 def _isolated_registry(*classes):
@@ -98,6 +128,77 @@ class TestBackendDifferential(TransactionCase):
 
         self._diff((TestOrmFoo,), script, "create defaults / falsy round-trip")
 
+    def test_jsonb_cold_reads_preserve_numbers_and_ownership(self):
+        def script(env):
+            record = env["test_orm.discussion"].create(
+                {
+                    "name": "JSON cold read",
+                    "history": {"large": 1e20, "zero": -0.0, "nested": [{"a": 1}]},
+                }
+            )
+            env.flush_all()
+            env.invalidate_all()
+            value = record.history
+            self.assertIs(type(value["large"]), int)
+            self.assertEqual(value["large"], 100000000000000000000)
+            self.assertEqual(math.copysign(1, value["zero"]), 1)
+            value["nested"][0]["a"] = 99
+            self.assertEqual(record.history["nested"][0]["a"], 1)
+            env.invalidate_all()
+            return record.history
+
+        self._diff((_StubJsonDiscussion,), script)
+
+    def test_jsonb_rejects_nul_in_public_writes(self):
+        values = {"name": "JSON NUL", "history": {"nested": ["\0"]}}
+        with self.assertRaises(UntranslatableCharacter), self.cr.savepoint():
+            self.env["test_orm.discussion"].create(values)
+        with model_test_env(registry=_isolated_registry(_StubJsonDiscussion)) as env:
+            with self.assertRaises(UntranslatableCharacter):
+                env["test_orm.discussion"].create(values)
+
+    def test_unicode_ilike_uses_character_case_mapping(self):
+        def script(env):
+            records = env["test_orm.foo"].create(
+                [{"name": name} for name in ("ΟΣ", "οσ", "ος", "Σ", "σ", "ς")]
+            )
+            env.flush_all()
+            result = []
+            for operator in ("=ilike", "ilike"):
+                for pattern in ("ΟΣ", "οσ", "ος", "%Σ", "%σ", "%ς", "__"):
+                    domain = [("name", operator, pattern)]
+                    selected = records.search([("id", "in", records.ids), *domain])
+                    expected = sorted(selected.mapped("name"))
+                    actual = sorted(records.filtered_domain(domain).mapped("name"))
+                    self.assertEqual(actual, expected, (operator, pattern))
+                    result.append(actual)
+            return result
+
+        self._diff((TestOrmFoo,), script)
+
+    def test_unicode_ilike_uses_the_database_unicode_version(self):
+        names = [
+            "\ua7ce",
+            "\ua7cf",
+            "\ua7d2",
+            "\ua7d3",
+            "\ua7d4",
+            "\ua7d5",
+            "\U00010400",
+            "\U00010428",
+        ]
+        records = self.env["test_orm.foo"].create([{"name": name} for name in names])
+        self.env.flush_all()
+        for operator in ("=ilike", "ilike"):
+            for pattern in names:
+                domain = [("name", operator, pattern)]
+                expected = records.search([("id", "in", records.ids), *domain])
+                self.assertEqual(
+                    set(records.filtered_domain(domain).ids),
+                    set(expected.ids),
+                    (operator, pattern),
+                )
+
     def test_boolean_default_true(self):
         def script(env):
             move = env["test_orm.move"].create(
@@ -123,6 +224,155 @@ class TestBackendDifferential(TransactionCase):
             return {"name": r.name, "value1": r.value1, "value2": r.value2}
 
         self._diff((TestOrmFoo,), script, "write round-trip")
+
+    def test_write_does_not_create_missing_rows(self):
+        def script(env):
+            model = env["test_orm.foo"]
+            present = model.create({"name": "present", "value1": 1})
+            missing = model.browse(987654321)
+            (present + missing).write({"value1": 17})
+            env.flush_all()
+            env.invalidate_all()
+            return present.value1, bool(missing.exists())
+
+        self.assertEqual(self._diff((TestOrmFoo,), script), (17, False))
+
+    def test_exact_patterns_match_the_entire_string(self):
+        def script(env):
+            values = ["abc", "abc\n", "abcd", "猫", "猫\n", "a%b", "a_b"]
+            records = env["test_orm.foo"].create([{"text": value} for value in values])
+            result = {}
+            for operator in ("=like", "=ilike", "not =like", "not =ilike"):
+                for pattern in ("abc", "猫", "_", r"a\%b", r"a\_b"):
+                    domain = [("text", operator, pattern)]
+                    filtered = records.filtered_domain(domain).mapped("text")
+                    searched = records.search(
+                        [("id", "in", records.ids), *domain], order="id"
+                    ).mapped("text")
+                    self.assertEqual(filtered, searched, (operator, pattern))
+                    result[operator, pattern] = filtered
+            return result
+
+        observed = self._diff((TestOrmFoo,), script)
+        self.assertEqual(observed["=like", "abc"], ["abc"])
+        self.assertEqual(
+            observed["not =like", "猫"], ["abc", "abc\n", "abcd", "猫\n", "a%b", "a_b"]
+        )
+
+    def test_like_patterns_preserve_trailing_escape_semantics(self):
+        def script(env):
+            values = [
+                "a",
+                "a%",
+                "a%x",
+                "xa%",
+                "A%",
+                "%",
+                "x%",
+                "a\\",
+                "a\\x",
+                "a\\%",
+                "猫%",
+                "a%\n",
+            ]
+            records = env["test_orm.foo"].create([{"text": value} for value in values])
+            result = {}
+            for operator in ("like", "ilike", "not like", "not ilike"):
+                for pattern in (
+                    "a\\",
+                    "\\",
+                    "猫\\",
+                    "a\\\\",
+                    "a\\\\\\",
+                    "a\\%",
+                    "a\\_",
+                ):
+                    domain = [("text", operator, pattern)]
+                    filtered = records.filtered_domain(domain).mapped("text")
+                    searched = records.search(
+                        [("id", "in", records.ids), *domain], order="id"
+                    ).mapped("text")
+                    self.assertEqual(filtered, searched, (operator, pattern))
+                    result[operator, pattern] = filtered
+            return result
+
+        observed = self._diff((TestOrmFoo,), script)
+        self.assertEqual(observed["like", "a\\"], ["a%", "xa%"])
+        self.assertEqual(observed["like", "a\\\\"], ["a\\", "a\\x", "a\\%"])
+
+    def test_column_fetch_excludes_rows_missing_from_a_resolved_query(self):
+        def script(env):
+            model = env["test_orm.foo"]
+            present, removed = model.create([{"name": "present"}, {"name": "removed"}])
+            missing = model.browse(987654321)
+            records = present + missing + removed
+            query = records._as_query(ordered=False)
+            removed.unlink()
+            env.flush_all()
+            fetched = model._fetch_query(query, [model._fields["name"]])
+            without_columns = model._fetch_query(query, [])
+            return (
+                fetched == present,
+                missing in fetched,
+                removed in fetched,
+                without_columns == records,
+            )
+
+        self.assertEqual(self._diff((TestOrmFoo,), script), (True, False, False, True))
+
+    def test_company_values_survive_flush_and_company_switches(self):
+        def snapshot(record):
+            return (
+                record.foo,
+                record.count,
+                record.truth,
+                record.phi,
+                str(record.date),
+                record.tag_id.name,
+            )
+
+        def script(env):
+            tag = env["test_orm.multi.tag"].create({"name": "company tag"})
+            record = env["test_orm.company"].create(
+                {
+                    "foo": "alpha",
+                    "count": 3,
+                    "truth": True,
+                    "phi": 1.25,
+                    "date": "2026-09-11",
+                    "tag_id": tag.id,
+                }
+            )
+            warm = snapshot(record)
+            env.flush_all()
+            env.invalidate_all()
+            cold = snapshot(record)
+            self.assertEqual(cold, warm)
+            other = env["res.company"].create({"name": "ORM other company"})
+            second = record.with_company(other)
+            fallback = snapshot(second)
+            second.write(
+                {
+                    "foo": "beta",
+                    "count": 7,
+                    "truth": False,
+                    "phi": 2.5,
+                    "date": False,
+                    "tag_id": False,
+                }
+            )
+            env.flush_all()
+            env.invalidate_all()
+            return warm, cold, fallback, snapshot(record), snapshot(second)
+
+        self.env["ir.default"].set("test_orm.company", "date", "2026-09-11")
+        sql = self._diff(
+            (TestOrmCompany, TestOrmMultiTag, _StubPartner, _StubCompanyDefault), script
+        )
+        self.assertEqual(sql[0], ("alpha", 3, True, 1.25, "2026-09-11", "company tag"))
+        self.assertEqual(sql[2], (False, 0, False, 0.0, "2026-09-11", False))
+        self.assertEqual(sql[3], sql[0])
+        self.assertEqual(sql[4], ("beta", 7, False, 2.5, "False", False))
 
     def test_unlink(self):
         def script(env):

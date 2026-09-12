@@ -3,9 +3,11 @@ import logging
 import operator
 import typing
 import warnings
+from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
 
 from odoo.exceptions import MissingError
+from odoo.libs.collections import FrozenOrderedSet
 from odoo.tools import SQL, OrderedSet, partition, str2bool
 
 from ..primitives import COLLECTION_TYPES
@@ -202,7 +204,7 @@ def _optimize_equal_as_in(condition, _):
 @operator_optimization(["in", "not in"])
 def _optimize_in_set(condition, _model):
     value = condition.value
-    if isinstance(value, OrderedSet) and value:
+    if isinstance(value, FrozenOrderedSet) and value:
         return condition
     if isinstance(value, ANY_TYPES):
         operator = "any" if condition.operator == "in" else "not any"
@@ -218,7 +220,7 @@ def _optimize_in_set(condition, _model):
 @operator_optimization(["in", "not in"])
 def _optimize_in_set_falsy_value(condition, model):
     value = condition.value
-    if not isinstance(value, OrderedSet):
+    if not isinstance(value, FrozenOrderedSet):
         return condition
     falsy = condition._get_field(model).falsy_value
     has_falsy_alias = falsy is not None and falsy is not False
@@ -619,12 +621,12 @@ def _optimize_any_with_rights(condition, model):
 def _merge_set_conditions(
     cls: type[DomainNary], conditions: list[DomainCondition]
 ) -> list[DomainCondition]:
-    assert all(isinstance(cond.value, OrderedSet) for cond in conditions)
+    assert all(isinstance(cond.value, FrozenOrderedSet) for cond in conditions)
 
     in_sets = [c.value for c in conditions if c.operator == "in"]
     not_in_sets = [c.value for c in conditions if c.operator == "not in"]
 
-    def merged(operator: str, values: OrderedSet) -> list[DomainCondition]:
+    def merged(operator: str, values: AbstractSet) -> list[DomainCondition]:
         values = OrderedSet(sorted(values, key=_get_nary_value_tiebreak))
         return [DomainCondition(conditions[0].field_expr, operator, values)]
 
@@ -639,11 +641,11 @@ def _merge_set_conditions(
         return merged("in", union(in_sets))
 
 
-def intersection(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:
+def intersection(sets: Sequence[AbstractSet[typing.Any]]) -> AbstractSet[typing.Any]:
     return functools.reduce(operator.and_, sets)
 
 
-def union(sets: list[OrderedSet[typing.Any]]) -> OrderedSet[typing.Any]:
+def union(sets: Sequence[AbstractSet[typing.Any]]) -> OrderedSet[typing.Any]:
     return OrderedSet(elem for s in sets for elem in s)
 
 

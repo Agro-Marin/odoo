@@ -420,6 +420,8 @@ class TraversalMixin(_ModelStubs):
                 _P = PENDING
 
                 def getter(rec):
+                    field.check_read_access(rec)
+                    field.recompute_pending(rec)
                     value = _get_cache(_env).get(rec._ids[0], _S)
                     if value is _S or value is _P:
                         record_value = _field_get(rec)

@@ -4,6 +4,7 @@ import json
 import typing
 import uuid
 from collections import abc, defaultdict
+from collections.abc import Set as AbstractSet
 from datetime import date, datetime
 from operator import attrgetter
 from typing import override
@@ -47,7 +48,7 @@ def _optimize_property_temporal_comparand(
     if (
         operator not in ("in", "not in", ">", "<", ">=", "<=")
         or condition.field_expr.count(".") != 1
-        or not isinstance(condition.value, (str, OrderedSet))
+        or not isinstance(condition.value, (str, AbstractSet))
     ):
         return condition
     definition = model.get_property_definition(condition.field_expr)

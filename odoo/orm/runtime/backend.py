@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import typing
@@ -9,9 +10,15 @@ from datetime import date, datetime
 from decimal import Decimal
 from itertools import batched
 
-from psycopg.types.json import Json, Jsonb
+from psycopg.errors import (
+    InvalidTextRepresentation,
+    NumericValueOutOfRange,
+    UntranslatableCharacter,
+)
+from psycopg.types.json import Json, Jsonb, JsonDumper
 
 from odoo.exceptions import LockError, UserError
+from odoo.libs.accel import fast_clone
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
 from odoo.libs.profiling import _OrmProfile
@@ -55,14 +62,64 @@ _UNIFORM_UPDATE_TYPES = (
     str,
 )
 
+_JSONB_MAX_INTEGER_DIGITS = 131072
+_JSONB_MAX_SCALE = 16383
+
 
 def _unwrap_json(value: typing.Any) -> typing.Any:
     if isinstance(value, (Json, Jsonb)):
-        return value.obj
+        return _get_jsonb_storage_value(
+            json.loads(
+                JsonDumper(type(value)).dump(value),
+                parse_float=Decimal,
+                parse_constant=_reject_json_constant,
+            )
+        )
+    return value
+
+
+def _reject_json_constant(value: str) -> typing.NoReturn:
+    raise InvalidTextRepresentation(f"Invalid JSON token: {value}")
+
+
+def _get_jsonb_storage_value(value: typing.Any) -> typing.Any:
+    if isinstance(value, str):
+        if "\0" in value:
+            raise UntranslatableCharacter("JSONB cannot store a NUL character")
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise InvalidTextRepresentation("Invalid JSON Unicode surrogate") from error
+    elif isinstance(value, Decimal):
+        exponent = value.as_tuple().exponent
+        assert isinstance(exponent, int)
+        if (
+            value and value.adjusted() >= _JSONB_MAX_INTEGER_DIGITS
+        ) or exponent < -_JSONB_MAX_SCALE:
+            raise NumericValueOutOfRange(
+                "JSONB number exceeds PostgreSQL numeric range"
+            )
+        if exponent >= 0:
+            return int(value)
+        return float(value) if value else 0.0
+    elif isinstance(value, list):
+        return [_get_jsonb_storage_value(item) for item in value]
+    elif isinstance(value, dict):
+        return {
+            _get_jsonb_storage_value(key): _get_jsonb_storage_value(item)
+            for key, item in value.items()
+        }
     return value
 
 
 def _get_column_read_value(field: Field, value: typing.Any, env) -> typing.Any:
+    if field.company_dependent:
+        company_key = str(env.company.id)
+        if value is not None and company_key in value:
+            return value[company_key]
+        model = env[field.model_name]
+        fallback = field.get_company_dependent_fallback(model)
+        return field.convert_to_column(field.convert_to_write(fallback, model), model)
     if (
         field.translate
         and isinstance(value, dict)
@@ -841,7 +898,7 @@ class InMemoryBackend:
                         value = {**old, **value}
                 values[fname] = value
             updates.append((id_, values))
-        self.storage.upsert_rows(model._table, updates)
+        self.storage.update_rows(model._table, updates)
 
     def fetch(
         self,
@@ -850,15 +907,19 @@ class InMemoryBackend:
         column_fields: typing.Iterable[Field],
         other_fields: typing.Iterable[Field],
     ) -> BaseModel:
+        column_fields = list(column_fields)
         result_ids = query._ids
         if result_ids is None:
             result_ids = tuple(self.storage.get_table_ids(model._table))
+        elif column_fields:
+            existing = self.storage.get_existing_ids(model._table, list(result_ids))
+            result_ids = tuple(id_ for id_ in result_ids if id_ in existing)
 
         if not result_ids:
             return model.browse()
 
         fetched = model.browse(result_ids)
-        self._load_column_cache(model, result_ids, list(column_fields), fetched)
+        self._load_column_cache(model, result_ids, column_fields, fetched)
 
         if fetched:
             for field in other_fields:
@@ -899,7 +960,9 @@ class InMemoryBackend:
                     fc = field_caches[field]
                     fc.setdefault(
                         record_id,
-                        field.convert_to_cache(value, records),
+                        fast_clone(value)
+                        if field.type == "json"
+                        else field.convert_to_cache(value, records),
                     )
 
     def search(

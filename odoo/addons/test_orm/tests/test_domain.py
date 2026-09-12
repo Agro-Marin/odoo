@@ -1,4 +1,5 @@
 import warnings
+from collections.abc import Set as AbstractSet
 from datetime import date, datetime
 from itertools import combinations, permutations
 
@@ -642,16 +643,16 @@ class TestDomainOptimize(TransactionCase):
         self.assertEqual((dom.field_expr, dom.operator, dom.value), ("a", "=", 1))
 
         dom = Domain("a", "=", [1, 2])
-        self.assertEqual((dom.field_expr, dom.operator, dom.value), ("a", "=", [1, 2]))
+        self.assertEqual((dom.field_expr, dom.operator, dom.value), ("a", "=", (1, 2)))
         self.assertEqual(Domain("a", "in", 5).value, 5)
         self.assertEqual(
             Domain("a", "=", []).value,
-            [],
+            (),
             "Edge-case, caller probably meant =False",
         )
 
         self.assertEqual(Domain("a", "in", Domain.TRUE).operator, "in")
-        self.assertIsInstance(Domain("a", "any", [("x", ">", 1)]).value, list)
+        self.assertIsInstance(Domain("a", "any", [("x", ">", 1)]).value, tuple)
 
     def test_condition_optimize_optimal(self):
         model = self.env["test_orm.mixed"]
@@ -691,9 +692,11 @@ class TestDomainOptimize(TransactionCase):
     def test_condition_optimize_in(self):
         model = self.env["test_orm.mixed"]
         domain = Domain("id", "in", range(5)).optimize(model)
-        self.assertIsInstance(domain.value, OrderedSet)
+        self.assertIsInstance(domain.value, AbstractSet)
+        self.assertFalse(hasattr(domain.value, "add"))
         domain = Domain("id", "in", [9, 99]).optimize(model)
-        self.assertIsInstance(domain.value, OrderedSet)
+        self.assertIsInstance(domain.value, AbstractSet)
+        self.assertFalse(hasattr(domain.value, "add"))
         self.assertIs(domain.optimize(model), domain, "Idempotent")
 
         self.assertEqual(
@@ -1253,8 +1256,8 @@ class TestDomainOptimize(TransactionCase):
             (Domain("number", "in", [1]) | Domain("number", "in", [2]))
             .optimize(model)
             .value,
-            OrderedSet,
-            "Check we can optimize something else than OrderedSet",
+            AbstractSet,
+            "List operands normalize to sets",
         )
 
     def test_nary_optimize_in_relational(self):
