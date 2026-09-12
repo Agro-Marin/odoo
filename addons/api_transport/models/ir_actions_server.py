@@ -20,9 +20,10 @@ class IrActionsServer(models.Model):
         string="Through Endpoint",
         ondelete="restrict",
         help="Send this webhook through a configured outbound endpoint, so it "
-        "carries that endpoint's credential and is subject to its circuit "
-        "breaker and rate limit. Leave empty to POST the URL directly with no "
-        "authentication, which is what a webhook action does by default.",
+        "carries that endpoint's credential, is subject to its rate limit and is "
+        "recorded in its event log. The webhook URL must be on the endpoint's host "
+        "or listed in its Allowed Hosts. Leave empty to POST the URL directly with "
+        "no authentication, which is what a webhook action does by default.",
     )
 
     @api.constrains("webhook_endpoint_id", "state")
