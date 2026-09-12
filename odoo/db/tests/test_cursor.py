@@ -439,8 +439,10 @@ class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
         from odoo.db import db_connect
 
         thread = threading.current_thread()
-        thread.query_count = 0
-        thread.query_time = 0.0
+        # The cursor accumulates onto the running thread, which declares neither
+        # attribute -- that is the contract `_record_metrics` relies on.
+        thread.query_count = 0  # type: ignore[attr-defined]
+        thread.query_time = 0.0  # type: ignore[attr-defined]
 
         db = db_connect(self.DBNAME)
         with db.cursor() as cr:
@@ -448,13 +450,13 @@ class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
             cr.commit()
 
             rows = [(i,) for i in range(20000)]
-            before_time = thread.query_time
+            before_time = thread.query_time  # type: ignore[attr-defined]
             t0 = time.monotonic()
             cr.execute_values(
                 "INSERT INTO t_pipeline_sync (a) VALUES %s", rows, page_size=200
             )
             wall = time.monotonic() - t0
-            recorded = thread.query_time - before_time
+            recorded = thread.query_time - before_time  # type: ignore[attr-defined]
             cr.rollback()
 
         self.assertGreater(wall, 0)

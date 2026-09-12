@@ -120,6 +120,13 @@ if TYPE_CHECKING:
         def _get_id_sequence(self, table: str) -> str: ...
         def _lock_table_for_bulk(self, table: str) -> None: ...
         def _preallocate_copy_ids(self, table: str, count: int) -> list[int]: ...
+        def _prepare_copy_rows(
+            self,
+            table: str,
+            columns: list[str],
+            rows: Any,
+            returning_ids: bool,
+        ) -> tuple[list[str], Any, list[int] | None] | None: ...
 
 
 def _check_copy_args(

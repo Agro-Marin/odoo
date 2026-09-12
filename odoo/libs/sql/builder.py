@@ -114,9 +114,9 @@ class SQL:
     ) -> tuple[Field, ...]:
         if to_flush is None:
             return ()
-        if isinstance(to_flush, (str, bytes)) or not hasattr(to_flush, "__iter__"):
-            return (to_flush,)
-        return tuple(to_flush)
+        if isinstance(to_flush, Iterable) and not isinstance(to_flush, (str, bytes)):
+            return tuple(to_flush)
+        return (to_flush,)
 
     @property
     def code(self) -> str:

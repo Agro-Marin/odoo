@@ -14,7 +14,7 @@ class TestSplitEvery(unittest.TestCase):
     def test_empty_iterable_yields_nothing(self):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            result = list(split_every(3, []))
+            result: list[tuple[int, ...]] = list(split_every(3, []))
         self.assertEqual(result, [])
 
     def test_custom_piece_maker(self):

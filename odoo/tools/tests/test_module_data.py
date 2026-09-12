@@ -222,6 +222,9 @@ class _RepairCursor:
     def fetchall(self):
         return list(self._result)
 
+    def fetchone(self):
+        raise AssertionError("repair_orphaned_cron_actions reads rows, never one row")
+
 
 class TestRepairOrphanedCronActions(BaseCase):
     ORPHAN = (

@@ -114,12 +114,12 @@ class _FakeCursorForCopyMetrics(_BulkAccessMixin):
 class TestCopyFromMetrics(unittest.TestCase):
     def test_reports_the_actual_row_count_not_a_fixed_one(self):
         cursor = _FakeCursorForCopyMetrics()
-        cursor.copy_from("t", ["a"], [(i,) for i in range(5000)])
+        cursor.copy_from("t", ["a"], [(i,) for i in range(5000)])  # type: ignore[misc]
         self.assertEqual(cursor.statement_done_calls, [5000])
 
     def test_an_empty_iterator_issues_no_statement_to_report(self):
         cursor = _FakeCursorForCopyMetrics()
-        cursor.copy_from("t", ["a"], iter(()))
+        cursor.copy_from("t", ["a"], iter(()))  # type: ignore[misc]
         self.assertEqual(
             cursor.statement_done_calls,
             [],
@@ -130,7 +130,7 @@ class TestCopyFromMetrics(unittest.TestCase):
 
     def test_a_generator_keeps_the_row_that_was_peeled_to_test_it(self):
         cursor = _FakeCursorForCopyMetrics()
-        cursor.copy_from("t", ["a"], iter([(1,), (2,), (3,)]))
+        cursor.copy_from("t", ["a"], iter([(1,), (2,), (3,)]))  # type: ignore[misc]
         self.assertEqual(cursor.statement_done_calls, [3])
 
 

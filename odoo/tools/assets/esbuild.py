@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from pathlib import Path
 from typing import NamedTuple
 
@@ -56,8 +56,8 @@ def _esbuild_argv(
     external_flags: list[str],
     sourcemap_flags: list[str],
     alias_flags: list[str],
-    extra_flags: list[str] = (),
-    entry_points: list[str] = (),
+    extra_flags: Sequence[str] = (),
+    entry_points: Sequence[str] = (),
     out_dir: str | None = None,
 ) -> list[str]:
     output_flags = (

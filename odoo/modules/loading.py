@@ -838,7 +838,7 @@ def _warn_invalid_module_names(cr: BaseCursor, module_names: Iterable[str]) -> N
 
 def _run_deferred_at_install_tests(
     registry: Registry,
-    cr: BaseCursor,
+    cr: Cursor,
     env: Environment,
     report: OdooTestResult | None,
 ) -> None:

@@ -41,7 +41,7 @@ class TestCryptContextRoundTrip(unittest.TestCase):
 
 class TestCryptContextSchemesStringGuard(unittest.TestCase):
     def test_init_accepts_a_bare_scheme_string(self):
-        ctx = CryptContext("pbkdf2_sha512")
+        ctx = CryptContext("pbkdf2_sha512")  # type: ignore[arg-type]  # a bare string is the case under test
         self.assertEqual(ctx.schemes(), ["pbkdf2_sha512"])
 
 

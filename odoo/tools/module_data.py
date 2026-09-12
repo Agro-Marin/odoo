@@ -10,13 +10,30 @@ from odoo.db.schema import get_tables_existing
 from odoo.libs.sql import SQL
 
 if TYPE_CHECKING:
+    from typing import Any, Protocol
+
     from odoo.db import BaseCursor
+
+    class _SqlCursor(Protocol):
+        """The four members these helpers touch.
+
+        Narrower than `BaseCursor` on purpose: a migration script or a test can hand
+        them anything that answers SQL, which is how `tests/test_module_data.py`
+        exercises the statements without a database.
+        """
+
+        rowcount: int
+
+        def execute(self, query: Any, params: Any = None) -> Any: ...
+        def fetchall(self) -> list[tuple[Any, ...]]: ...
+        def fetchone(self) -> tuple[Any, ...] | None: ...
+
 
 _logger = logging.getLogger(__name__)
 
 
 def adopt_xmlids(
-    cr: BaseCursor,
+    cr: _SqlCursor,
     from_module: str,
     to_module: str,
     names: Iterable[str],
@@ -72,7 +89,7 @@ def remove_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> i
     return deleted
 
 
-def retire_empty_module(cr: BaseCursor, module: str) -> None:
+def retire_empty_module(cr: _SqlCursor, module: str) -> None:
     cr.execute(SQL("SELECT 1 FROM ir_model_data WHERE module = %s LIMIT 1", module))
     if cr.fetchone():
         return
@@ -112,7 +129,7 @@ def _readonly_merged_name(name: str, domain: str) -> str:
     return name
 
 
-def absorb_readonly_forerunners(cr: BaseCursor) -> int:
+def absorb_readonly_forerunners(cr: _SqlCursor) -> int:
     moved = 0
     for module, domain in READONLY_FORERUNNERS.items():
         cr.execute(SQL("SELECT id, name FROM ir_model_data WHERE module = %s", module))
@@ -239,7 +256,7 @@ CRON_ACTION_SUFFIX = "_ir_actions_server"
 
 
 def rehome_cron_xmlids(
-    cr: BaseCursor,
+    cr: _SqlCursor,
     from_module: str,
     to_module: str,
     renamed: Mapping[str, str],
@@ -266,7 +283,7 @@ def rehome_cron_xmlids(
     return adopt_xmlids(cr, from_module, to_module, (), pairs)
 
 
-def repair_orphaned_cron_actions(cr: BaseCursor) -> int:
+def repair_orphaned_cron_actions(cr: _SqlCursor) -> int:
     """Re-point companions left behind by a cron rename that moved only the cron.
 
     Only the companions that still drive a live `ir.cron` are repaired, because

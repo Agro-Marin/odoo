@@ -225,6 +225,7 @@ def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
         )
 
     if isinstance(value, datetime):
+        assert isinstance(result, datetime)  # every branch above preserved the class
         return datetime.combine(
             result, time.min.replace(fold=result.fold), value.tzinfo
         )
@@ -258,6 +259,7 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
         )
 
     if isinstance(value, datetime):
+        assert isinstance(result, datetime)  # every branch above preserved the class
         return datetime.combine(
             result, time.max.replace(fold=result.fold), value.tzinfo
         )

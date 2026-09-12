@@ -8,8 +8,10 @@ from odoo.tools.assets.esbuild import _esbuild_argv, _get_esbuild_path
 
 
 def _argv(tmp_path, alias_flags, entry):
+    esbuild = _get_esbuild_path()
+    assert esbuild is not None, "these tests need the real esbuild on PATH"
     return _esbuild_argv(
-        _get_esbuild_path(),
+        esbuild,
         target="es2023",
         out_path=str(tmp_path / "out.js"),
         metafile_path=str(tmp_path / "meta.json"),
