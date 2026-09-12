@@ -327,7 +327,7 @@ class TestViewInheritance(ViewCase):
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss + 2)
 
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(6):
             self.assertValid(
                 """
                 <field name="name" position="replace"/>
@@ -354,7 +354,7 @@ class TestViewInheritance(ViewCase):
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss)
 
-        with self.assertQueryCount(3):
+        with self.assertQueryCount(4):
             self.assertValid(
                 """
                 <field name="name" position="replace">

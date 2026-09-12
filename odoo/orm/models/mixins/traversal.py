@@ -312,7 +312,7 @@ class TraversalMixin(_ModelStubs):
                 order=order,
                 records=len(self),
             )
-            key = self._sorted_order_to_function(order)
+            key = self._sorted_order_to_function(order, _checked=True)
         elif key is None:
             order = self._order
             self._sorted_load_fields(order)
@@ -325,7 +325,7 @@ class TraversalMixin(_ModelStubs):
                 order=order,
                 records=len(self),
             )
-            key = self._sorted_order_to_function(order)
+            key = self._sorted_order_to_function(order, _checked=True)
         ids = tuple(
             item._ids[0]
             for item in sorted(
@@ -385,7 +385,9 @@ class TraversalMixin(_ModelStubs):
         return ids
 
     @api.model
-    def _sorted_order_to_function(self, order: str) -> Callable[[Self], typing.Any]:
+    def _sorted_order_to_function(
+        self, order: str, _checked: bool = False
+    ) -> Callable[[Self], typing.Any]:
         _env = self.env
 
         def order_to_function(order_part):
@@ -435,8 +437,9 @@ class TraversalMixin(_ModelStubs):
                 _P = PENDING
 
                 def getter(rec):
-                    field.check_read_access(rec)
-                    field.recompute_pending(rec)
+                    if not _checked:
+                        field.check_read_access(rec)
+                        field.recompute_pending(rec)
                     value = _get_cache(_env).get(rec._ids[0], _S)
                     if value is _S or value is _P:
                         record_value = _field_get(rec)
