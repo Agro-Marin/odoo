@@ -10,7 +10,10 @@ from typing import Any, NamedTuple
 
 from werkzeug.exceptions import BadRequest
 
+from odoo.libs.debug_log import DebugLog
+
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _PRIMITIVES: frozenset[type] = frozenset({int, float, bool, str})
 
@@ -190,7 +193,13 @@ def coerce_params(
     for name, spec in specs.items():
         if name not in params:
             if spec.required:
+                _debug.logic("http.params.missing_required", param=name)
                 raise BadRequest(f"missing required parameter {name!r}")
             continue
         coerced[name] = _coerce_value(name, params[name], spec)
+    _debug.pipeline(
+        "http.params.coerced",
+        specs=len(specs),
+        present=sum(1 for name in specs if name in params),
+    )
     return coerced

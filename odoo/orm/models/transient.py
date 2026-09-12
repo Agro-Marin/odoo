@@ -1,5 +1,6 @@
 import datetime
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, config, lazy_classproperty
 
 from .. import decorators as api
@@ -8,6 +9,7 @@ from ..primitives import GC_UNLINK_LIMIT
 from .base import Model
 
 _TRANSIENT_VACUUM_MIN_AGE_SECONDS = 300
+_debug = DebugLog(__name__)
 
 
 class TransientModel(Model):
@@ -59,4 +61,11 @@ class TransientModel(Model):
         domain = Domain("write_date", "<", now - datetime.timedelta(seconds=seconds))
         records = self.sudo().search(domain, limit=GC_UNLINK_LIMIT)
         records.unlink()
+        _debug.lifecycle(
+            "transient.vacuumed",
+            model=self._name,
+            older_than_s=seconds,
+            removed=len(records),
+            limit_hit=len(records) >= GC_UNLINK_LIMIT,
+        )
         return len(records)

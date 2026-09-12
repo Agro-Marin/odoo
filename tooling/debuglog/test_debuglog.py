@@ -138,3 +138,19 @@ def test_the_core_tree_passes_check():
     reports = debuglog.scan(roots)
     violations = [v for report in reports for v in report.violations]
     assert violations == []
+
+
+def test_a_test_suite_is_skipped_but_a_package_named_tests_is_scanned(tmp_path):
+    suite = tmp_path / "addon" / "tests"
+    suite.mkdir(parents=True)
+    _write(suite, "test_thing.py", INSTRUMENTED)
+    _write(suite, "helper.py", INSTRUMENTED)
+    framework = tmp_path / "odoo" / "tests"
+    framework.mkdir(parents=True)
+    _write(framework, "loader.py", INSTRUMENTED)
+    _write(tmp_path, "conftest.py", INSTRUMENTED)
+    scanned = {
+        path.relative_to(tmp_path).as_posix()
+        for path in debuglog.iter_files([tmp_path])
+    }
+    assert scanned == {"odoo/tests/loader.py"}

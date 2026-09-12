@@ -8,12 +8,15 @@ import werkzeug.datastructures
 import werkzeug.utils
 from werkzeug.exceptions import NotFound
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps_bytes as _fast_dumps_bytes
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.tools.json import orjson_default
 
 from ._protocols import RequestState, get_ir_http
 from .wrappers import HTTPRequest, Response
+
+_debug = DebugLog(__name__)
 
 
 class _RequestResponseMixin(RequestState):
@@ -56,6 +59,13 @@ class _RequestResponseMixin(RequestState):
                 location = "/"
             else:
                 location = "/" + urlunsplit(stripped).lstrip("/\\")
+        _debug.logic(
+            "http.redirect",
+            location=location,
+            code=code,
+            local=local,
+            via="ir.http" if self.db and self.env is not None else "werkzeug",
+        )
         if self.db and self.env is not None:
             return get_ir_http(self.env)._redirect(location, code)
         return werkzeug.utils.redirect(location, code, Response=Response)
@@ -107,4 +117,10 @@ class _RequestResponseMixin(RequestState):
         httprequest = HTTPRequest(environ)
         httprequest._adopt_body_state(self.httprequest)
         current_worker_thread().url = httprequest.url
+        _debug.pipeline(
+            "http.reroute",
+            path=path,
+            query=bool(query_string),
+            db=getattr(self, "db", None),
+        )
         self.httprequest = httprequest

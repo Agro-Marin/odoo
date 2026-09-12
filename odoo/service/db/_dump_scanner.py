@@ -6,6 +6,8 @@ import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
+
 from .._env import get_env_int
 
 if TYPE_CHECKING:
@@ -13,6 +15,7 @@ if TYPE_CHECKING:
     from typing import TextIO
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 _META_ARG_NONE = r"[ \t]*(?:\r?\n|\Z)"
@@ -409,6 +412,13 @@ def _check_dump_sql_safe(sql_path: str) -> None:
             hit = scanner.feed(chunk)
             if hit is not None:
                 break
+    _debug.logic(
+        "database.restore.dump_scanned",
+        path=sql_path,
+        lines=scanner.lineno,
+        max_line=max_line,
+        refused=hit is not None,
+    )
     if hit is not None:
         lineno, command = hit
         if not command.startswith("\\"):

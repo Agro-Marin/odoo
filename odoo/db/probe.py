@@ -7,6 +7,8 @@ from time import monotonic
 
 import psycopg
 
+from odoo.libs.debug_log import DebugLog
+
 from .dsn import (
     _NON_RETRYABLE_CONNECT_ERRORS,
     _expand_conninfo,
@@ -14,6 +16,7 @@ from .dsn import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 PROBE_CONNECT_TIMEOUT = 5
 
@@ -90,6 +93,12 @@ class ReachabilityProbe:
             self._stats.record_probe_outcome("skipped_proven")
             return
         assert probe is not None
+        _debug.logic(
+            "pool.probe",
+            db=dict(key).get("database"),
+            leader=leader,
+            deadline_s=None if deadline is None else max(0.0, deadline - monotonic()),
+        )
         self._probe_or_await_leader(key, probe, leader, conninfo, kwargs, deadline)
 
     def _probe_or_await_leader(
@@ -128,7 +137,8 @@ class ReachabilityProbe:
         probe_kwargs = {**kwargs, "autocommit": True}
         probe_kwargs["connect_timeout"] = probe_timeout
         try:
-            conn = psycopg.connect(conninfo, **probe_kwargs)
+            with _debug.perf("pool.probe.connect", timeout=probe_timeout):
+                conn = psycopg.connect(conninfo, **probe_kwargs)
         except _NON_RETRYABLE_CONNECT_ERRORS:
             self._stats.record_probe_outcome("permanent")
             raise

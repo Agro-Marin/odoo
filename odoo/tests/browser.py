@@ -27,6 +27,7 @@ import psutil
 import requests
 
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import RUNBOT
 from odoo.tools.misc import get_executable_path
@@ -44,6 +45,7 @@ except ImportError:
     websocket = None
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 CHECK_BROWSER_SLEEP = 0.1
 CHECK_BROWSER_ITERATIONS = 100
@@ -285,6 +287,7 @@ class ChromeBrowser:
             self._terminate_chrome()
 
         self._logger.info('Removing chrome user profile "%s"', self.user_data_dir)
+        _debug.lifecycle("test.browser.stopped", profile=self.user_data_dir)
         shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
         if self._sigxcpu_installed:
@@ -335,7 +338,14 @@ class ChromeBrowser:
             time.sleep(CHECK_BROWSER_SLEEP)
             if port_file.is_file() and port_file.stat().st_size > 5:
                 with port_file.open("r", encoding="utf-8") as f:
-                    return proc, int(f.readline())
+                    port = int(f.readline())
+                _debug.lifecycle(
+                    "test.browser.spawned",
+                    pid=proc.pid,
+                    port=port,
+                    profile=self.user_data_dir,
+                )
+                return proc, port
             if (died := proc.poll()) is not None:
                 break
 
@@ -833,6 +843,11 @@ which leads to stray network requests and inconsistencies."""
                         "The ready code took too much time: %.2fs",
                         time.monotonic() - start_time,
                     )
+                _debug.perf.count(
+                    "test.browser.ready",
+                    wait_s=time.monotonic() - start_time,
+                    timeout=timeout,
+                )
                 return True
 
             time.sleep(0.05)

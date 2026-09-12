@@ -5,9 +5,12 @@ from functools import lru_cache, partial
 from psycopg import sql as psycopg_sql
 
 from odoo.db import FunctionStatus, get_unaccent_status, has_trigram
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from ._registry_stubs import _RegistryStubs
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from odoo.db import BaseCursor
@@ -121,6 +124,13 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
             else _identity
         )
         self._ilike_table = transforms.ilike
+        _debug.lifecycle(
+            "registry.capabilities_probed",
+            db=db_name,
+            unaccent=self.has_unaccent.name,
+            trigram=self.has_trigram,
+            unaccent_table=len(transforms.unaccent),
+        )
 
     def get_ilike_normalizer(self, env: Environment) -> typing.Callable[[str], str]:
         if self._ilike_table is not None:

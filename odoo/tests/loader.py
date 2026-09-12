@@ -7,10 +7,13 @@ from typing import TYPE_CHECKING, Any
 from unittest import TestCase as _StdTestCase
 
 from .. import tools
+from ..libs.debug_log import DebugLog
 from . import common
 from .result import OdooTestResult
 from .suite import OdooSuite
 from .tag_selector import TagsSelector
+
+_debug = DebugLog(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterator
@@ -99,6 +102,13 @@ def prepare_suite(module_names: list[str], position: str = "at_install") -> Odoo
         for t in get_module_test_cases(m)
         if position_tag.selects(t) and config_tags.select_test(t)
     ]
+    _debug.pipeline(
+        "test.suite.prepared",
+        modules=len(module_names),
+        position=position,
+        tests=len(tests),
+        tags=tools.config["test_tags"] or None,
+    )
     return OdooSuite(sorted(tests, key=lambda t: getattr(t, "test_sequence", 0)))
 
 
@@ -110,7 +120,13 @@ def run_suite(
     module.current_test = True
     try:
         results = OdooTestResult(global_report=global_report)
-        suite.run(results)
+        with _debug.perf("test.suite.run", tests=suite.countTestCases()) as span:
+            suite.run(results)
+            span.set(
+                ran=results.testsRun,
+                failures=results.failures_count,
+                errors=results.errors_count,
+            )
     finally:
         module.current_test = False
         common.gc_test_filestore()

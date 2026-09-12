@@ -3,10 +3,12 @@ import sys
 
 import odoo.db
 import odoo.modules.neutralize
+from odoo.libs.debug_log import DebugLog
 
 from . import DatabaseCommand
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Neutralize(DatabaseCommand):
@@ -27,6 +29,7 @@ class Neutralize(DatabaseCommand):
         dbname = self.bootstrap_config(parsed_args, extra_args=unknown)
 
         _logger.info("Starting %s database neutralization", dbname)
+        _debug.lifecycle("cli.neutralize", db=dbname, to_stdout=parsed_args.to_stdout)
 
         try:
             with odoo.db.db_connect(dbname).cursor() as cursor:

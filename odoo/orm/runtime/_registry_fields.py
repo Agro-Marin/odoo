@@ -5,6 +5,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.func import locked
 from odoo.tools import OrderedSet
 from odoo.tools.misc import Collector
@@ -19,6 +20,7 @@ if typing.TYPE_CHECKING:
 
 
 _logger = logging.getLogger("odoo.registry")
+_debug = DebugLog(__name__)
 _schema = logging.getLogger("odoo.schema")
 
 
@@ -184,46 +186,50 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
     @functools.cached_property
     def _field_triggers(self) -> dict:
-        graph = self.model_graph
-        start_epoch = graph.trigger_epoch
-        new_triggers: defaultdict = defaultdict(lambda: defaultdict(list))
-        for Model in self.models.values():
-            if Model._abstract:
-                continue
-            for field in Model._fields.values():
-                try:
-                    dependencies = list(
-                        field.resolve_depends(typing.cast("Registry", self))
-                    )
-                except Exception as e:
-                    if not field.base_field.manual:
-                        raise
-                    _logger.info(
-                        "Could not resolve dependencies of manual field %s.%s; "
-                        "ignoring them (%s: %s)",
-                        field.model_name,
-                        field.name,
-                        type(e).__name__,
-                        e,
-                    )
-                else:
-                    for dependency in dependencies:
-                        *path, dep_field = dependency
-                        bucket = new_triggers[dep_field][tuple(reversed(path))]
-                        if field not in bucket:
-                            bucket.append(field)
+        with _debug.perf("registry.field_triggers", models=len(self.models)) as span:
+            graph = self.model_graph
+            start_epoch = graph.trigger_epoch
+            new_triggers: defaultdict = defaultdict(lambda: defaultdict(list))
+            for Model in self.models.values():
+                if Model._abstract:
+                    continue
+                for field in Model._fields.values():
+                    try:
+                        dependencies = list(
+                            field.resolve_depends(typing.cast("Registry", self))
+                        )
+                    except Exception as e:
+                        if not field.base_field.manual:
+                            raise
+                        _logger.info(
+                            "Could not resolve dependencies of manual field %s.%s; "
+                            "ignoring them (%s: %s)",
+                            field.model_name,
+                            field.name,
+                            type(e).__name__,
+                            e,
+                        )
+                    else:
+                        for dependency in dependencies:
+                            *path, dep_field = dependency
+                            bucket = new_triggers[dep_field][tuple(reversed(path))]
+                            if field not in bucket:
+                                bucket.append(field)
 
-        if not graph.set_triggers(new_triggers, epoch=start_epoch):
-            self.__dict__["_field_triggers_refused_at"] = graph.trigger_epoch
+            span.set(triggered_fields=len(new_triggers))
+            if not graph.set_triggers(new_triggers, epoch=start_epoch):
+                self.__dict__["_field_triggers_refused_at"] = graph.trigger_epoch
+                span.set(published=False)
+                return graph.published_triggers
+
+            self.__dict__.pop("_field_triggers_refused_at", None)
+
+            self._publish_field_metadata()
+
+            graph.freeze()
+
+            span.set(published=True)
             return graph.published_triggers
-
-        self.__dict__.pop("_field_triggers_refused_at", None)
-
-        self._publish_field_metadata()
-
-        graph.freeze()
-
-        return graph.published_triggers
 
     def is_modifying_relations(self, field: Field) -> bool:
         self._get_field_triggers()

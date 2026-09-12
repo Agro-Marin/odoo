@@ -2,6 +2,7 @@ import logging
 import typing
 
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
@@ -11,6 +12,7 @@ if typing.TYPE_CHECKING:
     from .textual import BaseString, Char
 
 _logger = logging.getLogger("odoo.fields")
+_debug = DebugLog(__name__)
 _schema = logging.getLogger("odoo.schema")
 
 
@@ -63,6 +65,13 @@ def update_db_column(
         return
     if column["udt_name"] == column_type[0]:
         return
+    _debug.logic(
+        "field.ddl.column_converted",
+        model=model._name,
+        field=field.name,
+        from_type=column["udt_name"],
+        to_type=column_type[0],
+    )
     field._convert_db_column(model, column)
 
 
@@ -114,6 +123,13 @@ def update_db_notnull(
             model._init_column(field.name, new_column=not column)
 
     if field.required and not has_notnull:
+        _debug.logic(
+            "field.ddl.not_null_scheduled",
+            model=model._name,
+            field=field.name,
+            new_column=not column,
+            computed=bool(field.compute),
+        )
 
         @model.pool.post_init
         def add_not_null():
@@ -175,6 +191,7 @@ def update_db_notnull(
                 )
 
     elif not field.required and has_notnull:
+        _debug.logic("field.ddl.not_null_dropped", model=model._name, field=field.name)
         sql.drop_not_null(model.env.cr, model._table, field.name)
 
 

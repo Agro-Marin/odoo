@@ -1,8 +1,12 @@
 import functools
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+_debug = DebugLog(__name__)
 
 
 class _GeoIPNull:
@@ -109,10 +113,13 @@ class GeoIP:
         try:
             return city_db.city(self.ip)
         except _GEOIP_DB_ERRORS:
+            _debug.logic("http.geoip.lookup_failed", db="city", reason="db_error")
             return GEOIP_EMPTY_CITY
         except _GEOIP_NOT_FOUND:
+            _debug.logic("http.geoip.lookup_failed", db="city", reason="not_found")
             return GEOIP_EMPTY_CITY
         except _GEOIP_BAD_ADDRESS:
+            _debug.logic("http.geoip.lookup_failed", db="city", reason="bad_address")
             return GEOIP_EMPTY_CITY
 
     @functools.cached_property

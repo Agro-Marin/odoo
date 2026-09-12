@@ -7,6 +7,7 @@ import psycopg
 
 from odoo.db import FunctionStatus
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import get_index_name
 from odoo.tools import OrderedSet
 
@@ -22,6 +23,7 @@ if typing.TYPE_CHECKING:
 
 _logger = logging.getLogger("odoo.registry")
 _schema = logging.getLogger("odoo.schema")
+_debug = DebugLog(__name__)
 
 
 class _RegistrySchemaMixin(_RegistryStubs):
@@ -51,6 +53,9 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 self._constraint_queue[key] = func
 
     def finalize_constraints(self, cr: Cursor) -> None:
+        _debug.pipeline(
+            "registry.finalize_constraints", queued=len(self._constraint_queue)
+        )
         for func in self._constraint_queue.values():
             try:
                 with cr.savepoint(flush=False):
@@ -84,6 +89,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
                             self.not_null_fields.add(field)
                         else:
                             _schema.warning("Missing not-null constraint on %s", field)
+        _debug.perf.count(
+            "registry.null_constraints_checked",
+            columns=len(not_null_columns),
+            fields=len(self.not_null_fields),
+        )
 
     def _get_index_expression(self, field, index) -> tuple[str, str, str]:
         column_expression = f'"{field.name}"'
@@ -171,6 +181,12 @@ class _RegistrySchemaMixin(_RegistryStubs):
             indexname: (tablename, method, has_predicate)
             for indexname, tablename, method, has_predicate in cr.fetchall()
         }
+        _debug.pipeline(
+            "registry.check_indexes",
+            models=len(list(model_names)),
+            expected=len(expected),
+            existing=len(existing),
+        )
 
         for indexname, tablename, field in expected:
             index = field.index
@@ -248,12 +264,25 @@ class _RegistrySchemaMixin(_RegistryStubs):
             )
         }
 
+        _debug.pipeline(
+            "registry.check_foreign_keys",
+            declared=len(foreign_keys),
+            existing=len(existing),
+            tables=len(tablenames),
+        )
         for key, val in foreign_keys.items():
             table1, column1 = key
             table2, column2, ondelete, model, module = val
             deltype = sql._CONFDELTYPES[ondelete.upper()]
             spec = existing.get(key)
             if spec is None:
+                _debug.logic(
+                    "registry.foreign_key.added",
+                    table=table1,
+                    column=column1,
+                    target=table2,
+                    ondelete=ondelete,
+                )
                 sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
                 conname = sql.get_fk_constraint_names(
                     cr, table1, column1, table2, column2, ondelete
@@ -262,6 +291,14 @@ class _RegistrySchemaMixin(_RegistryStubs):
                     model, conname, "f", None, module
                 )
             elif (spec[1], spec[2], spec[3]) != (table2, column2, deltype):
+                _debug.logic(
+                    "registry.foreign_key.replaced",
+                    table=table1,
+                    column=column1,
+                    target=table2,
+                    ondelete=ondelete,
+                    previous=spec[0],
+                )
                 sql.drop_constraint(cr, table1, spec[0])
                 sql.add_foreign_key(cr, table1, column1, table2, column2, ondelete)
                 conname = sql.get_fk_constraint_names(
@@ -284,6 +321,11 @@ class _RegistrySchemaMixin(_RegistryStubs):
             sql.get_tables_existing(cr, table2model)
         )
 
+        _debug.pipeline(
+            "registry.check_tables_exist",
+            tables=len(table2model),
+            missing=len(missing_tables),
+        )
         if missing_tables:
             missing = {table2model[table] for table in missing_tables}
             _logger.info("Models have no table: %s.", ", ".join(missing))

@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 import odoo.modules.registry
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 
 from .._dispatch import dispatch_through_table
 from .._env import get_env_int
@@ -21,6 +22,7 @@ from .listing import (
 from .restore import exp_restore
 
 _logger = logging.getLogger("odoo.service.db")
+_debug = DebugLog(__name__)
 
 
 @check_db_management_enabled
@@ -48,6 +50,9 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
         )
         raise
     _logger.info("Master admin password updated")
+    _debug.lifecycle(
+        "database.admin_password_changed", had_previous=old_hash is not None
+    )
     return True
 
 
@@ -57,9 +62,10 @@ def exp_migrate_databases(databases: list[str]) -> Literal[True]:
         check_db_exposed(db)
     for db in databases:
         _logger.info("migrate database %s", db)
-        odoo.modules.registry.Registry.new(
-            db, update_module=True, upgrade_modules={"base"}, run_tests=False
-        )
+        with _debug.perf("database.migrated", db=db):
+            odoo.modules.registry.Registry.new(
+                db, update_module=True, upgrade_modules={"base"}, run_tests=False
+            )
     return True
 
 

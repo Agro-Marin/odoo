@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import get_module_path
 from odoo.tools import OrderedSet
 from odoo.tools.translate import (
@@ -17,6 +18,7 @@ from odoo.tools.translate import (
 from . import DatabaseCommand, open_environment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 type _SubParsers = argparse._SubParsersAction[argparse.ArgumentParser]
 
@@ -168,6 +170,9 @@ class I18n(DatabaseCommand):
     def run(self, cmdargs: list[str]) -> None:
         parsed_args, unknown = self.parse_args(cmdargs)
         self.bootstrap_config(parsed_args, extra_args=unknown)
+        _debug.lifecycle(
+            "cli.i18n", subcommand=getattr(parsed_args.func, "__name__", None)
+        )
         parsed_args.func(parsed_args)
 
     def _get_languages(

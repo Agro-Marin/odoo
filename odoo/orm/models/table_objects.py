@@ -1,7 +1,10 @@
 import typing
 
 from odoo.db import schema as sql
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import normalize_identifier
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -88,6 +91,12 @@ class Constraint(TableObject):
         if current_definition == definition:
             return
 
+        _debug.lifecycle(
+            "table_object.constraint_queued",
+            model=getattr(model, "_name", None),
+            name=conname,
+            replaces_constraint=bool(current_definition),
+        )
         if current_definition:
             sql.drop_constraint(cr, model._table, conname)
         elif sql.get_index_definition(cr, conname)[0]:
@@ -135,6 +144,15 @@ class Index(TableObject):
         if db_comment == definition or (not db_comment and db_definition):
             return
 
+        _debug.lifecycle(
+            "table_object.index_queued",
+            model=getattr(model, "_name", None),
+            name=conname,
+            unique=self.unique,
+            replaces_index=bool(db_definition),
+            owned_by_constraint=bool(owning_constraint),
+            dropped_only=not definition_clause,
+        )
         if db_definition:
             sql.drop_index(cr, conname, model._table)
 

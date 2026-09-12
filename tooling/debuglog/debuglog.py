@@ -22,6 +22,10 @@ The strippable shapes, and only these:
     <any line>  # debuglog                         a line that exists only to
                                                    feed a log call
 
+Test suites are not scanned: a `test_*.py`, a `conftest.py`, or anything under
+a `tests/` directory that holds a `test_*.py`. A package merely named `tests`
+(`odoo/tests`, the test framework) is scanned like any other.
+
 A bare `_debug.perf(...)` statement is refused: the perf channel returns a
 span, so outside a `with` it silently does nothing. A site that is the only
 statement of its block is refused too, because stripping it would leave the
@@ -51,7 +55,7 @@ MARKER = "# debuglog"
 NAME = "_debug"
 CLASS = "DebugLog"
 MODULE = "debug_log"
-SKIPPED = ("/tests/", "/__pycache__/", "/_vendor/", "/node_modules/")
+SKIPPED = ("/__pycache__/", "/_vendor/", "/node_modules/")
 _MARKER_RE = re.compile(r"\s*# debuglog\s*$")
 _SURVIVOR_RE = re.compile(rf"(?<![\w.])(?<!def ){NAME}\b|\b{CLASS}\b|{MARKER}")
 
@@ -314,14 +318,31 @@ def scan_file(path: Path) -> FileReport | None:
     return report
 
 
+def _is_test_suite_dir(directory: Path, memo: dict[Path, bool]) -> bool:
+    known = memo.get(directory)
+    if known is None:
+        known = memo[directory] = any(directory.glob("test_*.py"))
+    return known
+
+
+def _is_test_file(path: Path, memo: dict[Path, bool]) -> bool:
+    if path.name.startswith("test_") or path.name == "conftest.py":
+        return True
+    return any(
+        parent.name == "tests" and _is_test_suite_dir(parent, memo)
+        for parent in path.parents
+    )
+
+
 def iter_files(roots: list[Path]) -> list[Path]:
     files: list[Path] = []
+    memo: dict[Path, bool] = {}
     for root in roots:
         for path in sorted(root.rglob("*.py")):
             text = str(path)
             if any(part in text for part in SKIPPED):
                 continue
-            if path.name == f"{MODULE}.py":
+            if path.name == f"{MODULE}.py" or _is_test_file(path, memo):
                 continue
             files.append(path)
     return files
