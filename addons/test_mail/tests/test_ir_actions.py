@@ -231,6 +231,7 @@ class TestServerActionsEmail(MailCommon, TestServerActionsBase):
             "ir_actions_server: create next activity action correctly finished should return False",
         )
         self.assertEqual(self.env["mail.activity"].search_count([]), before_count + 1)
+        self.assertEqual(self.test_partner.user_ids[0], self.user_admin)
         self.assertRecordValues(
             self.env["mail.activity"].search(
                 [
@@ -241,7 +242,7 @@ class TestServerActionsEmail(MailCommon, TestServerActionsBase):
             [
                 {
                     "summary": "TestNew",
-                    "user_id": self.user_demo.id,  # the first user found
+                    "user_id": self.test_partner.user_ids[0].id,  # the first user found
                 }
             ],
         )
