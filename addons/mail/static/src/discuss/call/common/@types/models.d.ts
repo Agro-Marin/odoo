@@ -39,6 +39,7 @@ declare module "models" {
         _computeVisibleCards(): import("@mail/discuss/call/common/call").CardData[];
         _computeUseCameraByDefault(): boolean | null;
         activeRtcSession: RtcSession;
+        readonly cameraDefaultStorageKey: string;
         cancelRtcInvitationTimeout: number | undefined;
         focusAvailableVideo: () => void;
         focusStack: import("@mail/model/record_list").RecordList<RtcSession>;

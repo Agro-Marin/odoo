@@ -2,7 +2,10 @@
 /** @odoo-module native */
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
-import { browser } from "@web/core/browser/browser";
+import {
+    readLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { patch } from "@web/core/utils/patch";
 
@@ -84,13 +87,17 @@ const ThreadPatch = {
             /** @this {import("models").Thread} */
             onUpdate() {
                 if (this.useCameraByDefault !== null) {
-                    browser.localStorage.setItem(
-                        `discuss_channel_camera_default_${this.id}`,
+                    setLocalStorageItem(
+                        this.store,
+                        this.cameraDefaultStorageKey,
                         JSON.stringify(this.useCameraByDefault),
                     );
                 }
             },
         });
+    },
+    get cameraDefaultStorageKey() {
+        return `discuss_channel_camera_default_${this.id}`;
     },
     /** @returns {any} */
     _computeUseCameraByDefault() {
@@ -100,9 +107,7 @@ const ThreadPatch = {
         ) {
             return this.store.rtc.selfSession.is_camera_on;
         }
-        const raw = browser.localStorage.getItem(
-            `discuss_channel_camera_default_${this.id}`,
-        );
+        const raw = readLocalStorageItem(this.store, this.cameraDefaultStorageKey);
         if (!raw || raw === "undefined") {
             return null;
         }

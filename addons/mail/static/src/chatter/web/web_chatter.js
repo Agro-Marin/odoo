@@ -13,6 +13,10 @@ import { Activity } from "@mail/core/web/activity";
 import { FollowerList } from "@mail/core/web/follower_list";
 import { RecipientsInput } from "@mail/core/web/recipients_input";
 import { useHover, useMessageScrolling } from "@mail/utils/common/hooks";
+import {
+    readLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { assignGetter, isDragSourceExternalFile } from "@mail/utils/common/misc";
 import { status, useEffect } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
@@ -27,10 +31,11 @@ import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
 const log = makeLogger("mail.chatter");
+const CHATTER_ASIDE_COLLAPSED_LS = "chatter_aside_collapsed";
 export const DELAY_FOR_SPINNER = 1000;
 
 /** @typedef {import("@mail/chatter/web_portal/chatter").Props & { close?: function, compactHeight?: boolean, has_activities?: boolean, hasAttachmentPreview?: boolean, hasParentReloadOnActivityChanged?: boolean, hasParentReloadOnAttachmentsChanged?: boolean, hasParentReloadOnFollowersUpdate?: boolean, hasParentReloadOnMessagePosted?: boolean, highlightMessageId?: number, isAttachmentBoxVisibleInitially?: boolean, isChatterAside?: boolean, isInFormSheetBg?: boolean, saveRecord?: function, record?: Object, }} Props */
-/** @typedef {import("@mail/chatter/web_portal/chatter").State & { composerType: "message"|"note"|false, isAttachmentBoxOpened: boolean, isCollapsed: boolean, isSearchOpen: boolean, showActivities: boolean, showAttachmentLoading: boolean, showScheduledMessages: boolean, }} State */
+/** @typedef {import("@mail/chatter/web_portal/chatter").State & { composerType: "message"|"note"|false, isAttachmentBoxOpened: boolean, isSearchOpen: boolean, showActivities: boolean, showAttachmentLoading: boolean, showScheduledMessages: boolean, }} State */
 /** @extends {Chatter<Props, State>} */
 export class WebChatter extends Chatter {
     static template = "mail.Chatter";
@@ -90,8 +95,6 @@ export class WebChatter extends Chatter {
         Object.assign(this.state, {
             composerType: false,
             isAttachmentBoxOpened: this.props.isAttachmentBoxVisibleInitially,
-            isCollapsed:
-                browser.localStorage.getItem("chatter_aside_collapsed") === "true",
             isSearchOpen: false,
             showActivities: true,
             showAttachmentLoading: false,
@@ -334,7 +337,10 @@ export class WebChatter extends Chatter {
     }
 
     get isCollapsedAside() {
-        return this.props.isChatterAside && this.state.isCollapsed;
+        return (
+            this.props.isChatterAside &&
+            readLocalStorageItem(this.store, CHATTER_ASIDE_COLLAPSED_LS) === "true"
+        );
     }
 
     /** @returns {boolean} */
@@ -598,14 +604,9 @@ export class WebChatter extends Chatter {
     }
 
     toggleChatterCollapse() {
-        log.logic("toggleChatterCollapse", () => ({
-            collapsed: !this.state.isCollapsed,
-        }));
-        this.state.isCollapsed = !this.state.isCollapsed;
-        browser.localStorage.setItem(
-            "chatter_aside_collapsed",
-            String(this.state.isCollapsed),
-        );
+        const collapsed = !this.isCollapsedAside;
+        log.logic("toggleChatterCollapse", () => ({ collapsed }));
+        setLocalStorageItem(this.store, CHATTER_ASIDE_COLLAPSED_LS, String(collapsed));
     }
 
     /**
