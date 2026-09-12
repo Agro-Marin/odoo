@@ -29,7 +29,7 @@ import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
-import { dynamicPlaceholderOptions } from "@web/fields/field_options";
+import { archAttribute, dynamicPlaceholderOptions } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
@@ -376,6 +376,11 @@ export const htmlField = {
     component: HtmlField,
     displayName: _t("Html"),
     supportedTypes: ["html"],
+    supportedAttributes: [
+        archAttribute("placeholder", _t("Placeholder"), {
+            help: _t("Shown inside the editor while the field is empty."),
+        }),
+    ],
     supportedOptions: [
         {
             label: _t("Height"),
