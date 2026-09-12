@@ -4,7 +4,12 @@ import { makeStore, Record, Store } from "@mail/core/common/record";
 import { AND, fields, OR } from "@mail/model/misc";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { markup, reactive, toRaw } from "@odoo/owl";
-import { asyncStep, mockService, waitForSteps } from "@web/../tests/web_test_helpers";
+import {
+    asyncStep,
+    mockService,
+    patchWithCleanup,
+    waitForSteps,
+} from "@web/../tests/web_test_helpers";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
@@ -1093,6 +1098,29 @@ test("record.toData() field filter respects field-name boundaries", async () => 
     expect(data.Person.map((r) => r.id).sort()).toEqual([1, 2], {
         message: "the requested `team_lead` relation should be expanded",
     });
+});
+
+test("record.toData() serialises a record reached through two relations once", async () => {
+    class Person extends Record {
+        static id = "id";
+        id;
+        name;
+        boss = fields.One(/** @type {string} */ ("Person"));
+        mentor = fields.One(/** @type {string} */ ("Person"));
+    }
+    Person.register(localRegistry);
+    const store = await start();
+    store.Person.insert({ id: 1, name: "Junior", boss: { id: 2 }, mentor: { id: 2 } });
+    store.Person.insert({ id: 2, name: "Senior" });
+    patchWithCleanup(Person.prototype, {
+        _cleanupData(data) {
+            asyncStep(`serialised:${data.id}`);
+            return super._cleanupData(data);
+        },
+    });
+    const data = store.Person.get(1).toData(["boss", "mentor"]);
+    expect(data.Person.map((r) => r.id)).toEqual([2, 1]);
+    await waitForSteps(["serialised:2", "serialised:1"]);
 });
 
 test("Methods are bound to records", async () => {

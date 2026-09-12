@@ -289,24 +289,25 @@ export class Store extends Record {
             this._.RHD_QUEUE.size > 0
         );
     }
+    /**
+     * @template {"FC_QUEUE"|"FS_QUEUE"|"FA_QUEUE"|"FD_QUEUE"|"FU_QUEUE"|"RO_QUEUE"|"RD_QUEUE"|"RHD_QUEUE"} K
+     * @param {K} name
+     * @returns {StoreInternal[K]}
+     */
+    _takeQueue(name) {
+        const queue = this._[name];
+        this._[name] = /** @type {StoreInternal[K]} */ (new Map());
+        return queue;
+    }
     /** @param {Map<string, Record>} deletingRecordsByLocalId */
     _drainQueuesOnce(deletingRecordsByLocalId) {
-        const FC_QUEUE = new Map(this._.FC_QUEUE);
-        const FS_QUEUE = new Map(this._.FS_QUEUE);
-        const FA_QUEUE = new Map(this._.FA_QUEUE);
-        const FD_QUEUE = new Map(this._.FD_QUEUE);
-        const FU_QUEUE = new Map(this._.FU_QUEUE);
-        const RO_QUEUE = new Map(this._.RO_QUEUE);
-        const RD_QUEUE = new Map(this._.RD_QUEUE);
-        const RHD_QUEUE = new Map(this._.RHD_QUEUE);
-        this._.FC_QUEUE.clear();
-        this._.FS_QUEUE.clear();
-        this._.FA_QUEUE.clear();
-        this._.FD_QUEUE.clear();
-        this._.FU_QUEUE.clear();
-        this._.RO_QUEUE.clear();
-        this._.RD_QUEUE.clear();
-        this._.RHD_QUEUE.clear();
+        const FC_QUEUE = this._takeQueue("FC_QUEUE");
+        const FS_QUEUE = this._takeQueue("FS_QUEUE");
+        const FA_QUEUE = this._takeQueue("FA_QUEUE");
+        const FD_QUEUE = this._takeQueue("FD_QUEUE");
+        const FU_QUEUE = this._takeQueue("FU_QUEUE");
+        const RO_QUEUE = this._takeQueue("RO_QUEUE");
+        const RD_QUEUE = this._takeQueue("RD_QUEUE");
         log.pipeline("drainQueuesOnce", () => ({
             compute: FC_QUEUE.size,
             sort: FS_QUEUE.size,
@@ -315,7 +316,6 @@ export class Store extends Record {
             onUpdate: FU_QUEUE.size,
             observers: RO_QUEUE.size,
             delete: RD_QUEUE.size,
-            hardDelete: RHD_QUEUE.size,
         }));
         this._drainForcedComputes(FC_QUEUE);
         this._drainForcedSorts(FS_QUEUE);
@@ -324,7 +324,8 @@ export class Store extends Record {
         this._drainOnUpdate(FU_QUEUE);
         this._drainCallbacks(RO_QUEUE);
         this._drainDeletes(RD_QUEUE, deletingRecordsByLocalId);
-        this._drainHardDeletes(RHD_QUEUE, deletingRecordsByLocalId);
+        // taken after the deletes so the hard deletes they queue drain in this iteration
+        this._drainHardDeletes(this._takeQueue("RHD_QUEUE"), deletingRecordsByLocalId);
     }
     _flushQueues() {
         const deletingRecordsByLocalId = new Map();

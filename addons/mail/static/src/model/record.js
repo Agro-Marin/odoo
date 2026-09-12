@@ -448,7 +448,10 @@ export class Record {
      * @param {string} [prefix]
      */
     _toData(ongoing, prefix = undefined) {
-        if (ongoing.depth && ongoing.seenRecords.has(this.localId)) {
+        if (
+            (ongoing.depth && ongoing.seenRecords.has(this.localId)) ||
+            ongoing.emittedRecords.has(this.localId)
+        ) {
             return;
         }
         ongoing.seenRecords.add(this.localId);
@@ -496,9 +499,6 @@ export class Record {
         }
 
         this._cleanupData(data);
-        if (ongoing.emittedRecords.has(this.localId)) {
-            return;
-        }
         ongoing.emittedRecords.add(this.localId);
         const pyModelName = record._getActualModelName();
         ongoing.storeData[pyModelName] ||= [];
