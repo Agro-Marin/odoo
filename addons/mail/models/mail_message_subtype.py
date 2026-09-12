@@ -59,21 +59,23 @@ class MailMessageSubtype(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        _debug.lifecycle("create", count=len(vals_list), cache="cleared")
-        self.env.registry.clear_cache()
+        _debug.lifecycle("create", count=len(vals_list), cache="mail_subtypes")
+        self.env.registry.clear_cache("mail_subtypes")
         return super().create(vals_list)
 
     def write(self, vals: ValuesType) -> Literal[True]:
-        _debug.lifecycle("write", subtypes=self.ids, fields=list(vals), cache="cleared")
-        self.env.registry.clear_cache()
+        _debug.lifecycle(
+            "write", subtypes=self.ids, fields=list(vals), cache="mail_subtypes"
+        )
+        self.env.registry.clear_cache("mail_subtypes")
         return super().write(vals)
 
     def unlink(self) -> Literal[True]:
-        _debug.lifecycle("unlink", subtypes=self.ids, cache="cleared")
-        self.env.registry.clear_cache()
+        _debug.lifecycle("unlink", subtypes=self.ids, cache="mail_subtypes")
+        self.env.registry.clear_cache("mail_subtypes")
         return super().unlink()
 
-    @tools.ormcache("model_name")
+    @tools.ormcache("model_name", cache="mail_subtypes")
     def _get_auto_subscription_subtypes(self, model_name: str) -> tuple:
         child_ids, def_ids = [], []
         all_int_ids = []
@@ -117,7 +119,9 @@ class MailMessageSubtype(models.Model):
             self.browse(external_ids),
         )
 
-    @tools.ormcache("self.env.su", "self.env.user.share", "model_name")
+    @tools.ormcache(
+        "self.env.su", "self.env.user.share", "model_name", cache="mail_subtypes"
+    )
     def _default_subtypes(self, model_name: str) -> tuple:
         domain = [
             ("default", "=", True),

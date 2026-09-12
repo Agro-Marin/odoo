@@ -25,3 +25,41 @@ class TestSubtypeAccess(MailCommon):
 
         test_subtype.with_user(self.user_admin).write({"description": "testing"})
         self.assertEqual(test_subtype.description, "testing")
+
+
+class TestSubtypeCache(MailCommon):
+    def test_a_subtype_write_invalidates_only_the_subtype_caches(self):
+        Subtype = self.env["mail.message.subtype"]
+        lrus = self.env.registry.ormcache_lrus
+        default_generation = lrus["default"].generation
+        Subtype._get_auto_subscription_subtypes("mail.test.simple")
+        Subtype.default_subtypes("mail.test.simple")
+        subtype_generation = lrus["mail_subtypes"].generation
+
+        Subtype.create(
+            {"name": "Cache probe", "res_model": "mail.test.simple", "default": True}
+        )
+
+        self.assertGreater(
+            lrus["mail_subtypes"].generation,
+            subtype_generation,
+            "the subtype caches are dropped by the write",
+        )
+        self.assertEqual(
+            lrus["default"].generation,
+            default_generation,
+            "the default caches (fields, ACLs, xmlids) survive a subtype write",
+        )
+        self.assertIn(
+            "Cache probe",
+            Subtype.default_subtypes("mail.test.simple")[0].mapped("name"),
+            "the new subtype is served, not the cached answer",
+        )
+
+    def test_a_bare_clear_cache_still_drops_the_subtype_caches(self):
+        Subtype = self.env["mail.message.subtype"]
+        lrus = self.env.registry.ormcache_lrus
+        Subtype._get_auto_subscription_subtypes("mail.test.simple")
+        generation = lrus["mail_subtypes"].generation
+        self.env.registry.clear_cache()
+        self.assertGreater(lrus["mail_subtypes"].generation, generation)

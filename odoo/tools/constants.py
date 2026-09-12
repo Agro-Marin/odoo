@@ -27,10 +27,17 @@ REGISTRY_CACHES = {
     "product_variants": 8192,
     "actions": 256,
     "xmlid": 8192,
+    "mail_subtypes": 64,
 }
 
 CACHES_BY_KEY = {
-    "default": ("default", "templates.cached_values", "product_variants", "xmlid"),
+    "default": (
+        "default",
+        "templates.cached_values",
+        "product_variants",
+        "xmlid",
+        "mail_subtypes",
+    ),
     "assets": ("assets", "assets.links", "templates.cached_values"),
     "stable": (
         "stable",
@@ -38,6 +45,7 @@ CACHES_BY_KEY = {
         "templates.cached_values",
         "product_variants",
         "xmlid",
+        "mail_subtypes",
     ),
     "templates": ("templates", "templates.mail", "templates.cached_values"),
     "routing": ("routing", "routing.rewrites", "templates.cached_values"),
@@ -50,4 +58,5 @@ CACHES_BY_KEY = {
     "product_variants": ("product_variants",),
     "actions": ("actions",),
     "xmlid": ("xmlid",),
+    "mail_subtypes": ("mail_subtypes",),
 }

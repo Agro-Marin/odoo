@@ -49,6 +49,13 @@ BUCKET_OWNERS: dict[str, str] = {
         "has to invalidate it, and from `default` that would have evicted record "
         "rules, ACLs and menus in every worker on each new xmlid"
     ),
+    "mail_subtypes": (
+        "the `mail` addon — mail.message.subtype._get_auto_subscription_subtypes "
+        "and _default_subtypes, the only two ormcaches derived from subtype rows. "
+        "Its own bucket because a subtype create/write/unlink cleared `default` "
+        "cluster-wide (5,687 misses of the first one in a single suite); a bare "
+        "clear_cache() still empties it, because `default` and `stable` list it"
+    ),
 }
 
 

@@ -63,9 +63,9 @@ Nothing may be cached per process without a database key.
 
 ## 2. The signalling tables — cross-process coordination
 
-Nine tables, one for the registry and one for each key in `CACHES_BY_KEY`
+Ten tables, one for the registry and one for each key in `CACHES_BY_KEY`
 (`default`, `assets`, `stable`, `templates`, `routing`, `groups`,
-`product_variants`, `actions`), each created as:
+`product_variants`, `actions`, `mail_subtypes`), each created as:
 
 ```sql
 CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())
@@ -84,8 +84,8 @@ no version, therefore no way to be told it is stale.
 
 `setup_signaling` creates each table **and inserts one row**: an empty table
 would read back as "no version", and a local sequence starting at `-1` would then
-treat every check as a change. `get_sequences` reads all nine in one `SELECT`
-of nine scalar subqueries.
+treat every check as a change. `get_sequences` reads all ten in one `SELECT`
+of ten scalar subqueries.
 
 ## 3. The filestore — content-addressed, and its layout is not fixed
 
