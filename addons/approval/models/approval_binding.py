@@ -53,6 +53,7 @@ class ApprovalBinding(models.Model):
         index=True,
     )
     model_name = fields.Char(
+        string="Model Name",
         related="model_id.model",
         store=True,
         index=True,
