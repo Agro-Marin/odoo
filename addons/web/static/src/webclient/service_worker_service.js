@@ -62,7 +62,6 @@ export async function registerServiceWorker(settledDeferred) {
     let readyTimeoutId;
     /** @type {() => void} */
     let stopWatching = () => {};
-    let releaseStateListener = () => {};
     /** @type {ServiceWorkerRegistration | undefined} */
     let registration;
     try {
@@ -71,24 +70,6 @@ export async function registerServiceWorker(settledDeferred) {
                 scope: "/odoo",
             });
             stopWatching = watchServiceWorkerUpdates(registration);
-            if (registration.active && registration.active.state === "activated") {
-                settledDeferred.resolve();
-            } else {
-                const sw =
-                    registration.installing ||
-                    registration.waiting ||
-                    registration.active;
-                if (sw) {
-                    const onStateChange = (/** @type {Event} */ e) => {
-                        if (/** @type {any} */ (e.target).state === "activated") {
-                            settledDeferred.resolve();
-                        }
-                    };
-                    sw.addEventListener("statechange", onStateChange);
-                    releaseStateListener = () =>
-                        sw.removeEventListener("statechange", onStateChange);
-                }
-            }
             await Promise.race([
                 serviceWorker.ready,
                 new Promise((resolve) => {
@@ -106,7 +87,6 @@ export async function registerServiceWorker(settledDeferred) {
         console.error("Service worker registration failed, error:", error);
     } finally {
         browser.clearTimeout(readyTimeoutId);
-        releaseStateListener();
         settledDeferred.resolve();
     }
     return { registration, stopWatching };

@@ -6,9 +6,8 @@
       <nav
         class="o_main_navbar d-print-none"
         data-command-category="disabled"
-        t-ref="nav"
       >
-        <a t-if="!isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="{'hasImage': currentApp?.webIconData}" accesskey="h" t-ref="menuApps" t-on-click.prevent="_onMenuToggleClick" t-on-mouseenter="_onMenuToggleEnter" t-on-mouseleave="_onMenuToggleLeave">
+        <a t-if="!isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="menuToggleClass" t-att-title="menuToggleTitle" t-att-aria-label="menuToggleTitle" accesskey="h" t-ref="menuApps" t-on-click.prevent="_onMenuToggleClick" t-on-mouseenter="_onMenuToggleEnter" t-on-mouseleave="_onMenuToggleLeave">
             <t t-if="env.isSmall and !hm.hasHomeMenu">
                 <t t-call="web.NavBar.AppsMenu.Sidebar"/>
             </t>
@@ -23,27 +22,30 @@
                         t-if="currentApp.webIconData"
                         t-att-src="currentApp.webIconData"
                         class="o_menu_brand_icon d-inline position-absolute start-0 h-100 ps-1 ms-2"
+                        t-att-class="{'o_hidden': !isInApp}"
                         t-att-alt="currentApp.name"
                         t-ref="appIcon"/>
-                    <span t-esc="currentApp.name" class="o_menu_brand d-flex ms-3 pe-0"/>
+                    <span t-esc="currentApp.name" class="o_menu_brand d-flex ms-3 pe-0" t-att-class="{'o_hidden': !isInApp}"/>
                 </t>
             </t>
         </a>
-        <a t-else="" t-att-href="pwa.startUrl" class="o_menu_toggle" t-ref="menuApps">
+        <a t-else="" t-att-href="pwa.startUrl" class="o_menu_toggle" t-att-class="menuToggleClass" t-ref="menuApps">
             <img
                 t-if="currentApp &amp;&amp; currentApp.webIconData"
                 t-att-src="currentApp.webIconData"
                 class="o_menu_brand_icon d-none d-lg-inline position-absolute start-0 h-100 ps-1 ms-2"
+                t-att-class="{'o_hidden': !isInApp}"
                 t-att-alt="currentApp.name"
                 t-ref="appIcon"/>
 
             <span
                 t-if="currentApp"
                 t-esc="currentApp.name"
-                class="o_menu_brand d-none d-md-flex ps-4 pe-0"/>
+                class="o_menu_brand d-none d-md-flex ps-4 pe-0"
+                t-att-class="{'o_hidden': !isInApp}"/>
         </a>
 
-        <div class="o_navbar_breadcrumbs d-contents"/>
+        <div class="o_navbar_breadcrumbs d-contents" t-att-class="{'o_hidden': !isInApp}"/>
 
         <t t-if="!env.isSmall">
           <t t-if="currentAppSections.length" t-call="web.NavBar.SectionsMenu">
@@ -122,7 +124,7 @@
   </t>
 
   <t t-name="web.NavBar.SectionsMenu">
-    <div class="o_menu_sections d-flex flex-grow-1 flex-shrink-1 w-0" t-ref="appSubMenus" role="menu">
+    <div class="o_menu_sections d-flex flex-grow-1 flex-shrink-1 w-0" t-att-class="{'o_hidden': !isInApp}" t-ref="appSubMenus" role="menu">
         <t t-if="!env.isSmall">
             <DropdownGroup>
                 <t

@@ -78,8 +78,6 @@ export class NavBar extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     root;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
-    navRef;
-    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     menuAppsRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     appSubMenus;
@@ -93,22 +91,19 @@ export class NavBar extends Component {
         this.failedSystrayKeys = new Set();
         this.actionService = useService("action");
         this.menuService = useService("menu");
-        this.hm = useService("home_menu");
+        this.hm = useState(useService("home_menu"));
         this.quickLauncher = usePopover(QuickLauncher, { position: "bottom-start" });
         /** @type {number | null} */
         this.quickLauncherTimer = null;
         this.pwa = useService(/** @type {any} */ ("pwa"));
         this.root = useRef("root");
-        this.navRef = useRef("nav");
         this.menuAppsRef = useRef("menuApps");
         this.appSubMenus = useRef("appSubMenus");
         this._busToggledCallback = () => {
             this._clearQuickLauncherTimer();
             this.quickLauncher.close();
-            this._updateMenuAppsIcon();
         };
         useBus(this.env.bus, AppEvent.HOME_MENU_TOGGLED, this._busToggledCallback);
-        useEffect(() => this._updateMenuAppsIcon());
         const debouncedAdapt = debounce(this.adapt.bind(this), 250);
         onWillDestroy(() => debouncedAdapt.cancel());
         useExternalListener(window, "resize", debouncedAdapt);
@@ -179,6 +174,24 @@ export class NavBar extends Component {
 
     get isInApp() {
         return !this.hm.hasHomeMenu;
+    }
+
+    get showsBackgroundAction() {
+        return !this.isInApp && this.hasBackgroundAction;
+    }
+
+    /** @returns {Record<string, boolean>} */
+    get menuToggleClass() {
+        return {
+            hasImage: !this.isScopedApp && Boolean(this.currentApp?.webIconData),
+            o_hidden: !this.isInApp && !this.hasBackgroundAction,
+            o_menu_toggle_back: this.showsBackgroundAction,
+        };
+    }
+
+    /** @returns {string} */
+    get menuToggleTitle() {
+        return this.showsBackgroundAction ? _t("Previous view") : _t("Home menu");
     }
 
     /** @returns {Object[]} */
@@ -324,37 +337,6 @@ export class NavBar extends Component {
             this.hm.toggle();
         }
     }
-    _updateMenuAppsIcon() {
-        const menuAppsEl = this.menuAppsRef.el;
-        if (!menuAppsEl) {
-            return;
-        }
-        menuAppsEl.classList.toggle(
-            "o_hidden",
-            !this.isInApp && !this.hasBackgroundAction,
-        );
-        menuAppsEl.classList.toggle(
-            "o_menu_toggle_back",
-            !this.isInApp && this.hasBackgroundAction,
-        );
-        if (!this.isScopedApp) {
-            const title =
-                !this.isInApp && this.hasBackgroundAction
-                    ? _t("Previous view")
-                    : _t("Home menu");
-            menuAppsEl.title = title;
-            menuAppsEl.ariaLabel = title;
-        }
-        for (const el of [
-            this.navRef.el?.querySelector(".o_menu_brand"),
-            this.navRef.el?.querySelector(".o_menu_brand_icon"),
-            this.navRef.el?.querySelector(".o_navbar_breadcrumbs"),
-            this.appSubMenus.el,
-        ]) {
-            el?.classList.toggle("o_hidden", !this.isInApp);
-        }
-    }
-
     onAllAppsBtnClick() {
         this.hm.toggle(true);
         this._closeAppMenuSidebar();

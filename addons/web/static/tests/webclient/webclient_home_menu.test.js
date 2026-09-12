@@ -318,6 +318,7 @@ describe("basic flow with home menu", () => {
         expect.verifySteps(["get_formview_action", "get_views", "web_read"]);
         await goToHomeMenu();
         expect.verifySteps([]);
+        await animationFrame();
         expect(".o_menu_toggle").toHaveClass("o_menu_toggle_back");
         expect(".o_home_menu").toHaveCount(1);
         expect(".o_form_view").not.toHaveCount();
@@ -360,6 +361,7 @@ describe("basic flow with home menu", () => {
         expect.verifySteps(["web_read"]);
         expect(".o_home_menu").toHaveCount(0);
         expect(".o_form_view").toHaveCount(1);
+        await animationFrame();
         expect(".o_menu_toggle").not.toHaveClass("o_menu_toggle_back");
         expect(".o_breadcrumb .active").toHaveText("Second record");
         expect(".breadcrumb-item").toHaveCount(2);
@@ -671,6 +673,7 @@ test("underlying action's menu items are invisible when HomeMenu is displayed", 
     expect(".o_menu_sections").toBeVisible();
     expect(".o_menu_brand").toBeVisible();
     await contains(".o_menu_toggle").click();
+    await animationFrame();
     expect("nav .o_menu_sections").toHaveCount(1);
     expect("nav .o_menu_brand").toHaveCount(1);
     expect(".o_menu_sections").not.toBeVisible();
