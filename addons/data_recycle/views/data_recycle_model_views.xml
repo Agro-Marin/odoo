@@ -81,10 +81,10 @@
                                         invisible="not notify_user_ids">
                                         <span class="me-1">Every</span>
                                         <field
-                                            name="notify_frequency"
+                                            name="notify_interval"
                                             required="notify_user_ids" />
                                         <field
-                                            name="notify_frequency_period"
+                                            name="notify_unit"
                                             required="notify_user_ids" />
                                     </div>
                                 </div>

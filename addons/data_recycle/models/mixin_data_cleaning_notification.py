@@ -1,14 +1,5 @@
-from dateutil.relativedelta import relativedelta
-
 from odoo import api, fields, models
-
-# The values are `relativedelta` keyword arguments, which is what lets a period
-# become a delta without a branch per period. The three copies of that branch
-# this replaces had already drifted: `data_merge` spelled the first one
-# `relativedelta(day=n)` -- day of the month, not a number of days -- so a rule
-# set to notify every 5 days moved its own deadline backwards to the 5th of the
-# month and came due on every single run.
-NOTIFY_PERIODS = [("days", "Days"), ("weeks", "Weeks"), ("months", "Months")]
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 
 class MixinDataCleaningNotification(models.AbstractModel):
@@ -28,14 +19,16 @@ class MixinDataCleaningNotification(models.AbstractModel):
         default=lambda self: self.env.user,
         help="List of users to notify when there are new records to review",
     )
-    notify_frequency = fields.Integer(string="Notify", default=1)
-    notify_frequency_period = fields.Selection(
-        NOTIFY_PERIODS, string="Notify Frequency Period", default="weeks"
+    notify_interval = fields.Integer(string="Notify", default=1)
+    notify_unit = fields.Selection(
+        time_unit_selection("day", "week", "month"),
+        string="Notify Frequency Period",
+        default="week",
     )
     last_notification = fields.Datetime(readonly=True)
 
-    _check_notify_frequency = models.Constraint(
-        "CHECK(notify_frequency > 0)",
+    _check_notify_interval = models.Constraint(
+        "CHECK(notify_interval > 0)",
         "The notification frequency should be greater than 0",
     )
 
@@ -55,11 +48,9 @@ class MixinDataCleaningNotification(models.AbstractModel):
                 "_cleaning_mode_field" % self._name
             )
         for rule in self.filtered(lambda r: r[mode_field] == "manual"):
-            if not rule.notify_user_ids or not rule.notify_frequency:
+            if not rule.notify_user_ids or not rule.notify_interval:
                 continue
-            delta = relativedelta(
-                **{rule.notify_frequency_period: rule.notify_frequency}
-            )
+            delta = get_timedelta(rule.notify_interval, rule.notify_unit)
             if (
                 rule.last_notification
                 and rule.last_notification + delta >= fields.Datetime.now()
