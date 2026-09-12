@@ -8,6 +8,7 @@ from odoo.tests.common import BaseCase, no_retry
 from . import (
     _checker_batch,
     _checker_config_patch,
+    _checker_egress,
     _checker_gettext,
     _checker_http_json,
     _checker_noqa_rationale,
@@ -1758,3 +1759,96 @@ class TestHttpJsonLint(BaseCase):
                 return inner()
         """)
         self.assertFalse(violations)
+
+
+@no_retry
+class TestRawEgressLint(BaseCase):
+    def _targets(self, snippet):
+        tree = ast.parse(dedent(snippet).strip())
+        return [
+            v.message.split("()")[0] for v in _checker_egress.check_raw_egress(tree)
+        ]
+
+    def test_requests_calls_and_sessions_are_egress(self):
+        self.assertEqual(
+            self._targets("""
+            import requests
+            requests.post(url, json={})
+            session = requests.Session()
+            """),
+            ["requests.post", "requests.Session"],
+        )
+
+    def test_aliases_and_from_imports_are_followed(self):
+        self.assertEqual(
+            self._targets("""
+            import requests as r
+            from requests import get
+            from urllib.request import urlopen
+            import boto3
+            from zeep import Transport
+            r.get(url)
+            get(url)
+            urlopen(url)
+            boto3.client("s3")
+            Transport(timeout=5)
+            """),
+            [
+                "requests.get",
+                "requests.get",
+                "urllib.request.urlopen",
+                "boto3.client",
+                "zeep.Transport",
+            ],
+        )
+
+    def test_a_session_method_on_a_local_name_is_not_guessed_at(self):
+        self.assertEqual(
+            self._targets("""
+            client = get_api_client(env, "x")
+            client.post("/y")
+            requests_count = 3
+            """),
+            [],
+        )
+
+    def test_the_transport_module_itself_is_out_of_scope(self):
+        unit = _rules.Unit(
+            "/w/odoo/addons/api_transport/tools/api_client.py",
+            "",
+            ast.parse(""),
+            [],
+            True,
+        )
+        applies = next(c for c in _rules.CHECKERS if "raw-egress" in c.rules).applies_to
+        self.assertFalse(applies(unit))
+
+
+@no_retry
+class TestSecretInEnvironLint(BaseCase):
+    def _count(self, snippet):
+        tree = ast.parse(dedent(snippet).strip())
+        return len(list(_checker_egress.check_secret_in_environ(tree)))
+
+    def test_a_secret_written_into_the_worker_environment_is_flagged(self):
+        self.assertEqual(
+            self._count("""
+            import os
+            os.environ["ANTHROPIC_API_KEY"] = key
+            os.environ.setdefault("GH_TOKEN", token)
+            os.environ.update({"DB_PASSWORD": pw})
+            os.putenv("AWS_SECRET_ACCESS_KEY", secret)
+            """),
+            4,
+        )
+
+    def test_non_secret_variables_and_child_env_mappings_are_fine(self):
+        self.assertEqual(
+            self._count("""
+            import os
+            os.environ["TZ"] = "UTC"
+            env = {**os.environ, "ANTHROPIC_API_KEY": key}
+            subprocess.run(cmd, env=env)
+            """),
+            0,
+        )

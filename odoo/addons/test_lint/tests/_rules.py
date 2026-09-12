@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from . import (
     _checker_batch,
     _checker_config_patch,
+    _checker_egress,
     _checker_gettext,
     _checker_http_json,
     _checker_noqa_rationale,
@@ -227,6 +228,21 @@ RULES: tuple[Rule, ...] = (
         "proportional to the rows each record writes",
     ),
     Rule(
+        "raw-egress",
+        "E8518",
+        "send the call through api_transport's `get_api_client(env, code)`, so it "
+        "gets the endpoint's host policy, credential, retry, rate limit and "
+        "exchange log; a vendor SDK that cannot be routed takes "
+        "`# noqa: E8518  <why it cannot>`",
+    ),
+    Rule(
+        "secret-in-environ",
+        "E8519",
+        "hand the secret to the child process in its own `env=` mapping: "
+        "os.environ belongs to the whole worker, so every later subprocess and "
+        "every other company's work inherits it",
+    ),
+    Rule(
         "noqa-rationale",
         "",
         "write the reason after the codes: `# noqa: F401  re-exported by __init__`",
@@ -296,6 +312,22 @@ def _http_json(unit: Unit) -> Iterable[object]:
     return _checker_http_json.check(unit.tree, unit.nodes)
 
 
+def _raw_egress(unit: Unit) -> Iterable[object]:
+    return _checker_egress.check_raw_egress(unit.tree, unit.nodes)
+
+
+def _secret_in_environ(unit: Unit) -> Iterable[object]:
+    return _checker_egress.check_secret_in_environ(unit.tree, unit.nodes)
+
+
+def _in_an_addon_outside_tests_and_the_transport(unit: Unit) -> bool:
+    return (
+        unit.in_module
+        and not unit.is_test
+        and "/addons/api_transport/" not in unit.path
+    )
+
+
 def _anywhere(unit: Unit) -> bool:
     return True
 
@@ -352,6 +384,12 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_tax_company, _anywhere, frozenset({"tax-company-singular"})),
     Checker(_http_json, _in_an_addon_outside_tests, frozenset({"http-json-string"})),
     Checker(_row_counter, _in_tests, frozenset({"row-counter-in-test"})),
+    Checker(
+        _raw_egress,
+        _in_an_addon_outside_tests_and_the_transport,
+        frozenset({"raw-egress"}),
+    ),
+    Checker(_secret_in_environ, _outside_tests, frozenset({"secret-in-environ"})),
 )
 
 CROSS_UNIT_RULES = frozenset(

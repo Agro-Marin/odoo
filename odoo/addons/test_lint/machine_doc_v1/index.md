@@ -49,6 +49,7 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
 | `_checker_tax_company.py` | `tax-company-singular` |
 | `_checker_http_json.py` | `http-json-string` |
+| `_checker_egress.py` | `raw-egress`, `secret-in-environ` |
 | `_checker_row_counter.py` | `row-counter-in-test` |
 
 `tax-company-singular` (E8514) catches `.tax_ids.filtered(lambda t: t.company_id)`
@@ -67,6 +68,14 @@ matters, because the write is usually inside the method under measurement rather
 the test body. Stores are skipped, so a fake cursor defining the attribute is not a
 finding, and the five tests that assert the counter itself carry
 `# noqa: E8516`.
+
+`raw-egress` (E8518) counts every call that leaves Odoo without
+`api_transport`: `requests` verbs and sessions, `httpx`, `urllib.request.urlopen`,
+zeep's `Transport` and `boto3` clients, with import aliases followed. It skips tests
+and the transport module itself. Its floor is a migration ledger: moving a call onto
+`get_api_client` lowers it, a new raw call fails it. `secret-in-environ` (E8519) is
+held at zero: a secret-named key written into `os.environ`, which every later
+subprocess of the worker inherits, instead of into the child's own `env=`.
 
 `http-json-string` (E8515) catches `return json.dumps(...)` inside a route whose
 `type` is `"http"` or absent. The string goes out as `text/html`, and the client's
