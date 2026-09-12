@@ -11,6 +11,8 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { delay } from "@web/core/utils/concurrency";
@@ -20,6 +22,8 @@ import {
     isVideoElementReady,
     makeZXingBarcodeDetector,
 } from "./ZXingBarcodeDetector.js";
+
+const log = makeLogger("web.components.barcode_scanner");
 
 const MAX_CONSECUTIVE_DETECT_ERRORS = 5;
 const DETECT_INTERVAL = 100;
@@ -65,6 +69,7 @@ export class BarcodeVideoScanner extends Component {
 
     /** @override */
     setup() {
+        useLifecycleLog(log);
         this.videoPreviewRef = /** @type {any} */ (useRef("videoPreview"));
         this.state = useState({
             isReady: false,
@@ -218,6 +223,10 @@ export class BarcodeVideoScanner extends Component {
             this.consecutiveDetectErrors = 0;
         } catch (err) {
             this.consecutiveDetectErrors++;
+            log.logic("detect failed", () => ({
+                consecutive: this.consecutiveDetectErrors,
+                message: err?.message,
+            }));
             if (this.consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
                 this.props.onError(err);
                 this.cleanStreamAndTimeout();
@@ -258,6 +267,10 @@ export class BarcodeVideoScanner extends Component {
     }
 
     barcodeDetected(barcode) {
+        log.logic("barcodeDetected", () => ({
+            barcode,
+            delayBetweenScan: this.props.delayBetweenScan,
+        }));
         if (this.props.delayBetweenScan && !this.scanPaused) {
             this.scanPaused = true;
             this.detectorTimeout = browser.setTimeout(() => {

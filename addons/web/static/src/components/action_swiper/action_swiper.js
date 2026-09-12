@@ -10,10 +10,13 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { localization } from "@web/core/l10n/localization";
 import { Deferred } from "@web/core/utils/concurrency";
 import { clamp } from "@web/core/utils/format/numbers";
+const log = makeLogger("web.components.action_swiper");
+
 const BOUNCE_ACTION_DELAY = 500;
 const FORWARDS_ACTION_DELAY = 100;
 const FORWARDS_RESET_DELAY = 100;
@@ -208,6 +211,10 @@ export class ActionSwiper extends Component {
     }
 
     handleSwipe(action) {
+        log.logic("handleSwipe", () => ({
+            animationType: this.props.animationType,
+            swipedDistance: this.swipedDistance,
+        }));
         browser.clearTimeout(this.actionTimeoutId);
         browser.clearTimeout(this.resetTimeoutId);
         if (this.props.animationType === "bounce") {

@@ -7,6 +7,8 @@ import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
@@ -15,6 +17,8 @@ import { useChildRef } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
 import { utils } from "@web/ui/viewport";
+
+const log = makeLogger("web.components.select_menu");
 
 const collator = new Intl.Collator();
 
@@ -128,25 +132,34 @@ export class SelectMenu extends Component {
 
     /**
      * @type {{
-     *     choices: any[],
-     *     displayedOptions: any[],
      *     searchValue: string | null,
      *     appliedSearch: string,
      *     isFocused: boolean,
+     *     displayedRevision: number,
      * }}
      */
     state;
+    /**
+     * The lists the open menu renders. A plain object with one identity for
+     * the component's life: the content slot captures instance fields by
+     * value when it is created, so a list reassigned on `this` would stay
+     * stale inside the popover, while a list reassigned on this holder is
+     * read live through it.
+     * @type {{ choices: any[], displayed: any[] }}
+     */
+    filtered = { choices: [], displayed: [] };
+    displayedCount = 0;
 
     setup() {
+        useLifecycleLog(log);
         this.selectMenuId = uniqueId("o_select_menu_");
         this.menuId = `${this.selectMenuId}_menu`;
         this.listboxId = `${this.selectMenuId}_listbox`;
         this.state = useState({
-            choices: [],
-            displayedOptions: [],
             searchValue: null,
             appliedSearch: "",
             isFocused: false,
+            displayedRevision: 0,
         });
         this.inputRef = useRef("inputRef");
         this.menuRef = useChildRef();
@@ -186,6 +199,10 @@ export class SelectMenu extends Component {
             if (this.dropdownState.isOpen && this._derivedKey !== this.derivationKey) {
                 this.filterOptions(this.state.appliedSearch);
             }
+            this.filtered.displayed = this.filtered.choices.slice(
+                0,
+                this.displayedCount,
+            );
         });
 
         const self = this;
@@ -212,8 +229,8 @@ export class SelectMenu extends Component {
             },
             onItemActivated: (element) => {
                 const index = Number.parseInt(element.dataset.choiceIndex, 10);
-                if (index >= 0 && this.state.displayedOptions[index]) {
-                    this.props.onNavigated(this.state.displayedOptions[index]);
+                if (index >= 0 && this.filtered.displayed[index]) {
+                    this.props.onNavigated(this.filtered.displayed[index]);
                 } else {
                     this.props.onNavigated();
                 }
@@ -344,6 +361,7 @@ export class SelectMenu extends Component {
     }
 
     onStateChanged(open) {
+        log.logic("onStateChanged", () => ({ open, bottomSheet: this.isBottomSheet }));
         if (open) {
             if (this.isBottomSheet) {
                 /** @type {HTMLElement} */ (document.activeElement).blur();
@@ -365,11 +383,23 @@ export class SelectMenu extends Component {
             this.loadMoreObserver = null;
             this.state.searchValue = null;
             this.state.appliedSearch = "";
-            this.state.choices = [];
-            this.state.displayedOptions = [];
+            this.filtered.choices = [];
+            this.filtered.displayed = [];
+            this.displayedCount = 0;
             this._derivedKey = null;
             this.props.onClosed();
         }
+    }
+
+    /** @returns {{ searchValue: string | null, appliedSearch: string, choices: any[], displayedOptions: any[], isFocused: boolean }} */
+    get slotData() {
+        return {
+            searchValue: this.state.searchValue,
+            appliedSearch: this.state.appliedSearch,
+            choices: this.filtered.choices,
+            displayedOptions: this.filtered.displayed,
+            isFocused: this.state.isFocused,
+        };
     }
 
     /** @returns {Set<any>} */
@@ -518,6 +548,10 @@ export class SelectMenu extends Component {
     }
 
     onItemSelected(value) {
+        log.logic("onItemSelected", () => ({
+            value,
+            multiSelect: this.props.multiSelect,
+        }));
         if (this.props.multiSelect) {
             const values = [...this.selectedValues];
             const valueIndex = values.indexOf(value);
@@ -549,6 +583,10 @@ export class SelectMenu extends Component {
 
     /** @param {String} searchString */
     filterOptions(searchString = "") {
+        const end = log.perf("filterOptions", () => ({
+            searchString,
+            revision: this.choicesRevision,
+        }));
         this._selectedValueSet = null;
         this._derivedKey = this.derivationKeyFor(searchString);
         const groupsList = [
@@ -610,8 +648,9 @@ export class SelectMenu extends Component {
             _choices.push(...filteredOptions);
         }
 
-        this.state.choices = _choices;
-        this.sliceDisplayedOptions();
+        this.filtered.choices = _choices;
+        this.displayedCount = this.initialDisplayedCount();
+        end({ choices: _choices.length, displayed: this.displayedCount });
     }
 
     /**
@@ -649,32 +688,30 @@ export class SelectMenu extends Component {
                 if (!entry.isIntersecting) {
                     return;
                 }
-                if (this.state.displayedOptions.length >= this.state.choices.length) {
+                if (this.displayedCount >= this.filtered.choices.length) {
                     return;
                 }
-                this.state.displayedOptions = this.state.choices.slice(
-                    0,
-                    this.state.displayedOptions.length + increaseAmount,
-                );
+                this.displayedCount += increaseAmount;
+                this.state.displayedRevision++;
             },
             { root, rootMargin: `0px 0px ${distanceBeforeReload}px 0px` },
         );
         this.loadMoreObserver.observe(sentinel);
     }
 
-    sliceDisplayedOptions() {
+    /** @returns {number} */
+    initialDisplayedCount() {
         const selectedIndex = this.getSelectedOptionIndex();
         const { defaultCount, increaseAmount } = this.scrollSettings;
-
         if (selectedIndex === -1) {
-            this.state.displayedOptions = this.state.choices.slice(0, defaultCount);
-        } else {
-            const endIndex = Math.max(selectedIndex + increaseAmount, defaultCount);
-            this.state.displayedOptions = this.state.choices.slice(0, endIndex);
+            return defaultCount;
         }
+        return Math.max(selectedIndex + increaseAmount, defaultCount);
     }
 
     getSelectedOptionIndex() {
-        return this.state.choices.findIndex((choice) => this.isOptionSelected(choice));
+        return this.filtered.choices.findIndex((choice) =>
+            this.isOptionSelected(choice),
+        );
     }
 }

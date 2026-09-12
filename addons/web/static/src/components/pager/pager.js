@@ -2,10 +2,14 @@
 /** @odoo-module native */
 
 import { Component, useEffect, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { PagerEvent } from "@web/core/events";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus } from "@web/core/utils/hooks";
+
+const log = makeLogger("web.components.pager");
 
 export class Pager extends Component {
     static template = "web.Pager";
@@ -29,6 +33,7 @@ export class Pager extends Component {
     inputRef;
 
     setup() {
+        useLifecycleLog(log);
         this.state = useState({
             isEditing: false,
             isDisabled: false,
@@ -138,6 +143,12 @@ export class Pager extends Component {
      * @param {boolean} [hasNavigated]
      */
     async update(offset, limit, hasNavigated) {
+        log.logic("update", () => ({
+            offset,
+            limit,
+            hasNavigated,
+            total: this.props.total,
+        }));
         await this.whileDisabled(async () => {
             try {
                 await this.props.onUpdate({ offset, limit }, hasNavigated);

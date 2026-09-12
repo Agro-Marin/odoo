@@ -17,11 +17,14 @@ import {
     avatarUrl,
     isAvatarModel,
 } from "@web/components/record_selectors/avatar_models";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { ConnectionAbortedError } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("web.components.record_autocomplete");
 
 export class RecordAutocomplete extends Component {
     static props = {
@@ -89,12 +92,15 @@ export class RecordAutocomplete extends Component {
     /** @param {string} name */
     async loadOptionsSource(name) {
         this.lastProm?.abort(true);
+        const end = log.perf("search", () => ({ resModel: this.props.resModel, name }));
         const prom = (this.lastProm = this.search(name, SEARCH_LIMIT + 1));
         let fetched;
         try {
             fetched = this.cleanRecords(await prom);
+            end({ records: fetched.length });
         } catch (error) {
             if (error instanceof ConnectionAbortedError) {
+                end({ aborted: true });
                 return [];
             }
             throw error;

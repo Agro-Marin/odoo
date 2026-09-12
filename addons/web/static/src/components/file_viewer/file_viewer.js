@@ -10,10 +10,14 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { download } from "@web/core/network/download";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
+
+const log = makeLogger("web.components.file_viewer");
 
 const PRINT_CLOSE_FALLBACK = 1000;
 /**
@@ -63,6 +67,7 @@ export class FileViewer extends Component {
     state;
 
     setup() {
+        useLifecycleLog(log);
         useAutofocus();
         this.imageRef = useRef("image");
         this.zoomerRef = useRef("zoomer");
@@ -166,6 +171,7 @@ export class FileViewer extends Component {
      * @param {Array<Object>} [files]
      */
     activateFile(index, files = this.props.files) {
+        log.logic("activateFile", () => ({ index, name: files[index]?.name }));
         this.state.index = index;
         this.state.file = files[index];
         this.state.scale = 1;

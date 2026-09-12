@@ -11,7 +11,7 @@ import {
     queryValue,
 } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, onWillRender, useState, xml } from "@odoo/owl";
 import {
     contains,
     editSelectMenu,
@@ -1469,7 +1469,7 @@ test("a group header is never reported as the selected option", async () => {
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    const header = instance.state.choices.find(
+    const header = instance.filtered.choices.find(
         (/** @type {any} */ choice) => choice.isGroup,
     );
     expect(Boolean(header)).toBe(true);
@@ -1662,12 +1662,12 @@ test("a closed menu holds no rendered options", async () => {
     }));
     const menu = await mountSingleApp(SelectMenu, { choices, onSelect: () => {} });
     await contains(".o_select_menu_toggler").click();
-    expect(menu.state.displayedOptions.length).toBe(80);
+    expect(menu.filtered.displayed.length).toBe(80);
 
     menu.dropdownState.close();
     await animationFrame();
-    expect(menu.state.choices).toEqual([]);
-    expect(menu.state.displayedOptions).toEqual([]);
+    expect(menu.filtered.choices).toEqual([]);
+    expect(menu.filtered.displayed).toEqual([]);
 });
 
 test("selected-value lookup does not scan the selection per choice", async () => {
@@ -1707,7 +1707,7 @@ test("selected-value lookup does not scan the selection per choice", async () =>
 
     scanned = 0;
     menu.filterOptions("");
-    for (const choice of menu.state.displayedOptions) {
+    for (const choice of menu.filtered.choices) {
         menu.getItemClass(choice);
     }
     expect(scanned).toBe(0);
@@ -2227,5 +2227,39 @@ test("a cleared value does not inherit a label the list has stopped offering", a
     await animationFrame();
     expect(queryValue(".o_select_menu_input")).toBe("", {
         message: "false is the empty scalar, not a remembered selection",
+    });
+});
+
+test("new choices arriving while the menu is open are filtered in the render they trigger", async () => {
+    let renders = 0;
+    patchWithCleanup(SelectMenu.prototype, {
+        setup() {
+            super.setup();
+            onWillRender(() => renders++);
+        },
+    });
+    class MyParent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu choices="state.choices" value="'a'"/>`;
+        setup() {
+            this.state = useState({ choices: [{ label: "A", value: "a" }] });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    await open();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["A"]);
+
+    const opened = renders;
+    parent.state.choices = [
+        { label: "A", value: "a" },
+        { label: "B", value: "b" },
+    ];
+    await animationFrame();
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["A", "B"]);
+    expect(renders - opened).toBe(1, {
+        message:
+            "the props update is the render that filters; deriving the list costs none",
     });
 });

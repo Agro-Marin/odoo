@@ -12,7 +12,6 @@
                     defaultConnector="props.defaultConnector"
                     getDefaultCondition.bind="getDefaultCondition"
                     getOperatorEditorInfo.bind="getOperatorEditorInfo"
-                    getDefaultOperator.bind="getDefaultOperator"
                     getPathEditorInfo.bind="getPathEditorInfo"
                 >
                     <CheckBox

@@ -150,10 +150,6 @@ export class DomainSelector extends Component {
         return getDomainDisplayedOperators(fieldDef);
     }
 
-    getDefaultOperator(fieldDef) {
-        return this.getDisplayedOperators(fieldDef)[0];
-    }
-
     getOperatorEditorInfo(fieldDef) {
         return getOperatorEditorInfo(this.getDisplayedOperators(fieldDef), fieldDef);
     }

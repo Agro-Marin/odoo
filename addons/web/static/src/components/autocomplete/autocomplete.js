@@ -11,6 +11,8 @@ import {
     useState,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
@@ -20,6 +22,8 @@ import { useClickAway } from "@web/core/utils/dom/click_away";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
+
+const log = makeLogger("web.components.autocomplete");
 
 export class AutoComplete extends Component {
     static template = "web.AutoComplete";
@@ -79,6 +83,8 @@ export class AutoComplete extends Component {
     inEdition = false;
     isOptionSelected = false;
     forceValFromProp = false;
+    /** @type {string} */
+    inputValue = "";
 
     dismissed = false;
     ignoreBlur = false;
@@ -100,6 +106,7 @@ export class AutoComplete extends Component {
     }
 
     setup() {
+        useLifecycleLog(log);
         this.autoCompleteId = uniqueId("autocomplete_");
         this.nextSourceId = 0;
         this.nextOptionId = 0;
@@ -108,12 +115,13 @@ export class AutoComplete extends Component {
 
         this.state = useState({
             open: false,
-            value: this.props.value,
             /** @type {any[]} */
             sources: [],
         });
+        this.inputValue = this.props.value;
 
         this.inputRef = /** @type {any} */ (useForwardRefToParent("input"));
+        onMounted(() => this.setInputValue(this.inputValue));
         this.listRef = useRef("sourcesList");
         if (this.props.autofocus) {
             useAutofocus({ refName: "input" });
@@ -226,7 +234,7 @@ export class AutoComplete extends Component {
 
     /** @param {string} value */
     setInputValue(value) {
-        this.state.value = value;
+        this.inputValue = value;
         if (this.inputRef.el) {
             this.inputRef.el.value = value;
         }
@@ -307,6 +315,11 @@ export class AutoComplete extends Component {
      * @param {number} [entryDirection]
      */
     open(useInput = false, entryDirection = 0) {
+        log.logic("open", () => ({
+            useInput,
+            entryDirection,
+            wasOpen: this.state.open,
+        }));
         this.state.open = true;
         this.dismissed = false;
         this._addGlobalListeners();
@@ -314,6 +327,10 @@ export class AutoComplete extends Component {
     }
 
     close() {
+        log.logic("close", () => ({
+            wasOpen: this.state.open,
+            pending: Boolean(this.pendingPromise),
+        }));
         this.closeDropdown();
         this.debouncedProcessInput.cancel();
         this.pendingPromise?.resolve();
@@ -365,6 +382,7 @@ export class AutoComplete extends Component {
     async loadSources(useInput, entryDirection = 0) {
         const inputValue = this.inputRef.el?.value.trim() ?? "";
         const request = useInput ? inputValue : null;
+        const end = log.perf("loadSources", () => ({ request, entryDirection }));
         this.state.sources = this.props.sources.map((pSource) =>
             this.makeSource(pSource),
         );
@@ -408,12 +426,14 @@ export class AutoComplete extends Component {
             await this.keepLast.add(Promise.all(proms));
         } catch (error) {
             if (error instanceof SupersededError) {
+                end({ superseded: true });
                 return;
             }
             throw error;
         }
         this._loadedRequest = request;
         this._loadedInputValue = inputValue;
+        end({ options: this.sources.map((source) => source.options.length) });
         await this._enterLoadedOptions(entryDirection);
     }
 
@@ -505,6 +525,11 @@ export class AutoComplete extends Component {
 
     selectOption(option) {
         this.inEdition = false;
+        log.logic("selectOption", () => ({
+            label: option?.label,
+            unselectable: option?.unselectable,
+            resetOnSelect: this.props.resetOnSelect,
+        }));
         if (!option || option.unselectable) {
             return;
         }
@@ -519,6 +544,12 @@ export class AutoComplete extends Component {
     }
 
     onInputBlur() {
+        log.logic("onInputBlur", () => ({
+            ignoreBlur: this.ignoreBlur,
+            selectOnBlur: this.props.selectOnBlur,
+            dismissed: this.dismissed,
+            loading: Boolean(this.loadingPromise),
+        }));
         if (this.ignoreBlur) {
             this.ignoreBlur = false;
             return;

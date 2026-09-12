@@ -10,6 +10,8 @@ import {
 } from "@web/core/colors/colors";
 export { DEFAULT_COLORS, DEFAULT_THEME_COLOR_VARS } from "@web/core/colors/colors";
 import { colorScheme } from "@web/core/color_scheme";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { POSITION_BUS } from "@web/core/position/position_hook";
 import { registry } from "@web/core/registry";
 import {
@@ -18,6 +20,8 @@ import {
     normalizeCSSColor,
 } from "@web/core/utils/format/colors";
 import { usePopover } from "@web/ui/popover/popover_hook";
+
+const log = makeLogger("web.components.color_picker");
 
 registry.category("color_picker_tabs").addValidation({
     id: String,
@@ -94,6 +98,7 @@ export class ColorPicker extends Component {
     getPreviewColor = () => {};
 
     setup() {
+        useLifecycleLog(log);
         this.tabHandlers = {
             applyColor: this.selectColor.bind(this),
             onColorClick: this.onColorApply.bind(this),
@@ -174,6 +179,7 @@ export class ColorPicker extends Component {
     }
 
     setTab(tab) {
+        log.logic("setTab", () => ({ tab }));
         this.state.activeTab = tab;
         this.setOperationCallbacks({ onPreviewRevertCallback: () => {} });
         this.resetColorPreview();
@@ -212,6 +218,7 @@ export class ColorPicker extends Component {
     }
 
     selectColor(color) {
+        log.logic("selectColor", () => ({ color, tab: this.state.activeTab }));
         this.state.currentCustomColor = color;
         this.props.applyColor(color);
         this.updateFromApplied();

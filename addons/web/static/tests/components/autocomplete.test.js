@@ -20,8 +20,12 @@ import {
     queryRect,
     runAllTimers,
 } from "@odoo/hoot-dom";
-import { Component, useState, xml } from "@odoo/owl";
-import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { Component, onRendered, useState, xml } from "@odoo/owl";
+import {
+    contains,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 
 /**
@@ -1694,4 +1698,36 @@ test("an inline list is reachable by tab", async () => {
     expect(document.activeElement).toBe(
         queryOne(".o-autocomplete--dropdown-item:first-child a"),
     );
+});
+
+test("typing does not render the component until the debounced search opens the list", async () => {
+    let renders = 0;
+    patchWithCleanup(AutoComplete.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        },
+    });
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`<AutoComplete value="'Hello'" sources="sources"/>`;
+        static props = [];
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+    await mountWithCleanup(Parent);
+    expect(".o-autocomplete input").toHaveValue("Hello");
+    const mounted = renders;
+
+    await contains(".o-autocomplete input").fill("abc", { confirm: false });
+    await animationFrame();
+    expect(renders).toBe(mounted, {
+        message: "three keystrokes render nothing: the input owns its value",
+    });
+    expect(".o-autocomplete input").toHaveValue("abc");
+
+    await runAllTimers();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+    expect(renders).toBe(mounted + 1, {
+        message: "the debounced search renders once, with the loaded options",
+    });
 });

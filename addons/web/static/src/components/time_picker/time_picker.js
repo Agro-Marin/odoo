@@ -5,10 +5,14 @@ import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseTime, Time } from "@web/core/l10n/time";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useSyncedInputProperty } from "@web/core/utils/hooks";
+
+const log = makeLogger("web.components.time_picker");
 
 const HOURS_PER_DAY = 24;
 const MINUTES_PER_HOUR = 60;
@@ -79,6 +83,7 @@ export class TimePicker extends Component {
     navigationOptions;
 
     setup() {
+        useLifecycleLog(log);
         this.inputRef = /** @type {any} */ (useRef("inputRef"));
         this.menuId = uniqueId("o_time_picker_menu_");
         this.menuRef = useChildRef();
@@ -240,6 +245,7 @@ export class TimePicker extends Component {
 
     /** @param {Time|null} newValue */
     setValue(newValue) {
+        log.logic("setValue", () => ({ value: newValue?.toString(true) }));
         if (newValue) {
             newValue = newValue.copy();
             if (this.props.minutesRounding > 1) {

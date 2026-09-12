@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { click, edit, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, xml } from "@odoo/owl";
+import { Component, useState, xml } from "@odoo/owl";
 import {
     assertDateTimePicker,
     editTime,
@@ -461,6 +461,28 @@ describe("DateTimeInput (datetime)", () => {
         await contains(".o_datetime_input").click();
 
         expect(".o_datetime_input").toHaveValue("12:30:01 1997/01/09");
+    });
+
+    test("a format prop that changes after mount reformats the input", async () => {
+        class Host extends Component {
+            static components = { DateTimeInput };
+            static template = xml`
+                <DateTimeInput value="value" type="'datetime'" format="state.format"/>`;
+            static props = ["*"];
+            setup() {
+                this.value = DateTime.fromFormat(
+                    "09/01/1997 12:30:01",
+                    "dd/MM/yyyy HH:mm:ss",
+                );
+                this.state = useState({ format: "HH:mm:ss yyyy/MM/dd" });
+            }
+        }
+        const host = await mountWithCleanup(Host);
+        expect(".o_datetime_input").toHaveValue("12:30:01 1997/01/09");
+
+        host.state.format = "yyyy-MM-dd HH:mm";
+        await animationFrame();
+        expect(".o_datetime_input").toHaveValue("1997-01-09 12:30");
     });
 
     test("Datepicker works with norwegian locale", async () => {

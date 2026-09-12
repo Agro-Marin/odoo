@@ -2,11 +2,14 @@
 /** @odoo-module native */
 
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { ModelFieldSelectorPopover } from "./model_field_selector_popover.js";
+
+const log = makeLogger("web.components.model_field_selector");
 
 export class ModelFieldSelector extends Component {
     static template = "web._ModelFieldSelector";
@@ -55,6 +58,7 @@ export class ModelFieldSelector extends Component {
             {
                 class: "o_popover_field_selector",
                 onClose: async () => {
+                    log.logic("popover closed", () => ({ newPath: this.newPath }));
                     if (this.newPath !== null) {
                         const fieldInfo = await this.fieldService.loadFieldInfo(
                             this.props.resModel,

@@ -12,6 +12,7 @@ import {
 } from "@odoo/owl";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
 import { DateTimePickerPopover } from "@web/components/datetime/datetime_picker_popover";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import {
     areDatesEqual,
     ConversionError,
@@ -24,6 +25,8 @@ import { registry } from "@web/core/registry";
 import { ensureArray, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makePopover } from "@web/ui/popover/popover_hook";
+
+const log = makeLogger("web.components.datetime_picker.controller");
 
 /** @typedef {any} DateTime */
 /**
@@ -120,6 +123,8 @@ export class DateTimePickerController {
         this.stringProps = {};
         /** @type {OwlRef | null} */
         this.targetRef = null;
+        /** @type {string | undefined} */
+        this.formatKey = undefined;
 
         this.createPopover =
             params.createPopover ||
@@ -177,15 +182,7 @@ export class DateTimePickerController {
     }
 
     onPickerPropsUpdated = () => {
-        for (const [el, value] of zip(
-            this.getInputs(),
-            ensureArray(this.pickerProps.value),
-            true,
-        )) {
-            if (el) {
-                this.updateInput(/** @type {HTMLInputElement} */ (el), value);
-            }
-        }
+        this.updateInputs();
 
         if (!this.isOpen()) {
             this.apply();
@@ -220,8 +217,10 @@ export class DateTimePickerController {
             stringValue === this.lastAppliedStringValue ||
             stringValue === this.stringProps.value
         ) {
+            log.logic("apply skipped", () => ({ value: stringValue }));
             return;
         }
+        log.logic("apply", () => ({ value: stringValue }));
 
         this.lastAppliedStringValue = stringValue;
         this.inputsChanged = ensureArray(value).map(() => false);
@@ -399,6 +398,7 @@ export class DateTimePickerController {
 
     /** @param {number} inputIndex */
     open = (inputIndex) => {
+        log.logic("open", () => ({ inputIndex, wasOpen: this.isOpen() }));
         this.pickerProps.focusedDateIndex = inputIndex;
 
         if (!this.isOpen()) {
@@ -499,6 +499,11 @@ export class DateTimePickerController {
         if (source === "input" && areDatesEqual(this.pickerProps.value, value)) {
             return;
         }
+        log.logic("updateValue", () => ({
+            unit,
+            source,
+            value: JSON.stringify(value),
+        }));
 
         let nextFocusedDateIndex = this.pickerProps.focusedDateIndex;
         if (
@@ -577,19 +582,42 @@ export class DateTimePickerController {
     computeBasePickerProps = () => {
         const nextProps = markValuesRaw(this.params.pickerProps || {});
         const oldStringProps = this.stringProps;
+        const oldFormat = this.formatKey;
 
         this.stringProps = stringifyProps(nextProps);
         this.lastAppliedStringValue = this.stringProps.value;
+        this.formatKey = `${this.params.format}\x00${this.params.showSeconds}`;
 
         if (shallowEqual(oldStringProps, this.stringProps)) {
+            if (oldFormat !== undefined && oldFormat !== this.formatKey) {
+                log.logic("format changed", () => ({ format: this.formatKey }));
+                this.updateInputs();
+            }
             return;
         }
+        log.logic("computeBasePickerProps changed", () => ({
+            keys: Object.keys(nextProps).filter(
+                (key) => oldStringProps[key] !== this.stringProps[key],
+            ),
+        }));
 
         this.inputsChanged = ensureArray(nextProps.value).map(() => false);
 
         for (const [key, value] of Object.entries(nextProps)) {
             if (!areDatesEqual(this.pickerProps[key], value)) {
                 this.pickerProps[key] = value;
+            }
+        }
+    };
+
+    updateInputs = () => {
+        for (const [el, value] of zip(
+            this.getInputs(),
+            ensureArray(this.pickerProps.value),
+            true,
+        )) {
+            if (el) {
+                this.updateInput(/** @type {HTMLInputElement} */ (el), value);
             }
         }
     };

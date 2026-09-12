@@ -18,6 +18,8 @@ import { useDropdownNesting } from "@web/components/dropdown/_behaviours/dropdow
 import { DropdownPopover } from "@web/components/dropdown/_behaviours/dropdown_popover";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { mergeNavigationOptions, useNavigation } from "@web/core/navigation/navigation";
 import { getComponentElement } from "@web/core/utils/components";
 import { mergeClasses } from "@web/core/utils/dom/classname";
@@ -26,6 +28,8 @@ import { useChildRef, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
+
+const log = makeLogger("web.components.dropdown");
 
 const DIRECTION_CLASSES = {
     bottom: "dropdown",
@@ -129,6 +133,7 @@ export class Dropdown extends Component {
     uiService;
 
     setup() {
+        useLifecycleLog(log);
         this.menuRef = this.props.menuRef || useChildRef();
         this.menuId = this.props.menuId || uniqueId("o-dropdown-menu-");
         this._boundHandleClick = this.handleClick.bind(this);
@@ -289,6 +294,10 @@ export class Dropdown extends Component {
         }
 
         event.stopPropagation();
+        log.logic("handleClick", () => ({
+            isOpen: this.state.isOpen,
+            hasParent: this.hasParent,
+        }));
         if (this.state.isOpen && !this.hasParent) {
             this.state.close();
         } else {
@@ -412,6 +421,11 @@ export class Dropdown extends Component {
     }
 
     openPopover() {
+        log.logic("openPopover", () => ({
+            popoverIsOpen: this.popover.isOpen,
+            status: status(this),
+            targetConnected: Boolean(this.target?.isConnected),
+        }));
         const captured =
             this._pendingFocusEl !== undefined
                 ? this._pendingFocusEl
@@ -448,6 +462,10 @@ export class Dropdown extends Component {
     }
 
     closePopover() {
+        log.logic("closePopover", () => ({
+            focusToggleOnClosed: this.props.focusToggleOnClosed,
+            restore: this._focusedElBeforeOpen?.tagName,
+        }));
         const restoreEl = this._focusedElBeforeOpen;
         this._focusedElBeforeOpen = undefined;
         const active = document.activeElement;
@@ -470,10 +488,11 @@ export class Dropdown extends Component {
     }
 
     onOpened() {
+        log.lifecycle("opened", () => ({ menuId: this.menuId }));
         this.syncMenuClass(this.menuRef.el);
         this.activeEl = this.uiService.activeElement;
         this.navigation.registerHotkeys();
-        this.navigation.update();
+        this.navigation.observe(this.menuRef.el);
         this.props.onOpened?.();
         this.props.onStateChanged?.(true);
 
@@ -481,19 +500,13 @@ export class Dropdown extends Component {
             this.target.ariaExpanded = "true";
             this.target.classList.add("show");
         }
-        const menuEl = this.menuRef.el;
-        if (menuEl) {
-            this.observer = new MutationObserver(() => this.navigation.update());
-            this.observer.observe(menuEl, {
-                childList: true,
-                subtree: true,
-            });
-        }
     }
 
     onClosed() {
+        log.lifecycle("closed", () => ({ menuId: this.menuId }));
         this._menuClassNames = [];
         this.navigation.unregisterHotkeys();
+        this.navigation.observe(null);
         this.navigation.update();
         this.props.onStateChanged?.(false);
         delete this.activeEl;
@@ -502,11 +515,6 @@ export class Dropdown extends Component {
             this.target.ariaExpanded = "false";
             this.target.classList.remove("show");
             this.setTargetDirectionClass(this.defaultDirection);
-        }
-
-        if (this.observer) {
-            this.observer.disconnect();
-            this.observer = null;
         }
     }
 }

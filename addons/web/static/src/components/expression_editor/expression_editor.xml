@@ -9,7 +9,6 @@
                     isDebugMode="isDebugMode"
                     update.bind="update"
                     getDefaultCondition.bind="getDefaultCondition"
-                    getDefaultOperator.bind="getDefaultOperator"
                     getOperatorEditorInfo.bind="getOperatorEditorInfo"
                     getPathEditorInfo.bind="getPathEditorInfo"
                 />

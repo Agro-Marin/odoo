@@ -80,14 +80,6 @@ export class ExpressionEditor extends Component {
 
     /**
      * @param {Object} fieldDef
-     * @returns {string}
-     */
-    getDefaultOperator(fieldDef) {
-        return this.getDisplayedOperators(fieldDef)[0];
-    }
-
-    /**
-     * @param {Object} fieldDef
      * @returns {any}
      */
     getOperatorEditorInfo(fieldDef) {

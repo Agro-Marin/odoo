@@ -20,6 +20,8 @@ import {
 } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { normalize } from "@web/core/l10n/utils";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -40,6 +42,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { makeAppConfig } from "@web/env";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
+
+const log = makeLogger("web.components.emoji_picker");
 
 export function useEmojiPicker(
     /** @type {any} */ ref,
@@ -203,6 +207,7 @@ export class EmojiPicker extends Component {
     emojiMatrix = [];
 
     setup() {
+        useLifecycleLog(log);
         this.gridRef = useRef("emoji-grid");
         this.navbarRef = useRef("navbar");
         this.ui = useService("ui");
@@ -220,7 +225,9 @@ export class EmojiPicker extends Component {
             this.highlightActiveCategory(),
         );
         onWillStart(async () => {
+            const end = log.perf("loadEmoji");
             const { categories, emojis } = await loadEmoji();
+            end({ emojis: emojis.length });
             this.categories = categories;
             this.emojis = emojis;
             this.emojiByCodepoints = Object.fromEntries(
@@ -508,6 +515,7 @@ export class EmojiPicker extends Component {
         if (!this.emojis.length || !this.gridRef.el) {
             return;
         }
+        const end = log.perf("updateEmojiPickerRepr");
         const emojiEls = /** @type {HTMLElement[]} */ (
             Array.from(this.gridRef.el.querySelectorAll(".o-Emoji"))
         );
@@ -527,6 +535,7 @@ export class EmojiPicker extends Component {
             );
         }
         this.emojiMatrix = matrix;
+        end({ rows: matrix.length });
     }
 
     /**
@@ -659,6 +668,7 @@ export class EmojiPicker extends Component {
 
     selectEmoji(ev) {
         const codepoints = ev.currentTarget.dataset.codepoints;
+        log.logic("selectEmoji", () => ({ codepoints, shiftKey: ev.shiftKey }));
         let resetOnSelect = !ev.shiftKey;
         const res = this.props.onSelect(codepoints, resetOnSelect);
         if (res === false) {

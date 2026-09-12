@@ -5,12 +5,16 @@ import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network/rpc";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { getDataURLFromFile } from "@web/core/utils/urls";
+
+const log = makeLogger("web.components.signature");
 
 /** @type {Map<string, Promise<string[]>>} */
 const fontsCache = new Map();
@@ -83,6 +87,7 @@ export class NameAndSignature extends Component {
     previewActive = false;
 
     setup() {
+        useLifecycleLog(log);
         this.htmlId = uniqueId();
         this.props.signature.name ??= "";
         this.defaultName = this.props.signature.name;
@@ -344,6 +349,7 @@ export class NameAndSignature extends Component {
         if (reset !== true && mode === this.state.signMode) {
             return;
         }
+        log.logic("setMode", () => ({ mode, reset }));
 
         this.state.signMode = mode;
         this.signaturePad[this.state.signMode === "draw" ? "on" : "off"]();

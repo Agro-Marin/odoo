@@ -271,3 +271,38 @@ test("the available width wins when it is below minWidth", async () => {
     await mountWithCleanup(Parent);
     expect(queryOne(".o_resizable_panel").offsetWidth).toBe(198);
 });
+
+test("a replaced onResize prop is the one notified", async () => {
+    const state = reactive({ target: "first" });
+    /** @type {string[]} */
+    const calls = [];
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="60" initialWidth="300" onResize="onResize">
+                    <p>body</p>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState(state);
+        }
+        get onResize() {
+            const target = this.state.target;
+            return () => calls.push(target);
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    state.target = "second";
+    await animationFrame();
+    calls.length = 0;
+
+    await (
+        await drag(".o_resizable_panel_handle")
+    ).drop(".o_resizable_panel_handle", { position: { x: 40 } });
+    await animationFrame();
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((target) => target === "second")).toBe(true);
+});
