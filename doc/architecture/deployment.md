@@ -160,6 +160,57 @@ breaker with it inside the `ReplicaRouter` that `Registry.cursor` delegates
 to. The ceiling is the maximum a doubling backoff reaches, so a blip recovers
 in about a second while the worst case is twenty minutes.
 
+## The HTTP transport
+
+`service/httpd.py` owns the connection: it parses requests with the strict
+HTTP/1.1 parser in `libs/http1.py`, frames responses, and hands each request to
+the WSGI `Application` unchanged. `werkzeug.serving` is not used; werkzeug's
+request and response wrappers still are.
+
+| Server | Connection handling |
+|---|---|
+| threaded (`workers = 0`) and the evented websocket port | one selector thread holds the listening socket and every idle connection and reads request heads without blocking; a request reaches a worker thread only once its head is complete. Connections are kept alive. A websocket leaves the pool at its `101` and runs on its own thread, named like a request thread so the test harness still waits for it |
+| prefork (`workers > 0`) | one request per connection, answered `HTTP/1.1` with `Connection: close`. A single-threaded worker holding an idle connection would block its whole process. Workers never expose the socket, so a websocket handshake there gets the `503` that names the evented port |
+
+Knobs, read from the environment:
+
+| Variable | Default | Bounds |
+|---|---|---|
+| `ODOO_MAX_HTTP_THREADS` | `(db_maxconn - max_cron_threads - job_workers) // 2` | concurrent requests on the threaded server; `0` is unbounded |
+| `ODOO_HTTP_SOCKET_TIMEOUT` | `2 s` (`5 s` under `test_enable`) | each blocking read or write while a request is served |
+| `ODOO_HTTP_HEAD_TIMEOUT` | `10 s` | from the first byte of a request head to its end; a partial head past it gets `408` |
+| `ODOO_HTTP_KEEPALIVE_TIMEOUT` | `75 s` | an idle kept-alive connection is closed after this |
+| `ODOO_HTTP_MAX_IDLE_CONNECTIONS` | `4096` | idle connections held; past it the oldest idle one is closed |
+| `ODOO_HTTP_DRAIN_BYTES` | `1 MiB` | unread request body discarded, within one second, to keep a connection alive; beyond it the connection closes after a two-second lingering close |
+
+**What the parser refuses**, each with the connection closed: conflicting
+`Content-Length`, whitespace before a header colon, obsolete line folding,
+control characters in a field, a missing or repeated `Host` on HTTP/1.1,
+`Transfer-Encoding` on HTTP/1.0 or with a final coding other than `chunked`
+(`400`), any other transfer coding (`501`), an unsupported `Expect` (`417`),
+HTTP/2 request lines (`505`), heads over 64 KiB or 100 fields (`431`). A request
+carrying both `Content-Length` and `chunked` is decoded as chunked and its
+connection closed afterwards. Header names containing `_` are dropped from the
+environ, because `X_Forwarded_For` and `X-Forwarded-For` would otherwise both
+become `HTTP_X_FORWARDED_FOR`. `100 Continue` is sent only when the application
+first reads the body.
+
+**Behind a reverse proxy**, keep upstream connections alive and let the proxy
+close them first, so it never reuses a connection Odoo is closing:
+
+```nginx
+upstream odoo { server 127.0.0.1:8069; keepalive 32; keepalive_timeout 60s; }
+location / {
+    proxy_pass http://odoo;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+}
+```
+
+`keepalive_timeout` there must stay below `ODOO_HTTP_KEEPALIVE_TIMEOUT`. The
+websocket location still needs `Upgrade`/`Connection: upgrade` and, under
+`workers > 0`, the evented port.
+
 ## What a deployment must provide
 
 | Dependency | Why it is not optional |
@@ -171,8 +222,8 @@ in about a second while the worst case is twenty minutes.
 
 ## What this view does not cover
 
-- **The reverse proxy.** `proxy_mode`, TLS termination, and what the deployment
-  in front of Odoo must set are not described here.
+- **The rest of the reverse proxy.** `proxy_mode` and TLS termination are not
+  described here; connection reuse is, in [The HTTP transport](#the-http-transport).
 - **Measured behaviour under `workers > 0`.** Every figure in
   [`qualities.md`](qualities.md) is single-process; the prefork path's latency,
   memory and signalling cost are unmeasured.

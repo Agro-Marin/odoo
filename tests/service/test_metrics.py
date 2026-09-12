@@ -134,6 +134,7 @@ class TestServiceMetrics:
         server = object.__new__(ThreadedServer)
         server.httpd = MagicMock(max_http_threads=31)
         server.limits_reached_threads = set()
+        server._overrun_start_times = {}
 
         monkeypatch.setattr(threading.current_thread(), "type", "http", raising=False)
         with patch.object(_process_state, "server", server):
@@ -414,6 +415,7 @@ class TestReportingAndRecyclingAreDifferentQuestions:
         server = object.__new__(ThreadedServer)
         server.httpd = None
         server.limits_reached_threads = set()
+        server._overrun_start_times = {}
 
         stop = threading.Event()
         ws = threading.Thread(target=stop.wait, args=(10,), daemon=True)

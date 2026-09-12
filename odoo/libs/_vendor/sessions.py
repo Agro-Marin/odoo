@@ -1,7 +1,6 @@
 import logging
 import os
 import pathlib
-import tempfile
 
 from odoo.libs.json import dumps_bytes as _json_dumps
 from odoo.libs.json import loads as _json_loads
@@ -55,26 +54,6 @@ class FilesystemSessionStore(SessionStore):
         raise NotImplementedError(
             f"{type(self).__name__} must define the on-disk session layout"
         )
-
-    def save(self, session):
-        fn = self.get_session_filename(session.sid)
-        fd, tmp = tempfile.mkstemp(suffix=_fs_transaction_suffix, dir=self.path)
-        try:
-            os.fchmod(fd, self.mode)
-            with os.fdopen(fd, "wb") as f:
-                f.write(_json_dumps(dict(session)))
-                f.flush()
-                os.fsync(f.fileno())
-            pathlib.Path(tmp).replace(fn)
-        except OSError:
-            _logger.warning(
-                "Failed to persist session %r to %r", session.sid, fn, exc_info=True
-            )
-            try:
-                pathlib.Path(tmp).unlink()
-            except OSError:
-                pass
-            raise
 
     def delete(self, session):
         fn = self.get_session_filename(session.sid)

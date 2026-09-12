@@ -47,8 +47,12 @@ from ._limits import (
     get_job_max_age,
     get_memory_over_soft_limit,
 )
+from .httpd import (
+    ServerIdentity,
+    TransportLimits,
+    serve_prefork_connection,
+)
 from .settings import current
-from .wsgi import BaseWSGIServerNoBind, get_http_socket_timeout
 
 if TYPE_CHECKING:
     from .server import PreforkServer
@@ -293,20 +297,25 @@ class WorkerHTTP(Worker):
     def __init__(self, multi: PreforkServer) -> None:
         super().__init__(multi)
 
-        self.sock_timeout = get_http_socket_timeout()
+        self.limits = TransportLimits.from_environment()
+        self.sock_timeout = self.limits.socket_timeout
 
     def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
-        self.server.socket = client
         try:
             client.setblocking(True)
             client.settimeout(self.sock_timeout)
             client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             flags = fcntl.fcntl(client, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
             fcntl.fcntl(client, fcntl.F_SETFD, flags)
+            name, port = client.getsockname()[:2]
+            identity = ServerIdentity(name, port, False, True, False)
             with contextlib.suppress(BrokenPipeError):
-                self.server.finish_request(client, addr)
+                serve_prefork_connection(
+                    client, addr, self.multi.app, identity, self.limits
+                )
         finally:
-            self.server.shutdown_request(client)
+            with contextlib.suppress(OSError):
+                client.close()
         self.request_count += 1
 
     def process_work(self) -> None:
@@ -323,7 +332,6 @@ class WorkerHTTP(Worker):
         Worker.start(self)
         if self.multi.socket is not None:
             self._selector.register(self.multi.socket, selectors.EVENT_READ)
-        self.server = BaseWSGIServerNoBind(self.multi.app)
         _debug.lifecycle(
             "worker.http.serving",
             pid=self.pid,

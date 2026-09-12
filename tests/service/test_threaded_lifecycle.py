@@ -19,6 +19,7 @@ def server():
     s.quit_signals_received = 0
     s.httpd = None
     s.limits_reached_threads = set()
+    s._overrun_start_times = {}
     s.limit_reached_time = None
     s._stop_after_init = False
     s._process_handle = MagicMock()

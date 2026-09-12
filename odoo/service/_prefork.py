@@ -669,7 +669,7 @@ class PreforkServer(CommonServer):
                     "prefork.socket_bound", source="inherited", fd=int(inherited_fd)
                 )
                 self.logger.info(
-                    "HTTP service (werkzeug) serving %s:%s on the listening "
+                    "HTTP service serving %s:%s on the listening "
                     "socket inherited from the server this one replaced; the "
                     "port was never closed",
                     self.interface,
@@ -680,9 +680,7 @@ class PreforkServer(CommonServer):
                 self.socket = socket.socket(fileno=SD_LISTEN_FDS_START)
                 self._set_socket_cloexec()
                 _debug.lifecycle("prefork.socket_bound", source="socket_activation")
-                self.logger.info(
-                    "HTTP service (werkzeug) running through socket activation"
-                )
+                self.logger.info("HTTP service running through socket activation")
             else:
                 family = socket.AF_INET
                 if ":" in self.interface:
@@ -700,7 +698,7 @@ class PreforkServer(CommonServer):
                     backlog=8 * self.population,
                 )
                 self.logger.info(
-                    "HTTP service (werkzeug) running on %s:%s",
+                    "HTTP service running on %s:%s",
                     self.interface,
                     self.port,
                 )

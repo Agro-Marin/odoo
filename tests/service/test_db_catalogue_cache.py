@@ -169,3 +169,108 @@ class TestAnInvalidationCannotBeOutrunByAQueryInFlight:
             assert listing.list_dbs(True) == ["a"]
             assert listing.list_dbs(True) == ["a"]
         assert q.call_count == 1, "the generation guard disabled the cache"
+
+
+class TestAnExpiryDoesNotStampedePostgres:
+    def test_concurrent_cold_callers_share_one_scan(self, cfg):
+        import threading
+
+        started = threading.Event()
+        release = threading.Event()
+        calls = []
+
+        def scan():
+            calls.append(1)
+            started.set()
+            release.wait(5)
+            return ["a"]
+
+        results = []
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(listing, "_get_catalog_uncached", side_effect=scan),
+        ):
+            threads = [
+                threading.Thread(target=lambda: results.append(listing.list_dbs(True)))
+                for _ in range(8)
+            ]
+            for thread in threads:
+                thread.start()
+            assert started.wait(5)
+            release.set()
+            for thread in threads:
+                thread.join(5)
+        assert results == [["a"]] * 8
+        assert len(calls) == 1, (
+            "each scan borrows a maintenance connection on top of the caller's "
+            "request cursor; eight at once exhausted db_maxconn"
+        )
+
+    def test_a_caller_during_a_refresh_gets_the_previous_list(self, cfg, monkeypatch):
+        import threading
+
+        clock = [1000.0]
+        monkeypatch.setattr(listing.time, "monotonic", lambda: clock[0])
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow_scan():
+            started.set()
+            release.wait(5)
+            return ["b"]
+
+        with patch.object(listing.odoo.tools, "config", cfg):
+            with patch.object(listing, "_get_catalog_uncached", return_value=["a"]):
+                assert listing.list_dbs(True) == ["a"]
+            clock[0] += listing.CATALOG_CACHE_TTL_S + 0.01
+            with patch.object(
+                listing, "_get_catalog_uncached", side_effect=slow_scan
+            ) as q:
+                refresher = threading.Thread(target=lambda: listing.list_dbs(True))
+                refresher.start()
+                assert started.wait(5)
+                assert listing.list_dbs(True) == ["a"]
+                release.set()
+                refresher.join(5)
+                assert q.call_count == 1
+            assert listing.list_dbs(True) == ["b"]
+
+    def test_an_invalidated_list_is_never_served_as_stale(self, cfg, monkeypatch):
+        import threading
+
+        clock = [1000.0]
+        monkeypatch.setattr(listing.time, "monotonic", lambda: clock[0])
+        started = threading.Event()
+        release = threading.Event()
+        answers = iter([["a"], ["b"], ["c"]])
+
+        def scan():
+            value = next(answers)
+            if value == ["b"]:
+                started.set()
+                release.wait(5)
+            return value
+
+        with (
+            patch.object(listing.odoo.tools, "config", cfg),
+            patch.object(listing, "_get_catalog_uncached", side_effect=scan),
+        ):
+            assert listing.list_dbs(True) == ["a"]
+            clock[0] += listing.CATALOG_CACHE_TTL_S + 0.01
+            refresher = threading.Thread(target=lambda: listing.list_dbs(True))
+            refresher.start()
+            assert started.wait(5)
+            listing.invalidate_catalog_caches()
+            seen = []
+            waiter = threading.Thread(
+                target=lambda: seen.append(listing.list_dbs(True))
+            )
+            waiter.start()
+            waiter.join(0.2)
+            assert waiter.is_alive(), "served the invalidated list instead of waiting"
+            release.set()
+            refresher.join(5)
+            waiter.join(5)
+        assert seen == [["c"]], (
+            "the scan outrun by the invalidation must not be cached; the waiter rescans"
+        )

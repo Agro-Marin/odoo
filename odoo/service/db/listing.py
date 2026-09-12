@@ -115,6 +115,12 @@ CATALOG_CACHE_TTL_S = 2.0
 _catalog_lock = threading.Lock()
 _catalog_cache: tuple[float, list[str]] | None = None
 
+# One scan at a time. The scan borrows a maintenance connection while the
+# caller usually already holds its request cursor, so an expiry that sent every
+# in-flight request to PostgreSQL at once could exhaust the connection budget
+# and park them all for the full borrow timeout.
+_catalog_refresh_lock = threading.Lock()
+
 _catalog_generation = 0
 """Bumped by every invalidation, so a query in flight can tell it was outrun.
 
@@ -171,8 +177,6 @@ def _get_catalog_uncached() -> list[str] | None:
 
 
 def _get_catalog_cached() -> list[str]:
-    global _catalog_cache  # noqa: PLW0603  one catalogue per process
-
     ttl = _get_catalog_ttl()
     if ttl <= 0:
         _debug.logic("database.catalog_uncached", ttl=ttl)
@@ -182,6 +186,26 @@ def _get_catalog_cached() -> list[str]:
         cached = _catalog_cache
         if cached is not None and now - cached[0] < ttl:
             return list(cached[1])
+    if cached is None or not _catalog_refresh_lock.acquire(blocking=False):
+        with _catalog_lock:
+            if cached is not None and _catalog_cache is cached:
+                _debug.logic("database.catalog_stale_served", age=now - cached[0])
+                return list(cached[1])
+        _catalog_refresh_lock.acquire()
+    try:
+        return _refresh_catalog(ttl)
+    finally:
+        _catalog_refresh_lock.release()
+
+
+def _refresh_catalog(ttl: float) -> list[str]:
+    global _catalog_cache  # noqa: PLW0603  one catalogue per process
+
+    now = time.monotonic()
+    with _catalog_lock:
+        current = _catalog_cache
+        if current is not None and now - current[0] < ttl:
+            return list(current[1])
         generation = _catalog_generation
     with _debug.perf("database.catalog_listed", ttl=ttl) as span:
         names = _get_catalog_uncached()

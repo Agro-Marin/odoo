@@ -23,6 +23,7 @@ def server():
     srv.quit_signals_received = 0
     srv.limit_reached_time = None
     srv.limits_reached_threads = set()
+    srv._overrun_start_times = {}
     srv._stop_after_init = False
     return srv
 

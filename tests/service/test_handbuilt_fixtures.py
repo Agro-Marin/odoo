@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from odoo.service import _prefork, _threaded, _watcher, _worker, server, wsgi
+from odoo.service import _prefork, _threaded, _watcher, _worker, httpd, server
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -16,7 +16,7 @@ _BUILD_WINDOW = 30
 
 def _classes() -> dict:
     out = {}
-    for module in (server, _prefork, _threaded, _worker, _watcher, wsgi):
+    for module in (server, _prefork, _threaded, _worker, _watcher, httpd):
         for name, value in vars(module).items():
             if inspect.isclass(value):
                 out.setdefault(name, value)
@@ -95,12 +95,12 @@ def test_the_gate_would_notice_a_dropped_attribute():
     assert "check_limits" in known, "defined as a method"
     assert "no_such_attribute_at_all" not in known
 
-    handler = _classes()["CommonRequestHandler"]
-    inherited = _known_attributes(handler)
-    for name in ("requestline", "rfile", "wfile", "command"):
+    subclass = _classes()["WorkerHTTP"]
+    inherited = _known_attributes(subclass)
+    for name in ("alive", "watchdog_pipe"):
         assert name in inherited, (
-            f"{name} comes from a stdlib/werkzeug base; if the MRO walk stops "
-            f"resolving those, this gate turns into false positives"
+            f"{name} is assigned only in the Worker base; if the MRO walk stops "
+            f"resolving base-class assignments, this gate turns into false positives"
         )
 
 

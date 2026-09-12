@@ -1,21 +1,18 @@
 import contextlib
 import errno
 import fcntl
-import http.server
 import logging
 import os
 import signal
 import socket
 import threading
 import time
-from io import BytesIO
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import psutil
 import psycopg
 import pytest
-import werkzeug.serving
 
 from odoo.service import (
     _base_server,
@@ -25,7 +22,6 @@ from odoo.service import (
     _threaded,
 )
 from odoo.service import settings as server_settings
-from odoo.service import wsgi as _wsgi
 from odoo.tools import SQL
 
 
@@ -719,6 +715,7 @@ class TestIdleRegistryEvictionRunsOnEveryPulse:
         ts = object.__new__(srv.ThreadedServer)
         ts.logger = MagicMock()
         ts.limits_reached_threads = set()
+        ts._overrun_start_times = {}
         ts.limit_reached_time = None
         with (
             patch.object(
@@ -1324,580 +1321,10 @@ class TestPreforkWorkerKill:
 
 
 @pytest.fixture
-def log_handler(srv, monkeypatch):
-    h = object.__new__(srv.CommonRequestHandler)
-    h.path = "/web/test"
-    h.command = "GET"
-    h.request_version = "HTTP/1.1"
-    h.requestline = "GET /web/test HTTP/1.1"
-    h.log = MagicMock()
-    stamp_rpc_model_method(monkeypatch)
-    return h
-
-
-class TestLoggingBaseWSGIServerMixIn:
-    @staticmethod
-    def _server():
-        return object.__new__(_wsgi.LoggingBaseWSGIServerMixIn)
-
-    def test_a_client_hangup_is_not_logged(self, caplog):
-        import logging
-
-        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_wsgi.sys, "exception", return_value=BrokenPipeError()):
-                self._server().handle_error(None, ("127.0.0.1", 51234))
-        assert caplog.records == [], (
-            f"a disconnected client produced log output: {caplog.records!r}"
-        )
-
-    def test_any_other_exception_is_logged_with_its_traceback(self, caplog):
-        import logging
-
-        boom = ValueError("handler blew up")
-        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_wsgi.sys, "exception", return_value=boom):
-                self._server().handle_error(None, ("10.0.0.7", 4242))
-
-        errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
-        assert errors, "a handler exception produced no ERROR record"
-        assert errors[0].exc_info is not None, (
-            "logged without exc_info, so the traceback — the only thing that "
-            "says WHERE the handler failed — is gone"
-        )
-        assert "10.0.0.7" in str(errors[0].args), (
-            "the record does not name the client the request came from"
-        )
-
-    def test_no_exception_in_flight_still_logs(self, caplog):
-        import logging
-
-        with caplog.at_level(logging.DEBUG, logger="odoo.service.server"):
-            with patch.object(_wsgi.sys, "exception", return_value=None):
-                self._server().handle_error(None, ("127.0.0.1", 1))
-        assert any(r.levelno >= logging.ERROR for r in caplog.records)
-
-
-class TestBaseWSGIServerNoBind:
-    def test_it_does_not_leave_a_socket_bound(self, srv):
-        server = srv.BaseWSGIServerNoBind(MagicMock())
-        assert server.socket.fileno() == -1, (
-            "the constructor left a bound socket open; the prefork worker is "
-            "supposed to serve the master's inherited one"
-        )
-
-    def test_server_bind_takes_no_port(self, srv):
-        server = srv.BaseWSGIServerNoBind(MagicMock())
-        assert (server.server_name, server.server_port) == ("127.0.0.1", 0)
-
-    def test_server_activate_does_not_listen(self, srv):
-        server = srv.BaseWSGIServerNoBind(MagicMock())
-        server.server_activate()
-
-    def test_it_carries_the_logging_mixin(self, srv):
-        assert issubclass(srv.BaseWSGIServerNoBind, srv.LoggingBaseWSGIServerMixIn)
-
-
-class TestCommonRequestHandlerLogError:
-    def test_timeout_logs_at_debug(self, log_handler):
-        with patch("odoo.service.wsgi._logger") as mock_logger:
-            log_handler.log_error("Request timed out: %r", "socket")
-        mock_logger.debug.assert_called_once()
-
-    def test_other_error_calls_super(self, log_handler):
-        with (
-            patch("odoo.service.wsgi._logger"),
-            patch.object(
-                werkzeug.serving.WSGIRequestHandler, "log_error"
-            ) as mock_super,
-        ):
-            log_handler.log_error("Some other error: %s", "detail")
-        mock_super.assert_called_once()
-
-
-class TestCommonRequestHandlerSendHeader:
-    @pytest.fixture
-    def handler(self, srv):
-        h = object.__new__(srv.CommonRequestHandler)
-        h._sent_date_header = None
-        h._sent_server_header = None
-        return h
-
-    def _send(self, handler, pairs):
-        sent: list[tuple[str, str]] = []
-        with patch.object(
-            werkzeug.serving.WSGIRequestHandler,
-            "send_header",
-            lambda self, k, v: sent.append((k, v)),
-        ):
-            for k, v in pairs:
-                handler.send_header(k, v)
-        return sent
-
-    def test_identical_date_sent_once(self, handler):
-        d = "Thu, 01 Jan 2026 00:00:00 GMT"
-        sent = self._send(handler, [("Date", d), ("Date", d)])
-        assert sent == [("Date", d)]
-
-    def test_same_instant_different_format_sent_once(self, handler):
-        sent = self._send(
-            handler,
-            [
-                ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
-                ("Date", "Thu, 01 Jan 2026 00:00:00 -0000"),
-            ],
-        )
-        assert sent == [("Date", "Thu, 01 Jan 2026 00:00:00 GMT")]
-
-    def test_naive_date_five_seconds_apart_does_not_crash(self, handler):
-        with patch("odoo.service.wsgi._logger") as log:
-            sent = self._send(
-                handler,
-                [
-                    ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
-                    ("Date", "Thu, 01 Jan 2026 00:00:05 -0000"),
-                ],
-            )
-        assert len(sent) == 2
-        log.warning.assert_called_once()
-
-    def test_malformed_second_date_does_not_crash(self, handler):
-        with patch("odoo.service.wsgi._logger") as log:
-            sent = self._send(
-                handler,
-                [
-                    ("Date", "Thu, 01 Jan 2026 00:00:00 GMT"),
-                    ("Date", "not-a-real-date"),
-                ],
-            )
-        assert len(sent) == 2
-        log.warning.assert_called_once()
-
-    def test_malformed_first_date_does_not_crash(self, handler):
-        with patch("odoo.service.wsgi._logger"):
-            sent = self._send(
-                handler,
-                [("Date", "garbage"), ("Date", "Thu, 01 Jan 2026 00:00:00 GMT")],
-            )
-        assert len(sent) == 2
-
-    def test_duplicate_server_header_sent_once(self, handler):
-        sent = self._send(handler, [("Server", "odoo"), ("Server", "odoo")])
-        assert sent == [("Server", "odoo")]
-
-    def test_case_insensitive_date_keyword(self, handler):
-        d = "Thu, 01 Jan 2026 00:00:00 GMT"
-        sent = self._send(handler, [("date", d), ("DATE", d)])
-        assert len(sent) == 1
-
-
-class TestParseHttpDate:
-    def test_gmt_is_aware(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        dt = _parse_http_date("Thu, 01 Jan 2026 00:00:00 GMT")
-        assert dt is not None and dt.tzinfo is not None
-
-    def test_minus_zero_zero_zero_zero_normalised_to_aware(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        dt = _parse_http_date("Thu, 01 Jan 2026 00:00:00 -0000")
-        assert dt is not None and dt.tzinfo is not None
-
-    def test_garbage_returns_none(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        assert _parse_http_date("definitely not a date") is None
-
-    def test_two_forms_of_same_instant_are_equal(self):
-        from odoo.service.wsgi import _parse_http_date
-
-        a = _parse_http_date("Thu, 01 Jan 2026 00:00:00 GMT")
-        b = _parse_http_date("Thu, 01 Jan 2026 00:00:00 -0000")
-        assert a == b
-
-
-class TestCommonRequestHandlerLogRequest:
-    def _captured_styles(self, log_handler, code):
-        captured = []
-        with (
-            patch("odoo.service.wsgi._is_ansi_enabled", return_value=True),
-            patch(
-                "odoo.service.wsgi._ansi_style",
-                side_effect=lambda msg, *styles: captured.append(styles) or msg,
-            ),
-        ):
-            log_handler.log_request(code, 0)
-        return captured
-
-    def test_200_no_ansi_styling(self, log_handler):
-        with (
-            patch("odoo.service.wsgi._is_ansi_enabled", return_value=True),
-            patch("odoo.service.wsgi._ansi_style") as mock_ansi,
-        ):
-            log_handler.log_request(200, 0)
-        mock_ansi.assert_not_called()
-
-    def test_304_styled_cyan_not_green(self, log_handler):
-        styles = self._captured_styles(log_handler, 304)
-        assert ("cyan",) in styles
-        assert ("green",) not in styles
-
-    def test_301_styled_green(self, log_handler):
-        styles = self._captured_styles(log_handler, 301)
-        assert ("green",) in styles
-
-    def test_404_styled_yellow(self, log_handler):
-        styles = self._captured_styles(log_handler, 404)
-        assert ("yellow",) in styles
-
-    def test_500_styled_bold_magenta(self, log_handler):
-        styles = self._captured_styles(log_handler, 500)
-        assert ("bold", "magenta") in styles
-
-
-class TestCommonRequestHandlerLogRequestNoTTY:
-    def test_no_ansi_calls_when_disabled(self, log_handler):
-        with (
-            patch("odoo.service.wsgi._is_ansi_enabled", return_value=False),
-            patch("odoo.service.wsgi._ansi_style") as mock_ansi,
-        ):
-            for code in (101, 200, 301, 304, 404, 500):
-                log_handler.log_request(code, 0)
-        mock_ansi.assert_not_called()
-
-    def test_a_werkzeug_without_ansi_style_degrades_to_plain_text(self):
-        import importlib
-
-        from odoo.service import wsgi as wsgi_mod
-
-        with patch.object(werkzeug.serving, "_ansi_style", create=False):
-            del werkzeug.serving._ansi_style
-            try:
-                reloaded = importlib.reload(wsgi_mod)
-                with patch.object(reloaded, "_is_ansi_enabled", return_value=True):
-                    assert (
-                        reloaded._style_if_ansi_enabled("GET /x", "bold", "red")
-                        == "GET /x"
-                    )
-            finally:
-                importlib.reload(wsgi_mod)
-        assert hasattr(werkzeug.serving, "_ansi_style")
-
-    def test_bad_requestline_falls_back_to_requestline(self, srv, monkeypatch):
-        h = object.__new__(srv.CommonRequestHandler)
-        h.requestline = "GARBAGE_LINE"
-        h.log = MagicMock()
-        stamp_rpc_model_method(monkeypatch)
-        h.log_request(200, 0)
-        logged_msg = str(h.log.call_args)
-        assert "GARBAGE_LINE" in logged_msg
-
-
-class TestCommonRequestHandlerLogRequestControlChars:
-    ESC = "\x1b"
-
-    def _logged_msg(self, handler):
-        return handler.log.call_args.args[2]
-
-    def test_control_chars_in_path_are_escaped(self, log_handler):
-        log_handler.path = f"/web/login{self.ESC}[2Jspoof"
-        log_handler.requestline = "GET /web/login HTTP/1.1"
-        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
-            log_handler.log_request(404, 0)
-        assert self.ESC not in self._logged_msg(log_handler)
-        assert "\\x1b" in self._logged_msg(log_handler)
-
-    def test_control_chars_in_rpc_fragment_are_escaped(self, log_handler, monkeypatch):
-        stamp_rpc_model_method(monkeypatch, f"res.users.read{self.ESC}[31mINJECT")
-        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
-            log_handler.log_request(200, 0)
-        msg = self._logged_msg(log_handler)
-        assert self.ESC not in msg
-        assert "INJECT" in msg
-
-    def test_control_chars_escaped_in_bad_requestline_fallback(self, srv, monkeypatch):
-        h = object.__new__(srv.CommonRequestHandler)
-        h.requestline = f"GARBAGE{self.ESC}[2K"
-        h.log = MagicMock()
-        stamp_rpc_model_method(monkeypatch)
-        with patch("odoo.service.wsgi._is_ansi_enabled", return_value=False):
-            h.log_request(200, 0)
-        assert self.ESC not in h.log.call_args.args[1]
-
-
-@pytest.fixture
-def request_handler(srv):
-    h = object.__new__(srv.RequestHandler)
-    h.headers = MagicMock()
-    h.close_connection = False
-    h.rfile = MagicMock()
-    h.wfile = MagicMock()
-    return h
-
-
-class TestRequestHandlerWebSocket:
-    def test_websocket_connection_close_is_suppressed(self, request_handler):
-        request_handler.headers.get.return_value = "websocket"
-        request_handler._switching_protocols = True
-        with patch.object(
-            http.server.BaseHTTPRequestHandler, "send_header"
-        ) as mock_send:
-            request_handler.send_header("Connection", "close")
-        mock_send.assert_not_called()
-        assert request_handler.close_connection is True
-
-    def test_non_websocket_connection_close_forwarded(self, request_handler):
-        request_handler.headers.get.return_value = None
-        with patch.object(
-            http.server.BaseHTTPRequestHandler, "send_header"
-        ) as mock_send:
-            request_handler.send_header("Connection", "close")
-        mock_send.assert_called_once_with("Connection", "close")
-        assert request_handler.close_connection is False
-
-    def test_end_headers_websocket_replaces_streams(self, request_handler):
-        request_handler.headers.get.return_value = "websocket"
-        request_handler._switching_protocols = True
-        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
-            request_handler.end_headers()
-        assert isinstance(request_handler.rfile, BytesIO)
-        assert isinstance(request_handler.wfile, BytesIO)
-
-    def test_end_headers_non_websocket_leaves_streams_unchanged(self, request_handler):
-        request_handler.headers.get.return_value = None
-        original_rfile = request_handler.rfile
-        original_wfile = request_handler.wfile
-        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
-            request_handler.end_headers()
-        assert request_handler.rfile is original_rfile
-        assert request_handler.wfile is original_wfile
-
-
-class TestRequestHandlerBeforeHeadersParsed:
-    @pytest.fixture
-    def unparsed_handler(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h._sent_date_header = None
-        h._sent_server_header = None
-        h.close_connection = False
-        h.rfile = MagicMock()
-        h.wfile = MagicMock()
-        assert not hasattr(h, "headers"), "fixture must reproduce the unset state"
-        return h
-
-    def test_send_header_does_not_raise_and_forwards(self, unparsed_handler):
-        with patch.object(
-            http.server.BaseHTTPRequestHandler, "send_header"
-        ) as mock_send:
-            unparsed_handler.send_header("Server", "Werkzeug")
-            unparsed_handler.send_header("Connection", "close")
-        assert mock_send.call_args_list == [
-            call("Server", "Werkzeug"),
-            call("Connection", "close"),
-        ]
-        assert unparsed_handler.close_connection is False
-
-    def test_end_headers_does_not_raise_and_keeps_streams(self, unparsed_handler):
-        original_rfile = unparsed_handler.rfile
-        original_wfile = unparsed_handler.wfile
-        with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
-            unparsed_handler.end_headers()
-        assert unparsed_handler.rfile is original_rfile
-        assert unparsed_handler.wfile is original_wfile
-
-    def test_helper_reports_no_upgrade_when_headers_missing(self, unparsed_handler):
-        assert unparsed_handler._is_websocket_upgrade() is False
-
-
-class TestRequestHandlerSocketTimeout:
-    @pytest.mark.parametrize("test_enable", [False, True])
-    def test_timeout_reaches_the_connection(self, test_enable, monkeypatch):
-        from odoo.service.wsgi import RequestHandler
-
-        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "2.5")
-        thread = threading.current_thread()
-        original_name = thread.name
-        connection, peer = socket.socketpair()
-        with connection, peer:
-            handler = object.__new__(RequestHandler)
-            handler.request = connection
-            try:
-                with server_settings.override(test_enable=test_enable, dev_mode=[]):
-                    handler.setup()
-                assert connection.gettimeout() == (5 if test_enable else 2.5)
-            finally:
-                thread.name = original_name
-                handler.finish()
-
-    @pytest.fixture
-    def wsgi_mod(self):
-        import odoo.service.wsgi as mod
-
-        return mod
-
-    def _handler(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h.connection = MagicMock()
-        return h
-
-    def _setup_with(self, wsgi_mod, handler, test_enable):
-        cfg = {"test_enable": test_enable, "dev_mode": []}
-        me = threading.current_thread()
-        original_name = me.name
-        try:
-            with (
-                server_settings.override(**cfg),
-                patch.object(werkzeug.serving.WSGIRequestHandler, "setup"),
-            ):
-                handler.setup()
-        finally:
-            me.name = original_name
-
-    def test_timeout_is_armed_outside_test_mode(self, srv, wsgi_mod):
-        h = self._handler(srv)
-        self._setup_with(wsgi_mod, h, test_enable=False)
-        h.connection.settimeout.assert_called_once_with(
-            wsgi_mod.get_http_socket_timeout()
-        )
-
-    def test_test_mode_keeps_the_longer_preconnect_grace(self, srv, wsgi_mod):
-        h = self._handler(srv)
-        self._setup_with(wsgi_mod, h, test_enable=True)
-        assert h.connection.settimeout.call_args.args[0] >= 5
-
-    def test_prefork_and_threaded_share_one_knob(
-        self, srv, wsgi_mod, multi, monkeypatch
-    ):
-        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "7.5")
-        worker = srv.WorkerHTTP(multi)
-        try:
-            assert worker.sock_timeout == wsgi_mod.get_http_socket_timeout() == 7.5
-        finally:
-            worker.close()
-
-    @pytest.mark.parametrize(
-        ("raw", "expected"),
-        [("0", 0.1), ("-3", 0.1), ("not-a-number", 2.0), ("30", 30.0)],
-    )
-    def test_env_override_is_clamped_and_degrades_safely(
-        self, wsgi_mod, monkeypatch, raw, expected
-    ):
-        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", raw)
-        assert wsgi_mod.get_http_socket_timeout() == expected
-
-    def test_upgrade_clears_the_deadline_for_the_websocket_loop(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h.connection = MagicMock()
-        h.request = MagicMock()
-        h.server = MagicMock(spec=[])
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            h.send_response(101)
-        h.connection.settimeout.assert_called_once_with(None)
-
-    def test_non_upgrade_response_keeps_the_deadline(self, srv):
-        h = object.__new__(srv.RequestHandler)
-        h.connection = MagicMock()
-        h.request = MagicMock()
-        h.server = MagicMock(spec=[])
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            h.send_response(200)
-        h.connection.settimeout.assert_not_called()
-
-
-@pytest.fixture
-def threaded_server(srv):
-    import weakref
-
-    s = object.__new__(srv.ThreadedWSGIServerReloadable)
-    s.max_http_threads = 4
-    s.http_threads_sem = MagicMock()
-    s._sem_released_requests = weakref.WeakSet()
-    return s
-
-
-class TestThreadedWSGIServerAutoLimit:
-    def test_auto_limit_subtracts_cron_and_job_threads(self, srv, monkeypatch):
-        monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
-
-        cfg = {"db_maxconn": 20, "max_cron_threads": 2, "job_workers": 4}
-        with (
-            server_settings.override(**cfg),
-            patch.object(
-                werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
-            ),
-        ):
-            s = srv.ThreadedWSGIServerReloadable("127.0.0.1", 0, MagicMock())
-        assert s.max_http_threads == (20 - 2 - 4) // 2
-
-    def test_auto_limit_floors_at_one(self, srv, monkeypatch):
-        monkeypatch.delenv("ODOO_MAX_HTTP_THREADS", raising=False)
-
-        cfg = {"db_maxconn": 5, "max_cron_threads": 2, "job_workers": 4}
-        with (
-            server_settings.override(**cfg),
-            patch.object(
-                werkzeug.serving.ThreadedWSGIServer, "__init__", return_value=None
-            ),
-        ):
-            s = srv.ThreadedWSGIServerReloadable("127.0.0.1", 0, MagicMock())
-        assert s.max_http_threads == 1
-
-
-class TestThreadedWSGIServerSemaphore:
-    def test_semaphore_full_skips_processing(self, threaded_server):
-        threaded_server.http_threads_sem.acquire.return_value = False
-        with patch.object(
-            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
-        ) as mock_super:
-            threaded_server._handle_request_noblock()
-        mock_super.assert_not_called()
-
-    def test_semaphore_acquired_calls_super(self, threaded_server):
-        threaded_server.http_threads_sem.acquire.return_value = True
-        with patch.object(
-            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
-        ) as mock_super:
-            threaded_server._handle_request_noblock()
-        mock_super.assert_called_once()
-
-    def test_no_semaphore_calls_super_directly(self, threaded_server):
-        threaded_server.max_http_threads = None
-        with patch.object(
-            werkzeug.serving.ThreadedWSGIServer, "_handle_request_noblock"
-        ) as mock_super:
-            threaded_server._handle_request_noblock()
-        mock_super.assert_called_once()
-
-    def test_shutdown_releases_semaphore(self, threaded_server):
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(MagicMock())
-        threaded_server.http_threads_sem.release.assert_called_once()
-
-    def test_shutdown_no_semaphore_skips_release(self, threaded_server):
-        threaded_server.max_http_threads = None
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(MagicMock())
-        threaded_server.http_threads_sem.release.assert_not_called()
-
-    def test_shutdown_idempotent_for_same_request(self, threaded_server):
-        request = MagicMock()
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(request)
-            threaded_server.shutdown_request(request)
-        threaded_server.http_threads_sem.release.assert_called_once()
-
-    def test_shutdown_distinct_requests_release_independently(self, threaded_server):
-        with patch.object(werkzeug.serving.ThreadedWSGIServer, "shutdown_request"):
-            threaded_server.shutdown_request(MagicMock())
-            threaded_server.shutdown_request(MagicMock())
-            threaded_server.shutdown_request(MagicMock())
-        assert threaded_server.http_threads_sem.release.call_count == 3
-
-
-@pytest.fixture
 def tserver(srv):
     s = object.__new__(srv.ThreadedServer)
     s.limits_reached_threads = set()
+    s._overrun_start_times = {}
     s.limit_reached_time = None
     s.logger = MagicMock()
     s._process_handle = MagicMock()
@@ -2265,7 +1692,7 @@ class TestEventServerGracefulStop:
     def test_start_installs_sigint_and_sigterm(self, event_server):
         with (
             patch.object(signal, "signal") as mock_signal,
-            patch.object(werkzeug.serving, "make_server", return_value=MagicMock()),
+            patch.object(_threaded, "ThreadedHTTPServer", return_value=MagicMock()),
             patch.object(threading, "Thread"),
         ):
             event_server.start()
@@ -2301,8 +1728,8 @@ class TestEventServerGracefulStop:
         event_server.httpd.shutdown.assert_not_called()
 
     def test_stop_completes_if_serve_forever_never_started(self, event_server):
-        event_server.httpd = werkzeug.serving.make_server(
-            "127.0.0.1", 0, lambda e, s: [], threaded=True
+        event_server.httpd = _threaded.ThreadedHTTPServer(
+            "127.0.0.1", 0, lambda e, s: []
         )
         try:
             done = threading.Event()
@@ -2316,8 +1743,8 @@ class TestEventServerGracefulStop:
             event_server.httpd.server_close()
 
     def test_stop_after_completed_serve_loop_double_close_ok(self, event_server):
-        event_server.httpd = werkzeug.serving.make_server(
-            "127.0.0.1", 0, lambda e, s: [], threaded=True
+        event_server.httpd = _threaded.ThreadedHTTPServer(
+            "127.0.0.1", 0, lambda e, s: []
         )
         t = threading.Thread(target=event_server.httpd.serve_forever, daemon=True)
         t.start()
@@ -2332,6 +1759,7 @@ class TestProcessLimitRealTimeLog:
         ts = object.__new__(srv.ThreadedServer)
         ts.logger = MagicMock()
         ts.limits_reached_threads = set()
+        ts._overrun_start_times = {}
         ts.limit_reached_time = None
         ts._process_handle = MagicMock()
 
@@ -2358,75 +1786,6 @@ class TestProcessLimitRealTimeLog:
         assert "virtual" not in fmt, "wall time must not be mislabeled 'virtual'"
         rendered = fmt % ts.logger.warning.call_args.args[1:]
         assert "12.7" in rendered, f"fractional seconds must survive; got {rendered!r}"
-
-
-class _FakeConnection:
-    def shutdown(self, how):
-        pass
-
-    def close(self):
-        pass
-
-
-@pytest.fixture
-def bounded_server(srv):
-    import weakref
-
-    obj = object.__new__(srv.ThreadedWSGIServerReloadable)
-    obj.max_http_threads = 1
-    obj.http_threads_sem = threading.Semaphore(1)
-    obj._sem_released_requests = weakref.WeakSet()
-    return obj
-
-
-class TestHttpSlotReleaseOnWebsocketUpgrade:
-    def test_upgrade_releases_slot_early(self, bounded_server):
-        conn = _FakeConnection()
-        assert bounded_server.http_threads_sem.acquire(blocking=False)
-        bounded_server.release_upgraded_request_slot(conn)
-        assert bounded_server.http_threads_sem.acquire(blocking=False), (
-            "the upgraded connection's slot must be free for the next request"
-        )
-
-    def test_shutdown_after_upgrade_does_not_double_release(self, bounded_server):
-        conn = _FakeConnection()
-        assert bounded_server.http_threads_sem.acquire(blocking=False)
-        bounded_server.release_upgraded_request_slot(conn)
-        bounded_server.shutdown_request(conn)
-        assert bounded_server.http_threads_sem.acquire(blocking=False)
-        assert not bounded_server.http_threads_sem.acquire(blocking=False), (
-            "a double release would inflate the bound beyond max_http_threads"
-        )
-
-    def test_release_is_noop_without_bound(self, srv):
-        obj = object.__new__(srv.ThreadedWSGIServerReloadable)
-        obj.max_http_threads = 0
-        obj.release_upgraded_request_slot(_FakeConnection())
-
-    def test_send_response_101_triggers_release(self, srv):
-        handler = object.__new__(srv.RequestHandler)
-        handler.server = MagicMock()
-        handler.request = _FakeConnection()
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            handler.send_response(101)
-        handler.server.release_upgraded_request_slot.assert_called_once_with(
-            handler.request
-        )
-
-    def test_send_response_200_does_not_release(self, srv):
-        handler = object.__new__(srv.RequestHandler)
-        handler.server = MagicMock()
-        handler.request = _FakeConnection()
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            handler.send_response(200)
-        handler.server.release_upgraded_request_slot.assert_not_called()
-
-    def test_send_response_101_survives_server_without_semaphore(self, srv):
-        handler = object.__new__(srv.RequestHandler)
-        handler.server = object()
-        handler.request = _FakeConnection()
-        with patch.object(http.server.BaseHTTPRequestHandler, "send_response"):
-            handler.send_response(101)
 
 
 class _StopHarness(BaseException):

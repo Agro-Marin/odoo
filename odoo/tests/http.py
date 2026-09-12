@@ -235,10 +235,13 @@ class HttpCase(TransactionCase):
 
         self._logger.info("waiting for threads: %s", request_threads)
 
-        for thread in request_threads:
-            thread.join(timeout - (time.monotonic() - start_time))
-
-        request_threads = get_http_request_threads()
+        # A pooled worker outlives its request and is renamed when it goes back
+        # to idle, so joining it would wait out the whole timeout: poll instead.
+        deadline = start_time + timeout
+        while request_threads and time.monotonic() < deadline:
+            for thread in request_threads:
+                thread.join(min(0.05, max(deadline - time.monotonic(), 0)))
+            request_threads = get_http_request_threads()
         if not request_threads:
             return
 

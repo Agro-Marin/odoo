@@ -10,7 +10,6 @@ from typing import Any
 
 import psutil
 import psycopg
-import werkzeug.serving
 
 from odoo import db
 from odoo.db import PoolError
@@ -38,8 +37,8 @@ from ._limits import (
     get_job_max_age,
     get_job_real_time_budget,
 )
+from .httpd import ThreadedHTTPServer
 from .lifecycle import preload_registries, restart
-from .wsgi import RequestHandler, ThreadedWSGIServerReloadable
 
 _logger = logging.getLogger("odoo.service.server")
 _debug = DebugLog(__name__)
@@ -85,8 +84,9 @@ class ThreadedServer(CommonServer):
         self.main_thread_id = threading.current_thread().ident
         self.quit_signals_received = 0
 
-        self.httpd: ThreadedWSGIServerReloadable | None = None
+        self.httpd: ThreadedHTTPServer | None = None
         self.limits_reached_threads: set[threading.Thread] = set()
+        self._overrun_start_times: dict[threading.Thread, float] = {}
         self.limit_reached_time: float | None = None
         self._stop_after_init = False
 
@@ -154,11 +154,14 @@ class ThreadedServer(CommonServer):
                             limit_s=thread_limit_time_real,
                         )
                         self.limits_reached_threads.add(thread)
+                        self._overrun_start_times[thread] = start_time
         # An observed overrun requests process recycling, even if that cron/job
-        # finishes before the monitor's next pass. Only thread exit clears it.
+        # finishes before the monitor's next pass. Only thread exit clears it --
+        # or, for a pooled HTTP thread, the end of the request that overran.
         for thread in list(self.limits_reached_threads):
-            if not thread.is_alive():
+            if not thread.is_alive() or self._overrun_request_finished(thread):
                 self.limits_reached_threads.remove(thread)
+                self._overrun_start_times.pop(thread, None)
         if self.limits_reached_threads or memory_over_limit:
             _debug.logic(
                 "server.limits_reached",
@@ -171,6 +174,13 @@ class ThreadedServer(CommonServer):
             self.limit_reached_time = self.limit_reached_time or now
         else:
             self.limit_reached_time = None
+
+    def _overrun_request_finished(self, thread: threading.Thread) -> bool:
+        if getattr(thread, "type", None) not in ("http", "http_idle"):
+            return False
+        return getattr(thread, "start_time", None) != self._overrun_start_times.get(
+            thread
+        )
 
     def run_cron_thread(self, number: int) -> None:
         from odoo.addons.base.models.ir_cron import IrCron
@@ -344,9 +354,7 @@ class ThreadedServer(CommonServer):
 
     def spawn_http_server(self) -> None:
         try:
-            self.httpd = ThreadedWSGIServerReloadable(
-                self.interface, self.port, self.app
-            )
+            self.httpd = ThreadedHTTPServer(self.interface, self.port, self.app)
         except SystemExit:
             self.logger.critical(
                 "Failed to bind the HTTP server to %s:%s -- the address is "
@@ -555,7 +563,7 @@ class EventServer(CommonServer):
     def __init__(self, app: Any) -> None:
         super().__init__(app)
         self.port = self.settings.gevent_port
-        self.httpd: werkzeug.serving.BaseWSGIServer | None = None
+        self.httpd: ThreadedHTTPServer | None = None
         self.ppid = os.getppid()
 
     def get_memory_soft_limit(self) -> int:
@@ -608,12 +616,8 @@ class EventServer(CommonServer):
             ).start()
 
         try:
-            self.httpd = werkzeug.serving.make_server(
-                self.interface,
-                self.port,
-                self.app,
-                threaded=True,
-                request_handler=RequestHandler,
+            self.httpd = ThreadedHTTPServer(
+                self.interface, self.port, self.app, announce=False
             )
             self.logger.info(
                 "Evented/WebSocket service running on %s:%s",

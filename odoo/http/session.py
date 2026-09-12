@@ -4,8 +4,10 @@ import contextlib
 import copy
 import errno
 import fcntl
+import logging
 import os
 import re
+import tempfile
 import threading
 import time
 from collections.abc import Iterable, Iterator
@@ -30,6 +32,7 @@ from .constants import (
 from .core import request
 from .exceptions import SessionExpiredException
 
+_logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
 
 _SESSION_KEY_LENGTH = 84
@@ -43,6 +46,14 @@ _session_identifier_re = re.compile(rf"^[A-Za-z0-9_-]{{{STORED_SESSION_BYTES}}}$
 _TRACE_MAX_ENTRIES = 50
 
 _MTIME_REFRESH_INTERVAL = 24 * 60 * 60
+
+
+def _fsync_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def prepare_session_dir(path: str) -> str:
@@ -60,6 +71,8 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._held_locks = threading.local()
+        self._durability = threading.local()
+        self._lock_directory_ready = False
 
     @contextlib.contextmanager
     def _locked_sid(self, sid: str) -> Iterator[None]:
@@ -74,18 +87,69 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             _debug.lifecycle("http.session.lock_reentered", stripe=stripe)
             yield
             return
-        directory = Path(self.path, ".locks")
-        directory.mkdir(mode=0o700, exist_ok=True)
-        with (directory / stripe).open("a+b") as lock:
-            Path(lock.name).chmod(0o600)
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        # A fresh descriptor per acquisition, not a cached one: flock belongs to
+        # the open file description, so a shared descriptor would let two
+        # threads of this process, or a forked child, into the same section.
+        lock_fd = self._open_lock_file(stripe)
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
             held.add(stripe)
             _debug.lifecycle("http.session.lock_acquired", stripe=stripe)
             try:
                 yield
             finally:
                 held.remove(stripe)
-                fcntl.flock(lock, fcntl.LOCK_UN)
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
+
+    def _open_lock_file(self, stripe: str) -> int:
+        directory = Path(self.path, ".locks")
+        if not self._lock_directory_ready:
+            directory.mkdir(mode=0o700, exist_ok=True)
+            self._lock_directory_ready = True
+        flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC
+        try:
+            return os.open(directory / stripe, flags, 0o600)
+        except FileNotFoundError:
+            directory.mkdir(mode=0o700, exist_ok=True)
+            return os.open(directory / stripe, flags, 0o600)
+
+    @contextlib.contextmanager
+    def _durably(self) -> Iterator[None]:
+        previous = getattr(self._durability, "enabled", False)
+        self._durability.enabled = True
+        try:
+            yield
+        finally:
+            self._durability.enabled = previous
+
+    def _write(self, session: Session) -> None:
+        filename = Path(self.get_session_filename(session.sid))
+        durable = getattr(self._durability, "enabled", False)
+        fd, tmp = tempfile.mkstemp(
+            suffix=sessions._fs_transaction_suffix, dir=self.path
+        )
+        try:
+            os.fchmod(fd, self.mode)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(_dumps_bytes(dict(session)))
+                if durable:
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            Path(tmp).replace(filename)
+            if durable:
+                _fsync_directory(filename.parent)
+        except OSError:
+            _logger.warning(
+                "Failed to persist session %r to %r",
+                session.sid,
+                str(filename),
+                exc_info=True,
+            )
+            with contextlib.suppress(OSError):
+                Path(tmp).unlink()
+            raise
 
     def get_session_filename(self, sid: str) -> str:
         if not self.is_valid_key(sid):
@@ -153,7 +217,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         with _debug.perf(
             "http.session.write", sid=session.sid[:8], was_new=session.is_new
         ):
-            super().save(session)
+            self._write(session)
         session.is_new = False
         session.mark_clean()
 
@@ -183,8 +247,11 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         return session
 
     def _remove_sid(self, sid: str) -> None:
+        path = Path(self.get_session_filename(sid))
         with self._locked_sid(sid), contextlib.suppress(FileNotFoundError):
-            Path(self.get_session_filename(sid)).unlink()
+            path.unlink()
+            # A revocation that a crash can undo is not a revocation.
+            _fsync_directory(path.parent)
         _debug.lifecycle("http.session.removed", sid=sid[:8])
 
     def delete(self, session: Session) -> None:
@@ -294,7 +361,8 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 if soft:
                     current["next_sid"] = session.sid
                     current["deletion_time"] = time.time() + SESSION_DELETION_TIMER
-                    self._save_unlocked(current)
+                    with self._durably():
+                        self._save_unlocked(current)
                 elif not original.is_new:
                     # A previous soft rotation keeps predecessor cookies valid
                     # briefly. A hard rotation must revoke that entire family.

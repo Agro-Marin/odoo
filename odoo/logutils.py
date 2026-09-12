@@ -12,8 +12,6 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final, Protocol, TextIO, cast
 
-import werkzeug.serving
-
 from . import db, release, tools
 from .db.replica import is_readonly_cursor_enabled
 from .db.schema import column_exists
@@ -418,10 +416,9 @@ def _install_log_handler() -> None:
     else:
         formatter = logging.Formatter(format)
         perf_filter = PerfFilter()
-        werkzeug.serving._log_add_style = False
     handler.setFormatter(formatter)
     logging.getLogger().addHandler(handler)
-    logging.getLogger("werkzeug").addFilter(perf_filter)
+    logging.getLogger("odoo.service.http.access").addFilter(perf_filter)
 
     if tools.config["log_db"]:
         db_levels = {

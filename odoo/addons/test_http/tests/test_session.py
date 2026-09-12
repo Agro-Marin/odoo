@@ -606,10 +606,10 @@ class TestSessionStore(HttpCaseWithUserDemo):
 
         with (
             patch(
-                "odoo.libs._vendor.sessions.pathlib.Path.replace",
+                "odoo.http.session.Path.replace",
                 side_effect=OSError("synthetic rename failure"),
             ),
-            self.assertLogs("odoo.libs._vendor.sessions", level="WARNING") as logs,
+            self.assertLogs("odoo.http.session", level="WARNING") as logs,
             self.assertRaises(OSError),
         ):
             odoo.http.root.session_store.save(session)

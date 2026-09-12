@@ -26,13 +26,16 @@ def test_accepted_socket_setup_failure_still_releases_the_client(operation):
     worker = _worker.WorkerHTTP.__new__(_worker.WorkerHTTP)
     worker.sock_timeout = 5
     worker.request_count = 0
-    worker.server = MagicMock()
+    worker.multi = MagicMock()
     client = MagicMock()
     getattr(client, operation).side_effect = OSError("socket setup failed")
-    with pytest.raises(OSError, match="socket setup failed"):
+    with (
+        patch.object(_worker, "serve_prefork_connection") as serve,
+        pytest.raises(OSError, match="socket setup failed"),
+    ):
         worker.process_request(client, ("127.0.0.1", 1234))
-    worker.server.shutdown_request.assert_called_once_with(client)
-    worker.server.finish_request.assert_not_called()
+    client.close.assert_called_once_with()
+    serve.assert_not_called()
     assert worker.request_count == 0
 
 
