@@ -78,9 +78,9 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 863 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 865 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
-| `static/tests/` | 786 `.js` (incl. 722 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
+| `static/tests/` | 789 `.js` (incl. 725 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
 | `tests/` | 62 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
@@ -94,7 +94,7 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | Backend entry points: `main.js`, `start.js` (`env.js`, `session.js`, `module_loader.js`, `service_worker.js` sit at `src/` root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 188 JS |
+| **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 190 JS |
 | **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 111 JS |
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
@@ -117,7 +117,7 @@ the files behind it are private and may be renamed, split, or moved without
 touching a consumer. `@web/ui/dialog` is the face, `ui/dialog/dialog_service.js`
 is an internal.
 
-Enforced by `tooling/architecture/`: `js_face_boundary.py` (no import reaches
+Was enforced by the architecture gates of the tooling tree, deleted in `7b0f58cb517f`, so these rules are now stated rather than checked: `js_face_boundary.py` (no import reaches
 past a face into a fronted directory), `js_component_face.py` (which directories
 under `components/` must HAVE one — a face is discovered rather than declared, so
 the boundary gate says nothing about that), `js_component_data_access.py`
@@ -431,12 +431,10 @@ exports after the loader resolves. See CONVENTIONS.md gotcha #6.
 ### Vendored libraries (`static/lib/`)
 
 **`static/lib/versions.json` is the single source of truth** for what is vendored
-and at which version, and it is machine-checked:
+and at which version.
 
-```bash
-tooling/vendored/check_vendored_libs.py --drift   # re-derives each version from the shipped bytes
-tooling/vendored/check_vendored_libs.py --audit   # OSV advisories against the pinned versions
-```
+It was machine-checked by a drift and advisory checker in the tooling tree,
+deleted in `7b0f58cb517f`; nothing re-derives the versions from the shipped bytes now.
 
 Do not restate versions here — read `versions.json`, and see
 `static/lib/README.md` for the per-library update procedure, the `AgroMarin:`
@@ -458,8 +456,8 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 25 (24 model files + `__init__.py`) |
 | Python (tests) | 62 (`test_*.py`; 63 files incl. `__init__.py`) |
-| JavaScript (src) | 863 (861 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
-| JavaScript (tests) | 786 (incl. 722 `*.test.js` Hoot suites) |
+| JavaScript (src) | 865 (863 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
+| JavaScript (tests) | 789 (incl. 725 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 213 (34 in `static/src/scss/` shared base; remaining 179 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 293 (14 views + 5 data + 274 OWL templates) |

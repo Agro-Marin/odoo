@@ -13,8 +13,10 @@ came from *instrumented runs*, not from reading. This page is the surface that
 makes such a reading cheap, so the next improvement starts from a measurement.
 
 Everything here is temporary by construction and comes out at the end of the
-campaign. `tooling/trace/stamp.py --revert` removes the per-component half; the
-namespaces below are deleted with the call sites that use them.
+campaign. The per-component half was written by a stamper in the tooling tree,
+deleted in `7b0f58cb517f`; no `// trace-stamp` line remains in any `static/src`, so that
+half is already out. The namespaces below are deleted with the call sites that
+use them.
 
 ## Two gates, deliberately independent
 
@@ -134,22 +136,19 @@ Which *component* re-rendered. That fact exists only inside each component's own
 `setup()`, so it cannot be reached from a shared junction — which is what the
 stamper below is for.
 
-## The stamper — `tooling/trace/stamp.py`
+## The stamper (deleted)
 
 Writes `useRenderCounter("<module>:<Class>")` into every component `setup()` in a
 scope, and takes it back out.
 
-```bash
-python tooling/trace/stamp.py --check    # scope + gate risk, writes nothing
-python tooling/trace/stamp.py --apply
-python tooling/trace/stamp.py --revert
-```
+It was deleted with the tooling tree in `7b0f58cb517f`. What follows records how it
+behaved, for anyone rebuilding one.
 
 Four properties make it safe to run against a shared tree:
 
 1. **Reversible exactly.** Every inserted line carries a `// trace-stamp`
    trailing comment; `--revert` removes lines carrying it and nothing else. An
-   apply/revert cycle over `addons/web/static/src` returns all 863 files
+   apply/revert cycle over `addons/web/static/src` returns all 865 files
    byte-identical.
 2. **Idempotent.** A second `--apply` stamps 0 lines.
 3. **Lint-clean on arrival — and `--fix` must NOT be run.** A stamped tree
@@ -475,9 +474,8 @@ reference the code, so deleting code first turns a tidy removal into a red lane.
 
 **Goes:**
 
-1. `python tooling/trace/stamp.py --revert`, then delete `tooling/trace/`.
-   Verify the revert first — an apply/revert cycle must leave every file
-   byte-identical, and a tree that does not is a tree with probes still in it.
+1. Done: the stamper and its directory went with the tooling tree in `7b0f58cb517f`,
+   and no `// trace-stamp` line is left in any `static/src`.
 2. The structured sink in `core/utils/asset_log.js`: `_record`,
    `_traceArmedAtInit`, `log.active`, and the `__odooTrace` / `__odooTraceStats`
    / `__odooTraceReset` globals.

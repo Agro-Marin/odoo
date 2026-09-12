@@ -84,15 +84,11 @@ in the URL across runs and a renamed test would otherwise wedge the page. Note
 what that fail-open path costs when it applies: with the last id gone `hasFilter`
 is false and the **whole bundle** runs.
 
-### Warm-server runner (`tooling/hoot/`)
+### Warm-server runner (deleted)
 
-`./hoot '@web/core/domain'` is ~2 s faster again per run and takes plain suite
-paths, and `./hoot-shard` runs the whole desktop suite in parallel — **14209
-tests in 311 s wall at `-j 4`** against ~1216 s serial. Its suite list is read
-from `test_js.py`, heavy suites are split into child ids, and each suite gets its
-own page load so results mean what CI means. See `tooling/hoot/README.md`.
-`./hoot --affected` selects suites from your git diff across **all four addon
-repos**; add `--downstream` for suites in other addons.
+The `./hoot` warm runner, `./hoot-shard` and `--affected` lived in the tooling
+tree and were deleted with it in `7b0f58cb517f`. Run suites through `WebSuite` /
+`MobileWebSuite` as described above.
 
 > **Stale-source warning.** A long-lived `--dev=assets` server can serve the
 > *previous* `static/src` with no error — `*.test.js` edits rebuild while
@@ -143,9 +139,7 @@ to run individual groups instead of the full 1-2 hour suite.
 
 The two classes are not redundant: tests are selected by **tag**, not by
 directory, so each platform runs a different (overlapping, neither-a-superset)
-set. A change is only verified once both have run. The warm-server dev loop has
-the same split behind `hoot --preset desktop|mobile`, where the default hides a
-mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
+set. A change is only verified once both have run.
 
 | Method | Hoot suite(s) | Scope |
 |--------|---------------|-------|

@@ -58,7 +58,7 @@
 | `core/badge/` | shared | 1 | Badge colour helpers plus component styles |
 | `core/browser/` | shared | 8 | Browser abstraction: the `browser` indirection object, cookies, storage, router, hotkey key normalisation, anchor-scroll suppression, feature detection, and the `title` service |
 | `core/colors/` | shared | 1 | Shared colour palettes, allocation policies and public colour operations |
-| `core/debug/` | shared | 2 | Debug context manager merging `debug` registry items by category, plus its utilities |
+| `core/debug/` | shared | 4 | Debug context manager merging `debug` registry items by category, plus its utilities |
 | `core/errors/` | shared | 6 | The `error` service, uncaught-error handlers, traceback formatting, native stack-frame parsing, and the `/web/observability/js_error` beacon |
 | `core/file_upload/` | shared | 2 | `FileHandler` component and the `file_upload` service (XHR upload with progress) |
 | `core/flow_editor/` | shared | 7 | The node-graph editor: store, canvas, node/port/connection components and the structural connection validator |

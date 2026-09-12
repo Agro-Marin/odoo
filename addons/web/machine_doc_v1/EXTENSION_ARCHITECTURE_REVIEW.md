@@ -153,7 +153,7 @@ so any chain through them breaks.** The true figures are therefore floors.
 
 ### Survived unchanged
 
-- `@ts-check` on **861 of 863** files — the two exclusions are
+- `@ts-check` on **863 of 865** files — the two exclusions are
   `module_loader.js` and `service_worker.js`.
 
   This read *756 of 763, exact* from the first revision until 2026-08-16, and
@@ -243,12 +243,12 @@ hooks during setup, then carry on*.
 This replaces the draft's weaker "2,447 `any`s" framing, which was true but not
 the point.
 
-`addons/web` is well typed internally: 861 of 863 files carry `@ts-check`.
+`addons/web` is well typed internally: 863 of 865 files carry `@ts-check`.
 Outside it, essentially nothing does:
 
 | tree | files with `@ts-check` |
 |---|---|
-| `addons/web` | 861 |
+| `addons/web` | 863 |
 | all other `odoo/addons` JS (4,997 files) | **40** |
 | `enterprise` | **10** |
 
@@ -361,7 +361,7 @@ what these two changes actually ran into.
 
 ### P1 — Declare and gate the extension surface *(done)*
 
-`tooling/architecture/js_extension_surface.py` + `extension_surface_web.txt`,
+js_extension_surface.py + `extension_surface_web.txt` (the script went with the tooling tree in `7b0f58cb517f`),
 built to the shape of `js_public_surface.py`: per-consumer-scope provenance,
 shrink-only both directions, empty-tree refusal test.
 
@@ -526,7 +526,7 @@ nobody has declared and the refactor cannot be verified against anything.
 
 ## Implementation notes (P1)
 
-Shipped as `tooling/architecture/js_extension_surface.py`, modelled on
+Shipped as js_extension_surface.py in the tooling tree (deleted in `7b0f58cb517f`), modelled on
 `js_public_surface.py`: per-consumer-scope provenance, shrink-only in both
 directions, refuses an empty tree, `--check` / `--json` / `--update`.
 
@@ -629,8 +629,8 @@ Landed as `8b4f47004de`: 169 aliases added (43 of 214 were mapped), 7 dropped
 that mapped nothing and were imported by nobody. `@test_mail/*` is kept despite
 the same absent directory — nine files reach its helpers through
 `@test_mail/../tests/…`, which resolves textually, and the first version of the
-guard test would have deleted it. `tooling/typecheck/test_tsconfig_paths.py`
-keeps the map honest from here.
+guard test would have deleted it. A tsconfig paths test in the tooling tree kept
+the map honest until that tree was deleted in `7b0f58cb517f`.
 
 **The typecheck scope gates are red at HEAD**, on
 `keep_last_abort.test.js` and `superseded_load.test.js` — another session's
@@ -642,7 +642,7 @@ issue rather than a resolution one.
 
 Step 2 was written as "turn on `@ts-check` for the addons that subclass web
 most". In this repo's terms that means adding a module to
-`tooling/typecheck/scope_gate.py`'s `SCOPED_MODULES`, which locks every file of
+the typecheck scope gate's `SCOPED_MODULES` (tooling tree, since deleted), which locks every file of
 that module at zero errors except those named in a generated exception list.
 
 `scope_gate.py --candidates` (added in `714bd73a68a`) now derives what that
