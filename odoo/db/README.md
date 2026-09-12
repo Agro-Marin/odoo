@@ -737,6 +737,26 @@ library.
   `hasattr(odoo, "evented")` because `odoo.db` is importable without
   `odoo.init`'s monkeypatches (standalone scripts, tools) — not dead code.
 
+## Tracing (campaign instrumentation, temporary)
+
+Every module carries `_debug = DebugLog(__name__)` (`odoo/libs/debug_log.py`) and logs
+on four channels named `odoo.debug.<channel>.db.<module>` — `logic` (which branch, on what
+input), `perf` (spans with `ms=` and `queries=`, and counters), `pipeline` (hand-offs),
+`lifecycle` (opened / committed / closed / reaped). Off by default; nothing prints at
+`log_level = info`. Enable the whole package on every channel with four handlers,
+`--log-handler odoo.debug.<channel>.db:DEBUG`, one channel with
+`odoo.debug.perf.db:DEBUG`, one module with `odoo.debug.perf.db.schema:DEBUG`.
+
+The lines to start from: `cursor.statement` (one per statement — `head= kind= table= ms=
+rows= ok= in_pipeline=`), `cursor.fetch` (rows returned), `pool.borrow` / `pool.give_back`
+(wait and hold time, backend pid, thread), every `schema.*` verb (a span with `queries=`)
+and catalog probe (its answer), `cursor.pipeline` (statements queued, whether pipeline mode
+was entered, sync cost). Correlate on `db=`, `table=`, `name=sp<n>`, `backend_pid=`.
+`odoo/db/tests` runs green with everything on (`pytest odoo/db/tests --log-level=DEBUG`),
+so a full trace is readable without a database. The sites are removed together when the
+campaign ends; the recipe, the cost figures and the first findings are in
+`agromarin-knowledge/reference/dev/debug-logging-campaign.md` under "Core packages / db".
+
 ## Tests
 
 - **Invariants are enforced, not just described** — `odoo/db/tests/test_invariants.py`
