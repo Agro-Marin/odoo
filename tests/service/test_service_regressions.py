@@ -245,6 +245,33 @@ def test_only_the_supervisor_owns_pidfile_cleanup(tmp_path, monkeypatch, supervi
         register.assert_called_once_with(cli_server.remove_pid_file, os.getpid())
 
 
+@pytest.mark.parametrize("evented", [False, True])
+def test_only_the_master_creates_the_configured_databases(monkeypatch, evented):
+    import odoo
+    from odoo.cli import server as cli_server
+    from odoo.tools import config
+
+    monkeypatch.setattr(odoo, "evented", evented)
+    calls = []
+    init = {}
+    with (
+        config.patch(db_name=["one", "two"], init=init, stop_after_init=True),
+        patch.object(cli_server, "warn_running_as_root"),
+        patch.object(cli_server, "check_db_user_not_postgres"),
+        patch.object(cli_server, "report_configuration"),
+        patch.object(cli_server, "check_db_not_maintenance"),
+        patch.object(cli_server, "write_pid_file"),
+        patch.object(cli_server.config, "parse_config"),
+        patch.object(cli_server.db, "_create_empty_database", calls.append),
+        patch.object(cli_server.server, "start", return_value=0),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        cli_server.run_server([])
+    assert exit_info.value.code == 0
+    assert calls == ([] if evented else ["one", "two"])
+    assert init.get("base") is (None if evented else True)
+
+
 def test_respawned_worker_closes_inherited_reload_reader(master):
     read_fd, write_fd = master.open_pipe()
     selector = selectors.DefaultSelector()

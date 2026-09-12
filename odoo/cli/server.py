@@ -104,22 +104,12 @@ def write_pid_file() -> None:
         _debug.lifecycle("cli.server.pid_written", pid=pid, path=config["pidfile"])
 
 
-def run_server(args: list[str]) -> None:
-    warn_running_as_root()
-    with _debug.perf("cli.config.parse", command="server", args=len(args)):
-        config.parse_config(args, setup_logging=True)
-    check_db_user_not_postgres()
-    report_configuration()
-
-    for db_name in config["db_name"]:
-        check_db_not_maintenance(
-            db_name,
-            error_handler=lambda msg: sys.exit(
-                f"{msg} Choose another with -d/--database, or db_name in the "
-                "config file."
-            ),
-        )
-
+def create_configured_databases() -> None:
+    # The evented child is spawned by a master that already ran this, and it
+    # never loads a registry, so it has no database to create or extend.
+    if odoo.evented:
+        _debug.logic("cli.server.database_probe_skipped", reason="evented")
+        return
     for db_name in config["db_name"]:
         try:
             with _debug.perf("cli.server.create_empty_database", db=db_name):
@@ -146,6 +136,25 @@ def run_server(args: list[str]) -> None:
                 error=type(err).__name__,
             )
             sys.exit(f"Could not create database {db_name!r}. ({err})")
+
+
+def run_server(args: list[str]) -> None:
+    warn_running_as_root()
+    with _debug.perf("cli.config.parse", command="server", args=len(args)):
+        config.parse_config(args, setup_logging=True)
+    check_db_user_not_postgres()
+    report_configuration()
+
+    for db_name in config["db_name"]:
+        check_db_not_maintenance(
+            db_name,
+            error_handler=lambda msg: sys.exit(
+                f"{msg} Choose another with -d/--database, or db_name in the "
+                "config file."
+            ),
+        )
+
+    create_configured_databases()
 
     stop = config["stop_after_init"]
 
