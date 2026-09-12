@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { formView, FormController } from "@web/views/form";
+import { FormController, formView } from "@web/views/form";
 
 class AppointmentInsertLinkFormController extends FormController {
     static props = {

@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
+import { Component } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
-import { Component } from "@odoo/owl";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class AppointmentInviteCopyClose extends Component {
     static props = {

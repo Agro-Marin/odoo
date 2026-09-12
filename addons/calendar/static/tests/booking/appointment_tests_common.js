@@ -1,6 +1,7 @@
-import { registerMailMockRoutes } from "@mail/../tests/mock_server/mail_mock_server";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
+import { registerMailMockRoutes } from "@mail/../tests/mock_server/mail_mock_server";
 import { defineModels, fields, models } from "@web/../tests/web_test_helpers";
+
 import { defineAppointmentMockServer } from "./appointment_mock_server.js";
 
 export class CalendarEvent extends models.Model {

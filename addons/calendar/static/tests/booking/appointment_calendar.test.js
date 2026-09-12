@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { queryOne, waitFor, waitForNone } from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-
 import {
     clickAllDaySlot,
     toggleFilter,
@@ -13,9 +12,9 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { defineAppointmentModels, FilterPartner } from "./appointment_tests_common.js";
-
 import { session } from "@web/session";
+
+import { defineAppointmentModels, FilterPartner } from "./appointment_tests_common.js";
 
 describe.current.tags("desktop");
 defineAppointmentModels();

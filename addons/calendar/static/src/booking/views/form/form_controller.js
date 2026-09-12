@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { AppointmentTemplatePickerDialog } from "@calendar/booking/components/appointment_template_picker_dialog/appointment_template_picker_dialog";
 import { useService } from "@web/core/utils/hooks";
 import { FormController } from "@web/views/form";
-import { AppointmentTemplatePickerDialog } from "@calendar/booking/components/appointment_template_picker_dialog/appointment_template_picker_dialog";
 
 export class AppointmentTypeFormController extends FormController {
     setup() {

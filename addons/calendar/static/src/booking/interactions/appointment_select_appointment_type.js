@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
 import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
+import { Interaction } from "@web/public/interaction";
 
 export class AppointmentTypeSelect extends Interaction {
     static selector = ".o_appointment_choice";

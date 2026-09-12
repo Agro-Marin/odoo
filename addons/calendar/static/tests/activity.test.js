@@ -1,4 +1,3 @@
-import { CalendarEvent } from "./mock_server/mock_models/calendar_event.js";
 import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
 import {
     click,
@@ -9,6 +8,8 @@ import {
 } from "@mail/../tests/mail_test_helpers";
 import { expect, test } from "@odoo/hoot";
 import { onRpc, preloadFullCalendar } from "@web/../tests/web_test_helpers";
+
+import { CalendarEvent } from "./mock_server/mock_models/calendar_event.js";
 
 defineCalendarModels();
 preloadFullCalendar();

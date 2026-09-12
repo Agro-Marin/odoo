@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AttendeeCalendarModel } from "@calendar/views/attendee_calendar/attendee_calendar_model";
 import { patch } from "@web/core/utils/patch";
+
 import * as luxon from "luxon";
 
 patch(AttendeeCalendarModel.prototype, {

@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { AttendeeCalendarCommonRenderer } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_renderer";
-import { patch } from "@web/core/utils/patch";
 import {
     eventSourcesWithSlots,
     fcEventToRecordWithSlot,
     mapRecordsAndSlotsToEvents,
     useAppointmentRendererHook,
 } from "@calendar/booking/views/appointment_calendar/hooks";
+import { AttendeeCalendarCommonRenderer } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_renderer";
+import { patch } from "@web/core/utils/patch";
+
 import * as luxon from "luxon";
 
 patch(AttendeeCalendarCommonRenderer.prototype, {

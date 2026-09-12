@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Dialog } from "@web/ui/dialog";
-import { useService } from "@web/core/utils/hooks";
 import { Component, onWillStart } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
+import { Dialog } from "@web/ui/dialog";
 
 /**
  * This component will display an appointment template picker.

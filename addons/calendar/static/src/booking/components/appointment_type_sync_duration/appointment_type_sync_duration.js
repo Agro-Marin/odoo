@@ -4,9 +4,9 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import {
+    buildM2OFieldDescription,
     computeM2OProps,
     Many2One,
-    buildM2OFieldDescription,
     Many2OneField,
 } from "@web/fields/relational/many2one";
 

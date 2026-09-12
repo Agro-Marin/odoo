@@ -6,6 +6,7 @@ import {
     models,
     mountView,
 } from "@web/../tests/web_test_helpers";
+
 import { defineAppointmentModels } from "./appointment_tests_common.js";
 
 class AppointmentQuestion extends models.Model {

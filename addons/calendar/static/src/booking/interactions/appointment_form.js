@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
-import { Interaction } from "@web/public/interaction";
-import { findInvalidEmailFromText } from "../js/utils.js";
 import { _t } from "@web/core/translation";
 import { addLoadingEffect } from "@web/core/utils/dom/ui";
+import { Interaction } from "@web/public/interaction";
+
+import { findInvalidEmailFromText } from "../js/utils.js";
 
 export class AppointmentForm extends Interaction {
     static selector = ".o_appointment_attendee_form";
@@ -103,7 +104,7 @@ export class AppointmentForm extends Interaction {
         const textAreaEl = this.el.querySelector("#o_appointment_input_guest_emails");
         const appointmentFormEl = this.el.querySelector(".appointment_submit_form");
         if (textAreaEl && textAreaEl.value.trim() !== "") {
-            let emailInfo = findInvalidEmailFromText(textAreaEl.value);
+            const emailInfo = findInvalidEmailFromText(textAreaEl.value);
             if (emailInfo.invalidEmails.length || emailInfo.emailList.length > 10) {
                 this.errorMessage =
                     emailInfo.invalidEmails.length > 0

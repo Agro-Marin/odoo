@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import {
     BadgeSelectionField,
     badgeSelectionField,

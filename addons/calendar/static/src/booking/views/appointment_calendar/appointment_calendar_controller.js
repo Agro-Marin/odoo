@@ -1,16 +1,17 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
 import { AttendeeCalendarController } from "@calendar/views/attendee_calendar/attendee_calendar_controller";
-import { patch } from "@web/core/utils/patch";
-import { usePopover } from "@web/ui/popover";
-import { rpc } from "@web/core/network";
-import { Tooltip } from "@web/ui/tooltip";
+import { onWillStart, useRef, useState, useSubEnv } from "@odoo/owl";
+import { Dropdown } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { serializeDateTime } from "@web/core/l10n/dates";
-import { useService } from "@web/core/utils/hooks";
-import { useRef, useState, useSubEnv, onWillStart } from "@odoo/owl";
-import { Dropdown } from "@web/components/dropdown";
+import { rpc } from "@web/core/network";
+import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
+import { patch } from "@web/core/utils/patch";
+import { usePopover } from "@web/ui/popover";
+import { Tooltip } from "@web/ui/tooltip";
+
 import { CustomAppointmentFormViewDialog } from "../custom_appointment_form_dialog/custom_appointment_form_dialog.js";
 
 patch(AttendeeCalendarController, {

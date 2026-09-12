@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 export class AppointmentBookingActionHelper extends Component {
     static template = "calendar.booking.AppointmentBookingActionHelper";

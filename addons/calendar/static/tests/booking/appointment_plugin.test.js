@@ -12,6 +12,7 @@ import {
     mountView,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+
 import { defineAppointmentModels } from "./appointment_tests_common.js";
 
 const linkUrl = window.location.origin + "/book/123";

@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { _t } from "@web/core/translation";
-import { registry } from "@web/core/registry";
-import { standardWidgetProps } from "@web/views/widgets";
-import { useService } from "@web/core/utils/hooks";
 import { Component } from "@odoo/owl";
 import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
+import { standardWidgetProps } from "@web/views/widgets";
 
 export class AppointmentSyncButton extends Component {
     static props = {

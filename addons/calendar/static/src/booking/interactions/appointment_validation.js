@@ -1,14 +1,15 @@
 /** @odoo-module native */
-import { Tooltip } from "@web/libs/bootstrap";
 import { browser } from "@web/core/browser/browser";
-import { rpc } from "@web/core/network";
-import { findInvalidEmailFromText } from "../js/utils.js";
 import { deserializeDateTime } from "@web/core/l10n/dates";
+import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-
+import { Tooltip } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { registry } from "@web/core/registry";
+
+import { findInvalidEmailFromText } from "../js/utils.js";
+
 import * as luxon from "luxon";
 
 export class AppointmentValidation extends Interaction {
