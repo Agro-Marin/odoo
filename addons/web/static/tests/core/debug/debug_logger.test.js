@@ -68,6 +68,7 @@ describe("spec", () => {
 
 describe("logger", () => {
     test("is silent and free when disabled", async () => {
+        expect.assertions(4);
         cleanLogging();
         disableLogging({ persist: false });
         const log = makeLogger("test.silent");
@@ -132,6 +133,7 @@ describe("logger", () => {
     });
 
     test("measure wraps sync and async work and rethrows", async () => {
+        expect.assertions(5);
         cleanLogging();
         enableLogging("test.measure", { persist: false });
         const log = makeLogger("test.measure");

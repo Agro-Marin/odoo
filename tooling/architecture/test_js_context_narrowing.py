@@ -311,3 +311,69 @@ def test_an_empty_tree_is_refused(tmp_path):
     with pytest.raises(SystemExit) as exc:
         jcn.main(["--web-static", str(static)])
     assert exc.value.code != 0
+
+
+def test_an_object_type_whose_fields_are_narrowed_is_not_itself_a_narrowing(tmp_path):
+    # `{ box: Pick<DOMRect, "top"> }` narrows a field; the parameter typed with
+    # it declares `box`, not `top`, and reaching `m.box.top` is a reach on box.
+    static = _tree(
+        tmp_path,
+        {
+            "consumer.js": """\
+/**
+ * @typedef {{
+ *   box: Pick<DOMRect, "top" | "bottom">,
+ *   scale: number,
+ * }} Measure
+ */
+
+/**
+ * @param {Measure} m
+ */
+export function useThing(m) {
+    return m.box.top * m.scale;
+}
+""",
+        },
+    )
+    assert jcn.analyse(static) == []
+
+
+def test_an_intersected_object_type_declares_its_keys(tmp_path):
+    static = _tree(
+        tmp_path,
+        {
+            "context.js": CONTEXT,
+            "consumer.js": """\
+/**
+ * @typedef {Pick<import("./context.js").GridContext, "getA"> & {
+ * model: { load: () => void };
+ * cache: Map<number, Pick<import("./context.js").GridContext, "getC">>;
+ * }} Narrowed
+ */
+
+/**
+ * @param {Narrowed} ctx
+ */
+export function useThing(ctx) {
+    ctx.model.load();
+    ctx.cache.get(1).getC();
+    return ctx.getA() + ctx.getB();
+}
+""",
+        },
+    )
+    findings = jcn.analyse(static)
+    assert _contracts(findings) == ["under-declared"]
+    assert "getB" in findings[0].detail
+
+
+def test_a_spread_of_what_a_member_returns_is_a_reach(tmp_path):
+    static = _tree(
+        tmp_path,
+        {
+            "context.js": CONTEXT,
+            "consumer.js": _consumer(["getA"], "    return [...ctx.getA()];"),
+        },
+    )
+    assert jcn.analyse(static) == []

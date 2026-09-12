@@ -82,6 +82,56 @@ def _strip_jsdoc_stars(text: str) -> str:
     return re.sub(r"\n\s*\*", "\n", text)
 
 
+def _top_level_picks(expr: str) -> list[int]:
+    """Offsets of every `Pick<` that narrows the expression itself.
+
+    A `Pick<>` nested inside `{ ... }`, `<...>` or `(...)` narrows a field or a
+    type argument, not the parameter: `{ box: Pick<DOMRect, "top"> }` is an
+    object type whose one field is narrowed, and reading its members as the
+    parameter's own is how this gate reported `m` as declaring `DOMRect.top`.
+    """
+    offsets: list[int] = []
+    depth = 0
+    for match in re.finditer(r"Pick\s*<|=>|[<\[({]|[>\])}]", expr):
+        token = match.group()
+        if token == "=>":
+            continue
+        if token.startswith("Pick"):
+            if depth == 0:
+                offsets.append(match.start())
+            depth += 1
+        elif token in "<[({":
+            depth += 1
+        else:
+            depth -= 1
+    return offsets
+
+
+def _top_level_object_keys(expr: str) -> set[str]:
+    """Keys an object type intersected at the top level declares.
+
+    `Pick<List, "a"> & { model: Pick<Model, "load"> }` declares `model` on the
+    parameter as surely as the `Pick<>` declares `a`.
+    """
+    keys: set[str] = set()
+    depth = 0
+    for match in re.finditer(r"=>|[<\[({]|[>\])}]|(?<![\w$])([\w$]+)\s*\??\s*:", expr):
+        token = match.group()
+        if token == "=>":
+            continue
+        if token in "<[({":
+            depth += 1
+        elif token in ">])}":
+            depth -= 1
+        elif depth == 1 and expr[: match.start()].rstrip().endswith(("{", ",", ";")):
+            keys.add(match.group(1))
+    return keys
+
+
+def _is_narrowing(expr: str) -> bool:
+    return bool(_top_level_picks(expr))
+
+
 def _split_top_level(body: str) -> tuple[str, bool, str]:
     """Split a `Pick<>` body at its top-level comma."""
     depth = 0
@@ -139,6 +189,9 @@ def reached_members(code: str, param: str) -> set[str]:
     at, because a gate that silently under-counts is worse than none.
     """
     members = set()
+    # `...ctx.member()` spreads what a member returns; the `...` is not a
+    # property access on something else, so it must not hide the reach.
+    code = code.replace("...", " ")
     members.update(
         match.group(1)
         for match in re.finditer(rf"(?<![\w$.]){re.escape(param)}\s*\.\s*(\w+)", code)
@@ -238,8 +291,20 @@ def declared_members(
     contexts: set[str] = set()
     if depth > 4:
         return members, contexts
-    for pick in PICK_BODY.finditer(expr):
-        body, _ = _balanced(expr, expr.index("<", pick.start()), "<", ">")
+    if depth == 0 and not _is_narrowing(expr):
+        for ref in TYPE_REF.finditer(expr):
+            target = _resolve_module(ref.group("module"), from_rel)
+            nested = registry.get((target, ref.group("name")))
+            if nested and _is_narrowing(nested):
+                return declared_members(nested, target, registry, depth + 1)
+        for bare in BARE_REF.finditer(TYPE_REF.sub("", expr)):
+            nested = registry.get((from_rel, bare.group(1)))
+            if nested and _is_narrowing(nested):
+                return declared_members(nested, from_rel, registry, depth + 1)
+        return members, contexts
+    members |= _top_level_object_keys(expr)
+    for start in _top_level_picks(expr):
+        body, _ = _balanced(expr, expr.index("<", start), "<", ">")
         # Pick<Source, "a" | "b">: only the second operand names members. Taking
         # every quoted string would read the index in `Factories["action"]` as
         # a member of the thing being narrowed.
@@ -258,7 +323,7 @@ def declared_members(
     for ref in TYPE_REF.finditer(expr):
         target = _resolve_module(ref.group("module"), from_rel)
         nested = registry.get((target, ref.group("name")))
-        if nested and "Pick<" in nested:
+        if nested and _is_narrowing(nested):
             sub_members, sub_contexts = declared_members(
                 nested, target, registry, depth + 1
             )
@@ -267,7 +332,7 @@ def declared_members(
     stripped = TYPE_REF.sub("", expr)
     for bare in BARE_REF.finditer(stripped):
         nested = registry.get((from_rel, bare.group(1)))
-        if nested and "Pick<" in nested:
+        if nested and _is_narrowing(nested):
             sub_members, sub_contexts = declared_members(
                 nested, from_rel, registry, depth + 1
             )
