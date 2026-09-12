@@ -228,8 +228,6 @@
             "web/static/lib/hoot-dom/**/*",
             "web_tour/static/src/js/**/*",
             "web_tour/static/src/tour_utils.js",
-            "web/static/tests/helpers/utils.js",
-            "web/static/tests/helpers/cleanup.js",
         ],
         "point_of_sale.assets_prod": [
             (

@@ -252,10 +252,27 @@ class HOOTCommon(odoo.tests.HttpCase):
         addon = addons.pop()
         return f"&module_scope={addon}" if addon else ""
 
+    def test_filtered_module_scope(self):
+        self._test_params = [("+", "@web/ui/dialog,@web/ui/popover")]
+        self.assertEqual(self._filtered_module_scope_param(), "&module_scope=web")
+        self._test_params = [("+", "@web/ui/dialog"), ("-", "@web/ui/dialog/x")]
+        self.assertEqual(self._filtered_module_scope_param(), "&module_scope=web")
+        self._test_params = [("+", "@web/ui,@mail/core")]
+        self.assertEqual(self._filtered_module_scope_param(), "")
+        self._test_params = [("-", "@web/ui/dialog")]
+        self.assertEqual(self._filtered_module_scope_param(), "")
+
+    def _filtered_module_scope_param(self):
+        # a filtered run narrows the bundle like the lane it filters would:
+        # on a database with point_of_sale installed an unscoped page loads
+        # the POS app's global patches over web's own suites
+        selected = [f for sign, f in _get_filters(self._test_params) if sign == "+"]
+        return self._get_module_scope_param(selected) if selected else ""
+
     def _run_hoot(self, *suite_names, preset, timeout=600, tag="", extra=""):
         if self.hoot_filters:
             id_filters = self.hoot_filters
-            scope_param = ""
+            scope_param = self._filtered_module_scope_param()
         else:
             id_filters = "".join(f"&id={self._generate_hash(n)}" for n in suite_names)
             scope_param = self._get_module_scope_param(suite_names)
