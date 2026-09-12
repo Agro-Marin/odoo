@@ -33,7 +33,8 @@ export function observeKey(target, key, callback) {
         const val = /** @type {Object<string, unknown> | undefined} */ (
             subscription.proxy
         )?.[/** @type {string} */ (key)];
-        if (typeof val === "object" && val !== null) {
+        // a markup is a String object: its keys are its character indices, one per byte
+        if (typeof val === "object" && val !== null && !(val instanceof String)) {
             void Object.keys(val);
         }
         if (Array.isArray(val)) {

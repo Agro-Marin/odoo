@@ -4,7 +4,7 @@ import { makeStore, Record, Store } from "@mail/core/common/record";
 import { fields } from "@mail/model/misc";
 import { observeKey } from "@mail/model/store";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
-import { reactive } from "@odoo/owl";
+import { markup, reactive } from "@odoo/owl";
 import { mockService, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
@@ -339,4 +339,34 @@ test("a record deleted by the onDelete hook of a record deleted in the same flus
     expect(survivor.buddy).toBe(undefined, {
         message: "a use registered after the cascade is still released on delete",
     });
+});
+
+test("observing an html field notifies on change without enumerating the markup", async () => {
+    (class Post extends Record {
+        static id = "id";
+        id;
+        body = fields.Html("");
+    }).register(localRegistry);
+    const { store } = await startCountingDrains();
+    const post = store.Post.insert({ id: 1, body: ["markup", "<p>first</p>"] });
+    const seen = [];
+    const keysSpy = Object.keys;
+    let enumeratedString = false;
+    Object.keys = (target) => {
+        if (target instanceof String) {
+            enumeratedString = true;
+        }
+        return keysSpy(target);
+    };
+    try {
+        observeKey(post, "body", (observe) => {
+            observe();
+            seen.push(String(post.body));
+        });
+        post.body = markup("<p>second</p>");
+    } finally {
+        Object.keys = keysSpy;
+    }
+    expect(seen).toEqual(["<p>second</p>"]);
+    expect(enumeratedString).toBe(false);
 });

@@ -65,9 +65,14 @@ export class NavigableList extends Component {
                 this.close();
             },
         );
-        usePosition("root", () => this.props.anchorRef, {
+        const positioning = usePosition("root", () => this.props.anchorRef, {
             position: this.props.position,
         });
+        // the root stays in the DOM while closed; do not measure and place it then
+        useEffect(
+            (show) => (show ? positioning.unlock() : positioning.lock()),
+            () => [this.show],
+        );
         useEffect(
             () => {
                 const optionsKey = this.props.options
