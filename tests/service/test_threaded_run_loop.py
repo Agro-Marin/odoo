@@ -276,12 +276,9 @@ def report_run(server):
         return report
 
     def _run(reports):
-        registries = {
-            name: MagicMock(_assertion_report=_make_report(**kwargs))
-            for name, kwargs in reports.items()
-        }
+        registries = {name: _make_report(**kwargs) for name, kwargs in reports.items()}
         registry_cls = MagicMock()
-        registry_cls.registries.items.return_value = list(registries.items())
+        registry_cls.registries.__iter__.return_value = iter(list(registries))
         registry_cls.registries._lock = contextlib.nullcontext()
         logger = MagicMock()
         server.start = MagicMock()
@@ -292,7 +289,11 @@ def report_run(server):
             patch.object(_threaded, "Registry", registry_cls),
             patch.dict(
                 "sys.modules",
-                {"odoo.tests.result": MagicMock(_logger=logger)},
+                {
+                    "odoo.tests.result": MagicMock(
+                        _logger=logger, assertion_report=registries.__getitem__
+                    )
+                },
             ),
         ):
             rc = _threaded.ThreadedServer.run(server, ["db"], stop=True)

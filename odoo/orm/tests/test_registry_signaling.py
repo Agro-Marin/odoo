@@ -8,6 +8,7 @@ import odoo.db
 from odoo.orm.runtime import registry as registry_module
 from odoo.orm.runtime._registry_signaling import _SIGNALING_TABLES, _RegistryCaches
 from odoo.orm.runtime.registry import CACHES_BY_KEY, Registry
+from odoo.tests import result as result_module
 
 
 def _make_registry(db_name, registry_sequence, cache_sequence, *, ready=True):
@@ -503,32 +504,32 @@ def test_registry_empty_db_name_rejected():
 
 def test_assertion_report_is_none_outside_test_mode(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", False)
-    assert registry_module._get_assertion_report("some_db") is None
+    assert result_module.assertion_report("some_db") is None
 
 
 def test_assertion_report_survives_a_registry_reload(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", True)
-    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+    monkeypatch.setattr(result_module, "_ASSERTION_REPORTS", {})
 
-    first = registry_module._get_assertion_report("db_a")
+    first = result_module.assertion_report("db_a")
     assert first is not None
-    assert registry_module._get_assertion_report("db_a") is first
+    assert result_module.assertion_report("db_a") is first
 
 
 def test_assertion_report_is_per_database(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", True)
-    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+    monkeypatch.setattr(result_module, "_ASSERTION_REPORTS", {})
 
-    assert registry_module._get_assertion_report(
-        "db_a"
-    ) is not registry_module._get_assertion_report("db_b")
+    assert result_module.assertion_report("db_a") is not result_module.assertion_report(
+        "db_b"
+    )
 
 
 def test_recorded_failure_is_still_visible_after_a_reload(monkeypatch):
     monkeypatch.setitem(registry_module.config.options, "test_enable", True)
-    monkeypatch.setattr(registry_module, "_ASSERTION_REPORTS", {})
+    monkeypatch.setattr(result_module, "_ASSERTION_REPORTS", {})
 
-    report = registry_module._get_assertion_report("db_a")
+    report = result_module.assertion_report("db_a")
     report.failures_count += 1
     assert not report.wasSuccessful()
-    assert not registry_module._get_assertion_report("db_a").wasSuccessful()
+    assert not result_module.assertion_report("db_a").wasSuccessful()

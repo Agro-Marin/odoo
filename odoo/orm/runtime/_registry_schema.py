@@ -31,10 +31,33 @@ class _RegistrySchemaMixin(_RegistryStubs):
     _constraint_queue: dict[typing.Any, Callable[[BaseCursor], None]]
     not_null_fields: set[Field]
 
+    database_translated_fields: dict[str, str]
+    database_company_dependent_fields: set[str]
+
     def _init_schema_state(self) -> None:
         self._ordinary_tables = {}
         self._constraint_queue = {}
         self.not_null_fields = set()
+        self.database_translated_fields = {}
+        self.database_company_dependent_fields = set()
+
+    def reflect_database_fields(self, cr: BaseCursor) -> None:
+        cr.execute(
+            "SELECT model || '.' || name, translate FROM ir_model_fields "
+            "WHERE translate IS NOT NULL"
+        )
+        self.database_translated_fields = dict(cr.fetchall())
+        if sql.column_exists(cr, "ir_model_fields", "company_dependent"):
+            cr.execute(
+                "SELECT model || '.' || name FROM ir_model_fields "
+                "WHERE company_dependent IS TRUE"
+            )
+            self.database_company_dependent_fields = {row[0] for row in cr.fetchall()}
+
+    def take_database_translated_fields(self) -> dict[str, str]:
+        taken = self.database_translated_fields
+        self.database_translated_fields = {}
+        return taken
 
     def post_constraint(
         self, cr: BaseCursor, func: Callable[[BaseCursor], None], key

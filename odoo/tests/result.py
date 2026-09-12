@@ -9,6 +9,7 @@ import traceback
 from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
 
 from .. import db
+from ..tools import config
 from . import case
 from .utils import env_int
 
@@ -63,6 +64,25 @@ class TestLike(Protocol):
     def id(self) -> str: ...
 
     def shortDescription(self) -> str | None: ...
+
+
+_ASSERTION_REPORTS: dict[str, OdooTestResult] = {}
+
+
+def assertion_report(db_name: str) -> OdooTestResult | None:
+    if not config["test_enable"]:
+        return None
+    report = _ASSERTION_REPORTS.get(db_name)
+    if report is None:
+        report = _ASSERTION_REPORTS[db_name] = OdooTestResult()
+    return report
+
+
+def forget_assertion_report(db_name: str | None = None) -> None:
+    if db_name is None:
+        _ASSERTION_REPORTS.clear()
+    else:
+        _ASSERTION_REPORTS.pop(db_name, None)
 
 
 class OdooTestResult:

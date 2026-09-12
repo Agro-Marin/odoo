@@ -362,7 +362,7 @@ def _collect_and_install_fields(model_cls: type[BaseModel], env: Environment):
 def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list):
     registry = get_registry_of_model(model_cls)
     key = f"{model_cls._name}.{name}"
-    if key not in registry._database_translated_fields:
+    if key not in registry.database_translated_fields:
         return
 
     translate = next(
@@ -375,7 +375,7 @@ def _patch_translate_field(model_cls: type[BaseModel], name: str, fields_: list)
     )
     if not translate:
         field_translate = FIELD_TRANSLATE.get(
-            registry._database_translated_fields[key],
+            registry.database_translated_fields[key],
             True,
         )
         _logger.debug("Patching %s.%s with translate=True", model_cls._name, name)
@@ -392,7 +392,7 @@ def _patch_company_dependent_field(
     model_cls: type[BaseModel], env: Environment, name: str, fields_: list
 ):
     key = f"{model_cls._name}.{name}"
-    if key not in get_registry_of_model(model_cls)._database_company_dependent_fields:
+    if key not in get_registry_of_model(model_cls).database_company_dependent_fields:
         return
 
     company_dependent = next(

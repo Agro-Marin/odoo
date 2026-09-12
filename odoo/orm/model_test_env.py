@@ -229,8 +229,8 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.model_graph = ModelGraph()
 
         self.loaded_modules = False
-        self._database_translated_fields: dict[str, str] = {}
-        self._database_company_dependent_fields: dict[str, str] = {}
+        self.database_translated_fields: dict[str, str] = {}
+        self.database_company_dependent_fields: set[str] = set()
         self.many2many_relations: defaultdict[
             tuple[str, str, str], OrderedSet[tuple[str, str]]
         ] = defaultdict(OrderedSet)

@@ -478,10 +478,11 @@ class ThreadedServer(CommonServer):
             if stop:
                 if self.settings.test_enable:
                     from odoo.tests.result import _logger as logger
+                    from odoo.tests.result import assertion_report
 
                     with Registry.registries._lock:
-                        for db_name, registry in Registry.registries.items():
-                            report = registry._assertion_report
+                        for db_name in Registry.registries:
+                            report = assertion_report(db_name)
                             log = (
                                 logger.error
                                 if not report.wasSuccessful()

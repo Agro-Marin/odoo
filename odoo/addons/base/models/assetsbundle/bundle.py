@@ -391,7 +391,9 @@ class AssetsBundle:
             stubs=len(secondary_parent_stubs or ()),
             exported=len(exported_specs or ()),
         ) as span:
-            result = self._prepare_esbuild_compiler(exported_specs, registered_reach).compile(
+            result = self._prepare_esbuild_compiler(
+                exported_specs, registered_reach
+            ).compile(
                 timeout_s=timeout_s,
                 target=target,
                 source_maps=source_maps,

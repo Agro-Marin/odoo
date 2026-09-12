@@ -12,8 +12,10 @@ def registry():
     reg.cursor.return_value = nullcontext(MagicMock())
     reg.updated_modules = ["updated_one", "updated_two"]
     reg.loaded_modules = {"zeta", "alpha"}
-    reg._assertion_report.testsRun = 0
-    return reg
+    reg.report = MagicMock()
+    reg.report.testsRun = 0
+    with patch("odoo.tests.result.assertion_report", return_value=reg.report):
+        yield reg
 
 
 @pytest.fixture
@@ -109,9 +111,7 @@ class TestSeedingPlannerStatsIsBestEffort:
 
         lifecycle._run_post_install_tests(registry, update_module=True)
 
-        registry._assertion_report.update.assert_called_once_with(
-            fake.run_suite.return_value
-        )
+        registry.report.update.assert_called_once_with(fake.run_suite.return_value)
 
 
 class TestAHollowPhaseIsReportedToTheCaller:

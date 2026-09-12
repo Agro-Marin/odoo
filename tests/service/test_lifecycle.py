@@ -246,13 +246,16 @@ class TestPreloadRegistriesReturnCode:
             unrun=0,
         ):
             registry = MagicMock()
-            registry._assertion_report = report
             registry_cls = MagicMock()
             registry_cls.new = new or MagicMock(return_value=registry)
             registry_cls.registries.count = 1
             logger = MagicMock()
             with (
                 patch.object(mod, "Registry", registry_cls),
+                patch(
+                    "odoo.tests.result.assertion_report",
+                    MagicMock(return_value=report),
+                ),
                 server_settings.override(**preload_config(**(config_overrides or {}))),
                 patch.object(
                     mod, "_run_post_install_tests", return_value=unrun

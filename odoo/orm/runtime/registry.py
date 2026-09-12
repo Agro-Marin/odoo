@@ -44,20 +44,6 @@ _schema = logging.getLogger("odoo.schema")
 _debug = DebugLog(__name__)
 
 
-_ASSERTION_REPORTS: dict[str, typing.Any] = {}
-
-
-def _get_assertion_report(db_name: str) -> typing.Any:
-    if not config["test_enable"]:
-        return None
-    from odoo.tests.result import OdooTestResult
-
-    report = _ASSERTION_REPORTS.get(db_name)
-    if report is None:
-        report = _ASSERTION_REPORTS[db_name] = OdooTestResult()
-    return report
-
-
 class Registry(
     _RegistryFieldsMixin,
     _RegistrySchemaMixin,
@@ -224,10 +210,6 @@ class Registry(
         self._init_schema_state()
         self._init_signaling_state()
 
-        self._database_translated_fields: dict[str, str] = {}
-        self._database_company_dependent_fields: set[str] = set()
-        self._assertion_report = _get_assertion_report(db_name)
-
         self.loaded_modules: set[str] = set()
         self.updated_modules: list[str] = []
         self.deferred_at_install_modules: list[str] = []
@@ -279,7 +261,9 @@ class Registry(
     def clear_database_state(cls, db_name: str) -> None:
         cls.remove(db_name)
         clear_text_transforms(db_name)
-        _ASSERTION_REPORTS.pop(db_name, None)
+        from odoo.tests.result import forget_assertion_report
+
+        forget_assertion_report(db_name)
 
     @classmethod
     @locked
@@ -287,7 +271,9 @@ class Registry(
         _debug.lifecycle("registry.remove_all", registries=len(cls.registries))
         cls.registries.clear()
         clear_all_text_transforms()
-        _ASSERTION_REPORTS.clear()
+        from odoo.tests.result import forget_assertion_report
+
+        forget_assertion_report()
 
     __eq__ = object.__eq__
     __ne__ = object.__ne__

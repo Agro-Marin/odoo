@@ -745,7 +745,7 @@ def get_installed_dependents_not_yet_loaded(
 def _run_gc_cycle(registry: Registry, cycles: int) -> int:
     if gc.get_count()[0] <= _GC_YOUNG_BACKLOG_LIMIT:
         return cycles
-    registry._caches.clear_all()
+    registry.clear_all_caches()
     cycles += 1
     with _debug.perf(
         "modules.gc_cycle", cycle=cycles, full=cycles % _GC_FULL_CYCLE_EVERY == 0
@@ -1025,22 +1025,12 @@ class _ModuleLoader:
     def capture_database_field_metadata(self) -> None:
         if not (self.update_module and schema.table_exists(self.cr, "ir_model_fields")):
             return
-        cr = self.cr
-        cr.execute(
-            "SELECT model || '.' || name, translate FROM ir_model_fields WHERE translate IS NOT NULL"
-        )
-        self.registry._database_translated_fields = dict(cr.fetchall())
-
-        if schema.column_exists(cr, "ir_model_fields", "company_dependent"):
-            cr.execute(
-                "SELECT model || '.' || name FROM ir_model_fields WHERE company_dependent IS TRUE"
-            )
-            self.registry._database_company_dependent_fields = {
-                row[0] for row in cr.fetchall()
-            }
+        self.registry.reflect_database_fields(self.cr)
 
     def open_environment_and_load_base(self) -> None:
-        self.report = self.registry._assertion_report
+        from odoo.tests.result import assertion_report
+
+        self.report = assertion_report(self.registry.db_name)
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
         self.env.transaction.default_env = self.env
         self.migrations = MigrationManager(self.cr, self.graph)
@@ -1178,8 +1168,7 @@ class _ModuleLoader:
         if not self.update_module:
             return
         registry = self.registry
-        database_translated_fields = registry._database_translated_fields
-        registry._database_translated_fields = {}
+        database_translated_fields = registry.take_database_translated_fields()
         registry.setup_models(self.cr, [], skip_if_clean=True)
         models_to_untranslate = set()
         for full_name in database_translated_fields:
@@ -1362,7 +1351,9 @@ class _ModuleLoader:
                 _logger.warning("invalid custom view(s) for model %s: %s", model, e)
 
     def log_assertion_report(self) -> None:
-        report = self.registry._assertion_report
+        from odoo.tests.result import assertion_report
+
+        report = assertion_report(self.registry.db_name)
         if not report or report.wasSuccessful():
             _logger.info("Modules loaded.")
         else:

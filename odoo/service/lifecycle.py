@@ -103,8 +103,11 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
     module_names = (
         registry.updated_modules if update_module else sorted(registry.loaded_modules)
     )
+    from odoo.tests.result import assertion_report
+
     _logger.info("Starting post tests")
-    tests_before = registry._assertion_report.testsRun
+    report = assertion_report(registry.db_name)
+    tests_before = report.testsRun
     post_install_suite = loader.prepare_suite(module_names, "post_install")
     prepared = post_install_suite.countTestCases()
     _debug.pipeline(
@@ -121,22 +124,22 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
 
     result = loader.run_suite(
         post_install_suite,
-        global_report=registry._assertion_report,
+        global_report=report,
     )
-    registry._assertion_report.update(result)
+    report.update(result)
     _logger.info(
         "%d post-tests in %.2fs, %s queries",
-        registry._assertion_report.testsRun - tests_before,
+        report.testsRun - tests_before,
         time.time() - t0,
         db.sql_counter - t0_sql,
     )
     _debug.pipeline(
         "service.post_install_tests.ran",
-        tests=registry._assertion_report.testsRun - tests_before,
+        tests=report.testsRun - tests_before,
         seconds=time.time() - t0,
         queries=db.sql_counter - t0_sql,
     )
-    registry._assertion_report.log_stats()
+    report.log_stats()
     return prepared if prepared and not result.testsRun else 0
 
 
@@ -232,7 +235,9 @@ def preload_registries(dbnames: list[str] | None) -> int:
                     with _debug.perf("service.post_install_tests", db=dbname) as span:
                         unrun = _run_post_install_tests(registry, update_module)
                         span.set(unrun=unrun)
-                report = registry._assertion_report
+                from odoo.tests.result import assertion_report
+
+                report = assertion_report(dbname)
                 _debug.pipeline(
                     "service.preload_reported",
                     db=dbname,
