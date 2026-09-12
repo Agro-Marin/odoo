@@ -21,3 +21,4 @@ from . import test_rename_adoption
 from . import test_category_field_definitions
 from . import test_secret_values
 from . import test_expiry_is_current
+from . import test_secret_use_and_reveal

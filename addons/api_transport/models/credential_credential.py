@@ -97,7 +97,7 @@ class CredentialCredential(models.Model):
         self.check_singleton()
         return self.endpoint_id.oauth_client_id or self.oauth_client_id
 
-    def get_auth_headers(self):
+    def _get_auth_headers(self):
         self.check_singleton()
         headers = {}
 
@@ -107,15 +107,17 @@ class CredentialCredential(models.Model):
         auth_type = self.endpoint_id.auth_type
 
         if auth_type == "bearer":
-            token = self._get_secret(prefer="bearer_token")
+            token = self._use_secret(prefer="bearer_token")
             if token:
                 headers["Authorization"] = f"Bearer {token}"
         elif auth_type == "api_key":
-            api_key = self._get_secret(prefer="api_key")
+            api_key = self._use_secret(prefer="api_key")
             if api_key:
                 headers.update(self.endpoint_id._api_key_headers(api_key))
-        elif auth_type == "oauth2" and self.oauth_access_token:
-            headers["Authorization"] = f"Bearer {self.oauth_access_token}"
+        elif auth_type == "oauth2":
+            access_token = self._use_secret_payload().get("oauth_access_token")
+            if access_token:
+                headers["Authorization"] = f"Bearer {access_token}"
 
         if self.custom_headers:
             try:

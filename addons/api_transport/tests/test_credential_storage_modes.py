@@ -28,7 +28,7 @@ class TestCredentialStorageModes(EncryptionKeyCase, TransactionCase):
         credential = self._credential("bearer simple", endpoint, credential_value="TOK")
         self.assertEqual(credential.storage_method, "simple")
         self.assertEqual(
-            credential.get_auth_headers(),
+            credential._get_auth_headers(),
             {"Authorization": "Bearer TOK"},
             "a simple-storage bearer credential used to yield {} here, and the "
             "request went out with no Authorization header at all",
@@ -38,13 +38,15 @@ class TestCredentialStorageModes(EncryptionKeyCase, TransactionCase):
         endpoint = self._endpoint("bearer_json", "bearer")
         credential = self._credential("bearer json", endpoint, bearer_token="TOK")
         self.assertEqual(credential.storage_method, "json")
-        self.assertEqual(credential.get_auth_headers(), {"Authorization": "Bearer TOK"})
+        self.assertEqual(
+            credential._get_auth_headers(), {"Authorization": "Bearer TOK"}
+        )
 
     def test_api_key_endpoint_simple_storage_sends_the_key(self):
         endpoint = self._endpoint("key_simple", "api_key")
         credential = self._credential("key simple", endpoint, credential_value="K")
         self.assertEqual(
-            credential.get_auth_headers(),
+            credential._get_auth_headers(),
             endpoint._api_key_headers("K"),
             "the header SHAPE stays the endpoint's business; only where the key "
             "is read from changed",
@@ -59,7 +61,7 @@ class TestCredentialStorageModes(EncryptionKeyCase, TransactionCase):
                 "category_id": self.env.ref("credential.credential_category_custom").id,
             }
         )
-        self.assertEqual(credential.get_auth_headers(), {})
+        self.assertEqual(credential._get_auth_headers(), {})
 
     def test_fingerprint_and_token_check_for_json_storage(self):
         endpoint = self._endpoint("fp_json", "api_key")
@@ -91,7 +93,7 @@ class TestCredentialStorageModes(EncryptionKeyCase, TransactionCase):
                 credential = self._credential(f"both {mode}", endpoint, **payload)
                 self.assertEqual(credential.storage_method, mode)
                 self.assertEqual(
-                    credential.get_auth_headers(), {"Authorization": "Bearer SHARED"}
+                    credential._get_auth_headers(), {"Authorization": "Bearer SHARED"}
                 )
                 self.assertTrue(endpoint.is_valid_token("SHARED"))
 

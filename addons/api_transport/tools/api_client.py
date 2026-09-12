@@ -733,7 +733,7 @@ class OutboundAPIClient:
 
     def _get_headers(self, additional_headers=None):
         credential_headers = (
-            self.credential.get_auth_headers() if self._credential_usable else {}
+            self.credential._get_auth_headers() if self._credential_usable else {}
         )
         self._credential_header_names = frozenset(
             str(name).lower() for name in credential_headers
@@ -761,7 +761,7 @@ class OutboundAPIClient:
             return None
         if not self._credential_usable:
             return None
-        pair = self.credential.get_basic_auth()
+        pair = self.credential._use_basic_auth()
         if self.service.auth_type == "digest":
             return HTTPDigestAuth(*pair) if pair else None
         return pair

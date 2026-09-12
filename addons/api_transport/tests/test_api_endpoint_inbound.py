@@ -10,10 +10,10 @@ from odoo.tests.common import TransactionCase
 from .common import APITransportTestCase
 from odoo.addons.api_transport.tools import (
     compute_payload_hash,
-    sanitize_error_message,
     inspect_content_type,
     inspect_json_payload,
     inspect_payload_size,
+    sanitize_error_message,
 )
 from odoo.addons.credential.tools import (
     is_bearer_token_valid,

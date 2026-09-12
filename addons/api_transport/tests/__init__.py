@@ -27,3 +27,4 @@ from . import test_access_log_outcome
 from . import test_cache_credential_scope
 from . import test_response_cache_search
 from . import test_credential_egress_policy
+from . import test_transport_secret_use

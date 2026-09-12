@@ -1145,35 +1145,47 @@ class CredentialCredential(models.Model):
                 return value
         return self.credential_value or False
 
-    def _get_verification_secret(self, prefer: str | None = None) -> str | bool:
+    # The use path: trusted server code placing a secret on the wire or checking a
+    # signature with it. It skips the per-user decrypt allowance and the per-read
+    # audit row, both of which exist to stop a person harvesting secrets and which
+    # made the hundred-and-first outbound call of an hour fail. It is private so no
+    # RPC call reaches it; transport exchanges are recorded in their own log.
+    def _use_secret_payload(self) -> dict:
         self.check_singleton()
         encrypted = self.with_context(bin_size=False).credential_value_encrypted
         if not encrypted:
-            return False
+            return {}
         plaintext = self._decrypt_value_safe(encrypted, default=None)
         if plaintext is None:
             _logger.warning(
-                "Credential %s: could not decrypt for inbound verification "
-                "(key missing or rotated); treating as unset.",
+                "Credential %s: could not decrypt for use (key missing or "
+                "rotated); treating as unset.",
                 self.id or "new",
             )
-            return False
+            return {}
         if self.storage_method != "json":
-            return plaintext or False
-
+            return {"credential_value": plaintext} if plaintext else {}
         try:
             data = json.loads(plaintext)
         except json.JSONDecodeError, ValueError:
-            return False
-        if not isinstance(data, dict):
-            return False
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _use_secret(self, prefer: str | None = None) -> str | bool:
+        payload = self._use_secret_payload()
         candidates = self._SECRET_ACCESSOR_PRIORITY
         if prefer:
             candidates = (prefer, *(f for f in candidates if f != prefer))
         for key in candidates:
-            if data.get(key):
-                return data[key]
-        return False
+            if payload.get(key):
+                return payload[key]
+        return payload.get("credential_value") or False
+
+    def _use_basic_auth(self) -> tuple[str, str] | None:
+        payload = self._use_secret_payload()
+        if payload.get("username") and payload.get("password"):
+            return (payload["username"], payload["password"])
+        return None
 
     def get_basic_auth(self):
         self.check_singleton()
@@ -1241,8 +1253,12 @@ class CredentialCredential(models.Model):
         self.check_singleton()
         if self.env.cr.readonly:
             self._log_access_out_of_band(operation)
-        else:
-            self._log_access(operation)
+            return
+        self._log_access(operation)
+        # The plaintext was produced whether or not the caller's transaction
+        # commits, so a rollback must not take the audit row with it.
+        record = self
+        self.env.cr.postrollback.add(lambda: record._log_access_out_of_band(operation))
 
     def _enforce_access_rate_limit(self) -> None:
         self.check_singleton()
