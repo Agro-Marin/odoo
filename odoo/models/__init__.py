@@ -39,7 +39,12 @@ from odoo.orm.parsing import (
     parse_read_group_spec,
     regex_order,
 )
-from odoo.orm.validation import check_pg_name, is_manual_name, is_valid_object_name
+from odoo.orm.validation import (
+    check_column_name,
+    check_pg_name,
+    is_manual_name,
+    is_valid_object_name,
+)
 
 __all__ = [
     "GC_UNLINK_LIMIT",
@@ -61,6 +66,7 @@ __all__ = [
     "ValuesType",
     "add_field",
     "add_model_to_registry",
+    "check_column_name",
     "check_companies_domain_parent_of",
     "check_company_domain_parent_of",
     "check_pg_name",

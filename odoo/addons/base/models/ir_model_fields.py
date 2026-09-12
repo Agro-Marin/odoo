@@ -296,7 +296,7 @@ class IrModelFields(models.Model):
     def _check_name(self) -> None:
         for field in self:
             try:
-                models.check_pg_name(field.name)
+                models.check_column_name(field.name)
             except ValidationError as e:
                 raise ValidationError(
                     _(
