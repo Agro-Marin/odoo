@@ -581,6 +581,49 @@ class TestActivityFlow(TestActivityCommon):
 
 
 @tests.tagged("mail_activity", "post_install", "-at_install")
+class TestActivityDoneBatch(TestActivityCommon):
+    def test_marking_activities_done_posts_once_per_round_of_records(self):
+        """Feedback on N activities posts their done messages in one batch per
+        round of distinct records: three records with one activity each are one
+        message create, a record carrying two activities needs a second round."""
+        records = self.env["mail.test.activity"].create(
+            [{"name": f"Done {idx}"} for idx in range(3)]
+        )
+        activities = self.env["mail.activity"]
+        for record in records:
+            activities += record.activity_schedule("mail.mail_activity_data_todo")
+        activities += records[0].activity_schedule("mail.mail_activity_data_email")
+        self.env.flush_all()
+
+        Message = type(self.env["mail.message"])
+        create_origin = Message.create
+        create_sizes = []
+
+        def _create(model, vals_list):
+            create_sizes.append(len(vals_list))
+            return create_origin(model, vals_list)
+
+        with patch.object(Message, "create", autospec=True, side_effect=_create):
+            messages, _done = activities._action_done(feedback="all done")
+
+        self.assertEqual(len(messages), 4, "one done message per activity")
+        self.assertEqual(
+            sorted(create_sizes),
+            [1, 3],
+            "one batch for the three records, one more for the second activity of the first",
+        )
+        self.assertFalse(activities.filtered("active"), "done activities are archived")
+        for record in records:
+            done = record.message_ids.filtered(
+                lambda m: m.subtype_id == self.env.ref("mail.mt_activities")
+            )
+            self.assertEqual(len(done), 2 if record == records[0] else 1)
+            for message in done:
+                self.assertIn("all done", message.body)
+                self.assertEqual(message.author_id, self.env.user.partner_id)
+                self.assertTrue(message.mail_activity_type_id)
+
+
 class TestActivitySystray(TestActivityCommon, HttpCase):
     """Test for systray_get_activities"""
 

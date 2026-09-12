@@ -1135,6 +1135,7 @@ class MailActivity(models.Model):
             res_ids,
         ) in self._thread_backed()._activities_with_records():
             records_sudo = self.env[model].sudo().browse(res_ids)
+            plan = []
             for record_sudo, activity in zip(records_sudo, activities, strict=True):
                 own_attachment_ids = self._attachments_for_post(
                     activity,
@@ -1144,29 +1145,83 @@ class MailActivity(models.Model):
                     shared_origin,
                     posted,
                 )
-                if activity.id in gone_ids:
-                    activity_message = self.env["mail.message"]
-                else:
-                    activity_message = record_sudo.message_post_with_source(
-                        "mail.message_activity_done",
-                        attachment_ids=own_attachment_ids,
-                        author_id=self.env.user.partner_id.id,
-                        render_values={
-                            "activity": activity,
-                            "feedback": feedback,
-                            "display_assignee": activity.user_id != self.env.user,
-                        },
-                        mail_activity_type_id=activity.activity_type_id.id,
-                        subtype_xmlid="mail.mt_activities",
+                post_values = None
+                if activity.id not in gone_ids:
+                    post_values = self._prepare_done_post_values(
+                        record_sudo, activity, feedback, own_attachment_ids
                     )
                     posted += 1
                 if own_attachment_ids:
                     activity.attachment_ids = own_attachment_ids
+                plan.append((activity, post_values))
+            message_by_activity = self._post_done_rounds(records_sudo, plan)
+            for activity, _post_values in plan:
+                activity_message = message_by_activity.get(
+                    activity.id, self.env["mail.message"]
+                )
                 attachments_to_remove += self._rehome_own_attachments(
                     activity, activity_message, activity_attachments
                 )
                 message_ids.extend(activity_message._ids)
         return self.env["mail.message"].browse(message_ids), attachments_to_remove
+
+    def _prepare_done_post_values(
+        self,
+        record: models.BaseModel,
+        activity: Self,
+        feedback: str | Literal[False],
+        attachment_ids: list[int] | None,
+    ) -> dict:
+        body = self.env["mixin.mail.render"]._render_template_qweb_view(
+            "mail.message_activity_done",
+            record._name,
+            record.ids,
+            add_context={
+                "activity": activity,
+                "feedback": feedback,
+                "display_assignee": activity.user_id != self.env.user,
+            },
+        )[record.id]
+        return {
+            "attachment_ids": attachment_ids,
+            "author_id": self.env.user.partner_id.id,
+            "body": body,
+            "mail_activity_type_id": activity.activity_type_id.id,
+            "message_type": "notification",
+            "subtype_xmlid": "mail.mt_activities",
+        }
+
+    @api.model
+    def _post_done_rounds(
+        self, records: models.BaseModel, plan: list[tuple[Self, dict | None]]
+    ) -> dict[int, MailMessage]:
+        rounds: list[dict[int, tuple[int, dict]]] = []
+        for activity, post_values in plan:
+            if post_values is None:
+                continue
+            for round_ in rounds:
+                if activity.res_id not in round_:
+                    round_[activity.res_id] = (activity.id, post_values)
+                    break
+            else:
+                rounds.append({activity.res_id: (activity.id, post_values)})
+        _debug.pipeline(
+            "done_messages",
+            model=records._name,
+            activities=len(plan),
+            posted=sum(len(round_) for round_ in rounds),
+            rounds=len(rounds),
+        )
+        message_by_activity = {}
+        for round_ in rounds:
+            messages = records._message_post_values_all(
+                {res_id: values for res_id, (_aid, values) in round_.items()}
+            )
+            for (activity_id, _values), message in zip(
+                round_.values(), messages, strict=True
+            ):
+                message_by_activity[activity_id] = message
+        return message_by_activity
 
     def _attachments_for_post(
         self,

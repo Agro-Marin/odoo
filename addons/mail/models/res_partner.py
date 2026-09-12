@@ -5,7 +5,7 @@ from typing import Any, Literal, Self
 
 from odoo import Command, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import limited_field_access_token
@@ -106,9 +106,15 @@ class ResPartner(models.Model):
 
     def _mail_shares_root_email(self) -> bool:
         root_email = self._mail_get_root_email()
-        return bool(root_email) and any(
-            partner.email_normalized == root_email for partner in self.sudo().exists()
-        )
+        if not root_email:
+            return False
+        partners = self.sudo()
+        try:
+            return any(partner.email_normalized == root_email for partner in partners)
+        except MissingError:
+            return any(
+                partner.email_normalized == root_email for partner in partners.exists()
+            )
 
     @api.model
     @tools.ormcache("root_email", cache="stable")

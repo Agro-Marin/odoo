@@ -454,7 +454,7 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
         # setup queries and the baseline carried none.
         # 149 -> 150 for the same one query as test_template_send_email_wreport
         # above: the tracked `phone_ids` relation read. Same delta, same cause.
-        with self.with_user(self.user_employee.login), self.assertQueryCount(150):
+        with self.with_user(self.user_employee.login), self.assertQueryCount(52):
             template = self.test_template_wreports.with_env(self.env)
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 

@@ -1530,6 +1530,10 @@ class MixinMailThread(models.AbstractModel):
             return self.browse(res_id).message_post(**post_values)
         common = None
         bodies, values_per_record, notify_per_record = {}, {}, {}
+        per_record_keys = self._BATCH_PER_RECORD_PARAMS | (
+            self._get_message_create_valid_field_names()
+            - {"author_id", "body", "message_type", "model", "res_id", "subtype_id"}
+        )
         for res_id, post_values in post_values_all.items():
             rest = dict(post_values)
             bodies[res_id] = rest.pop("body", "")
@@ -1538,9 +1542,7 @@ class MixinMailThread(models.AbstractModel):
                     "force_email_lang": rest.pop("force_email_lang")
                 }
             values_per_record[res_id] = {
-                key: rest.pop(key)
-                for key in list(rest)
-                if key in self._BATCH_PER_RECORD_PARAMS
+                key: rest.pop(key) for key in list(rest) if key in per_record_keys
             }
             if common is None:
                 common = rest
