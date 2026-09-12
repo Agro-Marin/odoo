@@ -4839,7 +4839,7 @@ class TestMany2oneReference(TransactionExpressionCase):
 
         self.assertIn(
             reference.id,
-            self.env._core.get_dirty(reference._fields["res_model"]) or (),
+            self.env.core.get_dirty(reference._fields["res_model"]) or (),
         )
 
         records = record.search([("model_ids.create_date", "!=", False)])

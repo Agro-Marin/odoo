@@ -812,7 +812,7 @@ class TestTranslationWrite(TransactionCase):
     def test_flush_stale_flat_cache_entry_not_nulled(self):
         category = self.env["res.partner.tag"].create({"name": "Reblochon"})
         field = category._fields["name"]
-        core = self.env._core
+        core = self.env.core
 
         core.get_field_data(field).clear()
         core.set_value(field, category.id, "Reblochon")

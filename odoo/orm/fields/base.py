@@ -100,7 +100,7 @@ def _prepare_fast_get(
         ids = record._ids
         if len(ids) != 1:
             return self._get_not_singleton(record, owner)
-        if self.is_stored_computed and env._core.has_pending_field(self):
+        if self.is_stored_computed and env.core.has_pending_field(self):
             self.recompute(record)
         try:
             value = env.__dict__["_field_cache_memo"][self][ids[0]]
@@ -478,7 +478,7 @@ class Field[T](
         return field_cache
 
     def _get_cache_impl(self, env: Environment) -> MutableMapping[IdType, typing.Any]:
-        core = env._core
+        core = env.core
         if self._is_context_dependent(env):
             return core.get_context_data(self, env.get_cache_key(self))
         return core.get_field_data(self)
@@ -490,10 +490,10 @@ class Field[T](
         *,
         keep_dirty: bool = False,
     ) -> None:
-        env._core.invalidate(self, ids, keep_dirty=keep_dirty)
+        env.core.invalidate(self, ids, keep_dirty=keep_dirty)
 
     def _get_all_cache_ids(self, env: Environment) -> Mapping[IdType, typing.Any]:
-        core = env._core
+        core = env.core
         if self._is_context_dependent(env):
             return core.get_context_cached_ids(self)
         return core.get_cached_ids(self)
@@ -549,7 +549,7 @@ class Field[T](
         field_cache = self._get_cache(env)
         if not field_cache:
             return
-        core = env._core
+        core = env.core
         scheduled = core.get_pending_ids(self)
         dirty = core.get_dirty(self)
         cleared = 0  # debuglog
@@ -593,7 +593,7 @@ class Field[T](
     ) -> None:
         if not self.is_column:
             return
-        dirty_ids = env._core.get_dirty(self)
+        dirty_ids = env.core.get_dirty(self)
         if not dirty_ids or dirty_ids.isdisjoint(ids):
             return
         overlap = sorted(dirty_ids.intersection(ids))
@@ -620,7 +620,7 @@ class Field[T](
             field_cache.update(dict.fromkeys(ids, cache_value))
 
         if self.is_column and dirty:
-            env._core.mark_dirty(self, (id_ for id_ in records._ids if id_))
+            env.core.mark_dirty(self, (id_ for id_ in records._ids if id_))
 
     if typing.TYPE_CHECKING:
 
@@ -679,7 +679,7 @@ class Field[T](
 
     def __set__(self, records: BaseModel, value: typing.Any) -> None:
         record_ids = records._ids
-        core = records.env._core
+        core = records.env.core
         if len(record_ids) == 1:
             record_id = record_ids[0]
             if core.is_protected(self, record_id):
@@ -765,7 +765,7 @@ class Field[T](
         return True, value
 
     def recompute_pending(self, records: ModelLike) -> None:
-        if self.is_stored_computed and records.env._core.has_pending_field(self):
+        if self.is_stored_computed and records.env.core.has_pending_field(self):
             self.recompute(records)
 
     def recompute(self, records: ModelLike) -> None:

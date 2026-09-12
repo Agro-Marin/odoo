@@ -30,7 +30,7 @@ def _dirty_record(env):
     record = env["x.widget"].create({"name": "before", "qty": 1})
     env.flush_all()
     record.name = "pending"
-    assert env._core.has_dirty_field(env["x.widget"]._fields["name"])
+    assert env.core.has_dirty_field(env["x.widget"]._fields["name"])
     return record
 
 

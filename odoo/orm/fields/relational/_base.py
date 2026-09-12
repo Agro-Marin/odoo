@@ -141,7 +141,7 @@ class _Relational(Field["BaseModel"]):
             return super()._get_not_singleton(records, owner)
 
         env = records.env
-        if self.is_stored_computed and env._core.has_pending_field(self):
+        if self.is_stored_computed and env.core.has_pending_field(self):
             self.recompute(records)
 
         field_cache = self._get_cache(env)
@@ -367,7 +367,7 @@ class _RelationalMulti(_Relational):
             )
             cache_value = field_cache.get(record_id, SENTINEL)
             if cache_value is SENTINEL:
-                records.env._core.add_patch(self, record_id, new_id)
+                records.env.core.add_patch(self, record_id, new_id)
             else:
                 field_cache[record_id] = tuple(unique(cache_value + (new_id,)))
 
@@ -375,7 +375,7 @@ class _RelationalMulti(_Relational):
     def _update_cache(
         self, records: ModelLike, cache_value: typing.Any, dirty: bool = False
     ) -> None:
-        field_patches = records.env._core.get_patches(self)
+        field_patches = records.env.core.get_patches(self)
         if field_patches and not field_patches.keys().isdisjoint(records._ids):
             for record in records:
                 ids = field_patches.pop(record.id, ())

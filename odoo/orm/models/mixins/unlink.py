@@ -110,7 +110,7 @@ class UnlinkMixin(_ModelStubs):
         return True
 
     def _discard_pending_recomputes(self) -> None:
-        core = self.env._core
+        core = self.env.core
         if core.has_pending():
             model_name = self._name
             pending_ids = self._ids

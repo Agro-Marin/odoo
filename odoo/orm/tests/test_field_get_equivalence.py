@@ -395,11 +395,11 @@ def test_stored_computed_pending_guard_recomputes_and_never_leaks_pending():
         assert field.is_stored_computed
         assert type(field).__get__(field, host) == 4
         _put_cache(field, host, PENDING)
-        env._core.schedule(field, [host.id])
+        env.core.schedule(field, [host.id])
         got = type(field).__get__(field, host)
         assert got is not PENDING
         assert got == 4
-        assert not env._core.has_pending_field(field)
+        assert not env.core.has_pending_field(field)
 
 
 def test_pending_evicted_for_a_scalar_read():

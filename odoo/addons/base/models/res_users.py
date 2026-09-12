@@ -1612,7 +1612,7 @@ class ResUsers(models.Model):
             yield
             return
 
-        source = request.httprequest.remote_addr
+        source = request.httprequest.remote_addr or "n/a"
         failures, previous = self._get_login_failure_state(source)
         if self._is_login_on_cooldown(failures, previous):
             _debug.logic("login_cooldown", source=source, failures=failures)

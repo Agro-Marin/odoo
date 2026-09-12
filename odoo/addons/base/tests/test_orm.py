@@ -375,7 +375,7 @@ class TestCompanyDependent(TransactionCase):
         partner = self.env["res.partner"].create({"name": "Flat", "barcode": "BC-1"})
         field = partner._fields["barcode"]
         self.assertTrue(field.company_dependent, "barcode must be company_dependent")
-        core = self.env._core
+        core = self.env.core
 
         core.get_field_data(field).clear()
         core.set_value(field, partner.id, "BC-1")

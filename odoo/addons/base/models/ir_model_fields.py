@@ -767,7 +767,7 @@ class IrModelFields(models.Model):
         for record in records:
             field = self.env[record.model]._fields.get(record.name)
             if field:
-                self.env._core.pop_dirty(field)
+                self.env.core.pop_dirty(field)
         fields_ = [
             pop_field(self.env.registry[record.model], record.name)
             for record in records
@@ -867,7 +867,7 @@ class IrModelFields(models.Model):
         self.pool._discard_fields(fields_)
 
         for field in fields_:
-            self.env._core.discard_field(field)
+            self.env.core.discard_field(field)
 
         model_names = OrderedSet(self.mapped("model"))
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)

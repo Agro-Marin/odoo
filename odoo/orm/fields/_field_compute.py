@@ -58,7 +58,7 @@ def _expand_ids(id0: IdType, ids: Iterable[IdType]) -> Iterator[IdType]:
 
 
 def recompute(field: Field, records: ModelLike) -> None:
-    to_compute_ids = records.env._core.get_pending_ids(field)
+    to_compute_ids = records.env.core.get_pending_ids(field)
     if not to_compute_ids:
         return
 
@@ -67,7 +67,7 @@ def recompute(field: Field, records: ModelLike) -> None:
         _pending_before = len(to_compute_ids)
 
         def _count():
-            remaining = records.env._core.get_pending_ids(field)
+            remaining = records.env.core.get_pending_ids(field)
             return _pending_before - len(remaining or ())
 
     def apply_except_missing(func, records):
@@ -125,7 +125,7 @@ def _recompute_singly(
     expanded = (
         len(record_ids) == 1
         and record_ids[0] in to_compute_ids
-        and not records.env._core.has_any_protected()
+        and not records.env.core.has_any_protected()
     )
     if expanded:
         records = records.browse(

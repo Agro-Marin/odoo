@@ -41,7 +41,7 @@ class RecomputeMixin(_ModelStubs):
         if not self or not fnames:
             return
 
-        core = self.env._core
+        core = self.env.core
 
         if before:
             scheduler = core.new_scheduler()
@@ -177,7 +177,7 @@ class RecomputeMixin(_ModelStubs):
     ) -> Iterable[tuple[Field, Self, bool]]:
 
         env = self.env
-        core = env._core
+        core = env.core
 
         def select(field):
             if field.is_stored_computed:
@@ -287,7 +287,7 @@ class RecomputeMixin(_ModelStubs):
     def _recompute_fields(
         self, fields: Collection[Field], ids: Sequence[IdType] | None
     ) -> None:
-        if not self.env._core.has_pending():
+        if not self.env.core.has_pending():
             return
         for field in fields:
             if field.is_stored_computed:
@@ -296,7 +296,7 @@ class RecomputeMixin(_ModelStubs):
     def _recompute_field(
         self, field: Field, ids: Sequence[IdType] | None = None
     ) -> None:
-        ids_to_compute = self.env._core.get_pending_ids(field)
+        ids_to_compute = self.env.core.get_pending_ids(field)
         scoped = ids is not None  # debuglog
         if ids is None:
             ids = ids_to_compute
@@ -333,7 +333,7 @@ class RecomputeMixin(_ModelStubs):
     def flush_model(self, fnames: Collection[str] | None = None) -> None:
         fields = None if fnames is None else get_fields_by_name(self, fnames)
         if fields is not None:
-            core = self.env._core
+            core = self.env.core
             if not core.has_pending() and not core.is_any_dirty():
                 return
 
@@ -343,7 +343,7 @@ class RecomputeMixin(_ModelStubs):
             self._get_stored_computed_fields() if fields is None else fields, None
         )
         prof.mark("recompute")
-        core = self.env._core
+        core = self.env.core
         if fields is None or any(map(core.has_dirty_field, fields)):
             _debug.pipeline(
                 "recompute.flush_model",
@@ -361,7 +361,7 @@ class RecomputeMixin(_ModelStubs):
         if not self:
             return
         if named_fields is not None:
-            core = self.env._core
+            core = self.env.core
             if not core.has_pending() and not core.is_any_dirty():
                 return
         self._recompute_fields(
@@ -373,7 +373,7 @@ class RecomputeMixin(_ModelStubs):
         fields: Collection[Field] = (
             self._fields.values() if named_fields is None else named_fields
         )
-        core = self.env._core
+        core = self.env.core
         ids = self._ids
         if len(ids) == 1:
             id_ = ids[0]
@@ -393,7 +393,7 @@ class RecomputeMixin(_ModelStubs):
             self._flush()
 
     def _flush(self) -> None:
-        core = self.env._core
+        core = self.env.core
         dirty_field_ids = core.pop_dirty_for_model(self._name)
         if not dirty_field_ids:
             return

@@ -1038,7 +1038,7 @@ class InMemoryBackend:
         field_caches: dict = {}
         for field in column_fields:
             if field not in _fdc:
-                field_caches[field] = env._core.get_field_data(field)
+                field_caches[field] = env.core.get_field_data(field)
             else:
                 try:
                     field_caches[field] = field._get_cache(env)
@@ -1049,7 +1049,7 @@ class InMemoryBackend:
                         field.name,
                         e,
                     )
-                    field_caches[field] = env._core.get_field_data(field)
+                    field_caches[field] = env.core.get_field_data(field)
         for record_id in record_ids:
             row = self.storage.get_row(model._table, record_id)
             if row is not None:

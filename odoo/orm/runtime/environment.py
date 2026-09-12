@@ -333,7 +333,7 @@ class Environment(Mapping[str, "BaseModel"]):
         return self.transaction.cache
 
     @functools.cached_property
-    def _core(self) -> OrmCore[Field]:
+    def core(self) -> OrmCore[Field]:
         return self.transaction.core
 
     @property
@@ -447,19 +447,19 @@ class Environment(Mapping[str, "BaseModel"]):
         self.transaction.flush(self)
 
     def is_protected(self, field: Field, record: BaseModel) -> bool:
-        return self._core.is_protected(field, record.id)
+        return self.core.is_protected(field, record.id)
 
     def protecting(self, what, records=None) -> _Protecting:
-        return _Protecting(self._core, what, records)
+        return _Protecting(self.core, what, records)
 
     def fields_to_compute(self) -> Collection[Field]:
-        return self._core.get_pending_fields()
+        return self.core.get_pending_fields()
 
     def get_records_to_compute(self, field: Field) -> BaseModel:
-        return self[field.model_name].browse(self._core.get_pending_ids(field))
+        return self[field.model_name].browse(self.core.get_pending_ids(field))
 
     def is_to_compute(self, field: Field, record: BaseModel) -> bool:
-        return self._core.is_pending(field, record.id)
+        return self.core.is_pending(field, record.id)
 
     def add_to_compute(self, field: Field, records: BaseModel) -> None:
         if not records:
@@ -467,12 +467,12 @@ class Environment(Mapping[str, "BaseModel"]):
         assert field.store and field.compute, (
             "Cannot add to recompute no-store or no-computed field"
         )
-        self._core.schedule(field, records._ids)
+        self.core.schedule(field, records._ids)
 
     def remove_to_compute(self, field: Field, records: BaseModel) -> None:
         if not records:
             return
-        self._core.mark_done(field, records._ids)
+        self.core.mark_done(field, records._ids)
 
     def get_cache_key(self, field: Field) -> typing.Any:
 

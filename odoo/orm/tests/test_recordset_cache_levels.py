@@ -12,7 +12,7 @@ def test_the_class_states_which_level_it_is():
     doc = inspect.getdoc(Cache)
     assert doc, (
         "Cache lost its docstring. Without it the class reads as an unexplained "
-        "second cache surface beside env._core."
+        "second cache surface beside env.core."
     )
     assert "recordset" in doc.lower(), "the docstring must say which level it is"
 
@@ -31,7 +31,7 @@ def test_nothing_marks_it_deprecated():
     assert "@api.deprecated" not in source and "DeprecationWarning" not in source, (
         "env.cache is marked deprecated. If that is now the intent it needs "
         "a migration for the addon call sites, not a decorator -- that "
-        "migration was costed when env._core became the id-level access "
+        "migration was costed when env.core became the id-level access "
         "point, and dropped."
     )
 
@@ -54,7 +54,7 @@ def test_the_two_surfaces_stay_at_different_levels():
     ]
     assert takes_recordset, (
         "no Cache method takes a recordset any more -- it has become id-level, "
-        "which is what env._core already is"
+        "which is what env.core already is"
     )
 
     core_src = pathlib.Path(inspect.getfile(OrmCore)).read_text(encoding="utf-8")

@@ -22,7 +22,7 @@ def test_empty_inspection_does_not_allocate_field_maps():
         record = env[CacheRecord._name].browse(987654)
         env.invalidate_all()
         assert not tuple(record._cache)
-        assert not list(env._core.iter_cached_fields())
+        assert not list(env.core.iter_cached_fields())
 
 
 def test_inspection_preserves_new_records_and_context_partitions():

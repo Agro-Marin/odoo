@@ -2023,7 +2023,7 @@ class PropertiesCase(TestPropertiesMixin):
 
         self.assertEqual(message.attributes, {"state": "draft"})
 
-        cached_value = self.env._core.get_value(
+        cached_value = self.env.core.get_value(
             message._fields["attributes"], message.id
         )
         self.assertEqual(cached_value, {"state": "draft"})

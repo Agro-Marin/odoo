@@ -28,8 +28,8 @@ class RecordCache(Mapping):
         record = self._record
         env = record.env
         if field in env._field_depends_context:
-            return env._core.get_context_data_or_none(field, env.get_cache_key(field))
-        return env._core.get_field_data_or_none(field)
+            return env.core.get_context_data_or_none(field, env.get_cache_key(field))
+        return env.core.get_field_data_or_none(field)
 
     def __contains__(self, name: object) -> bool:
         record = self._record
@@ -145,7 +145,7 @@ class CacheMixin(_ModelStubs):
     def _check_no_pending_write(
         self, fields: Collection[Field], ids: Sequence[IdType] | None
     ) -> None:
-        found = self.env._core.get_pending_write(fields, ids)
+        found = self.env.core.get_pending_write(fields, ids)
         if found is None:
             return
         field, overlap = found

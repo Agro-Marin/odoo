@@ -3,9 +3,9 @@
 
 import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { session } from "@web/session";
 
-import { makeLogger } from "./debug/debug_logger.js";
 import {
     getBridgeModuleSource,
     isLoaderBridgeUrl,

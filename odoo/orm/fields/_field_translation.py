@@ -59,7 +59,7 @@ def get_scalar_fallback(
     cur_val = field._get_cache(env).get(record_id, SENTINEL)
     if cur_val is not SENTINEL:
         return cur_val
-    fb_cache = env._core.get_context_data_or_none(
+    fb_cache = env.core.get_context_data_or_none(
         field, get_fallback_cache_key(field, env)
     )
     if fb_cache is not None:
@@ -230,7 +230,7 @@ def insert_cache(
     env = records.env
     if field.translate is True:
         if env.context.get("prefetch_langs"):
-            core = env._core
+            core = env.core
             sub_caches: dict[str, dict] = {}
 
             def sub_cache(lang: str) -> dict:
@@ -266,7 +266,7 @@ def insert_cache(
             Field._insert_cache(field, records, values)
         return
 
-    field_cache = env._core.get_field_data(field)
+    field_cache = env.core.get_field_data(field)
     if env.context.get("prefetch_langs"):
         installed = [lang for lang, _ in env["res.lang"].get_installed()]
         langs = OrderedSet[str](installed + ["en_US"])
@@ -306,7 +306,7 @@ def update_cache(
 ) -> bool:
     if field.translate is True and isinstance(cache_value, dict):
         env = records.env
-        core = env._core
+        core = env.core
         ids = records._ids
         for lang, scalar in cache_value.items():
             if lang.startswith("_"):
@@ -325,7 +325,7 @@ def update_cache(
         if not field.compute and not any(
             id_ or getattr(id_, "origin", None) for id_ in records._ids
         ):
-            en_cache = records.env._core.get_context_data(
+            en_cache = records.env.core.get_context_data(
                 field, get_fallback_cache_key(field, records.env)
             )
             for id_ in records._ids:
@@ -346,7 +346,7 @@ def mark_dirty(field: BaseString, records: BaseModel, value: typing.Any) -> None
     records, cache_value = field._mark_dirty_prologue(records, value)
     if not records:
         return
-    dirty_ids = records.env._core.get_dirty(field) or ()
+    dirty_ids = records.env.core.get_dirty(field) or ()
     _flush_pending_none(field, records, dirty_ids)
 
     lang = get_translation_lang(field, records.env)
@@ -378,7 +378,7 @@ def _flush_pending_none(
     if field.translate is True:
         has_dirty_none = any(
             sub.get(rid, SENTINEL) is None
-            for _key, sub in records.env._core.iter_context_caches(field)
+            for _key, sub in records.env.core.iter_context_caches(field)
             for rid in dirty_records._ids
         )
     else:
@@ -486,7 +486,7 @@ def mark_dirty_model_term_translation(
         real_records = records.filtered("id")
         if real_records:
             stored_by_id = get_stored_translations_multi(
-                field, real_records, records.env._core.get_dirty(field)
+                field, real_records, records.env.core.get_dirty(field)
             )
     for record in records:
         if not new_terms:
