@@ -225,6 +225,27 @@ class RecordListInternal {
     name;
     /** @type {Record} */
     owner;
+    /**
+     * The localIds of `data`, for the mutators' membership tests (the reactive
+     * readers keep scanning `data` so they subscribe to it); rebuilt when it
+     * disagrees with `data` in size.
+     * @type {Set<string>|undefined}
+     */
+    localIdSet;
+
+    /**
+     * @template {Record} R
+     * @param {RecordList<R>} recordList
+     * @param {string} localId
+     * @returns {boolean}
+     */
+    has(recordList, localId) {
+        const data = recordList.data;
+        if (!this.localIdSet || this.localIdSet.size !== data.length) {
+            this.localIdSet = new Set(data);
+        }
+        return this.localIdSet.has(localId);
+    }
 
     /**
      * @template {Record} R
@@ -239,6 +260,7 @@ class RecordListInternal {
         } else {
             recordList._proxy.data = data.toSpliced(index, 0, record.localId);
         }
+        this.localIdSet?.add(record.localId);
         this.syncLength(recordList);
         record._.uses.add(recordList);
         recordList._store._.ADD_QUEUE("onAdd", this.owner, this.name, record);
@@ -257,6 +279,7 @@ class RecordListInternal {
         } else {
             recordList._proxy.data = data.toSpliced(index, 1);
         }
+        this.localIdSet?.delete(localId);
         this.syncLength(recordList);
         return this.release(recordList, localId);
     }
@@ -268,8 +291,13 @@ class RecordListInternal {
      * @returns {R|undefined}
      */
     replace(recordList, index, record) {
-        const old = this.release(recordList, recordList.data[index]);
+        const oldLocalId = recordList.data[index];
+        const old = this.release(recordList, oldLocalId);
         recordList._proxy.data[index] = record.localId;
+        if (this.localIdSet) {
+            this.localIdSet.delete(oldLocalId);
+            this.localIdSet.add(record.localId);
+        }
         record._.uses.add(recordList);
         recordList._store._.ADD_QUEUE("onAdd", this.owner, this.name, record);
         return old;
@@ -312,7 +340,7 @@ class RecordListInternal {
         const self = this;
         if (isOne(recordList)) {
             const last = records.at(-1);
-            if (isRecord(last) && last.in(recordList)) {
+            if (isRecord(last) && self.has(recordList, toRaw(last)._raw.localId)) {
                 return;
             }
             self.insert(
@@ -337,7 +365,7 @@ class RecordListInternal {
             return;
         }
         for (const val of records) {
-            if (isRecord(val) && val.in(recordList)) {
+            if (isRecord(val) && self.has(recordList, toRaw(val)._raw.localId)) {
                 continue;
             }
             self.insert(
@@ -345,7 +373,7 @@ class RecordListInternal {
                 val,
                 /** @param {Record} record */
                 function recordList_AddNoInvManyInsert(record) {
-                    if (recordList.data.indexOf(record.localId) === -1) {
+                    if (!self.has(recordList, record.localId)) {
                         self.attach(recordList, record);
                     }
                 },
@@ -424,6 +452,7 @@ class RecordListInternal {
                 recordList.data.some((localId, i) => localId !== newLocalIds[i]);
             if (hasChanged) {
                 recordList._proxy.data = newLocalIds;
+                self.localIdSet = new Set(newLocalIds);
                 self.syncLength(recordList);
             }
         });
@@ -441,10 +470,10 @@ class RecordListInternal {
                 val,
                 /** @param {Record} record */
                 function recordList_DeleteNoInv_Insert(record) {
-                    const index = recordList.data.indexOf(record.localId);
-                    if (index !== -1) {
-                        self.detach(recordList, index);
+                    if (!self.has(recordList, record.localId)) {
+                        return;
                     }
+                    self.detach(recordList, recordList.data.indexOf(record.localId));
                 },
                 { inv: false },
             );
@@ -683,6 +712,7 @@ export class RecordList extends Array {
             } else {
                 recordList._proxy.data = list;
             }
+            recordList._.localIdSet = new Set(list);
             recordList._.syncLength(recordList);
             return removed;
         });
@@ -719,7 +749,7 @@ export class RecordList extends Array {
                 const last = records.at(-1);
                 if (
                     isRecord(last) &&
-                    recordList.data.includes(toRaw(last)._raw.localId)
+                    recordList._.has(recordList, toRaw(last)._raw.localId)
                 ) {
                     return /** @type {R} */ (toRaw(last)._raw._proxy);
                 }
@@ -742,12 +772,11 @@ export class RecordList extends Array {
                 )?._proxy;
             }
             const res = [];
-            const known = records.length > 1 ? new Set(recordList.data) : null;
-            /** @param {string} localId */
-            const has = (localId) =>
-                known ? known.has(localId) : recordList.data.includes(localId);
             for (const val of records) {
-                if (isRecord(val) && has(toRaw(val)._raw.localId)) {
+                if (
+                    isRecord(val) &&
+                    recordList._.has(recordList, toRaw(val)._raw.localId)
+                ) {
                     res.push(/** @type {R} */ (toRaw(val)._raw._proxy));
                     continue;
                 }
@@ -756,9 +785,8 @@ export class RecordList extends Array {
                     val,
                     /** @param {Record} record */
                     function recordListAddInsertMany(record) {
-                        if (!has(record.localId)) {
+                        if (!recordList._.has(recordList, record.localId)) {
                             recordList._.attach(recordList, record);
-                            known?.add(record.localId);
                         }
                     },
                 );
@@ -791,10 +819,13 @@ export class RecordList extends Array {
                     target,
                     /** @param {Record} record */
                     function recordListDelete_Insert(record) {
-                        const index = recordList.data.indexOf(record.localId);
-                        if (index !== -1) {
-                            recordList._.detach(recordList, index);
+                        if (!recordList._.has(recordList, record.localId)) {
+                            return;
                         }
+                        recordList._.detach(
+                            recordList,
+                            recordList.data.indexOf(record.localId),
+                        );
                     },
                     { mode: "DELETE" },
                 );
@@ -810,6 +841,7 @@ export class RecordList extends Array {
                 return;
             }
             recordList._proxy.data = [];
+            recordList._.localIdSet = new Set();
             recordList._.syncLength(recordList);
             for (let i = oldLocalIds.length - 1; i >= 0; i--) {
                 recordList._.withdraw(recordList, oldLocalIds[i]);
