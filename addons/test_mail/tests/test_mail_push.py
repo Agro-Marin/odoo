@@ -345,6 +345,44 @@ class TestWebPushAuthorSuppression(TransactionCase):
         )
 
 
+class TestWebPushMessageTypes(TransactionCase):
+    """Which recipients a push reaches is decided by the message type through
+    two hooks, so a module adding a type (`whatsapp`) extends a set instead of
+    core naming it."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.record = cls.env["mail.test.simple"].create({"name": "Types"})
+        cls.message = cls.record.message_post(body="x", message_type="comment")
+
+    def _recipients(self, message_type):
+        data = [
+            {"id": 11, "active": True, "notif": "inbox", "email_normalized": "a@x"},
+            {"id": 12, "active": True, "notif": "email", "email_normalized": "b@x"},
+        ]
+        return self.record._notify_get_recipients_for_extra_notifications(
+            self.message, data, msg_vals={"message_type": message_type}
+        )
+
+    def test_a_comment_pushes_every_recipient(self):
+        self.assertEqual(self._recipients("comment"), {11, 12})
+
+    def test_a_notification_pushes_only_inbox_recipients(self):
+        for message_type in ("notification", "user_notification", "email"):
+            self.assertEqual(self._recipients(message_type), {11}, message_type)
+
+    def test_an_unknown_type_pushes_nobody(self):
+        self.assertEqual(self._recipients("email_outgoing"), set())
+        Thread = self.env.registry["mixin.mail.thread"]
+        with patch.object(
+            Thread,
+            "_web_push_all_recipients_message_types",
+            lambda model: frozenset({"comment", "email_outgoing"}),
+        ):
+            self.assertEqual(self._recipients("email_outgoing"), {11, 12})
+
+
 # `SMSCommon.tearDown` calls `self.env["sms.sms"]`, and `sms` is `auto_install` on
 # top of `mail` -- so at_install, where these would otherwise run, is before `sms`
 # is in the registry and every test dies in teardown with KeyError: 'sms.sms'

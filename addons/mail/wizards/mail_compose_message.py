@@ -880,17 +880,8 @@ class MailComposeMessage(models.TransientModel):
 
     def _action_send_mail_comment(self, res_ids: list[int]) -> MailMessage:
         self.check_singleton()
-        post_values_all = self._manage_mail_values(self._prepare_mail_values(res_ids))
-        ActiveModel = (
-            self.env[self.model]
-            if self.model and hasattr(self.env[self.model], "message_post")
-            else self.env["mixin.mail.thread"]
-        )
-        if self.composition_batch:
-            ActiveModel = ActiveModel.with_context(
-                mail_post_autofollow_author_skip=True,
-            )
-        messages = self.env["mail.message"]
+        post_values_all = self._prepare_post_values(res_ids)
+        ActiveModel = self._get_comment_target_model()
         _debug.pipeline(
             "send_comment",
             wizard=self.id,
@@ -899,8 +890,9 @@ class MailComposeMessage(models.TransientModel):
             batch=self.composition_batch,
             by="notify" if ActiveModel._name == "mixin.mail.thread" else "post",
         )
-        for res_id, post_values in post_values_all.items():
-            if ActiveModel._name == "mixin.mail.thread":
+        if ActiveModel._name == "mixin.mail.thread":
+            messages = self.env["mail.message"]
+            for res_id, post_values in post_values_all.items():
                 post_values.pop("message_type")
                 post_values.pop("parent_id", False)
                 if self.model:
@@ -910,9 +902,25 @@ class MailComposeMessage(models.TransientModel):
                 if not message:
                     raise UserError(_("No recipient found."))
                 messages += message
-            else:
-                messages += ActiveModel.browse(res_id).message_post(**post_values)
-        return messages
+            return messages
+        return ActiveModel._message_post_values_all(post_values_all)
+
+    def _get_comment_target_model(self) -> models.Model:
+        self.check_singleton()
+        ActiveModel = (
+            self.env[self.model]
+            if self.model and hasattr(self.env[self.model], "message_post")
+            else self.env["mixin.mail.thread"]
+        )
+        if self.composition_batch:
+            ActiveModel = ActiveModel.with_context(
+                mail_post_autofollow_author_skip=True,
+            )
+        return ActiveModel
+
+    def _prepare_post_values(self, res_ids: list[int]) -> dict[int, dict]:
+        self.check_singleton()
+        return self._manage_mail_values(self._prepare_mail_values(res_ids))
 
     def _action_send_mail_mass_mail(
         self, res_ids: list[int], auto_commit: bool = False
@@ -1191,6 +1199,13 @@ class MailComposeMessage(models.TransientModel):
             default_recipients = records._message_get_default_recipients()
             for res_id in res_ids:
                 mail_values_all[res_id].update(default_recipients.get(res_id, {}))
+        if not email_mode and self.partner_ids:
+            for mail_values in mail_values_all.values():
+                mail_values["partner_ids"] = list(
+                    dict.fromkeys(
+                        [*mail_values.get("partner_ids", []), *self.partner_ids.ids]
+                    )
+                )
 
         if self.reply_to_force_new:
             reply_to_values = self._render_field("reply_to", res_ids)

@@ -852,12 +852,7 @@ class DiscussChannel(models.Model):
         msg_vals = msg_vals or {}
 
         message_type = msg_vals.get("message_type", message.message_type)
-        if message_type not in (
-            "comment",
-            "email",
-            "email_outgoing",
-            "whatsapp_message",
-        ):
+        if message_type not in self._notify_get_channel_message_types():
             return []
 
         author_id = msg_vals.get("author_id") or message.author_id.id
@@ -894,6 +889,10 @@ class DiscussChannel(models.Model):
             for member in members
         )
         return recipients_data
+
+    @api.model
+    def _notify_get_channel_message_types(self) -> frozenset[str]:
+        return frozenset({"comment", "email", "email_outgoing"})
 
     def _get_mentioned_recipients_data(
         self, pids: list[int], author_id: int | Literal[False], email_from: str | None

@@ -129,6 +129,20 @@ class MixinMailThread(models.AbstractModel):
         }
     )
 
+    _BATCH_PER_RECORD_PARAMS = frozenset(
+        {
+            "attachment_ids",
+            "attachments",
+            "email_from",
+            "parent_id",
+            "partner_ids",
+            "record_alias_domain_id",
+            "record_company_id",
+            "reply_to",
+            "subject",
+        }
+    )
+
     _AUTHOR_SUBSCRIBE_EXEMPT_TYPES = (
         "notification",
         "user_notification",
@@ -1450,12 +1464,17 @@ class MixinMailThread(models.AbstractModel):
         email_from: str | None = None,
         subject: str | Literal[False] = False,
         tracking_values: dict[int, list] | None = None,
+        values_per_record: dict[int, dict] | None = None,
+        notify_per_record: dict[int, dict] | None = None,
         **kwargs,
     ) -> MailMessage:
         if not self:
             return self.env["mail.message"]
         msg_kwargs, notif_kwargs = self._message_post_batch_check_parameters(
             kwargs, message_type
+        )
+        values_per_record = self._message_post_batch_check_per_record(
+            values_per_record, notify_per_record
         )
 
         records = self._fallback_lang()
@@ -1483,6 +1502,7 @@ class MixinMailThread(models.AbstractModel):
             authors=authors,
             email_from=email_from,
             tracking_values=tracking_values,
+            values_per_record=values_per_record,
         )
         records._message_post_subscribe_author(values_list)
         messages = records._message_create(values_list)
@@ -1494,9 +1514,99 @@ class MixinMailThread(models.AbstractModel):
             include_followers=not notif_kwargs.get("notify_skip_followers"),
         )
         records._message_post_batch_notify(
-            messages, values_list, follower_data, notif_kwargs
+            messages,
+            values_list,
+            follower_data,
+            notif_kwargs,
+            notify_per_record=notify_per_record or {},
         )
         return messages
+
+    def _message_post_values_all(self, post_values_all: dict[int, dict]) -> MailMessage:
+        if not post_values_all:
+            return self.env["mail.message"]
+        if len(post_values_all) == 1:
+            res_id, post_values = next(iter(post_values_all.items()))
+            return self.browse(res_id).message_post(**post_values)
+        common = None
+        bodies, values_per_record, notify_per_record = {}, {}, {}
+        for res_id, post_values in post_values_all.items():
+            rest = dict(post_values)
+            bodies[res_id] = rest.pop("body", "")
+            if "force_email_lang" in rest:
+                notify_per_record[res_id] = {
+                    "force_email_lang": rest.pop("force_email_lang")
+                }
+            values_per_record[res_id] = {
+                key: rest.pop(key)
+                for key in list(rest)
+                if key in self._BATCH_PER_RECORD_PARAMS
+            }
+            if common is None:
+                common = rest
+            elif rest != common:
+                common = False
+                break
+        if common is False or common.get("body_is_html"):
+            _debug.logic(
+                "post_values_all",
+                model=self._name,
+                records=len(post_values_all),
+                by="loop",
+                reason="uncommon_values" if common is False else "body_is_html",
+            )
+            return self._message_post_values_all_loop(post_values_all)
+        common = dict(common)
+        if subtype_xmlid := common.pop("subtype_xmlid", None):
+            common["subtype_id"] = self.env["ir.model.data"]._xmlid_to_res_id(
+                subtype_xmlid
+            )
+        _debug.logic(
+            "post_values_all",
+            model=self._name,
+            records=len(post_values_all),
+            by="batch",
+        )
+        return self.browse(list(post_values_all))._message_post_batch(
+            bodies,
+            values_per_record=values_per_record,
+            notify_per_record=notify_per_record,
+            **common,
+        )
+
+    def _message_post_values_all_loop(
+        self, post_values_all: dict[int, dict]
+    ) -> MailMessage:
+        messages = self.env["mail.message"]
+        for res_id, post_values in post_values_all.items():
+            messages += self.browse(res_id).message_post(**post_values)
+        return messages
+
+    def _message_post_batch_check_per_record(
+        self,
+        values_per_record: dict[int, dict] | None,
+        notify_per_record: dict[int, dict] | None,
+    ) -> dict[int, dict]:
+        values_per_record = values_per_record or {}
+        allowed = self._BATCH_PER_RECORD_PARAMS | (
+            self._get_message_create_valid_field_names()
+            - {"body", "message_type", "model", "res_id", "subtype_id"}
+        )
+        for res_id, values in values_per_record.items():
+            self._check_supported_parameters(set(values), restricting_names=allowed)
+            self._check_attachments_format(values.get("attachments"))
+            for key in ("attachment_ids", "partner_ids"):
+                if values.get(key) and not is_list_of(values[key], int):
+                    raise ValueError(
+                        f"Batch post should receive {key} as a list of IDs "
+                        f"(received {values[key]!r} for record {res_id})"
+                    )
+        valid_notify = self._get_notify_valid_parameters()
+        for values in (notify_per_record or {}).values():
+            self._check_supported_parameters(
+                set(values), restricting_names=valid_notify
+            )
+        return values_per_record
 
     def _message_post_batch_notify(
         self,
@@ -1504,7 +1614,9 @@ class MixinMailThread(models.AbstractModel):
         values_list: list[dict],
         follower_data: dict,
         notif_kwargs: dict,
+        notify_per_record: dict[int, dict] | None = None,
     ) -> None:
+        notify_per_record = notify_per_record or {}
         email_collector: list[dict] = []
         inbox_collector: list[dict] = []
         email_prefetch = (
@@ -1527,11 +1639,15 @@ class MixinMailThread(models.AbstractModel):
                 record._notify_thread(
                     message,
                     values,
-                    follower_data={record.id: follower_data.get(record.id, {})},
+                    follower_data={
+                        record.id: self._message_post_batch_record_followers(
+                            follower_data.get(record.id, {}), values
+                        )
+                    },
                     email_collector=email_collector,
                     email_prefetch=email_prefetch.get(message.id),
                     inbox_collector=inbox_collector,
-                    **notif_kwargs,
+                    **{**notif_kwargs, **notify_per_record.get(record.id, {})},
                 )
             span.set(collected=len(email_collector), inbox=len(inbox_collector))
         self._notify_by_inbox_flush(inbox_collector)
@@ -1575,32 +1691,49 @@ class MixinMailThread(models.AbstractModel):
         authors: dict[int, int],
         email_from: str | None,
         tracking_values: dict[int, list],
+        values_per_record: dict[int, dict] | None = None,
     ) -> list[dict]:
+        values_per_record = values_per_record or {}
+        emails_from = {
+            res_id: values["email_from"]
+            for res_id, values in values_per_record.items()
+            if "email_from" in values
+        }
         author_per_override, reply_tos_per_author = self._message_post_batch_authors(
-            author_id, email_from, authors
+            author_id, email_from, authors, emails_from
         )
         alias_domains = self.sudo()._mail_get_alias_domains(
             default_company=self.env.company
         )
         companies = self._mail_get_companies(default=self.env.company)
         parent_ids = self._message_compute_parent_ids()
+        parent_ids.update(self._message_post_batch_parent_ids(values_per_record))
 
         values_list = []
         for record in self:
             record_author_id, record_email_from = author_per_override[
-                authors.get(record.id)
+                (authors.get(record.id), emails_from.get(record.id))
             ]
+            extra = dict(values_per_record.get(record.id, {}))
+            partner_ids = extra.pop("partner_ids", None) or []
+            attachments = extra.pop("attachments", None)
+            attachment_ids = extra.pop("attachment_ids", None) or []
+            extra.pop("parent_id", None)
+            extra.pop("email_from", None)
+            record._message_post_subscribe_recipients(partner_ids)
             values = record._message_post_values_common(
                 bodies.get(record.id),
                 msg_kwargs,
                 message_type=message_type,
-                subject=subject,
+                subject=extra.pop("subject", subject),
                 subtype_id=subtype_ids.get(record.id, subtype_id),
                 author_id=record_author_id,
                 author_guest_id=False,
                 email_from=record_email_from,
                 parent_id=parent_ids.get(record.id, False),
+                partner_ids=partner_ids,
             )
+            values.update(extra)
             if record.id in tracking_values:
                 values["tracking_value_ids"] = tracking_values[record.id]
             values.setdefault("record_alias_domain_id", alias_domains[record.id].id)
@@ -1609,25 +1742,75 @@ class MixinMailThread(models.AbstractModel):
                 "reply_to",
                 reply_tos_per_author[(record_author_id, record_email_from)][record.id],
             )
+            if attachments or attachment_ids:
+                values.update(
+                    record._process_attachments_for_post(
+                        attachments, attachment_ids, values
+                    )
+                )
             values_list.append(values)
         return values_list
+
+    def _message_post_batch_parent_ids(
+        self, values_per_record: dict[int, dict]
+    ) -> dict[int, int]:
+        asked = {
+            res_id: values["parent_id"]
+            for res_id, values in values_per_record.items()
+            if values.get("parent_id")
+        }
+        if not asked:
+            return {}
+        on_thread = {
+            (message.res_id, message.id)
+            for message in self.env["mail.message"]
+            .sudo()
+            .search(
+                [
+                    ("id", "in", list(set(asked.values()))),
+                    ("model", "=", self._name),
+                    ("res_id", "in", list(asked)),
+                ]
+            )
+        }
+        kept = {
+            res_id: parent_id
+            for res_id, parent_id in asked.items()
+            if (res_id, parent_id) in on_thread
+        }
+        _debug.logic(
+            "batch_parents",
+            model=self._name,
+            asked=len(asked),
+            kept=len(kept),
+        )
+        return kept
 
     def _message_post_batch_authors(
         self,
         author_id: int | None,
         email_from: str | None,
         authors: dict[int, int],
+        emails_from: dict[int, str] | None = None,
     ) -> tuple[dict, dict]:
-        overrides = {None, *(authors.get(record.id) for record in self)}
-        self._mail_warm_author_emails(overrides)
+        emails_from = emails_from or {}
+        overrides = {
+            (authors.get(record.id), emails_from.get(record.id)) for record in self
+        }
+        self._mail_warm_author_emails({author for author, _email in overrides})
         _debug.perf.count(
             "batch_authors_resolved", model=self._name, overrides=len(overrides)
         )
         author_per_override = {}
         for override in overrides:
+            author_override, email_override = override
             author_per_override[override] = self._message_compute_batch_author(
-                author_id if override is None else override,
-                email_from if override is None else None,
+                author_id if author_override is None else author_override,
+                email_override
+                if email_override is not None
+                else email_from
+                if author_override is None
+                else None,
             )
         reply_tos_per_author = self._notify_get_reply_to_per_author(
             set(author_per_override.values())
@@ -1703,8 +1886,12 @@ class MixinMailThread(models.AbstractModel):
         self, message_type: str, values_list: list[dict], include_followers: bool = True
     ) -> dict:
         by_subtype = defaultdict(list)
+        pids_by_subtype = defaultdict(set)
         for record, values in zip(self, values_list, strict=True):
             by_subtype[values["subtype_id"]].append(record.id)
+            pids_by_subtype[values["subtype_id"]].update(
+                values.get("partner_ids") or ()
+            )
         follower_data = {}
         for subtype_id, res_ids in by_subtype.items():
             follower_data.update(
@@ -1712,7 +1899,7 @@ class MixinMailThread(models.AbstractModel):
                     self.browse(res_ids),
                     message_type,
                     subtype_id,
-                    [],
+                    sorted(pids_by_subtype[subtype_id]),
                     include_followers=include_followers,
                 )
             )
@@ -1724,6 +1911,21 @@ class MixinMailThread(models.AbstractModel):
             include_followers=include_followers,
         )
         return follower_data
+
+    @api.model
+    def _message_post_batch_record_followers(
+        self, record_data: dict, values: dict
+    ) -> dict:
+        record_pids = set(values.get("partner_ids") or ())
+        if not record_pids:
+            return {
+                pid: data for pid, data in record_data.items() if data["is_follower"]
+            }
+        return {
+            pid: data
+            for pid, data in record_data.items()
+            if data["is_follower"] or pid in record_pids
+        }
 
     def _message_post_after_hook(self, message: MailMessage, msg_values: dict) -> None:
         return
@@ -2032,9 +2234,10 @@ class MixinMailThread(models.AbstractModel):
         if not subtype_id:
             subtype_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_note")
 
-        messages_all = self.env["mail.message"]
-        for record in self:
-            if template:
+        if template:
+            post_values_all = {}
+            target = self
+            for record in self:
                 composer = (
                     self.env["mail.compose.message"]
                     .with_context(
@@ -2051,15 +2254,21 @@ class MixinMailThread(models.AbstractModel):
                         }
                     )
                 )
-                _mails_as_sudo, messages = composer._action_send_mail()
-                messages_all += messages
-            else:
-                messages_all += record.message_post(
-                    body=bodies[record.id],
-                    message_type=message_type,
-                    subtype_id=subtype_id,
-                    **kwargs,
-                )
+                post_values_all.update(composer._prepare_post_values(record.ids))
+                target = composer._get_comment_target_model()
+            messages_all = target._message_post_values_all(post_values_all)
+        else:
+            messages_all = self._message_post_values_all(
+                {
+                    record.id: {
+                        "body": bodies[record.id],
+                        "message_type": message_type,
+                        "subtype_id": subtype_id,
+                        **kwargs,
+                    }
+                    for record in self
+                }
+            )
         _debug.pipeline(
             "message_post_with_source",
             model=self._name,
@@ -4230,11 +4439,19 @@ class MixinMailThread(models.AbstractModel):
             partners=len(notif_pids),
             not_inbox=len(notif_pids_notinbox),
         )
-        if msg_type in {"comment", "whatsapp_message"}:
+        if msg_type in self._web_push_all_recipients_message_types():
             return set(notif_pids)
-        elif msg_type in ("notification", "user_notification", "email"):
+        if msg_type in self._web_push_inbox_recipients_message_types():
             return set(notif_pids) - set(notif_pids_notinbox)
         return set()
+
+    @api.model
+    def _web_push_all_recipients_message_types(self) -> frozenset[str]:
+        return frozenset({"comment"})
+
+    @api.model
+    def _web_push_inbox_recipients_message_types(self) -> frozenset[str]:
+        return frozenset({"notification", "user_notification", "email"})
 
     def _notify_get_action_link(self, link_type: str, **kwargs) -> str:
         params = self._get_action_link_params(link_type, **kwargs)
