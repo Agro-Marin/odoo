@@ -448,6 +448,8 @@ class _PackageLoader:
 
     def update_operation(self) -> None:
         package = self.package
+        if self.update_module and package.state == "to install":
+            self.adopt_state_set_by_migration()
         if not self.update_module:
             self.operation = None
         elif package.state == "to install":
@@ -468,6 +470,22 @@ class _PackageLoader:
             index=self.index,
             count=self.module_count,
         )
+
+    def adopt_state_set_by_migration(self) -> None:
+        # The graph read this module's state before the modules ahead of it ran
+        # their migrations. One whose pre-migrate hands this module records the
+        # database already holds marks it "to upgrade": installing would load its
+        # data in init mode, which rewrites noupdate records.
+        package = self.package
+        self.cr.execute(
+            "SELECT state, demo FROM ir_module_module WHERE id = %s", [package.id]
+        )
+        row = self.cr.fetchone()
+        if not row or row[0] != "to upgrade":
+            return
+        package.state = package.load_state = "to upgrade"
+        package.demo = row[1]
+        self.migrations.index_migration_scripts()
 
     def announce_module(self) -> None:
         _logger.log(
