@@ -13,7 +13,7 @@ class MixinApprovalSource(models.AbstractModel):
         all read the narrowed pool."""
         trace.STEPS.event(
             "document_policy_default",
-            model=self._name,
+            record=self,
             step=step.id,
             users=len(user_ids),
             narrowed=False,
@@ -30,7 +30,7 @@ class MixinApprovalSource(models.AbstractModel):
         default. A document whose asking depends on its own progress chooses here."""
         trace.ACTIVITY.event(
             "activity_type_default",
-            model=self._name,
+            record=self,
             approver=approver.id,
             step_type=step_type.id if step_type else None,
         )

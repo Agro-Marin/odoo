@@ -109,6 +109,37 @@ class TestCampaignRefusalCensus(ApprovalCommon):
                 unreported.append(f"{path.name}:{index + 1} {owner}")
         self.assertEqual(unreported, [], "\n".join(unreported))
 
+    def test_no_call_site_reads_the_model_name_attribute(self):
+        """A campaign line may not reach the model's own name attribute through
+        `self`, and this is a ratchet because the rule was written down and then
+        broken twice.
+
+        `tooling/architecture/mixin_coupling_check.py` greps that exact token over
+        `odoo/addons` and `addons` for the metadata fan-in census, which is stated in a
+        docstring in CORE -- so a campaign call site that reads it moves a figure that
+        would have to move back when the campaign is removed. It also cost a peer
+        session an afternoon: the resulting 461-against-445 went into CLAUDE.md §4 as an
+        ORM defect that did not exist.
+
+        THE TOKEN IS BUILT RATHER THAN WRITTEN HERE, and that is not cuteness: the
+        census scans `tests/` too, so a guard that spells out what it counts adds to
+        the count. Writing it out three times in this file moved the figure by three
+        and cost a second misattribution, this time of my own work to somebody else.
+
+        The renderer prints a recordset, so `record=self` says more and costs nothing.
+        Seven reads predate the campaign; that is the ceiling.
+        """
+        needle = "self." + "_name"
+        reads = {path.name: path.read_text().count(needle) for path in _source_files()}
+        total = sum(reads.values())
+        self.assertLessEqual(
+            total,
+            7,
+            f"{total - 7} campaign call site(s) reach the model name through self: "
+            f"{ {name: n for name, n in reads.items() if n} }. "
+            "Pass the record instead: `record=self` renders model#id.",
+        )
+
     def test_the_reported_kinds_are_distinct(self):
         """Two sites sharing a kind are one census row, which hides one of them."""
         kinds = []

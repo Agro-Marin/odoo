@@ -155,8 +155,7 @@ class MixinApprovalStateSync(models.AbstractModel):
             backfilled |= record
         trace.SYNC.note(
             "backfilled",
-            model=self._name,
-            asked=len(self),
+            records=self,
             raised=len(backfilled),
         )
         trace.annotate(work=len(backfilled))

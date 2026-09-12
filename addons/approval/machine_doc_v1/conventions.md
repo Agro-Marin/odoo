@@ -761,12 +761,17 @@ be reporting the phase rather than the code.
   translated log line breaks `grep`.
 - **Pass the record, not its `_name`.** `record=self` renders `approval.request#42`
   and `records=rows` renders `approval.approver#[7,9]`, which is what you wanted
-  anyway -- and `self._name` is a site the metadata fan-in census counts
-  (`tooling/architecture/mixin_coupling_check.py` greps `self\._name` over
-  `addons/`), so reading it here moves a figure in a CORE docstring that would
-  have to move back when the campaign is removed. Sixteen such reads redden
-  `test_architecture_doc.py::test_metadata_fan_in_figures`; that is how this rule
-  was found.
+  anyway -- and that read is a site the metadata fan-in census counts
+  (`tooling/architecture/mixin_coupling_check.py` greps it over `addons/`), so reading
+  it here moves a figure in a CORE docstring that would have to move back when the
+  campaign is removed. **This rule is a ratchet**
+  (`test_no_call_site_reads_the_model_name_attribute`, ceiling 7) because writing it
+  down was not enough: it was broken twice, sixteen reads the first time and five the
+  second, and each time the resulting figure was misattributed to somebody else --
+  once into CLAUDE.md §4 as an ORM defect that did not exist. **The census scans
+  `tests/` too**, so the guard BUILDS the token instead of spelling it; a guard that
+  names what it counts adds three to the count, which is how the second
+  misattribution happened.
 - Never log above INFO, and never make behaviour depend on a target being on.
 
 ### What it costs

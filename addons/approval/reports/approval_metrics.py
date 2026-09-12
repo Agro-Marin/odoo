@@ -145,7 +145,7 @@ class ApprovalMetrics(models.Model):
         }
         trace.REPORT.event(
             "view_shape",
-            model=self._name,
+            report=self,
             columns=len(columns),
             tables=len(self._get_from_tables()),
             group_by=len(self._get_fields_group_by()),
