@@ -210,7 +210,6 @@ export class DiscussSidebarCategory extends Component {
     setup() {
         super.setup();
         this.store = useService("mail.store");
-        this.discusscorePublicWebService = useService("discuss.core.public.web");
         this.hover = useHover(["root", "floating"], {
             onHover: () => {
                 if (this.store.discuss.isSidebarCompact) {
@@ -248,7 +247,6 @@ export class DiscussSidebarCategory extends Component {
             return;
         }
         this.category.open = !this.category.open;
-        this.discusscorePublicWebService.broadcastCategoryState(this.category);
     }
 }
 
@@ -268,7 +266,6 @@ export class DiscussSidebarCategories extends Component {
     setup() {
         super.setup();
         this.store = useService("mail.store");
-        this.discusscorePublicWebService = useService("discuss.core.public.web");
         this.orm = useService("orm");
         useSubEnv({
             /** @param {import("models").Thread[]} threads */

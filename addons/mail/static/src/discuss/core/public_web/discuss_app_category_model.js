@@ -1,8 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 import { fields, Record } from "@mail/core/common/record";
+import {
+    readLocalStorageItem,
+    removeLocalStorageItem,
+    setLocalStorageItem,
+} from "@mail/utils/common/local_storage";
 import { compareDatetime } from "@mail/utils/common/misc";
-import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 
 const log = makeLogger("mail.discuss.sidebar");
@@ -47,22 +51,22 @@ export class DiscussAppCategory extends Record {
     hidden = fields.Attr(undefined, {
         /** @this {import("models").DiscussAppCategory} */
         compute() {
-            return Boolean(
-                browser.localStorage.getItem(`mail.sidebar_category_${this.id}_hidden`),
-            );
+            return Boolean(readLocalStorageItem(this.store, this.hiddenStateKey));
         },
         /** @this {import("models").DiscussAppCategory} */
         onUpdate() {
-            const key = `mail.sidebar_category_${this.id}_hidden`;
             if (!this.hidden && this.hidden !== undefined) {
-                if (browser.localStorage.getItem(key) !== null) {
-                    browser.localStorage.removeItem(key);
+                if (readLocalStorageItem(this.store, this.hiddenStateKey) !== null) {
+                    removeLocalStorageItem(this.store, this.hiddenStateKey);
                 }
             } else {
-                browser.localStorage.setItem(key, String(true));
+                setLocalStorageItem(this.store, this.hiddenStateKey, String(true));
             }
         },
     });
+    get hiddenStateKey() {
+        return `mail.sidebar_category_${this.id}_hidden`;
+    }
     hideWhenEmpty = false;
     canView = false;
     app = fields.One("DiscussApp", {
@@ -71,34 +75,22 @@ export class DiscussAppCategory extends Record {
             return this.store.discuss;
         },
     });
-    _openLocally = false;
-    localStateKey = fields.Attr(null, {
-        /** @this {import("models").DiscussAppCategory} */
-        compute() {
-            if (this.saveStateToServer) {
-                return null;
-            }
-            return `discuss_sidebar_category_${this.id}_open`;
-        },
-        /** @this {import("models").DiscussAppCategory} */
-        onUpdate() {
-            if (this.localStateKey) {
-                const raw = browser.localStorage.getItem(this.localStateKey) ?? "true";
-                try {
-                    this._openLocally = raw === "undefined" ? true : JSON.parse(raw);
-                } catch {
-                    this._openLocally = true;
-                }
-            }
-        },
-    });
+    get localStateKey() {
+        return `discuss_sidebar_category_${this.id}_open`;
+    }
     /** @type {number} */
     sequence;
 
     get open() {
-        return this.saveStateToServer
-            ? this.store.settings[this.serverStateKey]
-            : this._openLocally;
+        if (this.saveStateToServer) {
+            return this.store.settings[this.serverStateKey];
+        }
+        const raw = readLocalStorageItem(this.store, this.localStateKey) ?? "true";
+        try {
+            return raw === "undefined" ? true : Boolean(JSON.parse(raw));
+        } catch {
+            return true;
+        }
     }
 
     get saveStateToServer() {
@@ -128,17 +120,7 @@ export class DiscussAppCategory extends Record {
                 },
             );
         } else {
-            this._openLocally = value;
-            browser.localStorage.setItem(this.localStateKey, String(value));
-        }
-    }
-
-    /** @param {boolean} value */
-    applyBroadcastedOpen(value) {
-        if (this.saveStateToServer) {
-            this.store.settings[this.serverStateKey] = value;
-        } else {
-            this._openLocally = value;
+            setLocalStorageItem(this.store, this.localStateKey, String(value));
         }
     }
 

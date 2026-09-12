@@ -19,19 +19,6 @@ export class DiscussCorePublicWeb {
         this.busService = services.bus_service;
         this.notificationService = services.notification;
         this.rtcService = services["discuss.rtc"];
-        try {
-            this.sidebarCategoriesBroadcast = new browser.BroadcastChannel(
-                "discuss_core_public_web.sidebar_categories",
-            );
-            this.sidebarCategoriesBroadcast.addEventListener(
-                "message",
-                /** @param {MessageEvent<{id: number, open: boolean}>} ev */
-                ({ data: { id, open } }) => {
-                    log.pipeline("sidebar category broadcast", () => ({ id, open }));
-                    this.store.DiscussAppCategory.get(id)?.applyBroadcastedOpen(open);
-                },
-            );
-        } catch {}
         this.busService.subscribe("discuss.channel/joined", (payload) =>
             this.onChannelJoined(payload),
         );
@@ -129,14 +116,6 @@ export class DiscussCorePublicWeb {
         downloadLink.href = url;
         downloadLink.click();
         URL.revokeObjectURL(url);
-    }
-
-    /** @param {import("models").DiscussAppCategory} category */
-    broadcastCategoryState(category) {
-        this.sidebarCategoriesBroadcast?.postMessage({
-            id: category.id,
-            open: category.open,
-        });
     }
 }
 

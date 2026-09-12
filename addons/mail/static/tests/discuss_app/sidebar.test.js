@@ -155,25 +155,25 @@ test("Opening a category sends the updated user setting to the server.", async (
     ]);
 });
 
-test("receiving a category broadcast does NOT re-issue the settings RPC", async () => {
+test("a category's local open state follows another tab without a settings RPC", async () => {
     let settingsRpcCount = 0;
     onRpc("res.users.settings", "set_res_users_settings", () => {
         settingsRpcCount++;
     });
     await start();
     await openDiscuss();
-    await contains(".o-mail-DiscussSidebarCategory:contains('Channels') .oi");
     const store = getService("mail.store");
-    const service = getService("discuss.core.public.web");
-    const category = store.DiscussAppCategory.get("channels");
-    const wasOpen = category.open;
-    const before = settingsRpcCount;
-    service.sidebarCategoriesBroadcast.dispatchEvent(
-        new MessageEvent("message", { data: { id: "channels", open: !wasOpen } }),
+    const category = store.DiscussAppCategory.insert({ id: "local", name: "Local" });
+    expect(Boolean(category.saveStateToServer)).toBe(false);
+    expect(category.open).toBe(true);
+    category.open = false;
+    expect(browser.localStorage.getItem(category.localStateKey)).toBe("false");
+    expect(category.open).toBe(false);
+    window.dispatchEvent(
+        new StorageEvent("storage", { key: category.localStateKey, newValue: "true" }),
     );
-    await animationFrame();
-    expect(category.open).toBe(!wasOpen);
-    expect(settingsRpcCount).toBe(before);
+    expect(category.open).toBe(true);
+    expect(settingsRpcCount).toBe(0);
 });
 
 test("channel - command: should have view command when category is unfolded", async () => {
