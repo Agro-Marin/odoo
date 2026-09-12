@@ -117,69 +117,69 @@ the files behind it are private and may be renamed, split, or moved without
 touching a consumer. `@web/ui/dialog` is the face, `ui/dialog/dialog_service.js`
 is an internal.
 
-Was enforced by the architecture gates of the tooling tree, deleted in `7b0f58cb517f`, so these rules are now stated rather than checked: `js_face_boundary.py` (no import reaches
-past a face into a fronted directory), `js_component_face.py` (which directories
+Was enforced by the architecture gates of the tooling tree, deleted in `7b0f58cb517f`, so these rules are now stated rather than checked: js_face_boundary.py (no import reaches
+past a face into a fronted directory), js_component_face.py (which directories
 under `components/` must HAVE one — a face is discovered rather than declared, so
-the boundary gate says nothing about that), `js_component_data_access.py`
+the boundary gate says nothing about that), js_component_data_access.py
 (no component acquires data at runtime — the pinned sites can only shrink;
-so the debt cannot be paid once and re-spent), `js_public_surface.py` (the pinned surface
-in `public_surface_web.txt` can only shrink), `js_layer_cohesion.py`,
-`js_import_resolution.py`, `js_private_access.py`, `js_cycle_check.py`,
-`js_self_bridge.py` (no module resolves itself through the loader — a generated
+so the debt cannot be paid once and re-spent), js_public_surface.py (the pinned surface
+in `public_surface_web.txt` can only shrink), js_layer_cohesion.py,
+js_import_resolution.py, js_private_access.py, js_cycle_check.py,
+js_self_bridge.py (no module resolves itself through the loader — a generated
 ESM bridge written over its own source exports only `undefined`, and every
 name-based and graph-based gate above stays green on it),
-`js_shadow_root.py` (every shadow root is attached through `attachShadowRoot`,
+js_shadow_root.py (every shadow root is attached through `attachShadowRoot`,
 which marks its host: there is no `:has-shadow-root` selector and no event on
 attach, so an unmarked host is one that `getTabableElements` and every other
 root-crossing helper steps over in silence),
-`js_suite_parity.py` (every source directory has a matching test directory),
-`js_context_narrowing.py` (a `Pick<>` over a context bag names exactly what its
+js_suite_parity.py (every source directory has a matching test directory),
+js_context_narrowing.py (a `Pick<>` over a context bag names exactly what its
 file reaches — over-declaring is invisible to tsc, so a consumer otherwise keeps
 claiming a dependency it dropped) and
-`js_function_length.py`, `js_class_length.py` (the mass a per-function budget
+js_function_length.py, js_class_length.py (the mass a per-function budget
 cannot see: `flow_editor.js` carries a 1,267-line component over 63 methods and
-not one of them is a `jsfunclen` offender), `js_unreached_assertions.py` (an
+not one of them is a `jsfunclen` offender), js_unreached_assertions.py (an
 assertion inside a callback the test never proves ran, which is
-`js_vacuous_assertions.py`'s defect one level down: that gate catches an
+js_vacuous_assertions.py's defect one level down: that gate catches an
 assertion that cannot fail, this one an assertion that may never execute),
-`js_layer_check.py` (the Feature-Sliced layering above),
-`js_registry_layering.py` (the same contract for dependencies mediated by a
-registry rather than an import), `js_deployment_layers.py` (which bundle a module
-may be reached from), `js_extension_surface.py` (the methods downstream
-subclasses override, and the members they `patch()`), `js_forced_render.py` (core
+js_layer_check.py (the Feature-Sliced layering above),
+js_registry_layering.py (the same contract for dependencies mediated by a
+registry rather than an import), js_deployment_layers.py (which bundle a module
+may be reached from), js_extension_surface.py (the methods downstream
+subclasses override, and the members they `patch()`), js_forced_render.py (core
 must not sweep a subtree with `render(true)` — a forced render hides reads that
-subscribe to nothing), `js_patch_blind_facade.py` (a service's own callers go
-through its facade), `js_service_shape.py` (a service hands back an instance,
-not a literal), `js_class_length.py` (the mass a per-function budget cannot see:
-a class of short methods is invisible to `js_function_length.py`, and the unit is
+subscribe to nothing), js_patch_blind_facade.py (a service's own callers go
+through its facade), js_service_shape.py (a service hands back an instance,
+not a literal), js_class_length.py (the mass a per-function budget cannot see:
+a class of short methods is invisible to js_function_length.py, and the unit is
 excess lines above 400 rather than offender count, so splitting one huge class
 into two large ones registers as the improvement it is),
-`js_unreached_assertions.py` (an assertion that may never EXECUTE, one level down
-from the vacuous assertion `js_vacuous_assertions.py` catches: an `expect()`
+js_unreached_assertions.py (an assertion that may never EXECUTE, one level down
+from the vacuous assertion js_vacuous_assertions.py catches: an `expect()`
 inside a handler the test never invokes stays green through the whole life of the
-defect it names) and `js_dead_icon_class.py` (a test naming an icon class that
+defect it names) and js_dead_icon_class.py (a test naming an icon class that
 neither FontAwesome 7 nor any non-test source declares — a one-count assertion on
 a renamed icon reads as a defect in the feature, and a negated one cannot fail).
-Each gate ships an empty-tree refusal test, so a gate
-that scanned nothing fails instead of reporting a pass.
+Each shipped an empty-tree refusal test, so a gate that scanned nothing failed
+instead of reporting a pass; none of them runs now.
 
 ## The contracts this module declares
 
 Four of this addon's widest seams are not imports and not class members, so the
 gates above are blind to every one of them: an object handed across a boundary
-leaves no edge to check. Each is now a declared list in the source, paired with a
-gate that measures who reaches it. `test_web_machine_doc.py` pins that this
-section names every gate scanning `addons/web`, because a map that omits one is
-the failure `doc_symbol_gate.py` exists to prevent, one level up.
+leaves no edge to check. Each is a declared list in the source. The gates that
+measured who reaches each list, and the test that pinned this section against
+them, went with the tooling tree in `7b0f58cb517f`: the lists are now read by
+reviewers, not enforced.
 
-| Contract | Declared in | Gate | What it bounds |
+| Contract | Declared in | Gate (deleted) | What it bounds |
 |---|---|---|---|
-| `env.config` | `views/view_config.js` | `js_env_config_surface.py` | The ambient per-action bag `View` installs with `useSubEnv`, inherited by every component beneath it. Five writers in this addon alone; three keys are written only by `enterprise` and are recorded, not owned. |
-| `archInfo` | `views/arch_info.js` | `js_arch_info_surface.py` | The `ArchParser` output. Two of its keys (`fieldNodes`, `widgetNodes`) are compiled into generated OWL template *source*, where no type, linter or member gate can follow them; the gate also holds each view type's parser against what its own directory reads. |
-| `props.record` | `fields/field_record_contract.js` | `js_field_record_surface.py` | What a field widget may reach on the record it is handed — 21 members, measured by resolving the binding rather than by grep. It also classifies each widget by what it *needs*, which is the worklist below. |
-| `env.services.action` | `webclient/actions/action_service_contract.js` | `js_action_surface.py` | What a consumer may reach on the `ActionManager` instance. Same blindness as the rows above — the instance is handed out by name off `env.services`, so it is neither an import nor a class member. The contract under-declared until the gate existed: four members were classified internal while consumers reached them at 45 call sites. |
-| OWL templates | the component's own `static template` | `js_template_binding.py` | Every name a template calls, against the class that owns it. Neither `tsc` nor `eslint` reads `.xml`, so a template is the one place a member reference has no static check at all — and Owl answers a missing one by destroying the root component. |
-| `SearchModel` / `ListRenderer` mixins | — | `js_mixin_coupling.py` | Two `this`-collaborating compositions, each split this round (`search_properties_mixin.js` / `search_split_domain_mixin.js` out of `SearchModel`; `list_group_rendering.js` out of `ListRenderer`) — max SCC is now 4 units per composition, 12 of 17 edges cyclic; the gate ratchets against the SCCs regrowing rather than asking for further decomposition. |
+| `env.config` | `views/view_config.js` | js_env_config_surface.py | The ambient per-action bag `View` installs with `useSubEnv`, inherited by every component beneath it. Five writers in this addon alone; three keys are written only by `enterprise` and are recorded, not owned. |
+| `archInfo` | `views/arch_info.js` | js_arch_info_surface.py | The `ArchParser` output. Two of its keys (`fieldNodes`, `widgetNodes`) are compiled into generated OWL template *source*, where no type, linter or member gate can follow them; the gate also holds each view type's parser against what its own directory reads. |
+| `props.record` | `fields/field_record_contract.js` | js_field_record_surface.py | What a field widget may reach on the record it is handed — 21 members, measured by resolving the binding rather than by grep. It also classifies each widget by what it *needs*, which is the worklist below. |
+| `env.services.action` | `webclient/actions/action_service_contract.js` | js_action_surface.py | What a consumer may reach on the `ActionManager` instance. Same blindness as the rows above — the instance is handed out by name off `env.services`, so it is neither an import nor a class member. The contract under-declared until the gate existed: four members were classified internal while consumers reached them at 45 call sites. |
+| OWL templates | the component's own `static template` | js_template_binding.py | Every name a template calls, against the class that owns it. Neither `tsc` nor `eslint` reads `.xml`, so a template is the one place a member reference has no static check at all — and Owl answers a missing one by destroying the root component. |
+| `SearchModel` / `ListRenderer` mixins | — | js_mixin_coupling.py | Two `this`-collaborating compositions, each split this round (`search_properties_mixin.js` / `search_split_domain_mixin.js` out of `SearchModel`; `list_group_rendering.js` out of `ListRenderer`) — max SCC is now 4 units per composition, 12 of 17 edges cyclic; the gate ratchets against the SCCs regrowing rather than asking for further decomposition. |
 
 ### `fieldHandle` — a field widget's own field
 
@@ -203,8 +203,8 @@ than argued about, because each fails silently.
 `standardFieldProps` is deliberately unchanged: 155 widgets live across four
 checkouts that cannot be committed atomically, so a widget adopts the handle one
 at a time and the ones that genuinely need the record keep it. Do not restate the
-counts here — `js_field_record_surface.py --json` reports them, and its MEASURED
-block is the copy that cannot rot.
+counts here. The gate that measured them went with the tooling tree in
+`7b0f58cb517f`, so re-measure from the source when a number matters.
 
 ## JavaScript Services
 

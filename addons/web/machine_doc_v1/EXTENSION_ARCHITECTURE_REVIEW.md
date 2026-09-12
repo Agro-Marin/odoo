@@ -186,7 +186,7 @@ distinct `(base, method)` points** — 563→ `odoo/addons`, 307→ `enterprise`
 similarly.
 
 Those 440 points are the real public API of web's JS. They are written down
-nowhere and checked by nothing. `js_public_surface.py`'s own docstring names the
+nowhere and checked by nothing. js_public_surface.py's own docstring names the
 gap — *"`web` has no declared API"* — but its remedy pins **module specifiers**,
 a strictly weaker statement: it guarantees `@web/views/form` keeps existing, not
 that `beforeExecuteActionButton` does.
@@ -293,7 +293,7 @@ Ordered by value ÷ cost. P1–P3 are independent and individually shippable;
 P4–P6 depend on P1 having produced the worklist.
 
 **P1 is implemented** (`a131d2e1c6e`, extended by `cc67e4cc4b2` and
-`9714f34c846`) — `js_extension_surface.py` + `extension_surface_web.txt`, wired
+`9714f34c846`) — js_extension_surface.py + `extension_surface_web.txt`, wired
 into all six inventory points and green. Now **496 points over 1,984 sites, 275
 single-use, 129 owner classes**, covering both `extends` and `patch()`.
 
@@ -339,7 +339,7 @@ something the others would have missed:
 5. **Check the artifact chain first.** `RelationalModel._updateSimilarRecords`
    is a legitimate promote and still unstarted, because it touches eight
    artifacts: definition, two call sites, the contract array *and* its typedef,
-   the consumer, `js_private_access`'s MEASURED block, the `jsprivate.json`
+   the consumer, `js_private_access`'s MEASURED block, the jsprivate.json
    ratchet floor, and a hand-written "7 privates over 53 accesses" figure in the
    contract docstring. For two accesses out of 247 that only pays as a batch.
 6. **Baseline the suite before and after**, and re-run any failure on unmodified
@@ -362,7 +362,7 @@ what these two changes actually ran into.
 ### P1 — Declare and gate the extension surface *(done)*
 
 js_extension_surface.py + `extension_surface_web.txt` (the script went with the tooling tree in `7b0f58cb517f`),
-built to the shape of `js_public_surface.py`: per-consumer-scope provenance,
+built to the shape of js_public_surface.py: per-consumer-scope provenance,
 shrink-only both directions, empty-tree refusal test.
 
 ```
@@ -388,7 +388,7 @@ tsconfig aliases** is a prerequisite for the chain walk to be complete.
 Per point: **promote** (drop the underscore — `_importState`/`exportState` is a
 matched pair, one public and one not, which is an inconsistency rather than a
 design) or **replace** (declared hook, convert the callers). Then extend
-`js_private_access.py`, which today (a) scans only `addons/web/static/src` and
+js_private_access.py, which today (a) scans only `addons/web/static/src` and
 (b) explicitly excludes `super.`, to cover cross-addon overrides at a hard zero.
 
 ### P3 — Retire the single-use surface
@@ -527,7 +527,7 @@ nobody has declared and the refactor cannot be verified against anything.
 ## Implementation notes (P1)
 
 Shipped as js_extension_surface.py in the tooling tree (deleted in `7b0f58cb517f`), modelled on
-`js_public_surface.py`: per-consumer-scope provenance, shrink-only in both
+js_public_surface.py: per-consumer-scope provenance, shrink-only in both
 directions, refuses an empty tree, `--check` / `--json` / `--update`.
 
 **Pinned at 448 points over 1,896 sites, 242 single-use, 112 owner classes,
@@ -547,7 +547,7 @@ Three things the implementation changed about the measurement:
   made `web/static/tests/` look like a downstream consumer: 3 points and 7 sites
   entered the first pin that way, and — worse — the pin then drifted whenever
   anyone edited a web test. The predicate is now the addon, matching
-  `js_public_surface.py`. `test_a_subclass_in_webs_own_tests_is_not_surface`
+  js_public_surface.py. `test_a_subclass_in_webs_own_tests_is_not_surface`
   pins it.
 - **`/lib/` is no longer a blanket exclusion.** `static/src/core/lib/` and
   `static/src/libs/` are first-party (`@web/libs/bootstrap` has four importers).
@@ -656,7 +656,7 @@ compiled files, by the share that would lock:
 
 **Nothing would lock past about two thirds**, and the modules with real reach
 into web's extension surface are the worst of all: `project` 50%, `website` 29%,
-`mail` 24%. `scope_gate.py`'s own guidance — *"a gate that has to except most of
+`mail` 24%. scope_gate.py's own guidance — *"a gate that has to except most of
 a module teaches people to ignore it"* — therefore stands, and **no module was
 added**.
 
@@ -665,9 +665,9 @@ per-module cleanup effort measured in hundreds of files, and the ordering should
 follow reach into the surface rather than convenience. `project` is the obvious
 first target: 2nd-highest reach after `website`, 154 files, half already clean.
 
-The candidate table that used to sit in `scope_gate.py` was hand-copied from a
+The candidate table that used to sit in scope_gate.py was hand-copied from a
 2026-07-29 run, had no assertion behind it, and omitted both of the best
-candidates — the same rot `doc_measured.py` exists to stop. It is now derived.
+candidates — the same rot doc_measured.py exists to stop. It is now derived.
 
 ## Reproducing
 
