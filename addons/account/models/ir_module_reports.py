@@ -18,15 +18,10 @@ class IrModuleModule(models.Model):
         ):
             return
 
+        recent_returns = self.env["account.return"].search(
+            [("date_to", ">=", datetime.date.today() - relativedelta(years=1))]
+        )
         for lang in langs:
-            self.env["account.return"].search(
-                [
-                    (
-                        "date_to",
-                        ">=",
-                        datetime.date.today() - relativedelta(years=1),
-                    )
-                ]
-            ).with_context(
+            recent_returns.with_context(
                 {"update_returns_translation_lang": lang}
             )._update_translated_name()

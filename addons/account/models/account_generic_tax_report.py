@@ -157,7 +157,7 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
                 records = (
                     self.env[comodel]
                     .with_context(active_test=False)
-                    .search([("id", "in", tuple(record_ids_gb[i]))])
+                    .search([("id", "in", tuple(record_ids_gb[i]))])  # noqa: E8507  one search per comodel, and each iteration is a different model
                 )
                 sorting_map = {r.id: (r, j) for j, r in enumerate(records)}
                 sorting_map_list.append(sorting_map)

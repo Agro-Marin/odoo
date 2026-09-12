@@ -195,13 +195,17 @@ class AccountReport(models.Model):
 
     def _link_annual_statements(self, root_annual_statements):
         Report = self.env["account.report"].with_context(active_test=False)
+        existing_statements = Report.search(
+            [
+                ("root_report_id", "=", root_annual_statements.id),
+                ("country_id", "in", [*self.country_id.ids, False]),
+                ("chart_template", "in", list(set(self.mapped("chart_template")))),
+            ]
+        ).grouped(lambda report: (report.country_id, report.chart_template))
         for asr_section_report in self:
-            annual_statements = Report.search(
-                [
-                    ("root_report_id", "=", root_annual_statements.id),
-                    ("country_id", "=", asr_section_report.country_id.id),
-                    ("chart_template", "=", asr_section_report.chart_template),
-                ]
+            annual_statements = existing_statements.get(
+                (asr_section_report.country_id, asr_section_report.chart_template),
+                self.env["account.report"],
             )
             if not annual_statements:
                 annual_statements = Report.create(

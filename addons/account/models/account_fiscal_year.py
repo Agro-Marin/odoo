@@ -26,6 +26,9 @@ class AccountFiscalYear(models.Model):
 
     @api.constrains("date_from", "date_to", "company_id")
     def _check_dates(self):
+        others_by_company = self.search(
+            [("company_id", "in", self.company_id.ids)]
+        ).grouped("company_id")
         for fy in self:
             date_from = fy.date_from
             date_to = fy.date_to
@@ -38,23 +41,13 @@ class AccountFiscalYear(models.Model):
                     _("You cannot have a fiscal year on a child company.")
                 )
 
-            domain = [
-                ("id", "!=", fy.id),
-                ("company_id", "=", fy.company_id.id),
-                "|",
-                "|",
-                "&",
-                ("date_from", "<=", fy.date_from),
-                ("date_to", ">=", fy.date_from),
-                "&",
-                ("date_from", "<=", fy.date_to),
-                ("date_to", ">=", fy.date_to),
-                "&",
-                ("date_from", "<=", fy.date_from),
-                ("date_to", ">=", fy.date_to),
-            ]
-
-            if self.search_count(domain, limit=1) > 0:
+            overlapping = any(
+                other != fy
+                and other.date_from <= fy.date_to
+                and other.date_to >= fy.date_from
+                for other in others_by_company.get(fy.company_id, self.browse())
+            )
+            if overlapping:
                 raise ValidationError(
                     _(
                         "You can not have an overlap between two fiscal years, please correct the start and/or end dates of your fiscal years."

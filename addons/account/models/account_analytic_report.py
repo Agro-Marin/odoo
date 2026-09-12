@@ -78,12 +78,17 @@ class AccountReport(models.AbstractModel):
         plans = self.env["account.analytic.plan"].browse(
             options.get("analytic_plans_groupby")
         )
+        accounts_in_plans = self.env["account.analytic.account"].search_fetch(
+            [("plan_id", "child_of", plans.ids)], ["plan_id"]
+        )
         for plan in plans:
-            account_list = []
-            accounts = self.env["account.analytic.account"].search(
-                [("plan_id", "child_of", plan.id)]
-            )
-            account_list.extend(account.id for account in accounts)
+            # child_of on the plan means "in this plan or one of its descendants",
+            # which parent_path answers without a query per plan
+            account_list = [
+                account.id
+                for account in accounts_in_plans
+                if account.plan_id.parent_path.startswith(plan.parent_path)
+            ]
             analytic_headers.append(
                 {
                     "name": plan.name,

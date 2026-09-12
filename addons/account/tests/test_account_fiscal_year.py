@@ -1,4 +1,5 @@
 from odoo import fields
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -113,4 +114,72 @@ class TestFiscalPositionReconcile(AccountTestInvoicingCommon):
             "2017-07-01",
             "2017-06-01",
             "2017-09-30",
+        )
+
+    def test_fiscal_years_of_one_company_may_not_overlap(self):
+        company = self.company_data["company"]
+        FiscalYear = self.env["account.fiscal.year"]
+        FiscalYear.create(
+            {
+                "name": "FY 2030",
+                "date_from": "2030-01-01",
+                "date_to": "2030-12-31",
+                "company_id": company.id,
+            }
+        )
+        with self.assertRaises(ValidationError):
+            FiscalYear.create(
+                {
+                    "name": "overlapping tail",
+                    "date_from": "2030-12-01",
+                    "date_to": "2031-05-31",
+                    "company_id": company.id,
+                }
+            )
+        with self.assertRaises(ValidationError):
+            FiscalYear.create(
+                {
+                    "name": "enclosing",
+                    "date_from": "2029-06-01",
+                    "date_to": "2031-05-31",
+                    "company_id": company.id,
+                }
+            )
+        with self.assertRaises(ValidationError):
+            FiscalYear.create(
+                [
+                    {
+                        "name": "batch a",
+                        "date_from": "2032-01-01",
+                        "date_to": "2032-06-30",
+                        "company_id": company.id,
+                    },
+                    {
+                        "name": "batch b, overlapping a",
+                        "date_from": "2032-06-01",
+                        "date_to": "2032-12-31",
+                        "company_id": company.id,
+                    },
+                ]
+            )
+        adjacent = FiscalYear.create(
+            {
+                "name": "FY 2031",
+                "date_from": "2031-01-01",
+                "date_to": "2031-12-31",
+                "company_id": company.id,
+            }
+        )
+        self.assertTrue(adjacent, "an adjacent year is not an overlapping one")
+        other_company = self.setup_other_company()["company"]
+        self.assertTrue(
+            FiscalYear.create(
+                {
+                    "name": "FY 2030, other company",
+                    "date_from": "2030-01-01",
+                    "date_to": "2030-12-31",
+                    "company_id": other_company.id,
+                }
+            ),
+            "another company's years do not overlap this one's",
         )
