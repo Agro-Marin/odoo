@@ -185,7 +185,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 self.save(session)
 
     def stage_rotation(self, session: Session, env: Any, soft: bool = False) -> None:
-        _debug.lifecycle("http.session.rotate", soft=soft, uid=session.uid)
+        _debug.lifecycle("http.session.rotation_staged", soft=soft, uid=session.uid)
         if session.rotation is not None:
             return
         original = session.snapshot()
