@@ -214,6 +214,10 @@ class ExpiredSubscriptionBlockUI extends Component {
     }
 }
 
+registry.category("main_components").add("expired_subscription_block_ui", {
+    Component: ExpiredSubscriptionBlockUI,
+});
+
 export const enterpriseSubscriptionService = {
     name: "enterprise_subscription",
     dependencies: ["orm", "notification"],
@@ -222,9 +226,6 @@ export const enterpriseSubscriptionService = {
      * @param {{ orm: any; notification: any }} services
      */
     start(env, { orm, notification }) {
-        registry.category("main_components").add("expired_subscription_block_ui", {
-            Component: ExpiredSubscriptionBlockUI,
-        });
         return reactive(new SubscriptionManager(env, { orm, notification }));
     },
 };
