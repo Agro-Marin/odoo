@@ -6202,10 +6202,12 @@ tuples, and ``uid`` unquoted for the current user.
 Every menuitem in a module goes in ``views/<module>_menus.xml``, not scattered
 across view files ``[fixer _relocate_menus]`` ``[ratchet lint_xml_menuitem_placement]``
 -- the gate wants ``menu`` in the file name; ``ir_ui_menu_views.xml`` is where
-``base`` keeps the views *of* ``ir.ui.menu``. The menus file is listed **last**
-in ``data``, so every action a menu names exists before the menu does; a data
-file that references a menu (an ``ir.actions.client`` ``menu_id``, say) is the
-one case that has to stay ahead of it, and the fixer refuses that module:
+``base`` keeps the views *of* ``ir.ui.menu``. The menus file is listed after
+every file that defines an action a menu names -- last in ``data`` unless a
+data file needs a menu first. A record that only exists to bind a menu -- an
+``ir.actions.client`` whose ``params`` carry a ``menu_id``, an ``ir.ui.menu``
+record patching an ``action`` onto a menu declared elsewhere -- lives in the
+menus file too (or, for the patch, becomes the menuitem's own ``action=``):
 
 .. code-block:: xml
 
@@ -8122,8 +8124,9 @@ One row per change, one clause. The argument lives in the section it moved.
      - Summary
    * - 6.43
      - 2026-09-12
-     - §3.7: menus are moved by ``_relocate_menus.py`` and the menus file
-       loads last; the floor holds only the eight modules it refuses.
+     - §3.7: menus are moved by ``_relocate_menus.py``; the menus file loads
+       after the actions it names and before the first file that needs a menu;
+       menu-binding records live with the menus. No XML rule is floored.
    * - 6.42
      - 2026-09-12
      - §3.6: ``t-esc`` is fixer-owned (``_modernize_output_directives.py``);

@@ -10,6 +10,5 @@
   "lint_noqa_rationale": 23,
   "lint_null_exempt_composite_unique": 23,
   "lint_raise_unlink_override": 0,
-  "lint_sql_injection": 9,
-  "lint_xml_menuitem_placement": 71
+  "lint_sql_injection": 9
 }

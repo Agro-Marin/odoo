@@ -543,17 +543,6 @@
                 </p>
             </field>
         </record>
-        <record id="event.menu_event_event" model="ir.ui.menu">
-            <field name="action" ref="event.action_event_view" />
-        </record>
-        <!-- EVENT.EVENT HEADER: REGISTRATION DESK MENU -->
-        <menuitem
-            id="menu_event_registration_desk"
-            name="Registration Desk"
-            parent="event.event_main_menu"
-            action="event.event_barcode_action_main_view"
-            sequence="30"
-            groups="event.group_event_registration_desk" />
     </data>
 
 </odoo>

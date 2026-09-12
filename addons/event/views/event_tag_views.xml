@@ -84,9 +84,6 @@
                 </form>
             </field>
         </record>
-        <record id="menu_event_category" model="ir.ui.menu">
-            <field name="action" ref="event.event_tag_category_action_tree" />
-        </record>
     </data>
 
 </odoo>

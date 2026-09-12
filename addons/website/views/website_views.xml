@@ -399,100 +399,10 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('website.theme_view_kanban')}), Command.create({'view_mode': 'form', 'view_id': ref('website.theme_view_form_preview')})]" />
         </record>
-        <menuitem
-            id="menu_website_configuration"
-            name="Website"
-            sequence="95"
-            groups="base.group_user"
-            web_icon="website,static/description/icon.png"
-            web_keywords="site, web page, cms, blog, seo, homepage" />
-        <menuitem
-            id="menu_site"
-            name="Site"
-            parent="website.menu_website_configuration"
-            sequence="10" />
-        <menuitem
-            id="menu_website_preview"
-            name="Homepage"
-            parent="menu_site"
-            action="website.website_preview"
-            sequence="10" />
-        <menuitem
-            id="menu_edit_menu"
-            name="Menu Editor"
-            parent="menu_site"
-            action="website.website_preview"
-            sequence="20" />
-        <menuitem id="menu_content" name="Content" parent="menu_site" sequence="30" />
-        <menuitem
-            id="menu_current_page"
-            name="This page"
-            parent="menu_site"
-            sequence="40" />
-        <menuitem
-            id="menu_page_properties"
-            name="Properties"
-            parent="menu_current_page"
-            action="website.website_preview"
-            sequence="10" />
-        <menuitem
-            id="menu_optimize_seo"
-            name="Optimize SEO"
-            parent="menu_current_page"
-            action="website.website_preview"
-            sequence="20" />
-        <menuitem
-            id="menu_ace_editor"
-            name="HTML / CSS Editor"
-            parent="menu_current_page"
-            action="website.website_preview"
-            sequence="30" />
-        <menuitem
-            id="custom_menu_edit_menu"
-            name="Edit Menu"
-            parent="menu_current_page"
-            action="website.website_preview"
-            sequence="40" />
-        <menuitem
-            id="menu_reporting"
-            name="Reporting"
-            parent="website.menu_website_configuration"
-            sequence="30" />
-        <menuitem
-            id="menu_website_dashboard"
-            name="eCommerce"
-            parent="menu_reporting"
-            action="website.ir_actions_server_website_dashboard"
-            sequence="20"
-            groups="base.group_system,website.group_website_designer"
-            active="0" />
-        <menuitem
-            id="menu_website_analytics"
-            name="Analytics"
-            parent="menu_reporting"
-            action="website.ir_actions_server_website_analytics"
-            sequence="10" />
-        <menuitem
-            id="menu_website_technical_pages"
-            name="Technical Pages"
-            parent="menu_content"
-            action="action_website_technical_pages"
-            sequence="90" />
         <record id="website_configurator" model="ir.actions.client">
             <field name="name">Website Configurator</field>
             <field name="tag">website_configurator</field>
             <field name="target">fullscreen</field>
-        </record>
-        <record id="action_open_website_configurator" model="ir.actions.client">
-            <field name="name">Open Website Configurator</field>
-            <field name="tag">reload</field>
-            <field
-                name="params"
-                eval="{'action_id': ref('website_configurator'), 'menu_id': ref('menu_website_configuration')}" />
-        </record>
-        <record id="website_configurator_todo" model="ir.actions.todo">
-            <field name="name">Start Website Configurator</field>
-            <field name="action_id" ref="action_open_website_configurator" />
         </record>
     </data>
 

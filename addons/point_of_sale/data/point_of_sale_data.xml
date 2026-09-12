@@ -6,18 +6,6 @@
     </data>
 
     <data noupdate="1">
-        <record id="action_client_pos_menu" model="ir.actions.client">
-            <field name="name">Reload POS Menu</field>
-            <field name="tag">reload</field>
-            <field name="params" eval="{'menu_id': ref('menu_point_root')}" />
-        </record>
-        <record id="action_client_product_menu" model="ir.actions.client">
-            <field name="name">Load Product Menu</field>
-            <field name="tag">reload</field>
-            <field
-                name="params"
-                eval="{'menu_id': ref('point_of_sale.menu_pos_products')}" />
-        </record>
         <record id="product_category_food" model="product.category">
             <field name="name">Food</field>
         </record>

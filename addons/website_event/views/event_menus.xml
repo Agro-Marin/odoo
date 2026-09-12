@@ -11,4 +11,11 @@
             groups="base.group_no_one" />
     </data>
 
+    <menuitem
+        id="menu_event_pages"
+        name="Events"
+        parent="website.menu_content"
+        action="action_event_pages_list"
+        sequence="40" />
+
 </odoo>

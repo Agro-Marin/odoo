@@ -133,40 +133,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="pos_config_menu_catalog"
-        name="Products"
-        parent="point_of_sale.menu_point_root"
-        sequence="20" />
-
-    <menuitem
-        id="menu_pos_products"
-        parent="point_of_sale.pos_config_menu_catalog"
-        action="product_template_action_pos_product"
-        sequence="5" />
-
-    <menuitem
-        id="pos_config_menu_action_product_product"
-        name="Product Variants"
-        parent="point_of_sale.pos_config_menu_catalog"
-        action="product_product_action"
-        sequence="10"
-        groups="product.group_product_variant" />
-
-    <menuitem
-        id="point_of_sale.menu_product_combo"
-        name="Combo Choices"
-        parent="point_of_sale.pos_config_menu_catalog"
-        action="product.action_product_combo"
-        sequence="15" />
-
-    <menuitem
-        id="pos_config_menu_action_product_pricelist"
-        parent="point_of_sale.pos_config_menu_catalog"
-        action="product.action_product_pricelist_2"
-        sequence="20"
-        groups="product.group_product_pricelist" />
-
     <record id="product_uom_form_view_inherit" model="ir.ui.view">
         <field name="name">product.uom.form.view.inherit</field>
         <field name="model">uom.uom</field>

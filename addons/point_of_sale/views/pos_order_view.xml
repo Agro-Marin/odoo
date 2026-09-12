@@ -535,13 +535,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_point_ofsale"
-        parent="menu_point_of_sale"
-        action="action_pos_pos_form"
-        sequence="2"
-        groups="group_pos_manager,group_pos_user" />
-
     <record id="view_pos_order_line" model="ir.ui.view">
         <field name="name">pos.order.line.list</field>
         <field name="model">pos.order.line</field>

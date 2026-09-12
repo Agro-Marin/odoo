@@ -580,13 +580,6 @@
                 </p>
             </field>
         </record>
-        <menuitem
-            id="menu_action_registration"
-            name="Attendees"
-            parent="event.menu_reporting_events"
-            action="action_registration"
-            sequence="4"
-            groups="event.group_event_user" />
     </data>
 
 </odoo>

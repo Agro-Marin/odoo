@@ -38,7 +38,6 @@
         "views/pos_category_view.xml",
         "views/product_combo_views.xml",
         "views/product_view.xml",
-        "views/account_journal_view.xml",
         "views/pos_payment_method_views.xml",
         "views/pos_payment_views.xml",
         "views/pos_config_view.xml",
@@ -62,6 +61,7 @@
         "views/pos_session_sales_details.xml",
         "views/product_tag_views.xml",
         "views/stock_reference_views.xml",
+        "views/point_of_sale_menus.xml",
     ],
     "demo": [
         "demo/demo_data.xml",

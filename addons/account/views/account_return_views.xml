@@ -345,12 +345,6 @@
             <field name="target">new</field>
             <field name="context">{'open_account_return_on_save': True}</field>
         </record>
-        <menuitem
-            id="menu_action_account_return"
-            name="Tax Returns"
-            parent="account.menu_account_closing"
-            action="action_server_open_view_account_return"
-            sequence="67" />
     </data>
 
 </odoo>

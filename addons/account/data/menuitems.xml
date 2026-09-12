@@ -2,6 +2,28 @@
 <odoo>
 
     <menuitem
+        id="menu_action_change_lock_date"
+        name="Lock Dates…"
+        parent="account.menu_account_closing"
+        action="action_view_account_change_lock_date"
+        sequence="70"
+        groups="account.group_account_manager" />
+
+    <menuitem
+        id="menu_action_account_return"
+        name="Tax Returns"
+        parent="account.menu_account_closing"
+        action="action_server_open_view_account_return"
+        sequence="67" />
+
+    <menuitem
+        id="menu_view_tax_units"
+        parent="account.menu_account_accounting"
+        action="action_view_tax_units"
+        sequence="8"
+        groups="base.group_no_one" />
+
+    <menuitem
         id="menu_action_account_report_partner_ledger"
         name="Partner Ledger"
         parent="account.menu_account_reports_partners"

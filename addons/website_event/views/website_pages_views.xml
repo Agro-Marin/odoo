@@ -83,11 +83,4 @@
             eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('event_pages_tree_view')}), Command.create({'view_mode': 'kanban', 'view_id': ref('event_pages_kanban_view')})]" />
     </record>
 
-    <menuitem
-        id="menu_event_pages"
-        name="Events"
-        parent="website.menu_content"
-        action="action_event_pages_list"
-        sequence="40" />
-
 </odoo>

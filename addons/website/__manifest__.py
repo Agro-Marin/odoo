@@ -209,6 +209,7 @@
         "wizards/website_robots.xml",
         "data/update_theme_images.xml",
         "views/website_templates_svg.xml",
+        "views/website_menus.xml",
     ],
     "demo": [
         "demo/website_demo.xml",

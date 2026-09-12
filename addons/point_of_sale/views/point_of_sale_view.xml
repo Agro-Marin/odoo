@@ -1,66 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <menuitem
-        id="menu_point_root"
-        name="Point of Sale"
-        sequence="50"
-        groups="group_pos_manager,group_pos_user"
-        web_icon="point_of_sale,static/description/icon.png"
-        web_keywords="pos, cash register, till, counter, shop, session" />
-
-    <menuitem
-        id="menu_point_of_sale"
-        name="Orders"
-        parent="menu_point_root"
-        sequence="10" />
-
-    <menuitem
-        id="menu_point_of_sale_customer"
-        name="Customers"
-        parent="menu_point_of_sale"
-        action="account.res_partner_action_customer"
-        sequence="110" />
-
-    <menuitem
-        id="menu_point_rep"
-        name="Reporting"
-        parent="menu_point_root"
-        sequence="90" />
-
-    <menuitem
-        id="menu_report_daily_details"
-        name="Session Report"
-        parent="menu_point_rep"
-        action="action_report_pos_daily_sales_reports"
-        sequence="5" />
-
-    <menuitem
-        id="menu_point_config_product"
-        name="Configuration"
-        parent="menu_point_root"
-        sequence="100"
-        groups="group_pos_manager" />
-
-    <menuitem
-        id="pos_menu_products_configuration"
-        name="Products"
-        parent="menu_point_config_product"
-        sequence="12" />
-
     <record id="action_pos_configuration" model="ir.actions.act_window">
         <field name="name">Settings</field>
         <field name="res_model">res.config.settings</field>
         <field name="view_mode">form</field>
         <field name="context">{'module' : 'point_of_sale', 'bin_size': False}</field>
     </record>
-
-    <menuitem
-        id="menu_pos_global_settings"
-        name="Settings"
-        parent="menu_point_config_product"
-        action="action_pos_configuration"
-        sequence="0"
-        groups="base.group_system" />
 
 </odoo>

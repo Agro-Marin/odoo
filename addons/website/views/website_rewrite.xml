@@ -70,14 +70,6 @@
         <field name="view_id" eval="False" />
     </record>
 
-    <menuitem
-        id="menu_website_rewrite"
-        name="Redirects"
-        parent="menu_website_global_configuration"
-        action="action_website_rewrite_list"
-        sequence="30"
-        groups="base.group_no_one" />
-
     <record id="view_rewrite_search" model="ir.ui.view">
         <field name="name">website.rewrite.search</field>
         <field name="model">website.rewrite</field>

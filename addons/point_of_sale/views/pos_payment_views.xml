@@ -94,11 +94,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_pos_payment"
-        parent="menu_point_of_sale"
-        action="action_pos_payment_form"
-        sequence="13"
-        groups="group_pos_manager,group_pos_user" />
-
 </odoo>

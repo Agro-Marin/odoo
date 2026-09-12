@@ -11,6 +11,7 @@
     "data": [
         "security/ir.model.access.csv",
         "view.xml",
+        "views/test_translation_import_menus.xml",
         "data/test_translation_import_data.xml",
         "data/test.translation.import.model1.csv",
         "data/test.translation.import.model1-translated.csv",

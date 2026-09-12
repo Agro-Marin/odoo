@@ -154,13 +154,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_pos_payment_method"
-        parent="menu_point_config_product"
-        action="action_pos_payment_method_form"
-        sequence="3"
-        groups="group_pos_manager,group_pos_user" />
-
     <record id="action_payment_methods_tree" model="ir.actions.act_window">
         <field name="name">Payments Methods</field>
         <field name="res_model">pos.payment.method</field>

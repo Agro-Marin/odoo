@@ -14,6 +14,7 @@
             id="menu_event_event"
             name="Events"
             parent="event.event_main_menu"
+            action="action_event_view"
             sequence="1"
             groups="event.group_event_registration_desk" />
         <!-- HEADER: REPORTING -->
@@ -34,28 +35,58 @@
             id="menu_event_type"
             name="Event Templates"
             parent="menu_event_configuration"
+            action="action_event_type"
             sequence="1" />
         <menuitem
             id="event_stage_menu"
             name="Event Stages"
             parent="menu_event_configuration"
+            action="event_stage_action"
             sequence="2" />
         <menuitem
             id="menu_event_mail_schedulers"
             name="Mail Schedulers"
             parent="menu_event_configuration"
+            action="action_event_mail"
             sequence="10"
             groups="base.group_no_one" />
         <menuitem
             id="menu_event_category"
             name="Event Tags Categories"
             parent="menu_event_configuration"
+            action="event_tag_category_action_tree"
             sequence="3" />
         <menuitem
             id="event_question_menu"
             name="Event Questions"
             parent="menu_event_configuration"
+            action="event_question_action"
             sequence="4" />
     </data>
+
+    <menuitem
+        id="menu_action_registration"
+        name="Attendees"
+        parent="event.menu_reporting_events"
+        action="action_registration"
+        sequence="4"
+        groups="event.group_event_user" />
+
+    <!-- EVENT.EVENT HEADER: REGISTRATION DESK MENU -->
+    <menuitem
+        id="menu_event_registration_desk"
+        name="Registration Desk"
+        parent="event.event_main_menu"
+        action="event.event_barcode_action_main_view"
+        sequence="30"
+        groups="event.group_event_registration_desk" />
+
+    <menuitem
+        id="menu_event_global_settings"
+        name="Settings"
+        parent="menu_event_configuration"
+        action="action_event_configuration"
+        sequence="0"
+        groups="base.group_system" />
 
 </odoo>

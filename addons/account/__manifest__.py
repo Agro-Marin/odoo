@@ -170,8 +170,8 @@ You could use this simplified accounting in case you work with an (external) acc
         "views/account_return_check_template_views.xml",
         "views/account_audit_views.xml",
         "data/account_return_data.xml",
-        "data/menuitems.xml",
         "data/account_return_check_template.xml",
+        "data/menuitems.xml",
     ],
     "demo": [
         "demo/account_demo.xml",

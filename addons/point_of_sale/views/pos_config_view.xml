@@ -293,31 +293,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_products_pos_category"
-        parent="point_of_sale.pos_menu_products_configuration"
-        action="point_of_sale.product_pos_category_action"
-        sequence="1" />
-
-    <menuitem
-        id="pos_menu_products_attribute_action"
-        parent="point_of_sale.pos_menu_products_configuration"
-        action="product.action_product_attribute"
-        sequence="2"
-        groups="product.group_product_variant" />
-
-    <menuitem
-        id="menu_pos_dashboard"
-        name="Dashboard"
-        parent="menu_point_root"
-        action="action_pos_config_kanban"
-        sequence="1" />
-
-    <menuitem
-        id="menu_point_of_sale_list"
-        name="Point of Sales"
-        parent="menu_point_config_product"
-        action="action_pos_config_tree"
-        sequence="10" />
-
 </odoo>

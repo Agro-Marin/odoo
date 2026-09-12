@@ -348,42 +348,4 @@
         <field name="context">{'module' : 'website', 'bin_size': False}</field>
     </record>
 
-    <menuitem
-        id="menu_website_global_configuration"
-        name="Configuration"
-        parent="menu_website_configuration"
-        sequence="100"
-        groups="base.group_system" />
-
-    <menuitem
-        id="menu_website_website_settings"
-        name="Settings"
-        parent="menu_website_global_configuration"
-        action="action_website_configuration"
-        sequence="10"
-        groups="base.group_system" />
-
-    <menuitem
-        id="menu_website_add_features"
-        parent="website.menu_website_global_configuration"
-        action="action_website_add_features"
-        sequence="20"
-        groups="base.group_system" />
-
-    <menuitem
-        id="menu_website_websites_list"
-        name="Websites"
-        parent="menu_website_global_configuration"
-        action="action_website_list"
-        sequence="15"
-        groups="base.group_no_one" />
-
-    <menuitem
-        id="menu_website_menu_list"
-        name="Menus"
-        parent="menu_website_global_configuration"
-        action="action_website_menu"
-        sequence="45"
-        groups="base.group_no_one" />
-
 </odoo>

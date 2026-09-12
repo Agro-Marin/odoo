@@ -62,11 +62,4 @@
         <field name="view_id" ref="view_tax_unit_tree" />
     </record>
 
-    <menuitem
-        id="menu_view_tax_units"
-        parent="account.menu_account_accounting"
-        action="action_view_tax_units"
-        sequence="8"
-        groups="base.group_no_one" />
-
 </odoo>

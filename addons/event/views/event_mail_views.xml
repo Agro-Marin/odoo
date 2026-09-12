@@ -80,9 +80,6 @@
                 </p>
             </field>
         </record>
-        <record id="menu_event_mail_schedulers" model="ir.ui.menu">
-            <field name="action" ref="event.action_event_mail" />
-        </record>
     </data>
 
 </odoo>

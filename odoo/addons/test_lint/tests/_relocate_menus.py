@@ -73,7 +73,7 @@ def _write(path: Path, tree: etree._ElementTree, had_decl: bool) -> None:
 
 def _references(texts: list[str], module: str, moved: set[str]) -> set[str]:
     pattern = re.compile(
-        r"""(?:ref\(\s*['"]|ref=["']|parent=["']|action=["']|%\()(?:{module}\.)?({ids})(?=['"\)])""".format(
+        r"""(?:ref\(\s*['"]|ref=["']|parent=["']|action=["']|id=["']|%\()(?:{module}\.)?({ids})(?=['"\)])""".format(
             module=re.escape(module), ids="|".join(map(re.escape, sorted(moved)))
         )
     )
@@ -87,7 +87,29 @@ def _has_elements(root: etree._Element) -> bool:
     return any(not callable(child.tag) for child in root.iter() if child is not root)
 
 
-def relocate_module(module: Path, *, dry_run: bool = False) -> tuple[bool, str | None]:
+def _record_ids(root: etree._Element) -> set[str]:
+    return {
+        element.get("id")
+        for element in root.iter("record", "template", "menuitem")
+        if not callable(element.tag) and element.get("id")
+    }
+
+
+def _action_refs(menus: list[etree._Element], module: str) -> set[str]:
+    refs = set()
+    for menu in menus:
+        for element in menu.iter("menuitem"):
+            if callable(element.tag):
+                continue
+            action = element.get("action") or ""
+            if action and ("." not in action or action.startswith(module + ".")):
+                refs.add(action.removeprefix(module + "."))
+    return refs
+
+
+def relocate_module(
+    module: Path, *, dry_run: bool = False, python_refs_verified: bool = False
+) -> tuple[bool, str | None]:
     manifest = _manifest(module)
     if manifest is None:
         return False, None
@@ -116,29 +138,28 @@ def relocate_module(module: Path, *, dry_run: bool = False) -> tuple[bool, str |
         return False, f"{module.name}: a menuitem has no id"
     moved_ids = {m.get("id") for m in moved}
 
-    menu_files = [r for r in data if is_menu_file(r)]
-    if len(menu_files) > 1:
-        return False, f"{module.name}: {len(menu_files)} menu files; merge them by hand"
+    canonical = f"views/{module.name}_menus.xml"
+    menu_files = [
+        r
+        for r in data
+        if is_menu_file(r)
+        and r in trees
+        and (r == canonical or _top_level_menuitems(trees[r].getroot()))
+    ]
     if menu_files:
-        target_relative = menu_files[0]
-        if target_relative not in trees:
-            return False, f"{module.name}: {target_relative} does not parse"
+        target_relative = menu_files[-1]
         target_tree = trees[target_relative]
         target_had_decl = (
             (module / target_relative).read_bytes().lstrip().startswith(b"<?xml")
         )
     else:
-        target_relative = f"views/{module.name}_menus.xml"
+        target_relative = canonical
         if (module / target_relative).exists():
             return False, f"{module.name}: {target_relative} exists but is not listed"
         target_tree = etree.ElementTree(etree.Element("odoo"))
         target_had_decl = True
     target_root = target_tree.getroot()
-    if (
-        target_root.tag != "odoo"
-        or _noupdate(target_root)
-        or any(not callable(c.tag) and c.tag == "data" for c in target_root)
-    ):
+    if target_root.tag != "odoo" or _noupdate(target_root):
         return False, f"{module.name}: {target_relative} is not a plain <odoo> file"
 
     ordered: list[etree._Element] = []
@@ -152,23 +173,41 @@ def relocate_module(module: Path, *, dry_run: bool = False) -> tuple[bool, str |
     for element in ordered:
         target_root.append(element)
 
-    remaining = [
-        etree.tostring(tree, encoding="unicode")
-        for relative, tree in trees.items()
-        if relative != target_relative
+    staying = [r for r in data if r != target_relative]
+    texts = {
+        r: etree.tostring(trees[r], encoding="unicode")
+        if r in trees
+        else (module / r).read_text(encoding="utf-8")
+        for r in staying
+        if (module / r).is_file()
+    }
+    guarded = moved_ids | {
+        m.get("id") for m in _top_level_menuitems(target_root) if m.get("id")
+    }
+    python = [
+        path.read_text(encoding="utf-8")
+        for path in module.rglob("*.py")
+        if "tests" not in path.parts and "static" not in path.parts
     ]
-    remaining += [
-        (module / r).read_text(encoding="utf-8")
-        for r in data
-        if r.endswith(".csv") and (module / r).is_file()
+    if not python_refs_verified and (used := _references(python, module.name, guarded)):
+        why = f"{module.name}: Python references {sorted(used)}"
+        return False, f"{why}; verify none runs at load, then --python-refs-verified"
+    needs_menus = [
+        r for r in staying if _references([texts.get(r, "")], module.name, guarded)
     ]
-    if used := _references(remaining, module.name, moved_ids):
-        why = f"{module.name}: a data file that stays references {sorted(used)}"
-        return False, f"{why}, which would load after it"
+    position = staying.index(needs_menus[0]) if needs_menus else len(staying)
+    defined_before = set()
+    for r in staying[:position]:
+        if r in trees:
+            defined_before |= _record_ids(trees[r].getroot())
+    if missing := _action_refs(moved, module.name) - defined_before - moved_ids:
+        why = f"{module.name}: {sorted(missing)} would load after the menus file"
+        return False, f"{why} ({needs_menus[0]} needs the menus first)"
 
     emptied = [r for r in menus_by_file if not _has_elements(trees[r].getroot())]
-    new_data = [r for r in data if r not in emptied and r != target_relative]
-    new_data.append(target_relative)
+    new_data = [r for r in staying if r not in emptied]
+    insert_at = len([r for r in staying[:position] if r not in emptied])
+    new_data.insert(insert_at, target_relative)
     if dry_run:
         return True, None
 
@@ -239,6 +278,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print which modules would change without modifying them",
     )
     parser.add_argument(
+        "--python-refs-verified",
+        metavar="MODULE",
+        action="append",
+        default=[],
+        help=(
+            "A module whose Python references to its menus were read and none runs "
+            "while data loads; the fixer then places the file by the data files alone"
+        ),
+    )
+    parser.add_argument(
         "--exclude",
         metavar="DIR",
         action="append",
@@ -261,7 +310,11 @@ def main(argv: list[str] | None = None) -> None:
                 or not (module / "__manifest__.py").is_file()
             ):
                 continue
-            result, why = relocate_module(module, dry_run=args.dry_run)
+            result, why = relocate_module(
+                module,
+                dry_run=args.dry_run,
+                python_refs_verified=module.name in args.python_refs_verified,
+            )
             if why:
                 print(f"  SKIP  {why}", file=sys.stderr)
                 skipped += 1

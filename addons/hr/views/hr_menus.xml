@@ -104,4 +104,12 @@
             active="0" />
     </data>
 
+    <menuitem
+        id="hr_menu_configuration"
+        name="Settings"
+        parent="menu_human_resources_configuration"
+        action="hr_config_settings_action"
+        sequence="0"
+        groups="base.group_system" />
+
 </odoo>

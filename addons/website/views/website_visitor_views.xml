@@ -436,18 +436,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('website_visitor_track_view_tree')}), Command.create({'view_mode': 'graph', 'view_id': ref('website_visitor_track_view_graph')})]" />
         </record>
-        <menuitem
-            id="website_visitor_menu"
-            name="Visitors"
-            parent="website.menu_reporting"
-            action="website.website_visitors_action"
-            sequence="40" />
-        <menuitem
-            id="menu_visitor_view_menu"
-            name="Page Views"
-            parent="website.menu_reporting"
-            action="website.website_visitor_view_action"
-            sequence="50" />
     </data>
 
 </odoo>

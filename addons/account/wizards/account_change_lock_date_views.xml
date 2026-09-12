@@ -335,13 +335,6 @@
             <field name="view_id" ref="view_account_change_lock_date" />
             <field name="target">new</field>
         </record>
-        <menuitem
-            id="menu_action_change_lock_date"
-            name="Lock Dates…"
-            parent="account.menu_account_closing"
-            action="action_view_account_change_lock_date"
-            sequence="70"
-            groups="account.group_account_manager" />
     </data>
 
 </odoo>

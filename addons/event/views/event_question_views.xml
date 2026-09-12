@@ -173,8 +173,4 @@
         </field>
     </record>
 
-    <record id="event_question_menu" model="ir.ui.menu">
-        <field name="action" ref="event.event_question_action" />
-    </record>
-
 </odoo>

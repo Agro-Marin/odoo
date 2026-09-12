@@ -136,18 +136,4 @@
         <field name="target">new</field>
     </record>
 
-    <menuitem
-        id="menu_report_pos_order_all"
-        name="Orders"
-        parent="menu_point_rep"
-        action="action_report_pos_order_all"
-        sequence="3" />
-
-    <menuitem
-        id="menu_report_order_details"
-        name="Sales Details"
-        parent="menu_point_rep"
-        action="action_report_pos_details"
-        sequence="4" />
-
 </odoo>

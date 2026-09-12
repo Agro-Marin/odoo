@@ -730,7 +730,7 @@ class TestRelocateMenus(BaseCase):
         )
         self.assertEqual(self._data(), ["views/thing_menus.xml"])
 
-    def test_a_menu_another_data_file_needs_is_refused(self):
+    def test_a_menu_the_same_file_needs_puts_the_menus_file_first(self):
         (self.module / "views" / "thing_views.xml").write_text(
             '<odoo><menuitem id="menu_root" name="Root"/>'
             '<record id="c" model="ir.actions.client">'
@@ -738,10 +738,74 @@ class TestRelocateMenus(BaseCase):
             "</record></odoo>\n"
         )
         self._manifest(["views/thing_views.xml"])
+        self.assertEqual(_relocate_menus.relocate_module(self.module), (True, None))
+        self.assertEqual(
+            self._data(), ["views/thing_menus.xml", "views/thing_views.xml"]
+        )
+
+    def test_the_menus_file_lands_before_the_first_file_that_needs_it(self):
+        (self.module / "views" / "a_views.xml").write_text(
+            '<odoo><record id="action_a" model="ir.actions.act_window"/>'
+            '<menuitem id="menu_root" name="Root" action="action_a"/></odoo>\n'
+        )
+        (self.module / "data").mkdir()
+        (self.module / "data" / "thing_data.xml").write_text(
+            '<odoo><record id="c" model="ir.actions.client">'
+            "<field name=\"params\" eval=\"{'menu_id': ref('menu_root')}\"/>"
+            "</record></odoo>\n"
+        )
+        (self.module / "views" / "z_views.xml").write_text(
+            '<odoo><record id="v" model="ir.ui.view"/></odoo>\n'
+        )
+        self._manifest(
+            ["views/a_views.xml", "data/thing_data.xml", "views/z_views.xml"]
+        )
+        self.assertEqual(_relocate_menus.relocate_module(self.module), (True, None))
+        self.assertEqual(
+            self._data(),
+            [
+                "views/a_views.xml",
+                "views/thing_menus.xml",
+                "data/thing_data.xml",
+                "views/z_views.xml",
+            ],
+        )
+
+    def test_an_action_defined_after_the_needed_position_is_refused(self):
+        (self.module / "views" / "a_views.xml").write_text(
+            '<odoo><menuitem id="menu_root" name="Root" action="action_z"/></odoo>\n'
+        )
+        (self.module / "data").mkdir()
+        (self.module / "data" / "thing_data.xml").write_text(
+            '<odoo><record id="m" model="ir.ui.menu"><field name="sequence">1</field>'
+            "</record></odoo>\n".replace('id="m"', 'id="menu_root"')
+        )
+        (self.module / "views" / "z_views.xml").write_text(
+            '<odoo><record id="action_z" model="ir.actions.act_window"/></odoo>\n'
+        )
+        self._manifest(
+            ["views/a_views.xml", "data/thing_data.xml", "views/z_views.xml"]
+        )
+        ok, why = _relocate_menus.relocate_module(self.module)
+        self.assertFalse(ok)
+        self.assertIn("action_z", why)
+
+    def test_a_python_reference_is_refused_unless_verified(self):
+        (self.module / "views" / "a_views.xml").write_text(
+            '<odoo><menuitem id="menu_root" name="Root"/></odoo>\n'
+        )
+        (self.module / "models").mkdir()
+        (self.module / "models" / "thing.py").write_text(
+            'x = env.ref("thing.menu_root")\n'
+        )
+        self._manifest(["views/a_views.xml"])
         ok, why = _relocate_menus.relocate_module(self.module)
         self.assertFalse(ok)
         self.assertIn("menu_root", why)
-        self.assertEqual(self._data(), ["views/thing_views.xml"], "untouched")
+        self.assertEqual(
+            _relocate_menus.relocate_module(self.module, python_refs_verified=True),
+            (True, None),
+        )
 
     def test_a_menu_under_noupdate_is_refused(self):
         (self.module / "views" / "thing_views.xml").write_text(

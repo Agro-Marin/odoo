@@ -54,9 +54,6 @@
                 </p>
             </field>
         </record>
-        <record id="event_stage_menu" model="ir.ui.menu">
-            <field name="action" ref="event.event_stage_action" />
-        </record>
     </data>
 
 </odoo>
