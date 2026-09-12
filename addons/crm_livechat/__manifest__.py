@@ -19,7 +19,7 @@
         "security/crm_livechat_security.xml",
     ],
     "assets": {
-        "web.assets_backend": {"crm_livechat/static/src/core/**/*"},
+        "web.assets_backend": {'crm_livechat/static/src/core/**/*'},
         "web.assets_unit_tests": [
             "crm_livechat/static/tests/**/*",
             (

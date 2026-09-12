@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- The internal_layout header now uses CSS Grid (grid-template-columns: 1fr auto 1fr)
-         which already handles long company names well. Only add the font-size class. -->
+    <!--
+        The internal_layout header now uses CSS Grid (grid-template-columns: 1fr auto 1fr)
+        which already handles long company names well. Only add the font-size class.
+    -->
     <template id="internal_layout" inherit_id="web.internal_layout" primary="True">
         <xpath expr="//div[hasclass('header')]" position="attributes">
-            <attribute name="class" add="o_footer_font_size" separator=" "/>
+            <attribute name="class" add="o_footer_font_size" separator=" " />
         </xpath>
     </template>
 

@@ -23,8 +23,8 @@
                 </button>
             </xpath>
             <!-- Folded into Sales rather than kept as a one-field column of
-                 its own: every point-of-sale user on this database also holds
-                 a sales group, so the field keeps its audience. -->
+                its own: every point-of-sale user on this database also holds
+                a sales group, so the field keeps its audience. -->
             <xpath expr="//group[@name='sale']" position="inside">
                 <field name="barcode" groups="point_of_sale.group_pos_user" />
             </xpath>

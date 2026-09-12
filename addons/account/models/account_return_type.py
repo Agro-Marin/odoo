@@ -174,7 +174,7 @@ class AccountReturnType(models.Model):
                 return_type.report_id.country_id
                 and return_type.report_id.country_id != return_type.country_id
             ):
-                raise ValueError(
+                raise ValidationError(
                     _("The return type country must be the same as the report country")
                 )
 

@@ -5,7 +5,11 @@
     "summary": "A physical thing as a resource: identity, lifecycle, meters, custody",
     "author": "AgroMarin",
     "license": "LGPL-3",
-    "depends": ["resource", "mail", "uom"],
+    "depends": [
+        "resource",
+        "mail",
+        "uom",
+    ],
     "data": [
         "security/resource_asset_security.xml",
         "security/ir.model.access.csv",

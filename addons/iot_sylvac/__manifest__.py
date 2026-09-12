@@ -8,7 +8,9 @@ and over Bluetooth.
 """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["iot"],
+    "depends": [
+        "iot",
+    ],
     "iot_handlers_in_image": True,
     "installable": True,
 }

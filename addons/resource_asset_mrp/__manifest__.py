@@ -5,7 +5,10 @@
     "summary": "A work centre runs on a machine: the two share one resource",
     "author": "AgroMarin",
     "license": "LGPL-3",
-    "depends": ["resource_asset", "mrp"],
+    "depends": [
+        "resource_asset",
+        "mrp",
+    ],
     "data": [
         "views/mrp_workcenter_views.xml",
     ],

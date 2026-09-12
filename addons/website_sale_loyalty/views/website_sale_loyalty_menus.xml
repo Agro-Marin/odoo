@@ -12,8 +12,8 @@
             action="loyalty.loyalty_program_discount_loyalty_action" />
         <menuitem
             id="menu_gift_ewallet_type_config"
-            sequence="20"
-            action="loyalty.loyalty_program_gift_ewallet_action" />
+            action="loyalty.loyalty_program_gift_ewallet_action"
+            sequence="20" />
     </menuitem>
 
 </odoo>

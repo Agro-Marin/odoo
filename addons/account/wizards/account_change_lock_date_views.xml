@@ -338,8 +338,8 @@
         <menuitem
             id="menu_action_change_lock_date"
             name="Lock Dates…"
-            action="action_view_account_change_lock_date"
             parent="account.menu_account_closing"
+            action="action_view_account_change_lock_date"
             sequence="70"
             groups="account.group_account_manager" />
     </data>

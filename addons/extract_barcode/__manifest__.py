@@ -49,6 +49,12 @@ about a far heavier engine.
     "author": "AgroMarin",
     "website": "https://agromarin.com",
     "license": "LGPL-3",
-    "depends": ["extract"],
-    "external_dependencies": {"python": ["zxing-cpp"]},
+    "depends": [
+        "extract",
+    ],
+    "external_dependencies": {
+        "python": [
+            "zxing-cpp",
+        ],
+    },
 }

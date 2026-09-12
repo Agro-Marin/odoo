@@ -262,7 +262,6 @@
                     <filter
                         name="invoice_date_group"
                         string="Invoice Date"
-                        domain="[]"
                         context="{'group_by': 'invoice_date'}" />
                 </search>
             </field>
@@ -326,33 +325,33 @@
                     <field name="company_id" column_invisible="True" />
 
                     <field name="sequence" widget="handle" column_invisible="True" />                    <field name="date" readonly="is_reconciled and amount != 0" options="{'warn_future': true}" />
-                    <field name="move_id" optional="hidden" required="0" />
+                    <field name="move_id" optional="hide" required="0" />
                     <field
                         name="payment_ref"
                         required="1"
                         readonly="is_reconciled and amount != 0" />
                     <field name="partner_id" readonly="is_reconciled and amount != 0" />
-                    <field name="account_number" optional="hidden" />
+                    <field name="account_number" optional="hide" />
                     <field
                         name="narration"
                         string="Notes"
                         readonly="is_reconciled and amount != 0"
-                        optional="hidden" />
+                        optional="hide" />
                     <field
                         name="ref"
                         readonly="is_reconciled and amount != 0"
-                        optional="hidden" />
-                    <field name="transaction_type" optional="hidden" />
+                        optional="hide" />
+                    <field name="transaction_type" optional="hide" />
                     <field
                         name="foreign_currency_id"
-                        optional="hidden"
+                        optional="hide"
                         groups="base.group_multi_currency"
                         domain="[('id', '!=', currency_id)]"
                         options="{'no_open': True, 'no_create': True}"
                         readonly="is_reconciled and amount != 0" />
                     <field
                         name="amount_currency"
-                        optional="hidden"
+                        optional="hide"
                         groups="base.group_multi_currency"
                         invisible="not foreign_currency_id"
                         readonly="is_reconciled and amount != 0" />
@@ -500,12 +499,12 @@
             model="ir.actions.act_window">
             <field name="name">Bank Matching</field>
             <field name="res_model">account.bank.statement.line</field>
+            <field name="path">reconciliation_list</field>
             <field name="view_mode">list,kanban</field>
+            <field name="view_id" ref="view_bank_statement_line_tree_bank_rec_widget" />
             <field
                 name="search_view_id"
                 ref="view_bank_statement_line_search_bank_rec_widget" />
-            <field name="view_id" ref="view_bank_statement_line_tree_bank_rec_widget" />
-            <field name="path">reconciliation_list</field>
             <field name="domain">[('state', '!=', 'cancel')]</field>
             <field
                 name="context">{'default_journal_id': active_id, 'search_default_journal_id': active_id}</field>
@@ -519,14 +518,14 @@
             model="ir.actions.act_window">
             <field name="name">Bank Matching</field>
             <field name="res_model">account.bank.statement.line</field>
+            <field name="path">reconciliation</field>
             <field name="view_mode">kanban,list</field>
-            <field
-                name="search_view_id"
-                ref="view_bank_statement_line_search_bank_rec_widget" />
             <field
                 name="view_id"
                 ref="view_bank_statement_line_kanban_bank_rec_widget" />
-            <field name="path">reconciliation</field>
+            <field
+                name="search_view_id"
+                ref="view_bank_statement_line_search_bank_rec_widget" />
             <field name="domain">[('state', '!=', 'cancel')]</field>
             <field
                 name="context">{'default_journal_id': active_id, 'search_default_journal_id': active_id}</field>
@@ -558,18 +557,18 @@
                     decoration-info="parent_state == 'draft'">
                     <field name="date" />
                     <field name="move_name" string="Journal Entry" optional="show" />
-                    <field name="account_id" optional="hidden" />
-                    <field name="journal_id" optional="hidden" />
+                    <field name="account_id" optional="hide" />
+                    <field name="journal_id" optional="hide" />
                     <field name="partner_id" optional="show" />
                     <field name="invoice_date" string="Invoice Date" optional="hide" />
                     <field name="name" optional="show" />
-                    <field name="date_maturity" optional="hidden" />
-                    <field name="ref" optional="hidden" />
+                    <field name="date_maturity" optional="hide" />
+                    <field name="ref" optional="hide" />
                     <field
                         name="analytic_distribution"
                         groups="analytic.group_analytic_accounting"
                         widget="analytic_distribution"
-                        optional="hidden"
+                        optional="hide"
                         options="{'account_field': 'account_id', 'business_domain': 'general'}" />
                     <field
                         name="amount_residual"
@@ -677,15 +676,15 @@
                 </list>
             </field>
         </record>
-        <record model="ir.actions.server" id="action_bank_statement_attachment">
+        <record id="action_bank_statement_attachment" model="ir.actions.server">
             <field name="name">Statement</field>
             <field name="model_id" ref="model_account_bank_statement" />
             <field name="binding_model_id" ref="model_account_bank_statement" />
-            <field name="binding_type">report</field>
             <field name="state">code</field>
             <field
                 name="code">if records:
     action = records.action_generate_attachment()</field>
+            <field name="binding_type">report</field>
         </record>
         <record
             id="model_account_statement_line_button_draft"

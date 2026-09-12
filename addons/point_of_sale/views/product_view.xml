@@ -136,8 +136,8 @@
     <menuitem
         id="pos_config_menu_catalog"
         name="Products"
-        sequence="20"
-        parent="point_of_sale.menu_point_root" />
+        parent="point_of_sale.menu_point_root"
+        sequence="20" />
 
     <menuitem
         id="menu_pos_products"

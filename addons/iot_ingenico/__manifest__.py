@@ -8,7 +8,9 @@ protocol. Install pos_iot_ingenico as well to pay with one from the Point of Sal
 """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["iot"],
+    "depends": [
+        "iot",
+    ],
     "iot_handlers_in_image": True,
     "installable": True,
 }

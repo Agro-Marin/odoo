@@ -8,7 +8,9 @@ reports the device; l10n_se_pos carries the fiscal rules.
 """,
     "author": "Odoo S.A.",
     "license": "LGPL-3",
-    "depends": ["iot"],
+    "depends": [
+        "iot",
+    ],
     "iot_handlers_in_image": True,
     "installable": True,
 }

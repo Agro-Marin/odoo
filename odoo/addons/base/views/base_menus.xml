@@ -30,10 +30,13 @@
             name="Technical"
             sequence="110"
             groups="base.group_no_one">
-            <menuitem id="menu_user_interface" name="User Interface" sequence="17"/>
+            <menuitem id="menu_user_interface" name="User Interface" sequence="17" />
             <menuitem id="menu_email" name="Email" sequence="1" />
-            <menuitem id="menu_database_structure" name="Database Structure" sequence="18"/>
-            <menuitem id="menu_automation" name="Automation" sequence="12"/>
+            <menuitem
+                id="menu_database_structure"
+                name="Database Structure"
+                sequence="18" />
+            <menuitem id="menu_automation" name="Automation" sequence="12" />
             <menuitem id="menu_security" name="Security" sequence="25" />
             <menuitem id="menu_ir_property" name="Parameters" sequence="24" />
         </menuitem>
@@ -91,8 +94,8 @@
     <menuitem
         id="menu_wizard_lang_export"
         parent="menu_translation_export"
-        sequence="20"
-        action="action_wizard_lang_export" />
+        action="action_wizard_lang_export"
+        sequence="20" />
 
     <menuitem
         id="menu_grant_menu_access"
@@ -136,62 +139,62 @@
     <menuitem
         id="menu_ir_action_report"
         parent="menu_actions"
-        sequence="20"
-        action="ir_action_report" />
+        action="ir_action_report"
+        sequence="20" />
 
     <menuitem
         id="menu_ir_action_window"
         parent="menu_actions"
-        sequence="30"
-        action="ir_action_window" />
+        action="ir_action_window"
+        sequence="30" />
 
     <menuitem
         id="menu_ir_client_actions_report"
         parent="menu_actions"
-        sequence="40"
-        action="ir_client_actions_report" />
+        action="ir_client_actions_report"
+        sequence="40" />
 
     <menuitem
         id="menu_server_action"
         parent="menu_actions"
-        sequence="50"
-        action="action_server_action" />
+        action="action_server_action"
+        sequence="50" />
 
     <menuitem
         id="menu_ir_embedded_action"
         parent="menu_actions"
-        sequence="60"
-        action="ir_embedded_action" />
+        action="ir_embedded_action"
+        sequence="60" />
 
     <menuitem
         id="menu_ir_actions_todo_form"
         parent="menu_actions"
-        sequence="70"
-        action="act_ir_actions_todo_form" />
+        action="act_ir_actions_todo_form"
+        sequence="70" />
 
     <menuitem
         id="menu_ir_default"
         parent="menu_actions"
-        sequence="80"
-        action="ir_default_menu_action" />
+        action="ir_default_menu_action"
+        sequence="80" />
 
     <menuitem
         id="menu_ir_model"
         parent="menu_database_structure"
-        sequence="47"
-        action="action_model_model" />
+        action="action_model_model"
+        sequence="47" />
 
     <menuitem
         id="menu_ir_model_fields"
         parent="menu_database_structure"
-        sequence="49"
-        action="action_model_fields" />
+        action="action_model_fields"
+        sequence="49" />
 
     <menuitem
         id="menu_ir_model_fields_selection"
         parent="menu_database_structure"
-        sequence="50"
-        action="action_model_fields_selection" />
+        action="action_model_fields_selection"
+        sequence="50" />
 
     <menuitem
         id="menu_ir_model_constraint"
@@ -210,15 +213,15 @@
     <menuitem
         id="menu_ir_logging"
         parent="menu_database_structure"
-        sequence="53"
-        action="ir_logging_all_act" />
+        action="ir_logging_all_act"
+        sequence="53" />
 
     <menuitem
         id="menu_ir_profile"
         name="Profiling"
         parent="menu_database_structure"
-        sequence="40"
-        action="action_menu_ir_profile" />
+        action="action_menu_ir_profile"
+        sequence="40" />
 
     <menuitem
         id="menu_decimal_precision_form"
@@ -228,14 +231,14 @@
     <menuitem
         id="menu_action_asset"
         parent="menu_database_structure"
-        sequence="20"
-        action="action_asset" />
+        action="action_asset"
+        sequence="20" />
 
     <menuitem
         id="menu_action_attachment"
         parent="menu_database_structure"
-        sequence="30"
-        action="action_attachment" />
+        action="action_attachment"
+        sequence="30" />
 
     <menuitem
         id="menu_sequences_identifiers"

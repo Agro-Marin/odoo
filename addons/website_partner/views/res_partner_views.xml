@@ -8,7 +8,9 @@
         <field name="priority" eval="17" />
         <field name="arch" type="xml">
             <data>
-                <xpath expr="//div[@name='anchor_buttons_publishing']" position="before">
+                <xpath
+                    expr="//div[@name='anchor_buttons_publishing']"
+                    position="before">
                     <field name="is_published" widget="website_redirect_button" />
                 </xpath>
             </data>

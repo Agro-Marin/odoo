@@ -939,9 +939,7 @@
                                     options="{'start_date_field': 'date_start'}"
                                     readonly="state in ['done', 'canceled']"
                                     decoration-danger="date_end and date_end &lt; current_date and state not in ['done', 'canceled']" />
-                                <field
-                                    name="date_start"
-                                    column_invisible="True" />
+                                <field name="date_start" column_invisible="True" />
                                 <field
                                     name="priority"
                                     widget="priority"
@@ -1057,9 +1055,7 @@
                                     widget="daterange"
                                     options="{'start_date_field': 'date_start'}"
                                     decoration-danger="date_end and date_end &lt; current_date" />
-                                <field
-                                    name="date_start"
-                                    column_invisible="True" />
+                                <field name="date_start" column_invisible="True" />
                                 <field
                                     name="priority"
                                     widget="priority"

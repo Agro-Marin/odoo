@@ -93,7 +93,7 @@ class AccountMoveLine(models.Model):
                 if getattr(line_field, "translate", False):
                     typecast = SQL("jsonb")
                 else:
-                    typecast = SQL(line_field.column_type[0])
+                    typecast = SQL(line_field.column_type[0])  # noqa: E8501  a field class's declared column type, not input
 
                 fields_to_insert.append(
                     SQL(

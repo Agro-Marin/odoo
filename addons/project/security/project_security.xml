@@ -239,9 +239,7 @@
             <field name="name">Project/project.collaborator: manager full access</field>
             <field name="model_id" ref="project.model_project_collaborator" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field
-                name="groups"
-                eval="[(4,ref('project.group_project_manager'))]" />
+            <field name="groups" eval="[(4,ref('project.group_project_manager'))]" />
         </record>
         <record id="project_task_rule_portal" model="ir.rule">
             <field

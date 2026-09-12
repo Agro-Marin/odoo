@@ -232,15 +232,25 @@ class IrActionsAct_Window(models.Model):
         ``No default view of type '<type>' could be found!`` the next time the
         action opens.
         """
-        for model, view_type in candidates:
-            if self.env["ir.ui.view"].search_count(
-                [("model", "=", model), ("type", "=", view_type)], limit=1
-            ):
-                continue
-            actions = self.search(
-                [("res_model", "=", model), ("view_mode", "like", view_type)]
+        if not candidates:
+            return
+        covered = set(
+            self.env["ir.ui.view"]._read_group(
+                [
+                    ("model", "in", [model for model, _type in candidates]),
+                    ("type", "in", [view_type for _model, view_type in candidates]),
+                ],
+                groupby=["model", "type"],
             )
-            for action in actions:
+        )
+        missing = candidates - covered
+        if not missing:
+            return
+        actions_by_model = self.search(
+            [("res_model", "in", [model for model, _type in missing])]
+        ).grouped("res_model")
+        for model, view_type in missing:
+            for action in actions_by_model.get(model, self.browse()):
                 modes = action.view_mode.split(",")
                 if view_type not in modes:
                     continue

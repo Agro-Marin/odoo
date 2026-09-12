@@ -67,6 +67,13 @@ that previously needed a vision model can now be read by any model at all.
     "author": "AgroMarin",
     "website": "https://agromarin.com",
     "license": "LGPL-3",
-    "depends": ["extract"],
-    "external_dependencies": {"python": ["rapidocr", "onnxruntime"]},
+    "depends": [
+        "extract",
+    ],
+    "external_dependencies": {
+        "python": [
+            "rapidocr",
+            "onnxruntime",
+        ],
+    },
 }

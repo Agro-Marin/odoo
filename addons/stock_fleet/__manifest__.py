@@ -1,7 +1,7 @@
 {
     "name": "Stock Transport",
-    "category": "Supply Chain/Inventory",
     "version": "1.0",
+    "category": "Supply Chain/Inventory",
     "summary": "Stock Transport: Dispatch Management System",
     "description": "Transport Management: organize packs in your fleet, or carriers.",
     "author": "Odoo S.A.",

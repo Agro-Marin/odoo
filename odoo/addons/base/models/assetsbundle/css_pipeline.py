@@ -352,7 +352,7 @@ class CssPipeline:
             return ""
         assets_by_id = {asset.id: asset for asset in self._bundle.stylesheets}
         for index in range(line_no - 1, -1, -1):
-            if match := self.rx_css_split.search(lines[index]):
+            if match := self.rx_css_split.search(lines[index]):  # noqa: E8507  a regex, not the ORM
                 asset = assets_by_id.get(match.group(1))
                 url = (asset.url or "<inline sass>") if asset else "<unknown asset>"
                 return (

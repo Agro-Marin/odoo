@@ -371,18 +371,18 @@
                                 widget="statinfo" />
                         </button>
                         <!-- Stat-button slots, in the order the buttons are
-                             meant to read: what the contact buys and sells
-                             first, then what it owes, then what is being done
-                             for it, then who it knows. Add a button with
-                             position="before" on the slot for its subject.
-                             Later modules then stack after earlier ones inside
-                             the same slot, so the order is declared here and
-                             not decided by module load order.
+                            meant to read: what the contact buys and sells
+                            first, then what it owes, then what is being done
+                            for it, then who it knows. Add a button with
+                            position="before" on the slot for its subject.
+                            Later modules then stack after earlier ones inside
+                            the same slot, so the order is declared here and
+                            not decided by module load order.
 
-                             Slots are invisible: the form compiler drops a
-                             button-box child whose invisible modifier is
-                             static, so a slot renders nothing. Never insert
-                             "inside" one. -->
+                            Slots are invisible: the form compiler drops a
+                            button-box child whose invisible modifier is
+                            static, so a slot renders nothing. Never insert
+                            "inside" one. -->
                         <div name="anchor_buttons_sales" invisible="1" />
                         <div name="anchor_buttons_pos" invisible="1" />
                         <div name="anchor_buttons_purchase" invisible="1" />
@@ -467,15 +467,15 @@
                                         class="w-100" />
                                 </div>
                                 <!-- Extra contact rows (messaging handles,
-                                     alternate channels) go before this slot. -->
+                                    alternate channels) go before this slot. -->
                                 <div name="anchor_contact_rows" invisible="1" />
                             </div>
                         </div>
                     </div>
                     <!-- Row of partner-role flags (customer, supplier,
-                         manufacturer, ...). One <span> per flag, added
-                         position="inside"; the field belongs to the module that
-                         defines the role. -->
+                        manufacturer, ...). One <span> per flag, added
+                        position="inside"; the field belongs to the module that
+                        defines the role. -->
                     <div name="options" />
                     <group name="main">
                         <group name="left_col">
@@ -789,22 +789,22 @@
                             </group>
                         </page>
                         <!-- Page slots. A module adds its page with
-                             position="before" on the slot that matches its
-                             subject, never position="inside" a slot and never
-                             on //notebook, which appends in module load order
-                             and is why this notebook used to end on a random
-                             page. Slots are invisible, so the form compiler
-                             drops them and they render nothing.
+                            position="before" on the slot that matches its
+                            subject, never position="inside" a slot and never
+                            on //notebook, which appends in module load order
+                            and is why this notebook used to end on a random
+                            page. Slots are invisible, so the form compiler
+                            drops them and they render nothing.
 
-                             commercial   sales, purchase, point of sale, loyalty
-                             financial    invoicing, credit, payment, banking
-                             compliance   tax, EDI, localisation
-                             operations   logistics, agronomy, geolocation
-                             intelligence scoring, relationships, network
-                             governance   approvals, branding, documents
-                             personal     private and HR information
+                            commercial   sales, purchase, point of sale, loyalty
+                            financial    invoicing, credit, payment, banking
+                            compliance   tax, EDI, localisation
+                            operations   logistics, agronomy, geolocation
+                            intelligence scoring, relationships, network
+                            governance   approvals, branding, documents
+                            personal     private and HR information
 
-                             Contacts stays first and Notes stays last. -->
+                            Contacts stays first and Notes stays last. -->
                         <page name="anchor_commercial" invisible="1" />
                         <page name="anchor_financial" invisible="1" />
                         <page
