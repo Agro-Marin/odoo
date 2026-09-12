@@ -9,7 +9,11 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
+
+const log = makeLogger("web.components.notebook");
 
 export class Notebook extends Component {
     static template = "web.Notebook";
@@ -44,8 +48,11 @@ export class Notebook extends Component {
     disabledPages;
     /** @type {boolean | undefined} */
     defaultVisible;
+    /** @type {KeepLast} */
+    keepLastPageTransition;
 
     setup() {
+        useLifecycleLog(log);
         /** @type {import("@odoo/owl").Ref<HTMLElement>} */
         this.activePane = useRef("activePane");
         this.readPages(this.props);
@@ -106,15 +113,14 @@ export class Notebook extends Component {
         const prom = (async () => this.props.onWillActivatePage(pageId))();
         let canProceed;
         try {
-            canProceed = await /** @type {KeepLast} */ (
-                this.keepLastPageTransition
-            ).add(prom);
+            canProceed = await this.keepLastPageTransition.add(prom);
         } catch (error) {
             if (error instanceof SupersededError) {
                 return;
             }
             throw error;
         }
+        log.logic("activatePage", () => ({ pageId, canProceed }));
         if (canProceed !== false) {
             this.state.currentPage = pageId;
         }
