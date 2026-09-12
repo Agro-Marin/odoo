@@ -4,6 +4,7 @@ import { after, defineTags, describe, expect, test } from "@odoo/hoot";
 
 import { Runner } from "../../core/runner.js";
 import { Suite } from "../../core/suite.js";
+import { Test } from "../../core/test.js";
 import { undefineTags } from "../../core/tag.js";
 import { parseUrl } from "../local_helpers.js";
 
@@ -213,6 +214,30 @@ describe(parseUrl(import.meta.url), () => {
             await runner._raceHookTimeout("after-test", { name: "t" }, async () => {}),
         ).toBe(null);
     });
+    test("a test that outlives its timeout fails the run, not only the log", async () => {
+        const runner = new Runner({ headless: true, timeout: 20 });
+        after(() => undefineTags(runner.tags.keys()));
+        runner.describe("stuck suite", () => {
+            runner.test("hangs", async () => {
+                runner.expect(1).toBe(1);
+                await neverSettles();
+            });
+        });
+        const errors = [];
+        runner._handleError = (error) => errors.push(String(error));
+        // the nested run's own verdict lines would read as this page's
+        runner.stop = async () => false;
+
+        await runner.start();
+
+        const [stuck] = [...runner.tests.values()];
+        expect(stuck.status).toBe(Test.FAILED);
+        expect(runner.reporting.failed).toBe(1);
+        expect(runner.reporting.passed).toBe(0);
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toInclude("timed out after 20 milliseconds");
+    });
+
     test("what the orphaned hooks throw after the timeout is dropped", async () => {
         const runner = makeTestRunner();
         runner.config.hookTimeout = 10;

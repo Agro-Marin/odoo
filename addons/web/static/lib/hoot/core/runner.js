@@ -904,6 +904,7 @@ export class Runner {
             }
 
             let timeoutId = 0;
+            let timedOut = false;
 
             const testPromise = beforeTestError
                 ? Promise.resolve()
@@ -914,6 +915,7 @@ export class Runner {
 
                 if (timeout && !this.debug) {
                     timeoutId = nativeSetTimeout(() => {
+                        timedOut = true;
                         const msg = `test ${stringify(
                             test.name,
                         )} timed out after ${timeout} milliseconds`;
@@ -927,6 +929,9 @@ export class Runner {
 
             await Promise.race([testPromise, timeoutPromise])
                 .catch((error) => {
+                    if (timedOut) {
+                        this.expectHooks.timeout(timeout);
+                    }
                     if (handleError) {
                         return handleError(error);
                     } else {
