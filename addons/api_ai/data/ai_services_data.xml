@@ -8,7 +8,7 @@
         <field
             name="description">Claude is Anthropic's AI assistant with advanced reasoning capabilities.
 
-Models: see ClaudeClient.VALID_MODELS and the provider's default_model. This
+Models: see ClaudeClient.VALID_MODELS and the provider's default_model_id. This
 field deliberately does not list them. It carried a "Latest Models (October
 2025)" block naming Sonnet 4.5, Haiku 4.5 and Opus 4.1 long after those stopped
 being latest, because a description loaded noupdate="1" is written once and read
@@ -16,9 +16,9 @@ for years while the model line moves every few months. A fourth copy of the
 model list, and the one nothing could correct.
 
 Features:
-- 1M token context window (with beta header: anthropic-beta: context-1m-2025-08-07)
+- 1M token context window on current models
 - Vision capabilities (images, PDFs, base64, URLs)
-- Extended thinking mode for complex reasoning
+- Adaptive thinking for complex reasoning
 - Tool use for structured outputs and function calling
 - Guaranteed valid JSON via tool use (structured_output method)
 - JSON parsed from a text answer (json_completion method)
@@ -34,7 +34,7 @@ Use Cases:
 - Multi-turn conversations with vision
 - Data extraction with structured_output (production)
 - Simple JSON with json_completion (quick tasks)
-- Complex reasoning with extended thinking
+- Complex reasoning with adaptive thinking
 
 ClaudeClient Methods (Phase 1 - Quick Wins):
 - create_message() - Full API control with vision, thinking, tools
@@ -96,14 +96,13 @@ Real-World Use Cases:
         <field
             name="description">DeepSeek provides powerful AI models for various tasks.
 
-Models: see DeepSeekClient.VALID_MODELS and the provider's default_model. This
-field deliberately does not list them by name, after service_anthropic's
-description carried a hardcoded model list that aged badly in a noupdate="1"
-record. DeepSeek has no vision-capable model or OCR support in this client.
+Models: see the provider's ai.model rows and default_model_id. This field
+deliberately does not list them by name, after service_anthropic's description
+carried a hardcoded model list that aged badly in a noupdate="1" record.
+DeepSeek has no vision-capable model or OCR support in this client.
 
 Features:
-- DeepSeek Sparse Attention (DSA) for efficiency
-- Built-in reasoning capabilities (not exposed as separate field)
+- Thinking mode, switched per request (off for chat, on for reasoning_completion)
 - Enhanced agent capabilities
 - OpenAI-compatible API format
 - Function calling / tool use support
@@ -120,10 +119,8 @@ DeepSeekClient Methods:
 - structured_output() - Guaranteed JSON with schema validation via function calling
 - json_completion() - JSON parsed from a text answer
 - get_usage() - Token usage tracking
-- reasoning_completion() - Complex reasoning on deepseek-reasoner
+- reasoning_completion() - Complex reasoning with thinking mode on
 - tool_conversation() - Multi-turn agentic workflows with function calling
-
-Note: DeepSeek has built-in reasoning but does NOT expose separate reasoning fields in API responses.
 
 Use Cases:
 - Code generation and analysis
@@ -137,15 +134,13 @@ Use Cases:
 
 When to Use DeepSeek vs Claude:
 - Use DeepSeek for: Math, coding, bulk operations
-- Use Claude for: Vision/OCR, native PDF processing, extremely complex reasoning, long context (&gt;128K), prompt caching
-- Use Both: DeepSeek for general tasks, Claude for advanced features requiring vision/caching/PDFs
+- Use Claude for: Vision/OCR, native PDF processing, extremely complex reasoning
+- Use Both: DeepSeek for general tasks, Claude for advanced features requiring vision/PDFs
 
 Limitations:
 - No vision or OCR capability
 - No native PDF processing
-- No prompt caching feature
-- No batch API
-- Reasoning is internal only (no separate reasoning field in responses)</field>
+- No batch API</field>
         <field name="provider">DeepSeek</field>
         <field name="website">https://www.deepseek.com</field>
         <field name="documentation_url">https://platform.deepseek.com/api-docs/</field>
@@ -173,25 +168,18 @@ Limitations:
         <field
             name="description">OpenAI's GPT models for various AI tasks.
 
-Latest Models (October 2025):
-- GPT-4.1 family (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano) - Released April 2025
-- o4-mini - Fast reasoning model
-- GPT-5 - Released August 2025
-- GPT-4o - Still available, reliable choice
+Models: see the provider's ai.model rows and default_model_id. This field
+deliberately does not list them by name: it carried a "Latest Models (October
+2025)" block, the same noupdate="1" trap service_anthropic's describes.
 
 Features:
-- GPT-4.1 outperforms GPT-4o across all benchmarks
-- Major improvements in coding and instruction following
-- DALL-E for image generation
-- Whisper for speech-to-text
-- TTS for text-to-speech
+- Image generation
+- Speech-to-text
+- Text-to-speech
 - Embeddings and fine-tuning
 - Function calling
 
-Model Recommendations:
-- Use GPT-4.1 for best quality
-- Use gpt-4.1-mini for balanced cost/performance
-- Use o4-mini for reasoning tasks
+For current pricing information, visit: https://openai.com/api/pricing/
 
 Use Cases:
 - Conversational AI
@@ -226,32 +214,22 @@ Use Cases:
         <field name="code">gemini</field>
         <field name="category">ai</field>
         <field
-            name="description">Google's most capable AI model with multimodal capabilities.
+            name="description">Google's AI models with multimodal capabilities.
 
-Latest Models (October 2025):
-- Gemini 2.5 Flash (gemini-2.5-flash-preview-09-2025) - Updated Oct 15, 2025
-- Gemini 2.5 Flash-Lite - Most cost-efficient and fastest
-- Gemini 2.5 Pro - Most capable for complex tasks
+Models: see the provider's ai.model rows and default_model_id. This field
+deliberately does not list them by name: it carried a "Latest Models (October
+2025)" block, the same noupdate="1" trap service_anthropic's describes.
 
 Features:
-- 2 million token context window (largest available)
+- 1M token context window
 - Native multimodal (text, images, audio, video)
-- Improved agentic tool use (+5% on SWE-Bench)
-- More cost-efficient thinking mode
-- Use -latest alias for automatic updates
+- Thinking with adjustable reasoning effort
 - Free tier available
 
-Improvements (Oct 2025):
-- Better tool use for complex agentic applications
-- Optimized token usage with thinking enabled
-- Lower latency
-- Enhanced multi-step reasoning
-
-FREE tier available with generous quotas.
 For current pricing information, visit: https://ai.google.dev/pricing
 
 Use Cases:
-- Long document analysis (2M tokens!)
+- Long document analysis
 - Multimodal applications (images, video, audio)
 - Complex agentic workflows
 - Real-time streaming

@@ -223,6 +223,27 @@ class TestFallbackChain(_SelectionCase):
         self.assertEqual((attempted, result), (["fb-see", "fb-vision"], "seen"))
 
     @mute_logger("odoo.addons.api_ai.tools.ai_orchestrator")
+    def test_an_untimed_hop_is_not_tried_for_a_timed_model(self):
+        provider = self._provider("fb_timed")
+        timed = self._model(provider, "fb-timed", kind="audio", has_timestamps=True)
+        untimed = self._model(provider, "fb-untimed", kind="audio")
+        also_timed = self._model(
+            provider, "fb-also-timed", kind="audio", has_timestamps=True
+        )
+        attempted = []
+
+        def fail(client, ai_model):
+            attempted.append(ai_model.code)
+            raise ServerError("503")
+
+        with patch.object(AIOrchestrator, "_get_client", return_value=object()):
+            with self.assertRaises(CommError):
+                self.orch.execute_with_fallback(
+                    timed, fail, fallback_chain=[untimed, also_timed]
+                )
+        self.assertEqual(attempted, ["fb-timed", "fb-also-timed"])
+
+    @mute_logger("odoo.addons.api_ai.tools.ai_orchestrator")
     def test_a_non_retryable_failure_keeps_its_type(self):
         def fail(ai_model):
             raise AuthenticationError("401")
@@ -253,6 +274,14 @@ class TestModelIntegrity(_SelectionCase):
     def test_a_vision_model_must_read_images(self):
         with self.assertRaises(ValidationError):
             self._model(self._provider("int_blind"), "int-blind", kind="vision")
+
+    def test_a_timed_model_cannot_fall_back_to_an_untimed_one(self):
+        provider = self._provider("int_timed")
+        timed = self._model(provider, "int-timed", kind="audio", has_timestamps=True)
+        untimed = self._model(provider, "int-untimed", kind="audio")
+        with self.assertRaisesRegex(ValidationError, "returns no timestamps"):
+            timed.fallback_model_ids = untimed
+        untimed.fallback_model_ids = timed
 
     def test_a_model_cannot_fall_back_to_itself(self):
         model = self._model(self._provider("int_self"), "int-self-m")

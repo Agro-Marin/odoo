@@ -9,6 +9,7 @@ from odoo.addons.api_ai.tools.ai_orchestrator import get_ai_orchestrator
 _logger = logging.getLogger(__name__)
 
 TRANSCRIPTION_KIND = "audio"
+TRANSCRIPTION_CAPABILITIES = {"has_timestamps": True}
 SYNTHESIS_KIND = "speech"
 
 
@@ -17,9 +18,13 @@ def pick_model(
     kind: str,
     optimize_for: str = "balanced",
     provider_code: str | Iterable[str] | None = None,
+    required_capabilities: dict | None = None,
 ) -> Any:
     model = get_ai_orchestrator(env).select_model(
-        kind=kind, optimize_for=optimize_for, provider_code=provider_code
+        kind=kind,
+        optimize_for=optimize_for,
+        provider_code=provider_code,
+        required_capabilities=required_capabilities,
     )
     if not model:
         _logger.info(

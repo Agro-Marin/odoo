@@ -4,7 +4,7 @@ from .openai_compatible import OpenAICompatibleClient
 class GroqClient(OpenAICompatibleClient):
     ENDPOINT_CODE = "groq"
 
-    MAX_TOKENS_LIMIT = 32768
+    MAX_TOKENS_LIMIT = 65536
 
 
 class MoonshotClient(OpenAICompatibleClient):
@@ -12,7 +12,7 @@ class MoonshotClient(OpenAICompatibleClient):
 
     MIN_TEMPERATURE = 1.0
     MAX_TEMPERATURE = 1.0
-    MAX_TOKENS_LIMIT = 32768
+    MAX_TOKENS_LIMIT = 1048576
 
 
 def get_groq_client(env, company_id=None):

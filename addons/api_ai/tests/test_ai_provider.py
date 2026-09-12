@@ -171,7 +171,7 @@ class TestSeededDefaultsMatchTheCatalog(TransactionCase):
         client.env = self.env
         client.ENDPOINT_CODE = "openai"
         client._default_model = ""
-        self.assertEqual(client._resolve_model(), "gpt-4o-mini")
+        self.assertEqual(client._resolve_model(), "gpt-5.6-luna")
 
     def test_a_client_on_a_wire_the_catalog_does_not_describe_keeps_its_own(self):
         from odoo.addons.api_ai.tools.ai_clients import DeepgramClient

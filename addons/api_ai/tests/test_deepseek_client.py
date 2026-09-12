@@ -118,7 +118,7 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
                 "completion_tokens": 2000,
                 "total_tokens": 3000,
             },
-            "model": "deepseek-chat",
+            "model": "deepseek-flash",
         }
 
         usage = client.get_usage(response)
@@ -126,7 +126,7 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
         self.assertEqual(usage["prompt_tokens"], 1000)
         self.assertEqual(usage["completion_tokens"], 2000)
         self.assertEqual(usage["total_tokens"], 3000)
-        self.assertEqual(usage["model"], "deepseek-chat")
+        self.assertEqual(usage["model"], "deepseek-flash")
         self.assertNotIn("estimated_cost_usd", usage)
 
     def test_get_usage_empty_response(self):

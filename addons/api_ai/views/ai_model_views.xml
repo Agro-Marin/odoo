@@ -50,6 +50,7 @@
                             <group>
                                 <group string="Features">
                                     <field name="has_vision" />
+                                    <field name="has_timestamps" />
                                     <field name="supports_streaming" />
                                     <field name="supports_function_calling" />
                                 </group>

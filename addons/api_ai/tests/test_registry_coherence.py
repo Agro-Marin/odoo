@@ -1,7 +1,10 @@
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.api_ai.tools.ai_clients import AI_CLIENT_REGISTRY
-from odoo.addons.api_ai.tools.vendor_catalog import PROVIDERS
+from odoo.addons.api_ai.tools.vendor_catalog import (
+    PROVIDERS,
+    UNTIMED_TRANSCRIPTION_MODELS,
+)
 
 CATALOG_EXEMPT = {"deepgram"}
 
@@ -131,6 +134,27 @@ class TestRegistryCoherence(TransactionCase):
                         f"claiming otherwise is the bit the provider row used to "
                         f"get wrong",
                     )
+
+    def test_every_catalog_transcription_model_has_a_row_that_says_if_it_is_timed(
+        self,
+    ):
+        for provider in self.providers:
+            spec = PROVIDERS.get(provider.code) or {}
+            rows = {model.code: model for model in provider.model_ids}
+            for key in ("audio_model", "cues_model"):
+                code = spec.get(key)
+                if not code or spec.get("audio") != "whisper":
+                    continue
+                with self.subTest(provider=provider.code, key=key):
+                    self.assertIn(code, rows, f"no ai.model row describes {code!r}")
+                    self.assertEqual(
+                        rows[code].has_timestamps,
+                        code not in UNTIMED_TRANSCRIPTION_MODELS,
+                        "the wire and the row disagree on whether it times its words",
+                    )
+            if spec.get("cues_model"):
+                with self.subTest(provider=provider.code, key="cues_model timed"):
+                    self.assertNotIn(spec["cues_model"], UNTIMED_TRANSCRIPTION_MODELS)
 
     def test_has_audio_means_the_orchestrators_client_can_transcribe(self):
         for provider in self.providers.filtered("has_audio"):

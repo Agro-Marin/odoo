@@ -12,6 +12,23 @@ def _load(version):
     return module
 
 
+def _seeded_row(env, provider_code, xmlid, code, **vals):
+    provider = env["ai.provider"].search([("code", "=", provider_code)])
+    row = env["ai.model"].create(
+        {"provider_id": provider.id, "name": code, "code": code, **vals}
+    )
+    env["ir.model.data"].create(
+        {
+            "module": "api_ai",
+            "name": xmlid,
+            "model": "ai.model",
+            "res_id": row.id,
+            "noupdate": True,
+        }
+    )
+    return row
+
+
 @tagged("post_install", "-at_install")
 class TestSeedPriceCorrection(TransactionCase):
     SEEDED = {
@@ -23,7 +40,9 @@ class TestSeedPriceCorrection(TransactionCase):
     def setUp(self):
         super().setUp()
         self.migration = _load("1.17.0")
-        self.mini = self.env.ref("api_ai.ai_model_openai_gpt_4o_mini")
+        self.mini = _seeded_row(
+            self.env, "openai", "ai_model_openai_gpt_4o_mini", "gpt-4o-mini"
+        )
 
     def _migrate(self, version="19.0.1.16.0"):
         self.env.flush_all()
@@ -178,4 +197,161 @@ class TestProviderChainsCarried(TransactionCase):
         self.env.invalidate_all()
         self.assertEqual(
             claude.default_model_id.fallback_model_ids, openai.default_model_id
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestShutDownSeedsReplaced(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.deepseek = self.env["ai.provider"].search([("code", "=", "deepseek")])
+        self.flash = self.env.ref("api_ai.ai_model_deepseek_flash")
+        self.chat = _seeded_row(
+            self.env, "deepseek", "ai_model_deepseek_chat", "deepseek-chat"
+        )
+        self.claude = self.env.ref("api_ai.ai_model_claude_sonnet_5")
+
+    def _migrate(self):
+        self.env.flush_all()
+        _load("1.19.0").migrate(self.env.cr, "19.0.1.18.0")
+        self.env.invalidate_all()
+
+    def test_a_provider_on_the_dead_id_moves_and_the_row_is_archived(self):
+        self.deepseek.default_model_id = self.chat
+        self._migrate()
+        self.assertEqual(self.deepseek.default_model_id, self.flash)
+        self.assertFalse(self.chat.active)
+
+    def _hops(self, model):
+        self.env.cr.execute(
+            "SELECT fallback_id FROM ai_model_fallback WHERE model_id = %s "
+            "ORDER BY sequence, id",
+            (model.id,),
+        )
+        return [row[0] for row in self.env.cr.fetchall()]
+
+    def test_hops_to_and_from_the_dead_id_follow_its_replacement(self):
+        self.claude.fallback_model_ids = self.chat
+        self.chat.fallback_model_ids = self.claude
+        self._migrate()
+        self.assertEqual(self._hops(self.claude), [self.flash.id])
+        self.assertEqual(self._hops(self.flash), [self.claude.id])
+        self.assertEqual(self._hops(self.chat), [])
+
+    def test_a_hop_the_replacement_already_has_is_not_duplicated(self):
+        self.claude.fallback_model_ids = self.chat | self.flash
+        self._migrate()
+        self.assertEqual(
+            self._hops(self.claude),
+            [self.flash.id],
+            "the hop to the archived row would otherwise stay behind, hidden by "
+            "fallback_model_ids and never run",
+        )
+
+    def test_an_administrators_default_is_kept(self):
+        chosen = self.env["ai.model"].create(
+            {"provider_id": self.deepseek.id, "name": "Pro", "code": "deepseek-v4-pro"}
+        )
+        self.deepseek.default_model_id = chosen
+        self._migrate()
+        self.assertEqual(self.deepseek.default_model_id, chosen)
+
+    def test_a_vision_model_with_no_successor_is_archived_unless_default(self):
+        groq = self.env["ai.provider"].search([("code", "=", "groq")])
+        scout = _seeded_row(
+            self.env,
+            "groq",
+            "ai_model_groq_llama_4_scout",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
+            kind="vision",
+            has_vision=True,
+        )
+        self.assertTrue(groq.has_vision)
+        self._migrate()
+        self.assertFalse(scout.active)
+        self.assertFalse(groq.has_vision)
+
+    def test_a_fresh_install_is_not_migrated(self):
+        self.deepseek.default_model_id = self.chat
+        _load("1.19.0").migrate(self.env.cr, None)
+        self.assertEqual(self.deepseek.default_model_id, self.chat)
+
+
+@tagged("post_install", "-at_install")
+class TestSeedLimitsCorrected(TransactionCase):
+    SEEDED = {
+        "max_context_window": 131072,
+        "max_output_tokens": 32768,
+        "cost_per_1m_input": 0,
+        "cost_per_1m_output": 0,
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.kimi = self.env.ref("api_ai.ai_model_moonshot_kimi_k3")
+
+    def _migrate(self):
+        self.env.flush_all()
+        _load("1.19.0").migrate(self.env.cr, "19.0.1.18.0")
+        self.env.invalidate_all()
+
+    def test_a_row_still_carrying_the_seed_is_corrected(self):
+        self.kimi.write(self.SEEDED)
+        self._migrate()
+        self.assertEqual(
+            (
+                self.kimi.max_context_window,
+                self.kimi.max_output_tokens,
+                self.kimi.cost_per_1m_input,
+                self.kimi.cost_per_1m_output,
+            ),
+            (1048576, 1048576, 3.00, 15.00),
+        )
+
+    def test_a_row_an_administrator_priced_is_left_alone(self):
+        self.kimi.write({**self.SEEDED, "cost_per_1m_input": 2.00})
+        self._migrate()
+        self.assertEqual(
+            (self.kimi.max_context_window, self.kimi.cost_per_1m_input),
+            (131072, 2.00),
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestAdministratorsRowAdopted(TransactionCase):
+    def test_a_row_the_administrator_added_takes_the_seeds_external_id(self):
+        flash = self.env.ref("api_ai.ai_model_deepseek_flash")
+        self.env["ir.model.data"].search(
+            [("module", "=", "api_ai"), ("name", "=", "ai_model_deepseek_flash")]
+        ).unlink()
+        self.env.flush_all()
+        pre = Path(__file__).parent.parent / "migrations" / "1.19.0" / "pre-migrate.py"
+        spec = importlib.util.spec_from_file_location("api_ai_1_19_0_pre", pre)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.migrate(self.env.cr, "19.0.1.18.0")
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.env.ref("api_ai.ai_model_deepseek_flash", raise_if_not_found=False),
+            flash,
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestTimestampColumnSeeded(TransactionCase):
+    def test_audio_models_already_read_with_timing_are_marked_timed(self):
+        whisper = self.env.ref("api_ai.ai_model_openai_whisper_1")
+        transcribe = self.env.ref("api_ai.ai_model_openai_gpt_transcribe")
+        claude = self.env.ref("api_ai.ai_model_claude_sonnet_5")
+        self.env.flush_all()
+        self.env.cr.execute("ALTER TABLE ai_model DROP COLUMN has_timestamps")
+        pre = Path(__file__).parent.parent / "migrations" / "1.19.0" / "pre-migrate.py"
+        spec = importlib.util.spec_from_file_location("api_ai_1_19_0_cols", pre)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.migrate(self.env.cr, "19.0.1.18.0")
+        self.env.invalidate_all()
+        self.assertEqual(
+            (whisper.has_timestamps, transcribe.has_timestamps, claude.has_timestamps),
+            (True, False, False),
         )

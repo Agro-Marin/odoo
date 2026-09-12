@@ -41,6 +41,15 @@ class AIModelFallback(models.Model):
                         model=hop.model_id.display_name,
                     )
                 )
+            if hop.model_id.has_timestamps and not hop.fallback_id.has_timestamps:
+                raise ValidationError(
+                    self.env._(
+                        "%(fallback)s cannot answer for %(model)s: it returns no "
+                        "timestamps, and a caller of %(model)s may need them.",
+                        fallback=hop.fallback_id.display_name,
+                        model=hop.model_id.display_name,
+                    )
+                )
             if not hop.fallback_id._can_stand_in_for(hop.model_id):
                 raise ValidationError(
                     self.env._(

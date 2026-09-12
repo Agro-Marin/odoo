@@ -41,6 +41,11 @@ class AIModel(models.Model):
         default=False,
         help="Can read images sent alongside the prompt",
     )
+    has_timestamps = fields.Boolean(
+        default=False,
+        help="Says when each passage of a recording was spoken, which subtitles "
+        "and a player need; a transcription model without it returns text alone",
+    )
     supports_streaming = fields.Boolean(
         default=True,
         help="Supports streaming responses",
@@ -160,6 +165,8 @@ class AIModel(models.Model):
 
     def _can_stand_in_for(self, other) -> bool:
         self.check_singleton()
+        if other.has_timestamps and not self.has_timestamps:
+            return False
         return self.kind == other.kind or {self.kind, other.kind} <= set(
             self._INTERCHANGEABLE_KINDS
         )

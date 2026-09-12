@@ -23,6 +23,16 @@ class TestWhisperFormAndReader(TransactionCase):
         self.assertEqual(form["language"], "es")
         self.assertNotIn("prompt", form, "an absent hint must not be sent empty")
 
+    def test_gpt_transcribe_is_asked_for_json_and_a_language_list(self):
+        form = get_whisper_form("gpt-transcribe", language="es")
+        self.assertEqual(form["response_format"], "json")
+        self.assertEqual(form["languages[]"], "es")
+        self.assertNotIn("language", form)
+
+    def test_gpt_transcribe_cannot_be_asked_for_segments(self):
+        with self.assertRaises(ValueError):
+            get_whisper_form("gpt-transcribe", response_format="verbose_json")
+
     def test_the_form_carries_a_vocabulary_hint(self):
         self.assertEqual(
             get_whisper_form("whisper-1", prompt="tarima, romana")["prompt"],
@@ -32,7 +42,7 @@ class TestWhisperFormAndReader(TransactionCase):
     def test_the_reader_names_why_a_response_is_unusable(self):
         for payload, expected in (
             (None, "no response"),
-            ({"text": "hi"}, "expected text"),
+            ({"segments": []}, "expected text"),
             ("   ", "empty transcript"),
         ):
             with self.subTest(payload=payload):
@@ -41,9 +51,11 @@ class TestWhisperFormAndReader(TransactionCase):
                 self.assertIn(expected, problem)
 
     def test_the_reader_strips_and_returns(self):
-        text, problem = read_whisper_transcript("  hola mundo \n")
-        self.assertEqual(text, "hola mundo")
-        self.assertIsNone(problem)
+        for payload in ("  hola mundo \n", {"text": "  hola mundo \n"}):
+            with self.subTest(payload=payload):
+                text, problem = read_whisper_transcript(payload)
+                self.assertEqual(text, "hola mundo")
+                self.assertIsNone(problem)
 
 
 @tagged("post_install", "-at_install")
@@ -63,7 +75,7 @@ class TestOpenAICompatibleTranscribe(EncryptionKeyCase, TransactionCase):
         def fake_post(path, **kwargs):
             sent["path"] = path
             sent.update(kwargs)
-            return {"status_code": 200, "body": "hola mundo"}
+            return {"status_code": 200, "body": {"text": "hola mundo"}}
 
         with patch.object(client._client, "post", side_effect=fake_post):
             result = client.transcribe(b"AUDIO", "note.ogg", language="es")
@@ -71,8 +83,10 @@ class TestOpenAICompatibleTranscribe(EncryptionKeyCase, TransactionCase):
         spec = PROVIDERS["openai"]
         self.assertEqual(result, "hola mundo")
         self.assertEqual(sent["path"], spec["audio_path"])
+        self.assertEqual(sent["data"]["model"], "gpt-transcribe")
         self.assertEqual(sent["data"]["model"], spec["audio_model"])
-        self.assertEqual(sent["data"]["response_format"], "text")
+        self.assertEqual(sent["data"]["response_format"], "json")
+        self.assertEqual(sent["data"]["languages[]"], "es")
         self.assertEqual(sent["files"]["file"][0], "note.ogg")
         self.assertEqual(
             sent["files"]["file"][2], "audio/ogg", "the mime type is sniffed"
@@ -81,10 +95,37 @@ class TestOpenAICompatibleTranscribe(EncryptionKeyCase, TransactionCase):
     def test_without_a_language_the_vendor_detects_it(self):
         client = self._client()
         with patch.object(
-            client._client, "post", return_value={"status_code": 200, "body": "hi"}
+            client._client,
+            "post",
+            return_value={"status_code": 200, "body": {"text": "hi"}},
         ) as post:
             client.transcribe(b"AUDIO", "note.ogg")
         self.assertNotIn("language", post.call_args.kwargs["data"])
+        self.assertNotIn("languages[]", post.call_args.kwargs["data"])
+
+    def test_timed_transcription_runs_on_whisper(self):
+        client = self._client()
+        body = {
+            "text": "hola mundo",
+            "segments": [{"start": 0.0, "end": 1.5, "text": " hola mundo"}],
+        }
+        with patch.object(
+            client._client, "post", return_value={"status_code": 200, "body": body}
+        ) as post:
+            spans = client.transcribe_cues(b"AUDIO", "note.ogg", language="es")
+        data = post.call_args.kwargs["data"]
+        self.assertEqual(data["model"], PROVIDERS["openai"]["cues_model"])
+        self.assertEqual(data["response_format"], "verbose_json")
+        self.assertEqual(data["language"], "es")
+        self.assertEqual(spans[0]["end"], 1.5)
+
+    def test_timed_transcription_is_refused_on_an_untimed_model(self):
+        client = self._client()
+        with patch.object(client._client, "post") as post:
+            with self.assertRaises(CommError) as caught:
+                client.transcribe_cues(b"AUDIO", "note.ogg", model="gpt-transcribe")
+        post.assert_not_called()
+        self.assertIn("no segment timestamps", str(caught.exception))
 
     def test_an_unusable_response_raises_rather_than_returning_none(self):
         client = self._client()

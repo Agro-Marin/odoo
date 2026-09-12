@@ -10,7 +10,9 @@ _logger = logging.getLogger(__name__)
 class DeepSeekClient(OpenAICompatibleClient):
     ENDPOINT_CODE = "deepseek"
 
-    REASONING_MODEL = "deepseek-reasoner"
+    REASONING_MODEL = "deepseek-flash"
+
+    MAX_TOKENS_LIMIT = 393216
 
     def structured_output(
         self,
@@ -49,7 +51,7 @@ class DeepSeekClient(OpenAICompatibleClient):
             messages=[{"role": "user", "content": prompt}],
             model=model,
             max_tokens=max_tokens,
-            **kwargs,
+            **{"thinking": {"type": "enabled"}, **kwargs},
         )
         choices = result.get("choices") or [{}]
         return {

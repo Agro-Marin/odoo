@@ -15,6 +15,13 @@ from odoo.addons.api_transport.tools import CommError
 _CLIENT_FACTORY = "odoo.addons.api_ai.tools.catalog_client.get_api_client"
 
 
+def _with_dedicated_vision_model():
+    return patch.dict(
+        PROVIDERS,
+        {"groq": {**PROVIDERS["groq"], "vision": True, "vision_model": "see-model"}},
+    )
+
+
 class TestCatalogAIClient(TransactionCase):
     def test_selection_matches_catalog(self):
         self.assertEqual(set(dict(provider_selection())), set(PROVIDERS))
@@ -101,6 +108,20 @@ class TestCatalogAIClient(TransactionCase):
             "A vendor without a floor must keep the caller's cap.",
         )
 
+    def test_openai_caps_output_under_the_name_its_reasoning_models_accept(self):
+        sent = self._sent_body("openai", max_tokens=600)
+        self.assertEqual(sent["max_completion_tokens"], 600)
+        self.assertNotIn("max_tokens", sent)
+        self.assertEqual(sent["reasoning_effort"], "none")
+
+    def test_deepseek_chat_runs_without_thinking(self):
+        self.assertEqual(
+            self._sent_body("deepseek")["thinking"],
+            {"type": "disabled"},
+            "deepseek-flash thinks by default, and in thinking mode a named "
+            "tool_choice is a 400",
+        )
+
     def test_audio_capability_per_vendor(self):
         self.assertTrue(CatalogAIClient("groq", "key", env=self.env).supports_audio)
         self.assertTrue(CatalogAIClient("gemini", "key", env=self.env).supports_audio)
@@ -166,7 +187,10 @@ class TestCatalogAIClient(TransactionCase):
         factory.assert_not_called()
 
     def test_vision_capability_per_vendor(self):
-        self.assertTrue(CatalogAIClient("groq", "key", env=self.env).supports_vision)
+        self.assertFalse(
+            CatalogAIClient("groq", "key", env=self.env).supports_vision,
+            "Groq shut Llama 4 Scout down and serves no production vision model",
+        )
         self.assertTrue(CatalogAIClient("gemini", "key", env=self.env).supports_vision)
         self.assertTrue(CatalogAIClient("openai", "key", env=self.env).supports_vision)
         self.assertTrue(CatalogAIClient("claude", "key", env=self.env).supports_vision)
@@ -177,10 +201,11 @@ class TestCatalogAIClient(TransactionCase):
             CatalogAIClient("moonshot", "key", env=self.env).supports_vision
         )
 
-    def test_groq_vision_model_differs_from_text_model(self):
-        provider = CatalogAIClient("groq", "key", env=self.env)
+    def test_a_dedicated_vision_model_differs_from_text_model(self):
+        with _with_dedicated_vision_model():
+            provider = CatalogAIClient("groq", "key", env=self.env)
         self.assertNotEqual(provider.vision_model, provider.model)
-        self.assertEqual(provider.vision_model, PROVIDERS["groq"]["vision_model"])
+        self.assertEqual(provider.vision_model, "see-model")
 
     def test_vendor_default_vision_model_applies(self):
         for code in ("gemini", "openai", "claude"):
@@ -195,15 +220,17 @@ class TestCatalogAIClient(TransactionCase):
         self.assertEqual(
             CatalogAIClient("openai", "key", "custom").vision_model, "custom"
         )
-        self.assertEqual(
-            CatalogAIClient("groq", "key", "custom").vision_model,
-            PROVIDERS["groq"]["vision_model"],
-            "Overriding the model names the text one; pointing vision at it "
-            "would blind the call.",
-        )
+        with _with_dedicated_vision_model():
+            self.assertEqual(
+                CatalogAIClient("groq", "key", "custom").vision_model,
+                "see-model",
+                "Overriding the model names the text one; pointing vision at it "
+                "would blind the call.",
+            )
 
     def test_openai_wire_image_payload_shape(self):
-        body = self._sent_body("groq", images=[("QUJD", "image/png")])
+        with _with_dedicated_vision_model():
+            body = self._sent_body("groq", images=[("QUJD", "image/png")])
         content = body["messages"][1]["content"]
         self.assertEqual(content[0], {"type": "text", "text": "user"})
         self.assertEqual(
@@ -215,7 +242,7 @@ class TestCatalogAIClient(TransactionCase):
         )
         self.assertEqual(
             body["model"],
-            PROVIDERS["groq"]["vision_model"],
+            "see-model",
             "An image-carrying call must use the vision model.",
         )
 

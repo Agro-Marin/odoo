@@ -42,19 +42,26 @@ class TestVisionCompletion(EncryptionKeyCase, TransactionCase):
 
     def test_a_vendor_with_its_own_vision_model_uses_it(self):
         client = GroqClient(self.env)
-        with patch.object(
-            client._client,
-            "post",
-            return_value={
-                "status_code": 200,
-                "body": {"choices": [{"message": {"content": "ok"}}]},
-            },
-        ) as post:
+        dedicated = {**PROVIDERS["groq"], "vision": True, "vision_model": "see-model"}
+        with (
+            patch.dict(PROVIDERS, {"groq": dedicated}),
+            patch.object(
+                client._client,
+                "post",
+                return_value={
+                    "status_code": 200,
+                    "body": {"choices": [{"message": {"content": "ok"}}]},
+                },
+            ) as post,
+        ):
             client.vision_completion("what is this?", _IMAGE)
 
-        self.assertEqual(
-            post.call_args.kwargs["json"]["model"], PROVIDERS["groq"]["vision_model"]
-        )
+        self.assertEqual(post.call_args.kwargs["json"]["model"], "see-model")
+
+    def test_groq_reads_no_images_since_scout_shut_down(self):
+        with self.assertRaises(CommError) as caught:
+            GroqClient(self.env).vision_completion("what is this?", _IMAGE)
+        self.assertIn("no images", str(caught.exception))
 
     def test_a_truncated_answer_is_refused_rather_than_returned(self):
         client = OpenAIClient(self.env)
@@ -101,6 +108,6 @@ class TestVisionCompletion(EncryptionKeyCase, TransactionCase):
         )
 
     def test_every_vision_capable_client_answers_to_it(self):
-        for cls in (OpenAIClient, GroqClient, GeminiClient):
+        for cls in (OpenAIClient, GeminiClient):
             with self.subTest(client=cls.__name__):
                 self.assertTrue(callable(getattr(cls, "vision_completion", None)))

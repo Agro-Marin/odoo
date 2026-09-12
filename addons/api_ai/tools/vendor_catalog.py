@@ -8,9 +8,9 @@ PROVIDERS = {
         "wire": "openai",
         "chat_service": "groq",
         "chat_path": "/chat/completions",
-        "chat_model": "llama-3.3-70b-versatile",
-        "vision": True,
-        "vision_model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "chat_model": "openai/gpt-oss-120b",
+        "extra": {"reasoning_effort": "low"},
+        "vision": False,
         "audio": "whisper",
         "audio_service": "groq",
         "audio_path": "/audio/transcriptions",
@@ -38,12 +38,15 @@ PROVIDERS = {
         "wire": "openai",
         "chat_service": "openai",
         "chat_path": "/chat/completions",
-        "chat_model": "gpt-4o-mini",
+        "chat_model": "gpt-5.6-luna",
+        "max_tokens_param": "max_completion_tokens",
+        "extra": {"reasoning_effort": "none"},
         "vision": True,
         "audio": "whisper",
         "audio_service": "openai",
         "audio_path": "/audio/transcriptions",
-        "audio_model": "whisper-1",
+        "audio_model": "gpt-transcribe",
+        "cues_model": "whisper-1",
         "speech": "openai_speech",
         "speech_service": "openai",
         "speech_path": "/audio/speech",
@@ -60,7 +63,8 @@ PROVIDERS = {
         "wire": "openai",
         "chat_service": "deepseek",
         "chat_path": "/chat/completions",
-        "chat_model": "deepseek-chat",
+        "chat_model": "deepseek-flash",
+        "extra": {"thinking": {"type": "disabled"}},
         "audio": None,
         "speech": None,
     },
@@ -162,13 +166,24 @@ def read_anthropic_content(payload):
     return text, None
 
 
+# OpenAI's transcription guide documents `languages` for gpt-transcribe, and no
+# segment timestamps; `json` is the one format every transcription model takes.
+UNTIMED_TRANSCRIPTION_MODELS = frozenset({"gpt-transcribe"})
+
+
 def get_whisper_form(audio_model, language=None, prompt=None, response_format="text"):
+    untimed = audio_model in UNTIMED_TRANSCRIPTION_MODELS
+    if untimed and response_format != "text":
+        raise ValueError(
+            f"{audio_model} returns no segment timestamps, so it cannot answer "
+            f"{response_format!r}",
+        )
     form = {
-        "response_format": response_format,
+        "response_format": "json" if untimed else response_format,
         "model": audio_model,
     }
     if language:
-        form["language"] = language
+        form["languages[]" if untimed else "language"] = language
     if prompt:
         form["prompt"] = prompt
     if response_format == "verbose_json":
@@ -203,6 +218,8 @@ def read_whisper_segments(payload):
 def read_whisper_transcript(payload):
     if payload is None:
         return None, "no response"
+    if isinstance(payload, dict) and isinstance(payload.get("text"), str):
+        payload = payload["text"]
     if not isinstance(payload, str):
         return None, f"expected text, got {type(payload).__name__}"
     text = payload.strip()

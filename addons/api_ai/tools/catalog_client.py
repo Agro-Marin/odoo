@@ -120,7 +120,9 @@ class CatalogAIClient:
         body = {
             "model": self.vision_model if images else self._model,
             **wire_body,
-            "max_tokens": self._token_budget(max_tokens),
+            self._spec.get("max_tokens_param", "max_tokens"): self._token_budget(
+                max_tokens
+            ),
             "temperature": temperature,
             **(self._spec.get("extra") or {}),
         }

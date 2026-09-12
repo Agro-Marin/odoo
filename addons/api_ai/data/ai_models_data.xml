@@ -18,20 +18,33 @@
         <field name="speed_rating">4</field>
     </record>
 
-    <record id="ai_model_openai_gpt_4o_mini" model="ai.model">
+    <record id="ai_model_openai_gpt_5_6_luna" model="ai.model">
         <field name="provider_id" ref="ai_provider_openai" />
-        <field name="name">GPT-4o mini</field>
-        <field name="code">gpt-4o-mini</field>
+        <field name="name">GPT-5.6 Luna</field>
+        <field name="code">gpt-5.6-luna</field>
         <field name="kind">chat</field>
         <field name="sequence" eval="10" />
         <field name="has_vision" eval="True" />
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
-        <field name="max_context_window">128000</field>
-        <field name="max_output_tokens">16384</field>
-        <field name="cost_per_1m_input">0.15</field>
-        <field name="cost_per_1m_output">0.60</field>
+        <field name="max_context_window">1050000</field>
+        <field name="max_output_tokens">128000</field>
+        <field name="cost_per_1m_input">0.20</field>
+        <field name="cost_per_1m_output">1.20</field>
         <field name="accuracy_rating">4</field>
+        <field name="speed_rating">4</field>
+    </record>
+
+    <record id="ai_model_openai_gpt_transcribe" model="ai.model">
+        <field name="provider_id" ref="ai_provider_openai" />
+        <field name="name">GPT Transcribe</field>
+        <field name="code">gpt-transcribe</field>
+        <field name="kind">audio</field>
+        <field name="sequence" eval="15" />
+        <field name="has_timestamps" eval="False" />
+        <field name="supports_streaming" eval="True" />
+        <field name="cost_per_audio_minute">0.0045</field>
+        <field name="accuracy_rating">5</field>
         <field name="speed_rating">4</field>
     </record>
 
@@ -41,7 +54,9 @@
         <field name="code">whisper-1</field>
         <field name="kind">audio</field>
         <field name="sequence" eval="20" />
+        <field name="has_timestamps" eval="True" />
         <field name="supports_streaming" eval="False" />
+        <field name="cost_per_audio_minute">0.006</field>
         <field name="accuracy_rating">4</field>
         <field name="speed_rating">4</field>
     </record>
@@ -55,22 +70,26 @@
         <field name="has_vision" eval="True" />
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
+        <field name="max_context_window">1048576</field>
+        <field name="max_output_tokens">65536</field>
+        <field name="cost_per_1m_input">0.30</field>
+        <field name="cost_per_1m_output">2.50</field>
         <field name="accuracy_rating">4</field>
         <field name="speed_rating">5</field>
     </record>
 
-    <record id="ai_model_deepseek_chat" model="ai.model">
+    <record id="ai_model_deepseek_flash" model="ai.model">
         <field name="provider_id" ref="ai_provider_deepseek" />
-        <field name="name">DeepSeek Chat</field>
-        <field name="code">deepseek-chat</field>
+        <field name="name">DeepSeek Flash</field>
+        <field name="code">deepseek-flash</field>
         <field name="kind">chat</field>
         <field name="sequence" eval="10" />
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
-        <field name="max_context_window">64000</field>
-        <field name="max_output_tokens">8192</field>
-        <field name="cost_per_1m_input">0.14</field>
-        <field name="cost_per_1m_output">0.28</field>
+        <field name="max_context_window">1000000</field>
+        <field name="max_output_tokens">393216</field>
+        <field name="cost_per_1m_input">0.15</field>
+        <field name="cost_per_1m_output">0.60</field>
         <field name="accuracy_rating">3</field>
         <field name="speed_rating">5</field>
     </record>
@@ -81,37 +100,26 @@
         <field name="code">nova-3</field>
         <field name="kind">audio</field>
         <field name="sequence" eval="10" />
+        <field name="has_timestamps" eval="True" />
         <field name="supports_streaming" eval="True" />
         <field name="cost_per_audio_minute">0.0043</field>
         <field name="accuracy_rating">5</field>
         <field name="speed_rating">5</field>
     </record>
 
-    <record id="ai_model_groq_llama_3_3_70b" model="ai.model">
+    <record id="ai_model_groq_gpt_oss_120b" model="ai.model">
         <field name="provider_id" ref="ai_provider_groq" />
-        <field name="name">Llama 3.3 70B Versatile</field>
-        <field name="code">llama-3.3-70b-versatile</field>
+        <field name="name">GPT-OSS 120B</field>
+        <field name="code">openai/gpt-oss-120b</field>
         <field name="kind">chat</field>
         <field name="sequence" eval="10" />
         <field name="has_vision" eval="False" />
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
         <field name="max_context_window">131072</field>
-        <field name="max_output_tokens">32768</field>
-        <field name="accuracy_rating">3</field>
-        <field name="speed_rating">5</field>
-    </record>
-
-    <record id="ai_model_groq_llama_4_scout" model="ai.model">
-        <field name="provider_id" ref="ai_provider_groq" />
-        <field name="name">Llama 4 Scout 17B</field>
-        <field name="code">meta-llama/llama-4-scout-17b-16e-instruct</field>
-        <field name="kind">vision</field>
-        <field name="sequence" eval="20" />
-        <field name="has_vision" eval="True" />
-        <field name="supports_streaming" eval="True" />
-        <field name="max_context_window">131072</field>
-        <field name="max_output_tokens">32768</field>
+        <field name="max_output_tokens">65536</field>
+        <field name="cost_per_1m_input">0.15</field>
+        <field name="cost_per_1m_output">0.60</field>
         <field name="accuracy_rating">3</field>
         <field name="speed_rating">5</field>
     </record>
@@ -122,7 +130,9 @@
         <field name="code">whisper-large-v3-turbo</field>
         <field name="kind">audio</field>
         <field name="sequence" eval="30" />
+        <field name="has_timestamps" eval="True" />
         <field name="supports_streaming" eval="False" />
+        <field name="cost_per_audio_minute">0.000667</field>
         <field name="accuracy_rating">4</field>
         <field name="speed_rating">5</field>
     </record>
@@ -135,8 +145,10 @@
         <field name="sequence" eval="10" />
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
-        <field name="max_context_window">131072</field>
-        <field name="max_output_tokens">32768</field>
+        <field name="max_context_window">1048576</field>
+        <field name="max_output_tokens">1048576</field>
+        <field name="cost_per_1m_input">3.00</field>
+        <field name="cost_per_1m_output">15.00</field>
         <field name="accuracy_rating">4</field>
         <field name="speed_rating">2</field>
     </record>
@@ -146,7 +158,7 @@
     </record>
 
     <record id="ai_provider_openai" model="ai.provider">
-        <field name="default_model_id" ref="ai_model_openai_gpt_4o_mini" />
+        <field name="default_model_id" ref="ai_model_openai_gpt_5_6_luna" />
     </record>
 
     <record id="ai_provider_google" model="ai.provider">
@@ -154,7 +166,7 @@
     </record>
 
     <record id="ai_provider_deepseek" model="ai.provider">
-        <field name="default_model_id" ref="ai_model_deepseek_chat" />
+        <field name="default_model_id" ref="ai_model_deepseek_flash" />
     </record>
 
     <record id="ai_provider_deepgram" model="ai.provider">
@@ -162,7 +174,7 @@
     </record>
 
     <record id="ai_provider_groq" model="ai.provider">
-        <field name="default_model_id" ref="ai_model_groq_llama_3_3_70b" />
+        <field name="default_model_id" ref="ai_model_groq_gpt_oss_120b" />
     </record>
 
     <record id="ai_provider_moonshot" model="ai.provider">

@@ -1,6 +1,6 @@
 {
     "name": "API AI",
-    "version": "19.0.1.18.0",
+    "version": "19.0.1.19.0",
     "category": "Hidden",
     "sequence": 10,
     "summary": "AI provider registry, orchestration and vendor clients",
@@ -28,7 +28,13 @@ Vendor catalog
 --------------
 ``tools/vendor_catalog.py`` holds ``PROVIDERS``: per-vendor endpoint paths,
 model defaults, vision and audio capability, and the timeouts and token floors
-measured against live keys. Callers that build their own request bodies read it
+measured against live keys, plus what a vendor's wire needs in every chat body:
+``extra`` (DeepSeek's thinking switch, a reasoning effort) and
+``max_tokens_param``, the name its output cap goes under -- OpenAI's reasoning
+models refuse ``max_tokens``. ``CatalogAIClient`` and ``OpenAICompatibleClient``
+both apply them; a caller's own keyword still wins in the latter, which is how
+``DeepSeekClient.reasoning_completion`` turns thinking back on. Callers that
+build their own request bodies read it
 instead of restating it -- ``telegram_bot`` is the one that does, because a
 bot's key belongs to the bot rather than the company and so cannot go through
 ``credential.credential``. ``get_openai_content`` and
@@ -101,9 +107,15 @@ Audio
 -----
 ``transcribe`` returns text; ``transcribe_cues`` returns the same words with the
 moment each was said, which is what a player and a subtitle track need. Both
-wires answer the same signature. OpenAI asks Whisper for ``verbose_json`` and
-reads its segments; Deepgram asks for utterances and carries the speaker through
-where diarization gave it one.
+wires answer the same signature. OpenAI transcribes text on ``gpt-transcribe``,
+which returns no timestamps, and asks ``whisper-1`` for ``verbose_json`` segments
+when timing is wanted -- the catalog's ``cues_model``; Deepgram asks for utterances
+and carries the speaker through where diarization gave it one. ``ai.model``
+says which models time their words (``has_timestamps``): speech_ai selects on
+it, and a fallback hop may not hand a timed request to a model without it.
+OpenAI shuts ``whisper-1`` down on 2027-02-26 and names only untimed
+replacements, so from then on OpenAI can no longer serve ``transcribe_cues``;
+Deepgram and Groq still can.
 
 ``synthesize`` is the other direction, and it is new: Deepgram's
 ``text_to_speech`` had raised since it was written, on the grounds that binary

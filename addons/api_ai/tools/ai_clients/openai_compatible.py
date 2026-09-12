@@ -35,11 +35,13 @@ class OpenAICompatibleClient(BaseAIClient):
                 max_tokens=max_tokens,
             )
 
+            spec = self._catalog_spec() or {}
             payload = {
                 "model": model,
                 "messages": messages,
                 "temperature": temperature,
-                "max_tokens": max_tokens,
+                spec.get("max_tokens_param", "max_tokens"): max_tokens,
+                **(spec.get("extra") or {}),
                 **kwargs,
             }
 
@@ -129,8 +131,15 @@ class OpenAICompatibleClient(BaseAIClient):
         prompt=None,
         model=None,
     ):
+        spec = self._audio_spec()
         body = self._post_whisper(
-            audio_bytes, filename, mimetype, language, prompt, model, "verbose_json"
+            audio_bytes,
+            filename,
+            mimetype,
+            language,
+            prompt,
+            model or spec.get("cues_model"),
+            "verbose_json",
         )
         spans, problem = read_whisper_segments(body)
         if problem:
@@ -244,9 +253,10 @@ class OpenAICompatibleClient(BaseAIClient):
     def streaming_completion(self, messages, model=None, **kwargs):
         model = self._resolve_model(model)
         self._check_params(model=model, temperature=kwargs.get("temperature"))
+        extra = (self._catalog_spec() or {}).get("extra") or {}
         return self._stream_lines(
             "/chat/completions",
-            {"model": model, "messages": messages, "stream": True, **kwargs},
+            {"model": model, "messages": messages, "stream": True, **extra, **kwargs},
         )
 
     def get_usage(self, response):

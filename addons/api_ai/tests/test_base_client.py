@@ -123,7 +123,7 @@ class TestModelResolution(TransactionCase):
         client.env = self.env
         client.company_id = None
         with patch.object(OpenAIClient, "_provider_default_model", return_value=""):
-            self.assertEqual(client._resolve_model(None), "gpt-4o-mini")
+            self.assertEqual(client._resolve_model(None), "gpt-5.6-luna")
 
 
 @tagged("post_install", "-at_install")
