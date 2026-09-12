@@ -1,20 +1,14 @@
 import logging
 
-from dateutil.rrule import DAILY, MONTHLY, WEEKLY, YEARLY
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools.date_utils import time_unit_selection
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 _logger = logging.getLogger(__name__)
 
-UNIT_SELECTION = [
-    (str(YEARLY), "years"),
-    (str(MONTHLY), "months"),
-    (str(WEEKLY), "weeks"),
-    (str(DAILY), "days"),
-]
+UNIT_SELECTION = time_unit_selection("day", "week", "month", "year")
 
 
 class DateRangeType(models.Model):
@@ -55,7 +49,7 @@ class DateRangeType(models.Model):
     range_name_preview = fields.Char(compute="_compute_range_name_preview")
     name_prefix = fields.Char("Range name prefix")
     duration_count = fields.Integer("Duration")
-    unit_of_time = fields.Selection(selection=UNIT_SELECTION)
+    duration_unit = fields.Selection(selection=UNIT_SELECTION)
     autogeneration_date_start = fields.Date(
         string="Autogeneration Start Date",
         help="Only applies when there are no date ranges of this type yet",
@@ -73,7 +67,7 @@ class DateRangeType(models.Model):
         "autogeneration_date_start",
         "autogeneration_count",
         "duration_count",
-        "unit_of_time",
+        "duration_unit",
     )
     def _check_autogeneration_settings(self):
         """Validate that autogeneration settings are complete and positive.
@@ -104,7 +98,7 @@ class DateRangeType(models.Model):
                     )
                     % record.name
                 )
-            if not record.unit_of_time:
+            if not record.duration_unit:
                 raise ValidationError(
                     self.env._(
                         "Unit of time must be set when autogeneration is enabled for type '%s'"
@@ -142,7 +136,7 @@ class DateRangeType(models.Model):
         "name_expr",
         "name_prefix",
         "duration_count",
-        "unit_of_time",
+        "duration_unit",
         "autogeneration_date_start",
         "autogeneration_count",
         "autogeneration_unit",
@@ -227,7 +221,7 @@ class DateRangeType(models.Model):
                 ("autogeneration_count", ">", 0),
                 ("autogeneration_unit", "!=", False),
                 ("duration_count", ">", 0),
-                ("unit_of_time", "!=", False),
+                ("duration_unit", "!=", False),
             ]
         )
         for dr_type in types:

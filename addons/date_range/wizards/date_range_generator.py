@@ -2,22 +2,15 @@ import datetime
 import logging
 
 from dateutil.relativedelta import relativedelta
-from dateutil.rrule import DAILY, MONTHLY, WEEKLY, YEARLY, rrule
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools.date_utils import get_timedelta
 from odoo.tools.safe_eval import safe_eval
 
 from ..models.date_range_type import UNIT_SELECTION
 
 _logger = logging.getLogger(__name__)
-
-RELATIVEDELTA_KEY = {
-    str(YEARLY): "years",
-    str(MONTHLY): "months",
-    str(WEEKLY): "weeks",
-    str(DAILY): "days",
-}
 
 
 class DateRangeGenerator(models.TransientModel):
@@ -75,9 +68,9 @@ class DateRangeGenerator(models.TransientModel):
         store=True,
         readonly=False,
     )
-    unit_of_time = fields.Selection(
+    duration_unit = fields.Selection(
         selection=UNIT_SELECTION,
-        compute="_compute_unit_of_time",
+        compute="_compute_duration_unit",
         store=True,
         readonly=False,
     )
@@ -166,10 +159,10 @@ class DateRangeGenerator(models.TransientModel):
             wiz.duration_count = wiz.type_id.duration_count or wiz.duration_count or 0
 
     @api.depends("type_id")
-    def _compute_unit_of_time(self):
+    def _compute_duration_unit(self):
         """Inherit the unit of time from the selected type."""
         for wiz in self:
-            wiz.unit_of_time = wiz.type_id.unit_of_time or wiz.unit_of_time or False
+            wiz.duration_unit = wiz.type_id.duration_unit or wiz.duration_unit or False
 
     @api.depends("type_id")
     def _compute_date_start(self):
@@ -222,9 +215,8 @@ class DateRangeGenerator(models.TransientModel):
                 and dr_type.autogeneration_unit
                 and dr_type.autogeneration_count
             ):
-                key = RELATIVEDELTA_KEY[dr_type.autogeneration_unit]
-                horizon = fields.Date.context_today(wiz) + relativedelta(
-                    **{key: dr_type.autogeneration_count}
+                horizon = fields.Date.context_today(wiz) + get_timedelta(
+                    dr_type.autogeneration_count, dr_type.autogeneration_unit
                 )
                 if horizon > wiz.date_start:
                     date_end = horizon
@@ -244,14 +236,13 @@ class DateRangeGenerator(models.TransientModel):
                 (self.type_id, self.env._("date range type")),
                 (self.date_start, self.env._("start date")),
                 (self.duration_count, self.env._("duration")),
-                (self.unit_of_time, self.env._("unit of time")),
+                (self.duration_unit, self.env._("unit of time")),
             )
             if not value
         ]
         # `duration_count` above only tests falsiness, so a negative value
-        # (truthy) slips through and reaches dateutil.rrule's `interval`,
-        # which raises a raw ValueError instead of this method's clean
-        # ValidationError/UserError.
+        # (truthy) would slip through, and _generate_intervals would step
+        # backwards from the start date and never pass the end date.
         if not missing and self.duration_count < 0:
             missing.append(self.env._("a positive duration"))
         if not missing and not self.date_end and not self.count:
@@ -274,7 +265,7 @@ class DateRangeGenerator(models.TransientModel):
         "date_end",
         "count",
         "duration_count",
-        "unit_of_time",
+        "duration_unit",
     )
     def _compute_range_name_preview(self):
         """Preview the first generated range name from the current config.
@@ -313,32 +304,33 @@ class DateRangeGenerator(models.TransientModel):
         :raises UserError: if the settings would generate no ranges
         """
         self.check_singleton()
-        kwargs = {
-            "freq": int(self.unit_of_time),
-            "interval": self.duration_count,
-            "dtstart": self.date_start,
-        }
-        if self.date_end:
-            kwargs["until"] = self.date_end
-        else:
-            kwargs["count"] = self.count
-        vals = list(rrule(**kwargs))
+        # Each boundary is start + k durations, never the previous one + 1: a
+        # monthly range starting on the 31st ends on the last day of February
+        # and starts again on the 31st of March. dateutil's rrule, which this
+        # used, skips a month with no 31st, which doubled the range before it.
+        vals = []
+        index = 0
+        while True:
+            boundary = self.date_start + get_timedelta(
+                self.duration_count * index, self.duration_unit
+            )
+            if (self.date_end and boundary > self.date_end) or (
+                not self.date_end and index >= self.count
+            ):
+                break
+            vals.append(datetime.datetime.combine(boundary, datetime.time()))
+            index += 1
         if not vals:
             raise UserError(self.env._("No ranges to generate with these settings"))
-        # Generate another interval to fetch the last end date from
-        last_boundary = list(
-            rrule(
-                freq=int(self.unit_of_time),
-                interval=self.duration_count,
-                dtstart=vals[-1].date(),
-                count=2,
-            )
-        )[-1]
+        last_boundary = datetime.datetime.combine(
+            self.date_start
+            + get_timedelta(self.duration_count * index, self.duration_unit),
+            datetime.time(),
+        )
         if self.date_end:
-            # `until=self.date_end` above only bounds which occurrences start a
-            # range; nothing bounds where the last one ends, so it can run one
-            # whole interval past the requested end date when that date does
-            # not fall exactly on a boundary. Clamp it back.
+            # Occurrences stop at the requested end date, but nothing bounds where
+            # the last range ends, so it can run one whole duration past a date
+            # that does not fall on a boundary. Clamp it back.
             capped_end = self.date_end + relativedelta(days=1)
             if last_boundary.date() > capped_end:
                 last_boundary = datetime.datetime.combine(capped_end, datetime.time())
