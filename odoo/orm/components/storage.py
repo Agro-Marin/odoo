@@ -1,13 +1,34 @@
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
 
 
+@dataclass(slots=True)
+class NamedSequence:
+    increment: int
+    last_value: int
+    is_called: bool = False
+
+    def next_values(self, count: int) -> list[int]:
+        values = []
+        for _ in range(count):
+            if self.is_called:
+                self.last_value += self.increment
+            self.is_called = True
+            values.append(self.last_value)
+        return values
+
+    def peek(self) -> int:
+        return self.last_value + self.increment if self.is_called else self.last_value
+
+
 class DictBackend:
-    __slots__ = ("_sequences", "_tables")
+    __slots__ = ("_named_sequences", "_sequences", "_tables")
 
     def __init__(self) -> None:
         self._tables: dict[str, dict[int, dict[str, Any]]] = {}
         self._sequences: dict[str, int] = defaultdict(int)
+        self._named_sequences: dict[str, NamedSequence] = {}
 
     def get_row_tuples(
         self, table: str, ids: list[int], columns: list[str]

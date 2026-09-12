@@ -26,6 +26,7 @@ from odoo.libs.profiling import _OrmProfile
 from odoo.tools import SQL, OrderedSet, Query, partition
 from odoo.tools.translate import _
 
+from ..components.storage import NamedSequence
 from ..primitives import (
     MODULE_UNINSTALL_FLAG,
     SQL_DEFAULT,
@@ -139,7 +140,151 @@ def _get_column_read_value(field: Field, value: typing.Any, env) -> typing.Any:
 
 
 @typing.runtime_checkable
+class SequenceStore(typing.Protocol):
+    def create(self, env, name: str, *, increment: int, start: int) -> None: ...
+
+    def drop(self, env, names: typing.Collection[str]) -> None: ...
+
+    def alter(
+        self,
+        env,
+        name: str,
+        *,
+        increment: int | None = None,
+        restart: int | None = None,
+    ) -> None: ...
+
+    def next_values(self, env, name: str, count: int) -> list[int]: ...
+
+    def peek(self, env, names: typing.Collection[str]) -> dict[str, int]: ...
+
+
+class PostgresSequenceStore:
+    __slots__ = ()
+
+    def create(self, env, name: str, *, increment: int, start: int) -> None:
+        env.cr.execute(
+            SQL(
+                "CREATE SEQUENCE %s INCREMENT BY %s START WITH %s",
+                SQL.identifier(name),
+                increment,
+                max(start, 1),
+            )
+        )
+
+    def drop(self, env, names: typing.Collection[str]) -> None:
+        if not names:
+            return
+        identifiers = SQL(",").join(map(SQL.identifier, names))
+        env.cr.execute(SQL("DROP SEQUENCE IF EXISTS %s RESTRICT", identifiers))
+
+    def alter(
+        self,
+        env,
+        name: str,
+        *,
+        increment: int | None = None,
+        restart: int | None = None,
+    ) -> None:
+        if increment is None and restart is None:
+            return
+        env.cr.execute(
+            "SELECT relname FROM pg_class"
+            " WHERE relkind = %s AND relname = %s"
+            "   AND relnamespace = current_schema::regnamespace",
+            ("S", name),
+        )
+        if not env.cr.fetchone():
+            return
+        env.cr.execute(
+            SQL(
+                "ALTER SEQUENCE %s%s%s",
+                SQL.identifier(name),
+                SQL(" INCREMENT BY %s", increment) if increment is not None else SQL(),
+                SQL(" RESTART WITH %s", max(restart, 1))
+                if restart is not None
+                else SQL(),
+            )
+        )
+
+    def next_values(self, env, name: str, count: int) -> list[int]:
+        if count == 1:
+            env.cr.execute("SELECT nextval(%s)", [name])
+            return [env.cr.fetchone()[0]]
+        env.cr.execute("SELECT nextval(%s) FROM generate_series(1, %s)", [name, count])
+        return [number for (number,) in env.cr.fetchall()]
+
+    def peek(self, env, names: typing.Collection[str]) -> dict[str, int]:
+        if not names:
+            return {}
+        increments = dict(
+            env.execute_query(
+                SQL(
+                    "SELECT sequencename, increment_by FROM pg_sequences"
+                    " WHERE schemaname = current_schema"
+                    "   AND sequencename = ANY(%s::name[])",
+                    list(names),
+                )
+            )
+        )
+        if not increments:
+            return {}
+        reads = SQL(" UNION ALL ").join(
+            SQL(
+                "SELECT %s AS name, last_value, is_called FROM %s",
+                name,
+                SQL.identifier(name),
+            )
+            for name in increments
+        )
+        return {
+            name: last_value + increments[name] if is_called else last_value
+            for name, last_value, is_called in env.execute_query(reads)
+        }
+
+
+class InMemorySequenceStore:
+    __slots__ = ("storage",)
+
+    def __init__(self, storage: DictBackend):
+        self.storage = storage
+
+    def create(self, env, name: str, *, increment: int, start: int) -> None:
+        self.storage._named_sequences[name] = NamedSequence(increment, max(start, 1))
+
+    def drop(self, env, names: typing.Collection[str]) -> None:
+        for name in names:
+            self.storage._named_sequences.pop(name, None)
+
+    def alter(
+        self,
+        env,
+        name: str,
+        *,
+        increment: int | None = None,
+        restart: int | None = None,
+    ) -> None:
+        sequence = self.storage._named_sequences.get(name)
+        if sequence is None:
+            return
+        if increment is not None:
+            sequence.increment = increment
+        if restart is not None:
+            sequence.last_value = max(restart, 1)
+            sequence.is_called = False
+
+    def next_values(self, env, name: str, count: int) -> list[int]:
+        return self.storage._named_sequences[name].next_values(count)
+
+    def peek(self, env, names: typing.Collection[str]) -> dict[str, int]:
+        sequences = self.storage._named_sequences
+        return {name: sequences[name].peek() for name in names if name in sequences}
+
+
+@typing.runtime_checkable
 class StorageBackend(typing.Protocol):
+    sequences: SequenceStore
+
     supports_parent_store: bool
     supports_record_rules: bool
 
@@ -287,6 +432,8 @@ def _prepare_postgres_search_query(
 
 
 class PostgresBackend:
+    sequences: SequenceStore = PostgresSequenceStore()
+
     supports_parent_store: bool = True
 
     supports_record_rules: bool = True
@@ -947,10 +1094,11 @@ class InMemoryBackend:
 
     supports_translation_terms: bool = False
 
-    __slots__ = ("storage",)
+    __slots__ = ("sequences", "storage")
 
     def __init__(self, storage: DictBackend):
         self.storage = storage
+        self.sequences: SequenceStore = InMemorySequenceStore(storage)
 
     def create_rows(
         self,

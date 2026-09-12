@@ -10,13 +10,14 @@ _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 _MIXINS_DIR = _ORM_DIR / "models" / "mixins"
 _DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
 
-_ATTRIBUTE_MEMBERS = {
+_CAPABILITY_MEMBERS = {
     "supports_parent_store",
     "supports_record_rules",
     "supports_joined_m2m_read",
     "supports_column_scan",
     "supports_translation_terms",
 }
+_ATTRIBUTE_MEMBERS = _CAPABILITY_MEMBERS | {"sequences"}
 
 
 def _protocol_methods() -> set[str]:
@@ -72,7 +73,7 @@ def test_every_capability_is_consulted_somewhere():
         for directory in _DISPATCH_DIRS
         for path in directory.rglob("*.py")
     )
-    unread = sorted(m for m in _ATTRIBUTE_MEMBERS if f"backend.{m}" not in text)
+    unread = sorted(m for m in _CAPABILITY_MEMBERS if f"backend.{m}" not in text)
     assert not unread, (
         f"capability flag(s) declared on StorageBackend but consulted nowhere: "
         f"{unread}. Either a site should branch on it, or it should not exist."

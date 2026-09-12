@@ -16,66 +16,34 @@ _debug = DebugLog(__name__)
 
 
 def _create_sequence(
-    cr: Any, seq_name: str, number_increment: int, number_next: int
+    env: Any, seq_name: str, number_increment: int, number_next: int
 ) -> None:
-    cr.execute(
-        SQL(
-            "CREATE SEQUENCE %s INCREMENT BY %s START WITH %s",
-            SQL.identifier(seq_name),
-            number_increment,
-            max(number_next, 1),
-        )
+    env.backend.sequences.create(
+        env, seq_name, increment=number_increment, start=number_next
     )
 
 
-def _drop_sequences(cr: Any, seq_names: list[str]) -> None:
-    if not seq_names:
-        return
-    names = SQL(",").join(map(SQL.identifier, seq_names))
-    cr.execute(SQL("DROP SEQUENCE IF EXISTS %s RESTRICT", names))
+def _drop_sequences(env: Any, seq_names: list[str]) -> None:
+    env.backend.sequences.drop(env, seq_names)
 
 
 def _alter_sequence(
-    cr: Any,
+    env: Any,
     seq_name: str,
     number_increment: int | None = None,
     number_next: int | None = None,
 ) -> None:
-    if number_increment is None and number_next is None:
-        return
-    cr.execute(
-        "SELECT relname FROM pg_class"
-        " WHERE relkind = %s AND relname = %s"
-        "   AND relnamespace = current_schema::regnamespace",
-        ("S", seq_name),
+    env.backend.sequences.alter(
+        env, seq_name, increment=number_increment, restart=number_next
     )
-    if not cr.fetchone():
-        return
-    statement = SQL(
-        "ALTER SEQUENCE %s%s%s",
-        SQL.identifier(seq_name),
-        (
-            SQL(" INCREMENT BY %s", number_increment)
-            if number_increment is not None
-            else SQL()
-        ),
-        (
-            SQL(" RESTART WITH %s", max(number_next, 1))
-            if number_next is not None
-            else SQL()
-        ),
-    )
-    cr.execute(statement)
 
 
-def _select_nextval(cr: Any, seq_name: str) -> int:
-    cr.execute("SELECT nextval(%s)", [seq_name])
-    return cr.fetchone()[0]
+def _select_nextval(env: Any, seq_name: str) -> int:
+    return env.backend.sequences.next_values(env, seq_name, 1)[0]
 
 
-def _select_nextvals(cr: Any, seq_name: str, count: int) -> list[int]:
-    cr.execute("SELECT nextval(%s) FROM generate_series(1, %s)", [seq_name, count])
-    return [number for (number,) in cr.fetchall()]
+def _select_nextvals(env: Any, seq_name: str, count: int) -> list[int]:
+    return env.backend.sequences.next_values(env, seq_name, count)
 
 
 def _update_nogap(self: Any, number_increment: int) -> int:
@@ -107,32 +75,7 @@ def _update_nogap_batch(self: Any, number_increment: int, count: int) -> list[in
 
 
 def _predict_nextvals(env: Any, seq_names: Collection[str]) -> dict[str, int]:
-    if not seq_names:
-        return {}
-    increments = dict(
-        env.execute_query(
-            SQL(
-                "SELECT sequencename, increment_by FROM pg_sequences"
-                " WHERE schemaname = current_schema"
-                "   AND sequencename = ANY(%s::name[])",
-                list(seq_names),
-            )
-        )
-    )
-    if not increments:
-        return {}
-    reads = SQL(" UNION ALL ").join(
-        SQL(
-            "SELECT %s AS name, last_value, is_called FROM %s",
-            name,
-            SQL.identifier(name),
-        )
-        for name in increments
-    )
-    return {
-        name: last_value + increments[name] if is_called else last_value
-        for name, last_value, is_called in env.execute_query(reads)
-    }
+    return env.backend.sequences.peek(env, seq_names)
 
 
 _INTERPOLATION_FORMATS = {
@@ -302,7 +245,7 @@ class IrSequence(models.Model):
         for seq in seqs:
             if seq.implementation == "standard":
                 _create_sequence(
-                    self.env.cr,
+                    self.env,
                     seq._get_pg_sequence_name(),
                     seq.number_increment,
                     seq.number_next if seq.number_next is not None else 1,
@@ -314,7 +257,7 @@ class IrSequence(models.Model):
             "unlink", count=len(self), date_ranges=len(self.date_range_ids)
         )
         _drop_sequences(
-            self.env.cr,
+            self.env,
             [
                 *(x._get_pg_sequence_name() for x in self),
                 *(r._get_pg_sequence_name() for r in self.date_range_ids),
@@ -340,13 +283,13 @@ class IrSequence(models.Model):
             if was_standard and is_standard:
                 if "number_next" in vals:
                     _alter_sequence(
-                        self.env.cr,
+                        self.env,
                         seq._get_pg_sequence_name(),
                         number_next=seq.number_next,
                     )
                 if previous_increment != seq.number_increment:
                     _alter_sequence(
-                        self.env.cr,
+                        self.env,
                         seq._get_pg_sequence_name(),
                         number_increment=seq.number_increment,
                     )
@@ -358,7 +301,7 @@ class IrSequence(models.Model):
                     seq._carry_over_pg_counter()
                 seq._carry_over_pg_range_counters()
                 _drop_sequences(
-                    self.env.cr,
+                    self.env,
                     [
                         seq._get_pg_sequence_name(),
                         *(s._get_pg_sequence_name() for s in seq.date_range_ids),
@@ -366,14 +309,14 @@ class IrSequence(models.Model):
                 )
             elif is_standard:
                 _create_sequence(
-                    self.env.cr,
+                    self.env,
                     seq._get_pg_sequence_name(),
                     seq.number_increment,
                     seq.number_next,
                 )
                 for sub_seq in seq.date_range_ids:
                     _create_sequence(
-                        self.env.cr,
+                        self.env,
                         sub_seq._get_pg_sequence_name(),
                         seq.number_increment,
                         sub_seq.number_next,
@@ -429,7 +372,7 @@ class IrSequence(models.Model):
 
     def _next_do(self) -> str:
         if self.implementation == "standard":
-            number_next = _select_nextval(self.env.cr, self._get_pg_sequence_name())
+            number_next = _select_nextval(self.env, self._get_pg_sequence_name())
         else:
             number_next = _update_nogap(self, self.number_increment)
         self.invalidate_recordset(["number_next_actual"])
@@ -444,7 +387,7 @@ class IrSequence(models.Model):
 
     def _next_do_batch(self, count: int) -> list[str]:
         if self.implementation == "standard":
-            numbers = _select_nextvals(self.env.cr, self._get_pg_sequence_name(), count)
+            numbers = _select_nextvals(self.env, self._get_pg_sequence_name(), count)
         else:
             numbers = _update_nogap_batch(self, self.number_increment, count)
         self.invalidate_recordset(["number_next_actual"])
@@ -856,7 +799,7 @@ class IrSequenceDate_Range(models.Model):
 
     def _next(self) -> str:
         if self.sequence_id.implementation == "standard":
-            number_next = _select_nextval(self.env.cr, self._get_pg_sequence_name())
+            number_next = _select_nextval(self.env, self._get_pg_sequence_name())
         else:
             number_next = _update_nogap(self, self.sequence_id.number_increment)
         self.invalidate_recordset(["number_next_actual"])
@@ -873,7 +816,7 @@ class IrSequenceDate_Range(models.Model):
         if count <= 0:
             return []
         if self.sequence_id.implementation == "standard":
-            numbers = _select_nextvals(self.env.cr, self._get_pg_sequence_name(), count)
+            numbers = _select_nextvals(self.env, self._get_pg_sequence_name(), count)
         else:
             numbers = _update_nogap_batch(
                 self, self.sequence_id.number_increment, count
@@ -888,7 +831,7 @@ class IrSequenceDate_Range(models.Model):
     ) -> None:
         for seq in self:
             _alter_sequence(
-                self.env.cr,
+                self.env,
                 seq._get_pg_sequence_name(),
                 number_increment=number_increment,
                 number_next=number_next,
@@ -907,7 +850,7 @@ class IrSequenceDate_Range(models.Model):
             if main_seq.implementation == "standard":
                 val = seq.number_next
                 _create_sequence(
-                    self.env.cr,
+                    self.env,
                     seq._get_pg_sequence_name(),
                     main_seq.number_increment or 1,
                     val if val is not None else 1,
@@ -916,7 +859,7 @@ class IrSequenceDate_Range(models.Model):
 
     def unlink(self) -> bool:
         _debug.lifecycle("range_unlink", ranges=self.ids)
-        _drop_sequences(self.env.cr, [x._get_pg_sequence_name() for x in self])
+        _drop_sequences(self.env, [x._get_pg_sequence_name() for x in self])
         return super().unlink()
 
     def write(self, vals: dict[str, Any]) -> bool:
