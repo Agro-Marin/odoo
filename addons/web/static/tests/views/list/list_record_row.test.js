@@ -124,7 +124,7 @@ registerTemplate(
        t-inherit-mode="primary">
         <xpath expr="//td[1]" position="replace">
             <td class="o_list_record_selector">
-                <CheckBox onChange.bind="(selected) => this.toggleRecordSelection(selected, record)"/>
+                <CheckBox onChange.bind="(selected) => api.toggleRecordSelection(selected, record)"/>
             </td>
         </xpath>
     </t>`,

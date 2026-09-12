@@ -284,46 +284,46 @@
 
  <t t-name="web.ListRenderer.RecordRow">
  <tr class="o_data_row"
- t-att-class="getRowClass(record)"
+ t-att-class="api.getRowClass(record)"
  t-att-data-id="record.id"
  t-att-data-group-id="groupId"
  t-att-data-row-index="props.rowIndex"
- t-on-click.capture="(ev) => this.onClickCapture(record, ev)"
- t-on-mouseover.capture="(ev) => this.ignoreEventInSelectionMode(ev)"
- t-on-mouseout.capture="(ev) => this.ignoreEventInSelectionMode(ev)"
- t-on-mouseenter.capture="(ev) => this.ignoreEventInSelectionMode(ev)"
- t-on-touchstart="(ev) => this.onRowTouchStart(record, ev)"
- t-on-touchend="() => this.onRowTouchEnd(record)"
- t-on-touchmove="() => this.onRowTouchMove(record)"
+ t-on-click.capture="(ev) => api.onClickCapture(record, ev)"
+ t-on-mouseover.capture="(ev) => api.ignoreEventInSelectionMode(ev)"
+ t-on-mouseout.capture="(ev) => api.ignoreEventInSelectionMode(ev)"
+ t-on-mouseenter.capture="(ev) => api.ignoreEventInSelectionMode(ev)"
+ t-on-touchstart="(ev) => api.onRowTouchStart(record, ev)"
+ t-on-touchend="() => api.onRowTouchEnd(record)"
+ t-on-touchmove="() => api.onRowTouchMove(record)"
  >
- <td t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)" t-if="hasSelectors" class="o_list_record_selector user-select-none" t-on-click.stop="() => this.toggleRecordSelection(record)" tabindex="-1">
- <CheckBox disabled="!_canSelectRecord" value="record.selected" onChange.alike="() => this.toggleRecordSelection(record)" />
+ <td t-on-keydown="(ev) => api.onCellKeydown(ev, group, record)" t-if="hasSelectors" class="o_list_record_selector user-select-none" t-on-click.stop="() => api.toggleRecordSelection(record)" tabindex="-1">
+ <CheckBox disabled="!_canSelectRecord" value="record.selected" onChange.alike="() => api.toggleRecordSelection(record)" />
  </td>
- <t t-foreach="getColumns(record)" t-as="column" t-key="column.id">
+ <t t-foreach="api.getColumns(record)" t-as="column" t-key="column.id">
  <t t-if="column.type === 'field'">
- <t t-set="isInvisible" t-value="evalInvisible(column.invisible, record) or !(column.name in record.data)"/>
- <t t-set="formattedValue" t-value="!isInvisible and canUseFormatter(column, record) ? getFormattedValue(column, record) : undefined"/>
- <td t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)"
+ <t t-set="isInvisible" t-value="api.evalInvisible(column.invisible, record) or !(column.name in record.data)"/>
+ <t t-set="formattedValue" t-value="!isInvisible and api.canUseFormatter(column, record) ? api.getFormattedValue(column, record) : undefined"/>
+ <td t-on-keydown="(ev) => api.onCellKeydown(ev, group, record)"
  class="o_data_cell cursor-pointer"
- t-att-class="this.getCellClass(column, record)"
+ t-att-class="api.getCellClass(column, record)"
  t-att-name="column.name"
  t-att-colspan="column.colspan"
  t-att-data-col-index="gridState.getColIndexOfColumn(column)"
- t-att-data-tooltip="!isInvisible ? getCellTitle(column, record, formattedValue) : false"
+ t-att-data-tooltip="!isInvisible ? api.getCellTitle(column, record, formattedValue) : false"
  data-tooltip-delay="1000"
- t-custom-click="(ev, isMiddleClick) => this.onCellClicked(record, column, ev, isMiddleClick)"
+ t-custom-click="(ev, isMiddleClick) => api.onCellClicked(record, column, ev, isMiddleClick)"
  tabindex="-1">
  <t t-if="!isInvisible">
  <t t-if="formattedValue !== undefined" t-out="formattedValue"/>
- <Field t-else="" name="column.name" record="record" type="column.widget" class="getFieldClass(column)" fieldInfo="column" t-props="getFieldProps(record, column)"/>
+ <Field t-else="" name="column.name" record="record" type="column.widget" class="api.getFieldClass(column)" fieldInfo="column" t-props="api.getFieldProps(record, column)"/>
  </t>
  </td>
  </t>
  <t t-if="column.type === 'button_group'">
- <td t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)" class="o_data_cell w-print-0 p-print-0 cursor-pointer" t-att-class="this.getCellClass(column, record)" t-att-data-col-index="gridState.getColIndexOfColumn(column)" t-on-click="(ev) => this.onButtonCellClicked(record, column, ev)" tabindex="-1">
+ <td t-on-keydown="(ev) => api.onCellKeydown(ev, group, record)" class="o_data_cell w-print-0 p-print-0 cursor-pointer" t-att-class="api.getCellClass(column, record)" t-att-data-col-index="gridState.getColIndexOfColumn(column)" t-on-click="(ev) => api.onButtonCellClicked(record, column, ev)" tabindex="-1">
  <div class="d-flex flex-wrap gap-1">
  <t t-foreach="column.buttons" t-as="button" t-key="button.id">
- <ViewButton t-if="!evalInvisible(button.invisible, record)"
+ <ViewButton t-if="!api.evalInvisible(button.invisible, record)"
  className="button.className"
  clickParams="button.clickParams"
  defaultRank="button.defaultRank"
@@ -340,7 +340,7 @@
  </td>
  </t>
  <t t-if="column.type === 'widget'">
- <td class="o_data_cell" t-att-class="this.getCellClass(column, record)"
+ <td class="o_data_cell" t-att-class="api.getCellClass(column, record)"
  t-att-data-col-index="gridState.getColIndexOfColumn(column)">
  <Widget t-props="column.props" record="record"/>
  </td>
@@ -349,7 +349,7 @@
 
  <t t-if="hasOpenFormViewColumn">
  <td class="o_list_record_open_form_view w-print-0 p-print-0 text-center"
- t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)"
+ t-on-keydown="(ev) => api.onCellKeydown(ev, group, record)"
  t-custom-click.stop="(ev, newWindow) => props.onOpenFormView(record, { force: true, newWindow })"
  tabindex="-1"
  >
@@ -365,10 +365,10 @@
  <t t-set="hasX2ManyAction" t-value="isX2Many and (useUnlink ? activeActions.unlink : activeActions.delete)" />
  <t t-if="displayOptionalFields or props.list.isGrouped or hasX2ManyAction">
  <t t-if="hasX2ManyAction">
- <t t-set="hasDeleteButton" t-value="this.displayDeleteIcon(record)"/>
+ <t t-set="hasDeleteButton" t-value="api.displayDeleteIcon(record)"/>
  <td class="o_list_record_remove w-print-0 p-print-0 text-center"
- t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)"
- t-on-click.stop="hasDeleteButton ? (ev) => this.onRemoveCellClicked(record, ev) : () => {}"
+ t-on-keydown="(ev) => api.onCellKeydown(ev, group, record)"
+ t-on-click.stop="hasDeleteButton ? (ev) => api.onRemoveCellClicked(record, ev) : () => {}"
  tabindex="-1"
  >
  <button class="d-print-none"
