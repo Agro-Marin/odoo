@@ -70,9 +70,12 @@ _JSONB_MAX_SCALE = 16383
 
 def _unwrap_json(value: typing.Any) -> typing.Any:
     if isinstance(value, (Json, Jsonb)):
+        dumped = JsonDumper(type(value)).dump(value)
+        if dumped is None:
+            raise TypeError(f"{type(value).__name__} dumped to no value")
         return _get_jsonb_storage_value(
             json.loads(
-                JsonDumper(type(value)).dump(value),
+                bytes(dumped),
                 parse_float=Decimal,
                 parse_constant=_reject_json_constant,
             )

@@ -1,5 +1,6 @@
 import itertools
 import logging
+import re
 import typing
 from collections import defaultdict
 from collections.abc import Collection, Iterable, Sequence
@@ -16,11 +17,14 @@ from ... import decorators as api
 from ...components.recompute import RecomputeScheduler
 from ...helpers import get_fields_by_name, get_or_create_class_memo
 from ...primitives import NewId
+from ..table_objects import Constraint
 from ._model_stubs import _ModelStubs
 
 _orm_cache = logging.getLogger("odoo.orm.cache")
 _orm_compute = logging.getLogger("odoo.orm.compute")
 _debug = DebugLog(__name__)
+
+_SQL_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 if typing.TYPE_CHECKING:
     from ..._typing import IdType
@@ -275,6 +279,70 @@ class RecomputeMixin(_ModelStubs):
             lambda: tuple(f for f in cls._fields.values() if f.is_stored_computed),
         )
 
+    @classmethod
+    def _get_check_coupled_fields(cls) -> dict[Field, tuple[Field, ...]]:
+        # A flush writes every dirty column of a record in one UPDATE. When a
+        # CHECK spans that column and a stored computed field still pending on
+        # the same record, the row reaches PostgreSQL half-updated -- the new
+        # value beside the stale one -- and the constraint rejects a state no
+        # finished transaction would hold. The couplings are read off the
+        # constraint definitions, so the flush stays lazy for every computed
+        # field no CHECK ties to a written column.
+
+        def build() -> dict[Field, tuple[Field, ...]]:
+            columns = {
+                name: field
+                for name, field in cls._fields.items()
+                if field.store and field.column_type
+            }
+            coupled: dict[Field, set[Field]] = defaultdict(set)
+            for table_object in cls._table_objects.values():
+                if not isinstance(table_object, Constraint):
+                    continue
+                definition = table_object.get_definition(cls.pool)
+                if not definition.lstrip().upper().startswith("CHECK"):
+                    continue
+                group = {
+                    columns[token]
+                    for token in _SQL_IDENTIFIER.findall(definition)
+                    if token in columns
+                }
+                for field in group:
+                    coupled[field].update(
+                        other
+                        for other in group
+                        if other is not field and other.is_stored_computed
+                    )
+            return {field: tuple(others) for field, others in coupled.items() if others}
+
+        return get_or_create_class_memo(cls, "_check_coupled_fields__", build)
+
+    def _recompute_check_coupled_fields(self) -> None:
+        coupled = self._get_check_coupled_fields()
+        core = self.env.core
+        if not coupled or not core.has_pending():
+            return
+        for _pass in range(len(coupled) + 1):
+            progressed = False
+            for field, partners in coupled.items():
+                dirty = core.get_dirty(field)
+                if not dirty:
+                    continue
+                for partner in partners:
+                    pending = core.get_pending_ids(partner)
+                    if ids := [id_ for id_ in dirty if id_ in pending]:
+                        _debug.logic(
+                            "recompute.flush_check_coupled",
+                            model=self._name,
+                            dirty=field.name,
+                            recomputed=partner.name,
+                            records=len(ids),
+                        )
+                        self._recompute_field(partner, ids)
+                        progressed = True
+            if not progressed:
+                return
+
     def _recompute_model(self, fnames: Collection[str] | None = None) -> None:
         self._recompute_fields(self._resolve_recompute_fields(fnames), None)
 
@@ -400,6 +468,7 @@ class RecomputeMixin(_ModelStubs):
 
     def _flush(self) -> None:
         core = self.env.core
+        self._recompute_check_coupled_fields()
         dirty_field_ids = core.pop_dirty_for_model(self._name)
         if not dirty_field_ids:
             return
