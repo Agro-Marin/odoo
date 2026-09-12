@@ -5,18 +5,12 @@ system, utilities. This page carries context, forces, cross-cutting mechanisms
 and the index of the views. Per-addon maps live in
 `addons/*/machine_doc_v1/ARCHITECTURE.md`.
 
-The 2026-09-04 fork audit records prioritized findings, implemented transaction
-and dependency improvements, and remaining work. It lives in the knowledge
-vault, under `agromarin-knowledge/research/`, dated 2026-09-04: this page
-linked it inside `odoo` until commit `19e72c2120b` deleted it there.
-
 | If you are… | Read |
 |---|---|
 | new to the core | *Context* and *Forces* below, then [`module.md`](module.md) |
 | placing new code | *Where to add code* below |
 | debugging a runtime path | [`runtime.md`](runtime.md) |
-| changing a boundary | [`gates.md`](gates.md) |
-| wondering why a rule exists | the gate's own module docstring |
+| changing a boundary | [`module.md`](module.md), *Dependency rules* |
 | judging a change's cost | [`qualities.md`](qualities.md) |
 
 ## Context
@@ -69,12 +63,6 @@ a reason.
 | **Testability without a database** | the hardest logic must be exercisable in milliseconds | `orm/components/` as pure Python; `InMemoryBackend` behind the `env.backend` port |
 | **A refactorable core** | internal layout must move without breaking hundreds of addons | the façade boundary and the layer contracts |
 
-The last is this fork's addition. Upstream treats the core's internal shape as
-fixed; `19.0-marin` treats it as the thing most worth improving. The checkers
-that pinned the public surface and held the contracts at zero were removed with
-`tooling/` on 2026-09-11 (see [`gates.md`](gates.md)); the contracts stand as
-stated rules.
-
 ## Non-goals
 
 Each buys something above. An argument appealing to one is already settled.
@@ -85,7 +73,7 @@ Each buys something above. An argument appealing to one is already settled.
 | **Stability of core internals** | the *façade* is the public surface — `odoo.api` / `odoo.fields` / `odoo.models`, each with an explicit `__all__`; everything behind it is free to move, and the layer contracts say in which direction |
 | **Business behaviour in the core** | behaviour belonging to a business process belongs in an addon |
 | **A build step that freezes shape** | the contributor set is unknown until the module graph is loaded, so nothing resolves at import time |
-| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and psycopg2 is not a declared dependency, so a stray import fails anywhere provisioned from `requirements.txt`, rather than compiling a branch that can never run. A developer virtualenv that installed it for some other reason is the exception, and there the absence does not bite |
+| **Database-driver portability** | psycopg 3 only — `odoo/db/` imports `psycopg` exclusively, and `psycopg2` is neither declared in `requirements.txt` nor installed, so a stray import fails at import time |
 
 ## Mechanisms
 
@@ -101,9 +89,8 @@ the graph. `env["res.partner"]` in one database is a different class from the
 same name in another.
 
 Consequences: fields cannot be resolved at import time; the framework cannot
-import addon-owned models, so it names them by string key (`env["res.users"]`),
-gated by `env_model_surface_check.py`. The framework's largest coupling to its
-consumer produces no import edge.
+import addon-owned models, so it names them by string key (`env["res.users"]`).
+The framework's largest coupling to its consumer produces no import edge.
 
 ### Writes do not reach SQL where you write them
 
@@ -133,7 +120,8 @@ explains the refusal, so one code path serves both filtering and raising.
 
 Superuser is not a bypass flag: `sudo()` returns an environment whose `su` is
 part of the `(cr, uid, su, context)` interning key. Two recordsets differing
-only in privilege are different objects by construction.
+only in privilege are different objects by construction. `uid == SUPERUSER_ID`
+forces `su`, so the superuser has one environment per `(cr, context)`.
 
 ### A request is a transaction, and it may run twice
 
@@ -163,26 +151,23 @@ Two subsystems document themselves deeper than any view:
 `odoo/db/README.md` and `odoo/http/README.md` — the latter carries the
 canonical, unflattened HTTP call graph.
 
-> **These documents were enforced until 2026-09-11.** The dependency rules
-> in the module view were checked by `layer_check.py`, and every measured
-> figure in these pages was re-derived by `test_architecture_doc.py`; both
-> went with `tooling/`. A figure stated here is as of the day it was last
-> measured, and nothing fails when it drifts.
+Every figure in these pages carries the date it was measured. Nothing re-derives
+one; a figure is as of that date.
 
 ## Where to add code
 
-| You are adding | It goes in | The constraint | Was caught by, until 2026-09-11 |
-|---|---|---|---|
-| A dependency-free helper | `odoo/libs/<area>/` | no `odoo` imports; if it needs model data, take it through a `Protocol` (see `libs/locale/number_format.py`) | `libs-is-dependency-free` |
-| An Odoo-coupled helper | `odoo/tools/` | may use ORM values and types, never the ORM runtime | `tools-does-not-reach-the-orm-runtime` |
-| A new field type | `odoo/orm/fields/` | Layer 1: no `models`/`runtime` imports; reach the model layer through `_recordset.py` | `orm-layer1-below-models-and-runtime` |
-| Model behaviour | a mixin under `odoo/orm/models/mixins/` | prefer a leaf nothing else in the composition depends on | `mixin_coupling_check.py` |
-| Cache / compute logic | `odoo/orm/components/` | pure Python, collaborators injected, no `pool` or `env` reach | `orm-components-are-pure-python`, `pool_surface_check.py` |
-| A persistence primitive | `odoo/db/` | no ORM import; cross the boundary by injection | `db-is-orm-agnostic` |
-| An HTTP feature | `odoo/http/` `[features]` | must not import `[serving]` | `http-features-below-serving` |
-| A third-party patch | `odoo/_monkeypatches/<module>.py` | expose `patch_module()` (names starting with `_` are helpers and exempt) | `test_architecture_doc.py` |
-| An addon | `odoo/addons/<module>/` | import through `odoo.api` / `odoo.fields` / `odoo.models` | `facade-boundary` |
-| A package README module index | register it in `PACKAGE_INDEXES` | an unregistered index is gated by nothing | `package_index_check.py` |
+| You are adding | It goes in | The constraint |
+|---|---|---|
+| A dependency-free helper | `odoo/libs/<area>/` | no `odoo` imports; if it needs model data, take it through a `Protocol` (see `libs/locale/number_format.py`) |
+| An Odoo-coupled helper | `odoo/tools/` | may use ORM values and types, never the ORM runtime |
+| A new field type | `odoo/orm/fields/` | Layer 1: no `models`/`runtime` imports; reach the model layer through `_recordset.py` |
+| Model behaviour | a mixin under `odoo/orm/models/mixins/` | prefer a leaf nothing else in the composition depends on |
+| Cache / compute logic | `odoo/orm/components/` | pure Python, collaborators injected, no `pool` or `env` reach |
+| A persistence primitive | `odoo/db/` | no ORM import; cross the boundary by injection |
+| An HTTP feature | `odoo/http/` `[features]` | must not import `[serving]` |
+| A third-party patch | `odoo/_monkeypatches/<module>.py` | expose `patch_module()` (names starting with `_` are helpers) |
+| An addon | `odoo/addons/<module>/` | import through `odoo.api` / `odoo.fields` / `odoo.models` — `test_lint` rule `orm-import` (`E8508`) fails any other |
+| A package README module index | `odoo/db/README.md`, `odoo/http/README.md` | kept in step with the package by hand |
 
 Two rules over all of the above: a new module must appear in the **Subsystem
 map** in [`module.md`](module.md) if its package's contents are enumerated

@@ -84,7 +84,8 @@ no version, therefore no way to be told it is stale.
 
 `setup_signaling` creates each table **and inserts one row**: an empty table
 would read back as "no version", and a local sequence starting at `-1` would then
-treat every check as a change.
+treat every check as a change. `get_sequences` reads all nine in one `SELECT`
+of nine scalar subqueries.
 
 ## 3. The filestore — content-addressed, and its layout is not fixed
 
@@ -113,12 +114,9 @@ row still references.
 - `store_fname` — a path into the filestore
 - `db_datas` — the bytes, in the database
 
-They are alternatives, not layers, and which one is used is a per-attachment
+They are alternatives, not layers; which one is used is a per-attachment
 decision, and one column carries both *which store* and *which key* — which
-is why nothing can map a store back to the content it holds. Two proposals --
-an object-store layering with a key policy, and a placement row per copy of an
-attachment's content -- set out to change that and were withdrawn on
-2026-08-14 with the seam as described here.
+is why nothing can map a store back to the content it holds.
 **Any backup that captures PostgreSQL without the filestore, or the reverse,
 captures a torn state** — the most common way a restored database comes back
 subtly broken.

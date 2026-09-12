@@ -46,9 +46,9 @@ cron and job populations, each sized independently. The three populations are
 sized separately and **timed separately too**: the table below carries a
 per-job wall-time knob and two worker-lifetime knobs beside the cron ones, each
 defaulting to *defer to the tier above it* rather than to a number, so a
-deployment that tunes only `limit_time_real` has silently tuned all three. The listen backlog is
-`8 * population`, and the population can be adjusted at runtime
-(`self.population += 1`).
+deployment that tunes only `limit_time_real` has silently tuned all three. The
+listen backlog is `8 * population`, and `SIGTTIN` / `SIGTTOU` move the
+population up and down at runtime.
 
 Cron workers hold registries and database connections exactly like an HTTP
 worker, so they count against `db_maxconn` and against the per-registry memory
@@ -101,23 +101,24 @@ Defaults, from `odoo/tools/config.py`:
 
 **There is one memory limit, not one of four.** `limit_memory_soft` is enforced at
 three sites — `_worker.py`'s `check_limits`, and `_threaded.py` for the HTTP and
-gevent paths — each calling `get_memory_over_soft_limit()` on the process's RSS and,
-above it, clearing `alive` so the worker stops after the current request. A
-fourth site reads the value for an unrelated purpose: `lifecycle.py` divides it
-by the average registry size to bound how many registries are held at once.
+gevent paths — each calling `get_memory_over_soft_limit()` (`_limits.py`) on the
+process's RSS and, above it, clearing `alive` so the worker stops after the
+current request. A fourth site reads the value for an unrelated purpose:
+`lifecycle.py::_limit_resident_registries` divides it by the average registry
+size to bound how many registries are held at once.
 
-`limit_memory_hard` is read **nowhere in `odoo/service/`**. The in-process
-`RLIMIT_AS` that once enforced it was removed because the allocator and gevent
-reserve multi-GB of never-resident virtual address space, which that rlimit
-counts and RSS does not; `config.py`'s help says "Deprecated/not enforced
-in-process" and directs the hard cap to a cgroup v2 limit on the systemd unit
-(`MemoryMax=` with `MemorySwapMax=0`).
+`limit_memory_hard` is read **nowhere in `odoo/service/`**. There is no
+in-process `RLIMIT_AS`: the allocator and gevent reserve multi-GB of
+never-resident virtual address space, which that rlimit counts and RSS does
+not. `config.py`'s help says "Deprecated/not enforced in-process" and directs
+the hard cap to a cgroup v2 limit on the systemd unit (`MemoryMax=` with
+`MemorySwapMax=0`).
 
 A deployment sized on the 512 MB between the two has **no** hard ceiling unless
 the unit file supplies one: past the soft limit a worker finishes its request and
 exits, and a single request that allocates without bound is bounded by the OOM
-killer, not by Odoo. It is the sharpest example on these pages of a number that
-reads as a guarantee because it has a default and a row in a table.
+killer, not by Odoo. A number that reads as a guarantee because it has a default and a row in a
+table.
 
 A deployment whose steady-state RSS is near the soft limit recycles constantly
 and pays a registry rebuild each time. `limit_request` exists because a
@@ -136,42 +137,37 @@ long-lived Python process accumulates; recycling is the design, not a workaround
 | `metrics.py` | `_MetricsMixin` — the per-cursor SQL counters (`sql_from_log`, `sql_into_log`, `sql_log_count`), so a slow request can name its statements rather than report a total |
 | `stats.py` | `PoolStats` — the counters behind `ConnectionPool.get_health()`: borrows, failures, and a bucketed borrow-wait histogram, each written under one lock because `x += 1` lost increments in exactly the concurrency they exist to diagnose |
 
-**Five of the eight act and three only observe**, and the two this table
-omitted until 2026-08-28 were both observers: `breaker`, `lag`, `budget`,
+**Five of the eight act and three only observe**: `breaker`, `lag`, `budget`,
 `reaper` and `probe` change what a request gets, while `leaks`, `metrics` and
-`stats` only say what happened. A table about degradation is where an observer is easiest to
-leave out and hardest to miss, since the observers are what a capacity decision
-is made from. The tier is `db-resilience-below-connectivity`'s `source` list —
-a contract that runs — and this table is read against it.
+`stats` only say what happened — and the observers are what a capacity
+decision is made from. The tier is `db-resilience-below-connectivity`'s
+source list ([`module.md`](module.md#dependency-rules)).
 
 Two properties for any capacity decision:
 
 **The budget is per PostgreSQL server, not per process or per database.**
-`db_maxconn` caps a *server's* checked-out connections; `odoo/db/README.md`
-records that this has been mis-keyed in both directions historically — a budget
-per database over-committed the server, and a single budget across two
-independent servers under-used both.
+`db_maxconn` caps a *server's* checked-out connections (`db/endpoints.py` keys
+the budget by endpoint): a budget per database over-commits the server, and a
+single budget across two independent servers under-uses both.
 
 **The replica is optional and self-demoting.** Lag is sampled, and reads that
 would be too stale go to the primary instead of being served wrong. The breaker
-backs off exponentially to a ceiling of `REPLICA_RETRY_TIME` (20 minutes),
+backs off exponentially to a ceiling of `REPLICA_RETRY_TIME` (1200 s),
 which the table above does not list because it is not the resilience tier's:
 `db/breaker.py` owns the `CircuitBreaker`, and `db/replica.py` — connectivity,
 since it holds the two connections — owns the constant and constructs the
 breaker with it inside the `ReplicaRouter` that `Registry.cursor` delegates
-to. It was previously a *flat* 20-minute window, so
-a single transient failure cost 20 minutes of full primary load with nothing
-re-checking; it is now the maximum a doubling backoff reaches, so a blip recovers
-in about a second while the worst case is unchanged.
+to. The ceiling is the maximum a doubling backoff reaches, so a blip recovers
+in about a second while the worst case is twenty minutes.
 
 ## What a deployment must provide
 
 | Dependency | Why it is not optional |
 |---|---|
-| **PostgreSQL** | every cross-process signal travels through it; 18 is the version tested against |
+| **PostgreSQL** | every cross-process signal travels through it; `MIN_PG_VERSION` (`odoo/release.py`) is 18 and `db/pool.py` refuses older servers |
 | **The filestore** | attachment bytes; must be backed up *with* the database ([`data.md`](data.md#the-dual-storage-seam)) |
 | **Addons on disk** | `addons_path`; earlier entries shadow later ones |
-| **`odoo_rust`** | imported at startup; absent, the process warns and runs on the pure-Python twins behind `odoo/libs/accel.py` unless `ODOO_REQUIRE_NATIVE` or `CI` makes its absence fatal. A *stale* build is always fatal. `odoo_lint`, the sibling extension carrying the `test_lint` source scanner, is **not** a deployment dependency: it is a separate wheel that only the lint gates import |
+| **`odoo_rust`** | imported at startup; absent, the process warns and runs on the pure-Python twins behind `odoo/libs/accel.py` unless `ODOO_REQUIRE_NATIVE` or `CI` makes its absence fatal. A *stale* or *debug* build is always fatal. `odoo_lint`, the sibling extension carrying the `test_lint` source scanner, is **not** a deployment dependency: it is a separate wheel that only the lint gates import |
 
 ## What this view does not cover
 
