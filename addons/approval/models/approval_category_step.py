@@ -105,6 +105,24 @@ class ApprovalCategoryStep(models.Model):
         "e.g. employee_id.leave_manager_id. Each document names its own approvers.",
     )
 
+    @api.constrains("in_order")
+    def _check_in_order_without_consent(self) -> None:
+        for step in self.filtered("in_order"):
+            if step.category_id.consent_approval_hours:
+                trace.REFUSAL.event(
+                    "in_order_step_with_consent",
+                    step=step.id,
+                    category=step.category_id.id,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' lets its members decide in order, and "
+                        "consent-based auto-approval approves every member at once. "
+                        "Disable one or the other.",
+                        step=step.name,
+                    )
+                )
+
     @api.constrains("in_order", "group_id", "subject_user_path")
     def _check_in_order_pool(self) -> None:
         for step in self.filtered("in_order"):

@@ -453,10 +453,13 @@ class ApprovalCategory(models.Model):
             ),
         )
 
-    @api.constrains("approve_sequentially", "consent_approval_hours")
+    @api.constrains("approve_sequentially", "consent_approval_hours", "step_ids")
     def _constrains_consent_sequential(self) -> None:
         for category in self:
-            if category.approve_sequentially and category.consent_approval_hours:
+            ordered = category.approve_sequentially or any(
+                category.step_ids.mapped("in_order")
+            )
+            if ordered and category.consent_approval_hours:
                 trace.REFUSAL.event(
                     "consent_with_sequential",
                     category=category.id,

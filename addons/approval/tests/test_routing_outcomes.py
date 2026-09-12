@@ -172,7 +172,7 @@ class RoutingOutcomesCase(ApprovalCommon):
 class TestFlatRoutingOutcomes(RoutingOutcomesCase):
     def _flat(self, approvers, **vals):
         category = self._make_category(
-            "Flat routing",
+            f"Flat routing {self._next_sequence_code()}",
             approvers=[
                 (self.people[key], required, sequence)
                 for key, required, sequence in approvers
@@ -342,7 +342,9 @@ class TestStepRoutingOutcomes(RoutingOutcomesCase):
     """The same scripts on categories built from steps, the flat list left empty."""
 
     def _stepped(self, steps, **vals):
-        category = self._make_category("Step routing", **vals)
+        category = self._make_category(
+            f"Step routing {self._next_sequence_code()}", **vals
+        )
         for index, (keys, minimum, step_vals) in enumerate(steps):
             self.env["approval.category.step"].create(
                 {
@@ -399,6 +401,14 @@ class TestStepRoutingOutcomes(RoutingOutcomesCase):
             self._stepped([(("a",), 1, {}), (("b",), 1, {})], notify_sequentially=True),
             "sequential_as_steps",
         )
+
+    def test_members_in_order_refuse_consent_approval(self):
+        category = self._stepped([(("a", "b"), 1, {"in_order": True})])
+        with self.assertRaises(ValidationError):
+            category.consent_approval_hours = 24
+        consenting = self._stepped([(("a", "b"), 1, {})], consent_approval_hours=24)
+        with self.assertRaises(ValidationError):
+            consenting.step_ids.in_order = True
 
     def test_members_in_order_need_listed_members(self):
         with self.assertRaises(ValidationError):
