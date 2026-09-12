@@ -28,6 +28,40 @@ export class MultiRecordController extends ViewController {
         return evaluateBooleanExpr(modifier, this.model.root.evalContext);
     }
 
+    /** @returns {any[]} */
+    get headerButtons() {
+        return this.archInfo.headerButtons;
+    }
+
+    /** @returns {any[]} the header buttons shown whether or not records are selected */
+    get alwaysHeaderButtons() {
+        return this.headerButtons.filter(
+            (button) =>
+                button.display === "always" && !this.evalViewModifier(button.invisible),
+        );
+    }
+
+    /** @returns {any[]} the header buttons shown on the current selection */
+    get selectionHeaderButtons() {
+        return this.headerButtons.filter(
+            (button) =>
+                button.display !== "always" &&
+                !this.evalViewModifier(button.invisible) &&
+                this.displaySelectionButton(button),
+        );
+    }
+
+    /**
+     * Whether a selection header button applies to the current selection; a
+     * controller narrows it to the records a button can act on.
+     *
+     * @param {any} button
+     * @returns {boolean}
+     */
+    displaySelectionButton(button) {
+        return true;
+    }
+
     /** @type {any} */
     model;
 

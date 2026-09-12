@@ -10,6 +10,7 @@ import {
     mountView,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
 import { processButton } from "@web/views/view_buttons";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
@@ -17,7 +18,10 @@ const { ResCompany, ResPartner, ResUsers } = webModels;
 class Partner extends models.Model {
     _name = "partner";
     name = fields.Char();
-    _records = [{ id: 1, name: "one" }];
+    _records = [
+        { id: 1, name: "one" },
+        { id: 2, name: "two" },
+    ];
 }
 
 defineModels([Partner, ResCompany, ResPartner, ResUsers]);
@@ -182,4 +186,47 @@ test("a compiled form button carries no arch vocabulary into the DOM", async () 
             .sort()
             .join(" "),
     ).toBe("class data-hotkey name type");
+});
+
+test.tags("desktop");
+test("a controller narrows the selection header buttons through displaySelectionButton", async () => {
+    const listView = registry.category("views").get("list");
+    class PairListController extends listView.Controller {
+        /** @param {any} button */
+        displaySelectionButton(button) {
+            return (
+                button.clickParams.name !== "pair" ||
+                this.model.root.selection.length >= 2
+            );
+        }
+    }
+    registry
+        .category("views")
+        .add(
+            "pair_list",
+            { ...listView, Controller: PairListController },
+            { force: true },
+        );
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `<list js_class="pair_list">
+                <header>
+                    <button name="single" type="object" string="Single"/>
+                    <button name="pair" type="object" string="Pair"/>
+                    <button name="always" type="object" string="Always" display="always"/>
+                </header>
+                <field name="name"/>
+            </list>`,
+    });
+    expect("button[name='always']").toHaveCount(1);
+    expect("button[name='single'], button[name='pair']").toHaveCount(0);
+
+    await contains(".o_data_row:eq(0) .o_list_record_selector input").click();
+    expect("button[name='single']").toHaveCount(1);
+    expect("button[name='pair']").toHaveCount(0);
+    expect("button[name='always']").toHaveCount(1);
+
+    await contains(".o_data_row:eq(1) .o_list_record_selector input").click();
+    expect("button[name='pair']").toHaveCount(1);
 });

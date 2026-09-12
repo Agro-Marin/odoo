@@ -1320,13 +1320,10 @@ test(`list view: action button in controlPanel with display='always' on mobile`,
 
     await clickRecordSelector();
     await contains(".o_control_panel_breadcrumbs .o_cp_action_menus .fa-cog").click();
-    expect(queryAllTexts(`.o-dropdown--menu .o-dropdown-item`)).toEqual([
-        "",
-        "default-selection",
-        "Export",
-        "Duplicate",
-        "Delete",
-    ]);
+    expect(queryAllTexts(`.o-dropdown--menu .o-dropdown-item`)).toEqual(
+        ["default-selection", "Export", "Duplicate", "Delete"],
+        { message: "an always-displayed button leaves no empty item in the cog menu" },
+    );
 
     await clickRecordSelector();
     expect(

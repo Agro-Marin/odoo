@@ -115,8 +115,6 @@ export class KanbanController extends MultiRecordController {
                 activeBars,
             );
         }
-        this.headerButtons = this.archInfo.headerButtons;
-
         const self = this;
         this.quickCreateState = reactive(
             /** @type {any} */ ({
