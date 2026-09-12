@@ -31,9 +31,6 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { DefaultCommandItem } from "./command_items.js";
 
 /** @import { Command } from "./command_service.js" */
-// re-exported until webclient/menus/menu_providers.js imports it through the
-// @web/ui/commands face
-export { DefaultCommandItem };
 
 const log = makeLogger("web.command.palette");
 
