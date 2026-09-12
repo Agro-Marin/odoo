@@ -89,13 +89,13 @@ class IrModelData(models.Model):
         if "." not in xmlid:
             return None
         module, name = xmlid.split(".", 1)
-        query = "SELECT model, res_id FROM ir_model_data WHERE module=%s AND name=%s"
-        self.env.cr.execute(query, [module, name])
-        result = self.env.cr.fetchone()
-        if not (result and result[1]):
+        data = self.sudo().search_fetch(
+            [("module", "=", module), ("name", "=", name)], ["model", "res_id"], limit=1
+        )
+        if not (data and data.res_id):
             _debug.logic("xmlid_miss", xmlid=xmlid)
             return None
-        return result
+        return data.model, data.res_id
 
     @api.model
     def _get_xmlid_target(self, xmlid: str) -> tuple[str, int]:
@@ -233,6 +233,7 @@ class IrModelData(models.Model):
             "update_xmlids", rows=len(rows), update=update, repointed=repointed
         )
         if repointed:
+            self.invalidate_model(["model", "res_id", "noupdate"])
             self.env.registry.clear_cache()
         else:
             self.env.registry.clear_cache("xmlid")
