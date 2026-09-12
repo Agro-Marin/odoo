@@ -21,7 +21,7 @@ class TestApprovalBindingClient(common.TransactionCase):
             )
         )
         cls.flat_category = cls.env["approval.category"].create(
-            {"name": "Client Flat", "approval_minimum": 1}
+            {"name": "Client Flat", "approval_minimum": 1, "allow_self_approval": True}
         )
         cls.env["approval.category.approver"].create(
             {
@@ -32,7 +32,7 @@ class TestApprovalBindingClient(common.TransactionCase):
             }
         )
         cls.step_category = cls.env["approval.category"].create(
-            {"name": "Client Steps", "approval_minimum": 1}
+            {"name": "Client Steps", "approval_minimum": 1, "allow_self_approval": True}
         )
         for sequence, users in ((10, (cls.approver, cls.peer)), (20, (cls.later,))):
             cls.env["approval.category.step"].create(
@@ -167,7 +167,12 @@ class TestApprovalBindingClient(common.TransactionCase):
         member_b = self._user("client_member_b")
         member_b.write({"company_ids": [(4, company_b.id)], "company_id": company_b.id})
         category = self.env["approval.category"].create(
-            {"name": "Client Company Steps", "approval_minimum": 1, "company_id": False}
+            {
+                "name": "Client Company Steps",
+                "approval_minimum": 1,
+                "company_id": False,
+                "allow_self_approval": True,
+            }
         )
         first, _later = (
             self.env["approval.category.step"].create(
@@ -202,7 +207,11 @@ class TestApprovalBindingClient(common.TransactionCase):
 
     def test_the_button_decides_the_step_it_is_drawn_under(self):
         category = self.env["approval.category"].create(
-            {"name": "Client Two Pools", "approval_minimum": 1}
+            {
+                "name": "Client Two Pools",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
         )
         pool_a, pool_b = (
             self.env["approval.category.step"].create(
@@ -259,7 +268,11 @@ class TestApprovalBindingClient(common.TransactionCase):
     def test_a_click_after_the_decided_step_is_archived_decides_the_rest(self):
         """Studio's test_08_archive."""
         category = self.env["approval.category"].create(
-            {"name": "Client Archive", "approval_minimum": 1}
+            {
+                "name": "Client Archive",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
         )
         Step = self.env["approval.category.step"]
         exclusive = Step.create(

@@ -568,6 +568,7 @@ class ApprovalRequestAccess(models.Model):
                 )
 
     def _check_decision_actor(self, approver: models.BaseModel) -> None:
+        self._check_not_deciding_own_request(approver)
         if self.env.su:
             return
         current_user = self.env.user
@@ -588,3 +589,39 @@ class ApprovalRequestAccess(models.Model):
                     name=self.display_name,
                 ),
             )
+
+    def _check_not_deciding_own_request(self, approver: models.BaseModel) -> None:
+        """Separation of duties, held by the engine rather than by each adopter.
+
+        Checked before the superuser early return on purpose: it is not a
+        question of who is calling but of whose decision would be recorded. A
+        row whose effective approver is the request's owner cannot carry a
+        decision unless the category says so, whatever elevation the call runs
+        under -- otherwise a `sudo()` in any adopter reopens the hole the
+        routing closes.
+        """
+        self.check_singleton()
+        if self._allows_self_approval():
+            return
+        own = approver.filtered(
+            lambda a: a._get_effective_approver() == self.request_owner_id
+        )
+        if own:
+            trace.REFUSAL.event(
+                "decision_on_own_request",
+                request=self.id,
+                owner=self.request_owner_id.id,
+                rows=own.ids,
+            )
+            raise AccessError(
+                self.env._(
+                    "%(owner)s asked for %(name)s and cannot also approve or "
+                    "refuse it. Its category does not allow self-approval.",
+                    owner=self.request_owner_id.name,
+                    name=self.display_name,
+                )
+            )
+
+    def _allows_self_approval(self) -> bool:
+        self.check_singleton()
+        return bool(self.category_id.allow_self_approval)

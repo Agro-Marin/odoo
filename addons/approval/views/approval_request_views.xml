@@ -635,6 +635,27 @@
                                 </list>
                             </field>
                         </page>
+                        <page
+                            name="decision_history"
+                            string="Decision History"
+                            invisible="not decision_log_ids">
+                            <field name="decision_log_ids" readonly="1">
+                                <list>
+                                    <field name="date" />
+                                    <field name="verdict" />
+                                    <field name="user_id" />
+                                    <field name="principal_id" optional="show" />
+                                    <field
+                                        name="step_ids"
+                                        widget="many2many_tags"
+                                        optional="show" />
+                                    <field name="elevation" optional="hide" />
+                                    <field name="refusal_reason_id" optional="show" />
+                                    <field name="note" optional="hide" />
+                                    <field name="state_after" optional="hide" />
+                                </list>
+                            </field>
+                        </page>
                         <page name="other_info" string="Other Information">
                             <group name="other_info_group">
                                 <group name="other_info_left">

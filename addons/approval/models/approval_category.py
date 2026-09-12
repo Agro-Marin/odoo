@@ -127,6 +127,13 @@ class ApprovalCategory(models.Model):
         default="optional",
         tracking=True,
     )
+    allow_self_approval = fields.Boolean(
+        tracking=True,
+        help="Whether the person asking may also decide their own request. Off, "
+        "the requester is never asked and any decision they attempt is refused, "
+        "on every routing path: listed approvers, the security group, rules and "
+        "steps.",
+    )
     group_approval = fields.Selection(
         selection=[
             ("no", "Users"),

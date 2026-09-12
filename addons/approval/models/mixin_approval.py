@@ -348,7 +348,101 @@ class MixinApproval(models.AbstractModel):
     def _get_fields_approval_protected(self) -> list[str]:
         return []
 
+    _APPROVAL_OUTPUT_FIELDS = frozenset(
+        {"approval_state", "date_approval_granted", "date_approval_requested"}
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list: list[dict[str, Any]]):
+        for vals in vals_list:
+            self._check_no_forged_approval_outputs(vals)
+        records = super().create(vals_list)
+        for record, vals in zip(records, vals_list, strict=True):
+            if vals.get("approval_request_id"):
+                record._check_approval_request_link(vals["approval_request_id"])
+        return records
+
+    def _check_no_forged_approval_outputs(self, vals: dict[str, Any]) -> None:
+        """What a document says about its approval is read from its request.
+
+        These columns are stored copies of the request, kept for search and
+        domains. Writing one does not reach the request: it makes the document
+        claim a decision nobody took, and every gate that reads the document
+        believes it. Nothing legitimate writes them -- the ORM updates a stored
+        related field without calling `write` -- so the refusal holds for the
+        superuser too.
+        """
+        forged = self._APPROVAL_OUTPUT_FIELDS & vals.keys()
+        if forged:
+            trace.REFUSAL.event(
+                "approval_output_written", records=self, fields=sorted(forged)
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(fields)s cannot be written: a document's approval status "
+                    "is its approval request's, and changes only through a "
+                    "decision on that request.",
+                    fields=", ".join(sorted(forged)),
+                )
+            )
+
+    def _check_approval_request_link(self, request_id: int | Any) -> None:
+        """A document may point only at an approval request it answers to.
+
+        Three relations are real. The request is about this record: the
+        engine's own link. The request's category produces records of this model
+        (`target_model`) and this record is one of them: a bill or an order
+        created from an approved request is covered by it. Or the request has no
+        subject and nobody has decided it yet: it is bound to the record here,
+        so it cannot be adopted twice. Anything else -- another document's
+        request, or a decided request that neither is about this record nor
+        produces its kind -- would lend it a decision taken about something else.
+        """
+        request = (
+            self.env["approval.request"]
+            .sudo()
+            .browse(request_id.id if hasattr(request_id, "id") else request_id)
+        )
+        for record in self:
+            if request.res_model == record._name and request.res_id == record.id:
+                continue
+            if request.target_model and request.target_model == record._name:
+                continue
+            if not request.res_model and not request.res_id and request.state == "new":
+                request.write({"res_model": record._name, "res_id": record.id})
+                continue
+            trace.REFUSAL.event(
+                "approval_request_link_foreign",
+                record=record,
+                request=request.id,
+                request_subject=f"{request.res_model},{request.res_id}",
+                request_state=request.state,
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(document)s cannot be linked to approval request "
+                    "%(request)s: that request is about another record, or was "
+                    "already decided without one.",
+                    document=record.display_name,
+                    request=request.display_name,
+                )
+            )
+
     def write(self, vals: dict[str, Any]) -> bool:
+        self._check_no_forged_approval_outputs(vals)
+        if vals.get("approval_request_id"):
+            if len(self) > 1:
+                trace.REFUSAL.event(
+                    "approval_request_link_many", records=self, count=len(self)
+                )
+                raise ValidationError(
+                    self.env._(
+                        "One approval request is about one record; it cannot be "
+                        "linked to %(count)s at once.",
+                        count=len(self),
+                    )
+                )
+            self._check_approval_request_link(vals["approval_request_id"])
         if not self.env.su:
             protected = set(self._get_fields_approval_protected())
             touched = protected & vals.keys()

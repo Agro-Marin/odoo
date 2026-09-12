@@ -119,11 +119,63 @@ class TestApproverAccessControl(common.TransactionCase):
             )
         )
 
-        request.action_confirm()
+        with self.assertRaises(UserError, msg="the owner is the only approver"):
+            request.action_confirm()
+        self.assertFalse(
+            request.approver_ids.filtered(lambda a: a.user_id == self.user_1),
+            "the owner is never staged as an approver of their own request",
+        )
 
-        approver = request.approver_ids.filtered(lambda a: a.user_id == self.user_1)
-        if approver:
-            self.assertEqual(approver.state, "pending")
+    def test_owner_may_approve_own_request_where_the_category_allows_it(self):
+        category = self.env["approval.category"].create(
+            {
+                "sequence_code": "SC0054",
+                "name": "Self Approval Allowed",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
+        )
+        self.env["approval.category.approver"].create(
+            {"user_id": self.user_1.id, "category_id": category.id}
+        )
+        request = (
+            self.env["approval.request"]
+            .with_user(self.user_1)
+            .create({"request_owner_id": self.user_1.id, "category_id": category.id})
+        )
+        request.action_confirm()
+        request.approver_ids.with_user(self.user_1).with_context(
+            skip_wizard=True
+        ).action_approve()
+        self.assertEqual(request.state, "approved")
+
+    def test_owner_cannot_decide_their_row_once_the_policy_forbids_it(self):
+        """The policy is read when deciding, not only when routing, and under
+        sudo too: a row staged while the category allowed self-approval cannot
+        carry the owner's decision after it stops allowing it."""
+        category = self.env["approval.category"].create(
+            {
+                "sequence_code": "SC0055",
+                "name": "Policy tightened",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
+        )
+        self.env["approval.category.approver"].create(
+            {"user_id": self.user_1.id, "category_id": category.id}
+        )
+        request = (
+            self.env["approval.request"]
+            .with_user(self.user_1)
+            .create({"request_owner_id": self.user_1.id, "category_id": category.id})
+        )
+        request.action_confirm()
+        category.allow_self_approval = False
+        own_row = request.approver_ids.filtered(lambda a: a.user_id == self.user_1)
+        self.assertTrue(own_row)
+        with self.assertRaises(AccessError):
+            request.with_user(self.user_1).sudo().action_approve(own_row)
+        self.assertEqual(request.state, "pending")
 
 
 @tagged("post_install", "-at_install")

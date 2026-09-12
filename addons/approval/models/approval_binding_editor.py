@@ -83,11 +83,14 @@ class ApprovalBinding(models.Model):
         ir_model = self.env["ir.model"]._get(model)
         action = False if method else self._parse_button_action(action_id)
         operation = method or self.env["ir.actions.actions"].browse(action).name
+        # A button's approval restricts who may press it; the person pressing is
+        # the one whose approval is recorded. That is self-approval by design.
         category = self.env["approval.category"].create(
             {
                 "name": self.env._(
                     "%(model)s: %(operation)s", model=ir_model.name, operation=operation
                 ),
+                "allow_self_approval": True,
             }
         )
         return self.create(

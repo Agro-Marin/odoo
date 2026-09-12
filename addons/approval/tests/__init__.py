@@ -21,6 +21,7 @@ from . import (
     test_consent_approval,
     test_deadline_escalation,
     test_decision_attribution,
+    test_decision_log,
     test_decision_wizard,
     test_delegation,
     test_document_requirements,

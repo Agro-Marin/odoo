@@ -28,7 +28,11 @@ class TestApprovalBindingReset(common.TransactionCase):
             )
         )
         cls.category = cls.env["approval.category"].create(
-            {"name": "Reset Category", "approval_minimum": 1}
+            {
+                "name": "Reset Category",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
         )
         cls.env["approval.category.approver"].create(
             {
@@ -177,7 +181,9 @@ class TestApprovalBindingReset(common.TransactionCase):
 
     def test_a_decision_on_a_request_still_waiting_is_reset_too(self):
         """Studio's test_create_automation: a reset clears decisions, approved or not."""
-        category = self.env["approval.category"].create({"name": "Reset Steps"})
+        category = self.env["approval.category"].create(
+            {"name": "Reset Steps", "allow_self_approval": True}
+        )
         Step = self.env["approval.category.step"]
         first, _second = (
             Step.create(

@@ -229,6 +229,7 @@ class ApprovalRequestLifecycle(models.Model):
             sequential=self.approve_sequentially,
         )
         now = fields.Datetime.now()
+        logged_steps = {}
         for row in approver.sudo():
             if steps:
                 decided = steps
@@ -252,6 +253,13 @@ class ApprovalRequestLifecycle(models.Model):
                     "decided_step_ids": decided_steps,
                 },
             )
+            logged_steps[row.id] = decided
+        self._append_decision_log(
+            "approved" if decision == "approve" else "refused",
+            rows=approver,
+            actor=acting_user,
+            steps_by_row=logged_steps,
+        )
         if decision == "approve":
             body = self.env._(
                 "The request created on %(create_date)s by %(request_owner)s has been accepted.",
@@ -863,6 +871,7 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         request = self
         previous_state = request.state
+        request._append_decision_log("reset")
         request._close_pending_change()
         request.approver_ids.sudo().write(
             {
@@ -1038,6 +1047,11 @@ class ApprovalRequestLifecycle(models.Model):
                 cancel_activities=True,
             )
 
+            request._append_decision_log(
+                "withdrawn",
+                rows=req_approver,
+                steps_by_row={row.id: row.decided_step_ids for row in req_approver},
+            )
             req_approver.sudo().write(
                 {
                     "state": "pending",
@@ -1296,6 +1310,9 @@ class ApprovalRequestLifecycle(models.Model):
             )
         self._check_withdraw_allowed()
         old_state = self.state
+        self._append_decision_log(
+            "withdrawn", rows=approver, steps_by_row={approver.id: steps}
+        )
         approver.sudo().write(
             {"decided_step_ids": [Command.unlink(step.id) for step in steps]},
         )
@@ -1530,6 +1547,9 @@ class ApprovalRequestLifecycle(models.Model):
                 reason=refusal_reason.id if refusal_reason else None,
             )
             request._log_cycle("terminal", was=old_state, forced=new_state)
+            request._append_decision_log(
+                new_state, reason=refusal_reason, note=refusal_note
+            )
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
                 post_kwargs["subtype_xmlid"] = subtype_xmlid
@@ -1578,6 +1598,9 @@ class ApprovalRequestLifecycle(models.Model):
                 "revoked", request=request.id, into=new_state, actor=self.env.uid
             )
             request._log_cycle("revoke", forced=new_state)
+            request._append_decision_log(
+                "revoked", reason=refusal_reason, note=refusal_note
+            )
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
                 post_kwargs["subtype_xmlid"] = subtype_xmlid
@@ -1613,6 +1636,7 @@ class ApprovalRequestLifecycle(models.Model):
                 "granted_without_decision", request=request.id, actor=self.env.uid
             )
             request._log_cycle("grant", actor=self.env.user.login)
+            request._append_decision_log("granted")
             post_kwargs = {"message_type": "notification"}
             if subtype_xmlid:
                 post_kwargs["subtype_xmlid"] = subtype_xmlid

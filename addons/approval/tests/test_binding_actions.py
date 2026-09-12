@@ -36,7 +36,11 @@ class TestApprovalBindingActions(common.TransactionCase):
             )
         )
         cls.category = cls.env["approval.category"].create(
-            {"name": "Action Category", "approval_minimum": 1}
+            {
+                "name": "Action Category",
+                "approval_minimum": 1,
+                "allow_self_approval": True,
+            }
         )
         cls.env["approval.category.approver"].create(
             {

@@ -280,6 +280,7 @@ class ApprovalRequest(models.Model):
     )
     approve_sequentially = fields.Boolean(related="category_id.approve_sequentially")
     group_approval = fields.Selection(related="category_id.group_approval")
+    allow_self_approval = fields.Boolean(related="category_id.allow_self_approval")
     approver_group_id = fields.Many2one(related="category_id.approver_group_id")
     approval_type = fields.Selection(
         related="category_id.approval_type",

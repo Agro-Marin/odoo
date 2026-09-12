@@ -131,6 +131,7 @@ so category names are unique per company, archived rows included.
 | `has_location` | Selection | Yes | Yes | default="no", tracking |
 | `has_document` | Selection(required/optional) | Yes | Yes | default="optional", tracking |
 | `group_approval` | Selection(`no`="Users" / `exclusive`="Security group") | Yes | Yes | default="no", tracking. Labelled "Approver Source". Only two values, so `!= "no"` and `== "exclusive"` are the same test in `_compute_desired_approvers` — in `exclusive` mode the category list, the manager hook and approver-replacing rules are all bypassed and the group's `all_user_ids` become the approvers, all optional |
+| `allow_self_approval` | Boolean | No | Yes | Whether the request owner may also decide. Off by default; categories existing at 19.0.2.1.0 were migrated to on |
 | `approver_group_id` | Many2one(`res.groups`) | Yes | No | tracking |
 | `approver_group_user_ids` | Many2many(`res.users`) | No | No | related=approver_group_id.all_user_ids — members reachable through implied groups, not just direct ones |
 | `allowed_user_ids` | Many2many(`res.users`) | Yes | No | Gate request creation; also the `restricted_users` read audience |
@@ -274,6 +275,8 @@ so category names are unique per company, archived rows included.
 | `approval_minimum` | Integer | Yes | No | default=1, readonly, copy=True. Effective minimum (an approver-replacing rule's override, or the category default) |
 | `approve_sequentially` | Boolean | No | No | related |
 | `group_approval` | Selection | No | No | related |
+| `allow_self_approval` | Boolean | No | No | related to the category |
+| `decision_log_ids` | One2many(`approval.decision.log`) | No | No | compute_sudo; the decision history |
 | `approver_group_id` | Many2one | No | No | related |
 | `approval_type` | Selection | Yes | No | related, store |
 | `target_model` | Selection | Yes | No | related, store |
@@ -1147,6 +1150,36 @@ Approving is a 1-click action that never opens this wizard.
 that had them keeps them; the split exists so that a module adopting
 `mixin.approval` does not take `mixin_report_sql` and the whole `automation`
 closure with it. Read their fields in those modules.
+
+---
+
+## approval.decision.log
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.decision.log` |
+| File | `models/approval_decision_log.py` |
+| Order | `date desc, id desc` |
+| Access | Approval managers read the model directly; everyone else reads a request's history through `approval.request.decision_log_ids` (`compute_sudo`), so whoever may read the request may read what was decided about it |
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `request_id` | Many2one(`approval.request`) | required, cascade |
+| `approver_id` | Many2one(`approval.approver`) | the row the fact is about, if any |
+| `step_ids` | Many2many(`approval.category.step`) | the steps a decision was given for, or withdrawn from |
+| `verdict` | Selection | approved, refused, withdrawn, granted, revoked, cancelled, reset |
+| `state_after` | Char | the request's state once the fact was applied |
+| `user_id` | Many2one(`res.users`) | who acted |
+| `principal_id` | Many2one(`res.users`) | the approver a delegate acted for |
+| `elevation` | Selection | none, superuser, self_elevated |
+| `refusal_reason_id` / `note` | | as given |
+| `date` | Datetime | |
+
+**Invariants.** Created only by `_append_decision_log`, which every funnel calls: `_apply_decision`, `action_withdraw`, `_withdraw_decided_steps`, `_force_draft` (before it clears the rows), `_force_terminal`, `_revoke`, `_approve_without_decision`. `write` and `unlink` raise for every caller.
+
+**Separation of duties (19.0.2.1.0).** `approval.category.allow_self_approval`, mirrored on the request: when false, `_compute_desired_approvers` never stages the request owner, on any routing path, and `_check_not_deciding_own_request` refuses a decision on a row whose effective approver is the owner -- checked before `_check_decision_actor`'s superuser return, so `sudo()` does not reopen it. Categories existing at the upgrade were migrated to allowing. The Studio editor's categories allow it by design: a button's approval restricts who may press, and the presser is the approver.
+
+**Coverage integrity (19.0.2.1.0).** `mixin.approval` refuses writes to `approval_state`, `date_approval_granted` and `date_approval_requested` for every caller, and accepts an `approval_request_id` only for a request about the record itself or a subject-less request still in `new`, which the write binds to the record.
 
 ---
 

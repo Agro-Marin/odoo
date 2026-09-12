@@ -42,6 +42,7 @@ class ApprovalRequestRouting(models.Model):
             "approval_type": cat.approval_type,
             "approve_sequentially": cat.approve_sequentially,
             "group_approval": cat.group_approval,
+            "allow_self_approval": cat.allow_self_approval,
             "approval_deadline_hours": cat.approval_deadline_hours,
             "sla_target_hours": cat.sla_target_hours,
             "sla_warning_pct": cat.sla_warning_pct,
@@ -875,6 +876,10 @@ class ApprovalRequestRouting(models.Model):
                     "source_synced": False,
                 }
 
+        owner_id = self.request_owner_id.id
+        if owner_id in approver_staging and not self._allows_self_approval():
+            del approver_staging[owner_id]
+            trace.ROUTING.event("owner_not_staged", request=self.id, owner=owner_id)
         trace.ROUTING.items(
             "staged_user",
             lambda: [

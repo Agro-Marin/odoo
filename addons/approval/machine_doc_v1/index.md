@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.2.0.0 (matches `__manifest__.py`) |
+| Version | 19.0.2.1.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -25,7 +25,7 @@ dashboards.
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
-| Test files | 43 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
+| Test files | 44 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
 | JS files | 26 (14 `static/src` + 12 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
@@ -44,6 +44,7 @@ dashboards.
 | `approval_request_escalation.py` | extends `approval.request` | When: deadline, overdue, SLA (compute + search), the three crons, reminders and escalation |
 | `approval_request_prediction.py` | extends `approval.request` | On-demand outcome prediction (`action_predict_outcome`) |
 | `approval_approver.py` | `approval.approver` | Individual approver: state, delegation, CRUD access control |
+| `approval_decision_log.py` | `approval.decision.log`, extends `approval.request` | The append-only decision ledger: one `verdict` per fact (approved, refused, withdrawn, granted, revoked, cancelled, reset) with the acting user, the `principal_id` a delegate acted for, the caller's elevation and the `state_after`. Written by every funnel through `_append_decision_log`; `write` and `unlink` refuse always. Read through `approval.request.decision_log_ids` |
 | `mixin_approval_source.py` | `mixin.approval.source` (Abstract) | What every record an approval request is raised for may answer: `_filter_approval_step_user_ids()` (who its own policy lets decide) and `_get_approval_activity_type()` (which activity asks them). Parent of both adopter shapes |
 | `mixin_approval.py` | `mixin.approval` (Abstract) | Mixin for source documents (PO, SO, etc.) to integrate with approvals: one request per document, `approval_request_id` |
 | `mixin_approval_subjects.py` | `mixin.approval.subjects` (Abstract) | A record holding one request per subject (`subject_key`): a course and each partner asking to join it, an engineering change and each stage it passes. Raises, looks up and is told about each subject's request |
@@ -120,6 +121,7 @@ dashboards.
 | `test_analytics_accuracy.py` | SQL view accuracy, metric calculations |
 | `test_prediction_and_snapshot.py` | On-demand outcome prediction, category snapshots (+ batched-query regression) |
 | `test_state_guards.py` | What each request state allows: submitted-request guards, locked fields, forged computed fields |
+| `test_decision_log.py` | The ledger: a decision logged with its actor, a reset that erases the rows but not the history, a withdrawal as a fact, a delegate logged acting for the approver, an elevated decision saying so, grants and revocations, the log refusing change and deletion even by the superuser, and the history read through the request |
 | `test_decision_attribution.py` | decision attribution under delegation, decision-funnel scoping, change-request close-out, manual-approver preservation, escalation lookup, document-requirement language, batched round-opening |
 | `test_invariants.py` | invariants that must hold across the whole lifecycle (pending-review predicate, decision funnels) |
 | `test_multi_company.py` | Multi-company isolation across every company_id-scoped model |
@@ -227,8 +229,8 @@ approval/
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 22 script directories (1.0.1 .. 2.0)
-+-- tests/                            # 43 test modules + common.py
++-- migrations/                       # 23 script directories (1.0.1 .. 2.1)
++-- tests/                            # 44 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -241,19 +243,19 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 43 (+ `common.py`) |
+| Python test files | 44 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 26 |
 | SCSS files | 4 |
-| ORM models (new) | 18 in `models/` + 2 wizards + 3 report models |
+| ORM models (new) | 19 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 8 (base, ir.actions.report, ir.actions.server, ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
 | Abstract models | 6 (mixin.approval.source, mixin.approval, mixin.approval.state.sync, mixin.approval.subjects, mixin.approval.threshold, mixin.approval.domain) |
 | SQL view models | 2 |
 | Transient models | 2 |
 | Test-only models | 3 |
 | Cron jobs | 3 |
-| Migration script directories | 22 |
+| Migration script directories | 23 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'
