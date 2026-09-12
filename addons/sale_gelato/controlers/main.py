@@ -40,7 +40,7 @@ class GelatoController(Controller):
             elif fulfillment_status == "canceled":
                 order_sudo.with_user(SUPERUSER_ID)._action_cancel()
 
-                order_sudo.line_ids.currency_id  # noqa: B018
+                order_sudo.line_ids.currency_id  # noqa: B018  warms the cache: the flush cannot read it under access rights
 
                 log_message = _(
                     "Gelato has canceled order %(reference)s.",

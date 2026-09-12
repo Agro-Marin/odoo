@@ -383,7 +383,7 @@ class ProductProduct(models.Model):
     def create(self, vals_list):
         products = super().create(vals_list)
         products.with_context(
-            valuation_date=datetime.min  # noqa: DTZ901
+            valuation_date=datetime.min  # noqa: DTZ901  naive sentinel, the field is naive UTC
         )._create_standard_price_change_values(
             {product: 0 for product in products if product.standard_price}
         )

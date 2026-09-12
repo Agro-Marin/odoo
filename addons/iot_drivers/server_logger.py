@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import queue
 import threading
@@ -90,11 +91,10 @@ class AsyncHTTPHandler(logging.Handler):
 
             # Report to the server if the queue is close from saturation
             if queue_size >= 0.8 * self._MAX_QUEUE_SIZE:
-                log_message = "The IoT {} queue is saturating: {}/{} ({:.2f}%)".format(  # noqa: UP032
-                    self.__class__.__name__,
-                    queue_size,
-                    self._MAX_QUEUE_SIZE,
-                    100 * queue_size / self._MAX_QUEUE_SIZE,
+                log_message = (
+                    f"The IoT {self.__class__.__name__} queue is saturating: "
+                    f"{queue_size}/{self._MAX_QUEUE_SIZE} "
+                    f"({100 * queue_size / self._MAX_QUEUE_SIZE:.2f}%)"
                 )
                 _logger.warning(
                     log_message
@@ -136,10 +136,8 @@ class AsyncHTTPHandler(logging.Handler):
         # The log calls will be waiting for this function to finish
         if not self._active:
             return
-        try:  # noqa: SIM105
+        with contextlib.suppress(queue.Full):
             self._log_queue.put_nowait(record)
-        except queue.Full:
-            pass
 
     def close(self):
         self.toggle_active(False)

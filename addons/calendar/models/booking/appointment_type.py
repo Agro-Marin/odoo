@@ -1689,7 +1689,7 @@ class AppointmentType(models.Model):
             ):
                 available_staff_users = available_users_tz.filtered(
                     lambda staff_user: self._slot_availability_is_user_available(
-                        slot,  # noqa: B023
+                        slot,  # noqa: B023  consumed by filtered() in the same iteration
                         staff_user,
                         availability_values,
                         asked_capacity,

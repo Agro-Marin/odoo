@@ -68,7 +68,7 @@ class ScaleDriver(SerialDriver):
 
         # The HW Proxy can only expose one scale,
         # only the last scale connected is kept
-        global ACTIVE_SCALE  # noqa: PLW0603
+        global ACTIVE_SCALE  # noqa: PLW0603  the proxy exposes one scale per process
         ACTIVE_SCALE = self
         proxy_drivers["scale"] = ACTIVE_SCALE
 

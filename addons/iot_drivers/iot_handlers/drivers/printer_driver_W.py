@@ -225,7 +225,7 @@ class PrinterDriver(PrinterDriverBase):
         elif self.device_type == "label_printer":
             self.print_raw(b"^XA^CI28 ^FT35,40 ^A0N,30 ^FDIoT Box Test Label^FS^XZ")
         else:
-            self.print_raw("IoT Box Test Page".encode())  # noqa: UP012
+            self.print_raw(b"IoT Box Test Page")
 
     def _cancel_job_with_error(self, job_id, error_message):
         self.job_ids.remove(job_id)

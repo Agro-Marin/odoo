@@ -161,7 +161,7 @@ class MixinResource(models.AbstractModel):
             for record in self:
                 mapped_resources[calendar_by_resource[record.id]] |= record.resource_id
 
-        for calendar, calendar_resources in mapped_resources.items():  # noqa: PLR1704
+        for calendar, calendar_resources in mapped_resources.items():  # noqa: PLR1704  the parameter's value is consumed above; the loop reuses the name on purpose
             if not calendar:
                 for calendar_resource in calendar_resources:
                     result[calendar_resource.id] = {"days": 0, "hours": 0}
@@ -222,7 +222,7 @@ class MixinResource(models.AbstractModel):
                 record.resource_id
             )
 
-        for calendar, calendar_resources in mapped_resources.items():  # noqa: PLR1704
+        for calendar, calendar_resources in mapped_resources.items():  # noqa: PLR1704  the parameter's value is consumed above; the loop reuses the name on purpose
             if not calendar:
                 days = (to_datetime.date() - from_datetime.date()).days + 1
                 hours = (to_datetime - from_datetime).total_seconds() / 3600
@@ -272,7 +272,7 @@ class MixinResource(models.AbstractModel):
             to_datetime = to_datetime.replace(tzinfo=UTC)
         compute_leaves = self.env.context.get("compute_leaves", True)
 
-        for calendar, records in records_by_calendar.items():  # noqa: PLR1704
+        for calendar, records in records_by_calendar.items():  # noqa: PLR1704  the parameter's value is consumed above; the loop reuses the name on purpose
             if not calendar:
                 for record in records:
                     result[record.id] = []

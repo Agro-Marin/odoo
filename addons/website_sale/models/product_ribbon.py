@@ -95,7 +95,7 @@ class ProductRibbon(models.Model):
             )
         ):
             return True
-        if (  # noqa: SIM103
+        if (  # noqa: SIM103  the condition reads as a checklist; a bare return would not
             self.assign == "new"
             and self.new_period >= (fields.Datetime.today() - product.publish_date).days
         ):

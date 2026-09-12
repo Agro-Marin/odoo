@@ -105,7 +105,11 @@ class ResPartner(models.Model):
         self.check_singleton()
         if not self.l10n_ar_vat:
             raise UserError(
-                _("No VAT configured for partner [%i] %s", self.id, self.name)
+                _(
+                    "No VAT configured for partner [%(id)i] %(name)s",
+                    id=self.id,
+                    name=self.name,
+                )
             )
         return self.l10n_ar_vat
 

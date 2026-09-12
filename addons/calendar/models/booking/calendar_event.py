@@ -50,8 +50,8 @@ class CalendarEvent(models.Model):
             and isinstance(res["stop"], datetime)
             and res["stop"].second != 0
         ):
-            res["stop"] = datetime.min + round(  # noqa: DTZ901
-                (res["stop"] - datetime.min) / timedelta(minutes=1)  # noqa: DTZ901
+            res["stop"] = datetime.min + round(  # noqa: DTZ901  naive epoch, fields are naive UTC
+                (res["stop"] - datetime.min) / timedelta(minutes=1)  # noqa: DTZ901  same
             ) * timedelta(minutes=1)
         user_id = res.get("user_id")
         appointment_resource_ids = (
@@ -371,7 +371,7 @@ class CalendarEvent(models.Model):
                             tuple(map(localized, interval)),
                             event_interval,  # noqa: B023  (consumed by filtered() in the same iteration)
                         )
-                        for interval in resource_unavailabilities.get(resource, [])  # noqa: B023
+                        for interval in resource_unavailabilities.get(resource, [])  # noqa: B023  same
                     )
                 )
                 for conflicting_event in events_to_check - event._origin:

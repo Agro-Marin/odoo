@@ -160,7 +160,7 @@ class StockMoveLine(models.Model):
 
     def _is_auto_waveable(self):
         self.check_singleton()
-        if (  # noqa: SIM103
+        if (  # noqa: SIM103  the condition reads as a checklist; a bare return would not
             not self.picking_id
             or (
                 (

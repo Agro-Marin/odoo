@@ -17,7 +17,7 @@ def _fefo_sort_key(quant):
     """
     return (
         quant.removal_date is False,
-        quant.removal_date or datetime.min,  # noqa: DTZ901
+        quant.removal_date or datetime.min,  # noqa: DTZ901  naive sentinel, the field is naive UTC
         quant.in_date,
         quant.id,
     )

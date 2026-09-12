@@ -27,7 +27,7 @@ class IrBinary(models.AbstractModel):
             and filename is None
             and record.file_extension
         ):
-            name, extension = splitext(record.name)  # noqa: PTH122
+            name, extension = splitext(record.name)  # noqa: PTH122  a display name, not a path
             if extension == f".{record.file_extension}":
                 filename = record.name
             else:

@@ -1144,9 +1144,9 @@ class SurveyQuestion(models.Model):
         if abs(total - self.constant_sum_total) > 0.01:
             return {
                 self.id: _(
-                    "Values must sum to %s (currently %s).",
-                    self.constant_sum_total,
-                    total,
+                    "Values must sum to %(expected)s (currently %(total)s).",
+                    expected=self.constant_sum_total,
+                    total=total,
                 )
             }
         return {}

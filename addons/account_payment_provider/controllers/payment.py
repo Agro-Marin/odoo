@@ -24,8 +24,8 @@ class PaymentPortal(payment_portal.PaymentPortal):
             invoice_sudo = self._document_check_access(
                 "account.move", invoice_id, access_token
             )
-        except MissingError as error:
-            raise error  # noqa: TRY201
+        except MissingError:
+            raise
         except AccessError as error:
             raise ValidationError(_("The access token is invalid.")) from error
 
