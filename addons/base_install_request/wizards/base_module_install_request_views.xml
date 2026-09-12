@@ -6,34 +6,14 @@
         <field name="model">base.module.install.request</field>
         <field name="arch" type="xml">
             <form string="Activation Request" create="0">
-                <header>
-                    <button
-                        name="action_open_install_review"
-                        type="object"
-                        string="Install App"
-                        groups="base.group_system"
-                        invisible="approval_state != 'approved'"
-                        class="btn-primary" />
-                    <button
-                        name="action_view_approval_request"
-                        type="object"
-                        string="Approval Request"
-                        invisible="not approval_request_id" />
-                    <field name="approval_state" widget="statusbar" />
-                </header>
+                <header />
                 <sheet>
                     <group>
                         <group>
                             <field name="module_id" />
                             <field name="user_id" />
                         </group>
-                        <group>
-                            <field name="approval_request_id" readonly="1" />
-                            <field
-                                name="pending_approver_ids"
-                                widget="many2many_tags"
-                                invisible="approval_state not in ['new', 'pending']" />
-                        </group>
+                        <group name="decision" />
                     </group>
                     <group string="Why is this module needed?">
                         <field name="body_html" colspan="2" nolabel="1" readonly="1" />
