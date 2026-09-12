@@ -106,7 +106,7 @@ class ModuleGraph:
 
     def __iter__(self) -> Iterator[ModuleNode]:
         with _debug.perf("module_graph.sort", modules=len(self._modules)):
-            ordered = sorted(
+            ordered = sorted(  # debuglog
                 self._modules.values(),
                 key=lambda p: (p.phase, p.depth, p.order_name),
             )
@@ -128,7 +128,7 @@ class ModuleGraph:
             for name in names:
                 module = self._modules[name] = ModuleNode(name, self)
                 if not module.manifest.get("installable"):
-                    imported = name in self._imported_modules
+                    imported = name in self._imported_modules  # debuglog
                     _debug.logic(
                         "module_graph.not_installable",
                         module=name,
@@ -157,7 +157,9 @@ class ModuleGraph:
         self._cr.execute(
             "SELECT name FROM ir_module_module WHERE state IN ('installed', 'to upgrade')"
         )
-        outside = [name for (name,) in self._cr.fetchall() if name not in self._modules]
+        outside = [
+            name for (name,) in self._cr.fetchall() if name not in self._modules
+        ]  # debuglog
         _debug.perf.count(
             "module_graph.installed_outside", outside=len(outside), graph=len(self)
         )
@@ -166,7 +168,7 @@ class ModuleGraph:
     @functools.cached_property
     def _imported_modules(self) -> OrderedSet[str]:
         result = ["studio_customization"]
-        has_column = column_exists(self._cr, "ir_module_module", "imported")
+        has_column = column_exists(self._cr, "ir_module_module", "imported")  # debuglog
         if has_column:
             self._cr.execute("SELECT name FROM ir_module_module WHERE imported")
             result += [m[0] for m in self._cr.fetchall()]
@@ -197,7 +199,7 @@ class ModuleGraph:
 
     def _update_depth(self, names: Iterable[str]) -> None:
         with _debug.perf("module_graph.cycle_scan", modules=len(self._modules)) as span:
-            cycle_members = self._get_module_names_in_cycles()
+            cycle_members = self._get_module_names_in_cycles()  # debuglog
             span.set(on_cycle=len(cycle_members))
         for cycle_member in cycle_members:
             if cycle_member in self._modules:
@@ -274,12 +276,12 @@ class ModuleGraph:
             WHERE name = ANY(%s)
         """
         self._cr.execute(query, [list(names)])
-        rows = self._cr.fetchall()
-        states: dict[str, int] = {}
+        rows = self._cr.fetchall()  # debuglog
+        states: dict[str, int] = {}  # debuglog
         for name, id_, state, demo, db_version in rows:
             if name not in self._modules:
                 continue
-            states[state] = states.get(state, 0) + 1
+            states[state] = states.get(state, 0) + 1  # debuglog
             if state == "uninstallable":
                 _debug.logic("module_graph.skipped", module=name, state=state)
                 _logger.warning("module %s: not installable, skipped", name)

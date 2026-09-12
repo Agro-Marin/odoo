@@ -163,14 +163,14 @@ class MigrationManager:
         with _debug.perf(
             "migration.index", graph=len(self.graph), indexed=len(self.migrations)
         ) as span:
-            added = 0
+            added = 0  # debuglog
             for pkg in self.graph:
                 if pkg.name in self.migrations:
                     continue
                 if not self._is_migration_required(pkg):
                     continue
 
-                added += 1
+                added += 1  # debuglog
                 self.migrations[pkg.name] = {
                     "module": _get_scripts_by_version(
                         _get_addon_path(pkg.name + "/migrations")
@@ -266,11 +266,11 @@ class MigrationManager:
                 if _is_migration_applicable(version, installed_version, target_version)
             ),
         )
-        scripts_run = 0
+        scripts_run = 0  # debuglog
         for version in versions:
             if not _is_migration_applicable(version, installed_version, target_version):
                 continue
-            files = _get_migration_files(pkg, version, stage)
+            files = _get_migration_files(pkg, version, stage)  # debuglog
             _debug.logic(
                 "migration.version_applicable",
                 module=pkg.name,
@@ -279,7 +279,7 @@ class MigrationManager:
                 scripts=len(files),
             )
             for pyfile in files:
-                scripts_run += 1
+                scripts_run += 1  # debuglog
                 run_migration_script(
                     self.cr,
                     installed_version,

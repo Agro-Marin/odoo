@@ -151,9 +151,9 @@ def _files_missing_records(cr: BaseCursor, stored_files: dict) -> set[str]:
             [list(files_by_xmlid)],
         )
         stale: set[str] = set()
-        missing = 0
+        missing = 0  # debuglog
         for [xmlid] in cr.fetchall():
-            missing += 1
+            missing += 1  # debuglog
             stale.update(files_by_xmlid[xmlid])
         span.set(missing=missing, stale=len(stale))
     return stale
@@ -210,11 +210,11 @@ def _load_tracked_file(
     digest, dynamic = _get_data_file_digest_and_dynamic_flag(filename, content)
     registry = env.registry
     entry = stored_files.get(filename)
-    reason = "new" if entry is None else "dynamic" if dynamic else "changed"
+    reason = "new" if entry is None else "dynamic" if dynamic else "changed"  # debuglog
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
         contended = registry.loading.xmlids_written.intersection(entry["xmlids"])
         if filename in stale_files:
-            reason = "stale"
+            reason = "stale"  # debuglog
             _logger.info(
                 "re-applying unchanged %s/%s: records it declares are gone from "
                 "the database, so its digest no longer witnesses their presence",
@@ -222,7 +222,7 @@ def _load_tracked_file(
                 filename,
             )
         elif _has_xmlids_of_another_module(entry, package.name):
-            reason = "foreign_xmlids"
+            reason = "foreign_xmlids"  # debuglog
             _logger.info(
                 "re-applying unchanged %s/%s: it writes records another "
                 "module declares, so its effect is its place in the load "
@@ -243,7 +243,7 @@ def _load_tracked_file(
             )
             return entry
         else:
-            reason = "contended"
+            reason = "contended"  # debuglog
             _logger.info(
                 "re-applying unchanged %s/%s: it owns %d record(s) already "
                 "rewritten in this run (%s)",
@@ -377,10 +377,8 @@ def load_demo(
             # removed, and the next flush fails the whole installation.
             with env.cr.savepoint():
                 load_data(env(su=True), idref, mode, kind="demo", package=package)
-        else:
-            _debug.logic("modules.demo.none", module=package.name)
         return True
-    except Exception as exc:
+    except Exception as exc:  # debuglog
         _logger.warning(
             "Module %s demo data failed to install, installed without demo data",
             package.name,
@@ -634,7 +632,7 @@ class _PackageLoader:
         ) as span:
             model_names: OrderedSet[str] = OrderedSet(registry.load(package))
             span.set(models=len(model_names))
-        declared = len(model_names)
+        declared = len(model_names)  # debuglog
 
         if self.operation:
             model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
@@ -931,7 +929,7 @@ def get_installed_dependents_not_yet_loaded(
 
 
 def _run_gc_cycle(registry: Registry, cycles: int) -> int:
-    young = gc.get_count()[0]
+    young = gc.get_count()[0]  # debuglog
     if young <= _GC_YOUNG_BACKLOG_LIMIT:
         return cycles
     registry.clear_all_caches()
@@ -985,12 +983,12 @@ def load_module_graph(
 
     models_updated: set[str] = set()
     gc_cycles = 0
-    skipped = 0
+    skipped = 0  # debuglog
 
     try:
         for index, package in enumerate(graph, 1):
             if package.name in registry.loaded_modules:
-                skipped += 1
+                skipped += 1  # debuglog
                 continue
             _PackageLoader(
                 env,
@@ -1134,7 +1132,7 @@ def _drop_not_null_on_removed_columns(
         for table_name, column_name, is_nullable in cr.fetchall():
             columns_by_table.setdefault(table_name, {})[column_name] = is_nullable
 
-        orphans = dropped = 0
+        orphans = dropped = 0  # debuglog
         for model in models:
             Model = env[model]
             if Model._abstract:
@@ -1143,7 +1141,7 @@ def _drop_not_null_on_removed_columns(
             for col_name, is_nullable in columns_by_table.get(Model._table, {}).items():
                 if col_name in cols:
                     continue
-                orphans += 1
+                orphans += 1  # debuglog
                 _logger.debug(
                     "column %s is in the table %s but not in the corresponding object %s",
                     col_name,
@@ -1151,7 +1149,7 @@ def _drop_not_null_on_removed_columns(
                     model,
                 )
                 if is_nullable == "NO":
-                    dropped += 1
+                    dropped += 1  # debuglog
                     _debug.lifecycle(
                         "modules.removed_column.not_null_dropped",
                         model=model,
@@ -1213,7 +1211,7 @@ class _ModuleLoader:
     def bootstrap(self) -> bool:
         cr = self.cr
         cr.execute("SET SESSION lock_timeout = '15s'")
-        initialized = modules_db.is_initialized(cr)
+        initialized = modules_db.is_initialized(cr)  # debuglog
         _debug.logic(
             "modules.bootstrap.decision",
             db=cr.dbname,
@@ -1263,7 +1261,7 @@ class _ModuleLoader:
     def run_pre_upgrade_scripts(self) -> None:
         if not (self.update_module and self.upgrade_modules):
             return
-        scripts = tools.config["pre_upgrade_scripts"]
+        scripts = tools.config["pre_upgrade_scripts"]  # debuglog
         _debug.pipeline(
             "modules.pre_upgrade_scripts",
             scripts=len(scripts),
@@ -1419,9 +1417,9 @@ class _ModuleLoader:
 
     def converge_module_graph(self) -> None:
         env = self.env
-        iteration = 0
+        iteration = 0  # debuglog
         while True:
-            iteration += 1
+            iteration += 1  # debuglog
             states: tuple[str, ...] = ("installed", "to upgrade", "to remove")
             if self.update_module:
                 states += ("to install",)
@@ -1579,12 +1577,12 @@ class _ModuleLoader:
         cr = self.cr
         cr.execute("SELECT model from ir_model")
         checked_models = []
-        unloadable = 0
+        unloadable = 0  # debuglog
         for (model,) in cr.fetchall():
             if model in self.registry:
                 checked_models.append(model)
             else:
-                unloadable += 1
+                unloadable += 1  # debuglog
                 if _logger.isEnabledFor(logging.INFO):
                     _logger.log(
                         RUNBOT,
@@ -1675,8 +1673,8 @@ class _ModuleLoader:
         self.cr.execute(
             """SELECT DISTINCT model FROM ir_model_fields WHERE state = 'manual'"""
         )
-        rows = self.cr.fetchall()
-        before = len(self.models_to_check)
+        rows = self.cr.fetchall()  # debuglog
+        before = len(self.models_to_check)  # debuglog
         self.models_to_check.update(
             model_name for (model_name,) in rows if model_name in self.registry
         )
@@ -1710,12 +1708,12 @@ class _ModuleLoader:
         with _debug.perf(
             "modules.custom_views_check", cr=self.cr, models=len(self.registry)
         ) as span:
-            invalid = 0
+            invalid = 0  # debuglog
             for model in self.registry:
                 try:
                     View._has_valid_custom_views(model)
                 except Exception as e:
-                    invalid += 1
+                    invalid += 1  # debuglog
                     _logger.warning("invalid custom view(s) for model %s: %s", model, e)
             span.set(invalid=invalid)
 

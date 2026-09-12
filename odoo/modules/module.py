@@ -151,7 +151,7 @@ class UpgradeHook(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         canonical_name = module.__name__.replace(
             "odoo.addons.base.maintenance.migrations", "odoo.upgrade"
         )
-        cached = canonical_name in sys.modules
+        cached = canonical_name in sys.modules  # debuglog
         if cached:
             canonical = sys.modules[canonical_name]
         else:
@@ -200,7 +200,7 @@ def initialize_sys_path() -> None:
     sys.modules["odoo.addons.base.maintenance.migrations"] = odoo.upgrade
 
     current_addons_path = tuple(odoo.addons.__path__)
-    path_changed = _SysPathState.addons_path != current_addons_path
+    path_changed = _SysPathState.addons_path != current_addons_path  # debuglog
     if path_changed:
         Manifest.clear_caches()
         tools.files.clear_caches()
@@ -350,7 +350,7 @@ class Manifest(Mapping[str, typing.Any]):
                 return manifest
             del Manifest._resolution_cache[module]
             _debug.logic("module.manifest.resolution_stale", module=module, path=known)
-        for scanned, adp in enumerate(odoo.addons.__path__, 1):
+        for scanned, adp in enumerate(odoo.addons.__path__, 1):  # debuglog
             path = str(Path(adp, module))
             if manifest := Manifest._from_path(path):
                 Manifest._resolution_cache[module] = path
@@ -437,15 +437,15 @@ class Manifest(Mapping[str, typing.Any]):
         with _debug.perf(
             "module.manifests.scan", paths=len(odoo.addons.__path__)
         ) as span:
-            entries = shadowed = 0
+            entries = shadowed = 0  # debuglog
             for adp in odoo.addons.__path__:
                 if not Path(adp).is_dir():
                     _logger.warning("addons path is not a directory: %s", adp)
                     continue
                 for entry in Path(adp).iterdir():
-                    entries += 1
+                    entries += 1  # debuglog
                     if entry.name in modules:
-                        shadowed += 1
+                        shadowed += 1  # debuglog
                         _debug.logic(
                             "module.manifest.shadowed",
                             module=entry.name,
@@ -710,7 +710,7 @@ def load_odoo_module(module_name: str) -> None:
                 "class does not need to be importable at field definition time."
             ).with_traceback(err.__traceback__) from None
         raise
-    except Exception as err:
+    except Exception as err:  # debuglog
         _debug.logic(
             "module.import.failed", module=module_name, error=type(err).__name__
         )

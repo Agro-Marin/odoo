@@ -21,7 +21,7 @@ def get_installed_module_names(cursor: SqlReader) -> list[str]:
           FROM ir_module_module
          WHERE state IN ('installed', 'to upgrade', 'to remove');
     """)
-    names = [result[0] for result in cursor.fetchall()]
+    names = [result[0] for result in cursor.fetchall()]  # debuglog
     _debug.perf.count("modules.neutralize.installed", modules=len(names))
     return names
 
@@ -40,7 +40,7 @@ def iter_neutralization_queries(modules: Iterable[str]) -> Iterator[tuple[str, s
         filename = f"{module}/data/neutralize.sql"
         with suppress(FileNotFoundError):
             with file_open(filename) as file:
-                content = file.read().strip()
+                content = file.read().strip()  # debuglog
                 _debug.logic(
                     "modules.neutralize.script",
                     module=module,
@@ -58,7 +58,7 @@ def get_neutralization_queries(modules: Iterable[str]) -> Iterator[str]:
 
 def neutralize_database(cursor: SqlReader) -> None:
     with _debug.perf("modules.neutralize", cr=cursor) as span:
-        executed = 0
+        executed = 0  # debuglog
         for module, query in iter_neutralization_queries(
             get_installed_module_names(cursor)
         ):
@@ -71,6 +71,6 @@ def neutralize_database(cursor: SqlReader) -> None:
                     f"while neutralizing {module} ({module}/data/neutralize.sql)"
                 )
                 raise
-            executed += 1
+            executed += 1  # debuglog
         span.set(executed=executed)
     _logger.info("Neutralization finished")
