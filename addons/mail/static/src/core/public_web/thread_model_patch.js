@@ -134,15 +134,22 @@ const modelPatch = {
             );
         }
     },
-    /** @param {string} body */
-    async askLeaveConfirmation(body) {
-        await new Promise((resolve) => {
-            this.store.env.services.dialog.add(ConfirmationDialog, {
-                body: body,
-                confirmLabel: _t("Leave Conversation"),
-                confirm: resolve,
-                cancel: () => {},
-            });
+    /**
+     * @param {string} body
+     * @returns {Promise<boolean>} whether the user confirmed
+     */
+    askLeaveConfirmation(body) {
+        return new Promise((resolve) => {
+            this.store.env.services.dialog.add(
+                ConfirmationDialog,
+                {
+                    body,
+                    confirmLabel: _t("Leave Conversation"),
+                    confirm: () => resolve(true),
+                    cancel: () => resolve(false),
+                },
+                { onClose: () => resolve(false) },
+            );
         });
     },
 };

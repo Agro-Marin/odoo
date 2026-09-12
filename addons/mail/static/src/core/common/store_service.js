@@ -17,12 +17,10 @@ import { ConnectionLostError, rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { makeModelLog } from "@web/core/utils/asset_log";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
 import { session } from "@web/session";
 
-const log = makeModelLog("store");
 const debugLog = makeLogger("mail.store");
 
 /** @typedef {{isSpecial: true, channel_types: string[], label: string, displayName: string, description: string}} SpecialMention */
@@ -305,10 +303,8 @@ export class Store extends BaseStore {
 
     async initialize() {
         if (this._initializePromise) {
-            log("initialize:memoized");
             return this._initializePromise;
         }
-        log("initialize:first-call");
         const endInit = debugLog.perf("initialize");
         this._initializePromise = (async () => {
             for (;;) {
@@ -328,7 +324,6 @@ export class Store extends BaseStore {
                         throw error;
                     }
                     debugLog.logic("initialize waiting for bus reconnect");
-                    log("initialize:connection-lost, waiting for the bus");
                     await this._busReconnected();
                 }
             }
@@ -417,13 +412,6 @@ export class Store extends BaseStore {
             names: fetchParams.map(([name]) => name),
             readonly: this.fetchReadonly,
         }));
-        if (log.active()) {
-            log(
-                "fetchStoreData:batch",
-                this.fetchReadonly ? "/mail/data" : "/mail/action",
-                fetchParams.map(([name]) => name),
-            );
-        }
         this._fetchStoreDataRpc(
             fetchParams.map(([name, params, dataRequest]) => {
                 if (dataRequest._autoResolve) {

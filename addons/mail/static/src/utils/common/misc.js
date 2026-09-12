@@ -90,11 +90,6 @@ export function nearestGreaterThanOrEqual(list, target, itemToCompareVal) {
     return findNext(0, list.length - 1, null);
 }
 
-/** @type {{ isInTest: boolean }} */
-export const mailGlobal = {
-    isInTest: false,
-};
-
 /**
  * @param {DataTransfer} dataTransfer
  * @returns {boolean}

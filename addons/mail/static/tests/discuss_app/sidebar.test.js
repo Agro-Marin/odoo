@@ -352,6 +352,25 @@ test("sidebar: open channel and leave it", async () => {
     await waitForSteps(["action_unfollow"]);
 });
 
+test("sidebar: cancelling the leave confirmation keeps the channel and settles the call", async () => {
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "General" });
+    onRpc("discuss.channel", "action_unfollow", () => asyncStep("action_unfollow"));
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-DiscussContent-threadName", { value: "General" });
+    const thread = getService("mail.store").Thread.get({
+        model: "discuss.channel",
+        id: channelId,
+    });
+    const leaving = thread.leaveChannel().then((left) => asyncStep(`left:${left}`));
+    await click("button", { text: "Cancel" });
+    await leaving;
+    await waitForSteps(["left:false"]);
+    await contains(".o-mail-DiscussSidebarChannel", { text: "General" });
+    await contains(".o-mail-DiscussContent-threadName", { value: "General" });
+});
+
 test("sidebar: unpin chat from bus", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "Demo" });

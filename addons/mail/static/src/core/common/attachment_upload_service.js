@@ -314,7 +314,6 @@ export class AttachmentUploadService {
             resModel: upload.res_model,
             thread,
             extension: upload.title.split(".").pop(),
-            uploading: true,
             tmpUrl,
         };
         return attachmentData;

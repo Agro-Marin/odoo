@@ -46,7 +46,7 @@ registerMessageAction("reaction", {
     }),
     componentCondition: () => !isMobileOS(),
     /** @param {ActionParams} params */
-    condition: ({ message, thread }) => message.canAddReaction(thread),
+    condition: ({ message }) => message.canAddReaction(),
     icon: "oi oi-smile-add",
     name: _t("Add a Reaction"),
     /** @param {ActionParams} params */

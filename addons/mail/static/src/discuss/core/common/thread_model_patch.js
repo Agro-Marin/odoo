@@ -53,7 +53,7 @@ const threadStaticPatch = {
      * @returns {Promise<import("models").Thread|undefined>}
      */
     async getOrFetch(data, fieldNames = []) {
-        if (data.model !== "discuss.channel" || data.id < 1) {
+        if (data.model !== "discuss.channel" || !(Number(data.id) > 0)) {
             return super.getOrFetch(...arguments);
         }
         const thread = this.store.Thread.get({ id: data.id, model: data.model });
@@ -634,23 +634,20 @@ const threadPatch = {
                 this.create_uid?.eq(this.store.self_partner?.main_user_id),
             ),
         }));
-        if (
-            this.channel_type !== "group" &&
-            this.create_uid?.eq(this.store.self_partner?.main_user_id) &&
-            !force
-        ) {
-            await this.askLeaveConfirmation(
-                _t(
-                    "You are the administrator of this channel. Are you sure you want to leave?",
-                ),
-            );
-        }
-        if (this.channel_type === "group" && !force) {
-            await this.askLeaveConfirmation(
-                _t(
-                    "You are about to leave this group conversation and will no longer have access to it unless you are invited again. Are you sure you want to continue?",
-                ),
-            );
+        if (!force) {
+            const prompt =
+                this.channel_type === "group"
+                    ? _t(
+                          "You are about to leave this group conversation and will no longer have access to it unless you are invited again. Are you sure you want to continue?",
+                      )
+                    : this.create_uid?.eq(this.store.self_partner?.main_user_id)
+                      ? _t(
+                            "You are the administrator of this channel. Are you sure you want to leave?",
+                        )
+                      : undefined;
+            if (prompt && !(await this.askLeaveConfirmation(prompt))) {
+                return false;
+            }
         }
         await this.closeChatWindow();
         await this.store.env.services.orm.silent.call(
@@ -658,6 +655,7 @@ const threadPatch = {
             "action_unfollow",
             [this.id],
         );
+        return true;
     },
     get allow_invite_by_email() {
         return (

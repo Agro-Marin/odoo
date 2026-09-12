@@ -51,17 +51,20 @@ export class ChatHub extends Component {
         });
         this.onResize();
         useExternalListener(browser, "resize", this.onResize);
-        useEffect(() => {
-            if (
-                this.chatHub.folded.length &&
-                this.store.channels?.status === "not_fetched"
-            ) {
-                log.logic("folded windows trigger channels fetch", () => ({
-                    folded: this.chatHub.folded.length,
-                }));
-                this.store.channels.fetch();
-            }
-        });
+        useEffect(
+            () => {
+                if (
+                    this.chatHub.folded.length &&
+                    this.store.channels?.status === "not_fetched"
+                ) {
+                    log.logic("folded windows trigger channels fetch", () => ({
+                        folded: this.chatHub.folded.length,
+                    }));
+                    this.store.channels.fetch();
+                }
+            },
+            () => [this.chatHub.folded.length, this.store.channels?.status],
+        );
         useMovable({
             enable: () => this.chatHub.compact || !this.chatHub.opened.length,
             cursor: "grabbing",

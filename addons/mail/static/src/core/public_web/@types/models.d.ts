@@ -15,7 +15,7 @@ declare module "models" {
         DiscussApp: StaticMailRecord<DiscussApp, typeof DiscussAppClass>;
     }
     export interface Thread {
-        askLeaveConfirmation: (body: string) => Promise<void>;
+        askLeaveConfirmation: (body: string) => Promise<boolean>;
         autoOpenChatWindowOnNewMessage: Readonly<boolean>;
         inChathubOnNewMessage: Readonly<boolean>;
         notifyMessageToUser: (message: Message) => Promise<void>;

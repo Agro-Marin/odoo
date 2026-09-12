@@ -21,6 +21,16 @@ import { Deferred } from "@web/core/utils/concurrency";
 
 const log = makeLogger("mail.thread");
 
+/**
+ * @param {{name: string, displayName?: string}} [persona]
+ * @returns {string|undefined}
+ */
+export function getPersonaName(persona) {
+    const displayName =
+        persona && "displayName" in persona ? persona.displayName : undefined;
+    return displayName || persona?.name;
+}
+
 export class Thread extends Record {
     static id = AND("model", "id");
     /**
@@ -388,9 +398,7 @@ export class Thread extends Record {
      * @returns {string}
      */
     getPersonaName(persona) {
-        const displayName =
-            persona && "displayName" in persona ? persona.displayName : undefined;
-        return displayName || persona?.name;
+        return getPersonaName(persona);
     }
 
     /** @returns {boolean} */

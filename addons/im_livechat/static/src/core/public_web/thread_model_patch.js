@@ -156,10 +156,13 @@ patch(Thread.prototype, {
             !this.livechat_end_dt &&
             !force
         ) {
-            await this.askLeaveConfirmation(
+            const confirmed = await this.askLeaveConfirmation(
                 _t("Leaving will end the live chat. Do you want to proceed?"),
             );
+            if (!confirmed) {
+                return false;
+            }
         }
-        super.leaveChannel(...arguments);
+        return super.leaveChannel(...arguments);
     },
 });

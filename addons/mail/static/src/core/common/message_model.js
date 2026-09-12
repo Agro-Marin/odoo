@@ -6,6 +6,7 @@ import {
     updatePartnersMentionToken,
 } from "@mail/core/common/message_post";
 import { fields, Record } from "@mail/core/common/record";
+import { getPersonaName } from "@mail/core/common/thread_model";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import {
     convertBrToLineBreak,
@@ -555,8 +556,7 @@ export class Message extends Record {
         }
     }
 
-    /** @param {import("models").Thread} thread */
-    canAddReaction(thread) {
+    canAddReaction() {
         return Boolean(
             !this.is_transient &&
             !this.isPending &&
@@ -646,13 +646,12 @@ export class Message extends Record {
             thread: this.thread,
         });
         const hadLink = this.hasLink;
+        const allAttachments = attachments.concat(this.attachment_ids);
         const updateData = {
-            attachment_ids: attachments
-                .concat(this.attachment_ids)
-                .map((attachment) => attachment.id),
-            attachment_tokens: attachments
-                .concat(this.attachment_ids)
-                .map((attachment) => attachment.ownership_token),
+            attachment_ids: allAttachments.map((attachment) => attachment.id),
+            attachment_tokens: allAttachments.map(
+                (attachment) => attachment.ownership_token,
+            ),
             body: await generateEmojisOnHtml(body),
             partner_ids: validMentions?.partners?.map((partner) => partner.id),
             role_ids: validMentions?.roles?.map((role) => role.id),
@@ -736,12 +735,9 @@ export class Message extends Record {
      * @returns {string}
      */
     getPersonaName(persona) {
-        const displayName =
-            persona && "displayName" in persona ? persona.displayName : undefined;
         return (
             this.thread?.getPersonaName(persona) ||
-            displayName ||
-            persona?.name ||
+            getPersonaName(persona) ||
             _t("Unnamed")
         );
     }

@@ -102,6 +102,7 @@ patch(MessagingMenu.prototype, {
         };
     },
     get _tabs() {
+        const usesInbox = this.store.self.main_user_id?.notification_type === "inbox";
         return [
             {
                 icon: "fa-regular fa-bell",
@@ -110,28 +111,23 @@ patch(MessagingMenu.prototype, {
                 label: _t("Notifications"),
                 sequence: 10,
             },
-            {
-                counter:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? this.store.inbox.counter
-                        : this.store.starred.counter,
-                icon:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? "fa-solid fa-inbox"
-                        : "fa-regular fa-star",
-                activeIcon:
-                    this.store.self.main_user_id?.notification_type !== "inbox" &&
-                    "fa-solid fa-star",
-                id:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? "inbox"
-                        : "starred",
-                label:
-                    this.store.self.main_user_id?.notification_type === "inbox"
-                        ? _t("Inbox")
-                        : _t("Starred"),
-                sequence: 100,
-            },
+            usesInbox
+                ? {
+                      counter: this.store.inbox.counter,
+                      icon: "fa-solid fa-inbox",
+                      activeIcon: false,
+                      id: "inbox",
+                      label: _t("Inbox"),
+                      sequence: 100,
+                  }
+                : {
+                      counter: this.store.starred.counter,
+                      icon: "fa-regular fa-star",
+                      activeIcon: "fa-solid fa-star",
+                      id: "starred",
+                      label: _t("Starred"),
+                      sequence: 100,
+                  },
             ...super._tabs,
         ];
     },
@@ -210,10 +206,7 @@ patch(MessagingMenu.prototype, {
     get counter() {
         let value =
             this.store.globalCounter +
-            this.store.failures.reduce(
-                (acc, f) => acc + parseInt(f.notifications.length),
-                0,
-            );
+            this.store.failures.reduce((acc, f) => acc + f.notifications.length, 0);
         if (this.canPromptToInstall) {
             value++;
         }

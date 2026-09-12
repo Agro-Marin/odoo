@@ -99,13 +99,24 @@ export async function prettifyMessageContent(
  * @returns {ReturnType<markup>}
  */
 export function parseAndTransform(htmlString, transformFunction) {
+    return _parseAndTransform(
+        Array.from(parseHtmlLeniently(htmlString).childNodes),
+        transformFunction,
+    );
+}
+
+/**
+ * @param {string|ReturnType<markup>} htmlString
+ * @returns {HTMLDivElement} the parsed content, or the raw text in a <pre> when it does not parse
+ */
+function parseHtmlLeniently(htmlString) {
     const div = document.createElement("div");
     try {
         setElementContent(div, htmlString);
     } catch {
         div.appendChild(createElementWithContent("pre", htmlString));
     }
-    return _parseAndTransform(Array.from(div.childNodes), transformFunction);
+    return div;
 }
 
 /**
@@ -394,13 +405,9 @@ export function getNonEditableMentions(body) {
     for (const block of doc.body.querySelectorAll(".o_mail_reply_hide")) {
         block.classList.remove("o_mail_reply_hide");
     }
-    for (const mention of doc.body.querySelectorAll(".o_mail_redirect")) {
-        mention.setAttribute("contenteditable", "false");
-    }
-    for (const mention of doc.body.querySelectorAll(".o_channel_redirect")) {
-        mention.setAttribute("contenteditable", "false");
-    }
-    for (const mention of doc.body.querySelectorAll(".o-discuss-mention")) {
+    for (const mention of doc.body.querySelectorAll(
+        ".o_mail_redirect, .o_channel_redirect, .o-discuss-mention",
+    )) {
         mention.setAttribute("contenteditable", "false");
     }
     return markup(doc.body.innerHTML);
@@ -412,14 +419,8 @@ export function getNonEditableMentions(body) {
  */
 export function htmlToTextContentInline(htmlString) {
     htmlString = htmlReplace(htmlString, /<br\s*\/?>/gi, () => " ");
-    const div = document.createElement("div");
-    try {
-        setElementContent(div, htmlString);
-    } catch {
-        div.appendChild(createElementWithContent("pre", htmlString));
-    }
-    return div.textContent
-        .trim()
+    return parseHtmlLeniently(htmlString)
+        .textContent.trim()
         .replace(/[\n\r]/g, "")
         .replace(/\s\s+/g, " ");
 }

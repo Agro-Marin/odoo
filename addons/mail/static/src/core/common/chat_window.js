@@ -92,11 +92,11 @@ export class ChatWindow extends Component {
     }
 
     get hasActionsMenu() {
+        const { group, other, quick } = this.threadActions.partition;
         return (
-            this.partitionedActions.group.length > 0 ||
-            this.partitionedActions.other.length > 0 ||
-            (this.ui.isSmall && this.partitionedActions.quick.length > 2) ||
-            (!this.ui.isSmall && this.partitionedActions.quick.length > 3)
+            group.length > 0 ||
+            other.length > 0 ||
+            quick.length > (this.ui.isSmall ? 2 : 3)
         );
     }
 

@@ -385,7 +385,9 @@ export class Store extends Record {
             this._.UPDATE--;
         }
         if (this._.UPDATE === 0) {
-            this._flushQueues();
+            if (this._hasQueuedWork()) {
+                this._flushQueues();
+            }
             this._throwFirstQueuedError();
         }
         // A failed callback is rethrown above, after queued updates are flushed.

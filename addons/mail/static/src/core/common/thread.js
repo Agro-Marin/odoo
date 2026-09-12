@@ -192,14 +192,11 @@ export class Thread extends Component {
             () => [this.state.mountedAndLoaded],
         );
         onMounted(() => {
-            if (!this.env.chatter || this.env.chatter?.fetchMessages) {
+            if (this.consumeChatterFetchRequest()) {
                 log.lifecycle("mounted fetch", () => ({
                     thread: this.props.thread.localId,
                     inChatter: Boolean(this.env.chatter),
                 }));
-                if (this.env.chatter) {
-                    this.env.chatter.fetchMessages = false;
-                }
                 this.fetchMessages();
             }
         });
@@ -280,10 +277,7 @@ export class Thread extends Component {
                     }));
                     this.lastJumpPresent = nextProps.jumpPresent;
                 }
-                if (!this.env.chatter || this.env.chatter?.fetchMessages) {
-                    if (this.env.chatter) {
-                        this.env.chatter.fetchMessages = false;
-                    }
+                if (this.consumeChatterFetchRequest()) {
                     toRaw(nextProps.thread).fetchNewMessages();
                 }
             },
@@ -338,12 +332,23 @@ export class Thread extends Component {
         toRaw(this.props.thread).fetchNewMessages();
     }
 
+    /** @returns {boolean} whether the messages of the thread should be fetched now */
+    consumeChatterFetchRequest() {
+        const chatter = this.env.chatter;
+        if (!chatter) {
+            return true;
+        }
+        if (!chatter.fetchMessages) {
+            return false;
+        }
+        chatter.fetchMessages = false;
+        return true;
+    }
+
     get viewportEl() {
         let viewportEl = this.scrollableRef.el;
-        if (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
-            while (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
-                viewportEl = viewportEl.parentElement;
-            }
+        while (viewportEl && viewportEl.clientHeight > browser.innerHeight) {
+            viewportEl = viewportEl.parentElement;
         }
         return viewportEl;
     }
