@@ -105,6 +105,7 @@ class ClaudeSDKClient:
         permission_mode: str = "default",
         env=None,
         base_dir: str | None = None,
+        api_key: str | None = None,
     ):
         if not SDK_AVAILABLE:
             raise UserError(  # pylint: disable=missing-gettext,E8507
@@ -136,6 +137,8 @@ class ClaudeSDKClient:
             **os.environ,
             "NODE_OPTIONS": "--max-old-space-size=8192",
         }
+        if api_key:
+            node_env["ANTHROPIC_API_KEY"] = api_key
 
         self.options = ClaudeAgentOptions(
             allowed_tools=allowed_tools,

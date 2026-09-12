@@ -1,6 +1,9 @@
 import asyncio
+import os
+import shutil
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
@@ -135,3 +138,26 @@ class TestClaudeSDKClientRuntime(TransactionCase):
         provider = self.env["ai.provider"].search([("code", "=", "claude")], limit=1)
         self.assertEqual(_default_model(self.env), provider.default_model_id.code)
         self.assertEqual(_default_model(None), "claude-sonnet-5")
+
+
+@tagged("post_install", "-at_install")
+class TestClaudeSDKClientKeyScope(TransactionCase):
+    def test_the_key_reaches_the_subprocess_env_and_never_the_worker_env(self):
+        from odoo.addons.api_ai.tools.claude_sdk import SDK_AVAILABLE, ClaudeSDKClient
+
+        if not SDK_AVAILABLE:
+            self.skipTest("claude-agent-sdk is not installed")
+        base = tempfile.mkdtemp(prefix="api_ai_claude_key_")
+        self.addCleanup(shutil.rmtree, base, ignore_errors=True)
+
+        with patch.dict(os.environ):
+            os.environ.pop("ANTHROPIC_API_KEY", None)
+            client = ClaudeSDKClient(
+                work_dir="mod", base_dir=base, env=self.env, api_key="sk-scoped"
+            )
+
+            self.assertEqual(client.options.env["ANTHROPIC_API_KEY"], "sk-scoped")
+            self.assertFalse(
+                "ANTHROPIC_API_KEY" in os.environ,
+                "the key must not be left in the worker's environment",
+            )
