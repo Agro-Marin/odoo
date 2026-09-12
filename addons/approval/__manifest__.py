@@ -1,6 +1,6 @@
 {
     "name": "Base Approval",
-    "version": "19.0.2.2.0",
+    "version": "19.0.2.3.0",
     "category": "Human Resources/Approvals",
     "sequence": 190,
     "summary": "Create and validate approval requests with delegation and escalation",
@@ -30,6 +30,11 @@ reporting stacks. ``approval_automation`` holds what needs ``automation``
 (a category's flow, a binding's Reset When) and ``approval_analytics`` what
 needs ``mixin_report_sql`` (the two SQL views). Both auto-install.
 
+The Approvals application -- its menu, the generic request categories and
+their demo -- is ``approval_app``. This module is what a module adopting
+``mixin.approval`` pulls in, so it ships no application tile; its configuration
+is reachable from Settings > Technical > Approvals.
+
 A request creates an activity for each approver. Delegation reassigns those
 activities to a substitute for a dated window; escalation reminds by priority.
 """,
@@ -43,7 +48,7 @@ activities to a substitute for a dated window; escalation reminds by priority.
         "security/ir_rule.xml",
         "security/ir.model.access.csv",
         "data/ir_config_parameter_data.xml",
-        "data/approval_category_data.xml",
+        "data/res_users_data.xml",
         "data/mail_activity_type_data.xml",
         "data/mail_message_subtype_data.xml",
         "data/ir_cron_data.xml",
@@ -61,12 +66,7 @@ activities to a substitute for a dated window; escalation reminds by priority.
         "views/approval_request_template.xml",
         "wizards/approval_decision_wizard_views.xml",
         "wizards/approval_delegate_wizard_views.xml",
-        "views/approvals_menuitem_views.xml",
-    ],
-    "demo": [
-        "demo/00_approval_users_demo.xml",
-        "demo/01_approval_groups_demo.xml",
-        "demo/approval_demo.xml",
+        "views/approval_technical_menuitem_views.xml",
     ],
     "assets": {
         "web.assets_backend": [
@@ -96,5 +96,4 @@ activities to a substitute for a dated window; escalation reminds by priority.
             ),
         ],
     },
-    "application": True,
 }

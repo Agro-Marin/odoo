@@ -79,7 +79,6 @@ msgstr "Administrador"
 
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_request_all
-#: model:ir.ui.menu,name:approval.approvals_approval_menu_all
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "All Approvals"
 msgstr "Todas las aprobaciones"
@@ -117,7 +116,7 @@ msgstr "Aprobación"
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_category
 #: model:ir.actions.act_window,name:approval.action_approval_category_dashboard
-#: model:ir.ui.menu,name:approval.approvals_category_menu_config
+#: model:ir.ui.menu,name:approval.menu_approval_technical_category
 msgid "Approval Categories"
 msgstr "Categorías de aprobación"
 
@@ -159,8 +158,8 @@ msgid "Approval Type"
 msgstr "Tipo de aprobación"
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_menu_root
 #: model:res.groups.privilege,name:approval.res_groups_privilege_approvals
+#: model:ir.ui.menu,name:approval.menu_approval_technical
 msgid "Approvals"
 msgstr "Aprobaciones"
 
@@ -168,7 +167,6 @@ msgstr "Aprobaciones"
 #. odoo-python
 #: code:addons/approval/models/approval_request_action.py:0
 #: model:ir.actions.act_window,name:approval.action_approval_request_to_review
-#: model:ir.ui.menu,name:approval.approvals_approval_menu_to_review
 msgid "Approvals to Review"
 msgstr "Aprobaciones a revisar"
 
@@ -281,16 +279,6 @@ msgid "Attachment Count"
 msgstr "Número de archivos adjuntos"
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_borrow_items
-msgid "Borrow Items"
-msgstr "Préstamo de artículos"
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_business_trip
-msgid "Business Trip"
-msgstr "Viaje de negocios"
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__can_change_request_owner
 msgid "Can Change Request Owner"
 msgstr "Puede cambiar el propietario de la solicitud"
@@ -309,11 +297,6 @@ msgstr "Puede editar el usuario"
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_delegate_wizard_form
 msgid "Cancel"
 msgstr "Cancelar"
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_car_rental_application
-msgid "Car Rental Application"
-msgstr "Solicitud de alquiler de coches"
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__category_id
@@ -349,11 +332,6 @@ msgid "Company"
 msgstr "Compañía"
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_menu_config
-msgid "Configuration"
-msgstr "Configuración"
-
-#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
 msgid "Confirm Date"
 msgstr "Confirmar fecha"
@@ -366,11 +344,6 @@ msgstr "Confirmar fecha"
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_search_search
 msgid "Contact"
 msgstr "Contacto"
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_contract_approval
-msgid "Contract Approval"
-msgstr "Aprobación del contrato"
 
 #. module: approval
 #: model_terms:ir.actions.act_window,help:approval.product_product_action
@@ -413,7 +386,6 @@ msgstr "Creado el"
 
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_dashboard
-#: model:ir.ui.menu,name:approval.approvals_category_menu_new
 #: model:ir.ui.menu,name:approval.menu_approval_dashboard
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Dashboard"
@@ -527,11 +499,6 @@ msgstr "Icono de Font Awesome p. ej. fa-tasks"
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 msgid "From:"
 msgstr "De:"
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_general_approval
-msgid "General Approval"
-msgstr "Aprobación general"
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__has_access_to_request
@@ -679,11 +646,6 @@ msgid "Is Follower"
 msgstr "Es un seguidor"
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_job_referral_award
-msgid "Job Referral Award"
-msgstr "Premio por referir a alguien"
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_category_approver__write_uid
@@ -739,11 +701,6 @@ msgid "Main Attachment"
 msgstr "Archivo adjunto principal"
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_menu_manager
-msgid "Manager"
-msgstr "Gerente"
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_has_error
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_has_error
 msgid "Message Delivery error"
@@ -775,15 +732,9 @@ msgid "My Activity Deadline"
 msgstr "Fecha límite de mi actividad"
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_approval_menu
-msgid "My Approvals"
-msgstr "Mis aprobaciones"
-
-#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_category.py:0
 #: model:ir.actions.act_window,name:approval.action_view_approval_request
-#: model:ir.ui.menu,name:approval.approvals_request_menu_my
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_search_search
 msgid "My Requests"
@@ -917,11 +868,6 @@ msgid "Optional"
 msgstr "Opcional"
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_payment_application
-msgid "Payment Application"
-msgstr "Solicitud de pago"
-
-#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
@@ -932,11 +878,6 @@ msgstr "Periodo"
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 msgid "Print"
 msgstr "Imprimir"
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_procurement
-msgid "Procurement"
-msgstr "Abastecimiento"
 
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
@@ -2514,7 +2455,6 @@ msgstr ""
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_rule
 #: model:ir.model.fields,field_description:approval.field_approval_category__rule_ids
-#: model:ir.ui.menu,name:approval.menu_approval_rules
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Conditional Rules"
 msgstr ""
@@ -3144,11 +3084,6 @@ msgid "Inactive reasons are hidden but preserved for historical records"
 msgstr ""
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_approval_menu_inbox
-msgid "Inbox"
-msgstr ""
-
-#. module: approval
 #: model:approval.refusal.reason,name:approval.refusal_reason_incorrect_information
 msgid "Incorrect Information"
 msgstr ""
@@ -3411,11 +3346,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__my_avg_response_hours
 msgid "My Avg Response Time (hours)"
-msgstr ""
-
-#. module: approval
-#: model:ir.ui.menu,name:approval.approvals_request_menu_history
-msgid "My History"
 msgstr ""
 
 #. module: approval
@@ -4110,8 +4040,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_refusal_reason
-#: model:ir.ui.menu,name:approval.menu_approval_refusal_reason
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_refusal_reason_list
+#: model:ir.ui.menu,name:approval.menu_approval_technical_refusal_reason
 msgid "Refusal Reasons"
 msgstr ""
 
@@ -4155,11 +4085,6 @@ msgstr ""
 msgid ""
 "Reopen this request for another approval cycle? Decision metadata will be "
 "cleared; the chatter history and the request number are kept."
-msgstr ""
-
-#. module: approval
-#: model:ir.ui.menu,name:approval.menu_approval_report
-msgid "Reporting"
 msgstr ""
 
 #. module: approval
@@ -4653,7 +4578,6 @@ msgid "Template this request was created from (if any)"
 msgstr ""
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_template_menu_config
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Templates"
 msgstr ""
@@ -5479,6 +5403,11 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "📈 Approval Velocity"
+msgstr ""
+
+#. module: approval
+#: model:ir.ui.menu,name:approval.menu_approval_technical_binding
+msgid "Gated Operations"
 msgstr ""
 
 #~ msgid "%s (copy)"

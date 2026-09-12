@@ -472,7 +472,7 @@
         <function model="approval.decision.wizard" name="create">
             <value
                 model="approval.approver"
-                eval="{'approver_id': obj().search([('request_id', '=', ref('approval_request_contract_refused')), ('user_id', '=', ref('user_approver_2'))]).id, 'decision_type': 'refuse', 'refusal_reason_id': ref('refusal_reason_budget_exceeded'), 'note': 'The proposed amount exceeds our annual software budget by 50%. Please revise the contract terms or seek additional budget allocation before resubmitting.'}" />
+                eval="{'approver_id': obj().search([('request_id', '=', ref('approval_request_contract_refused')), ('user_id', '=', ref('user_approver_2'))]).id, 'decision_type': 'refuse', 'refusal_reason_id': ref('approval.refusal_reason_budget_exceeded'), 'note': 'The proposed amount exceeds our annual software budget by 50%. Please revise the contract terms or seek additional budget allocation before resubmitting.'}" />
         </function>
     </function>
 

@@ -21,8 +21,8 @@ msgid "Administrator"
 msgstr "Administrador"
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_menu_root
 #: model:res.groups.privilege,name:approval.res_groups_privilege_approvals
+#: model:ir.ui.menu,name:approval.menu_approval_technical
 msgid "Approvals"
 msgstr "Aprobaciones"
 
@@ -428,7 +428,6 @@ msgstr ""
 
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_request_all
-#: model:ir.ui.menu,name:approval.approvals_approval_menu_all
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "All Approvals"
 msgstr ""
@@ -537,7 +536,7 @@ msgstr ""
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_category
 #: model:ir.actions.act_window,name:approval.action_approval_category_dashboard
-#: model:ir.ui.menu,name:approval.approvals_category_menu_config
+#: model:ir.ui.menu,name:approval.menu_approval_technical_category
 msgid "Approval Categories"
 msgstr ""
 
@@ -814,7 +813,6 @@ msgstr "La aprobación fue retirada"
 #. odoo-python
 #: code:addons/approval/models/approval_request_action.py:0
 #: model:ir.actions.act_window,name:approval.action_approval_request_to_review
-#: model:ir.ui.menu,name:approval.approvals_approval_menu_to_review
 msgid "Approvals to Review"
 msgstr ""
 
@@ -1309,11 +1307,6 @@ msgid "Based on"
 msgstr ""
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_borrow_items
-msgid "Borrow Items"
-msgstr ""
-
-#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_approver.py:0
 msgid "Both start and end dates are required for delegation."
@@ -1334,11 +1327,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_request_action.py:0
 msgid "Bulk %(action)s failed: %(error)s"
-msgstr ""
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_business_trip
-msgid "Business Trip"
 msgstr ""
 
 #. module: approval
@@ -1471,11 +1459,6 @@ msgid ""
 msgstr ""
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_car_rental_application
-msgid "Car Rental Application"
-msgstr ""
-
-#. module: approval
 #: model:approval.refusal.reason,description:approval.refusal_reason_data_migration
 msgid ""
 "Catch-all reason used by the data migration to label pre-existing refused "
@@ -1598,7 +1581,6 @@ msgstr ""
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_rule
 #: model:ir.model.fields,field_description:approval.field_approval_category__rule_ids
-#: model:ir.ui.menu,name:approval.menu_approval_rules
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Conditional Rules"
 msgstr ""
@@ -1611,11 +1593,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__prediction_confidence
 msgid "Confidence score (0-1) for the predicted outcome"
-msgstr ""
-
-#. module: approval
-#: model:ir.ui.menu,name:approval.approvals_menu_config
-msgid "Configuration"
 msgstr ""
 
 #. module: approval
@@ -1653,11 +1630,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_search_search
 msgid "Contact"
-msgstr ""
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_contract_approval
-msgid "Contract Approval"
 msgstr ""
 
 #. module: approval
@@ -1767,7 +1739,6 @@ msgstr ""
 
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_dashboard
-#: model:ir.ui.menu,name:approval.approvals_category_menu_new
 #: model:ir.ui.menu,name:approval.menu_approval_dashboard
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Dashboard"
@@ -2306,11 +2277,6 @@ msgid "General"
 msgstr ""
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_general_approval
-msgid "General Approval"
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields.selection,name:approval.selection__approval_rule__operator__gt
 msgid "Greater than"
 msgstr ""
@@ -2539,11 +2505,6 @@ msgid "Inactive reasons are hidden but preserved for historical records"
 msgstr ""
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_approval_menu_inbox
-msgid "Inbox"
-msgstr ""
-
-#. module: approval
 #: model:approval.refusal.reason,name:approval.refusal_reason_incorrect_information
 msgid "Incorrect Information"
 msgstr ""
@@ -2618,11 +2579,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_category__kanban_dashboard
 msgid "JSON data for kanban dashboard display"
-msgstr ""
-
-#. module: approval
-#: model:approval.category,name:approval.approval_category_data_job_referral_award
-msgid "Job Referral Award"
 msgstr ""
 
 #. module: approval
@@ -2779,11 +2735,6 @@ msgid "Main Attachment"
 msgstr ""
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_menu_manager
-msgid "Manager"
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_tier__threshold_max
 msgid "Maximum (exclusive)"
 msgstr ""
@@ -2914,18 +2865,8 @@ msgid "My Approval History"
 msgstr ""
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_approval_menu
-msgid "My Approvals"
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__my_avg_response_hours
 msgid "My Avg Response Time (hours)"
-msgstr ""
-
-#. module: approval
-#: model:ir.ui.menu,name:approval.approvals_request_menu_history
-msgid "My History"
 msgstr ""
 
 #. module: approval
@@ -2937,7 +2878,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/approval/models/approval_category.py:0
 #: model:ir.actions.act_window,name:approval.action_view_approval_request
-#: model:ir.ui.menu,name:approval.approvals_request_menu_my
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_search_search
 msgid "My Requests"
@@ -3441,11 +3381,6 @@ msgid "Partner"
 msgstr ""
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_payment_application
-msgid "Payment Application"
-msgstr ""
-
-#. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_category.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_metrics__pending_count
@@ -3696,11 +3631,6 @@ msgid "Processing Rate (Approvals/Day)"
 msgstr ""
 
 #. module: approval
-#: model:approval.category,name:approval.approval_category_data_procurement
-msgid "Procurement"
-msgstr ""
-
-#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Product"
@@ -3830,8 +3760,8 @@ msgstr ""
 
 #. module: approval
 #: model:ir.actions.act_window,name:approval.action_approval_refusal_reason
-#: model:ir.ui.menu,name:approval.menu_approval_refusal_reason
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_refusal_reason_list
+#: model:ir.ui.menu,name:approval.menu_approval_technical_refusal_reason
 msgid "Refusal Reasons"
 msgstr ""
 
@@ -3898,11 +3828,6 @@ msgstr ""
 msgid ""
 "Reopen this request for another approval cycle? Decision metadata will be "
 "cleared; the chatter history and the request number are kept."
-msgstr ""
-
-#. module: approval
-#: model:ir.ui.menu,name:approval.menu_approval_report
-msgid "Reporting"
 msgstr ""
 
 #. module: approval
@@ -4507,7 +4432,6 @@ msgid "Template this request was created from (if any)"
 msgstr ""
 
 #. module: approval
-#: model:ir.ui.menu,name:approval.approvals_template_menu_config
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Templates"
 msgstr ""
@@ -5455,4 +5379,9 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "📈 Approval Velocity"
+msgstr ""
+
+#. module: approval
+#: model:ir.ui.menu,name:approval.menu_approval_technical_binding
+msgid "Gated Operations"
 msgstr ""

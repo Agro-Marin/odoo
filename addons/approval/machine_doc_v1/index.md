@@ -14,19 +14,19 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.2.2.0 (matches `__manifest__.py`) |
+| Version | 19.0.2.3.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
-| Application | Yes |
+| Application | No: the Approvals application (menu root, generic request categories, demo) is `approval_app`, so the modules adopting `mixin.approval` pull in no application tile. Configuration without it: Settings > Technical > Approvals |
 | License | LGPL-3 |
 | Python models | 11 own + 5 extensions, across 34 files in `models/` (plus `__init__.py`), + 2 wizards + 3 report models. One of the 34 declares no model: `approval_trace.py`, the campaign instrumentation (conventions.md, "Campaign Instrumentation") |
 | Views | 15 XML files (9 `views/` + 4 `reports/` + 2 `wizards/`) |
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
-| Test files | 45 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
-| JS files | 26 (14 `static/src` + 12 `static/tests`, the tours and the mock-server models included) |
+| Test files | 46 (+ `common.py` shared fixtures); the reporting and reset suites went to the two split modules |
+| JS files | 25 (14 `static/src` + 11 `static/tests`, the tours and the mock-server models included) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
 ## File Inventory
@@ -113,6 +113,7 @@ dashboards.
 | `test_binding_studio_parity.py` | What a Studio rule did, held by steps and bindings, each test naming its Studio test: a record no step applies to is not gated, an exclusive approval counts toward the exclusive step first, an archived step is ignored in any context, a group member decides but only listed members are asked, a step holding decisions is archived not deleted, a binding's target is fixed once it has requests |
 | `test_approver_replacement.py` | Approver-replacing rules: band matching, overlap validation, minimum override, batched constraints |
 | `test_document_requirements.py` | Required document validation on confirm, through the structural attachment link |
+| `test_engine_shape.py` | The engine ships no application: no root menu, no category records, its own menus only under Settings > Technical |
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
 | `test_lifecycle.py` | Cancelled state, reset-to-draft, forced-terminal paths, locked fields, delegation fan-in (19.0.1.0.7) |
 | `test_request_change.py` | Approver-requested mid-flow edit (`pending_change_field`), and re-routing at re-submit (`TestRequestChangeReroutes`) |
@@ -153,7 +154,7 @@ into `test_approvals.py`).
 | File | Content |
 |------|---------|
 | `ir_config_parameter_data.xml` | Sequence defaults for approver ordering: `approval.sequence.` `manager` 9, `tier` 10 (the approver-replacing rules — the key keeps its old name), `group` 500. A manually added approver row keeps the sequence it was given; there is no `approval.sequence.manual` since 19.0.1.0.26. There is **no** `approval.sequence.category` — category approvers carry the sequence entered on the category form |
-| `approval_category_data.xml` | Default approval categories (General, Business Trip, etc.) |
+| `res_users_data.xml` | The administrator is an approval manager. The generic categories (General, Business Trip, etc.) are `approval_app`'s since 2.3 |
 | `mail_activity_type_data.xml` | 2 activity types: approval + change request |
 | `mail_message_subtype_data.xml` | Approval state change subtype |
 | `ir_cron_data.xml` | 3 scheduled actions |
@@ -230,11 +231,10 @@ approval/
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 24 script directories (1.0.1 .. 2.2)
-+-- tests/                            # 45 test modules + common.py
++-- migrations/                       # 25 script directories (1.0.1 .. 2.3)
++-- tests/                            # 46 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
-+-- demo/                             # 3 XML demo files
 +-- security/                         # Groups, rules, ACL
 +-- static/                           # JS, SCSS, images
 ```
@@ -244,10 +244,10 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 45 (+ `common.py`) |
+| Python test files | 46 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
-| JS files | 26 |
+| JS files | 25 |
 | SCSS files | 4 |
 | ORM models (new) | 19 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 8 (base, ir.actions.report, ir.actions.server, ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
@@ -256,7 +256,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 3 |
 | Cron jobs | 3 |
-| Migration script directories | 24 |
+| Migration script directories | 25 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

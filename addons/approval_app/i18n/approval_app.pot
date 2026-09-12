@@ -1,0 +1,146 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* approval_app
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-11 11:05+0000\n"
+"PO-Revision-Date: 2026-09-11 11:05+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu_all
+msgid "All Approvals"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_category_menu_config
+msgid "Approval Categories"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_menu_root
+msgid "Approvals"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu_to_review
+msgid "Approvals to Review"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_borrow_items
+msgid "Borrow Items"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_business_trip
+msgid "Business Trip"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_car_rental_application
+msgid "Car Rental Application"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_rules
+msgid "Conditional Rules"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_menu_config
+msgid "Configuration"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_contract_approval
+msgid "Contract Approval"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_category_menu_new
+msgid "Dashboard"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_request_menu_delegate
+msgid "Delegate My Approvals"
+msgstr ""
+
+#. module: approval_app
+#: model:res.groups,name:approval_app.group_finance_approvers
+msgid "Finance Approvers"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_binding
+msgid "Gated Operations"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_general_approval
+msgid "General Approval"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu_inbox
+msgid "Inbox"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_job_referral_award
+msgid "Job Referral Award"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_menu_manager
+msgid "Manager"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu
+msgid "My Approvals"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_request_menu_history
+msgid "My History"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_request_menu_my
+msgid "My Requests"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_payment_application
+msgid "Payment Application"
+msgstr ""
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_procurement
+msgid "Procurement"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_refusal_reason
+msgid "Refusal Reasons"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_report
+msgid "Reporting"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_template_menu_config
+msgid "Templates"
+msgstr ""

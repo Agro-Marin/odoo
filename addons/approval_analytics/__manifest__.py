@@ -9,7 +9,8 @@ Approval Analytics
 ==================
 
 The two materialized reports the approval engine is measured by, and the
-menu entries that open them.
+menu entries that open them, under the Approvals application's Reporting
+menu, which is why it follows ``approval_app`` rather than the engine.
 
 Models
 ------
@@ -26,7 +27,7 @@ adopting ``mixin.approval`` needs the engine, not the reporting stack.
     "author": "AgroMarin",
     "license": "LGPL-3",
     "depends": [
-        "approval",
+        "approval_app",
         "mixin_report_sql",
     ],
     "data": [

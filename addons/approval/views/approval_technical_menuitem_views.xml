@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_approval_technical"
+        name="Approvals"
+        parent="base.menu_custom"
+        sequence="60"
+        groups="approval.group_approval_manager" />
+
+    <menuitem
+        id="menu_approval_technical_category"
+        name="Approval Categories"
+        parent="menu_approval_technical"
+        action="action_approval_category"
+        sequence="10" />
+
+    <menuitem
+        id="menu_approval_technical_binding"
+        name="Gated Operations"
+        parent="menu_approval_technical"
+        action="action_approval_binding"
+        sequence="20" />
+
+    <menuitem
+        id="menu_approval_technical_refusal_reason"
+        name="Refusal Reasons"
+        parent="menu_approval_technical"
+        action="action_approval_refusal_reason"
+        sequence="30" />
+
+</odoo>

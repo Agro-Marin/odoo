@@ -7,7 +7,12 @@ _logger = logging.getLogger(__name__)
 
 def migrate(cr, version):
     env = api.Environment(cr, SUPERUSER_ID, {})
+    # 2.3's pre-migrate, which runs before every post-migrate of the same load,
+    # moves this record's external id to approval_app.
     category = env.ref(
+        "approval_app.approval_category_data_procurement",
+        raise_if_not_found=False,
+    ) or env.ref(
         "approval.approval_category_data_procurement",
         raise_if_not_found=False,
     )

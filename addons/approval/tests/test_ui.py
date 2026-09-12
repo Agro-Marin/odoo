@@ -5,29 +5,11 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 @tagged("-at_install", "post_install")
 class TestUi(HttpCaseWithUserDemo):
-    def test_ui(self):
-        self.env.ref("base.user_admin").write(
-            {
-                "email": "mitchell.admin@example.com",
-            }
-        )
-        self.env.ref("approval.approval_category_data_business_trip").write(
-            {
-                "approver_ids": [
-                    (5, 0, 0),
-                    (0, 0, {"user_id": self.env.ref("base.user_admin").id}),
-                ],
-                "approval_minimum": 1,
-                "approve_sequentially": False,
-            }
-        )
-        self.start_tour("/odoo", "approvals_tour", login="admin")
-
     def test_approval_button_tour(self):
         """The button, the popover and approval.binding agree on one contract."""
         admin = self.env.ref("base.user_admin")
         category = self.env["approval.category"].create(
-            {"name": "Button Tour", "approval_minimum": 1}
+            {"name": "Button Tour", "approval_minimum": 1, "allow_self_approval": True}
         )
         self.env["approval.category.approver"].create(
             {

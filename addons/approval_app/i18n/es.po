@@ -1,0 +1,136 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* approval_apps
+#
+# Translators:
+# Wil Odoo, 2025
+# Larissa Manderfeld, 2025
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server saas~18.2+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-02-20 10:31+0000\n"
+"PO-Revision-Date: 2025-02-21 08:34+0000\n"
+"Last-Translator: Larissa Manderfeld, 2025\n"
+"Language-Team: Spanish (https://app.transifex.com/odoo/teams/41243/es/)\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;\n"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu_all
+msgid "All Approvals"
+msgstr "Todas las aprobaciones"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_category_menu_config
+msgid "Approval Categories"
+msgstr "Categorías de aprobación"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_menu_root
+msgid "Approvals"
+msgstr "Aprobaciones"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu_to_review
+msgid "Approvals to Review"
+msgstr "Aprobaciones a revisar"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_borrow_items
+msgid "Borrow Items"
+msgstr "Préstamo de artículos"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_business_trip
+msgid "Business Trip"
+msgstr "Viaje de negocios"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_car_rental_application
+msgid "Car Rental Application"
+msgstr "Solicitud de alquiler de coches"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_menu_config
+msgid "Configuration"
+msgstr "Configuración"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_contract_approval
+msgid "Contract Approval"
+msgstr "Aprobación del contrato"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_category_menu_new
+msgid "Dashboard"
+msgstr "Tablero"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_general_approval
+msgid "General Approval"
+msgstr "Aprobación general"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_job_referral_award
+msgid "Job Referral Award"
+msgstr "Premio por referir a alguien"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_menu_manager
+msgid "Manager"
+msgstr "Gerente"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu
+msgid "My Approvals"
+msgstr "Mis aprobaciones"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_request_menu_my
+msgid "My Requests"
+msgstr "Mis solicitudes"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_payment_application
+msgid "Payment Application"
+msgstr "Solicitud de pago"
+
+#. module: approval_app
+#: model:approval.category,name:approval_app.approval_category_data_procurement
+msgid "Procurement"
+msgstr "Abastecimiento"
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_rules
+msgid "Conditional Rules"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_approval_menu_inbox
+msgid "Inbox"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_request_menu_history
+msgid "My History"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_refusal_reason
+msgid "Refusal Reasons"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.menu_approval_report
+msgid "Reporting"
+msgstr ""
+
+#. module: approval_app
+#: model:ir.ui.menu,name:approval_app.approvals_template_menu_config
+msgid "Templates"
+msgstr ""
