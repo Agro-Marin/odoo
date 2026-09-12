@@ -88,11 +88,9 @@ class ResConfigSettings(models.TransientModel):
             create_column(self.env.cr, "res_company", column, "boolean")
             self.env.cr.execute(
                 SQL(
-                    f"""
-                    UPDATE res_company
-                    SET {column} = true
-                    WHERE id = {self.env.company.id}
-                """
+                    "UPDATE res_company SET %s = true WHERE id = %s",
+                    SQL.identifier(column),
+                    self.env.company.id,
                 )
             )
 

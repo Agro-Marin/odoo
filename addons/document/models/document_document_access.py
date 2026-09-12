@@ -505,7 +505,7 @@ class DocumentsDocument(models.Model):
                      WHERE document_document.id = doc.id
                  RETURNING doc.id, doc.%(field)s
             """,
-                    field=SQL(field),
+                    field=SQL.identifier(field),
                     value=value,
                     root_ids=self.ids,
                     candidates=candidates,

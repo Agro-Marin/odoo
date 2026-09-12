@@ -207,16 +207,16 @@ class MixinSqlReport(models.AbstractModel):
             table_sql = table_name
         else:
             self._check_percent_escaping(table_name, "from-table")
-            table_sql = SQL(table_name)
+            table_sql = SQL(table_name)  # noqa: E8501  a registry fragment the report class wrote, %-checked above
             if alias:
                 self._check_percent_escaping(alias, "from-alias")
-                table_sql = SQL("%s %s", table_sql, SQL(alias))
+                table_sql = SQL("%s %s", table_sql, SQL(alias))  # noqa: E8501  a registry fragment the report class wrote, %-checked above
         if join_type is None:
             return table_sql
         if not on_condition:
-            return SQL("%s %s", SQL(join_type), table_sql)
+            return SQL("%s %s", SQL(join_type), table_sql)  # noqa: E8501  a registry fragment the report class wrote, %-checked above
         self._check_percent_escaping(on_condition, f"from-join[{alias!r}]")
-        return SQL("%s %s ON %s", SQL(join_type), table_sql, SQL(on_condition))
+        return SQL("%s %s ON %s", SQL(join_type), table_sql, SQL(on_condition))  # noqa: E8501  a registry fragment the report class wrote, %-checked above
 
     def _get_where_clause(self) -> SQL:
         """The ``WHERE`` clause from the condition registry."""
@@ -249,7 +249,7 @@ class MixinSqlReport(models.AbstractModel):
                 condition_parts.append(cond)
             else:
                 self._check_percent_escaping(cond, location)
-                condition_parts.append(SQL(cond))
+                condition_parts.append(SQL(cond))  # noqa: E8501  a registry fragment the report class wrote, %-checked above
         # keyword_sql arrives already wrapped: test_lint's SQL checker reads
         # the first argument of SQL() and a computed keyword reads as injection.
         return SQL(
@@ -283,7 +283,7 @@ class MixinSqlReport(models.AbstractModel):
         field_parts = []
         for field in fields:
             self._check_percent_escaping(field, location)
-            field_parts.append(SQL(field))
+            field_parts.append(SQL(field))  # noqa: E8501  a registry fragment the report class wrote, %-checked above
         return SQL(
             "%s\n    %s",
             keyword_sql,
