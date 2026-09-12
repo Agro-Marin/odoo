@@ -176,6 +176,11 @@ class IrHttp(models.AbstractModel):
             ValueError,
         ):
             path = urllib.parse.quote(url, safe="/%")
+            if tools.urls.contains_dot_segments(path):
+                # An unrouted path holding "." or ".." segments (possibly
+                # percent-encoded) has no canonical form: urljoin rejects it
+                # and the public error page would 500 instead of rendering.
+                path = "/"
         if force_default_lang or lang != request.env["ir.http"]._get_default_lang():
             path = cls._lang_url_prefix(path, lang.url_code)
 
