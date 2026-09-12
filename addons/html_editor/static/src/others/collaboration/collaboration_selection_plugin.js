@@ -9,6 +9,7 @@ import {
 import { childNodes } from "@html_editor/utils/dom_traversal";
 import { DIRECTIONS } from "@html_editor/utils/position";
 import { getCursorDirection } from "@html_editor/utils/selection";
+import { getRandomSelectionColor } from "@web/core/colors/colors";
 import { _t } from "@web/core/translation";
 
 export class CollaborationSelectionPlugin extends Plugin {
@@ -31,7 +32,7 @@ export class CollaborationSelectionPlugin extends Plugin {
         this.selectionOverlay = this.dependencies.localOverlay.makeLocalOverlay(
             "oe-selections-container",
         );
-        this.selectionColor = `hsl(${(Math.random() * 360).toFixed(0)}, 75%, 50%)`;
+        this.selectionColor = getRandomSelectionColor();
     }
     handleCollaborationNotification({ notificationName, notificationPayload }) {
         switch (notificationName) {

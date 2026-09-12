@@ -26,6 +26,7 @@ import { NumpadDropdown } from "@pos_restaurant/app/components/numpad_dropdown/n
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { cookie } from "@web/core/browser/cookie";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { formatRgb, getRestaurantFloorColors } from "@web/core/colors/colors";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
@@ -929,39 +930,11 @@ export class FloorScreen extends Component {
         }
     }
     _getColors() {
-        const lightModeColors = {
-            white: [249, 250, 251],
-            red: [220, 80, 90],
-            green: [60, 160, 90],
-            blue: [30, 130, 210],
-            orange: [250, 170, 60],
-            yellow: [245, 205, 80],
-            purple: [150, 100, 220],
-            grey: [120, 130, 140],
-            lightGrey: [200, 205, 210],
-            turquoise: [40, 180, 200],
-        };
-
-        const darkModeColors = {
-            white: [60, 62, 75],
-            red: [200, 60, 75],
-            green: [50, 130, 80],
-            blue: [40, 90, 180],
-            orange: [190, 120, 50],
-            yellow: [190, 160, 40],
-            purple: [130, 80, 160],
-            grey: [40, 45, 50],
-            lightGrey: [140, 145, 150],
-            turquoise: [30, 140, 150],
-        };
-
-        return cookie.get("pos_color_scheme") === "dark"
-            ? darkModeColors
-            : lightModeColors;
+        return getRestaurantFloorColors(cookie.get("pos_color_scheme") === "dark");
     }
 
     formatColor(color) {
-        return `rgb(${color})`;
+        return formatRgb(color);
     }
     getColors() {
         return Object.fromEntries(

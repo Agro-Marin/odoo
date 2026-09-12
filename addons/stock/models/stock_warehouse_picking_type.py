@@ -1,6 +1,7 @@
 import logging
 
 from odoo import api, models
+from odoo.libs.colors import TAG_COLOR_INDICES
 from odoo.tools.translate import _
 
 from .stock_warehouse import WAREHOUSE_PICKING_TYPE_CODES
@@ -82,7 +83,7 @@ class StockWarehousePickingType(models.Model):
                 ["color"],
             )
         }
-        return next((color for color in range(12) if color not in used), 0)
+        return next((color for color in TAG_COLOR_INDICES if color not in used), 0)
 
     def _get_last_picking_type_sequence(self):
         [(highest,)] = (

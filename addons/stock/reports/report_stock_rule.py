@@ -1,16 +1,7 @@
 from collections import defaultdict
 
 from odoo import api, models
-
-ROUTE_COLORS = (
-    "#FFA500",
-    "#800080",
-    "#228B22",
-    "#008B8B",
-    "#4682B4",
-    "#FF0000",
-    "#32CD32",
-)
+from odoo.libs.colors import ROUTE_COLORS, get_palette_color
 
 
 class ReportStockReport_Stock_Rule(models.AbstractModel):
@@ -86,7 +77,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
             rules_to_display = route.rule_ids & relevant_rules
             if not rules_to_display:
                 continue
-            route_color = colors[color_index % len(colors)]
+            route_color = get_palette_color(color_index, colors, wrap=True)
             color_index += 1
             for rule in rules_to_display:
                 rule_loc = loc_by_rule[rule]

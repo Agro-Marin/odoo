@@ -2,7 +2,12 @@ from random import choice
 
 from odoo import api, models
 from odoo.exceptions import ValidationError
-from odoo.libs.colors import TAG_COLORS, hex_to_rgb, lighten_hex
+from odoo.libs.colors import (
+    TAG_COLOR_INDICES,
+    get_palette_color,
+    hex_to_rgb,
+    lighten_hex,
+)
 from odoo.libs.debug_log import DebugLog
 
 _debug = DebugLog(__name__)
@@ -12,7 +17,7 @@ class MixinColor(models.AbstractModel):
     _name = "mixin.color"
     _description = "Color Behavior"
 
-    _color_default_indices = tuple(range(1, len(TAG_COLORS)))
+    _color_default_indices = TAG_COLOR_INDICES[1:]
 
     def _default_color(self):
         return choice(self._color_default_indices)
@@ -64,9 +69,10 @@ class MixinColor(models.AbstractModel):
     @api.model
     def _color_index_to_hex(self, value, *, palette, fallback=False):
         """Resolve an integer palette index; return fallback outside its range."""
-        if 0 <= value < len(palette):
-            return palette[value]
-        return fallback
+        try:
+            return get_palette_color(value, palette)
+        except IndexError:
+            return fallback
 
     @api.model
     def _lighten_color(self, color, factor):

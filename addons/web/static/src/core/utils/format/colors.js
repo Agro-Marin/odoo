@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+import { clamp } from "@web/core/utils/format/numbers";
+
 /**
  * @param {string} gradient
  * @param {number} opacity
@@ -178,9 +180,18 @@ export function convertRgbaToCSSColor(r, g, b, a) {
     ) {
         return `#${rr}${gg}${bb}`.toUpperCase();
     }
-    const alpha = Math.round((a / 100) * 255);
-    const aa = alpha.toString(16).padStart(2, "0");
+    const aa = opacityToHex(a);
     return `#${rr}${gg}${bb}${aa}`.toUpperCase();
+}
+
+/**
+ * @param {number} opacity Percentage from 0 to 100.
+ * @returns {string}
+ */
+export function opacityToHex(opacity) {
+    return Math.round((opacity / 100) * 255)
+        .toString(16)
+        .padStart(2, "0");
 }
 /**
  * @param {string} cssColor
@@ -389,4 +400,191 @@ export function blendColors(color, node) {
             })
             .join("")
     );
+}
+
+const BARE_HEX_REGEX = /^(?:[a-f\d]{3}|[a-f\d]{6})$/i;
+
+/**
+ * @param {string} color
+ * @returns {[number, number, number] | null}
+ */
+function toRgbTriplet(color = "") {
+    // Company colors may contain surrounding whitespace; keep kiosk parsing tolerant.
+    color = color.trim();
+    const css = BARE_HEX_REGEX.test(color) ? `#${color}` : color;
+    const rgba = convertCSSColorToRgba(css);
+    return rgba ? [rgba.red, rgba.green, rgba.blue] : null;
+}
+
+/**
+ * Weighted sRGB brightness, without gamma correction (not WCAG luminance).
+ * @param {string} color
+ * @returns {number}
+ */
+export function getColorBrightness(color) {
+    const rgb = toRgbTriplet(color);
+    return rgb ? (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255 : 0;
+}
+
+/**
+ * @param {string} color
+ * @returns {string}
+ */
+export function colorToRgb(color) {
+    return (toRgbTriplet(color) || [0, 0, 0]).join(", ");
+}
+
+/**
+ * Format RGB channels and an optional fractional alpha as a CSS rgb() value.
+ * @param {number[]} channels
+ * @returns {string}
+ */
+export function formatRgb(channels) {
+    return `rgb(${channels.join(",")})`;
+}
+
+/** @returns {string} */
+export function randomColor() {
+    return `#${Math.floor(Math.random() * 0x1000000)
+        .toString(16)
+        .padStart(6, "0")}`.toUpperCase();
+}
+
+/**
+ * Blend opaque colors with the weight belonging to the first color.
+ * @param {string} color1
+ * @param {string} color2
+ * @param {number} weight
+ * @returns {string}
+ */
+export function mixHexColors(color1, color2, weight) {
+    const rgb1 = toRgbTriplet(color1);
+    const rgb2 = toRgbTriplet(color2);
+    if (!rgb1 || !rgb2) {
+        return color2;
+    }
+    const [r, g, b] = mixColorChannels(rgb1, rgb2, weight);
+    return toHex(r, g, b);
+}
+
+/**
+ * Blend CSS colors, rounding alpha to the gradient editor's percentage precision.
+ * @param {string} color1
+ * @param {string} color2
+ * @param {number} weight Weight belonging to the first color.
+ * @returns {string | false}
+ */
+export function mixRgbaColors(color1, color2, weight) {
+    const rgba1 = convertCSSColorToRgba(color1);
+    const rgba2 = convertCSSColorToRgba(color2);
+    if (!rgba1 || !rgba2) {
+        return false;
+    }
+    const [red, green, blue, opacity] = mixColorChannels(
+        [rgba1.red, rgba1.green, rgba1.blue, rgba1.opacity],
+        [rgba2.red, rgba2.green, rgba2.blue, rgba2.opacity],
+        weight,
+    );
+    return `rgba(${red}, ${green}, ${blue}, ${opacity / 100})`;
+}
+
+/**
+ * @param {number[]} first
+ * @param {number[]} second
+ * @param {number} weight
+ * @returns {number[]}
+ */
+function mixColorChannels(first, second, weight) {
+    return first.map((channel, index) =>
+        Math.round(channel * weight + second[index] * (1 - weight)),
+    );
+}
+
+/**
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @returns {string}
+ */
+function toHex(r, g, b) {
+    return String(convertRgbaToCSSColor(r, g, b)).toLowerCase();
+}
+
+/**
+ * @param {string} hex
+ * @param {number} factor
+ * @param {number} target
+ * @returns {string}
+ */
+function adjustColor(hex, factor, target) {
+    factor = clamp(factor, 0, 1);
+    const rgb = toRgbTriplet(hex);
+    if (!rgb) {
+        return hex;
+    }
+    return toHex(
+        Math.round(rgb[0] + (target - rgb[0]) * factor),
+        Math.round(rgb[1] + (target - rgb[1]) * factor),
+        Math.round(rgb[2] + (target - rgb[2]) * factor),
+    );
+}
+
+/**
+ * @param {string} hex
+ * @param {number} opacity
+ * @returns {string}
+ */
+export function hexToRGBA(hex, opacity) {
+    const rgb = toRgbTriplet(hex);
+    if (!rgb) {
+        return `rgba(0,0,0,${opacity})`;
+    }
+    return `rgba(${rgb.join(",")},${opacity})`;
+}
+
+/**
+ * @param {string} color
+ * @param {number} factor
+ * @returns {string}
+ */
+export function lightenColor(color, factor) {
+    return adjustColor(color, factor, 255);
+}
+
+/**
+ * @param {string} color
+ * @param {number} factor
+ * @returns {string}
+ */
+export function darkenColor(color, factor) {
+    return adjustColor(color, factor, 0);
+}
+
+const RGBA_PATTERN =
+    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/;
+const HEX_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * One answer for "this colour, at this opacity", for the three renderers that
+ * used to carry their own. Accepts #rgb, #rrggbb, rgb() and rgba(); anything
+ * else is returned unchanged.
+ *
+ * @param {string} color
+ * @param {number} [opacity]
+ * @returns {string}
+ */
+export function withOpacity(color, opacity) {
+    if (!color || opacity === undefined || opacity === null || opacity >= 1) {
+        return color;
+    }
+    const rgba = RGBA_PATTERN.exec(color);
+    if (rgba) {
+        const [, r, g, b, a = "1"] = rgba;
+        return `rgba(${r}, ${g}, ${b}, ${Number(a) * opacity})`;
+    }
+    if (HEX_PATTERN.test(color)) {
+        const [r, g, b] = /** @type {[number, number, number]} */ (toRgbTriplet(color));
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    return color;
 }

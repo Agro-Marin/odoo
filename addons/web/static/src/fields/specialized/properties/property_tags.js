@@ -1,11 +1,11 @@
 // @ts-check
 /** @odoo-module native */
-
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
+import { getNextTagColorIndex, RECORD_COLOR_INDICES } from "@web/core/colors/colors";
 import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
@@ -181,12 +181,7 @@ export class PropertyTags extends Component {
             return;
         }
 
-        let tagColor =
-            this.props.tags && this.props.tags.length
-                ? (this.props.tags[this.props.tags.length - 1][2] + 1) %
-                  ColorList.COLORS.length
-                : Math.floor(Math.random() * ColorList.COLORS.length);
-        tagColor = tagColor || 1;
+        const tagColor = getNextTagColorIndex(this.props.tags.at(-1)?.[2]);
 
         const newTag = [newValue, newLabel, tagColor];
         const updatedTags = [...this.availableTags, newTag];
@@ -219,7 +214,7 @@ export class PropertyTags extends Component {
             return;
         }
         this.popover.open(/** @type {HTMLElement} */ (event.currentTarget), {
-            colors: [...Array(ColorList.COLORS.length).keys()],
+            colors: RECORD_COLOR_INDICES,
             tag: { id: tagId, colorIndex: tagColor },
             switchTagColor: this.onTagColorSwitch.bind(this),
         });

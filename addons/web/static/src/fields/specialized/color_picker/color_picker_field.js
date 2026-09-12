@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
-
 import { ColorList } from "@web/components/colorlist/colorlist";
+import { RECORD_COLOR_INDICES } from "@web/core/colors/colors";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
@@ -18,7 +18,7 @@ export class ColorPickerField extends FieldComponent {
         canToggle: { type: Boolean },
     };
 
-    static RECORD_COLORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    static RECORD_COLORS = RECORD_COLOR_INDICES;
 
     /** @returns {boolean} */
     get isExpanded() {

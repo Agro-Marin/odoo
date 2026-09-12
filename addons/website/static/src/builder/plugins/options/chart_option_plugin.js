@@ -2,6 +2,7 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { registry } from "@web/core/registry";
+import { randomColor } from "@web/core/utils/format/colors";
 
 import { ChartOption, DATASET_KEY_PREFIX, getColor } from "./chart_option.js";
 
@@ -74,12 +75,7 @@ export class BaseChartAction extends BuilderAction {
     }
 
     randomColor() {
-        return (
-            "#" +
-            ("00000" + ((Math.random() * (1 << 24)) | 0).toString(16))
-                .slice(-6)
-                .toUpperCase()
-        );
+        return randomColor();
     }
 }
 

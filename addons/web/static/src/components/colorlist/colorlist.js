@@ -2,23 +2,10 @@
 /** @odoo-module native */
 
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
-import { _t } from "@web/core/translation";
+import { RECORD_COLOR_NAMES } from "@web/core/colors/colors";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 export class ColorList extends Component {
-    static COLORS = [
-        _t("No color"),
-        _t("Red"),
-        _t("Orange"),
-        _t("Yellow"),
-        _t("Cyan"),
-        _t("Purple"),
-        _t("Almond"),
-        _t("Teal"),
-        _t("Blue"),
-        _t("Raspberry"),
-        _t("Green"),
-        _t("Violet"),
-    ];
+    static COLORS = RECORD_COLOR_NAMES;
     static template = "web.ColorList";
     static defaultProps = {
         forceExpanded: false,

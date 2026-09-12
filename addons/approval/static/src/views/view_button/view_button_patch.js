@@ -3,8 +3,8 @@ import { useSubEnv } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
 import { ViewButton } from "@web/views/view_button";
 
-import { ApprovalButton } from "./approval_button";
-import { useApprovalButton } from "./approval_button_hook";
+import { ApprovalButton } from "./approval_button.js";
+import { useApprovalButton } from "./approval_button_hook.js";
 
 patch(ViewButton.prototype, {
     setup() {

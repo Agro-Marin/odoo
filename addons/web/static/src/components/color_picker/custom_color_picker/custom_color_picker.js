@@ -16,6 +16,7 @@ import {
     convertRgbaToCSSColor,
     convertRgbToHsl,
     normalizeCSSColor,
+    opacityToHex,
 } from "@web/core/utils/format/colors";
 import { clamp } from "@web/core/utils/format/numbers";
 import { uniqueId } from "@web/core/utils/functions";
@@ -57,9 +58,7 @@ export class CustomColorPicker extends Component {
                 : this.props.defaultOpacity;
         this.defaultColor = this.props.defaultColor;
         if (/^#[0-9a-f]{6}$/i.test(this.defaultColor)) {
-            const opacityHex = Math.round((this.defaultOpacity / 100) * 255)
-                .toString(16)
-                .padStart(2, "0");
+            const opacityHex = opacityToHex(this.defaultOpacity);
             this.defaultColor += opacityHex;
         }
         /** @type {Record<string, any>} */

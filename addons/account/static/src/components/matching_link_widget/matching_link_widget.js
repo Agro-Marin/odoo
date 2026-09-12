@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { getNonzeroColorIndex } from "@web/core/colors/colors";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -38,7 +39,7 @@ class MatchingLink extends Component {
         if (matchColorValue === "*") {
             return 0;
         } else {
-            return (parseInt(matchColorValue) % 11) + 1;
+            return getNonzeroColorIndex(parseInt(matchColorValue));
         }
     }
 }

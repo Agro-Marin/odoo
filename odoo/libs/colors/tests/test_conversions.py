@@ -1,6 +1,11 @@
 import unittest
 
-from odoo.libs.colors.conversions import hex_to_rgb, lighten_hex
+from odoo.libs.colors.conversions import (
+    get_brightness,
+    get_palette_color,
+    hex_to_rgb,
+    lighten_hex,
+)
 
 
 class TestHexToRgb(unittest.TestCase):
@@ -39,6 +44,32 @@ class TestLightenHex(unittest.TestCase):
         for color in ("red", "#123456\n", "#12345680"):
             with self.subTest(color=color), self.assertRaises(ValueError):
                 lighten_hex(color, 0.5)
+
+
+class TestPaletteAndBrightness(unittest.TestCase):
+    def test_palette_preserves_zero_and_explicit_wrap_policy(self):
+        palette = ("white", "red", "blue")
+        self.assertEqual(get_palette_color(0, palette), "white")
+        self.assertEqual(get_palette_color(-1, palette, wrap=True), "blue")
+        self.assertEqual(get_palette_color(4, palette, wrap=True), "red")
+        for index in (-1, 3):
+            with self.subTest(index=index), self.assertRaises(IndexError):
+                get_palette_color(index, palette)
+
+    def test_empty_palette_is_rejected(self):
+        with self.assertRaises(IndexError):
+            get_palette_color(0, ())
+        with self.assertRaises(ValueError):
+            get_palette_color(0, (), wrap=True)
+
+    def test_brightness_keeps_the_report_thresholds(self):
+        self.assertEqual(get_brightness("#000"), 0)
+        self.assertAlmostEqual(get_brightness("#fff"), 1)
+        self.assertAlmostEqual(get_brightness("#f00"), 0.299)
+        self.assertAlmostEqual(get_brightness("#0f0"), 0.587)
+        self.assertAlmostEqual(get_brightness("#00f"), 0.114)
+        with self.assertRaises(ValueError):
+            get_brightness("invalid")
 
 
 if __name__ == "__main__":

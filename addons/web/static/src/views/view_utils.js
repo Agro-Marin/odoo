@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import { status, useComponent } from "@odoo/owl";
-import { ColorList } from "@web/components/colorlist/colorlist";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
 import { useAction } from "@web/core/action_port";
 import { getFieldCodec } from "@web/core/field_codec";
@@ -565,33 +564,4 @@ function makeModelUIHooks({ action, dialog, notification, isAlive = () => true }
 
 sharedComponents.add("computeViewClassName", computeViewClassName);
 
-/**
- * The palette slot a record's colour value selects: a number wraps into the
- * palette (negatives included), a string hashes by code points, a relational
- * value -- `{ id }` or `[id, name]` -- colours by its id, anything else takes
- * slot 0. Kanban and gantt each carried a copy that agreed on none of the
- * four branches.
- *
- * @param {any} value
- * @param {number} [paletteSize]
- * @returns {number}
- */
-export function getColorIndex(value, paletteSize = ColorList.COLORS.length) {
-    if (typeof value === "number") {
-        return ((Math.round(value) % paletteSize) + paletteSize) % paletteSize;
-    }
-    if (typeof value === "string") {
-        const codePointSum = [...value].reduce(
-            (acc, char) => acc + (char.codePointAt(0) ?? 0),
-            0,
-        );
-        return codePointSum % paletteSize;
-    }
-    if (Array.isArray(value)) {
-        return getColorIndex(value[0], paletteSize);
-    }
-    if (value && typeof value === "object" && typeof value.id === "number") {
-        return getColorIndex(value.id, paletteSize);
-    }
-    return 0;
-}
+export { getColorIndex } from "@web/core/colors/colors";

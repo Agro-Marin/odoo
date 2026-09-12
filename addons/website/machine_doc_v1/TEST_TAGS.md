@@ -1,7 +1,7 @@
 # Website Module Test Tags
 
 Quick reference for running targeted subsets of `website`'s tests. Two surfaces:
-**Python** (`tests/`, 47 `.py` files = 46 test modules incl. `common.py`, + `__init__.py`)
+**Python** (`tests/`, 49 `.py` files = 48 test modules incl. `common.py`, + `__init__.py`)
 run through `odoo-bin`; **JS/HOOT + tours** (`static/tests/`, 218 `.js`) run in
 the browser test runner.
 

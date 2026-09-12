@@ -2,9 +2,27 @@ import { expect, test } from "@odoo/hoot";
 import { setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { definePosRestaurantModels } from "@pos_restaurant/../tests/unit/data/generate_model_definitions";
 import { FloorScreen } from "@pos_restaurant/app/screens/floor_screen/floor_screen";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { cookie } from "@web/core/browser/cookie";
 
 definePosRestaurantModels();
+
+test("floor colors retain the POS scheme and translucent shade", async () => {
+    await setupPosEnv();
+    const screen = await mountWithCleanup(FloorScreen, {});
+    let scheme = "light";
+    const getCookie = cookie.get.bind(cookie);
+    patchWithCleanup(cookie, {
+        get: (name) => (name === "pos_color_scheme" ? scheme : getCookie(name)),
+    });
+    expect(screen.getColors().red).toBe("rgb(220,80,90)");
+    expect(screen.getLighterShade("red")).toBe("rgb(220,80,90,0.75)");
+    screen._getColors().red[0] = 0;
+    expect(screen.getColors().red).toBe("rgb(220,80,90)");
+    scheme = "dark";
+    expect(screen.getColors().red).toBe("rgb(200,60,75)");
+    expect(screen.getLighterShade("red")).toBe("rgb(200,60,75,0.75)");
+});
 
 test("getPosTable", async () => {
     const store = await setupPosEnv();

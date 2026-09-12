@@ -1,11 +1,11 @@
 // @ts-check
 /** @odoo-module native */
-
 import { Component, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
+import { RECORD_COLOR_INDICES } from "@web/core/colors/colors";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
@@ -88,7 +88,7 @@ export class Many2ManyTagsField extends FieldComponent {
         context: {},
     };
 
-    static RECORD_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+    static RECORD_COLORS = RECORD_COLOR_INDICES.slice(1);
 
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;

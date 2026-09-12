@@ -1,32 +1,9 @@
 /** @odoo-module native */
+import { getPaletteColor, SURVEY_CHART_COLORS } from "@web/core/colors/colors";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
-
-// The given colors are the same as those used by D3
-const D3_COLORS = [
-    "#1f77b4",
-    "#ff7f0e",
-    "#aec7e8",
-    "#ffbb78",
-    "#2ca02c",
-    "#98df8a",
-    "#d62728",
-    "#ff9896",
-    "#9467bd",
-    "#c5b0d5",
-    "#8c564b",
-    "#c49c94",
-    "#e377c2",
-    "#f7b6d2",
-    "#7f7f7f",
-    "#c7c7c7",
-    "#bcbd22",
-    "#dbdb8d",
-    "#17becf",
-    "#9edae5",
-];
 
 /**
  * Interaction responsible for the initialization and the drawing of the various charts.
@@ -85,7 +62,7 @@ export class SurveyResultChart extends Interaction {
                     return {
                         label: group.key,
                         data: data,
-                        backgroundColor: D3_COLORS[index % 20],
+                        backgroundColor: getPaletteColor(index, SURVEY_CHART_COLORS),
                     };
                 }),
             },
@@ -140,7 +117,7 @@ export class SurveyResultChart extends Interaction {
                         label: group.key,
                         data: data,
                         backgroundColor: data.map(function (val, index) {
-                            return D3_COLORS[index % 20];
+                            return getPaletteColor(index, SURVEY_CHART_COLORS);
                         }),
                     };
                 }),
@@ -196,7 +173,7 @@ export class SurveyResultChart extends Interaction {
                         label: "",
                         data: counts,
                         backgroundColor: counts.map(function (val, index) {
-                            return D3_COLORS[index % 20];
+                            return getPaletteColor(index, SURVEY_CHART_COLORS);
                         }),
                     },
                 ],
@@ -226,7 +203,7 @@ export class SurveyResultChart extends Interaction {
                         label: "",
                         data: counts,
                         backgroundColor: counts.map(function (val, index) {
-                            return D3_COLORS[index % 20];
+                            return getPaletteColor(index, SURVEY_CHART_COLORS);
                         }),
                         borderColor: "rgba(0, 0, 0, 0.1)",
                     },
@@ -290,7 +267,7 @@ export class SurveyResultChart extends Interaction {
             datasets.push({
                 label: resultKeys[resultKey],
                 data: data,
-                backgroundColor: D3_COLORS[resultColorIndex % 20],
+                backgroundColor: getPaletteColor(resultColorIndex, SURVEY_CHART_COLORS),
             });
             resultColorIndex++;
         }

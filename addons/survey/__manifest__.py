@@ -113,6 +113,9 @@ sent mails with personal token for the invitation of the survey.
             "survey/static/tests/tours/*.js",
         ],
         "web.assets_unit_tests": [
+            "survey/static/src/interactions/survey_result_chart.js",
+            "survey/static/src/interactions/survey_session_chart.js",
+            "survey/static/src/interactions/survey_session_colors.js",
             "survey/static/tests/components/*.test.js",
             "survey/static/tests/fields/*.test.js",
         ],

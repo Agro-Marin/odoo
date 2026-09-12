@@ -1,6 +1,7 @@
 /** @odoo-module native */
 
 import SESSION_CHART_COLORS from "@survey/interactions/survey_session_colors";
+import { getPaletteColor } from "@web/core/colors/colors";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 
@@ -86,7 +87,7 @@ export class SurveySessionChart extends Interaction {
      * Custom bar chart configuration for our survey session use case.
      *
      * Quick summary of enabled features:
-     * - background_color is one of the 10 custom colors from SESSION_CHART_COLORS
+     * - background_color is one of the 20 colors from SESSION_CHART_COLORS
      *   (see getBackgroundColor for details)
      * - The ticks are bigger and bolded to be able to see them better on a big screen (projector)
      * - We don't use tooltips to keep it as simple as possible
@@ -297,10 +298,10 @@ export class SurveySessionChart extends Interaction {
 
     /**
      * Custom method that returns a color from SESSION_CHART_COLORS.
-     * It loops through the ten values and assign them sequentially.
+     * It loops through the twenty values and assigns them sequentially.
      *
      * We have a special mechanic when the host shows the answers of a question.
-     * Wrong answers are "faded out" using a 0.3 opacity.
+     * Wrong answers are "faded out" using a 0.2 opacity.
      *
      * @param {Object} metaData
      * @param {Integer} metaData.dataIndex the index of the label, matching the index of the answer
@@ -314,8 +315,7 @@ export class SurveySessionChart extends Interaction {
                 ? "0.2"
                 : "0.8";
         // If metaData.dataIndex is greater than SESSION_CHART_COLORS.length, it should start from the beginning
-        const rgb =
-            SESSION_CHART_COLORS[metaData.dataIndex % SESSION_CHART_COLORS.length];
+        const rgb = getPaletteColor(metaData.dataIndex, SESSION_CHART_COLORS);
         return `rgba(${rgb},${opacity})`;
     }
 
