@@ -76,6 +76,16 @@ SCRIPTS = {
         (None, "pending", {"a"}, {"a"}),
         (("approve", "a"), "approved", set(), set()),
     ],
+    "tiers_above_both": [
+        (None, "pending", {"a", "c", "d"}, {"a", "c", "d"}),
+        (("approve", "a"), "pending", {"c", "d"}, {"c", "d"}),
+        (("approve", "c"), "pending", {"d"}, {"d"}),
+        (("approve", "d"), "approved", set(), set()),
+    ],
+    "tiers_between": [
+        (None, "pending", {"a", "c"}, {"a", "c"}),
+        (("approve", "c"), "approved", set(), set()),
+    ],
     "band_replaces_the_approvers": [
         (None, "pending", {"b"}, {"b"}),
         (("approve", "b"), "approved", set(), set()),
@@ -312,6 +322,41 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
         )
         self._run(category, "rule_below_its_threshold", request_vals={"amount": 10})
 
+    def _tiers_category(self):
+        category = self._amount_category(
+            "add_approver", ["c"], operator="gte", threshold=1000
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Routing rule, upper tier",
+                "category_id": category.id,
+                "condition_type": "threshold",
+                "condition_field": "amount",
+                "operator": "gte",
+                "threshold": 5000,
+                "action_type": "add_approver",
+                "approver_ids": [(6, 0, [self.people["d"].id])],
+            }
+        )
+        return category
+
+    def test_tiers_above_both(self):
+        self._run(
+            self._tiers_category(), "tiers_above_both", request_vals={"amount": 9000}
+        )
+
+    def test_tiers_between(self):
+        self._run(
+            self._tiers_category(), "tiers_between", request_vals={"amount": 2000}
+        )
+
+    def test_tiers_below_both(self):
+        self._run(
+            self._tiers_category(),
+            "rule_below_its_threshold",
+            request_vals={"amount": 10},
+        )
+
     def test_band_replaces_the_approvers(self):
         category = self._amount_category(
             "set_approvers",
@@ -543,12 +588,12 @@ class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
                     "category_id": category.id,
                     "condition_type": "threshold",
                     "condition_field": "amount",
-                    "operator": "gte",
+                    "operator": "gte" if index else "lte",
                     "threshold": 1000 * (index + 1),
                     "action_type": "add_approver",
                     "approver_ids": [(6, 0, [self.people["c"].id])],
                 }
             )
-        with self.assertRaisesRegex(UserError, "More than one rule adds approvers"):
+        with self.assertRaisesRegex(UserError, "they are not tiers"):
             category.action_convert_routing_to_steps()
         self.assertFalse(category.step_ids)

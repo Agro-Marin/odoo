@@ -57,8 +57,14 @@ class ApprovalCategoryConversion(models.Model):
             blockers.append(
                 self.env._("A rule adds optional approvers, which no step can pool.")
             )
-        if len(added) > 1:
-            blockers.append(self.env._("More than one rule adds approvers."))
+        if len(added) > 1 and not self._are_rules_tiers(added):
+            blockers.append(
+                self.env._(
+                    "Several rules add approvers, and they are not tiers: rules that "
+                    "all compare the same figure, in the same currency, with "
+                    "'greater than or equal'."
+                )
+            )
         if len(bands) > 1:
             blockers.append(self.env._("More than one band replaces the approvers."))
         if added and bands:
@@ -126,6 +132,8 @@ class ApprovalCategoryConversion(models.Model):
                 band.approval_minimum,
                 self._rule_condition(band),
             )
+        if len(added) > 1:
+            return self._prepare_tiered_steps(listed, added)
         if added:
             with_rule = listed + [(user, True) for user in added.approver_ids]
             return self._prepare_pooled_steps(
@@ -134,6 +142,45 @@ class ApprovalCategoryConversion(models.Model):
                 with_rule, self.approval_minimum, self._rule_condition(added)
             )
         return self._prepare_pooled_steps(listed, self.approval_minimum, {})
+
+    @staticmethod
+    def _are_rules_tiers(rules) -> bool:
+        return (
+            len(set(rules.mapped("condition_field"))) == 1
+            and set(rules.mapped("operator")) == {"gte"}
+            and len(rules.currency_id) <= 1
+        )
+
+    def _prepare_tiered_steps(self, listed, added) -> list[dict]:
+        """One pool per range of the figure, listing the approvers of every rule the
+        range matches: the flat path counts their approvals toward the minimum."""
+        tiers = added.sorted(lambda rule: (rule.threshold, rule.id))
+        thresholds = sorted(set(tiers.mapped("threshold")))
+        first = tiers[0]
+        base = {
+            "condition_field": first.condition_field,
+            "currency_id": first.currency_id.id,
+        }
+        steps = self._prepare_pooled_steps(
+            listed,
+            self.approval_minimum,
+            {**base, "operator": "lt", "threshold": thresholds[0], "threshold_max": 0},
+        )
+        for index, low in enumerate(thresholds):
+            high = thresholds[index + 1] if index + 1 < len(thresholds) else 0
+            matched = tiers.filtered(lambda rule, low=low: rule.threshold <= low)
+            approvers = listed + [(user, True) for user in matched.approver_ids]
+            steps += self._prepare_pooled_steps(
+                approvers,
+                self.approval_minimum,
+                {
+                    **base,
+                    "operator": "between",
+                    "threshold": low,
+                    "threshold_max": high,
+                },
+            )
+        return steps
 
     def _get_conversion_pool_source(self) -> dict:
         """Step values naming approvers every request of the category adds to its pool
