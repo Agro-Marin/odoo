@@ -11,8 +11,8 @@ class TestPartnerOrderActivity(TransactionCase):
         super().setUpClass()
         cls.env.company.write(
             {
-                "order_cycle_interval_number": 3,
-                "order_cycle_interval_type": "months",
+                "order_cycle_count": 3,
+                "order_cycle_unit": "month",
             },
         )
         cls.partner = cls.env["res.partner"].create({"name": "Ordering customer"})
@@ -83,8 +83,8 @@ class TestPartnerOrderActivity(TransactionCase):
         self.partner.invalidate_recordset(["recent_orders_count"])
         self.assertEqual(self.partner.recent_orders_count, 0)
 
-        self.env.company.order_cycle_interval_number = 1
-        self.env.company.order_cycle_interval_type = "years"
+        self.env.company.order_cycle_count = 1
+        self.env.company.order_cycle_unit = "year"
         self.partner.invalidate_recordset(["recent_orders_count"])
         self.assertEqual(self.partner.recent_orders_count, 1)
 

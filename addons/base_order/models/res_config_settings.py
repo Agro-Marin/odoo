@@ -5,12 +5,12 @@ from odoo.tools.translate import _
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    order_cycle_interval_number = fields.Integer(
-        related="company_id.order_cycle_interval_number",
+    order_cycle_count = fields.Integer(
+        related="company_id.order_cycle_count",
         readonly=False,
     )
-    order_cycle_interval_type = fields.Selection(
-        related="company_id.order_cycle_interval_type",
+    order_cycle_unit = fields.Selection(
+        related="company_id.order_cycle_unit",
         readonly=False,
     )
 

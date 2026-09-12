@@ -23,8 +23,8 @@ class TestPartnerOrderActivity(TransactionCase):
         cls.company = cls.env.company
         cls.company.write(
             {
-                "order_cycle_interval_number": 3,
-                "order_cycle_interval_type": "months",
+                "order_cycle_count": 3,
+                "order_cycle_unit": "month",
             },
         )
         cls.partner = cls.env["res.partner"].create({"name": "Activity"})
@@ -58,8 +58,8 @@ class TestPartnerOrderActivity(TransactionCase):
         self.partner.invalidate_recordset(["recent_orders_count"])
         self.assertEqual(self.partner.recent_orders_count, 0)
 
-        self.company.order_cycle_interval_number = 1
-        self.company.order_cycle_interval_type = "years"
+        self.company.order_cycle_count = 1
+        self.company.order_cycle_unit = "year"
         self.partner.invalidate_recordset(["recent_orders_count"])
         self.assertEqual(
             self.partner.recent_orders_count,
@@ -126,26 +126,25 @@ class TestPartnerOrderActivity(TransactionCase):
 
     def test_cutoff_date_follows_the_configured_unit(self):
         today = fields.Date.today()
-        for number, interval_type in [
-            (10, "days"),
-            (2, "weeks"),
-            (6, "months"),
-            (1, "years"),
+        for number, unit, expected in [
+            (10, "day", relativedelta(days=10)),
+            (2, "week", relativedelta(weeks=2)),
+            (6, "month", relativedelta(months=6)),
+            (1, "year", relativedelta(years=1)),
         ]:
-            with self.subTest(interval=(number, interval_type)):
-                self.company.order_cycle_interval_number = number
-                self.company.order_cycle_interval_type = interval_type
+            with self.subTest(cycle=(number, unit)):
+                self.company.order_cycle_count = number
+                self.company.order_cycle_unit = unit
                 self.assertEqual(
-                    self.company._get_order_cycle_cutoff_date(),
-                    today - relativedelta(**{interval_type: number}),
+                    self.company._get_order_cycle_cutoff_date(), today - expected
                 )
 
     def test_a_zero_cycle_is_allowed_and_a_negative_one_is_not(self):
-        self.company.order_cycle_interval_number = 0
+        self.company.order_cycle_count = 0
         self.assertEqual(
             self.company._get_order_cycle_cutoff_date(),
             fields.Date.today(),
         )
 
         with self.assertRaises(ValidationError):
-            self.company.order_cycle_interval_number = -1
+            self.company.order_cycle_count = -1

@@ -1,14 +1,13 @@
-from dateutil.relativedelta import relativedelta
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 from odoo.tools.translate import _
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    order_cycle_interval_number = fields.Integer(
+    order_cycle_count = fields.Integer(
         string="Order Cycle",
         default=3,
         help="How long a partner may go without ordering before it counts as "
@@ -16,22 +15,17 @@ class ResCompany(models.Model):
         "industry: a seasonal crop supplier may need twelve months where a "
         "convenience retailer needs one.",
     )
-    order_cycle_interval_type = fields.Selection(
-        selection=[
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-            ("months", "Months"),
-            ("years", "Years"),
-        ],
+    order_cycle_unit = fields.Selection(
+        selection=time_unit_selection("day", "week", "month", "year"),
         string="Order Cycle Unit",
-        default="months",
+        default="month",
         required=True,
     )
 
-    @api.constrains("order_cycle_interval_number")
-    def _check_order_cycle_interval_number(self):
+    @api.constrains("order_cycle_count")
+    def _check_order_cycle_count(self):
         for company in self:
-            if company.order_cycle_interval_number < 0:
+            if company.order_cycle_count < 0:
                 raise ValidationError(
                     _(
                         "The order cycle of %(company)s must be zero or more.",
@@ -41,6 +35,6 @@ class ResCompany(models.Model):
 
     def _get_order_cycle_cutoff_date(self):
         self.check_singleton()
-        return fields.Date.today() - relativedelta(
-            **{self.order_cycle_interval_type: self.order_cycle_interval_number},
+        return fields.Date.today() - get_timedelta(
+            self.order_cycle_count, self.order_cycle_unit
         )

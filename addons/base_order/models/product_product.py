@@ -4,7 +4,7 @@ from odoo import fields, models
 from odoo.fields import Domain
 
 #: Fixed lookback window for `_compute_ordered_qty`, intentionally
-#: independent of `res.company.order_cycle_interval_number/type` (which
+#: independent of `res.company.order_cycle_count/unit` (which
 #: drives a separate, configurable "gone quiet" cutoff on `res.partner`).
 ORDERED_QTY_WINDOW_DAYS = 365
 
