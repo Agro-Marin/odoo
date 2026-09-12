@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
@@ -22,6 +23,8 @@ const ATTENTION_APPS = 6;
 const MENU_MATCHES = 8;
 
 const EMPTY_MENU_TREE = { childrenTree: [] };
+
+const log = makeLogger("web.home_menu.grid");
 
 export class HomeMenuGrid {
     /**
@@ -57,7 +60,10 @@ export class HomeMenuGrid {
      */
     _memo(key, compute) {
         if (!this.derived.has(key)) {
-            this.derived.set(key, compute.call(this));
+            const end = log.perf(key);
+            const value = compute.call(this);
+            end({ size: Array.isArray(value) ? value.length : undefined });
+            this.derived.set(key, value);
         }
         return this.derived.get(key);
     }

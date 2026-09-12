@@ -228,7 +228,16 @@ export class NavBar extends Component {
         if (!sectionsMenu) {
             return;
         }
+        const endAdapt = log.perf("adapt");
+        try {
+            return this._adapt(sectionsMenu);
+        } finally {
+            endAdapt({ extra: this.currentAppSectionsExtra.length });
+        }
+    }
 
+    /** @param {HTMLElement} sectionsMenu */
+    _adapt(sectionsMenu) {
         const initialAppSectionsExtra = this.currentAppSectionsExtra;
 
         const sections = [

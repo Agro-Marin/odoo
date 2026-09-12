@@ -14,6 +14,8 @@ import {
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
@@ -34,6 +36,8 @@ function homeMenuAppsKey(apps) {
         apps.map(({ xmlid, module, models }) => [xmlid, module, models]),
     );
 }
+
+const log = makeLogger("web.home_menu.grid");
 
 const APPS_PER_ROW = 6;
 const BADGE_DELAY = 200;
@@ -118,6 +122,7 @@ export class HomeMenu extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
     setup() {
+        useLifecycleLog(log);
         this.menus = useService("menu");
         this.homeMenuService = useService("home_menu");
         this.subscription = useService("enterprise_subscription");
