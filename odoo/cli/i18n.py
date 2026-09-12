@@ -249,8 +249,14 @@ class I18n(DatabaseCommand):
             translation_importer = TranslationImporter(env.cr)
             language = self._get_languages(env, [parsed_args.language])
             if not language:
+                _debug.logic("cli.i18n.import_rejected", reason="no_language")
                 self.import_parser.error("No valid language has been provided")
             if len(language) > 1:
+                _debug.logic(
+                    "cli.i18n.import_rejected",
+                    reason="ambiguous_language",
+                    matches=len(language),
+                )
                 self.import_parser.error(
                     f"-l {parsed_args.language!r} matches several languages "
                     f"({', '.join(language.mapped('code'))}); use the full code"
@@ -281,25 +287,47 @@ class I18n(DatabaseCommand):
                     force_overwrite=parsed_args.force_overwrite,
                 )
 
+    def _check_export_output(
+        self,
+        parsed_args: argparse.Namespace,
+        requested_languages: list[str],
+        *,
+        export_pot: bool,
+    ) -> None:
+        if len(requested_languages) != 1:
+            _debug.logic(
+                "cli.i18n.export_rejected",
+                reason="output_needs_one_language",
+                languages=len(requested_languages),
+            )
+            self.export_parser.error(
+                "When --output is specified, one single --language must be supplied"
+            )
+        if parsed_args.output != "-":
+            parsed_args.output = Path(parsed_args.output)
+            if parsed_args.output.suffix not in EXPORT_EXTENSIONS:
+                _debug.logic(
+                    "cli.i18n.export_rejected",
+                    reason="output_extension",
+                    suffix=parsed_args.output.suffix,
+                )
+                self.export_parser.error(
+                    f"Extensions allowed for --output are {', '.join(EXPORT_EXTENSIONS)}"
+                )
+            if export_pot and parsed_args.output.suffix == ".csv":
+                _debug.logic("cli.i18n.export_rejected", reason="pot_as_csv")
+                self.export_parser.error(
+                    "Cannot export template in .csv format, please specify a language."
+                )
+
     def _export_translations(self, parsed_args: argparse.Namespace) -> None:
         requested_languages = list(parsed_args.languages or ["pot"])
         export_pot = "pot" in requested_languages
 
         if parsed_args.output:
-            if len(requested_languages) != 1:
-                self.export_parser.error(
-                    "When --output is specified, one single --language must be supplied"
-                )
-            if parsed_args.output != "-":
-                parsed_args.output = Path(parsed_args.output)
-                if parsed_args.output.suffix not in EXPORT_EXTENSIONS:
-                    self.export_parser.error(
-                        f"Extensions allowed for --output are {', '.join(EXPORT_EXTENSIONS)}"
-                    )
-                if export_pot and parsed_args.output.suffix == ".csv":
-                    self.export_parser.error(
-                        "Cannot export template in .csv format, please specify a language."
-                    )
+            self._check_export_output(
+                parsed_args, requested_languages, export_pot=export_pot
+            )
 
         if export_pot:
             requested_languages.remove("pot")
@@ -334,6 +362,7 @@ class I18n(DatabaseCommand):
                 )
                 modules -= not_installed_modules
             if len(modules) < 1:
+                _debug.logic("cli.i18n.export_rejected", reason="no_module")
                 self.export_parser.error("No valid module has been provided")
             module_names = modules.mapped("name")
 
@@ -348,10 +377,16 @@ class I18n(DatabaseCommand):
                 output=str(parsed_args.output) if parsed_args.output else None,
             )
             if languages_count == 0:
+                _debug.logic("cli.i18n.export_rejected", reason="no_language")
                 self.export_parser.error("No valid language has been provided")
 
             if parsed_args.output:
                 if len(languages) > 1:
+                    _debug.logic(
+                        "cli.i18n.export_rejected",
+                        reason="ambiguous_language",
+                        matches=len(languages),
+                    )
                     self.export_parser.error(
                         f"--output requires a single language; got "
                         f"{len(languages)} matches: {languages.mapped('code')}"

@@ -674,6 +674,12 @@ class TestCommand(BaseCase):
         self.assertIn("starts_with(table_name, 'ir_')", non_comment)
         self.assertNotIn("LIKE 'ir_%'", non_comment)
 
+    def test_obfuscate_catalog_reads_base_tables_only(self):
+        from odoo.cli.obfuscate import Obfuscate
+
+        self.assertIn("table_type = 'BASE TABLE'", Obfuscate._CATALOG_COLUMNS)
+        self.assertIn("information_schema.tables", Obfuscate._CATALOG_COLUMNS)
+
     def test_dotted_command_name_no_traceback(self):
         for name in ("db.init", "x.y", ".", ".."):
             with self.subTest(name=name):

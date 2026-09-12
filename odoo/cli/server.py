@@ -70,6 +70,11 @@ def report_configuration() -> None:
             replica_port or "default",
         )
     if sys.version_info[:2] > odoo.release.MAX_PY_VERSION:
+        _debug.logic(
+            "cli.server.python_unsupported",
+            version=".".join(map(str, sys.version_info[:2])),
+            max=".".join(map(str, odoo.release.MAX_PY_VERSION)),
+        )
         _logger.warning(
             "Python %s is not officially supported, please use Python %s instead",
             ".".join(map(str, sys.version_info[:2])),

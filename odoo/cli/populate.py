@@ -41,6 +41,9 @@ def _prepare_factors_by_model_name(
         propagated=max(len(model_names) - len(opt_factors), 0),
     )
     if len(opt_factors) > len(model_names):
+        _debug.logic(
+            "cli.populate.factors_ignored", extra=len(opt_factors) - len(model_names)
+        )
         _logger.warning(
             "%d factors provided for %d models; ignoring the extra factors %s",
             len(opt_factors),

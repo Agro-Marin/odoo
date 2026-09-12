@@ -113,6 +113,7 @@ class Shell(Command):
         try:
             return sys.stdin is not None and os.isatty(sys.stdin.fileno())
         except AttributeError, OSError, ValueError:
+            _debug.logic("cli.shell.stdin_probe_failed")
             return False
 
     def _enter_console(self, local_vars: dict[str, Any]) -> None:

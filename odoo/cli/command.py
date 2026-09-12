@@ -145,14 +145,28 @@ class Command:
         cls.name = cls.name or cls.__name__.lower()
         module = cls.__module__.rpartition(".")[2]
         if not cls.is_valid_name(cls.name):
+            _debug.logic(
+                "cli.command.registration_rejected",
+                name=cls.name,
+                reason="invalid_name",
+            )
             raise ValueError(
                 f"Command name {cls.name!r} must match {COMMAND_NAME_RE.pattern!r}"
             )
         if cls.name != module:
+            _debug.logic(
+                "cli.command.registration_rejected",
+                name=cls.name,
+                module=module,
+                reason="module_mismatch",
+            )
             raise ValueError(
                 f"Command name {cls.name!r} must match Module name {module!r}"
             )
         if cls.run is Command.run:
+            _debug.logic(
+                "cli.command.registration_rejected", name=cls.name, reason="no_run"
+            )
             raise TypeError(
                 f"Command subclass {cls.__qualname__!r} must override "
                 "`run(self, args: list[str]) -> None`"

@@ -198,6 +198,12 @@ class Template:
         convention = NAMING_CONVENTIONS.get(self.id, DEFAULT_NAMING)
         modname = convention.get_module_name(name, params)
         if not _MODNAME_RE.match(modname):
+            _debug.logic(
+                "cli.scaffold.name_rejected",
+                name=name,
+                module=modname,
+                reason="pattern",
+            )
             msg = (
                 f"{modname!r} is not a valid module name: expected "
                 f"{_MODNAME_RE.pattern!r} (name given: {name!r})"

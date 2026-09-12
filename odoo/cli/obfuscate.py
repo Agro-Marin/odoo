@@ -54,6 +54,7 @@ DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
 def _parse_field_spec(spec: str) -> tuple[str, str]:
     parts = spec.strip().split(".")
     if len(parts) != 2 or not all(parts):
+        _debug.logic("cli.obfuscate.field_spec_rejected", spec=spec)
         msg = f"Invalid field specification {spec!r}: expected 'table.column'"
         raise ValueError(msg)
     return parts[0], parts[1]
@@ -63,16 +64,23 @@ def _get_fields_selected(opt: argparse.Namespace) -> list[tuple[str, str]]:
     fields = [] if opt.no_default_fields else list(DEFAULT_FIELDS)
     if opt.fields:
         if opt.allfields:
+            _debug.logic(
+                "cli.obfuscate.option_ignored", option="fields", by="allfields"
+            )
             _logger.warning("--allfields is set: ignoring --fields")
         else:
             fields += [_parse_field_spec(f) for f in opt.fields.split(",")]
     if opt.file:
         if opt.allfields:
+            _debug.logic("cli.obfuscate.option_ignored", option="file", by="allfields")
             _logger.warning("--allfields is set: ignoring --file")
         else:
             fields += list(_read_field_file(opt.file))
     if opt.exclude:
         if opt.allfields:
+            _debug.logic(
+                "cli.obfuscate.option_ignored", option="exclude", by="allfields"
+            )
             _logger.warning("--allfields is set: ignoring --exclude")
         else:
             excluded = {_parse_field_spec(e) for e in opt.exclude.split(",")}
@@ -224,6 +232,9 @@ class Obfuscate(DatabaseCommand):
         " FROM information_schema.columns"
         " WHERE table_schema = current_schema"
         "   AND udt_name IN ('text', 'varchar', 'jsonb')"
+        "   AND table_name IN (SELECT table_name FROM information_schema.tables"
+        "                      WHERE table_schema = current_schema"
+        "                        AND table_type = 'BASE TABLE')"
     )
 
     def _index_field_catalog(self, rows: list[tuple]) -> None:
@@ -711,6 +722,7 @@ class Obfuscate(DatabaseCommand):
                 f"readable: {described}. Drop them from --fields/--file, or "
                 f"widen the column."
             )
+        _debug.logic("cli.obfuscate.fields_unfittable_skipped", count=len(unfittable))
         _logger.warning(
             "Skipping %d built-in field(s) whose column cannot hold ciphertext: %s",
             len(unfittable),
@@ -734,6 +746,9 @@ class Obfuscate(DatabaseCommand):
             per_table_commit=opt.pertablecommit,
         )
         if opt.vacuum:
+            _debug.logic(
+                "cli.obfuscate.option_ignored", option="vacuum", by="obfuscate_mode"
+            )
             _logger.warning("--vacuum only applies in unobfuscate mode; ignoring it")
         self._insert_password_marker(pwd)
         for table, columns in tables.items():

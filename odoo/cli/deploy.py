@@ -182,6 +182,8 @@ class Deploy(Command):
                 f"The server {url!r} does not have the 'base_import_module' installed or is not up-to-date.",
                 response=res,
             )
+        if _debug.logic.enabled and not res.ok:
+            _debug.logic("cli.deploy.upload_rejected", status=res.status_code, url=url)
         res.raise_for_status()
         return res.text
 

@@ -90,6 +90,7 @@ class Db(Command):
         return dest_flags
 
     def _exit_missing_subcommand(self, _args: argparse.Namespace) -> NoReturn:
+        _debug.logic("cli.db.rejected", reason="no_subcommand")
         self.parser.print_help(sys.stderr)
         sys.exit(2)
 

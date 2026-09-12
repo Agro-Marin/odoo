@@ -123,7 +123,9 @@ class Module(DatabaseCommand):
             and fullpath.suffix.lower() == ".zip"
             and zipfile.is_zipfile(fullpath)
         ):
+            _debug.logic("cli.module.zip_resolved", path=path, zip=True)
             return fullpath
+        _debug.logic("cli.module.zip_resolved", path=path, zip=False)
         return None
 
     def _get_module_names_on_disk(self, module_names: list[str]) -> set[str]:
@@ -225,6 +227,12 @@ class Module(DatabaseCommand):
             else:
                 valid_module_names = self._get_module_names_on_disk(parsed_args.modules)
                 if unknown := set(parsed_args.modules) - valid_module_names:
+                    _debug.logic(
+                        "cli.module.modules_skipped",
+                        verb="upgrade",
+                        reason="not_on_disk",
+                        count=len(unknown),
+                    )
                     _logger.warning(
                         "Ignoring modules not found on disk: %s",
                         ", ".join(sorted(unknown)),
@@ -233,6 +241,12 @@ class Module(DatabaseCommand):
                 if unknown_in_db := valid_module_names - set(
                     upgradable_modules.mapped("name")
                 ):
+                    _debug.logic(
+                        "cli.module.modules_skipped",
+                        verb="upgrade",
+                        reason="not_in_db",
+                        count=len(unknown_in_db),
+                    )
                     _logger.warning(
                         "Ignoring modules not found in the database: %s",
                         ", ".join(sorted(unknown_in_db)),
@@ -240,6 +254,12 @@ class Module(DatabaseCommand):
                 if not_installed := upgradable_modules.filtered(
                     lambda m: m.state not in ("installed", "to upgrade")
                 ):
+                    _debug.logic(
+                        "cli.module.modules_skipped",
+                        verb="upgrade",
+                        reason="not_installed",
+                        count=len(not_installed),
+                    )
                     _logger.warning(
                         "Skipping modules that are not installed: %s",
                         ", ".join(not_installed.mapped("name")),
@@ -275,6 +295,12 @@ class Module(DatabaseCommand):
         with open_environment(parsed_args.db_name, new_registry=True) as env:
             modules = self._get_modules_named(env, parsed_args.modules)
             if unknown := set(parsed_args.modules) - set(modules.mapped("name")):
+                _debug.logic(
+                    "cli.module.modules_skipped",
+                    verb="uninstall",
+                    reason="unknown",
+                    count=len(unknown),
+                )
                 _logger.warning(
                     "Ignoring unknown modules: %s", ", ".join(sorted(unknown))
                 )
