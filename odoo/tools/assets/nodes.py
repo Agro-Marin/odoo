@@ -126,21 +126,30 @@ def link_to_node(
     return None
 
 
-def combine_bundle_with_templates(esbuild_code: str, esm_tpl: str) -> str:
-    if not esm_tpl:
-        return esbuild_code
+INLINED_TEMPLATES_MARKER = "/* ── Inlined templates registration ── */\n"
+
+
+def split_inlined_templates(esbuild_code: str) -> tuple[str, str]:
     body = esbuild_code
     directive = ""
     tail = esbuild_code.rfind(SOURCE_MAP_DIRECTIVE)
     if tail != -1 and "\n" not in esbuild_code[tail:].rstrip("\n"):
         directive = esbuild_code[tail:].rstrip("\n")
         body = esbuild_code[:tail].rstrip("\n") + "\n"
-    return (
-        body
-        + "/* ── Inlined templates registration ── */\n"
-        + esm_tpl
-        + ("\n" + directive + "\n" if directive else "")
-    )
+    marker = body.find(INLINED_TEMPLATES_MARKER)
+    if marker != -1:
+        body = body[:marker]
+    return body, directive
+
+
+def combine_bundle_with_templates(esbuild_code: str, esm_tpl: str) -> str:
+    # A bundle reused from the attachment store still carries the templates it
+    # was built with; the current ones replace them rather than pile on.
+    if not esm_tpl and INLINED_TEMPLATES_MARKER not in esbuild_code:
+        return esbuild_code
+    body, directive = split_inlined_templates(esbuild_code)
+    templates = INLINED_TEMPLATES_MARKER + esm_tpl if esm_tpl else ""
+    return body + templates + ("\n" + directive + "\n" if directive else "")
 
 
 def is_hoot_test_specifier(specifier: str, *, by_directory: bool = True) -> bool:

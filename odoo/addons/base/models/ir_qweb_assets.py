@@ -1250,11 +1250,7 @@ class IrQweb(models.AbstractModel):
         esm_tpl = asset_bundle.generate_esm_template_bundle(
             use_import=False,
         )
-        bundle_code = (
-            esbuild_code
-            if esbuild_result.prebuilt
-            else self._combine_bundle_with_templates(esbuild_code, esm_tpl)
-        )
+        bundle_code = self._combine_bundle_with_templates(esbuild_code, esm_tpl)
         post.append(
             self._prepare_esm_script_node(
                 bundle,
