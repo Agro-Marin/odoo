@@ -207,6 +207,19 @@ class BlockedRequest(requests.exceptions.ConnectionError):
 _super_send = requests.Session.send
 
 
+def _raise_test_timeout(timeout):
+    """At least ten seconds for each part of a `requests` timeout.
+
+    `requests` takes a number or a (connect, read) pair, where either part may
+    be None for no limit.
+    """
+    if isinstance(timeout, tuple):
+        return tuple(_raise_test_timeout(part) for part in timeout)
+    if timeout and timeout < 10:
+        return 10
+    return timeout
+
+
 def _normalise_expected(
     records: odoo.models.BaseModel,
     expected_values: list[dict],
@@ -304,13 +317,14 @@ class BaseCase(TestCase):
     def _request_handler(cls, s: Session, r: PreparedRequest, /, **kw):
         url = urlsplit(r.url)
         timeout = kw.get("timeout")
-        if timeout and timeout < 10:
+        if (raised := _raise_test_timeout(timeout)) != timeout:
             _logger.getChild("requests").info(
-                "request %s with timeout %s increased to 10s during tests",
+                "request %s with timeout %s increased to %s during tests",
                 url,
                 timeout,
+                raised,
             )
-            kw["timeout"] = 10
+            kw["timeout"] = raised
         if url.hostname in (HOST, "localhost"):
             return _super_send(s, r, **kw)
         if url.scheme == "file":
