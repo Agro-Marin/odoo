@@ -665,17 +665,18 @@
         <field name="name">Print Labels</field>
         <field name="model_id" ref="product.model_product_template" />
         <field name="binding_model_id" ref="product.model_product_template" />
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
     action = records.action_view_label_layout()</field>
-        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
     </record>
 
     <record id="action_product_template_price_list_report" model="ir.actions.server">
         <field name="name">Pricelist Report</field>
         <field name="model_id" ref="product.model_product_template" />
         <field name="binding_model_id" ref="product.model_product_template" />
+        <field name="group_ids" eval="[(4, ref('product.group_product_pricelist'))]" />
         <field name="state">code</field>
         <field
             name="code">action = {
@@ -684,7 +685,6 @@
     'tag': 'generate_pricelist_report',
     'context': env.context,
 }</field>
-        <field name="group_ids" eval="[(4, ref('product.group_product_pricelist'))]" />
     </record>
 
 </odoo>

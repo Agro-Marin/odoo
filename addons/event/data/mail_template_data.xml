@@ -4,6 +4,8 @@
     <data noupdate="1">
         <record id="event_registration_mail_template_badge" model="mail.template">
             <field name="name">Event: Registration Badge</field>
+            <field
+                name="description">Sent automatically to someone after they registered to an event</field>
             <field name="model_id" ref="event.model_event_registration" />
             <field name="subject">Your badge for {{ object.event_id.name }}</field>
             <field
@@ -11,7 +13,11 @@
             <field name="email_to" eval="False" />
             <field name="use_default_to" eval="True" />
             <field
-                name="description">Sent automatically to someone after they registered to an event</field>
+                name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
+            <field
+                name="report_template_ids"
+                eval="[(4, ref('event.action_report_event_registration_badge'))]" />
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" cellspacing="0" style="padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
                 <t
@@ -365,15 +371,11 @@
                 </td></tr>
                 </table>
             </field>
-            <field
-                name="report_template_ids"
-                eval="[(4, ref('event.action_report_event_registration_badge'))]" />
-            <field
-                name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="event_subscription" model="mail.template">
             <field name="name">Event: Registration Confirmation</field>
+            <field
+                name="description">Sent to attendees after registering to an event</field>
             <field name="model_id" ref="event.model_event_registration" />
             <field
                 name="subject">Your registration at {{ object.event_id.name }}</field>
@@ -382,7 +384,10 @@
             <field name="email_to" eval="False" />
             <field name="use_default_to" eval="True" />
             <field
-                name="description">Sent to attendees after registering to an event</field>
+                name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
+            <field
+                name="report_template_ids"
+                eval="[(4, ref('event.action_report_event_registration_full_page_ticket'))]" />
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" cellspacing="0" style="padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
                 <t
@@ -773,14 +778,11 @@
                 </td></tr>
                 </table>
             </field>
-            <field
-                name="report_template_ids"
-                eval="[(4, ref('event.action_report_event_registration_full_page_ticket'))]" />
-            <field
-                name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
         </record>
         <record id="event_reminder" model="mail.template">
             <field name="name">Event: Reminder</field>
+            <field
+                name="description">Sent automatically to attendees if there is a reminder defined on the event</field>
             <field name="model_id" ref="event.model_event_registration" />
             <field
                 name="subject">{{ object.event_id.name }}: {{ object.event_date_range }}</field>
@@ -789,7 +791,7 @@
             <field name="email_to" eval="False" />
             <field name="use_default_to" eval="True" />
             <field
-                name="description">Sent automatically to attendees if there is a reminder defined on the event</field>
+                name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" cellspacing="0" style="padding-top: 16px; background-color: #F1F1F1; font-family:Verdana, Arial,sans-serif; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
                 <t
@@ -1161,8 +1163,6 @@
                 </td></tr>
                 </table>
             </field>
-            <field
-                name="lang">{{ object.event_id.lang or object.partner_id.lang }}</field>
         </record>
     </data>
 

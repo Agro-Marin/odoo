@@ -24,11 +24,11 @@
     <record id="group_hr_holidays_manager" model="res.groups">
         <field name="name">Administrator</field>
         <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_time_off" />
         <field
             name="comment">Can manage and configure all holidays and leave requests.
 
 A user without any rights on Time Off will be able to see the application, create his own holidays and manage the requests of the users he's manager of.</field>
-        <field name="privilege_id" ref="res_groups_privilege_time_off" />
         <field
             name="implied_ids"
             eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]" />
@@ -42,10 +42,10 @@ A user without any rights on Time Off will be able to see the application, creat
             <field name="name">Time Off base.group_user read</field>
             <field name="model_id" ref="model_hr_leave" />
             <field name="domain_force">[('employee_id.user_id', '=', user.id)]</field>
-            <field name="perm_create" eval="False" />
-            <field name="perm_write" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field name="groups" eval="[(4,ref('base.group_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_rule_employee_update" model="ir.rule">
             <field name="name">Time Off base.group_user create/write</field>
@@ -60,20 +60,20 @@ A user without any rights on Time Off will be able to see the application, creat
                     ('validation_type', 'in', ['manager', 'both', 'no_validation']),
                     ('employee_id.leave_manager_id', '=', user.id),
         ]</field>
+            <field name="groups" eval="[(4,ref('base.group_user'))]" />
             <field name="perm_read" eval="False" />
             <field name="perm_unlink" eval="False" />
-            <field name="groups" eval="[(4,ref('base.group_user'))]" />
         </record>
         <record id="hr_leave_rule_employee_unlink" model="ir.rule">
             <field name="name">Time Off base.group_user unlink</field>
             <field name="model_id" ref="model_hr_leave" />
             <field
                 name="domain_force">[('employee_id.user_id', '=', user.id), ('state', 'in', ['confirm', 'validate1'])]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]" />
             <field name="perm_read" eval="False" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
             <field name="perm_unlink" eval="True" />
-            <field name="groups" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="hr_leave_rule_responsible_read" model="ir.rule">
             <field name="name">Time Off Responsible read</field>
@@ -82,12 +82,12 @@ A user without any rights on Time Off will be able to see the application, creat
                 name="domain_force">[
                 ('employee_id.leave_manager_id', '=', user.id),
         ]</field>
-            <field name="perm_write" eval="False" />
-            <field name="perm_create" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_responsible'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_rule_responsible_update" model="ir.rule">
             <field name="name">Time Off Responsible create/write</field>
@@ -100,22 +100,22 @@ A user without any rights on Time Off will be able to see the application, creat
                     ('state', '!=', 'validate'),
                 ('employee_id.leave_manager_id', '=', user.id),
         ]</field>
-            <field name="perm_read" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_responsible'))]" />
+            <field name="perm_read" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_rule_user_read" model="ir.rule">
             <field name="name">Time Off All Approver read/unlink</field>
             <field name="model_id" ref="model_hr_leave" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="perm_write" eval="False" />
-            <field name="perm_create" eval="False" />
-            <field name="perm_unlink" eval="True" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="True" />
         </record>
         <record id="hr_leave_rule_officer_update" model="ir.rule">
             <field name="name">Time Off All Approver create/write</field>
@@ -130,11 +130,11 @@ A user without any rights on Time Off will be able to see the application, creat
                     ('employee_id.user_id', '!=', user.id),
                     ('employee_id.user_id', '=', False)
         ]</field>
-            <field name="perm_read" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]" />
+            <field name="perm_read" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_rule_manager" model="ir.rule">
             <field name="name">Time Off Administrator</field>
@@ -167,10 +167,10 @@ A user without any rights on Time Off will be able to see the application, creat
                 ('employee_id.leave_manager_id', '=', user.id),
                 ('employee_id.user_id', '=', user.id),
         ]</field>
-            <field name="perm_create" eval="False" />
-            <field name="perm_write" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field name="groups" eval="[(4,ref('base.group_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_allocation_rule_employee_update" model="ir.rule">
             <field name="name">Allocations: base.group_user create/write</field>
@@ -185,9 +185,9 @@ A user without any rights on Time Off will be able to see the application, creat
                     ('validation_type', 'in', ['manager', 'both', 'no_validation']),
                     ('employee_id.leave_manager_id', '=', user.id),
         ]</field>
+            <field name="groups" eval="[(4,ref('base.group_user'))]" />
             <field name="perm_read" eval="False" />
             <field name="perm_unlink" eval="False" />
-            <field name="groups" eval="[(4,ref('base.group_user'))]" />
         </record>
         <record id="hr_leave_allocation_rule_responsible_update" model="ir.rule">
             <field name="name">Allocations: Responsible: create/write</field>
@@ -200,32 +200,32 @@ A user without any rights on Time Off will be able to see the application, creat
                     ('state', '!=', 'validate'),
                 ('employee_id.leave_manager_id', '=', user.id),
         ]</field>
-            <field name="perm_read" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_responsible'))]" />
+            <field name="perm_read" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_allocation_rule_officer_read" model="ir.rule">
             <field name="name">Allocations: see all time off: read all</field>
             <field name="model_id" ref="model_hr_leave_allocation" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="perm_create" eval="False" />
-            <field name="perm_write" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leav_allocation_rule_employee_unlink" model="ir.rule">
             <field name="name">Allocations base.group_user unlink</field>
             <field name="model_id" ref="model_hr_leave_allocation" />
             <field
                 name="domain_force">[('employee_id.user_id', '=', user.id), ('state', '=', 'confirm')]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]" />
             <field name="perm_read" eval="False" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
-            <field name="groups" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="hr_leave_allocation_rule_officer_update" model="ir.rule">
             <field name="name">Allocations: holiday user: create/write</field>
@@ -254,10 +254,10 @@ A user without any rights on Time Off will be able to see the application, creat
             <field name="name">Time Off Resources: Approver</field>
             <field name="model_id" ref="model_resource_calendar_leaves" />
             <field name="domain_force">[('resource_id', '=', False)]</field>
-            <field name="perm_create" eval="False" />
-            <field name="perm_write" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field name="groups" eval="[(4, ref('base.group_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="resource_leaves_holidays_user" model="ir.rule">
             <field name="name">Time Off Resources: All Approver</field>
@@ -315,21 +315,21 @@ A user without any rights on Time Off will be able to see the application, creat
             <field name="model_id" ref="model_hr_leave_report" />
             <field
                 name="domain_force">[('has_department_manager_access', '=', True)]</field>
-            <field name="perm_create" eval="False" />
-            <field name="perm_write" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field name="groups" eval="[(4, ref('base.group_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
         <record id="hr_leave_report_rule_group_holiday_user" model="ir.rule">
             <field name="name">Time Off Summary / Report: All Approver</field>
             <field name="model_id" ref="model_hr_leave_report" />
             <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="perm_create" eval="False" />
-            <field name="perm_write" eval="False" />
-            <field name="perm_unlink" eval="False" />
             <field
                 name="groups"
                 eval="[(4, ref('hr_holidays.group_hr_holidays_user'))]" />
+            <field name="perm_write" eval="False" />
+            <field name="perm_create" eval="False" />
+            <field name="perm_unlink" eval="False" />
         </record>
     </data>
 

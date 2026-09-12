@@ -4,6 +4,9 @@
     <record id="nemhandel_registration_form" model="ir.ui.view">
         <field name="name">nemhandel.registration.form</field>
         <field name="model">nemhandel.registration</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_manager'))]" />
         <field name="arch" type="xml">
             <form>
                 <sheet>
@@ -131,9 +134,6 @@
                 </footer>
             </form>
         </field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('account.group_account_manager'))]" />
     </record>
 
 </odoo>

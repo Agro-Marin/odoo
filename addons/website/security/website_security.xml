@@ -16,14 +16,14 @@
     <record id="group_website_designer" model="res.groups">
         <field name="name">Editor and Designer</field>
         <field name="sequence">20</field>
-        <field
-            name="user_ids"
-            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
+        <field name="privilege_id" ref="res_groups_privilege_website" />
         <field
             name="implied_ids"
             eval="[(4, ref('group_website_restricted_editor')), (4, ref('base.group_sanitize_override'))]" />
-        <field name="privilege_id" ref="res_groups_privilege_website" />
         <field name="implied_by_ids" eval="[(4, ref('base.group_system'))]" />
+        <field
+            name="user_ids"
+            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
     </record>
 
     <data noupdate="1">
@@ -76,22 +76,22 @@
             <field name="model_id" ref="base.model_ir_ui_view" />
             <field
                 name="domain_force">['|', ('type', '!=', 'qweb'), ('visibility', 'in', ('public', False))]</field>
+            <field name="groups" eval="[(4, ref('base.group_public'))]" />
             <field name="perm_read" eval="True" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
             <field name="perm_unlink" eval="False" />
-            <field name="groups" eval="[(4, ref('base.group_public'))]" />
         </record>
         <record id="view_rule_visibility_connected" model="ir.rule">
             <field name="name">Website View Visibility Connected</field>
             <field name="model_id" ref="base.model_ir_ui_view" />
             <field
                 name="domain_force">['|', ('type', '!=', 'qweb'), ('visibility', 'in', ('public', 'connected', False))]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
             <field name="perm_read" eval="True" />
             <field name="perm_write" eval="False" />
             <field name="perm_create" eval="False" />
             <field name="perm_unlink" eval="False" />
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
         </record>
     </data>
 

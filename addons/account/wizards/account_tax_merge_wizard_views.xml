@@ -58,8 +58,8 @@
         <field name="view_id" eval="ref('account.account_tax_merge_wizard_form')" />
         <field name="target">new</field>
         <field name="binding_model_id" ref="account_tax.model_account_tax" />
-        <field name="binding_view_types">list</field>
         <field name="binding_type">action</field>
+        <field name="binding_view_types">list</field>
         <field
             name="group_ids"
             eval="[(6, 0, [ref('account.group_account_manager')])]" />
@@ -70,12 +70,12 @@
         <field name="model_id" ref="account_tax.model_account_tax" />
         <field name="binding_model_id" ref="account_tax.model_account_tax" />
         <field name="binding_view_types">form,list</field>
-        <field name="state">code</field>
-        <field name="code">if records:
-    action = records.action_unmerge()</field>
         <field
             name="group_ids"
             eval="[Command.link(ref('account.group_account_manager'))]" />
+        <field name="state">code</field>
+        <field name="code">if records:
+    action = records.action_unmerge()</field>
     </record>
 
 </odoo>

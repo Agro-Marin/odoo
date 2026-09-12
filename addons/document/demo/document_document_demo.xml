@@ -186,11 +186,11 @@
             forcecreate="0">
             <field name="name">Send to Finance</field>
             <field name="model_id" ref="document.model_document_document" />
-            <field name="state">object_write</field>
             <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
-            <field name="resource_ref" ref="document.document_finance_folder" />
-            <field name="update_path">folder_id</field>
             <field name="usage">documents_embedded</field>
+            <field name="state">object_write</field>
+            <field name="update_path">folder_id</field>
+            <field name="resource_ref" ref="document.document_finance_folder" />
         </record>
         <function
             model="document.document"

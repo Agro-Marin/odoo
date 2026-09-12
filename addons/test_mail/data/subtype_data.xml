@@ -31,8 +31,8 @@
     <record id="st_mail_test_container_child_full" model="mail.message.subtype">
         <field name="name">Container Child Full Subtype</field>
         <field name="res_model">mail.test.container</field>
-        <field name="parent_id" ref="test_mail.st_mail_test_ticket_container_upd" />
         <field name="relation_field">container_id</field>
+        <field name="parent_id" ref="test_mail.st_mail_test_ticket_container_upd" />
         <field name="default" eval="False" />
         <field name="internal" eval="False" />
     </record>

@@ -4,6 +4,7 @@
     <record id="email_compose_message_wizard_form" model="ir.ui.view">
         <field name="name">mail.compose.message.form</field>
         <field name="model">mail.compose.message</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <form
                 string="Compose Email"
@@ -182,7 +183,6 @@
                 </footer>
             </form>
         </field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
     <record id="mail_compose_message_view_form_template_save" model="ir.ui.view">

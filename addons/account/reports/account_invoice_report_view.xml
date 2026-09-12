@@ -60,8 +60,8 @@
     <record id="filter_invoice_report_salespersons" model="ir.filters">
         <field name="name">By Salespersons</field>
         <field name="model_id">account.invoice.report</field>
-        <field name="domain">[]</field>
         <field name="user_ids" eval="False" />
+        <field name="domain">[]</field>
         <field
             name="context">{'group_by': ['invoice_date:month', 'invoice_user_id']}</field>
     </record>
@@ -69,8 +69,8 @@
     <record id="filter_invoice_product" model="ir.filters">
         <field name="name">By Product</field>
         <field name="model_id">account.invoice.report</field>
-        <field name="domain">[]</field>
         <field name="user_ids" eval="False" />
+        <field name="domain">[]</field>
         <field
             name="context">{'group_by': ['invoice_date:month', 'product_id'], 'set_visible':True,
             'residual_invisible':True}</field>
@@ -79,8 +79,8 @@
     <record id="filter_invoice_product_category" model="ir.filters">
         <field name="name">By Product Category</field>
         <field name="model_id">account.invoice.report</field>
-        <field name="domain">[]</field>
         <field name="user_ids" eval="False" />
+        <field name="domain">[]</field>
         <field
             name="context">{'group_by': ['invoice_date:month', 'product_categ_id'],
             'residual_invisible':True}</field>
@@ -89,8 +89,8 @@
     <record id="filter_invoice_refund" model="ir.filters">
         <field name="name">By Credit Note</field>
         <field name="model_id">account.invoice.report</field>
-        <field name="domain">[('move_type', '=', 'out_refund')]</field>
         <field name="user_ids" eval="False" />
+        <field name="domain">[('move_type', '=', 'out_refund')]</field>
         <field
             name="context">{'group_by': ['invoice_date:month', 'invoice_user_id']}</field>
     </record>
@@ -98,8 +98,8 @@
     <record id="filter_invoice_country" model="ir.filters">
         <field name="name">By Country</field>
         <field name="model_id">account.invoice.report</field>
-        <field name="domain">[]</field>
         <field name="user_ids" eval="False" />
+        <field name="domain">[]</field>
         <field name="context">{'group_by': ['invoice_date:month', 'country_id']}</field>
     </record>
 

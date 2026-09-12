@@ -10,8 +10,8 @@
         </record>
         <record id="action_open_website" model="ir.actions.act_url">
             <field name="name">Website Home</field>
-            <field name="target">self</field>
             <field name="url">/event</field>
+            <field name="target">self</field>
         </record>
         <record id="base.open_menu" model="ir.actions.todo">
             <field name="action_id" ref="action_open_website" />
@@ -19,15 +19,15 @@
         </record>
         <record id="mt_event_published" model="mail.message.subtype">
             <field name="name">Event published</field>
+            <field name="description">Event published</field>
             <field name="res_model">event.event</field>
             <field name="default" eval="False" />
-            <field name="description">Event published</field>
         </record>
         <record id="mt_event_unpublished" model="mail.message.subtype">
             <field name="name">Event unpublished</field>
+            <field name="description">Event unpublished</field>
             <field name="res_model">event.event</field>
             <field name="default" eval="False" />
-            <field name="description">Event unpublished</field>
         </record>
     </data>
 

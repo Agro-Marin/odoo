@@ -4,14 +4,15 @@
     <data noupdate="1">
         <record id="appointment_booked_mail_template" model="mail.template">
             <field name="name">Appointment: Appointment Booked</field>
+            <field
+                name="description">Sent to followers of an appointment type when a meeting is booked</field>
             <field name="model_id" ref="calendar.model_calendar_event" />
             <field
                 name="subject">{{ 'Appointment Requested: ' if not object.appointment_type_id.is_always_confirm and object.appointment_status == 'request' else 'Appointment Booked: ' }}{{ object.appointment_type_id.name }}</field>
             <field
                 name="email_from">{{ (user.email_formatted or object.user_id.email_formatted) }}</field>
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Sent to followers of an appointment type when a meeting is booked</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="font-size: 13px; color: #374151;">
                     <t
@@ -158,18 +159,18 @@
 
                 </div>
             </field>
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="appointment_canceled_mail_template" model="mail.template">
             <field name="name">Appointment: Appointment Canceled</field>
+            <field
+                name="description">Sent to all attendees when an appointment is cancelled</field>
             <field name="model_id" ref="calendar.model_calendar_event" />
             <field
                 name="subject">Appointment Canceled: {{ object.appointment_type_id.name }}</field>
             <field
                 name="email_from">{{ (user.email_formatted or object.user_id.email_formatted) }}</field>
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Sent to all attendees when an appointment is cancelled</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="font-size: 13px; color: #374151;">
                     <t
@@ -268,10 +269,11 @@
                     </div>
                 </div>
             </field>
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="attendee_invitation_mail_template" model="mail.template">
             <field name="name">Appointment: Attendee Invitation</field>
+            <field
+                name="description">Invitation email to new attendees of an appointment</field>
             <field name="model_id" ref="calendar.model_calendar_attendee" />
             <field name="subject">Invitation to {{ object.event_id.name }}</field>
             <field
@@ -279,8 +281,7 @@
             <field name="email_to" eval="False" />
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Invitation email to new attendees of an appointment</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="font-size: 13px; color: #374151;">
                     <t
@@ -485,7 +486,6 @@
                     </p>
                 </div>
             </field>
-            <field name="auto_delete" eval="True" />
         </record>
     </data>
 

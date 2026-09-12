@@ -13,10 +13,10 @@
             <field
                 name="groups"
                 eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_user_input_line_rule_slide_channel_officer" model="ir.rule">
             <field
@@ -29,10 +29,10 @@
             <field
                 name="groups"
                 eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_question_answer_slide_channel_officer" model="ir.rule">
             <field
@@ -51,10 +51,10 @@
             <field
                 name="groups"
                 eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_question_rule_slide_channel_officer" model="ir.rule">
             <field
@@ -67,10 +67,10 @@
             <field
                 name="groups"
                 eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
         <record id="survey_rule_slide_channel_officer" model="ir.rule">
             <field
@@ -83,10 +83,10 @@
             <field
                 name="groups"
                 eval="[(4, ref('website_slides.group_website_slides_officer'))]" />
-            <field name="perm_unlink" eval="0" />
-            <field name="perm_write" eval="0" />
             <field name="perm_read" eval="1" />
+            <field name="perm_write" eval="0" />
             <field name="perm_create" eval="0" />
+            <field name="perm_unlink" eval="0" />
         </record>
     </data>
 

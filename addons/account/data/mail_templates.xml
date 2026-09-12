@@ -4,10 +4,12 @@
         <field name="name">Customer Statement</field>
         <field name="model_id" ref="base.model_res_partner" />
         <field
+            name="subject">{{ (object.company_id or object._get_followup_responsible().company_id).name }} Statement - {{ object.commercial_company_name }}</field>
+        <field
             name="email_from">{{ object._get_followup_responsible().email_formatted }}</field>
         <field name="use_default_to" eval="True" />
-        <field
-            name="subject">{{ (object.company_id or object._get_followup_responsible().company_id).name }} Statement - {{ object.commercial_company_name }}</field>
+        <field name="lang">{{ object.lang }}</field>
+        <field name="auto_delete" eval="False" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">
                 <p style="margin: 0px; padding: 0px;">
@@ -25,17 +27,17 @@
                 </p>
             </div>
         </field>
-        <field name="lang">{{ object.lang }}</field>
-        <field name="auto_delete" eval="False" />
     </record>
 
     <record id="email_template_generic_tax_instructions" model="mail.template">
         <field name="name">Tax payment</field>
         <field name="model_id" ref="account.model_account_return" />
+        <field name="subject">Tax return payment instructions</field>
         <field
             name="email_from">{{ (user.email_formatted or object.company_id.email_formatted) }}</field>
         <field name="use_default_to" eval="True" />
-        <field name="subject">Tax return payment instructions</field>
+        <field name="lang">{{ user.lang }}</field>
+        <field name="auto_delete" eval="False" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">
                 <p>
@@ -63,18 +65,18 @@
                 <p><t t-out="user.name">Mitchell Admin</t></p>
             </div>
         </field>
-        <field name="lang">{{ user.lang }}</field>
-        <field name="auto_delete" eval="False" />
     </record>
 
     <record id="email_template_customer_follow_up_report" model="mail.template">
         <field name="name">Follow Up Report</field>
         <field name="model_id" ref="base.model_res_partner" />
         <field
+            name="subject">{{ (object.company_id or object._get_followup_responsible().company_id).name }} Follow Up - {{ object.commercial_company_name }}</field>
+        <field
             name="email_from">{{ object._get_followup_responsible().email_formatted }}</field>
         <field name="use_default_to" eval="True" />
-        <field
-            name="subject">{{ (object.company_id or object._get_followup_responsible().company_id).name }} Follow Up - {{ object.commercial_company_name }}</field>
+        <field name="lang">{{ object.lang }}</field>
+        <field name="auto_delete" eval="False" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">
                 <p style="margin: 0px; padding: 0px;">
@@ -92,8 +94,6 @@
                 </p>
             </div>
         </field>
-        <field name="lang">{{ object.lang }}</field>
-        <field name="auto_delete" eval="False" />
     </record>
 
     <record id="email_template_tax_return_deadline" model="mail.template">
@@ -103,6 +103,8 @@
             name="subject">Reminder: Upcoming {{ object.name }} Deadline - Action Required</field>
         <field name="partner_to">{{ ctx.get('partner') and ctx['partner'].id }}</field>
         <field name="use_default_to" eval="False" />
+        <field name="lang">{{ ctx.get('partner') and ctx['partner'].lang }}</field>
+        <field name="auto_delete" eval="False" />
         <field name="body_html" type="html">
             <div style="margin: 0px; padding: 0px;">
                 <p style="margin: 0px; padding: 0px;">
@@ -115,8 +117,6 @@
                 </p>
             </div>
         </field>
-        <field name="lang">{{ ctx.get('partner') and ctx['partner'].lang }}</field>
-        <field name="auto_delete" eval="False" />
     </record>
 
 </odoo>

@@ -1300,11 +1300,11 @@
         <field name="model_id" ref="project.model_project_project" />
         <field name="binding_model_id" ref="project.model_project_project" />
         <field name="binding_view_types">form</field>
-        <field name="state">code</field>
-        <field name="code">action = record.action_toggle_project_template_mode()</field>
         <field
             name="group_ids"
             eval="[Command.link(ref('project.group_project_manager'))]" />
+        <field name="state">code</field>
+        <field name="code">action = record.action_toggle_project_template_mode()</field>
     </record>
 
 </odoo>

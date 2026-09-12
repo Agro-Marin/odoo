@@ -111,9 +111,9 @@
         <field name="model_id" ref="model_product_feed" />
         <field name="binding_model_id" ref="website_sale.model_product_feed" />
         <field name="binding_view_types">list,form</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_no_one'))]" />
         <field name="state">code</field>
         <field name="code">action = records.action_invalidate_cache()</field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_no_one'))]" />
     </record>
 
 </odoo>

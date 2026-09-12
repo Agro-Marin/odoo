@@ -46,11 +46,11 @@
                 ('project_id.privacy_visibility', 'in', ['invited_users', 'portal']),
                 ('project_id.collaborator_ids.partner_id', 'in', [user.partner_id.id]),
             ]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
             <field name="perm_read" eval="True" />
             <field name="perm_write" eval="True" />
             <field name="perm_create" eval="True" />
             <field name="perm_unlink" eval="True" />
-            <field name="groups" eval="[(4, ref('base.group_portal'))]" />
         </record>
         <record id="timesheet_line_rule_user" model="ir.rule">
             <field name="name">account.analytic.line.timesheet.user</field>

@@ -1030,12 +1030,12 @@
         <field name="name">Labels</field>
         <field name="model_id" ref="stock.model_stock_picking" />
         <field name="binding_model_id" ref="stock.model_stock_picking" />
+        <field name="binding_type">report</field>
         <field name="binding_view_types">list,kanban,form</field>
         <field name="state">code</field>
         <field
             name="code">if records:
                 action = records.action_view_label_type()</field>
-        <field name="binding_type">report</field>
     </record>
 
     <record id="action_toggle_is_locked" model="ir.actions.server">
@@ -1043,13 +1043,13 @@
         <field name="model_id" ref="stock.model_stock_picking" />
         <field name="binding_model_id" ref="stock.model_stock_picking" />
         <field name="binding_view_types">form</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('stock.group_stock_manager'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
                 records.action_toggle_is_locked()</field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('stock.group_stock_manager'))]" />
     </record>
 
     <record id="action_scrap" model="ir.actions.server">

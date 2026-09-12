@@ -5,8 +5,8 @@
         <record id="test_model_publish" model="ir.rule">
             <field name="name">Public user: read only website published</field>
             <field name="model_id" ref="test_website.model_test_model" />
-            <field name="groups" eval="[(4, ref('base.group_public'))]" />
             <field name="domain_force">[('website_published','=', True)]</field>
+            <field name="groups" eval="[(4, ref('base.group_public'))]" />
             <field name="perm_read" eval="True" />
         </record>
         <!-- SOME DEFAULT TEST.MODEL RECORDS WITH DIFFERENT WEBSITE_ID -->
@@ -38,6 +38,8 @@
         <!-- RECORDS FOR RESET VIEWS TESTS -->
         <record id="test_view" model="ir.ui.view">
             <field name="name">Test View</field>
+            <field name="key">test_website.test_view</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t name="Test View" priority="29" t-name="test_website.test_view">
                     <t t-call="website.layout">
@@ -46,11 +48,11 @@
                     </t>
                 </t>
             </field>
-            <field name="key">test_website.test_view</field>
-            <field name="type">qweb</field>
         </record>
         <record id="test_page_view" model="ir.ui.view">
             <field name="name">Test Page View</field>
+            <field name="key">test_website.test_page_view</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t
                     name="Test Page View"
@@ -65,11 +67,11 @@
                     </t>
                 </t>
             </field>
-            <field name="key">test_website.test_page_view</field>
-            <field name="type">qweb</field>
         </record>
         <record id="test_error_view" model="ir.ui.view">
             <field name="name">Test Error View</field>
+            <field name="key">test_website.test_error_view</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t name="Test Error View" t-name="test_website.test_error_view">
                     <t t-call="website.layout">
@@ -101,8 +103,6 @@
                     </t>
                 </t>
             </field>
-            <field name="key">test_website.test_error_view</field>
-            <field name="type">qweb</field>
         </record>
         <record id="test_page" model="website.page">
             <field name="is_published">True</field>
@@ -112,6 +112,8 @@
         </record>
         <record id="test_view_to_be_t_called" model="ir.ui.view">
             <field name="name">Test View To Be t-called</field>
+            <field name="key">test_website.test_view_to_be_t_called</field>
+            <field name="type">qweb</field>
             <field name="arch" type="xml">
                 <t
                     name="Test View To Be t-called"
@@ -121,8 +123,6 @@
                     <p>placeholder</p>
                 </t>
             </field>
-            <field name="key">test_website.test_view_to_be_t_called</field>
-            <field name="type">qweb</field>
         </record>
         <template
             id="test_view_child_broken"

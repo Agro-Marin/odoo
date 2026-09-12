@@ -46,8 +46,8 @@
                      '&amp;', ('employee_id.expense_manager_id', '=', user.id), ('state', 'in', ['submitted', 'approved', 'refused'])
             ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]" />
-        <field name="perm_create" eval="False" />
         <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
     </record>
 

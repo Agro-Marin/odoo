@@ -32,8 +32,8 @@
         <field name="binding_model_id" ref="hr.model_hr_employee" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_set_present()</field>
         <field name="value">presence_group_1</field>
+        <field name="code">action = records.action_set_present()</field>
     </record>
 
     <record id="action_hr_employee_presence_absent" model="ir.actions.server">
@@ -42,8 +42,8 @@
         <field name="binding_model_id" ref="hr.model_hr_employee" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_set_absent()</field>
         <field name="value">presence_group_1</field>
+        <field name="code">action = records.action_set_absent()</field>
     </record>
 
     <record id="action_hr_employee_presence_log" model="ir.actions.server">
@@ -52,8 +52,8 @@
         <field name="binding_model_id" ref="hr.model_hr_employee" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_send_log()</field>
         <field name="value">presence_group_2</field>
+        <field name="code">action = records.action_send_log()</field>
     </record>
 
     <record id="action_hr_employee_presence_sms" model="ir.actions.server">
@@ -62,8 +62,8 @@
         <field name="binding_model_id" ref="hr.model_hr_employee" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_send_sms()</field>
         <field name="value">presence_group_2</field>
+        <field name="code">action = records.action_send_sms()</field>
     </record>
 
     <record id="action_hr_employee_presence_time_off" model="ir.actions.server">
@@ -72,8 +72,8 @@
         <field name="binding_model_id" ref="hr.model_hr_employee" />
         <field name="binding_view_types">form,list,kanban</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_view_leave_request()</field>
         <field name="value">presence_group_2</field>
+        <field name="code">action = records.action_view_leave_request()</field>
     </record>
 
 </odoo>

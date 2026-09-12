@@ -150,6 +150,7 @@
     <record id="view_l10n_it_edi_doi_declaration_of_intent_search" model="ir.ui.view">
         <field name="name">l10n_it_edi_doi.declaration_of_intent.search</field>
         <field name="model">l10n_it_edi_doi.declaration_of_intent</field>
+        <field name="type">search</field>
         <field name="arch" type="xml">
             <search>
                 <field name="protocol_number_part1" />
@@ -171,7 +172,6 @@
                     help="Show terminated or revoked Declarations of Intent" />
             </search>
         </field>
-        <field name="type">search</field>
     </record>
 
 </odoo>

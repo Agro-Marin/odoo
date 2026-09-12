@@ -5,6 +5,9 @@
         <field name="name">project.task.form.quick_create</field>
         <field name="model">project.task</field>
         <field name="priority">999</field>
+        <field
+            name="group_ids"
+            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <form>
                 <group>
@@ -15,15 +18,15 @@
                 </group>
             </form>
         </field>
-        <field
-            name="group_ids"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
     </record>
 
     <record id="project_sharing_project_task_view_kanban" model="ir.ui.view">
         <field name="name">project.sharing.project.task.view.kanban</field>
         <field name="model">project.task</field>
         <field name="priority">999</field>
+        <field
+            name="group_ids"
+            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <kanban
                 highlight_color="color"
@@ -115,9 +118,6 @@
                 </templates>
             </kanban>
         </field>
-        <field
-            name="group_ids"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
     </record>
 
     <record id="project_sharing_project_task_view_tree" model="ir.ui.view">
@@ -157,6 +157,9 @@
         <field name="name">project.sharing.project.task.view.form</field>
         <field name="model">project.task</field>
         <field name="priority">999</field>
+        <field
+            name="group_ids"
+            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
         <field name="arch" type="xml">
             <form string="Project Sharing: Task" class="o_form_project_tasks">
                 <header>
@@ -522,9 +525,6 @@
                 <chatter />
             </form>
         </field>
-        <field
-            name="group_ids"
-            eval="[(4, ref('base.group_portal')), (4, ref('base.group_user'))]" />
     </record>
 
     <record id="project_sharing_project_task_view_search" model="ir.ui.view">

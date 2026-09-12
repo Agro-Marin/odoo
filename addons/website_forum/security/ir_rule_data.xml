@@ -31,10 +31,10 @@
         <field name="model_id" ref="model_forum_forum" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('website.group_website_designer'))]" />
-        <field name="perm_unlink" eval="0" />
-        <field name="perm_write" eval="0" />
         <field name="perm_read" eval="0" />
+        <field name="perm_write" eval="0" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="0" />
     </record>
 
     <record id="website_forum_private" model="ir.rule">

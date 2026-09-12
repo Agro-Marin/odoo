@@ -5,24 +5,25 @@
             name="name">User can only see his/her goals or goal from the same challenge in board visibility</field>
         <field name="model_id" ref="model_gamification_goal" />
         <field
-            name="groups"
-            eval="[(4, ref('gamification.group_gamification_user')), (4, ref('base.group_portal'))]" />
-        <field name="perm_read" eval="True" />
-        <field name="perm_write" eval="True" />
-        <field name="perm_create" eval="False" />
-        <field name="perm_unlink" eval="False" />
-        <field
             name="domain_force">[
                 '|',
                     ('user_id','=',user.id),
                     '&amp;',
                         ('challenge_id.user_ids','in',user.id),
                         ('challenge_id.visibility_mode','=','ranking')]</field>
+        <field
+            name="groups"
+            eval="[(4, ref('gamification.group_gamification_user')), (4, ref('base.group_portal'))]" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
     </record>
 
     <record id="goal_gamification_manager_visibility" model="ir.rule">
         <field name="name">Manager can see any goal</field>
         <field name="model_id" ref="model_gamification_goal" />
+        <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_manager'))]" />
@@ -30,7 +31,6 @@
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
-        <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
     <record id="goal_global_multicompany" model="ir.rule">
@@ -52,6 +52,7 @@
     <record id="kudos_user_write" model="ir.rule">
         <field name="name">Users can only modify their own kudos</field>
         <field name="model_id" ref="model_gamification_kudos" />
+        <field name="domain_force">[('sender_id', '=', user.id)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_user'))]" />
@@ -59,7 +60,6 @@
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
-        <field name="domain_force">[('sender_id', '=', user.id)]</field>
     </record>
 
     <!--
@@ -72,17 +72,17 @@
         <field name="name">Users only see mentorships they take part in</field>
         <field name="model_id" ref="model_gamification_mentorship" />
         <field
+            name="domain_force">[
+                '|',
+                    ('mentor_id','=',user.id),
+                    ('mentee_id','=',user.id)]</field>
+        <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="True" />
         <field name="perm_create" eval="True" />
         <field name="perm_unlink" eval="False" />
-        <field
-            name="domain_force">[
-                '|',
-                    ('mentor_id','=',user.id),
-                    ('mentee_id','=',user.id)]</field>
     </record>
 
     <!--
@@ -92,10 +92,10 @@
     <record id="mentorship_manager_rule" model="ir.rule">
         <field name="name">Managers see every mentorship</field>
         <field name="model_id" ref="model_gamification_mentorship" />
+        <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_manager'))]" />
-        <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
     <!--
@@ -107,19 +107,19 @@
         <field name="name">Activity feed respects profile visibility and company</field>
         <field name="model_id" ref="model_gamification_activity" />
         <field
-            name="groups"
-            eval="[(4, ref('gamification.group_gamification_user'))]" />
-        <field name="perm_read" eval="True" />
-        <field name="perm_write" eval="False" />
-        <field name="perm_create" eval="False" />
-        <field name="perm_unlink" eval="False" />
-        <field
             name="domain_force">[
                 '&amp;',
                     ('company_id', 'in', company_ids),
                     '|',
                         ('user_id', '=', user.id),
                         ('user_id.gamification_visibility', '!=', 'private')]</field>
+        <field
+            name="groups"
+            eval="[(4, ref('gamification.group_gamification_user'))]" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
     </record>
 
     <!--
@@ -132,19 +132,19 @@
     <record id="quest_enrollment_own_only" model="ir.rule">
         <field name="name">Users only see and edit their own quest enrolments</field>
         <field name="model_id" ref="model_gamification_quest_enrollment" />
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_user'))]" />
-        <field name="domain_force">[('user_id', '=', user.id)]</field>
     </record>
 
     <record id="quest_enrollment_manager_rule" model="ir.rule">
         <field name="name">Managers see every quest enrolment</field>
         <field name="model_id" ref="model_gamification_quest_enrollment" />
+        <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_manager'))]" />
-        <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
     <!--
@@ -154,19 +154,19 @@
     <record id="quest_step_completion_own_only" model="ir.rule">
         <field name="name">Users only see their own quest step completions</field>
         <field name="model_id" ref="model_gamification_quest_step_completion" />
+        <field name="domain_force">[('enrollment_id.user_id', '=', user.id)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_user'))]" />
-        <field name="domain_force">[('enrollment_id.user_id', '=', user.id)]</field>
     </record>
 
     <record id="quest_step_completion_manager_rule" model="ir.rule">
         <field name="name">Managers see every quest step completion</field>
         <field name="model_id" ref="model_gamification_quest_step_completion" />
+        <field name="domain_force">[(1, '=', 1)]</field>
         <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_manager'))]" />
-        <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
     <!--
@@ -182,34 +182,34 @@
         <field name="name">Badge grants respect profile visibility</field>
         <field name="model_id" ref="model_gamification_badge_user" />
         <field
+            name="domain_force">[
+                '|',
+                    ('user_id', '=', user.id),
+                    ('user_id.gamification_visibility', '!=', 'private')]</field>
+        <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
-        <field
-            name="domain_force">[
-                '|',
-                    ('user_id', '=', user.id),
-                    ('user_id.gamification_visibility', '!=', 'private')]</field>
     </record>
 
     <record id="achievement_unlock_visibility" model="ir.rule">
         <field name="name">Achievement unlocks respect profile visibility</field>
         <field name="model_id" ref="model_gamification_achievement_unlock" />
         <field
+            name="domain_force">[
+                '|',
+                    ('user_id', '=', user.id),
+                    ('user_id.gamification_visibility', '!=', 'private')]</field>
+        <field
             name="groups"
             eval="[(4, ref('gamification.group_gamification_user'))]" />
         <field name="perm_read" eval="True" />
         <field name="perm_write" eval="False" />
         <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
-        <field
-            name="domain_force">[
-                '|',
-                    ('user_id', '=', user.id),
-                    ('user_id.gamification_visibility', '!=', 'private')]</field>
     </record>
 
     <!--

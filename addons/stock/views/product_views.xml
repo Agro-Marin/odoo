@@ -24,11 +24,11 @@
     <record id="action_open_routes" model="ir.actions.server">
         <field name="name">Routes</field>
         <field name="model_id" ref="product.model_product_template" />
-        <field name="state">code</field>
-        <field name="code">action = model.action_view_routes_diagram()</field>
         <field
             name="group_ids"
             eval="[(4, ref('stock.group_stock_user')), (4, ref('stock.group_stock_readonly'))]" />
+        <field name="state">code</field>
+        <field name="code">action = model.action_view_routes_diagram()</field>
     </record>
 
     <record id="view_stock_product_template_tree" model="ir.ui.view">
@@ -433,6 +433,7 @@
         <field name="model_id" ref="product.model_product_template" />
         <field name="binding_model_id" ref="product.model_product_template" />
         <field name="binding_view_types">form</field>
+        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
         <field name="state">code</field>
         <field
             name="code">for record in records:
@@ -449,7 +450,6 @@
                         "views": [[False, "form"]],
                         "target": "new",
                     }</field>
-        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
     </record>
 
     <record id="stock_product_search_form_view" model="ir.ui.view">
@@ -852,6 +852,7 @@
         <field name="model_id" ref="product.model_product_product" />
         <field name="binding_model_id" ref="product.model_product_product" />
         <field name="binding_view_types">form</field>
+        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
         <field name="state">code</field>
         <field
             name="code">for record in records:
@@ -866,7 +867,6 @@
                     }
                 else:
                     raise UserError(env._("Replenishment is only available for inventory-managed products."))</field>
-        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
     </record>
 
 </odoo>

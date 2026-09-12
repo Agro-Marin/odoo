@@ -3,11 +3,15 @@
 
     <record id="mail_template_gift_card" model="mail.template">
         <field name="name">Gift Card: Gift Card Information</field>
+        <field name="description">Sent to customer who purchased a gift card</field>
         <field name="model_id" ref="model_loyalty_card" />
         <field name="subject">Your Gift Card at {{ object.company_id.name }}</field>
         <field name="partner_to" eval="False" />
         <field name="use_default_to" eval="True" />
-        <field name="description">Sent to customer who purchased a gift card</field>
+        <field
+            name="report_template_ids"
+            eval="[(4, ref('loyalty.report_gift_card'))]" />
+        <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <div style="background: #ffffff">
                 <div
@@ -47,21 +51,21 @@
                 </div>
             </div>
         </field>
-        <field
-            name="report_template_ids"
-            eval="[(4, ref('loyalty.report_gift_card'))]" />
-        <field name="auto_delete" eval="True" />
     </record>
 
     <record id="mail_template_loyalty_card" model="mail.template">
         <field name="name">Coupon: Coupon Information</field>
+        <field name="description">Sent to customer with coupon information</field>
         <field name="model_id" ref="loyalty.model_loyalty_card" />
         <field
             name="subject">Your reward coupon from {{ object.program_id.company_id.name }} </field>
         <field name="email_from">{{ object.program_id.company_id.email }}</field>
         <field name="partner_to" eval="False" />
         <field name="use_default_to" eval="True" />
-        <field name="description">Sent to customer with coupon information</field>
+        <field
+            name="report_template_ids"
+            eval="[(4, ref('loyalty.report_loyalty_card'))]" />
+        <field name="auto_delete" eval="True" />
         <field name="body_html" type="html">
             <table border="0" cellpadding="0" cellspacing="0" style="width:100%; margin:0px auto; background:#ffffff; color:#333333;"><tbody>
             <tr>
@@ -111,10 +115,6 @@
             </tr>
             </tbody></table>
         </field>
-        <field
-            name="report_template_ids"
-            eval="[(4, ref('loyalty.report_loyalty_card'))]" />
-        <field name="auto_delete" eval="True" />
     </record>
 
 </odoo>

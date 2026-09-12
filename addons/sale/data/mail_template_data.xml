@@ -4,6 +4,8 @@
     <data noupdate="1">
         <record id="email_template_edi_sale" model="mail.template">
             <field name="name">Sales: Send Quotation</field>
+            <field
+                name="description">Used by salespeople when they send quotations or proforma to prospects</field>
             <field name="model_id" ref="sale.model_sale_order" />
             <field
                 name="subject">{{ object.company_id.name }} {{ object.state in ('draft', 'sent') and 'Quotation' or 'Order' }} (Ref {{ object.name or 'n/a' }})</field>
@@ -12,7 +14,9 @@
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
             <field
-                name="description">Used by salespeople when they send quotations or proforma to prospects</field>
+                name="report_template_ids"
+                eval="[(4, ref('sale.action_report_saleorder'))]" />
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 13px;">
@@ -57,13 +61,11 @@
                     </p>
                 </div>
             </field>
-            <field
-                name="report_template_ids"
-                eval="[(4, ref('sale.action_report_saleorder'))]" />
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="email_template_proforma" model="mail.template">
             <field name="name">Sales: Send Proforma</field>
+            <field
+                name="description">Used by salespeople when they send proforma to prospects</field>
             <field name="model_id" ref="sale.model_sale_order" />
             <field
                 name="subject">{{ object.company_id.name }} {{ object.state in ('draft', 'sent') and 'Proforma' or 'Order'}} (Ref {{ object.name or 'n/a' }})</field>
@@ -72,7 +74,9 @@
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
             <field
-                name="description">Used by salespeople when they send proforma to prospects</field>
+                name="report_template_ids"
+                eval="[(4, ref('sale.action_report_pro_forma_invoice'))]" />
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 13px;">
@@ -94,13 +98,10 @@
                     </p>
                 </div>
             </field>
-            <field
-                name="report_template_ids"
-                eval="[(4, ref('sale.action_report_pro_forma_invoice'))]" />
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="mail_template_sale_confirmation" model="mail.template">
             <field name="name">Sales: Order Confirmation</field>
+            <field name="description">Sent to customers on order confirmation</field>
             <field name="model_id" ref="sale.model_sale_order" />
             <field
                 name="subject">{{ object.company_id.name }} {{ (object.get_portal_last_transaction().state == 'pending') and 'Pending Order' or 'Order' }} (Ref {{ object.name or 'n/a' }})</field>
@@ -108,7 +109,10 @@
                 name="email_from">{{ (object.user_id.email_formatted or object.company_id.email_formatted or user.email_formatted) }}</field>
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
-            <field name="description">Sent to customers on order confirmation</field>
+            <field
+                name="report_template_ids"
+                eval="[(4, ref('sale.action_report_saleorder'))]" />
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 12px;">
@@ -397,13 +401,11 @@
                 </t>
                 </div>
             </field>
-            <field
-                name="report_template_ids"
-                eval="[(4, ref('sale.action_report_saleorder'))]" />
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="mail_template_sale_payment_executed" model="mail.template">
             <field name="name">Sales: Payment Done</field>
+            <field
+                name="description">Sent to customers when a payment is received but doesn't immediately confirm their order</field>
             <field name="model_id" ref="sale.model_sale_order" />
             <field
                 name="subject">{{ object.company_id.name }} {{ (object.get_portal_last_transaction().state == 'pending') and 'Pending Order' or 'Order' }} (Ref {{ object.name or 'n/a' }})</field>
@@ -412,7 +414,9 @@
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
             <field
-                name="description">Sent to customers when a payment is received but doesn't immediately confirm their order</field>
+                name="report_template_ids"
+                eval="[(4, ref('sale.action_report_saleorder'))]" />
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div style="margin: 0px; padding: 0px;">
                     <p style="margin: 0px; padding: 0px; font-size: 12px;">
@@ -460,10 +464,6 @@
                     </p>
                 </div>
             </field>
-            <field
-                name="report_template_ids"
-                eval="[(4, ref('sale.action_report_saleorder'))]" />
-            <field name="auto_delete" eval="True" />
         </record>
     </data>
 

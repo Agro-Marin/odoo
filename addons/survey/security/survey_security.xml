@@ -31,10 +31,10 @@
         <field name="model_id" ref="survey.model_survey_survey" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_survey_rule_survey_user" model="ir.rule">
@@ -45,10 +45,10 @@
             name="domain_force">[
             '|', ('restrict_user_ids', 'in', user.id), ('restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_question_rule_survey_manager" model="ir.rule">
@@ -56,10 +56,10 @@
         <field name="model_id" ref="survey.model_survey_question" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_question_rule_survey_user" model="ir.rule">
@@ -71,10 +71,10 @@
             '|', ('survey_id.restrict_user_ids', 'in', user.id), ('survey_id.restrict_user_ids',
             '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_question_answer_rule_survey_manager" model="ir.rule">
@@ -82,10 +82,10 @@
         <field name="model_id" ref="survey.model_survey_question_answer" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_question_answer_rule_survey_user" model="ir.rule">
@@ -101,10 +101,10 @@
             '|', ('question_id.survey_id.restrict_user_ids', '=', False),
             ('matrix_question_id.survey_id.restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <!-- SURVEY: USER_INPUT, USER_INPUT_LINE -->
@@ -116,10 +116,10 @@
             name="domain_force">[('survey_id.survey_type', 'in', ('assessment', 'custom',
             'live_session', 'survey'))]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_user_input_line_rule_survey_manager" model="ir.rule">
@@ -130,10 +130,10 @@
             name="domain_force">[('survey_id.survey_type', 'in', ('assessment', 'custom',
             'live_session', 'survey'))]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_user_input_rule_survey_user" model="ir.rule">
@@ -147,10 +147,10 @@
             '|', ('survey_id.restrict_user_ids', 'in', user.id),
             ('survey_id.restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_user_input_line_rule_survey_user" model="ir.rule">
@@ -165,10 +165,10 @@
             '|', ('survey_id.restrict_user_ids', 'in', user.id),
             ('survey_id.restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <!-- SURVEY: QUOTA, FOLLOW-UP RULE -->
@@ -183,10 +183,10 @@
         <field name="model_id" ref="survey.model_survey_quota" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_quota_rule_survey_user" model="ir.rule">
@@ -198,10 +198,10 @@
             '|', ('survey_id.restrict_user_ids', 'in', user.id),
             ('survey_id.restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_followup_rule_rule_survey_manager" model="ir.rule">
@@ -209,10 +209,10 @@
         <field name="model_id" ref="survey.model_survey_followup_rule" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <record id="survey_followup_rule_rule_survey_user" model="ir.rule">
@@ -225,10 +225,10 @@
             '|', ('survey_id.restrict_user_ids', 'in', user.id),
             ('survey_id.restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="1" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="1" />
     </record>
 
     <!-- SURVEY: INVITE -->
@@ -240,10 +240,10 @@
             name="domain_force">['|', ('survey_id.restrict_user_ids', 'in', user.id),
             ('survey_id.restrict_user_ids', '=', False)]</field>
         <field name="groups" eval="[(4, ref('group_survey_user'))]" />
-        <field name="perm_unlink" eval="0" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="0" />
     </record>
 
     <record id="survey_invite_survey_manager" model="ir.rule">
@@ -251,10 +251,10 @@
         <field name="model_id" ref="survey.model_survey_invite" />
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_survey_manager'))]" />
-        <field name="perm_unlink" eval="0" />
-        <field name="perm_write" eval="1" />
         <field name="perm_read" eval="1" />
+        <field name="perm_write" eval="1" />
         <field name="perm_create" eval="1" />
+        <field name="perm_unlink" eval="0" />
     </record>
 
     <record id="survey_user_input_rule_detached_owner" model="ir.rule">

@@ -8,8 +8,8 @@
         <field name="code">model.cron_smart_escalation()</field>
         <field name="interval_number" eval="4" />
         <field name="interval_type">hours</field>
-        <field name="active" eval="True" />
         <field name="priority" eval="5" />
+        <field name="active" eval="True" />
     </record>
 
     <record id="ir_cron_auto_expire" model="ir.cron">
@@ -19,8 +19,8 @@
         <field name="code">model.cron_auto_expire()</field>
         <field name="interval_number" eval="1" />
         <field name="interval_type">days</field>
-        <field name="active" eval="True" />
         <field name="priority" eval="10" />
+        <field name="active" eval="True" />
     </record>
 
     <record id="ir_cron_consent_approval" model="ir.cron">
@@ -30,8 +30,8 @@
         <field name="code">model.cron_consent_approval()</field>
         <field name="interval_number" eval="4" />
         <field name="interval_type">hours</field>
-        <field name="active" eval="True" />
         <field name="priority" eval="8" />
+        <field name="active" eval="True" />
     </record>
 
 </odoo>

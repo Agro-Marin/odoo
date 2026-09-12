@@ -17,17 +17,17 @@
         </record>
         <record id="mt_blog_blog_published" model="mail.message.subtype">
             <field name="name">Published Post</field>
+            <field name="description">Published Post</field>
             <field name="res_model">blog.blog</field>
             <field name="default" eval="True" />
-            <field name="description">Published Post</field>
         </record>
     </data>
 
     <data>
         <record id="action_open_website" model="ir.actions.act_url">
             <field name="name">Website Blogs</field>
-            <field name="target">self</field>
             <field name="url" eval="'/blog/'" />
+            <field name="target">self</field>
         </record>
         <record id="base.open_menu" model="ir.actions.todo">
             <field name="action_id" ref="action_open_website" />

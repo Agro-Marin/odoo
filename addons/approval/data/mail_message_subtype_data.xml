@@ -3,10 +3,10 @@
 
     <record id="mt_approval_state" model="mail.message.subtype">
         <field name="name">Approval Status Change</field>
-        <field name="res_model">approval.request</field>
-        <field name="default" eval="False" />
         <field name="description">Approval Status Change</field>
+        <field name="res_model">approval.request</field>
         <field name="sequence" eval="5" />
+        <field name="default" eval="False" />
     </record>
 
 </odoo>

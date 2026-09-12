@@ -70,9 +70,9 @@ action = {
 
     <record id="demo_failure_todo" model="ir.actions.todo">
         <field name="name">Demo Failure Notification</field>
+        <field name="action_id" ref="base.demo_failure_action" />
         <field name="sequence">1</field>
         <field name="state">done</field>
-        <field name="action_id" ref="base.demo_failure_action" />
     </record>
 
 </odoo>

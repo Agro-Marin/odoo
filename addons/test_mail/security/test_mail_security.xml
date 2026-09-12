@@ -126,9 +126,9 @@
     <record id="mail_test_multi_company_read_rule" model="ir.rule">
         <field name="name">MC Readonly Rule</field>
         <field name="model_id" ref="test_mail.model_mail_test_multi_company_read" />
-        <field name="perm_read" eval="False" />
-        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         <field name="global" eval="True" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        <field name="perm_read" eval="False" />
     </record>
 
     <record id="mail_test_multi_company_with_activity_rule" model="ir.rule">
@@ -191,8 +191,8 @@
     <record id="mail_test_container_mc_rule" model="ir.rule">
         <field name="name">Mail Test Container Multi Company</field>
         <field name="model_id" ref="test_mail.model_mail_test_container_mc" />
-        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         <field name="global" eval="True" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
     <record id="mail_test_container_mc_rule_portal" model="ir.rule">

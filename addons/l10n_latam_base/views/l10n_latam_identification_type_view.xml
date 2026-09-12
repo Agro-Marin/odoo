@@ -17,6 +17,7 @@
     <record id="view_l10n_latam_identification_type_search" model="ir.ui.view">
         <field name="name">l10n_latam.identification.type.search</field>
         <field name="model">l10n_latam.identification.type</field>
+        <field name="type">search</field>
         <field name="arch" type="xml">
             <search>
                 <field name="name" />
@@ -34,7 +35,6 @@
                     help="Show archived identification types" />
             </search>
         </field>
-        <field name="type">search</field>
     </record>
 
     <record id="action_l10n_latam_identification_type" model="ir.actions.act_window">

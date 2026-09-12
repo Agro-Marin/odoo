@@ -4,12 +4,14 @@
     <data noupdate="1">
         <record id="email_template_badge_received" model="mail.template">
             <field name="name">Gamification: Badge Received</field>
-            <field name="subject">New badge {{ object.badge_id.name }} granted</field>
-            <field name="model_id" ref="gamification.model_gamification_badge_user" />
-            <field name="partner_to" eval="False" />
-            <field name="use_default_to" eval="True" />
             <field
                 name="description">Sent automatically to the user who received a badge</field>
+            <field name="model_id" ref="gamification.model_gamification_badge_user" />
+            <field name="subject">New badge {{ object.badge_id.name }} granted</field>
+            <field name="partner_to" eval="False" />
+            <field name="use_default_to" eval="True" />
+            <field name="lang">{{ object.user_id.lang }}</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <table border="0" cellpadding="0" style="padding-top: 16px; background-color: #F1F1F1; color: #454748; width: 100%; border-collapse:separate;"><tr><td align="center">
                 <table
@@ -112,16 +114,16 @@
                 </td></tr>
                 </table>
             </field>
-            <field name="lang">{{ object.user_id.lang }}</field>
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="email_template_goal_reminder" model="mail.template">
             <field name="name">Gamification: Reminder For Goal Update</field>
+            <field
+                name="description">Sent automatically to participant who haven't updated their goal</field>
             <field name="model_id" ref="gamification.model_gamification_goal" />
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Sent automatically to participant who haven't updated their goal</field>
+            <field name="lang">{{ object.user_id.lang }}</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div>
                     <strong>Reminder</strong><br />
@@ -134,15 +136,13 @@
                     </t>
                 </div>
             </field>
-            <field name="lang">{{ object.user_id.lang }}</field>
-            <field name="auto_delete" eval="True" />
         </record>
         <record id="simple_report_template" model="mail.template">
             <field name="name">Gamification: Challenge Report</field>
-            <field name="model_id" ref="gamification.model_gamification_challenge" />
-            <field name="use_default_to" eval="False" />
             <field
                 name="description">Send a challenge report to all participants</field>
+            <field name="model_id" ref="gamification.model_gamification_challenge" />
+            <field name="use_default_to" eval="False" />
             <field name="body_html" type="html">
                 <table
                     cellspacing="0"
@@ -477,13 +477,15 @@
         </record>
         <record id="mail_template_data_new_rank_reached" model="mail.template">
             <field name="name">Gamification: New Rank Reached</field>
+            <field
+                name="description">Sent automatically when user reaches a new rank</field>
             <field name="model_id" ref="base.model_res_users" />
             <field name="subject">New rank: {{ object.rank_id.name }}</field>
             <field name="email_to" />
             <field name="partner_to" eval="False" />
             <field name="use_default_to" eval="True" />
-            <field
-                name="description">Sent automatically when user reaches a new rank</field>
+            <field name="lang">{{ object.lang }}</field>
+            <field name="auto_delete" eval="True" />
             <field name="body_html" type="html">
                 <div
                     style="color:#515166;padding:10px 0px;font-family:Arial,Helvetica,sans-serif;font-size:14px;">
@@ -536,8 +538,6 @@
                     </table>
                 </div>
             </field>
-            <field name="lang">{{ object.lang }}</field>
-            <field name="auto_delete" eval="True" />
         </record>
     </data>
 

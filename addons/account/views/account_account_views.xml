@@ -86,12 +86,12 @@
         <field name="model_id" ref="account_coa.model_account_account" />
         <field name="binding_model_id" ref="account_coa.model_account_account" />
         <field name="binding_view_types">form,list,kanban</field>
-        <field name="state">code</field>
-        <field name="code">if records:
-    action = records.action_unmerge()</field>
         <field
             name="group_ids"
             eval="[Command.link(ref('account.group_account_manager'))]" />
+        <field name="state">code</field>
+        <field name="code">if records:
+    action = records.action_unmerge()</field>
     </record>
 
 </odoo>

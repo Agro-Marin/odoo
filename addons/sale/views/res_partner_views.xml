@@ -7,6 +7,7 @@
         <field name="view_mode">list,kanban,form,graph</field>
         <field name="domain">[('partner_id', 'child_of', active_ids)]</field>
         <field name="context">{'default_partner_id': active_id}</field>
+        <field name="group_ids" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a new quotation, the first step of a new sale!
@@ -14,7 +15,6 @@
             <p> Once the quotation is confirmed by the customer, it becomes a sales order.<br /> You
                 will be able to create an invoice and collect the payment. </p>
         </field>
-        <field name="group_ids" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
     </record>
 
     <record id="res_partner_view_buttons" model="ir.ui.view">

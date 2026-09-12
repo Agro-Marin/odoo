@@ -4,9 +4,9 @@
     <data noupdate="1">
         <record id="mt_batch_state" model="mail.message.subtype">
             <field name="name">Stage Changed</field>
+            <field name="description">Stage Changed</field>
             <field name="res_model">stock.picking.batch</field>
             <field name="default" eval="False" />
-            <field name="description">Stage Changed</field>
         </record>
         <record id="seq_picking_batch" model="ir.sequence">
             <field name="name">Batch Transfer</field>

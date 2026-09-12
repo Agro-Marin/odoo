@@ -8,15 +8,15 @@
     <data noupdate="1">
         <record id="mt_partner_published" model="mail.message.subtype">
             <field name="name">Partner published</field>
+            <field name="description">Partner Published</field>
             <field name="res_model">res.partner</field>
             <field name="default" eval="False" />
-            <field name="description">Partner Published</field>
         </record>
         <record id="mt_partner_unpublished" model="mail.message.subtype">
             <field name="name">Partner unpublished</field>
+            <field name="description">Partner Unpublished</field>
             <field name="res_model">res.partner</field>
             <field name="default" eval="False" />
-            <field name="description">Partner Unpublished</field>
         </record>
     </data>
 

@@ -144,7 +144,7 @@ model with `_inherits` also declares `<xmlid>_<parent_model>`, every manifest
 | | invariant | why |
 |---|---|---|
 | `_pretty_xml.py` | `_xml_identity.is_faithful` | order-**preserving**: it only reindents |
-| `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job. A comment travels with the field it precedes; any other child keeps its place after the fields, so the sorter settles every record `test_xml_records.py` reports. |
+| `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job. `FIELD_ORDER` is one list per technical model (22, `ir.ui.view` to `mail.message.subtype`), every name pinned to the registry by `test_fixers.py` -- the canon carried four fields a rename had deleted (`groups_id` three times, `print_wizard`, `filter`, `mobile_view_filter`) and sorted nothing for them. A comment travels with the field it precedes; any other child keeps its place after the fields, so the sorter settles every record `test_xml_records.py` reports. |
 | `_sort_manifests.py` | `normalize` then a round-trip: the rendered dict must equal `normalize(data)` | value-**normalising**: see below |
 
 `_xml_sweep.py` runs a fixer over every data file **once**; the gates read the

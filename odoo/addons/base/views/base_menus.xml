@@ -387,8 +387,8 @@
 
     <record id="action_open_website" model="ir.actions.act_url">
         <field name="name">Home Menu</field>
-        <field name="target">self</field>
         <field name="url">/web</field>
+        <field name="target">self</field>
     </record>
 
 </odoo>

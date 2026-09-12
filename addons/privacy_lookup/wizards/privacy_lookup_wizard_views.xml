@@ -136,9 +136,9 @@
         <field name="model_id" ref="base.model_res_partner" />
         <field name="binding_model_id" ref="base.model_res_partner" />
         <field name="binding_view_types">form</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
         <field name="state">code</field>
         <field name="code">action = record.action_privacy_lookup()</field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
     </record>
 
     <record id="ir_action_server_action_privacy_lookup_user" model="ir.actions.server">
@@ -146,9 +146,9 @@
         <field name="model_id" ref="base.model_res_users" />
         <field name="binding_model_id" ref="base.model_res_users" />
         <field name="binding_view_types">form</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
         <field name="state">code</field>
         <field name="code">action = record.partner_id.action_privacy_lookup()</field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
     </record>
 
 </odoo>

@@ -7,10 +7,10 @@
             <field name="model_id" ref="crm.model_crm_team" />
             <field name="state">code</field>
             <field name="code">model._cron_assign_leads()</field>
-            <field name="active" eval="False" />
             <field name="user_id" ref="base.user_root" />
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
+            <field name="active" eval="False" />
         </record>
     </data>
 

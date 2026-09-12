@@ -2251,13 +2251,13 @@
         <field name="model_id" ref="account.model_account_move" />
         <field name="binding_model_id" ref="account.model_account_move" />
         <field name="binding_view_types">form</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_invoice'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
     action = records.action_switch_move_type()</field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('account.group_account_invoice'))]" />
     </record>
 
     <record id="action_move_force_register_payment" model="ir.actions.server">
@@ -2265,13 +2265,13 @@
         <field name="model_id" ref="account.model_account_move" />
         <field name="binding_model_id" ref="account.model_account_move" />
         <field name="binding_view_types">form</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_invoice'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
     action = records.action_force_register_payment()</field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('account.group_account_invoice'))]" />
     </record>
 
     <record id="action_move_block_payment" model="ir.actions.server">
@@ -2279,11 +2279,11 @@
         <field name="model_id" ref="account.model_account_move" />
         <field name="binding_model_id" ref="account.model_account_move" />
         <field name="binding_view_types">form</field>
-        <field name="state">code</field>
-        <field name="code">records.action_toggle_block_payment()</field>
         <field
             name="group_ids"
             eval="[Command.link(ref('account.group_account_invoice'))]" />
+        <field name="state">code</field>
+        <field name="code">records.action_toggle_block_payment()</field>
     </record>
 
     <record id="accountant_confirm_entries_action" model="ir.actions.server">
@@ -2291,11 +2291,11 @@
         <field name="model_id" ref="account.model_account_move" />
         <field name="binding_model_id" ref="account.model_account_move" />
         <field name="binding_view_types">list,kanban</field>
-        <field name="state">code</field>
-        <field name="code">action = model.check_selected_moves()</field>
         <field
             name="group_ids"
             eval="[Command.set([ref('account.group_account_user')])]" />
+        <field name="state">code</field>
+        <field name="code">action = model.check_selected_moves()</field>
     </record>
 
     <record id="action_check_hash_integrity" model="ir.actions.server">

@@ -812,6 +812,7 @@
     <record id="view_apikeys" model="ir.ui.view">
         <field name="name">API Keys Listing</field>
         <field name="model">res.users.apikeys</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
         <field name="arch" type="xml">
             <list create="0" edit="0" delete="0" editable="bottom">
                 <field name="user_id" />
@@ -825,7 +826,6 @@
                     icon="fa-solid fa-trash-can" />
             </list>
         </field>
-        <field name="group_ids" eval="[Command.link(ref('base.group_system'))]" />
     </record>
 
     <record id="action_apikeys_admin" model="ir.actions.act_window">

@@ -404,8 +404,8 @@
         <field
             name="domain_force">[] if user.has_group('calendar.group_appointment_manager') else ['|', ('appointment_type_id', '=', False), ('appointment_type_id', 'any', (['|', ('create_uid', '=', user.id)] if user.has_group('calendar.group_appointment_user') else []) + ['|', '|', ('is_published', '=', True), ('staff_user_ids', 'in', [user.id, False]), ('schedule_based_on', '=', 'resources')])]</field>
         <field name="perm_read" eval="True" />
-        <field name="perm_create" eval="False" />
         <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
     </record>
 
@@ -415,8 +415,8 @@
         <field
             name="domain_force">[] if user.has_group('calendar.group_appointment_manager') else [('appointment_type_id', '=', False)]</field>
         <field name="perm_read" eval="False" />
-        <field name="perm_create" eval="True" />
         <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
         <field name="perm_unlink" eval="True" />
     </record>
 
@@ -426,8 +426,8 @@
         <field
             name="domain_force">[] if user.has_group('calendar.group_appointment_manager') else ['|', ('appointment_type_id', '=', False), ('appointment_type_id', 'any', (['|', ('create_uid', '=', user.id)] if user.has_group('calendar.group_appointment_user') else []) + ['|', '|', ('is_published', '=', True), ('staff_user_ids', 'in', [user.id, False]), ('schedule_based_on', '=', 'resources')])]</field>
         <field name="perm_read" eval="True" />
-        <field name="perm_create" eval="False" />
         <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
         <field name="perm_unlink" eval="False" />
     </record>
 
@@ -437,8 +437,8 @@
         <field
             name="domain_force">[] if user.has_group('calendar.group_appointment_manager') else [('appointment_type_id', '=', False)]</field>
         <field name="perm_read" eval="False" />
-        <field name="perm_create" eval="True" />
         <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
         <field name="perm_unlink" eval="True" />
     </record>
 
@@ -448,8 +448,8 @@
         <field
             name="domain_force">[] if user.has_group('calendar.group_appointment_manager') else [('appointment_type_ids', '=', False), ('is_default', '=', False)]</field>
         <field name="perm_read" eval="False" />
-        <field name="perm_create" eval="True" />
         <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
         <field name="perm_unlink" eval="True" />
     </record>
 
@@ -459,8 +459,8 @@
         <field
             name="domain_force">[] if user.has_group('calendar.group_appointment_manager') else [('question_id.appointment_type_ids', '=', False), ('question_id.is_default', '=', False)]</field>
         <field name="perm_read" eval="False" />
-        <field name="perm_create" eval="True" />
         <field name="perm_write" eval="True" />
+        <field name="perm_create" eval="True" />
         <field name="perm_unlink" eval="True" />
     </record>
 

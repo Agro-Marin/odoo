@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.39
+:Version: 6.40
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -5839,7 +5839,17 @@ The conventions they enforce:
 
 * 4-space indentation; root element ``<odoo>``, not ``<data>``.
 * Double-quoted attribute values; empty elements self-close.
-* Attribute order: ``id`` then ``model`` on records; ``name`` first on fields.
+* Attribute order: ``id`` then ``model`` on records; ``name`` first on fields;
+  ``menuitem``, ``template``, ``delete`` and ``function`` each have their own
+  order (``ATTRIB_ORDER`` in ``odoo/addons/test_lint/tests/_sort_xml_records.py``).
+* Field order inside a record: ``FIELD_ORDER`` in the same file is the canon,
+  one list per technical model (``ir.ui.view``, the ``ir.actions.*``,
+  ``ir.rule``, ``ir.cron``, ``res.groups``, ``mail.template``, ...): identity
+  first, the large ``arch`` / ``help`` / ``body_html`` last, fields outside the
+  list alphabetical after it. Every name in it is a field of its model
+  ``[test_lint test_fixers]``; a rename must carry the canon with it. Business
+  models (``res.partner``, ``product.product``, the ``account.*`` data) have no
+  canon and keep their written order.
 * One blank line between top-level records, and after ``<odoo>`` / before
   ``</odoo>``.
 * 88 columns; a tag exceeding it wraps one attribute per line. A single attribute
@@ -8086,6 +8096,11 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.40
+     - 2026-09-12
+     - §3.1: the record field-order canon covers 22 technical models and is
+       pinned to the registry; its four dead names (``groups_id``,
+       ``print_wizard``, ``filter``, ``mobile_view_filter``) are gone.
    * - 6.39
      - 2026-09-12
      - §3: the static XML rules (``_xml_rules.py``, one ``lint_xml_*``

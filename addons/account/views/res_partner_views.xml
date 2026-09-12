@@ -6,13 +6,13 @@
         <field name="model_id" ref="model_res_partner" />
         <field name="binding_model_id" ref="model_res_partner" />
         <field name="binding_view_types">list</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_basic'))]" />
         <field name="state">code</field>
         <field
             name="code">if records:
                 action = records.open_customer_statement()</field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('account.group_account_basic'))]" />
     </record>
 
     <record id="duplicated_vat_partner_tree_view" model="ir.ui.view">

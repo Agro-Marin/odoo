@@ -4,8 +4,8 @@
     <data noupdate="1">
         <record id="mt_stock_landed_cost_open" model="mail.message.subtype">
             <field name="name">Done</field>
-            <field name="res_model">stock.landed.cost</field>
             <field name="description">Landed cost validated</field>
+            <field name="res_model">stock.landed.cost</field>
         </record>
         <record id="seq_stock_landed_costs" model="ir.sequence">
             <field name="name">Stock Landed Costs</field>

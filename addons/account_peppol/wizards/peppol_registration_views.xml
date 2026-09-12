@@ -4,6 +4,9 @@
     <record id="peppol_registration_form" model="ir.ui.view">
         <field name="name">peppol.registration.form</field>
         <field name="model">peppol.registration</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('account.group_account_manager'))]" />
         <field name="arch" type="xml">
             <form class="form_peppol_registration">
                 <sheet>
@@ -122,9 +125,6 @@
                 </footer>
             </form>
         </field>
-        <field
-            name="group_ids"
-            eval="[Command.link(ref('account.group_account_manager'))]" />
     </record>
 
 </odoo>

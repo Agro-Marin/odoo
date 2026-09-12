@@ -252,17 +252,17 @@
         <record id="ir_actions_server_website_dashboard" model="ir.actions.server">
             <field name="name">Website: Dashboard</field>
             <field name="model_id" ref="website.model_website" />
+            <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
             <field name="state">code</field>
             <field name="code">action = model.action_dashboard_redirect()</field>
-            <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="ir_actions_server_website_analytics" model="ir.actions.server">
             <field name="name">Website: Analytics</field>
             <field name="model_id" ref="website.model_website" />
+            <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
             <field name="state">code</field>
             <field
                 name="code">action = model.env.ref('website.backend_dashboard').sudo().read()[0]</field>
-            <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="theme_view_kanban" model="ir.ui.view">
             <field name="name">Themes Kanban</field>

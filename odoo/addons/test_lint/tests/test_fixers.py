@@ -1,5 +1,6 @@
 import ast
 import itertools
+import logging
 import tempfile
 import textwrap
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 from lxml import etree
 
 from odoo.modules import Manifest
-from odoo.tests.common import BaseCase, no_retry
+from odoo.tests.common import BaseCase, no_retry, tagged
 
 from . import (
     _pretty_xml,
@@ -22,6 +23,8 @@ from .lint_case import (
     core_xml_files,
     is_core_path,
 )
+
+_logger = logging.getLogger(__name__)
 
 _PARSER = _xml_identity.PARSER
 
@@ -495,6 +498,40 @@ class TestFixersOverTheRepository(LintCase):
                 "formatting is not stable after sorting:\n  "
                 + "\n  ".join(disagreeing[:20]),
             )
+
+
+@tagged("post_install", "-at_install")
+@no_retry
+class TestFieldOrderVocabulary(LintCase):
+    def test_every_canonical_field_is_a_field_of_its_model(self):
+        stale = []
+        checked = []
+        with self.superuser_env() as env:
+            for model, names in _sort_xml_records.FIELD_ORDER.items():
+                if model not in env:
+                    continue
+                checked.append(model)
+                stale.extend(
+                    f"{model}.{name}"
+                    for name in names
+                    if name not in env[model]._fields
+                )
+        self.assertIn("ir.ui.view", checked, "the registry reached no canon at all")
+        self.assertFalse(
+            stale,
+            "FIELD_ORDER names a field its model does not have, so the canon can "
+            "never sort it -- a rename left it behind:\n  " + "\n  ".join(stale),
+        )
+        _logger.info(
+            "checked the field-order canon of %s model(s), %s not installed here",
+            len(checked),
+            len(_sort_xml_records.FIELD_ORDER) - len(checked),
+        )
+
+    def test_every_canonical_field_is_listed_once(self):
+        for model, names in _sort_xml_records.FIELD_ORDER.items():
+            with self.subTest(model=model):
+                self.assertEqual(sorted(set(names)), sorted(names))
 
 
 @no_retry

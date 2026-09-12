@@ -24,11 +24,11 @@
         <field name="name">Base group user not granted badge write/unlink access</field>
         <field name="model_id" ref="gamification.model_gamification_badge_user" />
         <field name="domain_force">[('create_uid', '!=', user.id)]</field>
-        <field name="perm_write" eval="False" />
-        <field name="perm_unlink" eval="False" />
         <field
             name="groups"
             eval="[Command.link(ref('gamification.group_gamification_user'))]" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_unlink" eval="False" />
     </record>
 
     <record id="hr_gamification_badge_group_hr_user_access" model="ir.rule">

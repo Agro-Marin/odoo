@@ -110,22 +110,22 @@
         </record>
         <record id="mt_invoice_validated" model="mail.message.subtype">
             <field name="name">Validated</field>
+            <field name="description">Invoice validated</field>
             <field name="res_model">account.move</field>
             <field name="default" eval="False" />
-            <field name="description">Invoice validated</field>
         </record>
         <record id="mt_invoice_paid" model="mail.message.subtype">
             <field name="name">Paid</field>
+            <field name="description">Invoice paid</field>
             <field name="res_model">account.move</field>
             <field name="default" eval="False" />
-            <field name="description">Invoice paid</field>
         </record>
         <record id="mt_invoice_created" model="mail.message.subtype">
             <field name="name">Invoice Created</field>
+            <field name="description">Invoice Created</field>
             <field name="res_model">account.move</field>
             <field name="default" eval="False" />
             <field name="hidden" eval="True" />
-            <field name="description">Invoice Created</field>
         </record>
         <record id="account_payment_method_manual_in" model="account.payment.method">
             <field name="name">Manual Payment</field>

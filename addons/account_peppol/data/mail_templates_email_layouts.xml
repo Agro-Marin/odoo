@@ -30,14 +30,14 @@
         </template>
         <record id="mail_template_peppol_registration" model="mail.template">
             <field name="name">Peppol: Registration update</field>
+            <field
+                name="description">Notification email for peppol registration state update</field>
+            <field name="model_id" ref="account.model_res_company" />
             <field name="subject">Welcome to Peppol</field>
             <field name="email_from">{{ object.email_formatted }}</field>
             <field name="email_to">{{ object.account_peppol_contact_email }}</field>
             <field name="use_default_to" eval="False" />
-            <field name="model_id" ref="account.model_res_company" />
             <field name="auto_delete" eval="True" />
-            <field
-                name="description">Notification email for peppol registration state update</field>
             <field name="body_html" type="html">
                 <table
                     border="0"

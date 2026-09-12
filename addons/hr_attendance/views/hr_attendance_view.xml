@@ -436,10 +436,10 @@
                 "search_default_groupby_name": 1,
                 "search_default_employee": 2
             }</field>
-        <field name="help" />
         <field
             name="group_ids"
             eval="[(4, ref('hr_attendance.group_hr_attendance_officer'))]" />
+        <field name="help" />
     </record>
 
     <record id="hr_attendance_reporting" model="ir.actions.act_window">
@@ -598,11 +598,11 @@
         <field name="name">Open Kiosk Url</field>
         <field name="model_id" ref="hr_attendance.model_res_company" />
         <field name="binding_model_id" ref="hr_attendance.model_res_company" />
-        <field name="state">code</field>
-        <field name="code">action = model._action_view_kiosk_mode()</field>
         <field
             name="group_ids"
             eval="[(4, ref('hr_attendance.group_hr_attendance_user'))]" />
+        <field name="state">code</field>
+        <field name="code">action = model._action_view_kiosk_mode()</field>
         <field name="path">attendance-kiosk</field>
     </record>
 

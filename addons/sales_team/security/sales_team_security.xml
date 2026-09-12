@@ -19,48 +19,48 @@
             <field name="name">Read-only</field>
             <field name="sequence">5</field>
             <field name="privilege_id" ref="res_groups_privilege_sales" />
-            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
             <field
                 name="comment">Access to all Sales data but in read-only mode, no actions allowed.</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="group_sale_salesman" model="res.groups">
             <field name="name">User: Own Documents Only</field>
             <field name="sequence">10</field>
             <field name="privilege_id" ref="res_groups_privilege_sales" />
-            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
             <field
                 name="comment">The user will have access to their own data in the sales application.</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="group_sale_salesman_team" model="res.groups">
             <field name="name">User: Team Documents</field>
             <field name="sequence">15</field>
             <field name="privilege_id" ref="res_groups_privilege_sales" />
-            <field name="implied_ids" eval="[(4, ref('group_sale_salesman'))]" />
             <field
                 name="comment">The user will have access to records of their team members in the sales application.</field>
+            <field name="implied_ids" eval="[(4, ref('group_sale_salesman'))]" />
         </record>
         <record id="group_sale_salesman_all_leads" model="res.groups">
             <field name="name">User: All Documents</field>
             <field name="sequence">20</field>
             <field name="privilege_id" ref="res_groups_privilege_sales" />
             <field
+                name="comment">The user will have access to all records of everyone in the sales application.</field>
+            <field
                 name="implied_ids"
                 eval="[(4, ref('group_sale_salesman_team')), (4, ref('group_sale_readonly'))]" />
-            <field
-                name="comment">The user will have access to all records of everyone in the sales application.</field>
         </record>
         <record id="group_sale_manager" model="res.groups">
             <field name="name">Administrator</field>
             <field name="sequence">30</field>
             <field name="privilege_id" ref="res_groups_privilege_sales" />
             <field
+                name="comment">the user will have an access to the sales configuration as well as statistic reports.</field>
+            <field
                 name="implied_ids"
                 eval="[                     (4, ref('group_sale_salesman_all_leads')),                     (4, ref('mail.group_mail_canned_response_admin'))                 ]" />
             <field
                 name="user_ids"
                 eval="[                     (4, ref('base.user_root')),                     (4, ref('base.user_admin'))                 ]" />
-            <field
-                name="comment">the user will have an access to the sales configuration as well as statistic reports.</field>
         </record>
     </data>
 
@@ -104,8 +104,8 @@
             <field name="model_id" ref="model_crm_team" />
             <field
                 name="domain_force">['|', ('user_id', '=', user.id), ('id', 'in', user.crm_team_ids.ids)]</field>
-            <field name="perm_read" eval="False" />
             <field name="groups" eval="[(4, ref('sales_team.group_sale_salesman'))]" />
+            <field name="perm_read" eval="False" />
         </record>
         <record id="crm_rule_all_salesteam" model="ir.rule">
             <field name="name">All Salesteam</field>

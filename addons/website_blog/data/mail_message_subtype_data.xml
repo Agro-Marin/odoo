@@ -4,9 +4,9 @@
     <data noupdate="1">
         <record id="mt_blog_blog_published" model="mail.message.subtype">
             <field name="name">Published Post</field>
+            <field name="description">Published Post</field>
             <field name="res_model">blog.blog</field>
             <field name="default" eval="True" />
-            <field name="description">Published Post</field>
         </record>
     </data>
 
