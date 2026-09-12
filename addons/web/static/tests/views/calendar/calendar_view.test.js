@@ -1586,6 +1586,32 @@ test(`week numbering`, async () => {
 });
 
 test.tags("desktop");
+test(`deleting from the popover waits for the unlink before the dialog closes`, async () => {
+    const unlink = new Deferred();
+    onRpc("event", "unlink", async ({ parent }) => {
+        await unlink;
+        return parent();
+    });
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `<calendar date_start="start" date_stop="stop" mode="month"><field name="name"/></calendar>`,
+    });
+    await clickEvent(4);
+    await contains(`.o_cw_popover_delete`).click();
+    expect(`.modal-title`).toHaveText("Bye-bye, record!");
+    await contains(`.modal-footer button.btn-primary`).click();
+    // the confirmation dialog owns the wait: buttons disabled, still open
+    expect(`.modal`).toHaveCount(1);
+    expect(`.modal-footer button.btn-primary`).toHaveAttribute("disabled");
+    expect(`.o_event[data-event-id="4"]`).toHaveCount(1);
+    unlink.resolve(true);
+    await runAllTimers();
+    await animationFrame();
+    expect(`.modal`).toHaveCount(0);
+    expect(`.o_event[data-event-id="4"]`).toHaveCount(0);
+});
+
 test(`render popover`, async () => {
     await mountView({
         resModel: "event",

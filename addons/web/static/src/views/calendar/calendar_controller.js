@@ -384,9 +384,7 @@ export class CalendarController extends Component {
     }
 
     deleteConfirmationDialogProps(record) {
-        return deleteConfirmationProps(() => {
-            this.model.unlinkRecord(record.id);
-        });
+        return deleteConfirmationProps(() => this.model.unlinkRecord(record.id));
     }
 
     deleteRecord(record) {

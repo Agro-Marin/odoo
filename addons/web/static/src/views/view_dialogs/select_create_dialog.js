@@ -111,13 +111,13 @@ export class SelectCreateDialog extends Component {
     /** @param {number[]} resIds */
     async select(resIds) {
         if (this.props.onSelected) {
-            this.executeOnceAndClose(() => this.props.onSelected(resIds));
+            await this.executeOnceAndClose(() => this.props.onSelected(resIds));
         }
     }
 
     async unselect() {
         if (this.props.onUnselect) {
-            this.executeOnceAndClose(() => this.props.onUnselect());
+            await this.executeOnceAndClose(() => this.props.onUnselect());
         }
     }
 

@@ -2,7 +2,7 @@
 
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
-import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
 import { xml } from "@odoo/owl";
 import {
     clickModalButton,
@@ -661,6 +661,36 @@ test("SelectCreateDialog: multiple clicks on record", async () => {
     await click(".modal .o_data_row .o_data_cell");
     await animationFrame();
     expect.verifySteps(["select record 1"]);
+});
+
+test("SelectCreateDialog: select() settles with onSelected, not before it", async () => {
+    Partner._views["list"] = `<list><field name="name"/></list>`;
+    Partner._views["search"] = `<search><field name="foo"/></search>`;
+
+    await mountWebClient();
+    /** @type {any} */
+    let dialog;
+    patchWithCleanup(SelectCreateDialog.prototype, {
+        setup() {
+            super.setup(...arguments);
+            dialog = this;
+        },
+    });
+    const selected = new Deferred();
+    getService("dialog").add(SelectCreateDialog, {
+        resModel: "partner",
+        onSelected: () => selected,
+    });
+    await animationFrame();
+    let settled = false;
+    dialog.select([1]).then(() => (settled = true));
+    await animationFrame();
+    expect(settled).toBe(false);
+    expect(".modal").toHaveCount(1);
+    selected.resolve();
+    await animationFrame();
+    expect(settled).toBe(true);
+    expect(".modal").toHaveCount(0);
 });
 
 test.tags("desktop");
