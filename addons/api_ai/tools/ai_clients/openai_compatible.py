@@ -4,6 +4,7 @@ from ..vendor_catalog import (
     SYNTHESIZE_TIMEOUT,
     TRANSCRIBE_TIMEOUT,
     audio_mimetype,
+    get_openai_content,
     get_whisper_form,
     read_openai_content,
     read_whisper_segments,
@@ -17,27 +18,6 @@ _logger = logging.getLogger(__name__)
 
 class OpenAICompatibleClient(BaseAIClient):
     MAX_TEMPERATURE = 2.0
-    MIN_TEMPERATURE = 0.0
-
-    def _get_response_body(self, response_data):
-        if not isinstance(response_data, dict):
-            raise CommError(
-                f"Invalid response type: expected dict but got {type(response_data).__name__}",
-            )
-
-        body = response_data.get("body")
-        if body is None:
-            _logger.error("Response missing 'body' key: %s", response_data)
-            raise CommError(
-                f"Invalid response structure: missing 'body' field. Got keys: {list(response_data.keys())}",
-            )
-
-        if not isinstance(body, dict):
-            raise CommError(
-                f"Invalid API response body: expected dict but got {type(body).__name__}",
-            )
-
-        return body
 
     def chat_completion(
         self,
@@ -74,32 +54,23 @@ class OpenAICompatibleClient(BaseAIClient):
             ) from e
 
     def simple_completion(self, prompt, model=None, **kwargs):
-        model = self._resolve_model(model)
-        try:
-            messages = [{"role": "user", "content": prompt}]
-            result = self.chat_completion(messages=messages, model=model, **kwargs)
-
-            content, problem = read_openai_content(result)
-            if problem:
-                _logger.error(
-                    "%s returned no usable content: %s. Response: %s",
-                    type(self).__name__,
-                    problem,
-                    result,
-                )
-                raise CommError(
-                    f"{type(self).__name__} returned no usable content: "
-                    f"{problem}. This may indicate an API change, a truncated "
-                    f"answer, or an invalid request.",
-                )
-            return content
-
-        except CommError:
-            raise
-        except Exception as e:
+        result = self.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            model=model,
+            **kwargs,
+        )
+        content, problem = read_openai_content(result)
+        if problem:
+            _logger.error(
+                "%s returned no usable content: %s. Response: %s",
+                type(self).__name__,
+                problem,
+                result,
+            )
             raise CommError(
-                f"{type(self).__name__} simple completion failed: {e!s}",
-            ) from e
+                f"{type(self).__name__} returned no usable content: {problem}",
+            )
+        return content
 
     def vision_completion(
         self,
@@ -121,13 +92,7 @@ class OpenAICompatibleClient(BaseAIClient):
         messages = [
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{media_type};base64,{image_data}"},
-                    },
-                ],
+                "content": get_openai_content(prompt, [(image_data, media_type)]),
             }
         ]
         result = self.chat_completion(
@@ -144,31 +109,11 @@ class OpenAICompatibleClient(BaseAIClient):
             )
         return content
 
-    def transcribe(self, audio_bytes, filename, language="es", prompt=None):
-        spec = self._audio_spec()
-
-        if not audio_bytes:
-            raise CommError(f"{type(self).__name__} was given no audio to send")
-
-        try:
-            response = self._client.post(
-                spec["audio_path"],
-                files={"file": (filename, audio_bytes, audio_mimetype(filename))},
-                data=get_whisper_form(
-                    spec["audio_model"], language=language, prompt=prompt
-                ),
-                timeout=spec.get("audio_timeout") or TRANSCRIBE_TIMEOUT,
-            )
-        except CommError:
-            raise
-        except Exception as e:
-            raise CommError(
-                f"{type(self).__name__} transcription failed: {e!s}",
-            ) from e
-
-        text, problem = read_whisper_transcript(
-            response.get("body") if isinstance(response, dict) else response
+    def transcribe(self, audio_bytes, filename, language="es", prompt=None, model=None):
+        body = self._post_whisper(
+            audio_bytes, filename, None, language, prompt, model, "text"
         )
+        text, problem = read_whisper_transcript(body)
         if problem:
             raise CommError(
                 f"{type(self).__name__} returned no usable transcript: {problem}",
@@ -184,11 +129,23 @@ class OpenAICompatibleClient(BaseAIClient):
         prompt=None,
         model=None,
     ):
+        body = self._post_whisper(
+            audio_bytes, filename, mimetype, language, prompt, model, "verbose_json"
+        )
+        spans, problem = read_whisper_segments(body)
+        if problem:
+            raise CommError(
+                f"{type(self).__name__} returned no usable transcript: {problem}",
+            )
+        return spans
+
+    def _post_whisper(
+        self, audio_bytes, filename, mimetype, language, prompt, model, response_format
+    ):
         spec = self._audio_spec()
-        filename = filename or "audio"
         if not audio_bytes:
             raise CommError(f"{type(self).__name__} was given no audio to send")
-
+        filename = filename or "audio"
         try:
             response = self._client.post(
                 spec["audio_path"],
@@ -203,7 +160,7 @@ class OpenAICompatibleClient(BaseAIClient):
                     model or spec["audio_model"],
                     language=language,
                     prompt=prompt,
-                    response_format="verbose_json",
+                    response_format=response_format,
                 ),
                 timeout=spec.get("audio_timeout") or TRANSCRIBE_TIMEOUT,
             )
@@ -213,14 +170,7 @@ class OpenAICompatibleClient(BaseAIClient):
             raise CommError(
                 f"{type(self).__name__} transcription failed: {e!s}",
             ) from e
-
-        body = response.get("body") if isinstance(response, dict) else response
-        spans, problem = read_whisper_segments(body)
-        if problem:
-            raise CommError(
-                f"{type(self).__name__} returned no usable transcript: {problem}",
-            )
-        return spans
+        return response.get("body") if isinstance(response, dict) else response
 
     def _audio_spec(self):
         spec = self._catalog_spec()
@@ -290,6 +240,14 @@ class OpenAICompatibleClient(BaseAIClient):
         if not audio:
             raise CommError(f"{type(self).__name__} returned no audio")
         return audio
+
+    def streaming_completion(self, messages, model=None, **kwargs):
+        model = self._resolve_model(model)
+        self._check_params(model=model, temperature=kwargs.get("temperature"))
+        return self._stream_lines(
+            "/chat/completions",
+            {"model": model, "messages": messages, "stream": True, **kwargs},
+        )
 
     def get_usage(self, response):
         usage = response.get("usage") or {}

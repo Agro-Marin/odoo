@@ -21,9 +21,8 @@ Features:
 - Extended thinking mode for complex reasoning
 - Tool use for structured outputs and function calling
 - Guaranteed valid JSON via tool use (structured_output method)
-- Alternative JSON via prefilling (json_completion method)
+- JSON parsed from a text answer (json_completion method)
 - Prompt caching for optimized repeated context usage
-- Batch API for bulk processing
 
 For current pricing information, visit: https://www.anthropic.com/pricing
 
@@ -42,7 +41,7 @@ ClaudeClient Methods (Phase 1 - Quick Wins):
 - simple_completion() - Quick text generation
 - vision_completion() - Analyze images
 - structured_output() - Guaranteed JSON with schema validation
-- json_completion() - Simple JSON via prefilling
+- json_completion() - JSON parsed from a text answer
 - vision_structured_output() - Extract data from images
 - streaming_completion() - Stream responses
 - get_usage() - Track token usage
@@ -51,7 +50,6 @@ ClaudeClient Methods (Phase 2 - Advanced):
 - create_cacheable_content() - Create cached content blocks
 - create_cached_system_prompt() - Cached system prompts for optimization
 - tool_conversation() - Agentic workflows with tool use
-- enable_extended_context() - Enable 1M token context window
 
 ClaudeClient Methods (Phase 3 - PDF Support):
 - pdf_completion() - Analyze PDF documents (text, tables, charts)
@@ -118,22 +116,18 @@ For current pricing information, visit: https://platform.deepseek.com/
 DeepSeekClient Methods:
 - chat_completion() - Full API control with messages
 - simple_completion() - Quick text generation
-- code_completion() - Quick text generation with a coding-oriented prompt
 - streaming_completion() - Stream responses in real-time
 - structured_output() - Guaranteed JSON with schema validation via function calling
-- json_completion() - Simple JSON via response_format parameter
+- json_completion() - JSON parsed from a text answer
 - get_usage() - Token usage tracking
-- reasoning_completion() - Enhanced prompt for complex reasoning (uses deepseek-chat)
+- reasoning_completion() - Complex reasoning on deepseek-reasoner
 - tool_conversation() - Multi-turn agentic workflows with function calling
-- streaming_json_completion() - Stream structured JSON output
-- math_completion() - Optimized prompts for mathematical problems
-- code_review() - Structured code feedback via structured_output
 
 Note: DeepSeek has built-in reasoning but does NOT expose separate reasoning fields in API responses.
 
 Use Cases:
 - Code generation and analysis
-- Mathematical reasoning (optimized prompts)
+- Mathematical reasoning
 - Structured data extraction (structured_output)
 - AI agents with Odoo integration (tool_conversation)
 - Bulk text processing

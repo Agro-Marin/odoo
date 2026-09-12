@@ -1,7 +1,9 @@
 import logging
 
 from ..json_payload import parse_json_response
+from ..vendor_catalog import PROVIDERS
 from odoo.addons.api_transport.tools.api_client import get_api_client
+from odoo.addons.api_transport.tools.exceptions import CommError
 
 _logger = logging.getLogger(__name__)
 
@@ -28,7 +30,6 @@ class BaseAIClient:
             )
         self.env = env
         self.company_id = company_id
-        self._default_model = None
         self._client = get_api_client(env, self.ENDPOINT_CODE, company_id)
 
     def simple_completion(self, prompt, model=None, **kwargs):
@@ -45,40 +46,67 @@ class BaseAIClient:
     def _resolve_model(self, model=None):
         if model:
             return model
-
-        configured = self._provider_default_model()
-        if configured:
-            return configured
-
-        return self._catalog_default_model() or self.FALLBACK_MODEL
+        return (
+            self._provider_default_model()
+            or self._catalog_default_model()
+            or self.FALLBACK_MODEL
+        )
 
     def _catalog_default_model(self):
         spec = self._catalog_spec()
         return spec.get("chat_model") if spec else None
 
     def _catalog_spec(self):
-        from ..vendor_catalog import PROVIDERS
-
         for spec in PROVIDERS.values():
             if spec.get("chat_service") == self.ENDPOINT_CODE:
                 return spec
         return None
 
     def _provider_default_model(self):
-        if self._default_model is not None:
-            return self._default_model
-
-        provider_model = self.env.get("ai.provider")
-        if provider_model is None:
-            self._default_model = ""
-            return self._default_model
-
-        provider = provider_model.sudo().search(
-            [("endpoint_id.code", "=", self.ENDPOINT_CODE)],
-            limit=1,
-        )
-        self._default_model = provider.default_model_id.code or ""
+        if self._default_model is None:
+            provider = (
+                self.env["ai.provider"]
+                .sudo()
+                .search([("endpoint_id.code", "=", self.ENDPOINT_CODE)], limit=1)
+            )
+            self._default_model = (
+                provider.default_model_id.filtered("active").code or ""
+            )
         return self._default_model
+
+    def _get_response_body(self, response):
+        if not isinstance(response, dict):
+            raise CommError(
+                f"{type(self).__name__}: expected a response dict, got "
+                f"{type(response).__name__}",
+            )
+        body = response.get("body")
+        if not isinstance(body, dict):
+            preview = (response.get("text") or "")[:200]
+            _logger.error(
+                "%s response carried no JSON object body: %s",
+                type(self).__name__,
+                preview,
+            )
+            raise CommError(
+                f"{type(self).__name__}: expected a JSON object body, got "
+                f"{type(body).__name__}: {preview}",
+            )
+        return body
+
+    def _stream_lines(self, path, payload):
+        response = self._client.post(path, json=payload, stream=True, raw=True)
+        for line in response.iter_lines():
+            if not line:
+                continue
+            try:
+                yield line.decode("utf-8")
+            except UnicodeDecodeError as error:
+                _logger.warning(
+                    "%s skipped an undecodable stream chunk: %s",
+                    type(self).__name__,
+                    error,
+                )
 
     def _check_params(self, model=None, temperature=None, max_tokens=None):
         if model is not None and self.VALID_MODELS and model not in self.VALID_MODELS:
@@ -104,13 +132,13 @@ class BaseAIClient:
                 )
 
         if max_tokens is not None:
-            if not isinstance(max_tokens, int) or isinstance(max_tokens, bool):
+            if (
+                not isinstance(max_tokens, int)
+                or isinstance(max_tokens, bool)
+                or max_tokens <= 0
+            ):
                 raise ValueError(
                     f"max_tokens must be a positive integer, got {max_tokens!r}",
-                )
-            if max_tokens <= 0:
-                raise ValueError(
-                    f"max_tokens must be a positive integer, got {max_tokens}",
                 )
             if max_tokens > self.MAX_TOKENS_LIMIT:
                 _logger.warning(

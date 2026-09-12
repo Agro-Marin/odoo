@@ -34,7 +34,4 @@ class AIUseCaseTag(models.Model):
     @api.depends("name", "code")
     def _compute_display_name(self) -> None:
         for record in self:
-            if record.code:
-                record.display_name = f"{record.name} [{record.code}]"
-            else:
-                record.display_name = record.name or ""
+            record.display_name = f"{record.name} [{record.code}]"

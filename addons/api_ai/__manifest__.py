@@ -1,6 +1,6 @@
 {
     "name": "API AI",
-    "version": "19.0.1.16.0",
+    "version": "19.0.1.17.0",
     "category": "Hidden",
     "sequence": 10,
     "summary": "AI provider registry, orchestration and vendor clients",
@@ -37,14 +37,18 @@ callers that must not let it raise.
 
 Orchestration
 -------------
-* ``AIOrchestrator.select_model`` picks an ``ai.model`` by cost, accuracy, speed
-  or balanced score, filtered by the model's own capability and by credential
-  availability for the current company. ``select_provider`` still answers the
-  vendor-level question a credential and a breaker are scoped to.
+* ``AIOrchestrator.select_model`` picks an ``ai.model`` of the ``kind`` the
+  caller will call -- a kind is a method, so it is required -- by cost, accuracy,
+  speed or balanced score, filtered by the model's own capability and by an
+  unexpired credential for the current company. Cost is read in the unit the
+  kind is priced in, and an unpriced model is scored at the candidates' median
+  price rather than as free.
 * ``execute_with_fallback`` walks ``ai.model.fallback_model_ids``. A hop may stay
   on one vendor -- a smaller model on a key already held -- or cross to another.
-  Nothing seeds a chain: acceptable degradation is a deployment's to state.
-  The chain is of models, not of vendors, so every hop names what will run.
+  Hops of another kind, archived, or without a usable credential are skipped, and
+  a non-retryable failure is re-raised as itself. Nothing seeds a chain:
+  acceptable degradation is a deployment's to state. The chain is of models, not
+  of vendors, so every hop names what will run.
 
 Clients
 -------

@@ -11,10 +11,9 @@
         <field name="supports_streaming" eval="True" />
         <field name="supports_function_calling" eval="True" />
         <field name="max_context_window">1000000</field>
-        <field name="max_output_tokens">8192</field>
-        <field name="cost_per_1m_input">3.00</field>
-        <field name="cost_per_1m_output">15.00</field>
-        <field name="cost_per_1m_image">4.80</field>
+        <field name="max_output_tokens">128000</field>
+        <field name="cost_per_1m_input">2.00</field>
+        <field name="cost_per_1m_output">10.00</field>
         <field name="accuracy_rating">5</field>
         <field name="speed_rating">4</field>
     </record>
@@ -30,9 +29,8 @@
         <field name="supports_function_calling" eval="True" />
         <field name="max_context_window">128000</field>
         <field name="max_output_tokens">16384</field>
-        <field name="cost_per_1m_input">2.50</field>
-        <field name="cost_per_1m_output">10.00</field>
-        <field name="cost_per_1m_image">2.125</field>
+        <field name="cost_per_1m_input">0.15</field>
+        <field name="cost_per_1m_output">0.60</field>
         <field name="accuracy_rating">4</field>
         <field name="speed_rating">4</field>
     </record>

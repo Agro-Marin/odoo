@@ -8,6 +8,7 @@ from odoo.addons.api_ai.tools.ai_clients import (
     register_ai_client,
 )
 from odoo.addons.api_transport.tools.api_client import OutboundAPIClient
+from odoo.addons.api_transport.tools.exceptions import CommError
 from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
@@ -205,7 +206,7 @@ class TestOrchestratorEventLog(EncryptionKeyCase, TransactionCase):
         def request_func(_client, _provider):
             raise ValueError("never reached the wire")
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(CommError):
             self._run(request_func, provider)
         self.env.flush_all()
         self.env.cr.precommit.run()

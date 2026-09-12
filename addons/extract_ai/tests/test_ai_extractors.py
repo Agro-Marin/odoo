@@ -78,6 +78,16 @@ class TestAiExtractors(TransactionCase):
             orchestrator.select_model.call_args.kwargs.get("required_capabilities")
         )
 
+    def test_each_reader_asks_for_the_kind_of_model_it_calls(self):
+        for reader, doc, kinds in (
+            (self.text_reader, _TEXT_DOC, "chat"),
+            (self.vision_reader, _IMAGE_DOC, ("chat", "vision")),
+        ):
+            with self.subTest(reader=reader.name):
+                orchestrator, _ = self._orchestrator()
+                self._run(reader, doc, orchestrator)
+                self.assertEqual(orchestrator.select_model.call_args.args, (kinds,))
+
     def test_the_vision_reader_demands_a_model_that_can_see(self):
         orchestrator, _ = self._orchestrator()
 

@@ -53,6 +53,13 @@ class TestExecuteWithFallback(TransactionCase):
         self.rest = self.models[1:]
         self.primary.fallback_model_ids = [(6, 0, self.rest.ids)]
         self.orch = AIOrchestrator(self.env)
+        patcher = patch.object(
+            AIOrchestrator,
+            "_get_usable_providers",
+            side_effect=lambda providers, company_id=None: providers,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _run(self, raiser, use_assert_raises=True):
         attempted = []
@@ -199,73 +206,13 @@ class TestExecuteWithFallback(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
-class TestOptimizeSelection(TransactionCase):
-    def setUp(self):
-        super().setUp()
-        self.orch = AIOrchestrator(self.env)
-        self.providers = self.env["ai.provider"].search([], limit=3)
-        if len(self.providers) < 3:
-            self.skipTest("need at least 3 seeded providers")
-        self.cheap, self.accurate, self.fast = (
-            self.providers[0],
-            self.providers[1],
-            self.providers[2],
-        )
-        self.providers.write({"has_free_tier": False})
-        self.cheap.default_model_id.write(
-            {"cost_per_1m_input": 0.10, "accuracy_rating": "2", "speed_rating": "2"}
-        )
-        self.accurate.default_model_id.write(
-            {"cost_per_1m_input": 30.0, "accuracy_rating": "5", "speed_rating": "2"}
-        )
-        self.fast.default_model_id.write(
-            {"cost_per_1m_input": 5.0, "accuracy_rating": "3", "speed_rating": "5"}
-        )
-
-    def test_cost_picks_the_cheapest(self):
-        self.assertEqual(
-            self.orch._optimize_selection(self.providers, "cost"), self.cheap
-        )
-
-    def test_cost_prefers_a_free_tier(self):
-        self.accurate.has_free_tier = True
-        try:
-            chosen = self.orch._optimize_selection(self.providers, "cost")
-            self.assertEqual(chosen, self.accurate)
-        finally:
-            self.accurate.has_free_tier = False
-
-    def test_accuracy_picks_the_highest_rated(self):
-        self.assertEqual(
-            self.orch._optimize_selection(self.providers, "accuracy"), self.accurate
-        )
-
-    def test_speed_picks_the_fastest(self):
-        self.assertEqual(
-            self.orch._optimize_selection(self.providers, "speed"), self.fast
-        )
-
-    def test_balanced_returns_one_of_the_candidates(self):
-        chosen = self.orch._optimize_selection(self.providers, "balanced")
-        self.assertIn(chosen, self.providers)
-
-    def test_unknown_strategy_falls_back_to_the_first(self):
-        chosen = self.orch._optimize_selection(self.providers, "no-such-strategy")
-        self.assertEqual(chosen, self.providers[0])
-
-    def test_empty_recordset_returns_empty(self):
-        empty = self.env["ai.provider"].browse()
-        self.assertFalse(self.orch._optimize_selection(empty, "cost"))
-
-
-@tagged("post_install", "-at_install")
 class TestOptimizeModelSelection(TransactionCase):
     def setUp(self):
         super().setUp()
         self.orch = AIOrchestrator(self.env)
         one_per_provider = self.env["ai.model"]
         seen_providers = self.env["ai.provider"]
-        for model in self.env["ai.model"].search([]):
+        for model in self.env["ai.model"].search([("kind", "=", "chat")]):
             if model.provider_id in seen_providers:
                 continue
             seen_providers |= model.provider_id
@@ -290,37 +237,33 @@ class TestOptimizeModelSelection(TransactionCase):
         )
 
     def test_cost_picks_the_cheapest(self):
-        self.assertEqual(
-            self.orch._optimize_model_selection(self.models, "cost"), self.cheap
-        )
+        self.assertEqual(self.orch._rank(self.models, "cost")[0], self.cheap)
 
     def test_cost_prefers_a_free_tier(self):
         self.accurate.provider_id.has_free_tier = True
         try:
-            chosen = self.orch._optimize_model_selection(self.models, "cost")
+            chosen = self.orch._rank(self.models, "cost")[0]
             self.assertEqual(chosen, self.accurate)
         finally:
             self.accurate.provider_id.has_free_tier = False
 
     def test_accuracy_picks_the_highest_rated(self):
         self.assertEqual(
-            self.orch._optimize_model_selection(self.models, "accuracy"),
+            self.orch._rank(self.models, "accuracy")[0],
             self.accurate,
         )
 
     def test_speed_picks_the_fastest(self):
+        self.assertEqual(self.orch._rank(self.models, "speed")[0], self.fast)
+
+    def test_balanced_ranks_every_candidate(self):
         self.assertEqual(
-            self.orch._optimize_model_selection(self.models, "speed"), self.fast
+            set(self.orch._rank(self.models, "balanced").ids), set(self.models.ids)
         )
 
-    def test_balanced_returns_one_of_the_candidates(self):
-        chosen = self.orch._optimize_model_selection(self.models, "balanced")
-        self.assertIn(chosen, self.models)
+    def test_an_unknown_strategy_is_refused(self):
+        with self.assertRaises(ValueError):
+            self.orch.select_model("chat", optimize_for="no-such-strategy")
 
-    def test_unknown_strategy_falls_back_to_the_first(self):
-        chosen = self.orch._optimize_model_selection(self.models, "no-such-strategy")
-        self.assertEqual(chosen, self.models[0])
-
-    def test_empty_recordset_returns_empty(self):
-        empty = self.env["ai.model"].browse()
-        self.assertFalse(self.orch._optimize_model_selection(empty, "cost"))
+    def test_empty_recordset_ranks_empty(self):
+        self.assertFalse(self.orch._rank(self.env["ai.model"].browse(), "cost"))

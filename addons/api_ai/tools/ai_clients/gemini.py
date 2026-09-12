@@ -1,4 +1,13 @@
 from .base import BaseAIClient
+from odoo.addons.api_transport.tools.exceptions import CommError
+
+_GENERATION_CONFIG_KEYS = {
+    "temperature": "temperature",
+    "max_tokens": "maxOutputTokens",
+    "top_p": "topP",
+}
+
+_TRUNCATED = ("MAX_TOKENS",)
 
 
 class GeminiClient(BaseAIClient):
@@ -6,96 +15,46 @@ class GeminiClient(BaseAIClient):
 
     FALLBACK_MODEL = "gemini-2.0-flash-exp"
 
+    MAX_TEMPERATURE = 2.0
+
     def generate_content(
         self,
         contents,
         model=None,
         generation_config=None,
         safety_settings=None,
+        system_instruction=None,
         **kwargs,
     ):
         model = self._resolve_model(model)
         if isinstance(contents, str):
             contents = [{"parts": [{"text": contents}]}]
-        elif isinstance(contents, list) and len(contents) > 0:
-            if isinstance(contents[0], dict) and "role" in contents[0]:
-                formatted_contents = []
-                for msg in contents:
-                    role = "user" if msg["role"] == "user" else "model"
-                    formatted_contents.append(
-                        {"role": role, "parts": [{"text": msg["content"]}]}
-                    )
-                contents = formatted_contents
-
         payload = {"contents": contents, **kwargs}
-
         if generation_config:
             payload["generationConfig"] = generation_config
-
         if safety_settings:
             payload["safetySettings"] = safety_settings
-
+        if system_instruction:
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
         response = self._client.post(f"/models/{model}:generateContent", json=payload)
-        return response["body"]
+        return self._get_response_body(response)
 
     def simple_completion(self, prompt, model=None, **kwargs):
-        model = self._resolve_model(model)
-        generation_config = {}
-        if "temperature" in kwargs:
-            generation_config["temperature"] = kwargs.pop("temperature")
-        if "max_tokens" in kwargs:
-            generation_config["maxOutputTokens"] = kwargs.pop("max_tokens")
-        if "top_p" in kwargs:
-            generation_config["topP"] = kwargs.pop("top_p")
+        return self._complete(prompt, model, **kwargs)
 
-        result = self.generate_content(
-            prompt,
-            model=model,
-            generation_config=generation_config or None,
-            **kwargs,
+    def chat_completion(self, messages, model=None, **kwargs):
+        system = "\n\n".join(
+            message["content"] for message in messages if message["role"] == "system"
         )
-
-        if (
-            result.get("candidates")
-            and len(result["candidates"]) > 0
-            and result["candidates"][0].get("content")
-        ):
-            parts = result["candidates"][0]["content"].get("parts", [])
-            if parts and len(parts) > 0:
-                return parts[0].get("text", "")
-
-        return ""
-
-    def chat_completion(
-        self,
-        messages,
-        model=None,
-        temperature=1.0,
-        **kwargs,
-    ):
-        model = self._resolve_model(model)
-        generation_config = {"temperature": temperature}
-
-        if "max_tokens" in kwargs:
-            generation_config["maxOutputTokens"] = kwargs.pop("max_tokens")
-
-        result = self.generate_content(
-            messages,
-            model=model,
-            generation_config=generation_config,
-            **kwargs,
-        )
-
-        if (
-            result.get("candidates")
-            and len(result["candidates"]) > 0
-            and result["candidates"][0].get("content")
-        ):
-            parts = result["candidates"][0]["content"].get("parts", [])
-            if parts and len(parts) > 0:
-                return parts[0].get("text", "")
-
-        return ""
+        contents = [
+            {
+                "role": "user" if message["role"] == "user" else "model",
+                "parts": [{"text": message["content"]}],
+            }
+            for message in messages
+            if message["role"] != "system"
+        ]
+        return self._complete(contents, model, system_instruction=system, **kwargs)
 
     def vision_completion(
         self,
@@ -112,66 +71,65 @@ class GeminiClient(BaseAIClient):
             **kwargs,
         )
 
-    def multimodal_completion(
-        self,
-        text,
-        image_data=None,
-        model=None,
-        **kwargs,
-    ):
-        model = self._resolve_model(model)
+    def multimodal_completion(self, text, image_data=None, model=None, **kwargs):
         parts = [{"text": text}]
-
         if image_data:
-            if isinstance(image_data, str) and (
-                image_data.startswith("data:") or len(image_data) > 1000
-            ):
-                if image_data.startswith("data:"):
-                    mime_type = image_data.split(";")[0].split(":")[1]
-                    data = image_data.split(",")[1]
-                else:
-                    mime_type = "image/jpeg"
-                    data = image_data
+            mime_type, data = "image/jpeg", image_data
+            if image_data.startswith("data:"):
+                header, data = image_data.split(",", 1)
+                mime_type = header[len("data:") :].split(";", 1)[0]
+            parts.append({"inline_data": {"mime_type": mime_type, "data": data}})
+        return self._complete([{"parts": parts}], model, **kwargs)
 
-                parts.append({"inline_data": {"mime_type": mime_type, "data": data}})
-
-        contents = [{"parts": parts}]
-
-        result = self.generate_content(contents, model=model, **kwargs)
-
-        if (
-            result.get("candidates")
-            and len(result["candidates"]) > 0
-            and result["candidates"][0].get("content")
-        ):
-            response_parts = result["candidates"][0]["content"].get("parts", [])
-            if response_parts and len(response_parts) > 0:
-                return response_parts[0].get("text", "")
-
-        return ""
-
-    def streaming_completion(
-        self,
-        contents,
-        model=None,
-        **kwargs,
-    ):
+    def streaming_completion(self, contents, model=None, **kwargs):
         model = self._resolve_model(model)
         if isinstance(contents, str):
             contents = [{"parts": [{"text": contents}]}]
-
-        payload = {"contents": contents, **kwargs}
-
-        response = self._client.post(
+        return self._stream_lines(
             f"/models/{model}:streamGenerateContent",
-            json=payload,
-            stream=True,
-            raw=True,
+            {"contents": contents, **kwargs},
         )
 
-        for line in response.iter_lines():
-            if line:
-                yield line.decode("utf-8")
+    def _complete(self, contents, model, **kwargs):
+        generation_config = {
+            wire: kwargs.pop(name)
+            for name, wire in _GENERATION_CONFIG_KEYS.items()
+            if name in kwargs
+        }
+        self._check_params(
+            model=model,
+            temperature=generation_config.get("temperature"),
+            max_tokens=generation_config.get("maxOutputTokens"),
+        )
+        result = self.generate_content(
+            contents,
+            model=model,
+            generation_config=generation_config or None,
+            **kwargs,
+        )
+        return self._read_text(result)
+
+    @staticmethod
+    def _read_text(result):
+        candidates = result.get("candidates") or []
+        if not candidates:
+            feedback = result.get("promptFeedback") or {}
+            raise CommError(
+                f"Gemini returned no candidates "
+                f"(blockReason={feedback.get('blockReason')})",
+            )
+        candidate = candidates[0]
+        finish = candidate.get("finishReason")
+        text = "".join(
+            part.get("text") or ""
+            for part in (candidate.get("content") or {}).get("parts") or []
+            if not part.get("thought")
+        )
+        if finish in _TRUNCATED:
+            raise CommError(f"Gemini truncated its answer (finishReason={finish})")
+        if not text:
+            raise CommError(f"Gemini returned no text (finishReason={finish})")
+        return text
 
 
 def get_gemini_client(env, company_id=None):

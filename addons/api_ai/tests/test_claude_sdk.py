@@ -1,3 +1,4 @@
+import asyncio
 import tempfile
 from pathlib import Path
 
@@ -98,3 +99,39 @@ class TestResolveWorkDir(TransactionCase):
         params.set_param("api_ai.claude_workdir", str(self.base / "current"))
         resolved = _resolve_work_dir(self.env, "mod")
         self.assertEqual(resolved, (self.base / "current" / "mod").resolve())
+
+
+@tagged("post_install", "-at_install")
+class TestClaudeSDKClientRuntime(TransactionCase):
+    def _client(self):
+        from odoo.addons.api_ai.tools.claude_sdk import ClaudeSDKClient
+
+        client = ClaudeSDKClient.__new__(ClaudeSDKClient)
+
+        async def execute_async(prompt):
+            await asyncio.sleep(0)
+            return {"success": True, "result": prompt}
+
+        client.execute_async = execute_async
+        return client
+
+    def test_execute_runs_the_coroutine_outside_a_loop(self):
+        self.assertEqual(self._client().execute("hi")["result"], "hi")
+
+    def test_execute_inside_a_running_loop_says_to_await(self):
+        client = self._client()
+
+        async def inside():
+            await asyncio.sleep(0)
+            with self.assertRaises(RuntimeError) as caught:
+                client.execute("hi")
+            return str(caught.exception)
+
+        self.assertIn("execute_async", asyncio.run(inside()))
+
+    def test_the_default_model_is_the_providers(self):
+        from odoo.addons.api_ai.tools.claude_sdk import _default_model
+
+        provider = self.env["ai.provider"].search([("code", "=", "claude")], limit=1)
+        self.assertEqual(_default_model(self.env), provider.default_model_id.code)
+        self.assertEqual(_default_model(None), "claude-sonnet-5")

@@ -62,6 +62,10 @@ CASES = {
         {"keywords": ["k"], "model": "nova-3"},
         {"model": "nova-3", "punctuate": "true"},
     ),
+    "keywords_on_nova2_str": (
+        {"keywords": "solo", "model": "nova-2"},
+        {"keywords": ["solo"], "model": "nova-2", "punctuate": "true"},
+    ),
     "keywords_on_nova2": (
         {"keywords": ["k1", "k2"], "model": "nova-2"},
         {"keywords": ["k1", "k2"], "model": "nova-2", "punctuate": "true"},

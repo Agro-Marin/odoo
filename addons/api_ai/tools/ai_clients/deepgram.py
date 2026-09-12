@@ -1,5 +1,8 @@
 import logging
+from collections import Counter
+from urllib.parse import urlencode
 
+from ..vendor_catalog import SYNTHESIZE_TIMEOUT
 from .base import BaseAIClient
 from odoo.addons.api_transport.tools.exceptions import CommError
 
@@ -109,27 +112,6 @@ class DeepgramClient(BaseAIClient):
         "fi",
     ]
 
-    def _get_response_body(self, response):
-        if not isinstance(response, dict):
-            raise CommError(
-                f"Invalid response type: expected dict but got {type(response).__name__}",
-            )
-
-        result = response.get("body")
-        if result is None:
-            text_preview = response.get("text", "")[:200]
-            _logger.error("Deepgram response missing body: %s", text_preview)
-            raise CommError(
-                f"Invalid API response format: expected JSON body but got {text_preview}",
-            )
-
-        if not isinstance(result, dict):
-            raise CommError(
-                f"Invalid API response: expected dict but got {type(result).__name__}",
-            )
-
-        return result
-
     _PASSTHROUGH_PARAMS = ("model", "language", "alternatives")
 
     _BOOLEAN_PARAMS = (
@@ -198,70 +180,77 @@ class DeepgramClient(BaseAIClient):
 
     def _prepare_keyword_params(self, **kwargs):
         model_name = kwargs.get("model", "nova-3").lower()
+        name = (
+            "keyterm"
+            if any(family in model_name for family in self._KEYTERM_FAMILIES)
+            else "keywords"
+        )
+        value = kwargs.get(name)
+        if isinstance(value, str):
+            value = [value] if value else []
+        return {name: value} if isinstance(value, list) and value else {}
 
-        if any(family in model_name for family in self._KEYTERM_FAMILIES):
-            keyterm = kwargs.get("keyterm")
-            if isinstance(keyterm, list):
-                return {"keyterm": keyterm}
-            if isinstance(keyterm, str) and keyterm:
-                return {"keyterm": [keyterm]}
-            return {}
+    DEFAULT_VOICE = "aura-2-asteria-en"
 
-        keywords = kwargs.get("keywords")
-        if keywords and isinstance(keywords, list):
-            return {"keywords": keywords}
-        return {}
+    def _warn_unknown_model(self, model):
+        if model not in self.MODELS:
+            _logger.warning(
+                "Model %r is not in Deepgram's known models %s; sending it anyway",
+                model,
+                list(self.MODELS),
+            )
 
     def transcribe_url(self, audio_url, model=None, **kwargs):
         model = self._resolve_model(model)
-        if model not in self.MODELS:
-            _logger.warning(
-                "Model '%s' not in known models %s. This may cause API errors.",
-                model,
-                list(self.MODELS.keys()),
-            )
-
-        params = self._prepare_transcription_params(model=model, **kwargs)
-
-        payload = {"url": audio_url}
-
-        response = self._client.post("/listen", json=payload, params=params)
+        self._warn_unknown_model(model)
+        response = self._client.post(
+            "/listen",
+            json={"url": audio_url},
+            params=self._prepare_transcription_params(model=model, **kwargs),
+        )
         return self._get_response_body(response)
 
     def transcribe_file(self, audio_data, mimetype=None, model=None, **kwargs):
         model = self._resolve_model(model)
-        if model not in self.MODELS:
+        self._warn_unknown_model(model)
+        if not mimetype:
             _logger.warning(
-                "Model '%s' not in known models %s",
-                model,
-                list(self.MODELS.keys()),
+                "No mimetype given for a Deepgram upload; sending "
+                "application/octet-stream and letting Deepgram sniff it",
             )
-
-        params = self._prepare_transcription_params(model=model, **kwargs)
-
-        headers = {}
-        if mimetype:
-            headers["Content-Type"] = mimetype
-        else:
-            headers["Content-Type"] = "application/octet-stream"
-            _logger.warning(
-                "No mimetype specified for file upload. Using application/octet-stream. "
-                "For best results, specify the correct audio MIME type.",
-            )
-
         response = self._client.post(
             "/listen",
             data=audio_data,
-            params=params,
-            headers=headers,
+            params=self._prepare_transcription_params(model=model, **kwargs),
+            headers={"Content-Type": mimetype or "application/octet-stream"},
         )
         return self._get_response_body(response)
 
+    def transcribe_cues(
+        self,
+        audio_bytes,
+        filename=None,
+        mimetype=None,
+        language=None,
+        prompt=None,
+        model=None,
+        **kwargs,
+    ):
+        del filename, prompt
+        if not audio_bytes:
+            raise CommError("Deepgram was given no audio to send")
+        options = {"utterances": True, "smart_format": True, **kwargs}
+        if language:
+            options["language"] = language
+        result = self.transcribe_file(
+            audio_bytes, mimetype=mimetype, model=model, **options
+        )
+        return self._read_cues(result)
+
     def transcribe_with_diarization(self, audio_url, model=None, **kwargs):
-        model = self._resolve_model(model)
-        kwargs["diarize"] = True
-        kwargs["utterances"] = True
-        return self.transcribe_url(audio_url, model=model, **kwargs)
+        return self.transcribe_url(
+            audio_url, model=model, **{**kwargs, "diarize": True, "utterances": True}
+        )
 
     def transcribe_with_intelligence(
         self,
@@ -274,22 +263,23 @@ class DeepgramClient(BaseAIClient):
         intents=True,
         **kwargs,
     ):
-        model = self._resolve_model(model)
-        kwargs.update(
-            {
-                "summarize": summarize,
-                "topics": topics,
-                "sentiment": sentiment,
-                "detect_entities": detect_entities,
-                "intents": intents,
-            },
+        return self.transcribe_url(
+            audio_url,
+            model=model,
+            summarize=summarize,
+            topics=topics,
+            sentiment=sentiment,
+            detect_entities=detect_entities,
+            intents=intents,
+            **kwargs,
         )
-        return self.transcribe_url(audio_url, model=model, **kwargs)
 
     def transcribe_multilingual(self, audio_url, model=None, **kwargs):
-        model = self._resolve_model(model)
-        kwargs["detect_language"] = True
-        return self.transcribe_url(audio_url, model=model, **kwargs)
+        return self.transcribe_url(
+            audio_url, model=model, **{**kwargs, "detect_language": True}
+        )
+
+    _PII_REDACTIONS = ("pci", "ssn", "numbers", "email", "phone_number", "name")
 
     def transcribe_with_redaction(
         self,
@@ -298,50 +288,34 @@ class DeepgramClient(BaseAIClient):
         model=None,
         **kwargs,
     ):
-        model = self._resolve_model(model)
         if redact_pii:
-            kwargs["redact"] = [
-                "pci",
-                "ssn",
-                "numbers",
-                "email",
-                "phone_number",
-                "name",
-            ]
+            kwargs["redact"] = list(self._PII_REDACTIONS)
         return self.transcribe_url(audio_url, model=model, **kwargs)
 
     def transcribe_with_search(self, audio_url, search_terms, model=None, **kwargs):
-        model = self._resolve_model(model)
-        kwargs["search"] = search_terms
-        return self.transcribe_url(audio_url, model=model, **kwargs)
+        return self.transcribe_url(
+            audio_url, model=model, **{**kwargs, "search": search_terms}
+        )
 
     def transcribe_with_keywords(self, audio_url, keywords, model=None, **kwargs):
-        model = self._resolve_model(model)
-        if "nova-3" in model.lower() or "flux" in model.lower():
-            kwargs["keyterm"] = keywords
-        else:
-            kwargs["keywords"] = keywords
-
-        return self.transcribe_url(audio_url, model=model, **kwargs)
+        return self.transcribe_url(
+            audio_url,
+            model=model,
+            **{**kwargs, "keyterm": keywords, "keywords": keywords},
+        )
 
     def streaming_transcribe(self, model=None, **kwargs):
         model = self._resolve_model(model)
         params = self._prepare_transcription_params(model=model, **kwargs)
-
         if kwargs.get("interim_results"):
             params["interim_results"] = "true"
-
         if kwargs.get("endpointing"):
             params["endpointing"] = kwargs["endpointing"]
-
         if kwargs.get("vad_events"):
             params["vad_events"] = "true"
-
-        base_url = "wss://api.deepgram.com/v1/listen"
-        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-
         return {
-            "websocket_url": f"{base_url}?{query_string}",
+            "websocket_url": "wss://api.deepgram.com/v1/listen?"
+            + urlencode(params, doseq=True),
             "params": params,
             "connection_type": "websocket",
             "protocol": "wss",
@@ -355,26 +329,46 @@ class DeepgramClient(BaseAIClient):
         "audio/wav": {"encoding": "linear16", "container": "wav"},
     }
 
-    def text_to_speech(self, text, voice="aura-2-asteria-en", model=None, **kwargs):
+    def text_to_speech(self, text, voice=DEFAULT_VOICE, model=None, **kwargs):
         return self.synthesize(text, voice=voice, model=model, **kwargs)
 
     def synthesize(self, text, voice=None, mimetype="audio/mpeg", model=None, **kwargs):
         if not (text or "").strip():
             raise CommError("Deepgram was given no text to speak")
+        encoding = self.SPEECH_ENCODINGS.get(mimetype)
+        if encoding is None:
+            raise CommError(f"Deepgram does not write {mimetype!r}")
 
-        voice = voice or model or "aura-2-asteria-en"
-        if voice not in self.TTS_VOICES:
-            _logger.warning(
-                "Voice '%s' not in known voices %s",
+        if voice and voice not in self.TTS_VOICES:
+            _logger.info(
+                "Voice %r is not a Deepgram voice; speaking with %r instead",
                 voice,
-                list(self.TTS_VOICES.keys()),
+                model or self.DEFAULT_VOICE,
             )
+            voice = None
+        voice = voice or model or self.DEFAULT_VOICE
 
-        del text, voice, kwargs
-        raise CommError(
-            "Deepgram text_to_speech is not supported through OutboundAPIClient yet; "
-            "binary response bodies are not exposed. See t20851 follow-up.",
-        )
+        params = {"model": voice, **encoding}
+        if kwargs.get("sample_rate"):
+            params["sample_rate"] = kwargs["sample_rate"]
+
+        try:
+            response = self._client.post(
+                "/speak",
+                json={"text": text},
+                params=params,
+                raw=True,
+                timeout=kwargs.get("timeout") or SYNTHESIZE_TIMEOUT,
+            )
+        except CommError:
+            raise
+        except Exception as e:
+            raise CommError(f"Deepgram synthesis failed: {e!s}") from e
+
+        audio = getattr(response, "content", None)
+        if not audio:
+            raise CommError("Deepgram returned no audio")
+        return audio
 
     @staticmethod
     def _read_cues(result):
@@ -403,92 +397,107 @@ class DeepgramClient(BaseAIClient):
             raise CommError("Deepgram returned no usable transcript")
         return [{"start": 0.0, "end": 0.0, "text": transcript, "speaker": ""}]
 
-    def text_to_speech_stream(self, text, voice="aura-2-asteria-en", **kwargs):
-        if voice not in self.TTS_VOICES:
-            _logger.warning(
-                "Voice '%s' not in known voices %s",
-                voice,
-                list(self.TTS_VOICES.keys()),
-            )
-
-        del text, voice, kwargs
-        raise CommError(
-            "Deepgram text_to_speech_stream is not supported through "
-            "OutboundAPIClient yet; streaming responses are not exposed. "
-            "See t20851 follow-up.",
-        )
-        yield  # pragma: no cover
-
     def analyze_audio(self, audio_url, model=None, **kwargs):
-        model = self._resolve_model(model)
         result = self.transcribe_with_intelligence(
-            audio_url,
-            model=model,
-            diarize=True,
-            **kwargs,
+            audio_url, model=model, diarize=True, **kwargs
         )
-
-        channels = result.get("results", {}).get("channels", [])
+        results = result.get("results") or {}
+        channels = results.get("channels") or []
         if not channels:
             return {"error": "No transcription data available"}
-
-        alternatives = channels[0].get("alternatives", [])
+        alternatives = channels[0].get("alternatives") or []
         if not alternatives:
             return {"error": "No transcription alternatives"}
 
-        transcript = alternatives[0].get("transcript", "")
-
         return {
-            "transcript": transcript,
-            "summary": result.get("results", {}).get("summary", {}).get("short", ""),
-            "topics": [
-                t.get("topic")
-                for t in result.get("results", {}).get("topics", {}).get("segments", [])
-            ],
+            "transcript": alternatives[0].get("transcript", ""),
+            **self._get_insights(result),
             "overall_sentiment": self._get_overall_sentiment(result),
-            "entities": result.get("results", {}).get("entities", []),
-            "intents": result.get("results", {}).get("intents", {}),
             "speaker_count": len(
-                {
-                    u.get("speaker")
-                    for u in result.get("results", {}).get("utterances", [])
-                },
+                {u.get("speaker") for u in results.get("utterances") or []}
             ),
-            "duration": result.get("metadata", {}).get("duration", 0),
+            "duration": (result.get("metadata") or {}).get("duration", 0),
             "language": channels[0].get("detected_language", "unknown"),
             "raw_result": result,
         }
 
-    def _get_overall_sentiment(self, result):
-        sentiments = result.get("results", {}).get("sentiments", {}).get("segments", [])
+    def transcribe_conversation(
+        self,
+        audio_url,
+        model=None,
+        extract_insights=True,
+        **kwargs,
+    ):
+        result = self.transcribe_with_intelligence(
+            audio_url, model=model, diarize=True, **kwargs
+        )
+        results = result.get("results") or {}
+        sentiments = self._get_sentiment_segments(result)
+        turns = [
+            {
+                "speaker": utterance.get("speaker", 0),
+                "text": utterance.get("transcript", ""),
+                "start": utterance.get("start", 0),
+                "end": utterance.get("end", 0),
+                "confidence": utterance.get("confidence", 0),
+                "sentiment": self._get_sentiment_for_timerange(
+                    sentiments, utterance.get("start", 0), utterance.get("end", 0)
+                ),
+            }
+            for utterance in results.get("utterances") or []
+        ]
+        conversation = {
+            "turns": turns,
+            "speaker_count": len({turn["speaker"] for turn in turns}),
+            "duration": (result.get("metadata") or {}).get("duration", 0),
+        }
+        if extract_insights:
+            conversation.update(self._get_insights(result))
+        return conversation
 
+    @staticmethod
+    def _get_insights(result):
+        results = result.get("results") or {}
+        return {
+            "summary": (results.get("summary") or {}).get("short", ""),
+            "topics": [
+                segment.get("topic")
+                for segment in (results.get("topics") or {}).get("segments") or []
+            ],
+            "entities": results.get("entities") or [],
+            "intents": results.get("intents") or {},
+        }
+
+    @staticmethod
+    def _get_sentiment_segments(result):
+        results = result.get("results") or {}
+        return (results.get("sentiments") or {}).get("segments") or []
+
+    def _get_overall_sentiment(self, result):
+        sentiments = self._get_sentiment_segments(result)
         if not sentiments:
             return "neutral"
-
-        positive_count = sum(1 for s in sentiments if s.get("sentiment") == "positive")
-        negative_count = sum(1 for s in sentiments if s.get("sentiment") == "negative")
-
-        total = len(sentiments)
-        if total == 0:
-            return "neutral"
-
-        positive_ratio = positive_count / total
-        negative_ratio = negative_count / total
-
-        if positive_ratio > 0.6:
-            return "positive"
-        if negative_ratio > 0.6:
-            return "negative"
+        counts = Counter(segment.get("sentiment") for segment in sentiments)
+        for label in ("positive", "negative"):
+            if counts[label] / len(sentiments) > 0.6:
+                return label
         return "neutral"
 
-    def get_usage(self, result):
-        metadata = result.get("metadata", {})
+    def _get_sentiment_for_timerange(self, sentiments, start, end):
+        overlapping = Counter(
+            segment.get("sentiment", "neutral")
+            for segment in sentiments
+            if segment.get("start", 0) <= end and segment.get("end", 0) >= start
+        )
+        return overlapping.most_common(1)[0][0] if overlapping else "neutral"
 
+    def get_usage(self, result):
+        metadata = result.get("metadata") or {}
         return {
             "duration": metadata.get("duration", 0),
             "channels": metadata.get("channels", 1),
             "model_uuid": metadata.get("model_uuid", ""),
-            "model_name": metadata.get("model_info", {}).get("name", ""),
+            "model_name": (metadata.get("model_info") or {}).get("name", ""),
             "request_id": metadata.get("request_id", ""),
         }
 
@@ -500,84 +509,6 @@ class DeepgramClient(BaseAIClient):
 
     def get_supported_languages(self):
         return self.LANGUAGES.copy()
-
-    def transcribe_conversation(
-        self,
-        audio_url,
-        model=None,
-        extract_insights=True,
-        **kwargs,
-    ):
-        model = self._resolve_model(model)
-        result = self.transcribe_with_intelligence(
-            audio_url,
-            model=model,
-            diarize=True,
-            **kwargs,
-        )
-
-        utterances = result.get("results", {}).get("utterances", [])
-        sentiments_data = (
-            result.get("results", {}).get("sentiments", {}).get("segments", [])
-        )
-
-        turns = []
-        for utterance in utterances:
-            turn_data = {
-                "speaker": utterance.get("speaker", 0),
-                "text": utterance.get("transcript", ""),
-                "start": utterance.get("start", 0),
-                "end": utterance.get("end", 0),
-                "confidence": utterance.get("confidence", 0),
-                "sentiment": self._get_sentiment_for_timerange(
-                    sentiments_data,
-                    utterance.get("start", 0),
-                    utterance.get("end", 0),
-                ),
-            }
-            turns.append(turn_data)
-
-        conversation_data = {
-            "turns": turns,
-            "speaker_count": len({t["speaker"] for t in turns}),
-            "duration": result.get("metadata", {}).get("duration", 0),
-        }
-
-        if extract_insights:
-            conversation_data.update(
-                {
-                    "summary": result.get("results", {})
-                    .get("summary", {})
-                    .get("short", ""),
-                    "topics": [
-                        t.get("topic")
-                        for t in result.get("results", {})
-                        .get("topics", {})
-                        .get("segments", [])
-                    ],
-                    "entities": result.get("results", {}).get("entities", []),
-                    "intents": result.get("results", {}).get("intents", {}),
-                },
-            )
-
-        return conversation_data
-
-    def _get_sentiment_for_timerange(self, sentiments, start, end):
-        relevant_sentiments = []
-        for seg in sentiments:
-            seg_start = seg.get("start", 0)
-            seg_end = seg.get("end", 0)
-
-            if seg_start <= end and seg_end >= start:
-                relevant_sentiments.append(seg.get("sentiment", "neutral"))
-
-        if not relevant_sentiments:
-            return "neutral"
-
-        from collections import Counter
-
-        sentiment_counts = Counter(relevant_sentiments)
-        return sentiment_counts.most_common(1)[0][0]
 
 
 def get_deepgram_client(env, company_id=None):

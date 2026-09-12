@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
@@ -100,9 +101,10 @@ class AIModel(models.Model):
         relation="ai_model_fallback_rel",
         column1="model_id",
         column2="fallback_id",
-        help="Ordered models to try when this one fails. A hop may stay on this "
-        "provider — a smaller model on a key you already hold — or cross to "
-        "another.",
+        help="Models to try when this one fails, in model order (provider, then "
+        "sequence). A hop may stay on this provider — a smaller model on a key "
+        "you already hold — or cross to another. Hops of another kind, archived "
+        "or without a usable credential are skipped.",
     )
 
     _code_uniq = models.Constraint(
@@ -114,10 +116,35 @@ class AIModel(models.Model):
         message="This provider already has a model with that name.",
     )
 
+    _PER_MINUTE_KINDS = ("audio",)
+
+    _INTERCHANGEABLE_KINDS = ("chat", "vision")
+
     @api.depends("name", "code")
     def _compute_display_name(self) -> None:
         for record in self:
-            if record.code:
-                record.display_name = f"{record.name} [{record.code}]"
-            else:
-                record.display_name = record.name or ""
+            record.display_name = f"{record.name} [{record.code}]"
+
+    @api.constrains("fallback_model_ids")
+    def _check_fallback_model_ids(self) -> None:
+        for record in self:
+            if record in record.fallback_model_ids:
+                raise ValidationError(
+                    self.env._(
+                        "%(model)s cannot fall back to itself: the hop would repeat "
+                        "the request that just failed.",
+                        model=record.display_name,
+                    )
+                )
+
+    def _can_stand_in_for(self, other) -> bool:
+        self.check_singleton()
+        return self.kind == other.kind or {self.kind, other.kind} <= set(
+            self._INTERCHANGEABLE_KINDS
+        )
+
+    def _get_unit_cost(self) -> float:
+        self.check_singleton()
+        if self.kind in self._PER_MINUTE_KINDS:
+            return self.cost_per_audio_minute
+        return self.cost_per_1m_input

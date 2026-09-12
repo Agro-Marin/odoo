@@ -83,7 +83,7 @@ class TestDeepSeekClient(EncryptionKeyCase, TransactionCase):
         with self.assertRaises(CommError) as cm:
             client._get_response_body(response_no_body)
 
-        self.assertIn("Invalid", str(cm.exception))
+        self.assertIn("JSON object body", str(cm.exception))
 
     @patch("odoo.addons.api_ai.tools.ai_clients.base.get_api_client")
     def test_chat_completion_calls_validation(self, mock_get_client):

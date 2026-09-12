@@ -1,7 +1,9 @@
 from typing import Any
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
+
+from ..tools.ai_clients import AI_CLIENT_REGISTRY, get_ai_client
 
 
 class AIProvider(models.Model):
@@ -91,10 +93,23 @@ class AIProvider(models.Model):
                 parts.append(f"({record.default_model_id.code})")
             record.display_name = " ".join(parts)
 
+    @api.constrains("default_model_id")
+    def _check_default_model_id(self) -> None:
+        for record in self:
+            default = record.default_model_id
+            if default and default.provider_id != record:
+                raise ValidationError(
+                    self.env._(
+                        "%(model)s is served by %(owner)s, so it cannot be the "
+                        "default model of %(provider)s.",
+                        model=default.display_name,
+                        owner=default.provider_id.display_name,
+                        provider=record.display_name,
+                    )
+                )
+
     def _get_ai_client(self, company_id=None):
         self.check_singleton()
-        from ..tools.ai_clients import AI_CLIENT_REGISTRY, get_ai_client
-
         client = get_ai_client(
             self.env,
             self.code,
@@ -113,18 +128,13 @@ class AIProvider(models.Model):
 
     def action_view_request_logs(self) -> dict[str, Any]:
         self.check_singleton()
-        channel_ref = (
-            f"api.endpoint.outbound,{self.endpoint_id.id}"
-            if self.endpoint_id
-            else False
-        )
         return {
-            "name": f"Request Logs - {self.name}",
+            "name": self.env._("Request Logs - %(provider)s", provider=self.name),
             "type": "ir.actions.act_window",
             "res_model": "api.event.log",
             "view_mode": "list,form",
             "domain": [
-                ("channel_id", "=", channel_ref),
+                ("channel_id", "=", f"api.endpoint.outbound,{self.endpoint_id.id}"),
                 ("direction", "=", "outbound"),
             ],
         }

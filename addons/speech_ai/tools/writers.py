@@ -46,11 +46,13 @@ class AiSpeech(BaseWriter):
         self.mimetype = mimetype
 
     def available(self, env: Any) -> bool:
-        return any(
-            pick_model(env, SYNTHESIS_KIND, provider_code=vendor)
-            for vendor in _vendors()
-            if self.mimetype in written_by(vendor)
-        )
+        return bool(self._pick_model(env))
+
+    def _pick_model(self, env: Any) -> Any:
+        writing = [
+            vendor for vendor in _vendors() if self.mimetype in written_by(vendor)
+        ]
+        return pick_model(env, SYNTHESIS_KIND, provider_code=writing)
 
     def write(self, value: Any, **options: Any) -> bytes:
         env = options.get("env")
@@ -58,7 +60,7 @@ class AiSpeech(BaseWriter):
             raise ValueError(
                 "Speech synthesis needs an environment: pass env= to write audio"
             )
-        model = pick_model(env, SYNTHESIS_KIND)
+        model = self._pick_model(env)
         if not model:
             raise ValueError("No speech model is configured with a usable credential")
         return run(

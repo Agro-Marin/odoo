@@ -78,6 +78,7 @@ class LlmTextExtractor(_AiExtractor):
 
     def _get_model(self, env, doc_type):
         return get_ai_orchestrator(env).select_model(
+            "chat",
             optimize_for=self.optimize_for,
             company_id=env.company.id,
         )
@@ -98,6 +99,7 @@ class LlmVisionExtractor(_AiExtractor):
 
     def _get_model(self, env, doc_type):
         return get_ai_orchestrator(env).select_model(
+            ("chat", "vision"),
             use_case_tags=["vision", "ocr"],
             required_capabilities={"has_vision": True},
             optimize_for=self.optimize_for,

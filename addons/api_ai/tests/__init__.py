@@ -3,10 +3,14 @@ from . import test_ai_provider
 from . import test_base_client
 from . import test_catalog_client
 from . import test_claude_sdk
+from . import test_deepgram_params
+from . import test_deepgram_speech
 from . import test_deepseek_client
 from . import test_json_payload
-from . import test_deepgram_params
+from . import test_migrations
+from . import test_model_selection
+from . import test_openai_transcription
 from . import test_orchestrator_event_log
 from . import test_registry_coherence
-from . import test_openai_transcription
+from . import test_vendor_wires
 from . import test_vision_completion

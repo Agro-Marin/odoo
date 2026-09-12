@@ -6,6 +6,8 @@ from pathlib import Path
 from odoo.exceptions import UserError
 from odoo.tools import config as odoo_config
 
+from .vendor_catalog import PROVIDERS
+
 _logger = logging.getLogger(__name__)
 
 _ENDPOINT_CODE = "claude"
@@ -16,9 +18,12 @@ _LEGACY_WORKDIR_PARAM = "ai_claude.base_workdir"
 
 def get_claude_api_token(env):
     credential = env["credential.credential"]._get_for_endpoint_code(_ENDPOINT_CODE)
-    values = credential.get_credential_dict() if credential else {}
-    api_key = values.get("api_key") or credential.api_key or credential.credential_value
-    if not credential or not api_key:
+    api_key = credential and (
+        credential.get_credential_dict().get("api_key")
+        or credential.api_key
+        or credential.credential_value
+    )
+    if not api_key:
         raise UserError(
             env._(
                 "No Claude API credential is configured for %(company)s. "
@@ -47,22 +52,28 @@ except ImportError:
     AssistantMessage = ResultMessage = TextBlock = ToolUseBlock = None
 
 
-def _default_base_dir(env_or_param):
+def _default_base_dir(env):
     base_param = None
-    if env_or_param is not None and hasattr(env_or_param, "__getitem__"):
-        try:
-            params = env_or_param["ir.config_parameter"].sudo()
-            base_param = params.get_param(_WORKDIR_PARAM) or params.get_param(
-                _LEGACY_WORKDIR_PARAM
-            )
-        except Exception:  # pragma: no cover
-            base_param = None
-
+    if env is not None:
+        params = env["ir.config_parameter"].sudo()
+        base_param = params.get_param(_WORKDIR_PARAM) or params.get_param(
+            _LEGACY_WORKDIR_PARAM
+        )
     return base_param or f"{odoo_config['data_dir']}/api_ai/claude"
 
 
-def _resolve_work_dir(env_or_param, work_dir: str, base_dir: str | None = None):
-    base_str = base_dir or _default_base_dir(env_or_param)
+def _default_model(env):
+    if env is not None:
+        provider = (
+            env["ai.provider"].sudo().search([("code", "=", _ENDPOINT_CODE)], limit=1)
+        )
+        if provider.default_model_id.active and provider.default_model_id.code:
+            return provider.default_model_id.code
+    return PROVIDERS[_ENDPOINT_CODE]["chat_model"]
+
+
+def _resolve_work_dir(env, work_dir: str, base_dir: str | None = None):
+    base_str = base_dir or _default_base_dir(env)
     base = Path(base_str).resolve()
     base.mkdir(parents=True, exist_ok=True)
 
@@ -88,7 +99,7 @@ class ClaudeSDKClient:
         self,
         work_dir: str,
         system_prompt: str = "",
-        model: str = "claude-sonnet-4-5-20250929",
+        model: str | None = None,
         max_turns: int = 50,
         allowed_tools: list | None = None,
         permission_mode: str = "default",
@@ -104,6 +115,7 @@ class ClaudeSDKClient:
 
         self.work_dir = _resolve_work_dir(env, work_dir, base_dir)
 
+        model = model or _default_model(env)
         self.model = model
         self.max_turns = max_turns
         self.system_prompt = system_prompt
@@ -182,20 +194,6 @@ class ClaudeSDKClient:
                         "duration_ms": getattr(message, "duration_ms", 0),
                         "session_id": getattr(message, "session_id", ""),
                     }
-                elif hasattr(message, "get") or isinstance(message, dict):
-                    msg_dict = (
-                        message if isinstance(message, dict) else message.__dict__
-                    )
-                    if "is_error" in msg_dict or "result" in msg_dict:
-                        result_data = {
-                            "success": not msg_dict.get("is_error", False),
-                            "result": msg_dict.get("result", "") or "",
-                            "num_turns": msg_dict.get("num_turns", 0),
-                            "cost_usd": msg_dict.get("total_cost_usd", 0) or 0,
-                            "usage": msg_dict.get("usage", {}) or {},
-                            "duration_ms": msg_dict.get("duration_ms", 0),
-                            "session_id": msg_dict.get("session_id", ""),
-                        }
 
             result_data["messages"] = messages
             return result_data
@@ -206,7 +204,7 @@ class ClaudeSDKClient:
             _logger.error("SDK Execution Error: %s", type(e).__name__)
             _logger.error("Error message: %s", e)
 
-            if hasattr(self, "stderr_lines") and self.stderr_lines:
+            if self.stderr_lines:
                 _logger.error("Captured stderr lines from Node.js:")
                 for line in self.stderr_lines:
                     _logger.error("  %s", line)
@@ -224,10 +222,11 @@ class ClaudeSDKClient:
             raise UserError(error_msg) from e  # pylint: disable=missing-gettext,E8507
 
     def execute(self, prompt: str) -> dict:
-        coro = self.execute_async(prompt)
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(coro)
-
-        return loop.run_until_complete(coro)
+            return asyncio.run(self.execute_async(prompt))
+        raise RuntimeError(
+            "ClaudeSDKClient.execute blocks, and this thread already runs an event "
+            "loop; await execute_async instead"
+        )

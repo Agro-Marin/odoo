@@ -1,8 +1,8 @@
 import logging
-from datetime import datetime
+import statistics
+import time
 
-from odoo import _
-from odoo.exceptions import UserError
+from odoo import fields
 
 from odoo.addons.api_transport.tools.api_client import OutboundAPIClient
 from odoo.addons.api_transport.tools.exceptions import (
@@ -16,149 +16,75 @@ _logger = logging.getLogger(__name__)
 
 NON_RETRYABLE_ERRORS = (AuthenticationError, ClientError, ValidationError)
 
+STRATEGIES = ("balanced", "cost", "accuracy", "speed")
+
 
 def is_retryable(exc):
     return not isinstance(exc, NON_RETRYABLE_ERRORS)
 
 
+def _as_list(value):
+    return [value] if isinstance(value, str) else list(value)
+
+
 class AIOrchestrator:
+    _CALLER_ANNOTATIONS = ("origin_model", "origin_record_id")
+
     def __init__(self, env):
         self.env = env
 
-    def select_provider(
-        self,
-        use_case_tags=None,
-        required_capabilities=None,
-        optimize_for="balanced",
-        company_id=None,
-        provider_code=None,
-    ):
-        if provider_code:
-            provider = self.env["ai.provider"].search(
-                [
-                    ("code", "=", provider_code),
-                    ("active", "=", True),
-                ],
-                limit=1,
-            )
-            if provider and self._has_valid_credential(provider, company_id):
-                return provider
-            _logger.warning(
-                "Requested provider '%s' not found or has no valid credentials",
-                provider_code,
-            )
-            return None
-
-        providers = self.env["ai.provider"].search(
-            [
-                ("active", "=", True),
-            ],
-        )
-
-        if not providers:
-            _logger.error("No active AI providers configured")
-            return None
-
-        if required_capabilities:
-            allowed = set(self.env["ai.provider"]._fields)
-            unknown = set(required_capabilities) - allowed
-            if unknown:
-                raise UserError(
-                    _(
-                        "Unknown AI capability fields: %(fields)s",
-                        fields=", ".join(sorted(unknown)),
-                    ),
-                )
-            for field, value in required_capabilities.items():
-                providers = providers.filtered(
-                    lambda p, field=field, value=value: p[field] == value,
-                )
-
-        if use_case_tags:
-            tag_ids = (
-                self.env["ai.use.case.tag"].search([("code", "in", use_case_tags)]).ids
-            )
-            if tag_ids:
-                providers = providers.filtered(
-                    lambda p: any(
-                        tag_id in p.best_for_tag_ids.ids for tag_id in tag_ids
-                    ),
-                )
-
-        providers_with_credentials = self.env["ai.provider"]
-        for provider in providers:
-            if self._has_valid_credential(provider, company_id):
-                providers_with_credentials |= provider
-
-        if not providers_with_credentials:
-            _logger.warning(
-                "No providers found with valid credentials for company_id=%s",
-                company_id,
-            )
-            return None
-
-        return self._optimize_selection(providers_with_credentials, optimize_for)
-
     def select_model(
         self,
+        kind,
+        *,
         use_case_tags=None,
         required_capabilities=None,
         optimize_for="balanced",
         company_id=None,
         provider_code=None,
-        kind=None,
     ):
-        domain = [("active", "=", True), ("provider_id.active", "=", True)]
-        if kind:
-            domain.append(("kind", "=", kind))
-        if provider_code:
-            domain.append(("provider_id.code", "=", provider_code))
-
-        candidates = self.env["ai.model"].search(domain)
-        if not candidates:
-            _logger.error("No active AI models configured for %s", domain)
-            return None
-
-        if required_capabilities:
-            allowed = set(self.env["ai.model"]._fields)
-            unknown = set(required_capabilities) - allowed
-            if unknown:
-                raise UserError(
-                    _(
-                        "Unknown AI capability fields: %(fields)s",
-                        fields=", ".join(sorted(unknown)),
-                    ),
-                )
-            for field, value in required_capabilities.items():
-                candidates = candidates.filtered(
-                    lambda m, field=field, value=value: m[field] == value,
-                )
-
+        if optimize_for not in STRATEGIES:
+            raise ValueError(
+                f"Unknown optimization strategy {optimize_for!r}; expected one of "
+                f"{', '.join(STRATEGIES)}",
+            )
+        AIModel = self.env["ai.model"]
+        domain = [
+            ("kind", "in", _as_list(kind)),
+            ("provider_id.active", "=", True),
+        ]
+        if provider_code is not None:
+            domain.append(("provider_id.code", "in", _as_list(provider_code)))
         if use_case_tags:
-            tag_ids = (
-                self.env["ai.use.case.tag"].search([("code", "in", use_case_tags)]).ids
+            domain.append(
+                ("provider_id.best_for_tag_ids.code", "in", list(use_case_tags))
             )
-            if tag_ids:
-                candidates = candidates.filtered(
-                    lambda m: any(
-                        tag_id in m.provider_id.best_for_tag_ids.ids
-                        for tag_id in tag_ids
-                    ),
+        if required_capabilities:
+            unknown = set(required_capabilities) - set(AIModel._fields)
+            if unknown:
+                raise ValueError(
+                    f"Unknown AI capability fields: {', '.join(sorted(unknown))}",
                 )
-
-        usable = self.env["ai.model"]
-        for model in candidates:
-            if self._has_valid_credential(model.provider_id, company_id):
-                usable |= model
-
-        if not usable:
-            _logger.warning(
-                "No models found with valid credentials for company_id=%s",
-                company_id,
+            domain.extend(
+                (field, "=", value) for field, value in required_capabilities.items()
             )
-            return None
 
-        return self._optimize_model_selection(usable, optimize_for)
+        candidates = AIModel.search(domain)
+        usable_providers = self._get_usable_providers(
+            candidates.provider_id, company_id
+        )
+        usable = candidates.filtered(lambda m: m.provider_id in usable_providers)
+        if not usable:
+            _logger.info(
+                "No %s model is usable for company_id=%s (%s candidate(s) before "
+                "the credential check; domain %s)",
+                kind,
+                company_id or self.env.company.id,
+                len(candidates),
+                domain,
+            )
+            return AIModel
+        return self._rank(usable, optimize_for)[0]
 
     def execute_with_fallback(
         self,
@@ -168,165 +94,137 @@ class AIOrchestrator:
         log_metadata=None,
         company_id=None,
     ):
-        models_to_try = [primary_model]
-        if fallback_chain:
-            models_to_try.extend(fallback_chain)
-        else:
-            models_to_try.extend(primary_model.fallback_model_ids)
-
+        chain = self._get_runnable_chain(primary_model, fallback_chain, company_id)
         last_error = None
-        last_exception = None
         previous_model = None
 
-        for idx, model in enumerate(models_to_try):
-            is_fallback = idx > 0
-            provider = model.provider_id
-            try:
-                _logger.info(
-                    "Attempting AI request with %s on %s (fallback=%s)",
-                    model.code,
-                    provider.name,
-                    is_fallback,
-                )
-
-                annotated = provider.with_context(
-                    **{
-                        OutboundAPIClient.EVENT_LOG_ANNOTATIONS_KEY: (
-                            self._event_annotations(
-                                model,
-                                is_fallback,
-                                previous_model,
-                                log_metadata,
-                            )
-                        )
-                    }
-                )
-                client = self._get_client(annotated, company_id)
-
-                start_time = datetime.now()
-                result = request_func(client, model)
-                duration = (datetime.now() - start_time).total_seconds() * 1000
-
-                _logger.info(
-                    "AI request successful with %s on %s (%.2fms)",
-                    model.code,
-                    provider.name,
-                    duration,
-                )
-
-                return result
-
-            except Exception as e:
-                last_error = str(e)
-                last_exception = e
-                previous_model = model
-                retryable = is_retryable(e)
-                _logger.warning(
-                    "Model %s on %s failed: %s%s",
-                    model.code,
-                    provider.name,
-                    e,
-                    (
-                        ". Trying fallback..."
-                        if retryable and idx < len(models_to_try) - 1
-                        else ". No more fallbacks."
-                    ),
-                )
-
-                if not retryable:
-                    _logger.warning(
-                        "%s is not retryable; stopping the fallback chain at %s "
-                        "instead of asking %d more model(s) the same question.",
-                        type(e).__name__,
-                        model.code,
-                        len(models_to_try) - idx - 1,
+        for position, ai_model in enumerate(chain):
+            provider = ai_model.provider_id
+            annotated = provider.with_context(
+                **{
+                    OutboundAPIClient.EVENT_LOG_ANNOTATIONS_KEY: self._event_annotations(
+                        ai_model, position > 0, previous_model, log_metadata
                     )
-                    break
-
-                if idx == len(models_to_try) - 1:
-                    break
-
+                }
+            )
+            _logger.debug(
+                "AI request %s/%s: %s on %s",
+                position + 1,
+                len(chain),
+                ai_model.code,
+                provider.code,
+            )
+            started = time.monotonic()
+            try:
+                result = request_func(self._get_client(annotated, company_id), ai_model)
+            except Exception as error:
+                if not is_retryable(error):
+                    _logger.warning(
+                        "%s on %s failed with %s, which no other model can fix; "
+                        "not trying the %s remaining hop(s): %s",
+                        ai_model.code,
+                        provider.code,
+                        type(error).__name__,
+                        len(chain) - position - 1,
+                        error,
+                    )
+                    raise
+                _logger.warning(
+                    "%s on %s failed: %s", ai_model.code, provider.code, error
+                )
+                last_error = error
+                previous_model = ai_model
                 continue
 
-        error_msg = f"All AI models failed. Last error: {last_error}"
-        _logger.error(error_msg)
-        raise CommError(error_msg) from last_exception
+            _logger.info(
+                "AI request succeeded with %s on %s in %.0fms",
+                ai_model.code,
+                provider.code,
+                (time.monotonic() - started) * 1000,
+            )
+            return result
 
-    def _has_valid_credential(self, provider, company_id=None):
+        raise CommError(
+            f"All {len(chain)} AI model(s) failed. Last error: {last_error}"
+        ) from last_error
+
+    def _get_runnable_chain(self, primary_model, fallback_chain, company_id):
+        hops = (
+            primary_model.fallback_model_ids
+            if fallback_chain is None
+            else self.env["ai.model"].union(*fallback_chain)
+        )
+        hops = hops.filtered(
+            lambda m: (
+                m.active and m != primary_model and m._can_stand_in_for(primary_model)
+            )
+        )
+        usable_providers = self._get_usable_providers(hops.provider_id, company_id)
+        skipped = hops.filtered(lambda m: m.provider_id not in usable_providers)
+        if skipped:
+            _logger.debug(
+                "Fallback hop(s) %s have no usable credential and are skipped",
+                skipped.mapped("code"),
+            )
+        return [primary_model, *(hops - skipped)]
+
+    def _get_usable_providers(self, providers, company_id=None):
         company_id = company_id or self.env.company.id
-
-        credential = self.env["credential.credential"]._get_for_endpoint(
-            provider.endpoint_id, company=company_id
+        now = fields.Datetime.now()
+        Credential = self.env["credential.credential"]
+        keyless = providers.filtered(lambda p: p.auth_type == "none")
+        credential_of = {
+            provider: Credential._get_for_endpoint(
+                provider.endpoint_id, company=company_id
+            )
+            for provider in providers - keyless
+        }
+        # One read for every credential; each came from its own search, so reading
+        # the field record by record would issue one query per provider.
+        Credential.union(*credential_of.values()).mapped("date_expiration")
+        return keyless | self.env["ai.provider"].union(
+            *(
+                provider
+                for provider, credential in credential_of.items()
+                if credential
+                and not (
+                    credential.date_expiration and credential.date_expiration < now
+                )
+            )
         )
 
-        return bool(credential)
-
-    def _optimize_by_strategy(self, records, strategy, empty, model_of, provider_of):
-        if not records:
-            return empty
-
+    def _rank(self, ai_models, strategy):
         if strategy == "cost":
-            free_tier = records.filtered(lambda r: provider_of(r).has_free_tier)
-            if free_tier:
-                return free_tier[0]
-            return records.sorted(
-                lambda r: model_of(r).cost_per_1m_input or float("inf")
-            )[0]
-
+            return ai_models.sorted(
+                lambda m: (
+                    not m.provider_id.has_free_tier,
+                    m._get_unit_cost() or float("inf"),
+                )
+            )
         if strategy == "accuracy":
-            return records.sorted(
-                lambda r: int(model_of(r).accuracy_rating or "0"),
-                reverse=True,
-            )[0]
-
+            return ai_models.sorted(lambda m: int(m.accuracy_rating), reverse=True)
         if strategy == "speed":
-            return records.sorted(
-                lambda r: int(model_of(r).speed_rating or "0"),
-                reverse=True,
-            )[0]
+            return ai_models.sorted(lambda m: int(m.speed_rating), reverse=True)
 
-        if strategy == "balanced":
+        priced = [cost for cost in (m._get_unit_cost() for m in ai_models) if cost]
+        typical = statistics.median(priced) if priced else 1.0
 
-            def balanced_score(record):
-                model = model_of(record)
-                accuracy = int(model.accuracy_rating or "3")
-                speed = int(model.speed_rating or "3")
-                reliability = int(provider_of(record).reliability_rating or "3")
+        def balanced_score(ai_model):
+            quality = (
+                2 * int(ai_model.accuracy_rating)
+                + int(ai_model.speed_rating)
+                + int(ai_model.provider_id.reliability_rating)
+            )
+            relative_cost = (ai_model._get_unit_cost() or typical) / typical
+            return quality / max(0.1, relative_cost)
 
-                cost = model.cost_per_1m_input or 0.1
-                cost_factor = max(0.1, cost / 1.0)
-
-                return (accuracy * 2 + speed + reliability) / cost_factor
-
-            return records.sorted(balanced_score, reverse=True)[0]
-
-        _logger.warning("Unknown optimization strategy: %s", strategy)
-        return records[0]
-
-    def _optimize_selection(self, providers, strategy):
-        return self._optimize_by_strategy(
-            providers,
-            strategy,
-            self.env["ai.provider"],
-            model_of=lambda p: p.default_model_id,
-            provider_of=lambda p: p,
-        )
-
-    def _optimize_model_selection(self, ai_models, strategy):
-        return self._optimize_by_strategy(
-            ai_models,
-            strategy,
-            self.env["ai.model"],
-            model_of=lambda m: m,
-            provider_of=lambda m: m.provider_id,
-        )
+        return ai_models.sorted(balanced_score, reverse=True)
 
     def _get_client(self, provider, company_id=None):
-        return provider._get_ai_client(company_id or self.env.company.id)
-
-    _CALLER_ANNOTATIONS = ("origin_model", "origin_record_id")
+        return provider._get_ai_client(company_id)
 
     def _event_annotations(self, ai_model, was_fallback, previous_model, metadata=None):
+        metadata = metadata or {}
         tags = [
             f"ai_provider:{ai_model.provider_id.code}",
             f"ai_model:{ai_model.code}",
@@ -334,12 +232,16 @@ class AIOrchestrator:
         ]
         if was_fallback and previous_model:
             tags.append(f"after:{previous_model.code}")
+        tags.extend(
+            f"{key}:{value}"
+            for key, value in metadata.items()
+            if value and key not in self._CALLER_ANNOTATIONS
+        )
 
         annotations = {"tags": ",".join(tags)}
         for key in self._CALLER_ANNOTATIONS:
-            value = (metadata or {}).get(key)
-            if value:
-                annotations[key] = value
+            if metadata.get(key):
+                annotations[key] = metadata[key]
         return annotations
 
 
