@@ -240,9 +240,6 @@
     <record id="hr_case_traineemca0" model="hr.applicant">
         <field name="partner_name">Marie Justine</field>
         <field name="email_from">justinemarie@outlook.example.com</field>
-        <field
-            name="phone_ids"
-            eval="[Command.create({'number': '9988774455', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
         <field
@@ -265,9 +262,6 @@
     <record id="hr_case_traineemca1" model="hr.applicant">
         <field name="partner_name">Lucas Anderson</field>
         <field name="email_from">lucas.anderson@example.com</field>
-        <field
-            name="phone_ids"
-            eval="[Command.create({'number': '99855', 'type': 'mobile'})]" />
         <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
@@ -420,9 +414,6 @@
         <field name="email_from">johnnyboy@gmail.example.com</field>
         <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
-        <field
-            name="create_date"
-            eval="(datetime.now()+relativedelta(months=-2)).strftime('%Y-%m-03 01:00:00')" />
         <field name="job_id" ref="hr.job_marketing" />
         <field name="department_id" ref="hr.dep_sales" />
         <field name="user_id" ref="base.user_admin" />
@@ -438,9 +429,6 @@
         <field name="email_from">sandra.elvis.the.king25@gmail.example.com</field>
         <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
-        <field
-            name="create_date"
-            eval="(datetime.now()+relativedelta(months=-1)).strftime('%Y-%m-08 01:00:00')" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
         <field name="user_id" ref="base.user_demo" />

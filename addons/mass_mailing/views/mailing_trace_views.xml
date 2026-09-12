@@ -63,12 +63,10 @@
                     <filter
                         string="Open Date"
                         name="group_open_date"
-                        domain="[('trace_status', 'in', ['open', 'reply'])]"
                         context="{'group_by': 'open_datetime:day'}" />
                     <filter
                         string="Reply Date"
                         name="group_reply_date"
-                        domain="[('trace_status', '=', 'reply')]"
                         context="{'group_by': 'reply_datetime:day'}" />
                     <filter
                         string="Last State Update"

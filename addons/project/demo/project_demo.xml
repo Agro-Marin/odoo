@@ -662,7 +662,6 @@
         <record id="project_1_task_6" model="project.task">
             <field name="allocated_hours" eval="76.0" />
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]" />
-            <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_1" />
             <field name="name">Room 1: Decoration</field>
             <field name="state">approved</field>
@@ -1288,7 +1287,6 @@ Send it ASAP, its urgent.</field>
             <field
                 name="user_ids"
                 eval="[Command.link(ref('base.user_admin')), Command.link(ref('base.user_demo'))]" />
-            <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_2" />
             <field name="name">New portal system</field>
             <field name="priority">0</field>
@@ -1484,7 +1482,6 @@ Send it ASAP, its urgent.</field>
         <record id="project_3_task_3" model="project.task">
             <field name="allocated_hours" eval="24.0" />
             <field name="user_ids" eval="[Command.link(ref('base.user_admin'))]" />
-            <field name="priority">1</field>
             <field name="project_id" ref="project.project_project_3" />
             <field name="name">Room 1: Paint</field>
             <field

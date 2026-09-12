@@ -266,7 +266,6 @@
             name="invoice_payment_term_id"
             ref="account.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
-        <field name="invoice_date" eval="time.strftime('%Y-%m')+'-22'" />
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field name="invoice_incoterm_id" ref="account.incoterm_EXW" />
         <field

@@ -19,6 +19,7 @@ from . import test_l10n
 from . import test_machine_doc_identifiers
 from . import test_manifests
 from . import test_xml_records
+from . import test_xml_lint
 from . import test_button_targets
 from . import test_view_hygiene
 from . import test_pretty_xml

@@ -43,6 +43,7 @@ class TestGroupReferences(lint_case.LintCase):
         cls.references = []
         for manifest in Manifest.get_all_addon_manifests():
             cls.known_modules.add(manifest.name)
+            core = lint_case.is_core_path(str(manifest.path))
             for path in Path(manifest.path).rglob("*.xml"):
                 if _SKIP_DIRS.intersection(path.parts):
                     continue
@@ -54,10 +55,10 @@ class TestGroupReferences(lint_case.LintCase):
                     if callable(element.tag):
                         continue
                     cls._collect_definition(manifest.name, element)
-                    if not is_test_path(str(path)):
+                    if core and not is_test_path(str(path)):
                         cls._collect_xml_references(manifest.name, path, element)
-
-        for manifest in Manifest.get_all_addon_manifests():
+            if not core:
+                continue
             for path in Path(manifest.path).rglob("*.py"):
                 if _SKIP_DIRS.intersection(path.parts) or is_test_path(str(path)):
                     continue

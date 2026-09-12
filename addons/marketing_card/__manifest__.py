@@ -15,6 +15,7 @@
         "security/ir.model.access.csv",
         "views/card_card_templates.xml",
         "data/card_template_data.xml",
+        "data/utm_source_data.xml",
         "views/card_card_views.xml",
         "views/card_campaign_views.xml",
         "views/card_frontend_templates.xml",

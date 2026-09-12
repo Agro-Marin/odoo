@@ -108,8 +108,6 @@ class XmlRecordLinter(LintCase):
                     )
 
         for tag in _sort_xml_records._TOP_LEVEL_TAGS:
-            if tag == "record":
-                continue
             for elem in root.iter(tag):
                 actual = list(elem.attrib.keys())
                 expected = _sort_xml_records.expected_attrib_order(tag, actual)

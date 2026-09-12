@@ -123,7 +123,6 @@
         <field name="name">How to improve your quality processes</field>
         <field name="is_published" eval="True" />
         <field name="event_id" ref="event.event_0" />
-        <field name="user_id" ref="base.user_admin" />
         <field
             name="date"
             eval="(DateTime.now() + timedelta(days=1, hours=3, minutes=5)).strftime('%Y-%m-%d %H:%M:%S')" />

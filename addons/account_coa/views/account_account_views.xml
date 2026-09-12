@@ -64,7 +64,6 @@
                     <filter
                         string="Account Type"
                         name="accounttype"
-                        domain=""
                         context="{'group_by':'account_type'}" />
                 </group>
                 <searchpanel class="account_root w-auto">

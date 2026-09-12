@@ -67,7 +67,6 @@
                 </div>
             </xpath>
             <xpath expr="//div[@name='card_left']" position="attributes">
-                <field name="self_ordering_mode" invisible="1" />
                 <attribute name="invisible">self_ordering_mode == 'kiosk'</attribute>
             </xpath>
         </field>

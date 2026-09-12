@@ -90,12 +90,61 @@ Four repetitions are legitimate and exempt: a `@typing.overload` stack, a
 file cannot be parsed or tokenised. Both used to be swallowed, and a file whose
 comments cannot be read is one whose every waiver is silently inert.
 
+## The XML rules
+
+The same two halves, for data files. **`_xml_rules.py`** is the vocabulary: an
+`XmlRule` is a name, an advice and a check -- a function over one parsed
+`DataFile` and a cross-file `Context` (the `_name`s every module's Python
+declares, the module names on the addons path). **`_xml_scan.py`** parses every
+`core_data_files()` entry whose root is `<odoo>`, `<data>` or `<openerp>` once,
+records whether a manifest lists it and whether the module's Python names it,
+and runs every rule. `test_xml_lint.py` iterates the registry against
+`lint_xml_<rule>` in `floors.json`, and carries a planted positive and a clean
+negative for every rule, so no rule can go vacuous unnoticed.
+
+| rule | what it catches |
+|---|---|
+| `attributes-spec-child` | an element other than `<attribute>` under `position="attributes"`. `_apply_attributes` iterates `spec.iter("attribute")`, so a `<field>` there is never added and a `<t t-if>` around an attribute guards nothing -- `website_sale` applied its accordion classes on mobile because of one. |
+| `duplicate-field` | one `<field name>` twice in a record. The loader keeps the last; the first is dead. 34 records carried one. |
+| `expression-syntax` | `domain`, `context`, `options`, `invisible`, `readonly`, `required`, `column_invisible`, `filter_domain` inside a model-backed view arch that do not parse as Python, or are empty. `%(xmlid)d` is substituted before parsing; QWeb templates are out of scope, because `required=""` is an HTML boolean there. |
+| `eval-syntax` | an `eval=` that does not parse. `eval=""` is the case: the loader treats it as absent and reads the element text. |
+| `xpath-syntax` | an `expr=` lxml cannot compile (`hasclass()` shimmed). |
+| `tree-view` | a `<tree>` element, or `tree` in a `view_mode`. |
+| `removed-attribute` | `attrs=` or `states=` inside a view arch. |
+| `kanban-box` | `t-name="kanban-box"`, the pre-17.0 card name. |
+| `search-item-name` | a `<filter>` without `name`, or a search `<group>` with `string`/`expand`. |
+| `deprecated-output-directive` | `t-esc` / `t-raw`; `ir.qweb` logs a deprecation per compile. **Floored.** |
+| `legacy-x2many-command` | an `eval` list holding `(6, 0, ...)`-style tuples; `Command` is in the eval context. **Floored.** |
+| `menuitem-placement` | a `<menuitem>` in a file whose name does not say `menu`. **Floored.** |
+| `data-root` | a root element other than `<odoo>`. |
+| `orphan-data-file` | a data file no manifest lists and no Python of its module names by path. `addons/marketing_card/data/utm_source_data.xml` was one: the record it declares never existed, and two `env.ref(..., raise_if_not_found=False)` degraded silently around it. |
+| `unknown-model` | `<record model>`, a view's `model`, an action's `res_model` naming no `_name` in the tree. |
+| `optional-value` | `optional=` outside `show` / `hide` / `conditional`. |
+| `kanban-template-scope` | a kanban entry template reading a `t-set` from a sibling template. |
+| `groupby-filter-domain` | any `domain` on a group-by `<filter>`; `classifyByContext()` promotes it and `visitFilter()` never reads the domain again. |
+
+The last three moved here from `test_view_hygiene.py`, which keeps the two
+gates that need the registry (`OrphanLabelLinter`, `ActWindowViewOrderLinter`).
+
+`test_record_refs.py` judges every reference shape `odoo/tools/convert.py`
+resolves at load: `ref=`, `ref()` inside `eval`, `context`, `search` and
+`t-value`, a bare `uid=`, `<menuitem parent/action/groups>`, `<template
+inherit_id/website_id/groups>`, `<delete id>`, and `%(xmlid)d` inside a
+`type="xml"`/`type="html"` field or a `<template>` (with `%%` honoured). Its
+declaring tags are the loader's -- `record`, `template` (by `id` or `t-name`),
+`menuitem`, `asset`. What the ORM mints is derived, not skipped: a record of a
+model with `_inherits` also declares `<xmlid>_<parent_model>`, every manifest
+`category` declares its `base.module_category_*` chain the way
+`odoo/modules/db.py` does, and `model_<x>` / `module_<x>` resolve only when
+`<x>` is a declared model or a module on the path. `field_`, `selection_` and
+`constraint_` still need the registry and stay undecidable.
+
 ## The fixers, and what they may not change
 
 | | invariant | why |
 |---|---|---|
 | `_pretty_xml.py` | `_xml_identity.is_faithful` | order-**preserving**: it only reindents |
-| `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job |
+| `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job. A comment travels with the field it precedes; any other child keeps its place after the fields, so the sorter settles every record `test_xml_records.py` reports. |
 | `_sort_manifests.py` | `normalize` then a round-trip: the rendered dict must equal `normalize(data)` | value-**normalising**: see below |
 
 `_xml_sweep.py` runs a fixer over every data file **once**; the gates read the
@@ -168,6 +217,11 @@ no `l10n`, a rename that is not the fixer's call).
 additionally drops `_vendor/`, `upgrades/` and `migrations/`;
 `_pretty_xml.is_formattable` drops `_vendor`, `static`, `node_modules` and
 `tests`, because a fixture is not a data file.
+
+The reference gates (`test_record_refs.py`, `test_group_refs.py`,
+`test_menu_parents.py`, `test_button_targets.py`) read *definitions* from every
+manifest on the addons path and judge *references* from this checkout only, so
+a run with `enterprise/` on the path reads the same as the narrow scope.
 
 **Nothing gates the sibling repositories any more.** The cross-repo runner
 under `tooling/` went on 2026-09-11 with the rest of `tooling/`; the Python

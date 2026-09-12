@@ -647,9 +647,6 @@ If you have development competencies, we can propose you specific traineeships</
         </record>
         <record id="work_contact_mit" model="res.partner">
             <field name="name">Anita Oliver</field>
-            <field
-                name="phone_ids"
-                eval="[Command.create({'number': '(555)-672-3185', 'type': 'landline'})]" />
             <field name="email">anita.oliver32@example.com</field>
             <field
                 name="phone_ids"

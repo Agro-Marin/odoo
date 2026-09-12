@@ -13,7 +13,6 @@
                 <filter
                     string="Document Type"
                     name="l10n_latam_document_type"
-                    domain=""
                     context="{'group_by':'l10n_latam_document_type_id'}" />
             </group>
         </field>
@@ -31,7 +30,6 @@
                 <filter
                     string="Document Type"
                     name="l10n_latam_document_type"
-                    domain=""
                     context="{'group_by':'l10n_latam_document_type_id'}" />
             </group>
         </field>

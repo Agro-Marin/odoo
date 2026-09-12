@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.38
+:Version: 6.39
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -33,8 +33,9 @@ Each rule carries a bracketed label naming what catches it.
    * - ``[ruff CODE]``
      - ``ruff check`` reports it.
    * - ``[test_lint CODE]``
-     - A ``test_lint`` rule fails on it. ``E8501``--``E8515`` are the AST
-       checkers; other ``test_lint`` gates have no code and are named by test.
+     - A ``test_lint`` rule fails on it. ``E8501``--``E8517`` are the Python
+       AST checkers; the XML rules are named by rule (``data-root``,
+       ``duplicate-field``, ...) and every other ``test_lint`` gate by test.
    * - ``[fixer NAME]``
      - A behaviour-preserving fixer owns the formatting. Run it; do not hand-edit.
    * - ``[ratchet NAME]``
@@ -5847,6 +5848,27 @@ The conventions they enforce:
   normalises newlines inside an attribute value to spaces, so a multi-line form
   is purely cosmetic and cannot survive the formatter.
 
+The static rules over the same files -- ``[test_lint test_xml_lint]``, the
+vocabulary in ``odoo/addons/test_lint/tests/_xml_rules.py``, one ``lint_xml_*``
+ratchet each, zero unless ``floors.json`` says otherwise:
+
+* The root element is ``<odoo>`` (``data-root``); every data file is listed
+  under ``data`` or ``demo`` in the manifest, or loaded by path from the
+  module's Python (``orphan-data-file``) -- an unlisted file's records never
+  exist, and an ``env.ref(..., raise_if_not_found=False)`` of them degrades
+  silently.
+* A ``<field name>`` appears once per record (``duplicate-field``); the loader
+  keeps the last and the earlier one is dead.
+* ``eval=`` parses as Python and is never empty (``eval-syntax``); an x2many
+  ``eval`` writes ``Command.set/link/create/...``, not the ``(6, 0, ...)``
+  tuples ``[ratchet lint_xml_legacy_x2many_command]``.
+* Every ``model`` a record, view or action names has a ``_name`` in the tree
+  (``unknown-model``).
+* Every reference the loader resolves at install resolves statically
+  ``[test_lint test_record_refs]``: ``ref=``, ``ref()`` in ``eval``/
+  ``context``/``search``, ``%(xmlid)d`` inside an arch or a ``<template>``,
+  ``<template inherit_id>``, ``<menuitem parent/action>``, ``<delete id>``.
+
 3.2 XML IDs
 -----------
 
@@ -5918,7 +5940,7 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
      <chatter/>
    </form>
 
-**List** -- ``<list>``, never ``<tree>``:
+**List** -- ``<list>``, never ``<tree>`` (``tree-view``):
 
 .. code-block:: xml
 
@@ -5934,7 +5956,9 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
 ``expand``; both are rejected by view validation, while ``name``, ``invisible``,
 ``groups`` and ``colspan`` remain valid (the RNG is
 ``odoo/addons/base/rng/common.rng``). Every group and every filter needs a
-``name``, so inheritance can reach it by XPath:
+``name``, so inheritance can reach it by XPath (``search-item-name``). A
+group-by filter carries no ``domain`` -- the client promotes it to a
+``groupBy`` item and never reads one (``groupby-filter-domain``):
 
 .. code-block:: xml
 
@@ -5948,8 +5972,10 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
      </group>
    </search>
 
-**Kanban** -- the card template is ``t-name="card"``, and the CSS classes are
-``card`` and ``menu`` (not ``kanban-card`` / ``kanban-menu``):
+**Kanban** -- the card template is ``t-name="card"`` (``kanban-box``), and the
+CSS classes are ``card`` and ``menu`` (not ``kanban-card`` / ``kanban-menu``).
+Each ``t-name`` is its own OWL template: a ``t-set`` in ``menu`` is not visible
+in ``card`` (``kanban-template-scope``):
 
 .. code-block:: xml
 
@@ -5965,8 +5991,11 @@ and multi-company rules keep the core ``{model}_comp_rule`` form. Leave them;
 
 Across every view type: put ``name=""`` on groups, pages and divs so inheritance
 has something stable to target, and write conditions as Python expressions
-(``invisible=``, ``readonly=``, ``required=``). ``attrs=`` and ``states=`` were
-removed in 17.0; fields referenced only by an expression are auto-injected.
+(``invisible=``, ``readonly=``, ``required=``) that parse -- an empty one is
+dead and belongs off the element (``expression-syntax``). ``attrs=`` and
+``states=`` were removed in 17.0 (``removed-attribute``); fields referenced only
+by an expression are auto-injected. ``optional=`` is ``show`` or ``hide``
+(``optional-value``).
 
 3.4 Wizards
 -----------
@@ -6005,9 +6034,13 @@ and belongs here.
      </field>
    </record>
 
-Prefer ``name=`` targets over positional XPath. Positions are ``inside``,
-``after``, ``before``, ``replace`` and ``attributes``; ``position="replace"`` with
-empty content deletes an element. ``hasclass()`` targets by CSS class.
+Prefer ``name=`` targets over positional XPath; the expression must compile
+(``xpath-syntax``). Positions are ``inside``, ``after``, ``before``, ``replace``
+and ``attributes``; ``position="replace"`` with empty content deletes an
+element. ``hasclass()`` targets by CSS class. Under ``position="attributes"``
+only ``<attribute>`` children are read (``attributes-spec-child``): a
+``<field>`` there is never added, and a ``<t t-if>`` around an ``<attribute>``
+guards nothing.
 
 3.6 QWeb reports
 ----------------
@@ -6039,6 +6072,9 @@ Three parts -- document template, wrapper, action:
      <field name="binding_type">report</field>
      <field name="binding_view_types">list,kanban</field>
    </record>
+
+Output with ``t-out``; ``t-esc`` and ``t-raw`` log a deprecation on every
+compile ``[ratchet lint_xml_deprecated_output_directive]``.
 
 ``report_name`` is required and points at the QWeb template. ``report_file`` is
 optional -- a PDF base-filename hint core often omits. ``binding_type`` is
@@ -6132,8 +6168,10 @@ In test mode ``_render_qweb_pdf`` returns raw HTML unless
 reporting. ``path`` gives the action a readable URL. In XML domains use lists, not
 tuples, and ``uid`` unquoted for the current user.
 
-Every menuitem in a module goes in ``views/ir_ui_menu_views.xml``, not scattered
-across view files:
+Every menuitem in a module goes in ``views/<module>_menus.xml``, not scattered
+across view files ``[ratchet lint_xml_menuitem_placement]`` -- the gate wants
+``menu`` in the file name; ``ir_ui_menu_views.xml`` is where ``base`` keeps the
+views *of* ``ir.ui.menu``:
 
 .. code-block:: xml
 
@@ -8048,6 +8086,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.39
+     - 2026-09-12
+     - §3: the static XML rules (``_xml_rules.py``, one ``lint_xml_*``
+       ratchet each) named beside the conventions they hold; menus go in
+       ``views/<module>_menus.xml``; ``t-out`` over ``t-esc``; every
+       reference shape the loader resolves is checked statically.
    * - 6.38
      - 2026-09-12
      - §1.2: the manifest vocabulary is ``MANIFEST_KEY_ORDER`` alone, the

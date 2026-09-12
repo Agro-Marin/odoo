@@ -12,7 +12,6 @@
             model="pos.session"
             context="{'onboarding_creation': True}"
             forcecreate="False">
-            <field name="name">ClosedSession/0001</field>
             <field name="config_id" ref="pos_config_main" />
             <field name="user_id" ref="base.user_admin" />
             <field name="name">Furniture Shop/Demo/01</field>
@@ -118,7 +117,6 @@
             model="pos.session"
             context="{'onboarding_creation': True}"
             forcecreate="False">
-            <field name="name">ClosedSession/0002</field>
             <field name="config_id" ref="pos_config_main" />
             <field name="user_id" ref="base.user_admin" />
             <field name="name">Furniture Shop/Demo/02</field>

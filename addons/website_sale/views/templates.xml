@@ -1952,13 +1952,11 @@
         name="Collapsed Attributes &amp; Variants filters"
         inherit_id="website_sale.product_attribute_filters_form">
         <xpath expr="//form" position="attributes">
-            <t t-if="not isMobile">
-                <attribute
-                    name="t-attf-class"
-                    add="wsale_accordion_collapsible accordion accordion-flush"
-                    remove="mb-2"
-                    separator=" " />
-            </t>
+            <attribute
+                name="t-attf-class"
+                add="wsale_accordion_collapsible accordion accordion-flush"
+                remove="mb-2"
+                separator=" " />
         </xpath>
         <xpath
             expr="//div[contains(@t-attf-class, 'accordion-item')]//h6"

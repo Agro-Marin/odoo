@@ -190,7 +190,6 @@
                 <filter
                     string="myDATA Status"
                     name="l10n_gr_edi_state_group"
-                    domain=""
                     context="{'group_by':'l10n_gr_edi_state'}" />
             </xpath>
         </field>

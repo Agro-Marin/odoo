@@ -1,4 +1,3 @@
-import ast
 import logging
 import os
 from pathlib import Path
@@ -6,6 +5,7 @@ from pathlib import Path
 from odoo.modules import Manifest
 
 from . import lint_case
+from .lint_case import declared_model_names
 
 _logger = logging.getLogger(__name__)
 
@@ -23,23 +23,6 @@ def module_of(path: str, roots: list[tuple[str, str]]) -> str | None:
         if path.startswith(root + os.sep):
             return name
     return None
-
-
-def declared_model_names(source: str):
-    for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        for statement in node.body:
-            if not isinstance(statement, ast.Assign):
-                continue
-            for target in statement.targets:
-                if (
-                    isinstance(target, ast.Name)
-                    and target.id == "_name"
-                    and isinstance(statement.value, ast.Constant)
-                    and isinstance(statement.value.value, str)
-                ):
-                    yield statement.value.value
 
 
 def is_fixture_model_name(name: str) -> bool:

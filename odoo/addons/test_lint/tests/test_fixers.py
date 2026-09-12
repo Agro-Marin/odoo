@@ -381,19 +381,46 @@ class TestSortXmlRecords(BaseCase):
             ["name", "mode", "mode", "arch"],
         )
 
-    def test_a_record_with_a_non_field_child_is_left_alone(self):
+    def test_a_record_with_a_non_field_child_still_sorts_its_fields(self):
         source = """
             <?xml version="1.0" encoding="utf-8"?>
             <odoo>
                 <record id="v" model="ir.ui.view">
                     <field name="arch" type="xml"><form/></field>
+                    <value>keep me</value>
                     <field name="name">n</field>
-                    <value>keep me first</value>
                 </record>
             </odoo>
         """
         before = textwrap.dedent(source).lstrip().encode()
-        self.assertEqual(_shape(self._sort(source)), _shape(before))
+        out = self._sort(source)
+        self.assertEqual(_shape(out), _shape(before))
+        self.assertEqual(
+            [c.tag for c in etree.fromstring(out).find("record")],
+            ["field", "field", "value"],
+        )
+
+    def test_a_comment_travels_with_the_field_it_precedes(self):
+        out = self._sort("""
+            <?xml version="1.0" encoding="utf-8"?>
+            <odoo>
+                <record id="v" model="ir.ui.view">
+                    <!-- about the arch -->
+                    <field name="arch" type="xml"><form/></field>
+                    <field name="name">n</field>
+                </record>
+            </odoo>
+        """)
+        record = etree.fromstring(out, _PARSER).find("record")
+        kinds = [
+            child.text if callable(child.tag) else child.get("name") for child in record
+        ]
+        self.assertEqual(kinds, ["name", " about the arch ", "arch"])
+        self.assertEqual(
+            _sort_xml_records.sort_xml_file(Path(self.tmpdir) / "case.xml"),
+            False,
+            "the sorted file must not sort again",
+        )
 
     def test_field_order_is_actually_applied(self):
         out = self._sort("""

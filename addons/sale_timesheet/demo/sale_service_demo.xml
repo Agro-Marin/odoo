@@ -114,7 +114,7 @@
             <field name="name">After-Sales Services</field>
             <field
                 name="description">Services provided to customers who have purchased products.</field>
-            <field name="user_id" eval="" />
+            <field name="user_id" />
             <field name="account_id" ref="account_analytic_account_project_support" />
             <field name="allow_billable" eval="True" />
             <field

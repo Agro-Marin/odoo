@@ -52,7 +52,6 @@
                                 id="tax_report_taxable_supplies_expr_amount"
                                 model="account.report.expression">
                                 <field name="label">amount</field>
-                                <field name="engine">external</field>
                                 <field name="engine">tax_tags</field>
                                 <field name="formula">03.tax</field>
                             </record>

@@ -32,7 +32,6 @@
             <field
                 name="title">Before this survey, were you aware of our company?</field>
             <field name="survey_id" ref="lead_qualification_survey" />
-            <field name="question_type" eval="False" />
             <field name="sequence">1</field>
             <field name="question_type">simple_choice</field>
             <field name="constr_mandatory" eval="True" />

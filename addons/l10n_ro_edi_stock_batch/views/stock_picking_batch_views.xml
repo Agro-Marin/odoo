@@ -195,7 +195,6 @@
                 <filter
                     string="eTransport Status"
                     name="l10n_ro_edi_stock_state_group"
-                    domain=""
                     context="{'group_by': 'l10n_ro_edi_stock_state'}" />
             </xpath>
         </field>

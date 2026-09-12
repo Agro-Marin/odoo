@@ -172,35 +172,47 @@ def _normalize_attribs(element: etree._Element) -> bool:
     return True
 
 
+def _field_groups(
+    record: etree._Element,
+) -> tuple[list[list[etree._Element]], list[etree._Element]]:
+    groups: list[list[etree._Element]] = []
+    others: list[etree._Element] = []
+    pending: list[etree._Element] = []
+    for child in record:
+        if callable(child.tag):
+            pending.append(child)
+        elif child.tag == "field":
+            groups.append([*pending, child])
+            pending = []
+        else:
+            others.extend(pending)
+            others.append(child)
+            pending = []
+    others.extend(pending)
+    return groups, others
+
+
 def _sort_record_fields(record: etree._Element, model: str) -> bool:
-    children = list(record)
-
-    if any(callable(c.tag) for c in children):
+    groups, others = _field_groups(record)
+    if len(groups) <= 1:
         return False
 
-    fields = [c for c in children if c.tag == "field"]
-    if len(fields) <= 1 or len(fields) != len(children):
-        return False
-
-    actual_names = [f.get("name") for f in fields]
+    actual_names = [group[-1].get("name") for group in groups]
     expected_names = expected_field_order(actual_names, model)
-
     if actual_names == expected_names:
         return False
 
-    original_tails = [f.tail for f in fields]
+    original_tails = [group[-1].tail for group in groups]
 
-    queues: dict[str | None, list[etree._Element]] = {}
-    for field in fields:
-        queues.setdefault(field.get("name"), []).append(field)
-
+    queues: dict[str | None, list[list[etree._Element]]] = {}
+    for group in groups:
+        queues.setdefault(group[-1].get("name"), []).append(group)
     ordered = [queues[name].pop(0) for name in expected_names]
-    if len(ordered) != len(fields):
-        return False
 
-    for field in fields:
-        record.remove(field)
-    for index, field in enumerate(ordered):
+    for child in list(record):
+        record.remove(child)
+    for index, group in enumerate(ordered):
+        field = group[-1]
         positional_tail = original_tails[index]
         own_is_whitespace = field.tail is None or not field.tail.strip()
         positional_is_whitespace = (
@@ -208,7 +220,10 @@ def _sort_record_fields(record: etree._Element, model: str) -> bool:
         )
         if own_is_whitespace and positional_is_whitespace:
             field.tail = positional_tail
-        record.append(field)
+        for element in group:
+            record.append(element)
+    for element in others:
+        record.append(element)
 
     return True
 

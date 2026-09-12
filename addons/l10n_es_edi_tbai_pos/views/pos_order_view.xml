@@ -10,7 +10,6 @@
                 <xpath
                     expr="//button[@name='action_pos_order_invoice']"
                     position="attributes">
-                    <field name="l10n_es_tbai_post_document_id" invisible="1" />
                     <attribute
                         name="invisible"
                         add="l10n_es_tbai_post_document_id"

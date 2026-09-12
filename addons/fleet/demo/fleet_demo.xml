@@ -982,9 +982,6 @@
         <field name="repeat_unit">day</field>
         <field
             name="expiration_date"
-            eval="(DateTime.now() - timedelta(days=233)).strftime('%Y-%m-%d')" />
-        <field
-            name="expiration_date"
             eval="(DateTime.now() + timedelta(5)).strftime('%Y-%m-%d')" />
         <field name="purchaser_id" ref="base.res_partner_address_18" />
         <field name="insurer_id" ref="base.res_partner_2" />

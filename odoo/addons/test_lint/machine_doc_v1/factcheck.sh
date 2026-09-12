@@ -44,10 +44,10 @@ for f in "$MOD"/tests/_checker_*.py; do
     assert_doc_cites "$(basename "$f")" "checker $(basename "$f")"
 done
 
-# Every rule the registry declares is named by the map.
-rules="$("$PY" "$SCRIPT_DIR/_rule_names.py" "$MOD/tests/_rules.py")"
+# Every rule either registry declares is named by the map.
+rules="$("$PY" "$SCRIPT_DIR/_rule_names.py" "$MOD/tests/_rules.py" "$MOD/tests/_xml_rules.py")"
 if [ -z "$rules" ]; then
-    bad "could not read any rule out of _rules.py"
+    bad "could not read any rule out of _rules.py or _xml_rules.py"
 fi
 for rule in $rules; do
     assert_doc_cites "$rule" "rule $rule"
@@ -56,6 +56,8 @@ done
 # The two halves, the fixers and their invariants.
 assert_file "$MOD/tests/_rules.py" "the rule registry"
 assert_file "$MOD/tests/_py_scan.py" "the scan engine"
+assert_file "$MOD/tests/_xml_rules.py" "the XML rule registry"
+assert_file "$MOD/tests/_xml_scan.py" "the XML scan engine"
 assert_file "$MOD/tests/_xml_identity.py" "the document-identity module"
 assert_file "$MOD/tests/_xml_sweep.py" "the shared fixer sweep"
 assert_doc_cites "is_faithful" "the order-preserving invariant"
