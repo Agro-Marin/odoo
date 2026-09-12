@@ -50,6 +50,12 @@ class LoadMixin(_ModelStubs):
                     comodel = o2m_field.comodel_name
                     creatable_models.add(comodel)
                     model_fields = self.env[comodel]._fields
+        _debug.logic(
+            "load.creatable_models",
+            model=self._name,
+            fields=len(fields),
+            models=len(creatable_models),
+        )
         return creatable_models
 
     def _load_data_list(
@@ -59,8 +65,20 @@ class LoadMixin(_ModelStubs):
         try:
             with self.env.cr.savepoint():
                 ids.extend(self._load_records(data_list, update).ids)
+            _debug.pipeline(
+                "load.batch_loaded",
+                model=self._name,
+                records=len(data_list),
+                update=update,
+            )
             return
         except psycopg.InternalError as e:
+            _debug.logic(
+                "load.batch_internal_error",
+                model=self._name,
+                records=len(data_list),
+                error=type(e).__name__,
+            )
             if not any(message["type"] == "error" for message in messages):
                 messages.append(
                     dict(
@@ -119,10 +137,25 @@ class LoadMixin(_ModelStubs):
                     }
                 )
                 break
+        _debug.pipeline(
+            "load.one_by_one_done",
+            model=self._name,
+            records=len(data_list),
+            loaded=len(ids),
+            errors=errors,
+            update=update,
+        )
         return errors
 
     def _load_record_failure(self, rec_data: dict, exc: BaseException) -> dict:
         info = rec_data["info"]
+        _debug.logic(
+            "load.record_failed",
+            model=self._name,
+            error=type(exc).__name__,
+            pg_error=isinstance(exc, psycopg.Error),
+            user_error=isinstance(exc, UserError),
+        )
         if isinstance(exc, psycopg.Warning):
             return dict(info, type="warning", message=str(exc))
         if isinstance(exc, psycopg.Error):
@@ -166,6 +199,7 @@ class LoadMixin(_ModelStubs):
         batch: list[tuple] = []
         batch_xml_ids: set[str] = set()
         if invalid := self._get_invalid_load_paths(field_paths):
+            _debug.logic("load.invalid_paths", model=self._name, paths=len(invalid))
             return {"ids": False, "messages": invalid, "nextrow": 0}
 
         creatable_models = self._load_creatable_models(field_paths)
@@ -209,6 +243,7 @@ class LoadMixin(_ModelStubs):
             )
             flush()
             if any(message["type"] == "error" for message in messages):
+                _debug.logic("load.rolled_back", model=self._name, errors=len(messages))
                 savepoint.rollback()
                 failed = True
                 self.pool.reset_changes()
@@ -401,6 +436,14 @@ class LoadMixin(_ModelStubs):
         def is_relational(fname):
             return fname in relational_fnames
 
+        _debug.pipeline(
+            "load.extract",
+            model=self._name,
+            fields=len(field_paths),
+            rows=len(data),
+            properties=len(property_definitions),
+            relational=len(relational_fnames),
+        )
         index = 0
         while index < len(data) and index < limit:
             row = data[index]
@@ -483,6 +526,14 @@ class LoadMixin(_ModelStubs):
             if wanted_ids
             else frozenset()
         )
+        _debug.pipeline(
+            "load.convert",
+            model=self._name,
+            records=len(stream),
+            db_ids=len(wanted_ids),
+            known=len(known_ids),
+            lang=bool(self.env.lang),
+        )
 
         for stream_index, (record, extras) in enumerate(stream):
             xid = record.get("id", False)
@@ -493,6 +544,12 @@ class LoadMixin(_ModelStubs):
                 except ValueError:
                     dbid = record[".id"]
                 if dbid not in known_ids:
+                    _debug.logic(
+                        "load.unknown_db_id",
+                        model=self._name,
+                        record=stream_index,
+                        dbid=dbid,
+                    )
                     log(
                         dict(
                             extras,
@@ -522,6 +579,12 @@ class LoadMixin(_ModelStubs):
 
         self.write(values)
         if to_write:
+            _debug.logic(
+                "load.properties_merged",
+                model=self._name,
+                record=self.id,
+                fields=len(to_write),
+            )
             self.write(to_write)
             self._remove_stale_properties()
 
@@ -601,24 +664,41 @@ class LoadMixin(_ModelStubs):
         self._load_records_check_import_prefix(to_create)
 
         if to_create:
-            records = self._load_records_create([data["values"] for data in to_create])
-            for data, created in zip(to_create, records, strict=True):
-                data["record"] = created
-                if data.get("xml_id"):
-                    for parent_model, parent_field in self._inherits.items():
-                        if not data["values"].get(parent_field):
-                            imd_data_list.append(
-                                {
-                                    "xml_id": f"{data['xml_id']}_{parent_model.replace('.', '_')}",
-                                    "record": created[parent_field],
-                                    "noupdate": data.get("noupdate", False),
-                                }
-                            )
-                    imd_data_list.append(data)
+            self._load_records_create_batch(to_create, imd_data_list)
 
+        _debug.lifecycle(
+            "load.xmlids_updated",
+            model=self._name,
+            xmlids=len(imd_data_list),
+            update=update,
+        )
         imd._update_xmlids(imd_data_list, update)
 
         return original_self.concat(*(data["record"] for data in data_list))
+
+    def _load_records_create_batch(
+        self, to_create: list[dict], imd_data_list: list[dict]
+    ) -> None:
+        records = self._load_records_create([data["values"] for data in to_create])
+        _debug.lifecycle(
+            "load.records_created",
+            model=self._name,
+            records=len(records),
+            inherits=len(self._inherits),
+        )
+        for data, created in zip(to_create, records, strict=True):
+            data["record"] = created
+            if data.get("xml_id"):
+                for parent_model, parent_field in self._inherits.items():
+                    if not data["values"].get(parent_field):
+                        imd_data_list.append(
+                            {
+                                "xml_id": f"{data['xml_id']}_{parent_model.replace('.', '_')}",
+                                "record": created[parent_field],
+                                "noupdate": data.get("noupdate", False),
+                            }
+                        )
+                imd_data_list.append(data)
 
     def _load_records_warn_foreign_module(self, to_create: list[dict]) -> None:
         module = self.env.context.get("install_module")
@@ -634,6 +714,12 @@ class LoadMixin(_ModelStubs):
                 _logger.warning(
                     "Creating record %s in module %s.", data["xml_id"], module
                 )
+                _debug.logic(
+                    "load.foreign_record_created",
+                    model=self._name,
+                    module=module,
+                    xml_id=data["xml_id"],
+                )
 
     def _load_records_check_import_prefix(self, to_create: list[dict]) -> None:
         if not self.env.context.get("import_file"):
@@ -647,6 +733,12 @@ class LoadMixin(_ModelStubs):
             return
         existing_modules = set(
             self.env["ir.module.module"].sudo().search([]).mapped("name")
+        )
+        _debug.logic(
+            "load.import_prefix_checked",
+            model=self._name,
+            dotted=len(dotted),
+            modules=len(existing_modules),
         )
         for xml_id in dotted:
             module_name, _sep, record_id = xml_id.partition(".")

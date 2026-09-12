@@ -35,6 +35,12 @@ class LifecycleMixin(_ModelStubs):
             .search_read(domain, ["module", "name", "res_id"], order="id")
         ):
             result[data["res_id"]].append(f"{data['module']}.{data['name']}")
+        _debug.perf.count(
+            "lifecycle.external_ids",
+            model=self._name,
+            records=len(self),
+            with_xmlid=len(result),
+        )
         return {record.id: result[record._origin.id] for record in self}
 
     def get_external_id(self) -> dict[IdType, str]:
@@ -50,6 +56,12 @@ class LifecycleMixin(_ModelStubs):
         if not self._active_name:
             raise UserError(self.env._("No 'active' field on model %s", self._name))
         active_recs = self.filtered(self._active_name)
+        _debug.logic(
+            "lifecycle.toggle_active",
+            model=self._name,
+            records=len(self),
+            active=len(active_recs),
+        )
         active_recs.action_archive()
         (self - active_recs).action_unarchive()
 
@@ -122,6 +134,14 @@ class LifecycleMixin(_ModelStubs):
             res = method(self)
             if not res:
                 continue
+            _debug.logic(
+                "lifecycle.onchange.result",
+                model=self._name,
+                field=field_name,
+                method=getattr(method, "__name__", "?"),
+                values=len(res.get("value") or ()),
+                warning=bool(res.get("warning")),
+            )
             if res.get("value"):
                 for key, val in res["value"].items():
                     if key in self._fields and key != "id":

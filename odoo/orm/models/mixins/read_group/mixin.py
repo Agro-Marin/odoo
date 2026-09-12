@@ -94,6 +94,13 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if len(batched_calls) <= 1:
             return False
 
+        _debug.pipeline(
+            "read_group.m2m_split",
+            model=self._name,
+            sets=len(grouping_sets),
+            many2many=len(many2many_groupby_specs),
+            batches=len(batched_calls),
+        )
         for indexes, sub_grouping_sets in batched_calls:
             sub_order_parts = []
             all_sub_groupby = {
@@ -192,6 +199,11 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         query = self._search(domain)
         result: list[list[tuple]] = [[] for __ in grouping_sets]
         if query.is_empty():
+            _debug.logic(
+                "read_group.grouping_sets_empty_query",
+                model=self._name,
+                sets=len(grouping_sets),
+            )
             self._check_read_group_spec_access(
                 itertools.chain.from_iterable(grouping_sets), aggregates, query
             )
@@ -232,6 +244,7 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
                 return result
 
         elif many2many_groupby_specs and "__count" in aggregates:
+            _debug.logic("read_group.count_distinct_rewrite", model=self._name)
             aggregates, order = self._read_group_count_distinct(aggregates, order)
 
         groupby_terms, select_args = self._read_grouping_sets_query(
@@ -239,6 +252,14 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         )
 
         row_values = self.env.execute_query(query.select(*select_args))
+        _debug.perf.count(
+            "read_group.grouping_sets_rows",
+            model=self._name,
+            sets=len(grouping_sets),
+            groupby=len(all_groupby_specs),
+            aggregates=len(aggregates),
+            rows=len(row_values),
+        )
         if not row_values:
             return result
 
@@ -674,6 +695,15 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
 
         rows_dict = self._read_group_apply_fill_temporal(
             rows_dict, lazy_groupby, annotated_aggregates
+        )
+        _debug.pipeline(
+            "read_group.legacy",
+            model=self._name,
+            groupby=len(groupby),
+            lazy=lazy,
+            aggregates=len(annotated_aggregates),
+            rows=len(rows_dict),
+            limit=limit,
         )
 
         if lazy_groupby and lazy:

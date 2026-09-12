@@ -35,6 +35,12 @@ class TranslationMixin(_ModelStubs):
         }
         missing_langs = (set(translations) | {source_lang}) - valid_langs
         if missing_langs:
+            _debug.logic(
+                "translation.langs_inactive",
+                model=self._name,
+                missing=sorted(missing_langs),
+                installed=len(valid_langs),
+            )
             raise UserError(
                 _(
                     "The following languages are not activated: %(missing_names)s",
@@ -60,6 +66,9 @@ class TranslationMixin(_ModelStubs):
             for lang, translation in translations.items()
         }
         if not translations:
+            _debug.logic(
+                "translation.model_update_empty", model=self._name, field=field_name
+            )
             return False
 
         translation_fallback = (
@@ -90,6 +99,15 @@ class TranslationMixin(_ModelStubs):
                 id=self.id,
             )
         )
+        _debug.lifecycle(
+            "translation.model_updated",
+            model=self._name,
+            field=field_name,
+            record=self.id,
+            langs=len(translations),
+            fallback=translation_fallback is not None,
+            rows=self.env.cr.rowcount,
+        )
         self.modified([field_name])
         return True
 
@@ -98,6 +116,12 @@ class TranslationMixin(_ModelStubs):
     ) -> bool:
         old_values = field._get_stored_translations(self)
         if not old_values:
+            _debug.logic(
+                "translation.terms_no_stored_values",
+                model=self._name,
+                field=field.name,
+                record=self.id,
+            )
             return False
 
         for lang in translations:
@@ -161,6 +185,16 @@ class TranslationMixin(_ModelStubs):
                 field.translate(_new_translations.get, old_source_lang_value),
                 self,
             )
+        _debug.pipeline(
+            "translation.terms_updated",
+            model=self._name,
+            field=field.name,
+            record=self.id,
+            langs=len(translations),
+            terms=len(old_translation_dictionary),
+            digest=digest is not None,
+            source_key=source_key,
+        )
         field._update_cache(
             self.with_context(prefetch_langs=True), new_values, dirty=True
         )
@@ -270,6 +304,15 @@ class TranslationMixin(_ModelStubs):
         )
         context["translation_show_source"] = callable(field.translate)
 
+        _debug.perf.count(
+            "translation.field_translations_read",
+            model=self._name,
+            field=field_name,
+            record=self.id,
+            langs=len(langs),
+            entries=len(translations),
+            terms=callable(field.translate),
+        )
         return translations, context
 
     def _get_base_lang(self) -> str:

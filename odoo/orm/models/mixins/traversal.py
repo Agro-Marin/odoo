@@ -92,6 +92,12 @@ class TraversalMixin(_ModelStubs):
             for rel_field_name in rel_field_names:
                 records = records[rel_field_name]
             if len(records) > PREFETCH_MAX:
+                _debug.logic(
+                    "traversal.mapped.prefetch_exceeded",
+                    model=records._name,
+                    field=field_name,
+                    records=len(records),
+                )
                 records.fetch([field_name])
             field = records._fields[field_name]
             getter = field.__get__
@@ -117,6 +123,13 @@ class TraversalMixin(_ModelStubs):
                     for idx in miss_indices:
                         result[idx] = getter(rec_list[idx])
                     if is_cache_detached(field, records.env, field_cache):
+                        _debug.logic(
+                            "traversal.mapped.cache_detached",
+                            model=records._name,
+                            field=field_name,
+                            records=len(records),
+                            misses=len(miss_indices),
+                        )
                         return [getter(record) for record in records]
                 return result
             else:
@@ -132,6 +145,12 @@ class TraversalMixin(_ModelStubs):
                             field, records.env, field_cache
                         )
                 if _detached:
+                    _debug.logic(
+                        "traversal.mapped.cache_detached",
+                        model=records._name,
+                        field=field_name,
+                        records=len(records),
+                    )
                     return [getter(record) for record in records]
             return result
 
@@ -163,6 +182,12 @@ class TraversalMixin(_ModelStubs):
                 return self.browse([id_ for id_ in self._ids if id_])
             field = self._fields[func]
             if not can_scan_truthy(field):
+                _debug.logic(
+                    "traversal.filtered.unscannable_field",
+                    model=self._name,
+                    field=func,
+                    records=len(self),
+                )
                 _field_get = field.__get__
                 return self.browse(rec._ids[0] for rec in self if _field_get(rec))
             field.check_read_access(self)
@@ -178,6 +203,13 @@ class TraversalMixin(_ModelStubs):
                     if _field_get(rec_list[idx]):
                         passing_ids.append(rec_list[idx]._ids[0])
                 if is_cache_detached(field, self.env, field_cache):
+                    _debug.logic(
+                        "traversal.filtered.cache_detached",
+                        model=self._name,
+                        field=func,
+                        records=len(self),
+                        misses=len(miss_indices),
+                    )
                     return self.browse(
                         rec._ids[0] for rec in rec_list if _field_get(rec)
                     )
@@ -239,6 +271,9 @@ class TraversalMixin(_ModelStubs):
                             else:
                                 group.append(rec_id)
                         if is_cache_detached(field, self.env, field_cache):
+                            _debug.logic(
+                                "traversal.grouped.cache_detached", model=self._name
+                            )
                             collator = defaultdict(list)
                             for record in rec_list:
                                 collator[_field_get(record)].append(record._ids[0])
@@ -260,6 +295,9 @@ class TraversalMixin(_ModelStubs):
                             )
                         collator[group_key].append(rec_id)
                     if _detached:
+                        _debug.logic(
+                            "traversal.grouped.cache_detached", model=self._name
+                        )
                         collator = defaultdict(list)
                         for record in self:
                             collator[_field_get(record)].append(record._ids[0])
@@ -410,6 +448,12 @@ class TraversalMixin(_ModelStubs):
             if field.is_many2one and (not property_name or property_name == "id"):
                 seen = _env.context.get("__m2o_order_seen_sorted", ())
                 if field in seen:
+                    _debug.logic(
+                        "traversal.sorted.m2o_order_cycle",
+                        model=self._name,
+                        field=field_name,
+                        depth=len(seen),
+                    )
                     return lambda _: None
                 comodel = _env[field.comodel_name].with_context(
                     __m2o_order_seen_sorted=frozenset((field, *seen))
@@ -487,6 +531,15 @@ class TraversalMixin(_ModelStubs):
                 unresolved.append(rec)
         for rec in unresolved:
             result.update(rec._get_ancestor_ids_by_walking(include_self))
+        if _debug.logic.enabled and unresolved:
+            _debug.logic(
+                "traversal.ancestors_walked",
+                model=self._name,
+                records=len(self),
+                walked=len(unresolved),
+                has_parent_path=has_path,
+                ancestors=len(result),
+            )
         return result
 
     def _get_ancestor_ids_by_walking(self, include_self: bool) -> list[int]:
@@ -518,6 +571,13 @@ class TraversalMixin(_ModelStubs):
         )
         if not include_self:
             found -= OrderedSet(self.ids)
+        _debug.perf.count(
+            "traversal.descendants",
+            model=self._name,
+            records=len(self.ids),
+            found=len(found),
+            include_self=include_self,
+        )
         return found
 
     def _is_descendant_of(self, other: BaseModel, strict: bool = False) -> bool:
@@ -585,5 +645,13 @@ class TraversalMixin(_ModelStubs):
                 col1=SQL.identifier(column1),
                 col2=SQL.identifier(column2),
             )
+        )
+        _debug.perf.count(
+            "traversal.cycle_checked",
+            model=self._name,
+            field=field_name,
+            records=len(self.ids),
+            many2many=field.is_many2many,
+            cyclic=bool(cr.rowcount),
         )
         return bool(cr.fetchone())

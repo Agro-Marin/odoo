@@ -6,6 +6,7 @@ import babel.dates
 
 from odoo.libs.datetime import all_timezones, utc
 from odoo.libs.datetime import timezone as get_timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     DEFAULT_SERVER_DATE_FORMAT,
     DEFAULT_SERVER_DATETIME_FORMAT,
@@ -28,6 +29,8 @@ if typing.TYPE_CHECKING:
     from collections.abc import Generator, Sequence
 
     from odoo.libs.datetime import Granularity
+
+_debug = DebugLog(__name__)
 
 
 class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
@@ -203,6 +206,12 @@ class _ReadGroupFormatMixin(_ReadGroupEmptyMixin):
                 row["__domain"] &= Domain(additional_domain)
         for row in rows_dict:
             row["__domain"] = list(row["__domain"])
+        _debug.pipeline(
+            "read_group.formatted",
+            model=self._name,
+            rows=len(rows_dict),
+            groups=len(lazy_groupby),
+        )
 
     def _format_properties_selection(
         self, rows_dict: list[dict], fullname: str, definition: dict

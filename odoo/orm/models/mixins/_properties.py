@@ -1,5 +1,6 @@
 import typing
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from ... import decorators as api
@@ -8,6 +9,8 @@ from ._model_stubs import _ModelStubs
 
 if typing.TYPE_CHECKING:
     from ...fields.base import Field
+
+_debug = DebugLog(__name__)
 
 
 class _PropertiesMixin(_ModelStubs):
@@ -54,6 +57,14 @@ class _PropertiesMixin(_ModelStubs):
                 name=property_name,
             )
         )
+        _debug.perf.count(
+            "properties.definition_read",
+            model=self._name,
+            field=field_name,
+            property=property_name,
+            definition_model=target_model._name,
+            found=bool(result),
+        )
         return result[0]["definition"] if result else {}
 
     def _remove_stale_properties(self) -> None:
@@ -73,6 +84,14 @@ class _PropertiesMixin(_ModelStubs):
                     if name in all_names
                 }
                 if len(new_values) != len(old_value):
+                    _debug.lifecycle(
+                        "properties.stale_removed",
+                        model=self._name,
+                        field=fname,
+                        record=record.id,
+                        removed=len(old_value) - len(new_values),
+                        kept=len(new_values),
+                    )
                     record[fname] = new_values
 
     def _check_properties_definition(

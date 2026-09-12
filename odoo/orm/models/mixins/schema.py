@@ -52,9 +52,11 @@ class SchemaMixin(_ModelStubs):
             return
         cr = self.env.cr
         cols = {name for name, field in self._fields.items() if field.is_column}
+        stale = 0  # debuglog
         for col_name, col_data in sql.get_table_columns(cr, self._table).items():
             if col_name in cols:
                 continue
+            stale += 1  # debuglog
             _logger.debug(
                 "column %s is in the table %s but not in the corresponding object %s",
                 col_name,
@@ -68,6 +70,14 @@ class SchemaMixin(_ModelStubs):
                     column=col_name,
                 )
                 sql.drop_not_null(cr, self._table, col_name)
+        if _debug.perf.enabled and stale:
+            _debug.perf.count(
+                "schema.removed_columns_found",
+                model=self._name,
+                table=self._table,
+                stale=stale,
+                declared=len(cols),
+            )
 
     def _init_column(self, column_name: str, *, new_column: bool = False) -> None:
         field = self._fields[column_name]
@@ -102,11 +112,25 @@ class SchemaMixin(_ModelStubs):
                     value=value,
                 )
             )
+            _debug.lifecycle(
+                "schema.column_default_set",
+                model=getattr(self, "_name", None),
+                table=self._table,
+                column=column_name,
+                new_column=new_column,
+                rows=getattr(self.env.cr, "rowcount", None),
+            )
 
     @ormcache()
     def _has_rows_in_table(self) -> bool:
         self.env.cr.execute(
             SQL("SELECT 1 FROM %s LIMIT 1", SQL.identifier(self._table))
+        )
+        _debug.perf.count(
+            "schema.rows_probed",
+            model=self._name,
+            table=self._table,
+            rows=bool(self.env.cr.rowcount),
         )
         return bool(self.env.cr.rowcount)
 
@@ -148,6 +172,9 @@ class SchemaMixin(_ModelStubs):
                         if field.name != "id" and field.is_column
                     ],
                 )
+                _debug.lifecycle(
+                    "schema.table_created", model=self._name, table=self._table
+                )
 
             if self._parent_store:
                 if not sql.column_exists(cr, self._table, "parent_path"):
@@ -155,6 +182,11 @@ class SchemaMixin(_ModelStubs):
                         self.env.cr, self._table, "parent_path", "VARCHAR"
                     )
                     parent_path_compute = True
+                    _debug.lifecycle(
+                        "schema.parent_path_column_added",
+                        model=self._name,
+                        table=self._table,
+                    )
                 self._check_parent_path()
 
             columns = sql.get_table_columns(cr, self._table)
@@ -181,18 +213,28 @@ class SchemaMixin(_ModelStubs):
             )
 
             if fields_to_compute:
-                cr.execute(SQL("SELECT id FROM %s", SQL.identifier(self._table)))
-                records = self.browse(row[0] for row in cr.fetchall())
-                if records:
-                    for field in fields_to_compute:
-                        _logger.info("Prepare computation of %s", field)
-                        self.env.add_to_compute(field, records)
+                self._schedule_new_column_computes(fields_to_compute)
 
         if self._auto:
             self._add_sql_constraints()
 
         if parent_path_compute:
             self._update_parent_path_of_table()
+
+    def _schedule_new_column_computes(self, fields_to_compute: list) -> None:
+        cr = self.env.cr
+        cr.execute(SQL("SELECT id FROM %s", SQL.identifier(self._table)))
+        records = self.browse(row[0] for row in cr.fetchall())
+        _debug.pipeline(
+            "schema.new_column_computes_scheduled",
+            model=self._name,
+            fields=len(fields_to_compute),
+            records=len(records),
+        )
+        if records:
+            for field in fields_to_compute:
+                _logger.info("Prepare computation of %s", field)
+                self.env.add_to_compute(field, records)
 
     @api.private
     def init(self) -> None:
@@ -285,6 +327,14 @@ class SchemaMixin(_ModelStubs):
             info["field_display"] = f"'{field_string}' ({field.name})"
         else:
             info["field_display"] = f"'{format_list(self.env, columns)}'"
+        _debug.logic(
+            "schema.sql_error.classified",
+            model=self._name,
+            error=type(exc).__name__,
+            own_table=self._table == diag.table_name,
+            columns=len(columns),
+            constraint=diag.constraint_name,
+        )
 
         if isinstance(exc, psycopg.errors.NotNullViolation):
             return self.env._(

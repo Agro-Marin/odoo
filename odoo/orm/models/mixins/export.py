@@ -68,6 +68,13 @@ class ExportMixin(_ModelStubs):
             return f"{module}.{name}" if module else name
 
         missing = self.filtered(lambda r: r.id not in xids)
+        _debug.pipeline(
+            "export.xmlids_resolved",
+            model=self._name,
+            records=len(self),
+            existing=len(xids),
+            missing=len(missing),
+        )
         if not missing:
             return ((record, to_xid(record.id)) for record in self)
 
@@ -92,6 +99,12 @@ class ExportMixin(_ModelStubs):
             ],
         )
         self.env["ir.model.data"].invalidate_model(fields)
+        _debug.lifecycle(
+            "export.xmlids_created",
+            model=self._name,
+            records=len(missing),
+            module=modname,
+        )
 
         return ((record, to_xid(record.id)) for record in self)
 
@@ -203,6 +216,14 @@ class ExportMixin(_ModelStubs):
 
         if _is_toplevel_call:
             self.env.cr.cache.pop("export_properties_cache", None)
+            _debug.pipeline(
+                "export.rows",
+                model=self._name,
+                records=len(self),
+                fields=len(fields),
+                rows=len(lines),
+                import_compatible=import_compatible,
+            )
 
         return lines
 
@@ -258,6 +279,13 @@ class ExportMixin(_ModelStubs):
         )
 
         fnames = list(unique(fname.split(".")[0] for fname in fnames_by_path))
+        _debug.pipeline(
+            "export.prefetch",
+            model=records._name,
+            records=len(records),
+            fields=len(fnames),
+            paths=len(fnames_by_path),
+        )
         records.fetch(fnames)
         for fname in fnames:
             field = records._fields[fname]
@@ -305,6 +333,13 @@ class ExportMixin(_ModelStubs):
                 if isinstance(cell, tuple):
                     bymodels[cell[0]].add(cell[1])
                     xidmap[cell].append((i, j))
+        _debug.perf.count(
+            "export.xids_to_resolve",
+            model=self._name,
+            models=len(bymodels),
+            cells=len(xidmap),
+            rows=len(lines),
+        )
         for model, ids in bymodels.items():
             for record, xid in self.env[model].browse(ids)._get_or_create_xml_ids():
                 for i, j in xidmap.pop((record._name, record.id)):
@@ -319,6 +354,12 @@ class ExportMixin(_ModelStubs):
         if not (
             self.env.is_admin() or self.env.user.has_group("base.group_allow_export")
         ):
+            _debug.logic(
+                "export.denied",
+                model=self._name,
+                uid=self.env.uid,
+                records=len(self),
+            )
             raise UserError(
                 _(
                     "You don't have the rights to export data. Please contact an Administrator."

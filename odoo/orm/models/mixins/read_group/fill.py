@@ -2,6 +2,7 @@ import collections
 import datetime
 import typing
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils, get_lang
 
 from .... import decorators as api
@@ -15,6 +16,8 @@ from ._empty import _ReadGroupEmptyMixin
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
+
+_debug = DebugLog(__name__)
 
 
 class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
@@ -103,6 +106,14 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
             for key, line in result.items():
                 line["__fold"] = fold.get(key, False)
 
+        _debug.pipeline(
+            "read_group.expanded",
+            model=self._name,
+            field=field_name,
+            groups=len(read_group_result),
+            expanded=len(result),
+            relational=field.relational,
+        )
         return list(result.values())
 
     def _read_group_fill_temporal_bound(self, field, granularity, days_offset, bound):
@@ -116,6 +127,38 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         else:
             value = date_utils.start_of(value, granularity)
         return value - datetime.timedelta(days=days_offset)
+
+    def _read_group_fill_temporal_bounds(
+        self,
+        field,
+        granularity: str,
+        days_offset: int,
+        existing: list,
+        fill_from: str | bool,
+        fill_to: str | bool,
+    ) -> tuple[typing.Any, typing.Any]:
+        existing_from, existing_to = existing[0], existing[-1]
+
+        bound_from: typing.Any = None
+        bound_to: typing.Any = None
+        if fill_from:
+            bound_from = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_from
+            )
+        elif existing_from:
+            bound_from = existing_from
+        if fill_to:
+            bound_to = self._read_group_fill_temporal_bound(
+                field, granularity, days_offset, fill_to
+            )
+        elif existing_to:
+            bound_to = existing_to
+
+        if not bound_to and bound_from:
+            bound_to = bound_from
+        if not bound_from and bound_to:
+            bound_from = bound_to
+        return bound_from, bound_to
 
     @api.model
     def _read_group_fill_temporal(
@@ -144,34 +187,29 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         interval = READ_GROUP_TIME_GRANULARITY[granularity]
 
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
-        existing_from, existing_to = existing[0], existing[-1]
 
-        bound_from: typing.Any = None
-        bound_to: typing.Any = None
-        if fill_from:
-            bound_from = self._read_group_fill_temporal_bound(
-                field, granularity, days_offset, fill_from
-            )
-        elif existing_from:
-            bound_from = existing_from
-        if fill_to:
-            bound_to = self._read_group_fill_temporal_bound(
-                field, granularity, days_offset, fill_to
-            )
-        elif existing_to:
-            bound_to = existing_to
-
-        if not bound_to and bound_from:
-            bound_to = bound_from
-        if not bound_from and bound_to:
-            bound_from = bound_to
+        bound_from, bound_to = self._read_group_fill_temporal_bounds(
+            field, granularity, days_offset, existing, fill_from, fill_to
+        )
         if not bound_from and not bound_to:
+            _debug.logic(
+                "read_group.fill_temporal_skipped",
+                model=self._name,
+                field=field_name,
+                reason="no_bounds",
+            )
             return data
 
         if min_groups > 0:
             bound_to = max(bound_to, bound_from + (min_groups - 1) * interval)
 
         if bound_to < bound_from:
+            _debug.logic(
+                "read_group.fill_temporal_skipped",
+                model=self._name,
+                field=field_name,
+                reason="inverted_bounds",
+            )
             return data
 
         required_dates = date_utils.date_range(bound_from, bound_to, interval)
@@ -199,4 +237,13 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
         if False in grouped_data:
             result.extend(grouped_data[False])
 
+        _debug.pipeline(
+            "read_group.fill_temporal",
+            model=self._name,
+            field=field_name,
+            granularity=granularity,
+            rows=len(data),
+            filled=len(result),
+            min_groups=min_groups,
+        )
         return result

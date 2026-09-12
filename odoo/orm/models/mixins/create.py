@@ -129,6 +129,14 @@ class CreateMixin(_ModelStubs):
                 if name not in values
                 if not avoid(field)
             ]
+            _debug.logic(
+                "create.missing_defaults_computed",
+                model=self._name,
+                given=len(values),
+                missing=len(missing_defaults),
+                avoided_parents=len(avoid_models),
+                cached=_missing_defaults_cache is not None,
+            )
             if _missing_defaults_cache is not None:
                 _missing_defaults_cache[vals_keys] = missing_defaults
 
@@ -178,6 +186,12 @@ class CreateMixin(_ModelStubs):
             if field is None:
                 raise ValueError(f"Invalid field {field_name!r} in {self._name!r}")
             self._check_field_access(field, "write")
+        _debug.pipeline(
+            "create.field_access_checked",
+            model=self._name,
+            records=len(vals_list),
+            fields=len(field_names),
+        )
         return field_names
 
     def _create_partition_values(
@@ -277,6 +291,13 @@ class CreateMixin(_ModelStubs):
                     inv_rec_ids.append(record.id)
 
                 inv_records = self.browse(inv_rec_ids)
+                _debug.pipeline(
+                    "create.inverse_hook",
+                    model=self._name,
+                    field=next(iter(fields)).name,
+                    fields=len(fields),
+                    records=len(inv_rec_ids),
+                )
                 next(iter(fields)).apply_inverse(inv_records)
                 inv_relational_fnames = [
                     field.name
@@ -335,6 +356,14 @@ class CreateMixin(_ModelStubs):
         if prof.agg and (p := self.env.transaction._orm_profiler):
             p.record("create", self._name, len(records), prof.elapsed)
 
+        _debug.lifecycle(
+            "create.records",
+            model=self._name,
+            records=len(records),
+            fields=len(field_names),
+            uid=self.env.uid,
+            company_checked=self._check_company_auto,
+        )
         self._create_update_xmlids(records, vals_list)
         return records
 
@@ -381,6 +410,14 @@ class CreateMixin(_ModelStubs):
 
             result_vals_list.append(vals)
 
+        _debug.pipeline(
+            "create.values_prepared",
+            model=self._name,
+            records=len(result_vals_list),
+            forbidden=len(bad_names),
+            precompute_readonly=len(precompute_readonly),
+            default_sets=len(missing_defaults_cache),
+        )
         self._add_precomputed_values(result_vals_list)
 
         return result_vals_list
@@ -417,28 +454,35 @@ class CreateMixin(_ModelStubs):
             for vals in vals_list_todo
         ]
 
-        try:
-            for vals in vals_list_todo:
-                vals["__precomputed__"] = set()
+        with _debug.perf(
+            "create.precompute_values",
+            cr=self.env.cr,
+            model=self._name,
+            records=len(vals_list_todo),
+            fields=len(precomputable),
+        ):
+            try:
+                for vals in vals_list_todo:
+                    vals["__precomputed__"] = set()
 
-            for fname, field in precomputable.items():
-                todo = [
-                    (record, vals, given)
-                    for record, vals, given in zip(
-                        records, vals_list_todo, givens, strict=True
-                    )
-                    if fname not in vals
-                ]
-                if not todo:
-                    continue
-                for record, _vals, given in todo:
-                    if given:
-                        record._update_cache(given, validate=False)
-                for record, vals, _given in todo:
-                    vals[fname] = field.convert_to_write(record[fname], self)
-                    vals["__precomputed__"].add(field)
-        finally:
-            self._discard_precompute_scratch(records)
+                for fname, field in precomputable.items():
+                    todo = [
+                        (record, vals, given)
+                        for record, vals, given in zip(
+                            records, vals_list_todo, givens, strict=True
+                        )
+                        if fname not in vals
+                    ]
+                    if not todo:
+                        continue
+                    for record, _vals, given in todo:
+                        if given:
+                            record._update_cache(given, validate=False)
+                    for record, vals, _given in todo:
+                        vals[fname] = field.convert_to_write(record[fname], self)
+                        vals["__precomputed__"].add(field)
+            finally:
+                self._discard_precompute_scratch(records)
 
     def _discard_precompute_scratch(self, records: Self) -> None:
         ids = records._ids
@@ -456,8 +500,10 @@ class CreateMixin(_ModelStubs):
 
         ids: list[int] = []
         other_fields: OrderedSet[Field] = OrderedSet()
+        batches = 0  # debuglog
 
         for data_sublist in batched(data_list, INSERT_BATCH_SIZE, strict=False):
+            batches += 1  # debuglog
             stored_list = [data["stored"] for data in data_sublist]
             fnames = sorted({name for stored in stored_list for name in stored})
 
@@ -478,6 +524,13 @@ class CreateMixin(_ModelStubs):
                 self.env.backend.create_rows(self, stored_list, columns, col_fields)
             )
 
+        _debug.pipeline(
+            "create.rows_inserted",
+            model=self._name,
+            records=len(ids),
+            batches=batches,
+            other_fields=len(other_fields),
+        )
         prof.mark("sql")
 
         records, inverses_update = self._update_create_cache(ids, data_list)
@@ -582,6 +635,15 @@ class CreateMixin(_ModelStubs):
                     ) and _field_inverses[field]:
                         inverses_update[(field, cache_value)].append(record.id)
 
+        _debug.perf.count(
+            "create.cache_primed",
+            model=self._name,
+            records=len(record_ids),
+            x2many_fields=len(_stored_x2m_caches),
+            scalar_fields=len(_stored_scalar_caches),
+            supplied=len(supplied),
+            inverse_updates=len(inverses_update),
+        )
         return records, inverses_update
 
     @api.model
@@ -592,17 +654,24 @@ class CreateMixin(_ModelStubs):
 
         noupdate = self.env.context.get("noupdate", False)
         xids = (v.get("id") for v in vals_list)
-        self.env["ir.model.data"]._update_xmlids(
-            [
-                {
-                    "xml_id": (xid if "." in xid else f"{import_module}.{xid}"),
-                    "record": rec,
-                    "noupdate": noupdate,
-                }
-                for rec, xid in zip(records, xids, strict=False)
-                if xid and isinstance(xid, str)
-            ]
+        entries = [
+            {
+                "xml_id": (xid if "." in xid else f"{import_module}.{xid}"),
+                "record": rec,
+                "noupdate": noupdate,
+            }
+            for rec, xid in zip(records, xids, strict=False)
+            if xid and isinstance(xid, str)
+        ]
+        _debug.lifecycle(
+            "create.xmlids_updated",
+            model=self._name,
+            module=import_module,
+            records=len(records),
+            xmlids=len(entries),
+            noupdate=noupdate,
         )
+        self.env["ir.model.data"]._update_xmlids(entries)
 
     def _update_parent_path_on_create(self) -> None:
         if not self._parent_store:
@@ -626,4 +695,10 @@ class CreateMixin(_ModelStubs):
             )
         )
 
+        _debug.perf.count(
+            "create.parent_path_updated",
+            model=self._name,
+            records=len(self),
+            rows=len(updated),
+        )
         self._fields["parent_path"]._update_cache_items(self.env, updated)

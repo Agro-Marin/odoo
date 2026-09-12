@@ -73,6 +73,12 @@ class CacheMixin(_ModelStubs):
         if flush:
             self.flush_model(fnames)
         self._invalidate_cache(fnames, flush=flush)
+        _debug.lifecycle(
+            "cache.invalidate_model",
+            model=self._name,
+            fields=None if fnames is None else len(fnames),
+            flush=flush,
+        )
         if _orm_cache.isEnabledFor(logging.DEBUG):
             _orm_cache.debug("invalidate_model %s: fnames=%s", self._name, fnames)
 
@@ -83,6 +89,13 @@ class CacheMixin(_ModelStubs):
         if flush:
             self.flush_recordset(fnames)
         self._invalidate_cache(fnames, self._ids, flush=flush)
+        _debug.lifecycle(
+            "cache.invalidate_recordset",
+            model=self._name,
+            records=len(self),
+            fields=None if fnames is None else len(fnames),
+            flush=flush,
+        )
         if _orm_cache.isEnabledFor(logging.DEBUG):
             _orm_cache.debug(
                 "invalidate_recordset %s: %d records, fnames=%s",
@@ -111,13 +124,23 @@ class CacheMixin(_ModelStubs):
             self._check_no_pending_write(fields, ids)
 
         field_inverses = self.pool.field_inverses
+        inverses_invalidated = 0  # debuglog
         for field in fields:
             field._invalidate_cache(env, ids)
             if inverses := field_inverses.get(field):
                 for invf in inverses:
+                    inverses_invalidated += 1  # debuglog
                     if flush:
                         env[invf.model_name].flush_model([invf.name])
                     invf._invalidate_cache(env, keep_dirty=True)
+        if _debug.logic.enabled and inverses_invalidated:
+            _debug.logic(
+                "cache.inverses_invalidated",
+                model=self._name,
+                fields=len(fields),
+                inverses=inverses_invalidated,
+                flushed=flush,
+            )
 
     def _check_no_pending_write(
         self, fields: Collection[Field], ids: Sequence[IdType] | None

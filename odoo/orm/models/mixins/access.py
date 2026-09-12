@@ -67,6 +67,15 @@ class AccessMixin(_ModelStubs):
             self._name,
             field.name,
         )
+        _debug.logic(
+            "access.field_denied",
+            model=self._name,
+            field=field.name,
+            operation=operation,
+            uid=self.env.uid,
+            groups=field.groups,
+            write_groups=bool(field.write_groups),
+        )
 
         description = self.env["ir.model"]._get(self._name).name
 
@@ -127,6 +136,13 @@ class AccessMixin(_ModelStubs):
             else:
                 missing_xmlids.append(xmlid.strip())
         groups = self.env["res.groups"].union(*groups_list).sorted("id")
+        if _debug.logic.enabled and missing_xmlids:
+            _debug.logic(
+                "access.group_spec_unresolved",
+                model=self._name,
+                spec=group_spec,
+                missing=missing_xmlids,
+            )
         return _(
             "allowed for groups %s",
             ", ".join([repr(g.display_name) for g in groups] + missing_xmlids),
@@ -244,6 +260,14 @@ class AccessMixin(_ModelStubs):
                             )
                         )
                 offset += len(names)
+        _debug.pipeline(
+            "access.company_candidates",
+            model=self._name,
+            records=len(self),
+            regular_fields=len(regular_fields),
+            property_fields=len(property_fields),
+            groups=len(groups),
+        )
         return groups
 
     def _get_company_violations(
@@ -291,6 +315,12 @@ class AccessMixin(_ModelStubs):
                 "have a `company_id` or `company_ids` field!",
                 self._name,
                 regular_fields,
+            )
+            _debug.logic(
+                "access.company_check_skipped",
+                model=self._name,
+                fields=regular_fields,
+                reason="no_company_field",
             )
             return
 

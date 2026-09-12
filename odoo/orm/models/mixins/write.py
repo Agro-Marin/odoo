@@ -61,6 +61,13 @@ class WriteMixin(_ModelStubs):
                 self.ids,
             )
         )
+        _debug.logic(
+            "write.increment_skiplock",
+            model=self._name,
+            fields=list(fields),
+            records=len(self),
+            updated=cr.rowcount,
+        )
         return bool(cr.rowcount)
 
     def _write_check_field_access(self, vals: ValuesType) -> None:
@@ -108,6 +115,14 @@ class WriteMixin(_ModelStubs):
                 for field in plan.protected
                 if field.compute and field.name not in vals
             ]
+            _debug.logic(
+                "write.protected_settled",
+                model=self._name,
+                records=len(self),
+                protected=len(plan.protected),
+                x2many_inverses=len(plan.x2m_inverse_fnames),
+                to_compute=len(to_compute),
+            )
             if to_compute:
                 self._recompute_recordset(to_compute)
 
@@ -115,17 +130,33 @@ class WriteMixin(_ModelStubs):
         self, inverses_by_hook: dict, real_recs: Self, vals: ValuesType
     ) -> None:
         for fields in inverses_by_hook.values():
+            dirty_marked = 0  # debuglog
             for field in fields:
                 if (
                     not field.store
                     and (not field.inherited or not field.is_x2many)
                     and any(field._iter_cache_missing_ids(real_recs))
                 ):
+                    dirty_marked += 1  # debuglog
                     field.mark_dirty(real_recs, vals[field.name])
 
+            _debug.pipeline(
+                "write.inverse_hook",
+                model=self._name,
+                field=fields[0].name,
+                fields=len(fields),
+                records=len(real_recs),
+                dirty_marked=dirty_marked,
+            )
             try:
                 fields[0].apply_inverse(real_recs)
             except AccessError as e:
+                _debug.logic(
+                    "write.inverse_access_error",
+                    model=self._name,
+                    field=fields[0].name,
+                    inherited=fields[0].inherited,
+                )
                 if fields[0].inherited:
                     description = self.env["ir.model"]._get(self._name).name
                     raise AccessError(
@@ -151,6 +182,14 @@ class WriteMixin(_ModelStubs):
         prof.mark("acl")
         env = self.env
 
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "write.records",
+                model=self._name,
+                records=len(self),
+                uid=env.uid,
+                fields=sorted(vals),
+            )
         bad_names = get_forbidden_field_names(self)
         vals = {key: val for key, val in vals.items() if key not in bad_names}
         if self._log_access:
@@ -261,6 +300,15 @@ class WriteMixin(_ModelStubs):
             for fnames, rows in updates.items():
                 self._execute_update(fnames, rows)
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "write.multi_updated",
+                model=self._name,
+                records=len(self),
+                column_groups=len(updates),
+                log_only=sum(len(ids) for ids in log_only_ids.values()),
+                parent_changed=len(parent_records) if parent_records else 0,
+            )
         self._sync_log_access_cache(log_vals, log_only_ids)
 
         if parent_records:
@@ -333,6 +381,13 @@ class WriteMixin(_ModelStubs):
                 SQL(" OR ").join(conditions),
             )
         )
+        _debug.logic(
+            "write.parent_candidates_probed",
+            model=self._name,
+            parents=len(parent_to_ids),
+            candidates=sum(len(ids) for ids in parent_to_ids.values()),
+            changed=len(rows),
+        )
         return self.browse(row[0] for row in rows)
 
     def _update_parent_path_on_write(self) -> None:
@@ -368,5 +423,12 @@ class WriteMixin(_ModelStubs):
                 )
             )
 
+            _debug.perf.count(
+                "write.parent_path_rewritten",
+                model=self._name,
+                parent=parent.id,
+                records=len(records),
+                descendants=len(updated),
+            )
             self._fields["parent_path"]._update_cache_items(self.env, updated.items())
             self.browse(updated).modified(["parent_path"])

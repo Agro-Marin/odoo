@@ -5,10 +5,13 @@ import logging
 from collections import defaultdict
 from inspect import getmembers
 
+from odoo.libs.debug_log import DebugLog
+
 from ...helpers import get_or_create_class_memo
 from ._model_stubs import _ModelStubs
 
 _logger = logging.getLogger("odoo.models")
+_debug = DebugLog(__name__)
 
 
 class _HooksMixin(_ModelStubs):
@@ -48,6 +51,12 @@ class _HooksMixin(_ModelStubs):
                         func._onchange,
                         missing,
                     )
+                    _debug.logic(
+                        "hooks.onchange_parameter_invalid",
+                        model=cls._name,
+                        method=_attr,
+                        missing=missing,
+                    )
 
             def onchange_default(field, self):
                 value = field.convert_to_write(self[field.name], self)
@@ -57,10 +66,18 @@ class _HooksMixin(_ModelStubs):
                 )
                 self.update(defaults)
 
+            change_defaults = 0  # debuglog
             for name, field in cls._fields.items():
                 if field.change_default:
+                    change_defaults += 1  # debuglog
                     methods[name].append(functools.partial(onchange_default, field))
 
+            _debug.perf.count(
+                "hooks.onchange_collected",
+                model=cls._name,
+                fields=len(methods),
+                change_defaults=change_defaults,
+            )
             return dict(methods)
 
         return get_or_create_class_memo(

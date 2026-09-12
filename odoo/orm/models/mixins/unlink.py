@@ -33,6 +33,13 @@ class UnlinkMixin(_ModelStubs):
         self.check_access("unlink")
         prof.mark("acl")
 
+        _debug.lifecycle(
+            "unlink.records",
+            model=self._name,
+            records=len(self),
+            uid=self.env.uid,
+            uninstalling=bool(self.env.context.get(MODULE_UNINSTALL_FLAG)),
+        )
         ondelete_run = 0  # debuglog
         for func in self._ondelete_methods:
             if func._ondelete or not self.env.context.get(MODULE_UNINSTALL_FLAG):
@@ -107,9 +114,18 @@ class UnlinkMixin(_ModelStubs):
         if core.has_pending():
             model_name = self._name
             pending_ids = self._ids
+            discarded = 0  # debuglog
             for field in core.get_pending_fields():
                 if field.model_name == model_name:
+                    discarded += 1  # debuglog
                     core.mark_done(field, pending_ids)
+            if _debug.logic.enabled and discarded:
+                _debug.logic(
+                    "unlink.pending_recomputes_discarded",
+                    model=model_name,
+                    records=len(pending_ids),
+                    fields=discarded,
+                )
 
     def _log_unlinked_ids(self, deleted_ids: list[int]) -> None:
         if len(deleted_ids) <= _UNLINK_LOG_MAX_IDS:
@@ -169,8 +185,15 @@ class UnlinkMixin(_ModelStubs):
         if not ref_cache:
             return
         names = set(model_names)
-        for key in [key for key in ref_cache if key[0] in names]:
+        keys = [key for key in ref_cache if key[0] in names]
+        for key in keys:
             del ref_cache[key]
+        _debug.logic(
+            "unlink.ref_cache_evicted",
+            model=self._name,
+            models=len(names),
+            keys=len(keys),
+        )
 
     def _unlink_process_batch(
         self,
@@ -179,4 +202,14 @@ class UnlinkMixin(_ModelStubs):
         Defaults: typing.Any,
         Attachment: typing.Any,
     ) -> tuple[Self, Self]:
-        return self.env.backend.unlink_rows(self, sub_ids, Data, Defaults, Attachment)
+        data, attachments = self.env.backend.unlink_rows(
+            self, sub_ids, Data, Defaults, Attachment
+        )
+        _debug.perf.count(
+            "unlink.batch",
+            model=self._name,
+            records=len(sub_ids),
+            xmlids=len(data),
+            attachments=len(attachments),
+        )
+        return data, attachments

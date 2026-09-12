@@ -53,6 +53,13 @@ class _ConstraintsMixin(_ModelStubs):
                             attr,
                             name,
                         )
+                        _debug.logic(
+                            "constraints.parameter_invalid",
+                            model=cls._name,
+                            method=attr,
+                            field=name,
+                            reason="not_a_field",
+                        )
                     elif not (field.store or field.inverse or field.inherited):
                         _logger.warning(
                             "method %s.%s: @constrains parameter %r is not writeable",
@@ -60,7 +67,17 @@ class _ConstraintsMixin(_ModelStubs):
                             attr,
                             name,
                         )
+                        _debug.logic(
+                            "constraints.parameter_invalid",
+                            model=cls._name,
+                            method=attr,
+                            field=name,
+                            reason="not_writeable",
+                        )
                 methods.append(func)
+            _debug.perf.count(
+                "constraints.methods_collected", model=cls._name, methods=len(methods)
+            )
             return methods
 
         return get_or_create_class_memo(
@@ -99,3 +116,11 @@ class _ConstraintsMixin(_ModelStubs):
 
         prof.stop()
         prof.report(_orm_crud, "_check_fields %s: %d constraints", self._name, _count)
+        _debug.perf.count(
+            "constraints.checked",
+            model=self._name,
+            records=len(self),
+            fields=len(field_names),
+            excluded=len(excluded_names),
+            candidates=len(methods),
+        )

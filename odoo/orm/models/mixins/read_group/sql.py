@@ -1,6 +1,7 @@
 import typing
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, ormcache
 
 from .... import decorators as api
@@ -24,6 +25,8 @@ from odoo.tools import get_lang
 from odoo.tools.translate import _
 
 from ....fields.temporal import _get_sql_timezones_set
+
+_debug = DebugLog(__name__)
 
 
 class _ReadGroupSQLMixin(_ModelStubs):
@@ -69,6 +72,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
             SQL.identifier(alias_rate, "currency_id"),
         )
         query.add_join("LEFT JOIN", alias_rate, rate_subquery_table, condition)
+        _debug.logic(
+            "read_group.sum_currency_join",
+            model=self._name,
+            field=fname,
+            currency_field=currency_field_name,
+            company=self.env.company.root_id.id,
+        )
 
         return SQL(
             "SUM(%s / COALESCE(%s, 1.0))",
@@ -120,9 +130,17 @@ class _ReadGroupSQLMixin(_ModelStubs):
         try:
             query = self._as_query(ordered=False)
             self._read_group_groupby(self._table, groupby, query)
+            groupable = True
         except ValueError, AccessError, NotImplementedError:
-            return False
-        return True
+            groupable = False
+        _debug.perf.count(
+            "read_group.field_groupable_probed",
+            model=self._name,
+            field=field_name,
+            groupable=groupable,
+            su=self.env.su,
+        )
+        return groupable
 
     def _read_group_groupby_many2one_path(
         self,
@@ -200,6 +218,14 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 coquery.subselect(),
             )
         query.add_join("LEFT JOIN", rel_alias, field.relation, condition)
+        _debug.logic(
+            "read_group.m2m_join",
+            model=self._name,
+            field=field.name,
+            relation=field.relation,
+            comodel_filtered=bool(coquery.where_clause),
+            bypass_access=field.bypass_search_access,
+        )
         return SQL.identifier(rel_alias, field.column2)
 
     def _read_group_groupby(self, alias: str, groupby_spec: str, query: Query) -> SQL:
@@ -540,6 +566,13 @@ class _ReadGroupSQLMixin(_ModelStubs):
         definition = self.get_property_definition(f"{fname}.{property_name}")
         property_type = definition.get("type")
         sql_property = self._field_to_sql(alias, f"{fname}.{property_name}", query)
+        _debug.logic(
+            "read_group.property_groupby",
+            model=self._name,
+            field=fname,
+            property=property_name,
+            type=property_type,
+        )
 
         if property_type in ("tags", "many2many"):
             return self._read_group_property_collection(

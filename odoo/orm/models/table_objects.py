@@ -43,6 +43,13 @@ class TableObject:
         if getattr(owner, "pool", None) is None:
             self._module = model_class._module
             model_class._table_object_definitions.append(self)
+            _debug.lifecycle(
+                "table_object.defined",
+                kind=type(self).__name__,
+                name=self.name,
+                cls=owner.__name__,
+                module=self._module,
+            )
 
     def get_definition(self, registry: Registry) -> str:
         raise NotImplementedError
@@ -136,6 +143,12 @@ class Index(TableObject):
         definition = self._format_definition(definition_clause)
 
         if owning_constraint := sql.get_index_constraint(cr, conname):
+            _debug.lifecycle(
+                "table_object.index_owner_constraint_dropped",
+                model=getattr(model, "_name", None),
+                name=conname,
+                constraint=owning_constraint,
+            )
             sql.drop_constraint(cr, model._table, owning_constraint)
             db_definition = db_comment = None
         else:

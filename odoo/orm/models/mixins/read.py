@@ -50,6 +50,13 @@ class ReadMixin(_ModelStubs):
                 ] or not self._has_field_access(field, "write")
             res[fname] = description
 
+        _debug.perf.count(
+            "read.fields_get",
+            model=self._name,
+            requested=len(allfields) if allfields else None,
+            described=len(res),
+            attributes=len(attributes) if attributes is not None else None,
+        )
         return res
 
     @api.readonly
@@ -67,6 +74,12 @@ class ReadMixin(_ModelStubs):
             ]
             if bad:
                 _logger.warning("Invalid field(s) %r on %r, skipping", bad, self._name)
+                _debug.logic(
+                    "read.invalid_fields_skipped",
+                    model=self._name,
+                    invalid=len(bad),
+                    requested=len(fields),
+                )
                 fields = [
                     f for f in fields if isinstance(f, str) and f in _model_fields
                 ]
@@ -102,6 +115,14 @@ class ReadMixin(_ModelStubs):
             miss_indices = _batch_cache_fill(
                 field_cache, ids, results, name, PENDING, none_val
             )
+            if _debug.perf.enabled and miss_indices:
+                _debug.perf.count(
+                    "read.cache_miss",
+                    model=self._name,
+                    field=name,
+                    records=len(ids),
+                    misses=len(miss_indices),
+                )
             for idx in miss_indices:
                 vals = results[idx]
                 if not vals:
@@ -245,6 +266,14 @@ class ReadMixin(_ModelStubs):
             else:
                 record_fnames.append(name)
 
+        _debug.pipeline(
+            "read.format",
+            model=self._name,
+            records=len(ids),
+            scalar_fields=len(scalar_fnames),
+            record_fields=len(record_fnames),
+            load=load,
+        )
         results = [{"id": id_} for id_ in ids]
         for name in scalar_fnames:
             self._read_format_scalar(name, results, use_display_name)
@@ -321,6 +350,13 @@ class ReadMixin(_ModelStubs):
                 return
             query = self._as_query(ordered=False)
 
+        _debug.pipeline(
+            "read.fetch",
+            model=self._name,
+            records=len(self),
+            requested=len(field_names) if field_names is not None else None,
+            to_fetch=len(fields_to_fetch),
+        )
         fetched = self._fetch_query(query, fields_to_fetch)
 
         if _n1_enabled and (tracker := self.env.transaction._n1_tracker):
@@ -380,16 +416,20 @@ class ReadMixin(_ModelStubs):
             self._check_field_access(field, "read")
             fields_todo.append(field)
 
+        cached = 0  # debuglog
+        expanded = 0  # debuglog
         while fields_todo:
             field = fields_todo.popleft()
             if field in fields_done:
                 continue
             fields_done.add(field)
             if ignore_when_in_cache and not any(field._iter_cache_missing_ids(self)):
+                cached += 1  # debuglog
                 continue
             if field.store:
                 fields_to_fetch.append(field)
             else:
+                expanded += 1  # debuglog
                 for dotname in self.pool.field_depends[field]:
                     dep_field = self._fields[dotname.split(".", 1)[0]]
                     if (not dep_field.store) or (
@@ -398,6 +438,16 @@ class ReadMixin(_ModelStubs):
                     ):
                         fields_todo.append(dep_field)
 
+        if _debug.logic.enabled and (cached or expanded):
+            _debug.logic(
+                "read.fields_to_fetch_resolved",
+                model=self._name,
+                records=len(self),
+                requested=len(field_names),
+                to_fetch=len(fields_to_fetch),
+                already_cached=cached,
+                computed_expanded=expanded,
+            )
         return fields_to_fetch
 
     def _fetch_query(self, query: Query, fields: Sequence[Field]) -> Self:
@@ -410,6 +460,13 @@ class ReadMixin(_ModelStubs):
                 raise RuntimeError(f"_fetch_query expects stored fields, got {field}")
             (column_fields if field.column_type else other_fields).add(field)
 
+        _debug.pipeline(
+            "read.fetch_query",
+            model=self._name,
+            records=len(self),
+            column_fields=len(column_fields),
+            other_fields=len(other_fields),
+        )
         return self.env.backend.fetch(self, query, column_fields, other_fields)
 
     def get_metadata(self) -> list[ValuesType]:
@@ -439,4 +496,11 @@ class ReadMixin(_ModelStubs):
             r["xmlid"] = main.get("xmlid", False)
             r["noupdate"] = main.get("noupdate", False)
             r["xmlids"] = xml_data.get(r["id"], [])[::-1]
+        _debug.perf.count(
+            "read.metadata",
+            model=self._name,
+            records=len(res),
+            xmlids=len(imds),
+            log_access=self._log_access,
+        )
         return res

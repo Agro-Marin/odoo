@@ -58,6 +58,13 @@ class RecomputeMixin(_ModelStubs):
                 self.env.add_to_compute(field, records)
         else:
             scheduler = core.new_scheduler(inline=True)
+            _debug.pipeline(
+                "recompute.modified",
+                model=self._name,
+                records=len(self),
+                fields=len(fnames),
+                create=create,
+            )
             self._modified_trigger_loop(fnames, create, scheduler)
 
     def _modified_before(self, fnames: Collection[str]) -> None:
@@ -115,6 +122,13 @@ class RecomputeMixin(_ModelStubs):
         _fields = self._fields
         fields = [_fields[fname] for fname in fnames]
         if not any(f in _field_triggers for f in fields):
+            _debug.logic(
+                "recompute.no_triggers",
+                model=self._name,
+                records=len(self),
+                fields=len(fields),
+                create=create,
+            )
             prof.stop()
             prof.report(
                 _orm_compute,
@@ -135,6 +149,15 @@ class RecomputeMixin(_ModelStubs):
             todo, scheduler, prof.debug
         )
 
+        _debug.pipeline(
+            "recompute.triggers_traversed",
+            model=self._name,
+            records=len(self),
+            fields=len(fields),
+            create=create,
+            chains=len(todo),
+            to_recompute=len(scheduler.to_recompute),
+        )
         prof.stop("traverse")
         prof.report(
             _orm_compute,
@@ -202,6 +225,12 @@ class RecomputeMixin(_ModelStubs):
                         try:
                             records = self[invf.name]
                         except MissingError:
+                            _debug.logic(
+                                "recompute.inverse_missing_records",
+                                model=self._name,
+                                field=invf.name,
+                                records=len(self),
+                            )
                             records = self.exists()[invf.name]
 
                     if field.model_name == records._name:
@@ -268,6 +297,7 @@ class RecomputeMixin(_ModelStubs):
         self, field: Field, ids: Sequence[IdType] | None = None
     ) -> None:
         ids_to_compute = self.env._core.get_pending_ids(field)
+        scoped = ids is not None  # debuglog
         if ids is None:
             ids = ids_to_compute
         else:
@@ -278,6 +308,14 @@ class RecomputeMixin(_ModelStubs):
         prof = _OrmProfile(_orm_compute)
 
         records = self.browse(tuple(id_ for id_ in ids if id_))
+        _debug.pipeline(
+            "recompute.field",
+            model=field.model_name,
+            field=field.name,
+            records=len(records),
+            pending=len(ids_to_compute),
+            scoped=scoped,
+        )
         field.recompute(records)
 
         prof.stop()
@@ -307,6 +345,11 @@ class RecomputeMixin(_ModelStubs):
         prof.mark("recompute")
         core = self.env._core
         if fields is None or any(map(core.has_dirty_field, fields)):
+            _debug.pipeline(
+                "recompute.flush_model",
+                model=self._name,
+                fields=None if fields is None else len(fields),
+            )
             self._flush()
 
         prof.stop("flush")
@@ -334,14 +377,20 @@ class RecomputeMixin(_ModelStubs):
         ids = self._ids
         if len(ids) == 1:
             id_ = ids[0]
-            if any(id_ in (core.get_dirty(field) or ()) for field in fields):
-                self._flush()
+            dirty = any(id_ in (core.get_dirty(field) or ()) for field in fields)
         else:
             id_set = set(ids)
-            if not all(
+            dirty = not all(
                 id_set.isdisjoint(core.get_dirty(field) or ()) for field in fields
-            ):
-                self._flush()
+            )
+        if dirty:
+            _debug.pipeline(
+                "recompute.flush_recordset",
+                model=self._name,
+                records=len(ids),
+                fields=None if named_fields is None else len(named_fields),
+            )
+            self._flush()
 
     def _flush(self) -> None:
         core = self.env._core
@@ -363,6 +412,12 @@ class RecomputeMixin(_ModelStubs):
         dirty_ids = list(id_to_fields)
         prof.mark("collect")
 
+        _debug.pipeline(
+            "recompute.flush",
+            model=self._name,
+            fields=len(dirty_field_ids),
+            records=len(dirty_ids),
+        )
         _batch_count = 0
         BATCH_SIZE = 1000
         with env.cr.pipeline():
@@ -383,6 +438,12 @@ class RecomputeMixin(_ModelStubs):
                             if col_val is not PENDING:
                                 vals[f.name] = col_val
                             elif core.is_pending(f, id_):
+                                _debug.logic(
+                                    "recompute.flush_deferred_pending",
+                                    model=self._name,
+                                    field=f.name,
+                                    record=id_,
+                                )
                                 core.mark_dirty(f, (id_,))
                             else:
                                 _debug.logic(

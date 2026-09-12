@@ -4,6 +4,7 @@ from itertools import batched
 from typing import Self
 
 from odoo.libs.accel import origin_ids as _origin_ids
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 from odoo.tools.misc import ReversedIterable
 
@@ -16,6 +17,8 @@ if typing.TYPE_CHECKING:
 
     from ..._typing import BaseModel, IdType
     from ...runtime import Environment
+
+_debug = DebugLog(__name__)
 
 
 class IterationMixin(_ModelStubs):
@@ -85,6 +88,12 @@ class IterationMixin(_ModelStubs):
         env = self.env
         prefetch_ids = self._prefetch_ids
         if size > PREFETCH_MAX and prefetch_ids is ids:
+            _debug.perf.count(
+                "iteration.prefetch_batched",
+                model=self._name,
+                records=size,
+                batch=PREFETCH_MAX,
+            )
             for sub_ids in batched(ids, PREFETCH_MAX, strict=False):
                 for id_ in sub_ids:
                     rs = _new(cls)
@@ -112,6 +121,13 @@ class IterationMixin(_ModelStubs):
         env = self.env
         prefetch_ids = self._prefetch_ids
         if size > PREFETCH_MAX and prefetch_ids is ids:
+            _debug.perf.count(
+                "iteration.prefetch_batched",
+                model=self._name,
+                records=size,
+                batch=PREFETCH_MAX,
+                reversed=True,
+            )
             for sub_ids in batched(reversed(ids), PREFETCH_MAX, strict=False):
                 for id_ in sub_ids:
                     rs = _new(cls)

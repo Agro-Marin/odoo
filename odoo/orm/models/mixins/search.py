@@ -89,6 +89,12 @@ class SearchMixin(_ModelStubs):
         prof.mark("search")
 
         if query.is_empty():
+            _debug.logic(
+                "search.empty_query",
+                model=self._name,
+                fields=len(field_names) if field_names else 0,
+                limit=limit,
+            )
             if not self.env.su:
                 self._get_fields_to_fetch(field_names)
             prof.stop("fields")
@@ -156,6 +162,12 @@ class SearchMixin(_ModelStubs):
                     [f for f in search_fnames if f not in usable],
                     self._name,
                 )
+                _debug.logic(
+                    "search.display_name_cyclic_dropped",
+                    model=self._name,
+                    entries=len(search_fnames),
+                    usable=len(usable),
+                )
             search_fnames = usable
         if not search_fnames:
             return self._search_display_name_unsearchable(operator, value)
@@ -179,6 +191,13 @@ class SearchMixin(_ModelStubs):
             values = list(value) if isinstance(value, COLLECTION_TYPES) else [value]
             match_values = [v for v in values if not _is_unset_name(v)]
             if len(match_values) != len(values):
+                _debug.logic(
+                    "search.display_name_unset_values",
+                    model=self._name,
+                    operator=operator,
+                    values=len(values),
+                    unset=len(values) - len(match_values),
+                )
                 parts = [self._search_display_name_unset(search_fnames, negative)]
                 if match_values:
                     parts.insert(
@@ -226,6 +245,12 @@ class SearchMixin(_ModelStubs):
         while pending:
             model_name = pending.pop()
             if model_name == self._name:
+                _debug.logic(
+                    "search.rec_names_search_cyclic",
+                    model=self._name,
+                    field=field_name,
+                    visited=len(seen),
+                )
                 return True
             if model_name in seen or model_name not in self.env:
                 continue
@@ -263,6 +288,12 @@ class SearchMixin(_ModelStubs):
         self, operator: str, value: typing.Any
     ) -> DomainType:
         field = self._fields["display_name"]
+        _debug.logic(
+            "search.display_name_unsearchable",
+            model=self._name,
+            operator=operator,
+            column=field.is_column,
+        )
         if field.is_column:
             return Domain(field.name, operator, value)
         _logger.warning(
@@ -306,6 +337,13 @@ class SearchMixin(_ModelStubs):
     ) -> list[tuple[int, str]]:
         domain = Domain("display_name", operator, name) & Domain(domain or Domain.TRUE)
         records = self.search_fetch(domain, ["display_name"], limit=limit)
+        _debug.perf.count(
+            "search.name_search",
+            model=self._name,
+            operator=operator,
+            limit=limit,
+            results=len(records),
+        )
         return [(record.id, record.display_name or "") for record in records.sudo()]
 
     @api.model
@@ -330,6 +368,14 @@ class SearchMixin(_ModelStubs):
             del context["active_test"]
             records = records.with_context(context)
 
+        _debug.pipeline(
+            "search.read",
+            model=self._name,
+            records=len(records),
+            fields=len(fields),
+            limit=limit,
+            offset=offset,
+        )
         return records._read_format(fnames=fields, **read_kwargs)
 
     @api.private

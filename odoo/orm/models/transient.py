@@ -39,6 +39,14 @@ class TransientModel(Model):
             counts.append(
                 self._remove_transient_rows_over_count(self._transient_max_count)
             )
+        _debug.pipeline(
+            "transient.vacuum",
+            model=self._name,
+            max_hours=self._transient_max_hours,
+            max_count=self._transient_max_count,
+            removed=sum(counts),
+            limit_hit=any(count >= GC_UNLINK_LIMIT for count in counts),
+        )
         return sum(counts), any(count >= GC_UNLINK_LIMIT for count in counts)
 
     def _remove_transient_rows_over_count(self, max_count: int) -> int:
@@ -50,6 +58,7 @@ class TransientModel(Model):
             )
         )
         if self.env.cr.fetchone():
+            _debug.logic("transient.over_count", model=self._name, max_count=max_count)
             return self._remove_transient_rows_older_than(
                 _TRANSIENT_VACUUM_MIN_AGE_SECONDS
             )

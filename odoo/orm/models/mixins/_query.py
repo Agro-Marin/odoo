@@ -91,9 +91,17 @@ class _QueryMixin(_ModelStubs):
             term = self._order_field_to_sql(
                 self._table, field_name, SQL.EMPTY, SQL.EMPTY, query
             )
+            sortable = bool(term)
         except ValueError, AccessError, NotImplementedError:
-            return False
-        return bool(term)
+            sortable = False
+        _debug.perf.count(
+            "query.field_sortable_probed",
+            model=self._name,
+            field=field_name,
+            sortable=sortable,
+            su=self.env.su,
+        )
+        return sortable
 
     def _order_field_to_sql(
         self,
@@ -115,11 +123,23 @@ class _QueryMixin(_ModelStubs):
                 field_name,
                 self.env.uid,
             )
+            _debug.logic(
+                "query.order_field_unreadable",
+                model=self._name,
+                field=field_name,
+                uid=self.env.uid,
+            )
             return SQL.EMPTY
 
         if field.is_many2one:
             seen = self.env.context.get("__m2o_order_seen", ())
             if field in seen:
+                _debug.logic(
+                    "query.order_m2o_cycle",
+                    model=self._name,
+                    field=fname,
+                    depth=len(seen),
+                )
                 return SQL.EMPTY
             self = self.with_context(__m2o_order_seen=frozenset((field, *seen)))
 
@@ -191,6 +211,11 @@ class _QueryMixin(_ModelStubs):
                 for leaf in domain.iter_conditions()
             )
         ):
+            _debug.logic(
+                "query.search.active_test_added",
+                model=self._name,
+                field=self._active_name,
+            )
             domain &= Domain(self._active_name, "=", True)
 
         domain = domain.optimize_full(typing.cast("BaseModel", self))
@@ -200,6 +225,11 @@ class _QueryMixin(_ModelStubs):
 
         backend = self.env.backend
         if check_access and not backend.supports_record_rules:
+            _debug.logic(
+                "query.search.backend_without_rules",
+                model=self._name,
+                backend=type(backend).__name__,
+            )
             raise NotImplementedError(
                 f"{type(backend).__name__} does not enforce ir.rule record "
                 f"rules, so it cannot serve an access-checked search on "
@@ -235,6 +265,14 @@ class _QueryMixin(_ModelStubs):
                 )
             model, alias = path_field.join(model, alias, query)
 
+        _debug.logic(
+            "query.related_traversed",
+            model=self._name,
+            field=field.name,
+            related=field.related,
+            joins=len(path_fnames),
+            target=model._name,
+        )
         return model, model._fields[last_fname], alias
 
     def _field_to_sql(
