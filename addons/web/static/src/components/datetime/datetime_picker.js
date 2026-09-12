@@ -302,6 +302,7 @@ export class DateTimePicker extends Component {
         onToggleRange: { type: Function, optional: true },
         range: { type: Boolean, optional: true },
         rounding: { type: Number, optional: true },
+        tz: { type: String, optional: true },
         showRangeToggler: { type: Boolean, optional: true },
         slots: {
             type: Object,

@@ -435,6 +435,7 @@ export class DateTimePickerController {
         /** @type {any} */
         const options = {
             format: this.params.format,
+            tz: this.pickerProps.tz,
         };
         if (operation === "format") {
             options.showSeconds = this.params.showSeconds ?? true;

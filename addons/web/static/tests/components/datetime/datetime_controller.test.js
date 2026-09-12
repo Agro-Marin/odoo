@@ -112,6 +112,30 @@ test("enable() syncs inputs and wires listeners; disable removes them", () => {
     expect(controller.isOpen()).toBe(false);
 });
 
+test("pickerProps.tz drives the input's zone for both format and parse", () => {
+    const [input] = makeInputs(1);
+    const { controller } = createController({
+        getInputs: () => [input],
+        pickerProps: {
+            type: "datetime",
+            value: DateTime.fromISO("2023-06-06T12:00:00", { zone: "UTC" }),
+            tz: "Asia/Tokyo",
+        },
+    });
+
+    controller.updateInput(
+        input,
+        DateTime.fromISO("2023-06-06T12:00:00", { zone: "UTC" }),
+    );
+    expect(input.value).toBe("06/06/2023 21:00:00");
+
+    input.value = "06/06/2023 21:00:00";
+    controller.updateValueFromInputs();
+    expect(controller.pickerProps.value.toUTC().toISO()).toBe(
+        "2023-06-06T12:00:00.000Z",
+    );
+});
+
 test("updateValueFromInputs parses inputs into state and notifies onChange", () => {
     const [input] = makeInputs(1);
     const onChange = (/** @type {any} */ v) =>
