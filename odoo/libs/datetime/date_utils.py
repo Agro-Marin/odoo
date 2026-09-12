@@ -3,6 +3,7 @@ __all__ = [
     "Anchor",
     "Granularity",
     "add",
+    "anchor_day",
     "date_range",
     "end_of",
     "float_to_time",
@@ -382,6 +383,12 @@ real_datetime_now = datetime.now
 # fixed points inside a period, and a day past the end of a short month is
 # clamped to its last day -- what leave accrual has always done, and what
 # iCalendar's BYMONTHDAY does not: it skips the month instead.
+#
+# An anchor's occurrence is a boundary: the period it closes ends at the start of
+# that day. A last-day anchor is the one exception to how a day is named. Its
+# boundary is the first day of the following month, so the period it closes is
+# the whole calendar month, but the day it names is the month's last day, which
+# anchor_day returns.
 
 _EXACT_UNITS: dict[TimeUnit, str] = {"minute": "minutes", "hour": "hours"}
 _ANCHOR_UNITS = frozenset({"day", "week", "month", "year"})
@@ -427,6 +434,7 @@ class Anchor:
     day: int | None = None
     month: int | None = None
     weekday: int | None = None
+    last_day: bool = False
 
 
 def _clamped(year: int, month: int, day: int) -> date:
@@ -443,11 +451,15 @@ def _period_occurrences(
         return sorted({monday + timedelta(days=_require(a.weekday)) for a in anchors})
     if unit == "month":
         first = reference.replace(day=1) + relativedelta(months=shift)
-        return sorted(
-            {_clamped(first.year, first.month, _require(a.day)) for a in anchors}
-        )
+        return sorted({_month_occurrence(first.year, first.month, a) for a in anchors})
     year = reference.year + shift
-    return sorted({_clamped(year, _require(a.month), _require(a.day)) for a in anchors})
+    return sorted({_month_occurrence(year, _require(a.month), a) for a in anchors})
+
+
+def _month_occurrence(year: int, month: int, anchor: Anchor) -> date:
+    if anchor.last_day:
+        return date(year, month, 1) + relativedelta(months=1)
+    return _clamped(year, month, _require(anchor.day))
 
 
 def _require(value: int | None) -> int:
@@ -488,3 +500,14 @@ def previous_anchor(on: date, unit: str, anchors: Sequence[Anchor]) -> date:
                 return occurrence
     msg = "an anchored schedule has an occurrence in every period"
     raise AssertionError(msg)
+
+
+def anchor_day(boundary: date, unit: str, anchors: Sequence[Anchor]) -> date:
+    for anchor in anchors:
+        if (
+            anchor.last_day
+            and boundary.day == 1
+            and (unit == "month" or boundary.month == _require(anchor.month) % 12 + 1)
+        ):
+            return boundary - timedelta(days=1)
+    return boundary

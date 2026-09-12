@@ -1,8 +1,11 @@
 from calendar import monthrange
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools.date_utils import Anchor, next_anchor, previous_anchor
+from odoo.tools.date_utils import Anchor, anchor_day, next_anchor, previous_anchor
 
 from odoo.addons.base.models.mixin_recurrence_interval import REPEAT_UNIT_SELECTION
 
@@ -18,6 +21,8 @@ WEEKDAY_SELECTION = [
 WEEKDAY_INDEX = {code: index for index, (code, _label) in enumerate(WEEKDAY_SELECTION)}
 
 DAY_SELECTION = [(str(day), str(day)) for day in range(1, 32)]
+LAST_DAY = "last"
+ANCHOR_DAY_SELECTION = [*DAY_SELECTION, (LAST_DAY, "Last day")]
 
 MONTH_SELECTION = [
     ("1", "January"),
@@ -57,7 +62,7 @@ class MixinRecurrenceAnchored(models.AbstractModel):
         WEEKDAY_SELECTION, string="Weekday", default="MON"
     )
     repeat_day = fields.Selection(
-        DAY_SELECTION,
+        ANCHOR_DAY_SELECTION,
         compute="_compute_repeat_day",
         store=True,
         readonly=False,
@@ -65,7 +70,7 @@ class MixinRecurrenceAnchored(models.AbstractModel):
     )
     repeat_month = fields.Selection(MONTH_SELECTION, default="1")
     repeat_second_day = fields.Selection(
-        DAY_SELECTION,
+        ANCHOR_DAY_SELECTION,
         compute="_compute_repeat_second_day",
         store=True,
         readonly=False,
@@ -74,6 +79,8 @@ class MixinRecurrenceAnchored(models.AbstractModel):
 
     @staticmethod
     def _clamp_day(day, month):
+        if day == LAST_DAY:
+            return day
         return str(min(monthrange(2020, int(month))[1], int(day)))
 
     @api.depends("repeat_month", "repeat_unit")
@@ -121,8 +128,20 @@ class MixinRecurrenceAnchored(models.AbstractModel):
                 raise ValidationError(self.env._("A weekly schedule needs a weekday."))
             if not record.repeat_twice or record.repeat_unit not in ("month", "year"):
                 continue
-            first, second = record._get_recurrence_anchors()
-            if (first.month or 0, first.day) >= (second.month or 0, second.day):
+            anchors = record._get_recurrence_anchors()
+            first, second = map(record._get_boundary_in_reference_period, anchors)
+            one_period = relativedelta(**{f"{record.repeat_unit}s": 1})
+            if any(anchor.last_day for anchor in anchors) and second in (
+                first,
+                first + one_period,
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "The last day of a month and the first day of the next one "
+                        "close the same period, so they cannot be the two dates."
+                    )
+                )
+            if first >= second:
                 raise ValidationError(
                     self.env._("The first day must be lower than the second day.")
                     if record.repeat_unit == "month"
@@ -130,6 +149,21 @@ class MixinRecurrenceAnchored(models.AbstractModel):
                         "The first date must be earlier in the year than the second date."
                     )
                 )
+
+    # 2024 is a leap year, so no day a record can hold is clamped before it is
+    # compared, and January is long enough for every day of a monthly anchor.
+    @staticmethod
+    def _get_boundary_in_reference_period(anchor):
+        first = date(2024, anchor.month or 1, 1)
+        if anchor.last_day:
+            return first + relativedelta(months=1)
+        return first.replace(day=anchor.day)
+
+    @staticmethod
+    def _build_day_anchor(day, month):
+        if day == LAST_DAY:
+            return Anchor(month=month, last_day=True)
+        return Anchor(day=int(day), month=month)
 
     def _get_recurrence_anchors(self):
         self.check_singleton()
@@ -139,10 +173,10 @@ class MixinRecurrenceAnchored(models.AbstractModel):
         if unit == "week":
             return [Anchor(weekday=WEEKDAY_INDEX[self.repeat_weekday])]
         month = int(self.repeat_month) if unit == "year" else None
-        anchors = [Anchor(day=int(self.repeat_day), month=month)]
+        anchors = [self._build_day_anchor(self.repeat_day, month)]
         if self.repeat_twice:
             second_month = int(self.repeat_second_month) if unit == "year" else None
-            anchors.append(Anchor(day=int(self.repeat_second_day), month=second_month))
+            anchors.append(self._build_day_anchor(self.repeat_second_day, second_month))
         return anchors
 
     def _get_next_anchor(self, after):
@@ -150,3 +184,8 @@ class MixinRecurrenceAnchored(models.AbstractModel):
 
     def _get_previous_anchor(self, on):
         return previous_anchor(on, self.repeat_unit, self._get_recurrence_anchors())
+
+    def _get_anchor_day(self, boundary):
+        if self.repeat_unit in ("day", "week"):
+            return boundary
+        return anchor_day(boundary, self.repeat_unit, self._get_recurrence_anchors())

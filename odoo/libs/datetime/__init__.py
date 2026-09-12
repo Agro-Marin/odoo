@@ -1,6 +1,7 @@
 from .date_utils import (
     WEEKDAY_NUMBER,
     Anchor,
+    anchor_day,
     Granularity,
     TIME_UNIT_SELECTION,
     TimeUnit,
@@ -51,6 +52,7 @@ __all__ = [
     "TimeUnit",
     "add",
     "all_timezones",
+    "anchor_day",
     "country_timezones",
     "date_range",
     "end_of",

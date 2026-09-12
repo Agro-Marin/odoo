@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools.date_utils import get_timedelta
@@ -323,23 +321,6 @@ class HrLeaveAccrualLevel(models.Model):
 
     def _get_hourly_bases(self):
         return ["hour"]
-
-    def _get_previous_anchor(self, on):
-        previous = super()._get_previous_anchor(on)
-        # Kept from the per-frequency branches this replaced, and only for a
-        # monthly level: when `on` falls before this month's anchor, the period
-        # it belongs to starts the day after the previous anchor. That is what
-        # lets an allocation starting on the 1st, on a plan accruing on the 31st,
-        # earn a whole month rather than 30/31 of one. Twice a month and the
-        # yearly frequencies never had it, so the same case prorates there; which
-        # of the two is right is an accrual policy question this move leaves open.
-        if (
-            self.repeat_unit == "month"
-            and not self.repeat_twice
-            and previous.month != on.month
-        ):
-            return previous + timedelta(days=1)
-        return previous
 
     def _get_level_transition_date(self, allocation_start):
         return allocation_start + get_timedelta(self.start_count, self.start_type)

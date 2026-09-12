@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo.libs.datetime.date_utils import (
     Anchor,
+    anchor_day,
     next_after,
     next_anchor,
     previous_anchor,
@@ -146,9 +147,8 @@ def _accrual_next(frequency, last_call, **anchors):
 
 def _accrual_previous(frequency, last_call, **anchors):
     # `_get_previous_date` as it stood, minus the monthly branch's `days=1`: that
-    # branch alone returned the day after the previous anchor, where bimonthly
-    # returns the anchor itself in the same situation. The engine agrees with
-    # the other five branches; the hr_holidays change records why.
+    # branch alone returned the day after the previous anchor, so one period
+    # measured 30 or 31 days depending on which month a partial start fell in.
     d = {k: int(v) for k, v in anchors.items()}
     if frequency == "daily":
         return last_call
@@ -291,3 +291,47 @@ class TestAnchored:
     def test_rejects_an_anchor_missing_its_component(self):
         with pytest.raises(ValueError, match="missing"):
             next_anchor(date(2026, 1, 1), "year", [Anchor(day=1)])
+
+
+class TestLastDay:
+    def test_a_last_day_boundary_is_the_first_of_the_next_month(self):
+        last = [Anchor(last_day=True)]
+        assert next_anchor(date(2026, 1, 20), "month", last) == date(2026, 2, 1)
+        assert next_anchor(date(2026, 1, 31), "month", last) == date(2026, 2, 1)
+        assert next_anchor(date(2026, 2, 1), "month", last) == date(2026, 3, 1)
+        assert previous_anchor(date(2026, 2, 1), "month", last) == date(2026, 2, 1)
+        assert previous_anchor(date(2026, 1, 31), "month", last) == date(2026, 1, 1)
+
+    def test_its_period_is_the_calendar_month_however_long(self):
+        last = [Anchor(last_day=True)]
+        for month, days in ((1, 31), (2, 28), (4, 30)):
+            on = date(2026, month, 10)
+            assert (
+                next_anchor(on, "month", last) - previous_anchor(on, "month", last)
+            ).days == days
+
+    def test_it_names_the_last_day(self):
+        last = [Anchor(last_day=True)]
+        assert anchor_day(date(2026, 3, 1), "month", last) == date(2026, 2, 28)
+        assert anchor_day(date(2024, 3, 1), "month", last) == date(2024, 2, 29)
+        assert anchor_day(date(2026, 3, 15), "month", last) == date(2026, 3, 15)
+
+    def test_twice_a_month_on_the_15th_and_the_last_day(self):
+        anchors = [Anchor(day=15), Anchor(last_day=True)]
+        assert next_anchor(date(2026, 1, 10), "month", anchors) == date(2026, 1, 15)
+        assert next_anchor(date(2026, 1, 15), "month", anchors) == date(2026, 2, 1)
+        assert previous_anchor(date(2026, 1, 10), "month", anchors) == date(2026, 1, 1)
+        assert anchor_day(date(2026, 1, 15), "month", anchors) == date(2026, 1, 15)
+        assert anchor_day(date(2026, 2, 1), "month", anchors) == date(2026, 1, 31)
+
+    def test_yearly_on_the_last_day_of_a_month(self):
+        february = [Anchor(month=2, last_day=True)]
+        assert next_anchor(date(2024, 1, 1), "year", february) == date(2024, 3, 1)
+        assert anchor_day(date(2024, 3, 1), "year", february) == date(2024, 2, 29)
+        assert anchor_day(date(2024, 4, 1), "year", february) == date(2024, 4, 1)
+
+    def test_the_last_day_of_december_wraps_into_the_next_year(self):
+        december = [Anchor(month=12, last_day=True)]
+        assert next_anchor(date(2025, 6, 1), "year", december) == date(2026, 1, 1)
+        assert previous_anchor(date(2025, 12, 31), "year", december) == date(2025, 1, 1)
+        assert anchor_day(date(2026, 1, 1), "year", december) == date(2025, 12, 31)

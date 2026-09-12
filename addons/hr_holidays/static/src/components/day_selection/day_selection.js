@@ -17,7 +17,9 @@ export class DaySelectionField extends SelectionField {
         let options = super.options;
         const carryover_month = this.props.record.data[this.props.monthField];
         const lastDay = new Date(2020, carryover_month, 0).getDate();
-        options = options.filter((option) => option[0] <= lastDay);
+        options = options.filter(
+            (option) => option[0] === "last" || Number(option[0]) <= lastDay,
+        );
         return options;
     }
 }

@@ -294,7 +294,7 @@ class TestIsAbsentSearch(TestHrHolidaysCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccrualLevelPeriodBounds(TestHrHolidaysCommon):
-    def test_monthly_previous_date_starts_the_period_the_others_do_not(self):
+    def test_every_cadence_starts_its_period_on_the_previous_anchor(self):
         plan = self.env["hr.leave.accrual.plan"].create({"name": "Anchor plan"})
         level_vals = {
             "accrual_plan_id": plan.id,
@@ -303,9 +303,12 @@ class TestAccrualLevelPeriodBounds(TestHrHolidaysCommon):
             "start_count": 0,
             "milestone_date": "creation",
         }
-        monthly, bimonthly, yearly = self.env["hr.leave.accrual.level"].create(
+        monthly, last_day, bimonthly, yearly = self.env[
+            "hr.leave.accrual.level"
+        ].create(
             [
                 {**level_vals, "frequency": "monthly", "repeat_day": "20"},
+                {**level_vals, "frequency": "monthly", "repeat_day": "last"},
                 {
                     **level_vals,
                     "frequency": "bimonthly",
@@ -321,7 +324,9 @@ class TestAccrualLevelPeriodBounds(TestHrHolidaysCommon):
             ]
         )
         last_call = date(2026, 3, 15)
-        self.assertEqual(monthly._get_previous_anchor(last_call), date(2026, 2, 21))
+        self.assertEqual(monthly._get_previous_anchor(last_call), date(2026, 2, 20))
+        self.assertEqual(last_day._get_previous_anchor(last_call), date(2026, 3, 1))
+        self.assertEqual(last_day._get_anchor_day(date(2026, 3, 1)), date(2026, 2, 28))
         self.assertEqual(bimonthly._get_previous_anchor(last_call), date(2026, 2, 25))
         self.assertEqual(yearly._get_previous_anchor(last_call), date(2025, 6, 20))
 

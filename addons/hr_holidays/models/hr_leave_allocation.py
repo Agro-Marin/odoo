@@ -665,7 +665,7 @@ class HrLeaveAllocation(models.Model):
             (current_level, current_level_idx) = (False, 0)
             current_level_maximum_leave = 0.0
             cap_days_by_level = {}
-            while allocation.nextcall <= date_to:
+            while allocation._get_accrual_step_date() <= date_to:
                 (current_level, current_level_idx) = (
                     allocation._get_current_accrual_plan_level_id(allocation.nextcall)
                 )
@@ -697,6 +697,30 @@ class HrLeaveAllocation(models.Model):
                 if allocation.nextcall < carryover_date < nextcall:
                     nextcall = min(nextcall, carryover_date)
 
+                is_accrual_date = allocation.nextcall in (
+                    period_end,
+                    current_level_last_date,
+                )
+                # A last-day period is credited on its last day, a day before its
+                # boundary, so the credit precedes whatever else happens at the
+                # boundary: a carryover, an expiry, the next level.
+                if (
+                    allocation.accrual_plan_id.accrued_gain_time == "end"
+                    and allocation.nextcall == period_end
+                    and current_level._get_anchor_day(period_end) < period_end
+                    and not allocation.already_accrued
+                ):
+                    allocation._add_days_to_allocation(
+                        current_level,
+                        current_level_maximum_leave,
+                        leaves_taken,
+                        period_start,
+                        period_end,
+                    )
+                    allocation.already_accrued = True
+                if allocation.nextcall > date_to:
+                    break
+
                 if current_level.accrual_validity:
                     expiration_date = allocation.carried_over_days_expiration_date
                     if (
@@ -724,10 +748,6 @@ class HrLeaveAllocation(models.Model):
                         )
                         allocation.expiring_carryover_days = 0
 
-                is_accrual_date = allocation.nextcall in (
-                    period_end,
-                    current_level_last_date,
-                )
                 if (
                     not allocation.already_accrued
                     and is_accrual_date
@@ -852,9 +872,16 @@ class HrLeaveAllocation(models.Model):
                     )
                     allocation.already_accrued = True
 
+    def _get_accrual_step_date(self):
+        self.check_singleton()
+        if self.accrual_plan_id.accrued_gain_time != "end":
+            return self.nextcall
+        level, _level_idx = self._get_current_accrual_plan_level_id(self.nextcall)
+        return level._get_anchor_day(self.nextcall) if level else self.nextcall
+
     @api.model
     def _update_accrual(self):
-        today = datetime.combine(fields.Date.today(), time(0, 0, 0))
+        tomorrow = datetime.combine(fields.Date.today() + relativedelta(days=1), time())
         allocations = self.search(
             [
                 ("allocation_type", "=", "accrual"),
@@ -866,7 +893,7 @@ class HrLeaveAllocation(models.Model):
                 ("date_to", ">", fields.Datetime.now()),
                 "|",
                 ("nextcall", "=", False),
-                ("nextcall", "<=", today),
+                ("nextcall", "<=", tomorrow),
             ]
         )
         allocations._process_accrual_plans()
@@ -881,7 +908,10 @@ class HrLeaveAllocation(models.Model):
             and self.state == "validate"
             and self.allocation_type == "accrual"
             and (not self.date_to or self.date_to > accrual_date)
-            and (not self.nextcall or self.nextcall <= accrual_date)
+            and (
+                not self.nextcall
+                or self.nextcall <= accrual_date + relativedelta(days=1)
+            )
         ):
             return 0
 

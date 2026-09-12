@@ -59,6 +59,10 @@ export class AccrualLevels extends Component {
         }).toLocaleString({ weekday: "long" });
     }
 
+    getDayLabel(day) {
+        return day === "last" ? _t("last day") : day;
+    }
+
     getFullMonth(month) {
         return luxon.DateTime.fromFormat(month, "M", {
             locale: this.env.model.config.context.lang.replace("_", "-"),

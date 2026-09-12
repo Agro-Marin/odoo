@@ -1838,7 +1838,7 @@ Every N units. `repeat_interval` (Integer, default 1, positive), `repeat_unit` (
 
 #### MixinRecurrenceAnchored — `mixin.recurrence.anchored` (AbstractModel)
 
-Fixed points inside a period rather than every N units: `repeat_unit` (day/week/month/year), `repeat_weekday` (MON..SUN), `repeat_day` and `repeat_month` (string Selections, the day clamped to the month), and with `repeat_twice` a second `repeat_second_day`/`repeat_second_month`. `_get_next_anchor(after)` is strictly after, `_get_previous_anchor(on)` on or before, over `odoo.tools.date_utils.next_anchor`/`previous_anchor`, which clamp a day past a short month's end instead of skipping the month. Taken by `hr.leave.accrual.level`. Owns `WEEKDAY_SELECTION`, which the rrule mixin imports.
+Fixed points inside a period rather than every N units: `repeat_unit` (day/week/month/year), `repeat_weekday` (MON..SUN), `repeat_day` and `repeat_month` (string Selections, the day clamped to the month), and with `repeat_twice` a second `repeat_second_day`/`repeat_second_month`. `_get_next_anchor(after)` is strictly after, `_get_previous_anchor(on)` on or before, over `odoo.tools.date_utils.next_anchor`/`previous_anchor`, which clamp a day past a short month's end instead of skipping the month. An occurrence is a boundary: the period it closes ends as that day starts. A day of `last` is the one exception to how a day is named. Its boundary is the first of the next month, so its period is the calendar month, and `_get_anchor_day(boundary)` returns the last day it names. Taken by `hr.leave.accrual.level`, which credits an end-of-period accrual on that named day. Owns `WEEKDAY_SELECTION`, which the rrule mixin imports.
 
 ### models/mixin_recurrence_rule.py
 
