@@ -72,7 +72,13 @@ export class ExpenseListController extends ExpenseDocumentUpload(ListController)
                 additionalContext: {
                     dont_redirect_to_payments: 1,
                 },
-                onClose: async () => {
+                // the wizard's own action redirects to the new entries and the
+                // action service closes it with noReload while this list is
+                // torn down; a reload here never resolved and kept the dialog open
+                onClose: async (closeParams) => {
+                    if (closeParams?.noReload) {
+                        return;
+                    }
                     await this.model.root.load();
                     this.render(true);
                 },

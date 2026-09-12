@@ -73,6 +73,9 @@ Key Features
         "web.assets_frontend": [
             "event/static/src/js/tours/**/*",
         ],
+        "web.assets_unit_tests": [
+            "event/static/tests/**/*.js",
+        ],
         "web.report_assets_common": [
             "/event/static/src/scss/event_badge_report.scss",
             "/event/static/src/scss/event_full_page_ticket_report.scss",
