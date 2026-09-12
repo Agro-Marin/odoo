@@ -51,6 +51,12 @@ class _RequestServeMixin(RequestState):
                 for disp in _dispatchers.values()
                 if disp.is_compatible_with_request(self)
             ]
+            _debug.logic(
+                "http.dispatcher.incompatible",
+                routing_type=routing["type"],
+                mimetype=getattr(self.httprequest, "mimetype", None),
+                compatible=",".join(compatible_dispatchers) or None,
+            )
             e = (
                 f"Request inferred type is compatible with {compatible_dispatchers} "
                 f"but {routing['routes'][0]!r} is type={routing['type']!r}.\n\n"
@@ -60,24 +66,42 @@ class _RequestServeMixin(RequestState):
             res.headers["Accept"] = ", ".join(dispatcher_cls.mimetypes)
             raise UnsupportedMediaType(response=res)
         self.dispatcher = dispatcher_cls(self)
+        _debug.logic(
+            "http.dispatcher.selected",
+            routing_type=routing["type"],
+            mimetype=getattr(self.httprequest, "mimetype", None),
+        )
 
     def _serve_static(self, filepath: str) -> Response:
         root = self.app
 
-        try:
-            stream = Stream._from_trusted_path(filepath, public=True)
-            debug = "assets" in self.session.debug
-            res = stream.prepare_response(
-                max_age=0 if debug else STATIC_CACHE,
-                content_security_policy=None,
-            )
-            root.update_security_headers(res)
-            return res
-        except OSError:
-            module, _, path = self.httprequest.path[1:].partition("/static/")
-            raise NotFound(f'File "{path}" not found in module {module}.\n') from None
+        with _debug.perf(
+            "http.serve.static", path=getattr(self.httprequest, "path", None)
+        ) as span:
+            try:
+                stream = Stream._from_trusted_path(filepath, public=True)
+                debug = "assets" in self.session.debug
+                res = stream.prepare_response(
+                    max_age=0 if debug else STATIC_CACHE,
+                    content_security_policy=None,
+                )
+                root.update_security_headers(res)
+                span.set(size=stream.size, status=res.status_code, debug_assets=debug)
+                return res
+            except OSError:
+                module, _, path = self.httprequest.path[1:].partition("/static/")
+                _debug.logic("http.static.missing", module=module, path=path)
+                raise NotFound(
+                    f'File "{path}" not found in module {module}.\n'
+                ) from None
 
     def _serve_aborted(self, exc: HTTPException) -> Response:
+        _debug.logic(
+            "http.serve.aborted",
+            path=getattr(self.httprequest, "path", None),
+            status=exc.code,
+            explicit_response=exc.response is not None,
+        )
         if exc.response is not None:
             response = exc.get_response()
         else:
@@ -118,7 +142,19 @@ class _RequestServeMixin(RequestState):
             )
             self._update_dispatcher(rule)
             self.dispatcher.pre_dispatch(rule, args)
-            response = self.dispatcher.dispatch(rule.endpoint, args)
+            with _debug.perf(
+                "http.serve.handler",
+                db=None,
+                endpoint=getattr(rule.endpoint, "__qualname__", None),
+            ) as span:
+                response = self.dispatcher.dispatch(rule.endpoint, args)
+                span.set(status=getattr(response, "status_code", None))
+            _debug.pipeline(
+                "http.serve.dispatched",
+                db=None,
+                endpoint=getattr(rule.endpoint, "__qualname__", None),
+                status=getattr(response, "status_code", None),
+            )
             self.dispatcher.post_dispatch(response)
             return response
         except HTTPException as exc:
@@ -127,6 +163,11 @@ class _RequestServeMixin(RequestState):
             return self._serve_aborted(exc)
 
     def _prepare_nodb_not_found_response(self, exc: NotFound) -> Response:
+        _debug.logic(
+            "http.nodb.not_found",
+            path=getattr(self.httprequest, "path", None),
+            routing_type=self.dispatcher.routing_type,
+        )
         if self.dispatcher.routing_type == "http":
             return Response(
                 NOT_FOUND_NODB,
@@ -142,10 +183,12 @@ class _RequestServeMixin(RequestState):
             raise RuntimeError("a database-bound request needs a database name")
         cr = None
         try:
-            with borrow_request():
-                registry = Registry(db)
-            cr = registry.cursor(readonly=True)
-            self.registry = registry.check_signaling(cr)
+            with _debug.perf("http.registry.acquire", db=db) as span:
+                with borrow_request():
+                    registry = Registry(db)
+                cr = registry.cursor(readonly=True)
+                self.registry = registry.check_signaling(cr)
+                span.set(reloaded=self.registry is not registry)
             _debug.pipeline(
                 "http.registry.acquired",
                 db=db,
@@ -167,6 +210,7 @@ class _RequestServeMixin(RequestState):
                 if db_absent:
                     Registry.clear_database_state(db)
                     close_db(db)
+                    _debug.lifecycle("http.registry.stale_cleared", db=db)
             except Exception:
                 _logger.debug(
                     "Stale-registry cleanup after RegistryError failed",
@@ -229,10 +273,24 @@ class _RequestServeMixin(RequestState):
                 env=env,
                 participant=participant,
             )
+            _debug.pipeline(
+                "http.serve.transaction",
+                mode="rw",
+                commits=env.cr.commit_count - commits_before,
+                cursor_closed=env.cr.closed,
+                status=getattr(response, "status_code", None),
+            )
             if not env.cr.closed:
                 self._flush_session()
             return response
         except Exception as exc:
+            _debug.logic(
+                "http.serve.transaction_failed",
+                mode="rw",
+                error=type(exc).__name__,
+                committed=env.cr.commit_count != commits_before,
+                cursor_closed=env.cr.closed,
+            )
             if not env.cr.closed and env.cr.commit_count == commits_before:
                 env.cr.rollback()
             self._update_served_exception(exc)
@@ -253,6 +311,13 @@ class _RequestServeMixin(RequestState):
                 env=env,
                 participant=participant,
             )
+            _debug.pipeline(
+                "http.serve.transaction",
+                mode="ro",
+                commits=env.cr.commit_count - commits_before,
+                cursor_closed=env.cr.closed,
+                status=getattr(response, "status_code", None),
+            )
             if not env.cr.closed:
                 self._flush_session()
             return response
@@ -260,6 +325,12 @@ class _RequestServeMixin(RequestState):
             if env.cr.closed or env.cr.commit_count != commits_before:
                 # Postcommit failures cannot be retried: the first execution
                 # has already published its database and session effects.
+                _debug.logic(
+                    "http.serve.ro_write_after_commit",
+                    method=getattr(self.httprequest, "method", None),
+                    path=getattr(self.httprequest, "path", None),
+                    cursor_closed=env.cr.closed,
+                )
                 self._update_served_exception(exc)
                 raise
             _logger.warning(
@@ -282,6 +353,13 @@ class _RequestServeMixin(RequestState):
             )
             return _PROMOTE
         except Exception as exc:
+            _debug.logic(
+                "http.serve.transaction_failed",
+                mode="ro",
+                error=type(exc).__name__,
+                committed=env.cr.commit_count != commits_before,
+                cursor_closed=env.cr.closed,
+            )
             if not env.cr.closed and env.cr.commit_count == commits_before:
                 env.cr.rollback()
             self._update_served_exception(exc)
@@ -307,7 +385,9 @@ class _RequestServeMixin(RequestState):
             cr = env.registry.cursor()
         else:
             cr.rollback()
+            _debug.lifecycle("http.serve.cursor_reused", db=env.registry.db_name)
         if cr.readonly:
+            _debug.logic("http.serve.cursor_still_readonly", db=env.registry.db_name)
             e = (
                 f"{self.httprequest.method} {self.httprequest.path} needs a "
                 f"read/write cursor and the registry handed back a read-only "
@@ -352,6 +432,12 @@ class _RequestServeMixin(RequestState):
                 raise RuntimeError("a database-bound request has an environment")
             cr = self._open_read_write_cursor(cr)
             if promoted:
+                _debug.pipeline(
+                    "http.serve.replay",
+                    db=registry.db_name,
+                    method=getattr(self.httprequest, "method", None),
+                    path=getattr(self.httprequest, "path", None),
+                )
                 self._reset_for_replay(cr)
             else:
                 self.env = env(cr=cr)
@@ -364,6 +450,12 @@ class _RequestServeMixin(RequestState):
             self.env = None
             if cr is not None:
                 cr.close()
+            _debug.lifecycle(
+                "http.serve.db_released",
+                db=self.db,
+                cursor_mode=getattr(current_worker_thread(), "cursor_mode", None),
+                had_cursor=cr is not None,
+            )
 
     def _update_served_exception(self, exc: Exception) -> None:
         if isinstance(exc, HTTPException) and exc.code is None:
@@ -372,12 +464,22 @@ class _RequestServeMixin(RequestState):
             "werkzeug" in current_settings().dev_mode
             and not self.dispatcher.serializes_errors_in_dev_mode
         ):
+            _debug.logic(
+                "http.serve.error_left_to_debugger",
+                error=type(exc).__name__,
+                dispatcher=self.dispatcher.routing_type,
+            )
             return
         if get_error_response(exc) is None:
             if isinstance(exc, AccessDenied):
                 exc.suppress_traceback()
             registry = self._get_bound_registry()
             set_error_response(exc, get_ir_http(registry)._handle_error(exc))
+            _debug.logic(
+                "http.serve.error_handled",
+                error=type(exc).__name__,
+                dispatcher=self.dispatcher.routing_type,
+            )
 
     def _get_bound_registry(self) -> Registry:
         registry = self.registry
@@ -389,6 +491,7 @@ class _RequestServeMixin(RequestState):
         limit = self.httprequest.max_content_length
         length = self.httprequest.content_length
         if limit is not None and length is not None and length > limit:
+            _debug.logic("http.body.too_large", length=length, limit=limit)
             raise RequestEntityTooLarge
 
     def _serve_ir_http_fallback(self, not_found: NotFound) -> Response:
@@ -398,6 +501,12 @@ class _RequestServeMixin(RequestState):
         self._params_source = self.get_http_params
         get_ir_http(registry)._authenticate_explicit("public")
         response = get_ir_http(registry)._serve_fallback()
+        _debug.pipeline(
+            "http.serve.fallback",
+            path=getattr(self.httprequest, "path", None),
+            served=bool(response),
+            status=getattr(response, "status_code", None),
+        )
         if response:
             get_ir_http(registry)._post_dispatch(response)
             return response
@@ -418,7 +527,14 @@ class _RequestServeMixin(RequestState):
             uid=None if self.env is None else self.env.uid,
         )
         get_ir_http(registry)._pre_dispatch(rule, args)
-        response = self.dispatcher.dispatch(rule.endpoint, args)
+        with _debug.perf(
+            "http.serve.handler",
+            cr=getattr(self.env, "cr", None),
+            db=registry.db_name,
+            endpoint=getattr(rule.endpoint, "__qualname__", None),
+        ) as span:
+            response = self.dispatcher.dispatch(rule.endpoint, args)
+            span.set(status=getattr(response, "status_code", None))
         _debug.pipeline(
             "http.serve.dispatched",
             endpoint=getattr(rule.endpoint, "__qualname__", None),

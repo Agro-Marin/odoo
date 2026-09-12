@@ -23,10 +23,14 @@ from werkzeug.exceptions import (
     abort,
 )
 
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from .wrappers import Response
 
     type ErrorResponse = Response | HTTPException
+
+_debug = DebugLog(__name__)
 
 
 class RegistryError(RuntimeError):
@@ -48,7 +52,15 @@ def get_error_response(exc: BaseException) -> ErrorResponse | None:
 
 def set_error_response(exc: BaseException, response: ErrorResponse) -> None:
     carrier: Any = exc
+    replaced = get_error_response(exc) is not None  # debuglog
     carrier.error_response = response
+    _debug.lifecycle(
+        "http.error_response.attached",
+        error=type(exc).__name__,
+        status=getattr(response, "status_code", None)
+        or getattr(response, "code", None),
+        replaced=replaced,
+    )
 
 
 __all__ = (

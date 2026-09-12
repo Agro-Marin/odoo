@@ -18,6 +18,10 @@ def _get_csrf_secret(env: Any) -> str:
     assert env is not None, "CSRF tokens need a database-bound request"
     secret = env["ir.config_parameter"].sudo().get_param("database.secret")
     if not secret:
+        _debug.logic(
+            "http.csrf.secret_missing",
+            db=getattr(getattr(env, "registry", None), "db_name", None),
+        )
         msg = "CSRF protection requires a configured database secret"
         raise ValueError(msg)
     return secret
@@ -39,25 +43,35 @@ class _RequestCsrfMixin(RequestState):
 
         if self.session.is_new:
             self.session.mark_dirty()
+        _debug.lifecycle(
+            "http.csrf.token_issued",
+            sid=self.session.sid[:8],
+            ttl=time_limit,
+            session_new=self.session.is_new,
+        )
         return f"{hm}o{max_ts}"
 
     def is_valid_csrf(self, csrf: str | None) -> bool:
         if not isinstance(csrf, str) or not csrf:
+            _debug.logic("http.csrf.malformed", reason="empty")
             return False
 
         secret = _get_csrf_secret(self.env)
 
         hm, _, max_ts = csrf.rpartition("o")
         if not max_ts:
+            _debug.logic("http.csrf.malformed", reason="no_timestamp")
             return False
         try:
             if int(max_ts) < int(time.time()):
                 _debug.logic("http.csrf.expired", sid=self.session.sid[:8])
                 return False
         except ValueError:
+            _debug.logic("http.csrf.malformed", reason="bad_timestamp")
             return False
 
         if not hm.isascii():
+            _debug.logic("http.csrf.malformed", reason="non_ascii")
             return False
 
         digest = _get_csrf_digest(secret, self.session.sid, max_ts)

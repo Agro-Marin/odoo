@@ -112,6 +112,10 @@ class Application:
         from odoo.service.server import load_server_wide_modules
 
         load_server_wide_modules()
+        _debug.lifecycle(
+            "http.application.initialized",
+            server_wide_modules=len(current_settings().server_wide_modules),
+        )
 
     def get_static_path(self, module_name: str) -> str | None:
         manifest = module_manager.Manifest.for_addon(module_name, display_warning=False)
@@ -130,6 +134,7 @@ class Application:
 
         host = host.lower()
         if netloc and netloc.lower() != host:
+            _debug.logic("http.static.rejected", reason="netloc", netloc=netloc)
             return None
 
         if not netloc and leading_segment and leading_segment.lower() != host:
@@ -140,11 +145,13 @@ class Application:
 
         static_path = self.get_static_path(module)
         if not static_path:
+            _debug.logic("http.static.rejected", reason="no_static_dir", module=module)
             return None
 
         try:
             return _get_static_resource_path(static_path, resource)
         except FileNotFoundError, ValueError:
+            _debug.logic("http.static.rejected", reason="unresolved", module=module)
             return None
 
     @_locked_cached_property
@@ -163,42 +170,69 @@ class Application:
     def session_store(self):
         path = prepare_session_dir(current_settings().session_dir)
         _logger.debug("HTTP sessions stored in: %s", path)
+        _debug.lifecycle("http.session_store.opened", path=path)
         return FilesystemSessionStore(path, session_class=Session, renew_missing=True)
 
     def get_routing_map(self, db: str | None, env: Any = None) -> werkzeug.routing.Map:
         if not db:
+            _debug.logic("http.routing_map.selected", db=None, source="nodb")
             return self.nodb_routing_map
         router_env = env if env is not None else request.env
         if router_env is None:
             raise RuntimeError("a database router needs a bound environment")
+        _debug.logic("http.routing_map.selected", db=db, source="ir.http")
         return get_ir_http(router_env).routing_map()
 
     @_locked_cached_property
     def geoip_city_db(self):
         if geoip2 is None:
+            _debug.logic("http.geoip.db_unavailable", db="city", reason="no_geoip2")
             return None
         try:
-            return geoip2.database.Reader(current_settings().geoip_city_db)
+            reader = geoip2.database.Reader(current_settings().geoip_city_db)
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
             _logger.debug(
                 "Couldn't load Geoip City file at %s (%s). IP Resolver disabled.",
                 current_settings().geoip_city_db,
                 exc,
             )
+            _debug.logic(
+                "http.geoip.db_unavailable",
+                db="city",
+                reason=type(exc).__name__,
+                path=current_settings().geoip_city_db,
+            )
             return None
+        _debug.lifecycle(
+            "http.geoip.db_opened", db="city", path=current_settings().geoip_city_db
+        )
+        return reader
 
     @_locked_cached_property
     def geoip_country_db(self):
         if geoip2 is None:
+            _debug.logic("http.geoip.db_unavailable", db="country", reason="no_geoip2")
             return None
         try:
-            return geoip2.database.Reader(current_settings().geoip_country_db)
+            reader = geoip2.database.Reader(current_settings().geoip_country_db)
         except (OSError, maxminddb.InvalidDatabaseError) as exc:
             _logger.debug(
                 "Couldn't load Geoip Country file (%s); caller will fall back to Geoip City if available.",
                 exc,
             )
+            _debug.logic(
+                "http.geoip.db_unavailable",
+                db="country",
+                reason=type(exc).__name__,
+                path=current_settings().geoip_country_db,
+            )
             return None
+        _debug.lifecycle(
+            "http.geoip.db_opened",
+            db="country",
+            path=current_settings().geoip_country_db,
+        )
+        return reader
 
     def update_security_headers(self, response: WerkzeugResponse | Response) -> None:
         headers = response.headers
@@ -211,6 +245,7 @@ class Application:
         if not headers.get("Content-Type", "").startswith("image/"):
             return
 
+        _debug.logic("http.security_headers.image_csp", status=response.status_code)
         headers["Content-Security-Policy"] = "default-src 'none'"
 
     def _clear_thread_state(self) -> None:
@@ -236,6 +271,22 @@ class Application:
         ):
             hops = settings.proxy_hops
             _prepare_proxy_fix(hops)(environ, _noop_start_response)
+            _debug.logic(
+                "http.proxy_fix.applied",
+                hops=hops,
+                remote_addr=environ.get("REMOTE_ADDR"),
+                scheme=environ.get("wsgi.url_scheme"),
+            )
+        if (
+            _debug.logic.enabled
+            and not settings.proxy_mode
+            and environ.get("HTTP_X_FORWARDED_FOR")
+        ):
+            _debug.logic(
+                "http.proxy_fix.skipped",
+                reason="proxy_mode_off",
+                remote_addr=environ.get("REMOTE_ADDR"),
+            )
 
     def _recover_from_registry_error(
         self, request: Request, httprequest: HTTPRequest, exc: RegistryError
@@ -254,6 +305,7 @@ class Application:
             db_absent=exc.db_absent,
             transient=exc.transient,
             durable=durable,
+            select_db_path=is_select_db_path(httprequest.path),
         )
         if not durable:
             request.session.can_save = False
@@ -273,6 +325,7 @@ class Application:
             return request._serve_static(static_file)
 
         allow = prepare_allow_header(STATIC_ALLOWED_METHODS)
+        _debug.logic("http.static.method_rejected", method=method, allow=allow)
         if method == "OPTIONS":
             response = prepare_no_content_response(headers=[("Allow", allow)])
             self.update_security_headers(response)
@@ -302,35 +355,58 @@ class Application:
     ) -> Any:
         existing = get_error_response(exc)
         if existing is not None:
+            _debug.logic("http.error_response.reused", error=type(exc).__name__)
             return existing
         if isinstance(exc, AccessDenied):
             exc.suppress_traceback()
+        via = "no_request"  # debuglog
         if request is None:
             response: Any = InternalServerError(str(exc) or None)
         else:
             try:
                 response = request.dispatcher.prepare_error_response(exc)
+                via = "dispatcher"  # debuglog
             except Exception:
                 _logger.exception("The dispatcher could not build an error response")
                 response = InternalServerError()
+                via = "dispatcher_failed"  # debuglog
         set_error_response(exc, response)
+        _debug.logic(
+            "http.error_response.built",
+            error=type(exc).__name__,
+            via=via,
+            status=getattr(response, "code", None),
+        )
         return response
 
     def _finalize_error_response(
         self, exc: Exception, request: Request | None, response: Any
     ) -> Any:
         if request is None or not request._post_init_done or response is None:
+            _debug.logic(
+                "http.error_response.unfinalized",
+                error=type(exc).__name__,
+                has_request=request is not None,
+            )
             return response
         try:
             if isinstance(response, HTTPException):
                 response = response.get_response(request.httprequest.environ)
             request.dispatcher.post_dispatch(response)
             set_error_response(exc, response)
+            _debug.pipeline(
+                "http.error_response.finalized",
+                error=type(exc).__name__,
+                status=getattr(response, "status_code", None),
+            )
         except Exception:
             _logger.warning(
                 "Could not post-process the error response; "
                 "CORS/session headers may be missing.",
                 exc_info=True,
+            )
+            _debug.logic(
+                "http.error_response.finalize_failed", error=type(exc).__name__
             )
         return response
 
@@ -415,6 +491,9 @@ class Application:
                 if pushed:
                     _request_stack.pop()
                 if request is not None and request.httprequest is not httprequest:
+                    _debug.lifecycle(
+                        "http.request.rerouted_closed", path=httprequest.path
+                    )
                     with contextlib.suppress(Exception):
                         request.httprequest.close()
 

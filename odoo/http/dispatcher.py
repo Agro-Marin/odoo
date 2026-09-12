@@ -50,7 +50,11 @@ def get_dispatcher_for_unmatched_route(request: RequestState) -> type[Dispatcher
     for routing_type in ("json2", "jsonrpc"):
         dispatcher = _dispatchers.get(routing_type)
         if dispatcher is not None and mimetype in dispatcher.mimetypes:
+            _debug.logic(
+                "http.dispatcher.inferred", mimetype=mimetype, routing_type=routing_type
+            )
             return dispatcher
+    _debug.logic("http.dispatcher.inferred", mimetype=mimetype, routing_type="http")
     return _dispatchers["http"]
 
 
@@ -92,6 +96,12 @@ class Dispatcher(ABC):
                 "extends" if deliberate else "unrelatedly replaces",
             )
         _dispatchers[routing_type] = cls
+        _debug.lifecycle(
+            "http.dispatcher.registered",
+            routing_type=routing_type,
+            cls=cls.__qualname__,
+            replaced=None if existing is None else existing.__qualname__,
+        )
 
     def __init__(self, request: RequestState) -> None:
         self.request = request
@@ -147,6 +157,10 @@ class Dispatcher(ABC):
                 _logger.warning(
                     WILDCARD_CORS_CREDENTIALS_WARNING, self.request.httprequest.path
                 )
+                _debug.logic(
+                    "http.cors.wildcard_credentials_refused",
+                    path=self.request.httprequest.path,
+                )
                 allow_origin = None
             elif origin and allow_origin == origin:
                 set_header("Access-Control-Allow-Credentials", "true")
@@ -164,6 +178,13 @@ class Dispatcher(ABC):
                     "Access-Control-Expose-Headers",
                     expose if isinstance(expose, str) else ", ".join(expose),
                 )
+        _debug.logic(
+            "http.cors.headers",
+            allow_origin=bool(allow_origin),
+            resolver=callable(cors),
+            credentials=bool(routing.get("cors_credentials")),
+            vary=len(vary),
+        )
         return vary
 
     def _stage_preflight_headers(
@@ -172,6 +193,10 @@ class Dispatcher(ABC):
         set_header = self.request.future_response.headers.set
         set_header("Access-Control-Max-Age", CORS_MAX_AGE)
         allow_headers = routing.get("cors_allow_headers")
+        _debug.logic(
+            "http.cors.preflight",
+            allow_headers="declared" if allow_headers is not None else "echoed",
+        )
         if allow_headers is None:
             set_header(
                 "Access-Control-Allow-Headers",
@@ -193,6 +218,7 @@ class Dispatcher(ABC):
         if self.request.httprequest.method == "OPTIONS" and (
             is_preflight or "OPTIONS" not in (routing.get("methods") or ())
         ):
+            _debug.logic("http.dispatch.options_answered", preflight=is_preflight)
             werkzeug.exceptions.abort(
                 prepare_no_content_response(
                     headers=[("Allow", prepare_allow_header(routing.get("methods")))]
@@ -207,6 +233,11 @@ class Dispatcher(ABC):
             if callable(max_content_length):
                 max_content_length = max_content_length(rule.endpoint.func.__self__)
             self.request.httprequest.max_content_length = max_content_length
+            _debug.logic(
+                "http.dispatch.max_content_length",
+                limit=max_content_length,
+                resolved=callable(routing["max_content_length"]),
+            )
 
     @abstractmethod
     def dispatch(self, endpoint: Endpoint, args: dict[str, Any]) -> Any:
@@ -219,6 +250,11 @@ class Dispatcher(ABC):
         self.request._session_response = response
         self.request._update_response_from_future(response)
         root.update_security_headers(response)
+        _debug.pipeline(
+            "http.dispatch.post",
+            dispatcher=self.routing_type,
+            status=getattr(response, "status_code", None),
+        )
 
     def _call_endpoint(self, endpoint: Endpoint) -> Any:
         specs = getattr(endpoint, "_param_specs", None)
@@ -271,16 +307,28 @@ class HttpDispatcher(Dispatcher):
                 )
                 if len(values) > 1:
                     self.request.params[name] = values
+                    _debug.logic(
+                        "http.dispatch.list_param", param=name, values=len(values)
+                    )
 
         if (
             self.request.httprequest.method not in SAFE_HTTP_METHODS
             and endpoint.routing.get("csrf", True)
         ):
             if not self.request.db:
+                _debug.logic(
+                    "http.csrf.redirect_nodb",
+                    path=getattr(self.request.httprequest, "path", None),
+                )
                 return self.request.redirect("/web/database/selector")
 
             token = self.request.params.pop("csrf_token", None)
             if not self.request.is_valid_csrf(token):
+                _debug.logic(
+                    "http.csrf.rejected",
+                    path=getattr(self.request.httprequest, "path", None),
+                    token_present=token is not None,
+                )
                 if token is not None:
                     _logger.warning(
                         "CSRF validation failed on path '%s'",
@@ -300,6 +348,7 @@ class HttpDispatcher(Dispatcher):
             session.logout(keep_db=True)
             if not was_connected:
                 session.should_rotate = False
+            _debug.logic("http.error.session_expired", was_connected=was_connected)
             return self.request.redirect_query(
                 "/web/login", {"redirect": self.request.httprequest.full_path}
             )
@@ -311,10 +360,17 @@ class HttpDispatcher(Dispatcher):
             description = exc.args[0] if exc.args else str(exc) or None
             status = exc.http_status
             exc_cls = werkzeug_default_exceptions.get(status)
+            _debug.logic(
+                "http.error.user_error_mapped",
+                error=type(exc).__name__,
+                status=status,
+                known_status=exc_cls is not None,
+            )
             if exc_cls is not None:
                 return exc_cls(description)
             return UnprocessableEntity(description)
 
+        _debug.logic("http.error.internal", error=type(exc).__name__)
         return InternalServerError()
 
 
@@ -337,17 +393,28 @@ class JsonRPCDispatcher(Dispatcher):
         try:
             self.jsonrequest = self.request.get_json_data()
         except ValueError as exc:
+            _debug.logic(
+                "http.jsonrpc.invalid", reason="json", error=type(exc).__name__
+            )
             raise self._prepare_bad_request_error("Invalid JSON data") from exc
 
         if not isinstance(self.jsonrequest, dict):
+            _debug.logic("http.jsonrpc.invalid", reason="not_object")
             raise self._prepare_bad_request_error("Invalid JSON-RPC data")
 
         self.request_id = self.jsonrequest.get("id")
         params = self.jsonrequest.get("params", {})
         if not isinstance(params, dict):
+            _debug.logic("http.jsonrpc.invalid", reason="params_not_object")
             e = f"JSON-RPC params must be an object (got {type(params).__name__!r})."
             raise werkzeug.exceptions.BadRequest(e)
         self.request.params = params | args
+        _debug.pipeline(
+            "http.jsonrpc.request",
+            id=self.request_id,
+            method=self.jsonrequest.get("method"),
+            params=len(params),
+        )
 
         result = self._call_endpoint(endpoint)
         return self._prepare_jsonrpc_response(result)
@@ -365,6 +432,12 @@ class JsonRPCDispatcher(Dispatcher):
             error["code"] = 100
             error["message"] = "Odoo Session Expired"
 
+        _debug.logic(
+            "http.jsonrpc.error",
+            code=error["code"],
+            error=type(exc).__name__,
+            id=self.request_id,
+        )
         return self._prepare_jsonrpc_response(error=error)
 
     def _prepare_bad_request_error(self, message: str) -> HTTPException:
@@ -414,6 +487,11 @@ class Json2Dispatcher(Dispatcher):
             and httprequest.mimetype not in self.mimetypes
             and endpoint.routing.get("csrf", True)
         ):
+            _debug.logic(
+                "http.json2.csrf_rejected",
+                method=httprequest.method,
+                mimetype=httprequest.mimetype,
+            )
             raise werkzeug.exceptions.BadRequest(
                 "State-changing json2 requests must use the 'application/json' "
                 "Content-Type (CSRF protection)."
@@ -422,6 +500,9 @@ class Json2Dispatcher(Dispatcher):
             try:
                 self.jsonrequest = self.request.get_json_data()
             except ValueError as exc:
+                _debug.logic(
+                    "http.json2.invalid", reason="json", error=type(exc).__name__
+                )
                 e = f"could not parse the body as json: {exc.args[0]}"
                 raise werkzeug.exceptions.BadRequest(e) from exc
             if self.jsonrequest is not None and not isinstance(self.jsonrequest, dict):
@@ -435,12 +516,21 @@ class Json2Dispatcher(Dispatcher):
             **(self.jsonrequest or {}),
             **args,
         }
+        _debug.pipeline(
+            "http.json2.request",
+            method=httprequest.method,
+            body=self.jsonrequest is not None,
+            params=len(self.request.params),
+        )
 
         result = self._call_endpoint(endpoint)
         if isinstance(result, Response):
+            _debug.logic("http.json2.result", kind="response")
             return result
         if isinstance(result, werkzeug.wrappers.Response):
+            _debug.logic("http.json2.result", kind="werkzeug_response")
             return Response(result)
+        _debug.logic("http.json2.result", kind="json")
         return self.request.prepare_json_response(result)
 
     def prepare_error_response(self, exc: Exception) -> Response:
@@ -463,4 +553,5 @@ class Json2Dispatcher(Dispatcher):
             status = HTTPStatus.INTERNAL_SERVER_ERROR
             body = serialize_exception(exc)
 
+        _debug.logic("http.json2.error", status=int(status), error=type(exc).__name__)
         return self.request.prepare_json_response(body, headers=headers, status=status)

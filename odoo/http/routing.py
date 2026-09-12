@@ -52,6 +52,11 @@ _KNOWN_ROUTING_PARAMETERS: set[str] = {
 
 def register_routing_parameters(*names: str) -> None:
     _KNOWN_ROUTING_PARAMETERS.update(names)
+    _debug.lifecycle(
+        "http.routing.parameters_registered",
+        added=len(names),
+        known=len(_KNOWN_ROUTING_PARAMETERS),
+    )
 
 
 class RouteDefinitionError(ValueError):
@@ -78,6 +83,7 @@ class LazyCompiledBuilder:
         if fn is None:
             fn = self._compile_builder(self._append_unknown).__get__(self.rule, None)
             self._callable = fn
+            _debug.lifecycle("http.rule.builder_compiled", rule=self.rule.rule)
         return fn(*args, **kwargs)
 
 
@@ -245,6 +251,14 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
         routed = cast("RoutedMethod", route_wrapper)
         routed.original_routing = routing
         routed.original_endpoint = endpoint
+        _debug.lifecycle(
+            "http.route.declared",
+            endpoint=fname,
+            type=route_type,
+            routes=len(routing.get("routes", ())),
+            auth=routing.get("auth"),
+            typed=bool(routing.get("typed")),
+        )
         return route_wrapper
 
     return decorator
@@ -289,6 +303,11 @@ def _group_controller_trees(
         for leaf in groups[target]:
             owner[leaf] = target
 
+    _debug.pipeline(
+        "http.controller.trees_grouped",
+        trees=len(tops),
+        groups=sum(1 for group in groups if group),
+    )
     return [(tops[i], group) for i, group in enumerate(groups) if group]
 
 
@@ -298,6 +317,12 @@ def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
     highest_controllers = []
     for module in modules:
         highest_controllers.extend(Controller.children_classes.get(module, []))
+    _debug.pipeline(
+        "http.controller.roots",
+        modules=len(modules),
+        tops=len(highest_controllers),
+        server_wide=len(Controller.children_classes.get("", [])),
+    )
 
     trees = (
         (top_ctrl, _get_leaf_classes(top_ctrl, modules))
@@ -320,6 +345,7 @@ def _get_controllers(modules: Collection[str]) -> Generator[Controller]:
         try:
             Ctrl = type(name, tuple(reversed(leaf_controllers)), {})
         except TypeError:
+            _debug.logic("http.controller.mro_conflict", controller=top_ctrl.__name__)
             _logger.error(
                 "Cannot combine the controllers %s: they extend a shared base "
                 "in incompatible orders, so no method resolution order exists "
@@ -367,6 +393,9 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
             fragment = _prepare_route_fragment(cls, submethod, merged_routing)
         except RouteDefinitionError as exc:
             _logger.error("%s The route is not served.", exc)
+            _debug.logic(
+                "http.route.skipped", reason="definition_error", method=method_name
+            )
             return None
         merged_routing.update(fragment)
 
@@ -376,6 +405,7 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
             "%s is a controller endpoint without any route, skipping.",
             f"{owner.__module__}.{owner.__name__}.{method_name}",
         )
+        _debug.logic("http.route.skipped", reason="no_routes", method=method_name)
         return None
 
     _check_cors_credentials(f"{type(ctrl).__name__}.{method_name}", merged_routing)
@@ -388,7 +418,9 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
 def _generate_routing_rules(
     modules: list[str], nodb_only: bool
 ) -> Generator[tuple[str, Endpoint]]:
+    controllers = endpoints = rules = skipped_nodb = typed = 0  # debuglog
     for ctrl in _get_controllers(modules):
+        controllers += 1  # debuglog
         for method_name, method in inspect.getmembers(ctrl, inspect.ismethod):
             if not _is_route(ctrl, method_name):
                 continue
@@ -397,12 +429,15 @@ def _generate_routing_rules(
             if merged_routing is None:
                 continue
             if nodb_only and merged_routing["auth"] != "none":
+                skipped_nodb += 1  # debuglog
                 continue
 
             frozen_routing = MappingProxyType(merged_routing)
             method, param_specs = _get_routed_method(
                 ctrl, method_name, bool(merged_routing.get("typed"))
             )
+            endpoints += 1  # debuglog
+            typed += bool(param_specs)  # debuglog
 
             for url in merged_routing["routes"]:
                 partial = functools.partial(method)
@@ -410,8 +445,18 @@ def _generate_routing_rules(
                 endpoint = cast("Endpoint", partial)
                 endpoint.routing = frozen_routing
                 _apply_param_specs(endpoint, param_specs)
+                rules += 1  # debuglog
 
                 yield (url, endpoint)
+    _debug.pipeline(
+        "http.routing.rules_generated",
+        nodb_only=nodb_only,
+        controllers=controllers,
+        endpoints=endpoints,
+        rules=rules,
+        typed=typed,
+        skipped_nodb=skipped_nodb,
+    )
 
 
 def _get_routed_method(ctrl: Controller, name: str, typed: bool) -> tuple[Any, Any]:
@@ -437,6 +482,12 @@ def _prepare_route_fragment(
     declared_type = fragment.get("type")
     if declared_type not in (None, routing_type):
         where = f"{controller_cls.__module__}.{controller_cls.__name__}.{submethod.__name__}"
+        _debug.logic(
+            "http.route.type_conflict",
+            where=where,
+            parent=routing_type,
+            override=declared_type,
+        )
         e = (
             f"{where} overrides a type={routing_type!r} route with "
             f"type={declared_type!r}. One URL has one dispatcher, so the merged "
@@ -462,6 +513,12 @@ def _prepare_route_fragment(
             "readonly" if child_readonly else "read/write",
             "readonly" if parent_readonly else "read/write",
         )
+        _debug.logic(
+            "http.route.readonly_conflict",
+            method=submethod.__name__,
+            parent_readonly=bool(parent_readonly),
+            child_readonly=bool(child_readonly),
+        )
         fragment["readonly"] = False
     return fragment
 
@@ -470,6 +527,7 @@ def fragment_to_query_string(func: Callable) -> Callable:
     @functools.wraps(func)
     def fragment_wrapper(self, *a, **kw):
         if not (kw.keys() - {"debug"}):
+            _debug.logic("http.route.fragment_redirect", endpoint=func.__qualname__)
             return Response("""<!DOCTYPE html>
             <html><head><script>
                 (function () {

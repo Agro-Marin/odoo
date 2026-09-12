@@ -109,9 +109,12 @@ class GeoIP:
 
         city_db = root.geoip_city_db
         if city_db is None:
+            _debug.logic("http.geoip.lookup_failed", db="city", reason="no_db")
             return GEOIP_EMPTY_CITY
         try:
-            return city_db.city(self.ip)
+            record = city_db.city(self.ip)
+            _debug.logic("http.geoip.resolved", db="city", found=True)
+            return record
         except _GEOIP_DB_ERRORS:
             _debug.logic("http.geoip.lookup_failed", db="city", reason="db_error")
             return GEOIP_EMPTY_CITY
@@ -128,14 +131,20 @@ class GeoIP:
 
         country_db = root.geoip_country_db
         if country_db is None:
+            _debug.logic("http.geoip.lookup_failed", db="country", reason="no_db")
             return self._city_record
         try:
-            return country_db.country(self.ip)
+            record = country_db.country(self.ip)
+            _debug.logic("http.geoip.resolved", db="country", found=True)
+            return record
         except _GEOIP_DB_ERRORS:
+            _debug.logic("http.geoip.lookup_failed", db="country", reason="db_error")
             return self._city_record
         except _GEOIP_NOT_FOUND:
+            _debug.logic("http.geoip.lookup_failed", db="country", reason="not_found")
             return GEOIP_EMPTY_COUNTRY
         except _GEOIP_BAD_ADDRESS:
+            _debug.logic("http.geoip.lookup_failed", db="country", reason="bad_address")
             return GEOIP_EMPTY_COUNTRY
 
     @property

@@ -9,6 +9,7 @@ import werkzeug.wrappers
 from werkzeug.exceptions import HTTPException
 
 from odoo.libs._vendor.useragents import UserAgent
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.facade import Proxy, ProxyAttr, ProxyFunc
 
 from ._protocols import get_ir_http
@@ -16,6 +17,7 @@ from .constants import DEFAULT_MAX_CONTENT_LENGTH
 from .core import request
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def get_cookie_name(set_cookie_value: str) -> str:
@@ -46,6 +48,11 @@ def _remove_duplicate_cookies(carrier: Any) -> None:
     kept.append(newest)
     if len(kept) != len(staged):
         carrier.headers.setlist("Set-Cookie", kept)
+        _debug.logic(
+            "http.cookie.deduplicated",
+            name=identity[0],
+            dropped=len(staged) - len(kept),
+        )
 
 
 def _prepare_set_cookie_args(
@@ -63,6 +70,7 @@ def _prepare_set_cookie_args(
         and request.env is not None
         and not get_ir_http(request.env)._is_allowed_cookie(cookie_type)
     ):
+        _debug.logic("http.cookie.consent_refused", cookie_type=cookie_type)
         max_age = 0
         expires = None
 
@@ -154,6 +162,13 @@ class HTTPRequest(_HTTPRequestProxied):
         }
         self.environ = filtered
         httprequest.headers = werkzeug.datastructures.EnvironHeaders(filtered)
+        _debug.lifecycle(
+            "http.httprequest.created",
+            method=httprequest.method,
+            path=httprequest.path,
+            content_length=httprequest.content_length,
+            mimetype=httprequest.mimetype,
+        )
 
     @property
     def session_id(self) -> str | None:
@@ -178,6 +193,15 @@ class HTTPRequest(_HTTPRequestProxied):
                 dst.__dict__[key] = src.__dict__[key]
         if getattr(src, "_cached_data", None) is not None:
             dst._cached_data = src._cached_data
+        _debug.lifecycle(
+            "http.httprequest.body_adopted",
+            parsed=[
+                key
+                for key in ("stream", "data", "form", "files")
+                if key in src.__dict__
+            ],
+            cached_data=getattr(src, "_cached_data", None) is not None,
+        )
 
     def __enter__(self) -> Self:
         return self
@@ -271,9 +295,13 @@ class _Response(werkzeug.wrappers.Response):
         if isinstance(result, werkzeug.wrappers.Response):
             response = cls.force_type(result)
             response.update_qweb_state()
+            _debug.logic("http.response.coerced", kind="werkzeug", endpoint=fname)
             return Response(response)
 
         if isinstance(result, (bytes, str, type(None))):
+            _debug.logic(
+                "http.response.coerced", kind=type(result).__name__, endpoint=fname
+            )
             return Response(result)
 
         raise TypeError(
@@ -306,7 +334,12 @@ class _Response(werkzeug.wrappers.Response):
         env = request.env
         assert env is not None, "rendering a QWeb response needs a bound environment"
         self.qcontext["request"] = request
-        return env["ir.ui.view"]._render_template(self.template, self.qcontext)
+        with _debug.perf(
+            "http.response.render", cr=env.cr, template=self.template
+        ) as span:
+            rendered = env["ir.ui.view"]._render_template(self.template, self.qcontext)
+            span.set(bytes=len(rendered))
+        return rendered
 
     def flatten(self) -> None:
         if self.template:
@@ -327,6 +360,9 @@ class _Response(werkzeug.wrappers.Response):
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
+        _debug.lifecycle(
+            "http.cookie.set", key=key, max_age=max_age, cookie_type=cookie_type
+        )
         _set_cookie_on(
             self,
             key,
@@ -529,6 +565,7 @@ def get_response(
 
 def abort(status: int | Response, *args: Any, **kwargs: Any) -> NoReturn:
     target: Any = status._wrapped__ if isinstance(status, Response) else status
+    _debug.logic("http.abort", status=getattr(target, "status_code", target))
     _original_abort(target, *args, **kwargs)
 
 
@@ -556,6 +593,9 @@ class FutureResponse:
         partitioned: bool = False,
         cookie_type: str = "required",
     ) -> None:
+        _debug.lifecycle(
+            "http.cookie.staged", key=key, max_age=max_age, cookie_type=cookie_type
+        )
         _set_cookie_on(
             self,
             key,

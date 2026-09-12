@@ -5,9 +5,12 @@ import re
 import typing
 from typing import Any, NamedTuple
 
+from odoo.libs.debug_log import DebugLog
+
 from ._params import ParamSpec, get_param_specs
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 OPENAPI_VERSION = "3.1.0"
 
@@ -214,42 +217,64 @@ def prepare_openapi_document(
 
     claimed_by: dict[tuple[str, str], str] = {}
 
-    for route in routes:
-        if typed_only and not route.routing.get("typed"):
-            continue
-        template, path_params = _prepare_path_template_and_params(route.rule)
+    seen = skipped = 0  # debuglog
+    with _debug.perf("http.openapi.document", typed_only=typed_only) as span:
+        for route in routes:
+            seen += 1  # debuglog
+            if typed_only and not route.routing.get("typed"):
+                skipped += 1  # debuglog
+                continue
+            template, path_params = _prepare_path_template_and_params(route.rule)
 
-        repeated = {p["name"] for p in path_params}
-        if len(repeated) != len(path_params):
-            _logger.warning(
-                "OpenAPI: %r repeats a path parameter name and cannot be "
-                "described; werkzeug will also refuse to build a URL for it.",
-                route.rule,
-            )
-            continue
-
-        path_item = paths.setdefault(template, {})
-        for method in sorted(_get_methods_effective(route)):
-            verb = method.lower()
-            if verb in path_item:
+            repeated = {p["name"] for p in path_params}
+            if len(repeated) != len(path_params):
                 _logger.warning(
-                    "OpenAPI: %s %s is already described by %r; %r renders to "
-                    "the same path template and cannot be documented too.",
-                    method,
-                    template,
-                    claimed_by.get((template, verb)),
+                    "OpenAPI: %r repeats a path parameter name and cannot be "
+                    "described; werkzeug will also refuse to build a URL for it.",
                     route.rule,
                 )
+                _debug.logic(
+                    "http.openapi.route_skipped",
+                    reason="repeated_param",
+                    rule=route.rule,
+                )
                 continue
-            claimed_by[template, verb] = route.rule
-            path_item[verb] = prepare_openapi_operation(
-                route,
-                method,
-                template,
-                path_params,
-                security_schemes,
-                used_operation_ids,
-            )
+
+            path_item = paths.setdefault(template, {})
+            for method in sorted(_get_methods_effective(route)):
+                verb = method.lower()
+                if verb in path_item:
+                    _logger.warning(
+                        "OpenAPI: %s %s is already described by %r; %r renders to "
+                        "the same path template and cannot be documented too.",
+                        method,
+                        template,
+                        claimed_by.get((template, verb)),
+                        route.rule,
+                    )
+                    _debug.logic(
+                        "http.openapi.route_skipped",
+                        reason="already_described",
+                        rule=route.rule,
+                        method=method,
+                    )
+                    continue
+                claimed_by[template, verb] = route.rule
+                path_item[verb] = prepare_openapi_operation(
+                    route,
+                    method,
+                    template,
+                    path_params,
+                    security_schemes,
+                    used_operation_ids,
+                )
+        span.set(
+            routes=seen,
+            skipped_untyped=skipped,
+            paths=len(paths),
+            operations=len(used_operation_ids),
+            security_schemes=len(security_schemes),
+        )
 
     document: dict[str, Any] = {
         "openapi": OPENAPI_VERSION,

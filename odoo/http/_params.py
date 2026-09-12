@@ -95,6 +95,9 @@ def get_param_specs(
                     annotation,
                     param.name,
                 )
+                _debug.logic(
+                    "http.params.uncoerced", reason="unresolved", param=param.name
+                )
                 continue
         target, item, allow_none = _get_param_spec_fields(annotation)
         if target is None:
@@ -105,6 +108,9 @@ def get_param_specs(
                 param.name,
                 annotation,
             )
+            _debug.logic(
+                "http.params.uncoerced", reason="unsupported_type", param=param.name
+            )
             continue
         specs[param.name] = ParamSpec(
             target=target,
@@ -112,6 +118,13 @@ def get_param_specs(
             allow_none=allow_none,
             required=param.default is inspect.Parameter.empty,
         )
+    _debug.pipeline(
+        "http.params.specs",
+        endpoint=getattr(endpoint, "__qualname__", None),
+        specs=len(specs),
+        inherited=len(inherited or ()),
+        required=sum(1 for spec in specs.values() if spec.required),
+    )
     return specs
 
 

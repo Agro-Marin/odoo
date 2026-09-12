@@ -38,28 +38,40 @@ def prepare_content_disposition_header(
 def rewind_uploaded_files(
     httprequest: Any, *, cause: BaseException | None = None
 ) -> None:
+    rewound = 0  # debuglog
     for filename, file in httprequest.files.items(multi=True):
         if hasattr(file, "seekable") and file.seekable():
             file.seek(0)
+            rewound += 1  # debuglog
         else:
+            _debug.logic("http.upload.not_seekable", filename=filename)
             raise RuntimeError(
                 f"Cannot retry request on input file {filename!r} after a "
                 f"transaction error"
             ) from cause
+    _debug.lifecycle(
+        "http.upload.rewound",
+        files=rewound,
+        cause=None if cause is None else type(cause).__name__,
+    )
 
 
 def invalidate_db_catalog_cache() -> None:
     odoo.service.db.invalidate_catalog_caches()
+    _debug.lifecycle("http.db_catalog.invalidated")
 
 
 def get_dbs_served(force: bool = False, host: str | None = None) -> list[str]:
     try:
-        dbs = odoo.service.db.list_dbs(force)
+        with _debug.perf("http.dbs.list", force=force) as span:
+            dbs = odoo.service.db.list_dbs(force)
+            span.set(dbs=len(dbs))
     except psycopg.Error:
         _logger.warning(
             "Could not list databases; answering as though this instance serves none.",
             exc_info=True,
         )
+        _debug.logic("http.dbs.list_failed", force=force)
         return []
     return filter_dbs_served(dbs, host)
 
@@ -127,6 +139,7 @@ def _get_rpc_dispatcher(service_name: str) -> Callable:
         case "object":
             return odoo.service.model.dispatch
         case _:
+            _debug.logic("http.dispatch_rpc.unknown_service", service=service_name)
             raise KeyError(service_name)
 
 
@@ -169,18 +182,22 @@ def get_session_max_inactivity(env: Any) -> int:
                 "(%r), using default value.",
                 value,
             )
+            _debug.logic("http.session.max_inactivity", source="non_positive")
             return SESSION_LIFETIME
+        _debug.logic("http.session.max_inactivity", source="param", value=value)
         return value
     except ValueError:
         _logger.warning(
             "Invalid value for 'sessions.max_inactivity_seconds', using default value."
         )
+        _debug.logic("http.session.max_inactivity", source="invalid")
         return SESSION_LIFETIME
     except psycopg.Error:
         _logger.debug(
             "Could not read session max inactivity from DB, using default.",
             exc_info=True,
         )
+        _debug.logic("http.session.max_inactivity", source="db_error")
         return SESSION_LIFETIME
 
 
@@ -211,11 +228,15 @@ def resolve_cors_same_host(request: Any) -> str | None:
     theirs = _get_origin_parts(origin)
     ours = _get_origin_parts(request.httprequest.host_url)
     if theirs is None or ours is None:
+        _debug.logic("http.cors.same_host", allowed=False, reason="unparsable")
         return None
     if theirs[1:] != ours[1:]:
+        _debug.logic("http.cors.same_host", allowed=False, reason="host_mismatch")
         return None
     if theirs[0] != ours[0] and request.httprequest.is_secure:
+        _debug.logic("http.cors.same_host", allowed=False, reason="scheme_downgrade")
         return None
+    _debug.logic("http.cors.same_host", allowed=True, origin=origin)
     return origin
 
 
@@ -253,6 +274,12 @@ def serialize_exception(
     if arguments is None:
         arguments = () if opaque else exception.args
 
+    _debug.logic(
+        "http.exception.serialized",
+        name=name,
+        opaque=opaque,
+        arguments=len(arguments),
+    )
     return {
         "name": f"{module}.{name}" if module else name,
         "message": message,

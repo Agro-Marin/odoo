@@ -77,10 +77,18 @@ class Stream:
         st = p.stat()
         if not S_ISREG(st.st_mode):
             msg = f"Path {path!r} is not a regular file"
+            _debug.logic("http.stream.not_regular", is_dir=S_ISDIR(st.st_mode))
             if S_ISDIR(st.st_mode):
                 raise IsADirectoryError(msg)
             raise OSError(msg)
         check = adler32(path.encode())
+        _debug.lifecycle(
+            "http.stream.from_path",
+            name=p.name,
+            size=st.st_size,
+            mimetype=mimetypes.guess_type(path)[0],
+            public=public,
+        )
         return cls(
             type="path",
             path=path,
@@ -103,6 +111,12 @@ class Stream:
                 data.replace(b"\r", b"").replace(b"\n", b""),
                 validate=True,
             )
+        _debug.lifecycle(
+            "http.stream.from_field",
+            model=getattr(record, "_name", None),
+            field=field_name,
+            size=len(data),
+        )
         return cls(
             type="data",
             data=data,
@@ -130,6 +144,7 @@ class Stream:
             raise ValueError(msg)
 
         self._check_type()
+        _debug.perf.count("http.stream.read", type=self.type, size=self.size)
 
         if self.type == "data":
             return self._get_required_attribute("data")
@@ -138,6 +153,11 @@ class Stream:
 
     def _prepare_url_redirect(self) -> Any:
         url = self._get_required_attribute("url")
+        _debug.logic(
+            "http.stream.url_redirect",
+            code=302 if self.max_age is not None else 301,
+            max_age=self.max_age,
+        )
         if self.max_age is not None:
             res = request.redirect(url, code=302, local=False)
             res.headers["Cache-Control"] = f"max-age={self.max_age}"
@@ -156,6 +176,13 @@ class Stream:
                 send_file_kwargs["use_x_sendfile"] = True
 
         res = _send_file(path, **send_file_kwargs)
+        _debug.logic(
+            "http.stream.sendfile",
+            x_sendfile=settings.x_sendfile,
+            in_filestore=x_accel_redirect is not None,
+            accel="X-Sendfile" in res.headers and x_accel_redirect is not None,
+            size=self.size,
+        )
         if "X-Sendfile" in res.headers and x_accel_redirect is not None:
             res.headers["X-Accel-Redirect"] = x_accel_redirect
             res.headers.pop("X-Sendfile", None)

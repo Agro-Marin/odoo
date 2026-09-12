@@ -31,6 +31,11 @@ class _RequestResponseMixin(RequestState):
         if cookies:
             for k, v in cookies.items():
                 response.set_cookie(k, v)
+        _debug.pipeline(
+            "http.response.prepared",
+            status=status,
+            cookies=len(cookies) if cookies else 0,
+        )
         return response
 
     def prepare_json_response(
@@ -41,6 +46,7 @@ class _RequestResponseMixin(RequestState):
         status: int = 200,
     ) -> Response:
         payload = _fast_dumps_bytes(data, default=orjson_default)
+        _debug.perf.count("http.response.json", bytes=len(payload), status=status)
 
         json_headers = werkzeug.datastructures.Headers(headers)
         if "Content-Type" not in json_headers:
@@ -97,6 +103,12 @@ class _RequestResponseMixin(RequestState):
         **kw: Any,
     ) -> Response:
         response = Response(template=template, qcontext=qcontext, **kw)
+        _debug.pipeline(
+            "http.response.render_requested",
+            template=template,
+            lazy=lazy,
+            qcontext=len(qcontext) if qcontext else 0,
+        )
         if not lazy:
             response.flatten()
         return response

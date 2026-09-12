@@ -1,6 +1,10 @@
 import time
 from collections.abc import Iterable
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 CORS_MAX_AGE = 60 * 60 * 24
 
 SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS")
@@ -130,6 +134,11 @@ def register_select_db_paths(*paths: str, prefixes: Iterable[str] = ()) -> None:
     SELECT_DB_PATH_PREFIXES = tuple(
         dict.fromkeys((*SELECT_DB_PATH_PREFIXES, *prefixes))
     )
+    _debug.lifecycle(
+        "http.select_db_paths.registered",
+        paths=len(SELECT_DB_PATHS),
+        prefixes=len(SELECT_DB_PATH_PREFIXES),
+    )
 
 
 def is_select_db_path(path: str) -> bool:
@@ -161,6 +170,10 @@ SESSION_ROTATION_EXCLUDED_PATHS: set[str] = set()
 
 def register_session_rotation_excluded_paths(*paths: str) -> None:
     SESSION_ROTATION_EXCLUDED_PATHS.update(paths)
+    _debug.lifecycle(
+        "http.session_rotation_excluded_paths.registered",
+        paths=len(SESSION_ROTATION_EXCLUDED_PATHS),
+    )
 
 
 STORED_SESSION_BYTES = 42

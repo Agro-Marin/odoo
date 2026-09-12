@@ -76,6 +76,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
     def detach_database(self) -> None:
         self.database_detached = True
+        _debug.lifecycle(
+            "http.request.database_detached",
+            db=self.db,
+            cursor_open=self.env is not None and not self.env.cr.closed,
+        )
         if self.env is not None and not self.env.cr.closed:
             self.env.cr.close()
 
@@ -114,6 +119,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if session.db and http.filter_dbs_served([session.db], host=host):
             dbname = session.db
             if header_dbname and header_dbname != dbname:
+                _debug.logic(
+                    "http.session.db_conflict",
+                    session_db=dbname,
+                    header_db=header_dbname,
+                )
                 e = (
                     f"The session cookie is bound to database {dbname!r} and the "
                     f"X-Odoo-Database header names {header_dbname!r}. Send one or "
@@ -134,6 +144,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 _logger.warning(
                     "Logged into database %r, but dbfilter rejects it; logging session out.",
                     session.db,
+                )
+                _debug.logic(
+                    "http.session.db_rejected", session_db=session.db, served_db=dbname
                 )
                 session.logout(keep_db=False)
             session.db = dbname
@@ -196,8 +209,10 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 lang = f"{code}_{territory}"
             else:
                 lang = babel.core.LOCALE_ALIASES[code]
+            _debug.logic("http.lang.negotiated", lang=lang, territory=bool(territory))
             return lang
         except ValueError, KeyError:
+            _debug.logic("http.lang.unparsed", header=lang)
             return None
 
     @property
@@ -211,6 +226,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         cookies = werkzeug.datastructures.MultiDict(self.httprequest.cookies)
         if registry is not None:
             get_ir_http(registry)._sanitize_cookies(cookies)
+            _debug.logic(
+                "http.cookies.sanitized",
+                before=len(self.httprequest.cookies),
+                after=len(cookies),
+            )
         result = werkzeug.datastructures.ImmutableMultiDict(cookies)
         self._cookies_memo = (sanitized, result)
         return result
@@ -236,6 +256,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         }
 
     def get_json_data(self) -> Any:
+        _debug.perf.count(
+            "http.json.body", bytes=getattr(self.httprequest, "content_length", None)
+        )
         return _fast_loads(self.httprequest.get_data())
 
     def _profile_request(self) -> contextlib.AbstractContextManager:
@@ -253,6 +276,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 _logger.debug("Profiling disabled for evented server")
             else:
                 try:
+                    _debug.logic(
+                        "http.profiler.enabled",
+                        db=self.db,
+                        collectors=len(self.session.get("profile_collectors", [])),
+                    )
                     return profiler.Profiler(
                         db=self.db,
                         description=self.httprequest.full_path,
@@ -267,6 +295,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         return contextlib.nullcontext()
 
     def _reset_for_replay(self, cr: Any = None) -> None:
+        _debug.lifecycle(
+            "http.request.reset_for_replay",
+            explicit_cursor=cr is not None,
+            has_env=self.env is not None,
+        )
         self.future_response = FutureResponse()
         self.params = {}
         self._cookies_memo = None
@@ -288,6 +321,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self._session_response = None
         original = self.session.snapshot()
         cr.postcommit.add(self._flush_session)
+        _debug.lifecycle("http.session.transaction_bound", uid=self.session.uid)
 
         def restore_session() -> None:
             can_save = self.session.can_save
@@ -296,11 +330,21 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             self._session_save_pending = False
             self._session_transaction_cursor = None
             self._session_response = None
+            _debug.lifecycle(
+                "http.session.restored_on_rollback",
+                uid=self.session.uid,
+                can_save=self.session.can_save,
+            )
 
         cr.postrollback.add(restore_session)
 
     def _flush_session(self) -> None:
         self._session_transaction_cursor = None
+        _debug.pipeline(
+            "http.session.flush",
+            pending=self._session_save_pending,
+            has_response=self._session_response is not None,
+        )
         if not self._session_save_pending:
             return
         self._session_save_pending = False
@@ -319,6 +363,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             session.uid
             and time.time() >= session["create_time"] + SESSION_ROTATION_INTERVAL
             and self.httprequest.path not in SESSION_ROTATION_EXCLUDED_PATHS
+        )
+        _debug.lifecycle(
+            "http.session.save_staged",
+            rotate=session.should_rotate,
+            periodic=bool(periodic_rotation),
         )
         if session.should_rotate or periodic_rotation:
             self.app.session_store.stage_rotation(
@@ -351,6 +400,12 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             else:
                 headers.set(key, value)
                 overridden.add(lowered)
+        _debug.pipeline(
+            "http.response.future_applied",
+            cookies=len(staged_cookies),
+            headers=len(overridden),
+            status=getattr(response, "status_code", None),
+        )
         return response
 
     def _save_session(self, env: odoo.api.Environment | None = None) -> None:
@@ -361,6 +416,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             env = self.env
 
         if not sess.can_save:
+            _debug.logic("http.session.save_skipped", reason="cannot_save")
             return
 
         if (
@@ -373,6 +429,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         ):
             self._bind_session_transaction(env.cr)
             self._stage_session_save(env)
+            _debug.pipeline("http.session.save_deferred", uid=sess.uid)
             return
 
         content_changed = sess.has_content_changed()
@@ -407,6 +464,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         except SessionExpiredException:
             sess.can_save = False
             _logger.info("Discarding a late save of a revoked session")
+            _debug.logic("http.session.save_revoked", sid=sess.sid[:8])
             return
         except OSError:
             _logger.warning(
@@ -414,9 +472,11 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 sess.sid,
                 exc_info=True,
             )
+            _debug.logic("http.session.save_failed", sid=sess.sid[:8])
             return
 
         on_disk = written or not sess.is_new
+        cookie_sid = self.httprequest.session_id
         _debug.logic(
             "http.session.saved",
             written=written,
@@ -425,9 +485,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             rotate=sess.should_rotate,
             can_rotate=can_rotate,
             on_disk=on_disk,
+            cookie_set=on_disk and (modified or cookie_sid != sess.sid),
         )
 
-        cookie_sid = self.httprequest.session_id
         if on_disk and (modified or cookie_sid != sess.sid):
             max_age = get_session_max_inactivity(env) if sess.uid else SESSION_LIFETIME
             self.future_response.set_cookie(

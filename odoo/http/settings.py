@@ -4,9 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.settings import OptionSource, SettingsSlot
 
 __all__ = ["HttpSettings", "current", "installed", "override", "slot"]
+
+_debug = DebugLog(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +52,18 @@ class HttpSettings:
 def _get_settings_from_live_config() -> HttpSettings:
     import odoo.tools
 
-    return HttpSettings.from_config(odoo.tools.config)
+    settings = HttpSettings.from_config(odoo.tools.config)
+    _debug.lifecycle(
+        "http.settings.derived",
+        dbfilter=bool(settings.dbfilter),
+        db_name=len(settings.db_name),
+        dev_mode=len(settings.dev_mode),
+        proxy_mode=settings.proxy_mode,
+        proxy_hops=settings.proxy_hops,
+        x_sendfile=settings.x_sendfile,
+        server_wide_modules=len(settings.server_wide_modules),
+    )
+    return settings
 
 
 slot: SettingsSlot[HttpSettings] = SettingsSlot(
