@@ -561,7 +561,7 @@ class ApprovalRequestAccess(models.Model):
         last = max(own_steps.mapped("sequence"))
         document = self.get_source_document()
         is_member = any(
-            user.id in step._get_pool_user_ids(document, self.company_id)
+            user.id in step._get_pool_user_ids(document, self.company_id, self)
             for step in self.approver_ids.step_ids
             if step.sequence > last
         )

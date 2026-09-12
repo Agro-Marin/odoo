@@ -287,7 +287,9 @@ class ApprovalCategoryStep(models.Model):
             ).unlink()
         self._check_pool()
 
-    def _get_member_user_ids(self, document=None, company=None) -> set[int]:
+    def _get_member_user_ids(
+        self, document=None, company=None, request=None
+    ) -> set[int]:
         self.check_singleton()
         today = fields.Date.context_today(self)
         current = {
@@ -295,7 +297,7 @@ class ApprovalCategoryStep(models.Model):
             for member in self.member_ids
             if not member.date_end or member.date_end >= today
         }
-        from_document = self._get_source_user_ids(document)
+        from_document = self._get_source_user_ids(document, request)
         in_company = self._filter_company_user_ids(current | from_document, company)
         trace.STEPS.event(
             "member_users",
@@ -307,31 +309,40 @@ class ApprovalCategoryStep(models.Model):
         )
         return in_company
 
-    def _get_source_user_ids(self, document) -> set[int]:
+    def _get_subject(self, document, request):
+        """The record the step's condition and approver path read: the request itself
+        when the step's source model is approval.request, else its source document."""
         self.check_singleton()
+        if request and self.subject_model_id.model == request._name:
+            return request
+        return document
+
+    def _get_source_user_ids(self, document, request=None) -> set[int]:
+        self.check_singleton()
+        subject = self._get_subject(document, request)
         if (
             not self.subject_user_path
-            or not document
-            or document._name != self.subject_model_id.model
+            or not subject
+            or subject._name != self.subject_model_id.model
         ):
             return set()
-        users = document.sudo().exists().mapped(self.subject_user_path)
+        users = subject.sudo().exists().mapped(self.subject_user_path)
         named = set(users.filtered("active").ids)
         trace.STEPS.event(
             "source_users",
             step=self.id,
             path=self.subject_user_path,
-            document=document,
+            document=subject,
             users=sorted(named),
         )
         return named
 
-    def _get_pool_user_ids(self, document=None, company=None) -> set[int]:
+    def _get_pool_user_ids(self, document=None, company=None, request=None) -> set[int]:
         """Who may approve this step today: valid members, the users the document
         names, and the group's users -- of those, the ones who work in `company` and
         whom the document's own policy lets decide it."""
         self.check_singleton()
-        members = self._get_member_user_ids(document, company)
+        members = self._get_member_user_ids(document, company, request)
         users = set(members)
         if self.group_id:
             users.update(
@@ -352,11 +363,11 @@ class ApprovalCategoryStep(models.Model):
         )
         return pool
 
-    def _get_candidate_user_ids(self, document=None) -> set[int]:
+    def _get_candidate_user_ids(self, document=None, request=None) -> set[int]:
         """Every user the step names for `document`, before the request's company or
         the document's policy narrows them: routing owns the rows of all of them."""
         self.check_singleton()
-        users = self._get_member_user_ids(document)
+        users = self._get_member_user_ids(document, request=request)
         if self.group_id:
             users.update(self.group_id.all_user_ids.ids)
         return users
@@ -417,7 +428,9 @@ class ApprovalCategoryStep(models.Model):
             return False
         if not self.subject_domain:
             return True
-        return self._is_applicable_to_document(request.get_source_document())
+        return self._is_applicable_to_document(
+            self._get_subject(request.get_source_document(), request)
+        )
 
     def _matches_request_figure(self, request) -> bool:
         """The step's numeric condition on the request itself: its amount, quantity,

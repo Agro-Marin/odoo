@@ -135,6 +135,16 @@ class ApprovalCategoryConversion(models.Model):
             )
         return self._prepare_pooled_steps(listed, self.approval_minimum, {})
 
+    def _get_conversion_pool_source(self) -> dict:
+        """Step values naming approvers every request of the category adds to its pool
+        beyond the listed ones (an approver path, typically on the request itself)."""
+        return {}
+
+    def _get_conversion_required_sources(self) -> list[tuple[str, dict]]:
+        """(name, step values) for each required approver a request adds beyond the
+        listed ones, named by a path rather than a user."""
+        return []
+
     def _prepare_pooled_steps(self, approvers, minimum, condition) -> list[dict]:
         users = self.env["res.users"]
         required = self.env["res.users"]
@@ -148,10 +158,17 @@ class ApprovalCategoryConversion(models.Model):
             )
             for user in required
         ]
-        if users and minimum > 0:
+        steps += [
+            self._prepare_conversion_step(
+                name, self.env["res.users"], 1, **condition, **source
+            )
+            for name, source in self._get_conversion_required_sources()
+        ]
+        pool_source = self._get_conversion_pool_source()
+        if (users or pool_source) and minimum > 0:
             steps.append(
                 self._prepare_conversion_step(
-                    self.env._("Approvers"), users, minimum, **condition
+                    self.env._("Approvers"), users, minimum, **condition, **pool_source
                 )
             )
         return steps

@@ -74,7 +74,7 @@ class ApprovalRequestRouting(models.Model):
                     "exclusive": step.exclusive,
                     "group": step.group_id.name or False,
                     "members": sorted(
-                        step._get_pool_user_ids(document, self.company_id)
+                        step._get_pool_user_ids(document, self.company_id, self)
                     ),
                     "condition": step.subject_domain or False,
                     "source_user_path": step.subject_user_path or False,
@@ -197,7 +197,7 @@ class ApprovalRequestRouting(models.Model):
         managed = set(self.category_id.approver_ids.user_id.ids)
         document = self.get_source_document()
         for step in self._get_applicable_steps():
-            managed.update(step._get_candidate_user_ids(document))
+            managed.update(step._get_candidate_user_ids(document, self))
         if replacement:
             managed.update(replacement.approver_ids.ids)
         for rule in matched_rules or ():
@@ -806,7 +806,7 @@ class ApprovalRequestRouting(models.Model):
         if steps:
             document = self.get_source_document()
             for step in steps:
-                for user_id in step._get_pool_user_ids(document, self.company_id):
+                for user_id in step._get_pool_user_ids(document, self.company_id, self):
                     self._merge_approver_to_staging(
                         approver_staging, user_id, False, step.sequence
                     )

@@ -1183,7 +1183,7 @@ class ApprovalRequestLifecycle(models.Model):
         self.check_singleton()
         document = self.get_source_document()
         for step in steps.filtered(lambda step: not step.advisory):
-            pool = step._get_pool_user_ids(document, self.company_id)
+            pool = step._get_pool_user_ids(document, self.company_id, self)
             if len(pool) < step.minimum:
                 trace.REFUSAL.event(
                     "step_unmeetable",

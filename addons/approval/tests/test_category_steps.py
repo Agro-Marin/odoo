@@ -283,3 +283,52 @@ class TestCategorySteps(ApprovalCommon):
         self.assertEqual(request.state, "pending")
         request.with_user(self.approver_2).action_approve()
         self.assertEqual(request.state, "approved")
+
+
+@tagged("post_install", "-at_install")
+class TestStepReadingTheRequest(ApprovalCommon):
+    """A step whose source model is approval.request reads the request itself, so a
+    request raised with no document can still have its approvers named for it."""
+
+    def _category_with_request_step(self, **step_vals):
+        category = self._make_category(
+            "Request subject", approvers=[(self.approver_2, True, 10)]
+        )
+        category.approver_ids.unlink()
+        self.env["approval.category.step"].create(
+            {
+                "category_id": category.id,
+                "name": "From the request",
+                "minimum": 1,
+                "subject_model_id": self.env["ir.model"]._get("approval.request").id,
+                "subject_user_path": "partner_id.user_ids",
+                **step_vals,
+            }
+        )
+        return category
+
+    def test_the_approver_path_reads_the_request(self):
+        self.partner.user_ids = self.approver_1
+        request = self._prepare_request(
+            self._category_with_request_step(), partner_id=self.partner.id
+        )
+        self.assertEqual(request.approver_ids.user_id, self.approver_1)
+        request.with_user(self.approver_1).action_approve()
+        self.assertEqual(request.state, "approved")
+
+    def test_the_condition_reads_the_request(self):
+        self.partner.user_ids = self.approver_1
+        category = self._category_with_request_step(
+            subject_domain=f"[('partner_id', '=', {self.partner.id})]"
+        )
+        matching = self._prepare_request(category, partner_id=self.partner.id)
+        self.assertEqual(matching._get_applicable_steps(), category.step_ids)
+        other = self.env["res.partner"].create({"name": "Other partner"})
+        request = self.env["approval.request"].create(
+            {
+                "category_id": category.id,
+                "request_owner_id": self.owner_user.id,
+                "partner_id": other.id,
+            }
+        )
+        self.assertFalse(request._get_applicable_steps())

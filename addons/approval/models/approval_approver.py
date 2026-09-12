@@ -627,7 +627,10 @@ class ApprovalApprover(models.Model):
             return True
         document = self.request_id.get_source_document()
         listed = self.step_ids.filtered(
-            lambda step: self.user_id.id in step._get_member_user_ids(document)
+            lambda step: (
+                self.user_id.id
+                in step._get_member_user_ids(document, request=self.request_id)
+            )
         )
         if not listed:
             trace.ACTIVITY.event(
