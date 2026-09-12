@@ -107,6 +107,23 @@ def _is_comparand_equal(left: typing.Any, right: typing.Any) -> bool:
     return left == right
 
 
+def _thaw_comparand(operator: str, value: typing.Any) -> typing.Any:
+    if isinstance(value, Domain):
+        return list(value)
+    if not isinstance(value, COLLECTION_TYPES):
+        return value
+    if operator not in SUBDOMAIN_OPERATORS:
+        return list(value)
+    return [_thaw_condition(item) for item in value]
+
+
+def _thaw_condition(item: typing.Any) -> typing.Any:
+    if isinstance(item, tuple) and len(item) == 3 and isinstance(item[0], str):
+        field_expr, operator, value = item
+        return (field_expr, operator, _thaw_comparand(operator, value))
+    return item
+
+
 def _freeze_comparand(value: typing.Any, path: set[int] | None = None) -> typing.Any:
     if not isinstance(value, (list, tuple, set, frozenset, dict, OrderedSet)):
         return value
@@ -915,10 +932,11 @@ class DomainCondition(Domain):
         return super()._negate(model)
 
     def __iter__(self) -> typing.Iterator[tuple[str, str, object]]:
-        field_expr, op, value = self.field_expr, self.operator, self.value
-        if isinstance(value, (*COLLECTION_TYPES, Domain)):
-            value = list(value)
-        yield (field_expr, op, value)
+        yield (
+            self.field_expr,
+            self.operator,
+            _thaw_comparand(self.operator, self.value),
+        )
 
     def __eq__(self, other: object) -> bool:
         return self is other or (
