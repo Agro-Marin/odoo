@@ -6,6 +6,8 @@ from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
 from odoo.tools.translate import LazyTranslate, _
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 _lt = LazyTranslate(__name__)
 
@@ -327,8 +329,14 @@ class StockWarehouse(models.Model):
                     )
                 )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.warehouse.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         taken = {}
         chosen = defaultdict(set)
         for vals in vals_list:
@@ -383,16 +391,27 @@ class StockWarehouse(models.Model):
             )
             for field_name, location in zip(sub_locations, sub_records, strict=True):
                 vals[field_name] = location.id
+            dbg.lifecycle.debug(
+                "create: warehouse %s/%s view location %s, sub locations %s",
+                vals["name"],
+                vals["code"],
+                vals["view_location_id"],
+                dbg.rec(sub_records),
+            )
 
         warehouses = super().create(vals_list)
+        dbg.lifecycle.debug("stock.warehouse.create: created %s", dbg.rec(warehouses))
 
         for warehouse in warehouses:
-            new_vals = warehouse._create_or_update_picking_types()
-            warehouse.write(new_vals)
-            warehouse._create_or_update_route()
-            warehouse._create_or_update_global_routes_rules()
+            with dbg.timer(
+                self.env, "warehouse %s picking types + routes", warehouse.id
+            ):
+                new_vals = warehouse._create_or_update_picking_types()
+                warehouse.write(new_vals)
+                warehouse._create_or_update_route()
+                warehouse._create_or_update_global_routes_rules()
 
-            warehouse._create_resupply_routes(warehouse.resupply_wh_ids)
+                warehouse._create_resupply_routes(warehouse.resupply_wh_ids)
 
         for partner_id, company_id in {
             (vals["partner_id"], vals["company_id"])
@@ -405,7 +424,11 @@ class StockWarehouse(models.Model):
 
         return warehouses
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.warehouse.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if vals.get("code"):
             vals = dict(vals, code=self._normalize_code(vals["code"]))
         self._check_company_unchanged(vals)
@@ -465,6 +488,12 @@ class StockWarehouse(models.Model):
             else warehouses.browse()
         )
 
+        if toggling or old_resupply_whs:
+            dbg.logic.debug(
+                "_pre_write_sync: toggling active on %s, old resupply %s",
+                dbg.rec(toggling),
+                {k: v.ids for k, v in old_resupply_whs.items()},
+            )
         return PendingWrite(toggling=toggling, old_resupply_whs=old_resupply_whs)
 
     def _post_write_refresh(self, vals, before):
@@ -481,6 +510,13 @@ class StockWarehouse(models.Model):
         refresh_routes = not triggers.isdisjoint(changed)
         refresh_global = not self.env.context.get("stock_no_global_route_refresh") and (
             not triggers.isdisjoint(changed) or not rule_fields.isdisjoint(changed)
+        )
+        dbg.logic.debug(
+            "_post_write_refresh on %s: picking_types=%s routes=%s global=%s",
+            dbg.rec(warehouses),
+            refresh_picking_types,
+            refresh_routes,
+            refresh_global,
         )
 
         for warehouse in warehouses:
@@ -508,10 +544,20 @@ class StockWarehouse(models.Model):
         if "active" in vals:
             self._update_multiwarehouse_group()
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("stock.warehouse.unlink %s", dbg.rec(self))
         if not self.env.context.get("_force_unlink"):
             self._unlink_except_in_use()
         leftovers = [warehouse._get_owned_records() for warehouse in self]
+        for owned in leftovers:
+            dbg.lifecycle.debug(
+                "unlink: owned rules %s, picking types %s, routes %s, view %s",
+                dbg.rec(owned.rules),
+                dbg.rec(owned.picking_types),
+                dbg.rec(owned.routes),
+                dbg.rec(owned.view_location),
+            )
 
         for owned in leftovers:
             for records in owned.config:
@@ -675,8 +721,10 @@ class StockWarehouse(models.Model):
             fields=["id", "name", "code"],
         )
 
+    @dbg.timed
     def _update_active(self, active, reactivate_depends):
         self.check_singleton()
+        dbg.lifecycle.debug("[warehouse:%s] active -> %s", self.id, active)
         PickingType = self.env["stock.picking.type"]
         picking_types = PickingType.with_context(active_test=False).search(
             [("warehouse_id", "=", self.id)]
@@ -698,7 +746,17 @@ class StockWarehouse(models.Model):
         if active:
             dormant = resupply_routes.filtered(lambda route: not route.active)
             if dormant:
+                dbg.logic.debug(
+                    "_update_active: rules of dormant resupply routes %s stay archived",
+                    dbg.rec(dormant),
+                )
                 rules = rules.filtered(lambda rule: rule.route_id not in dormant)
+        dbg.lifecycle.debug(
+            "_update_active: picking types %s, rules %s -> active=%s",
+            dbg.rec(picking_types),
+            dbg.rec(rules),
+            active,
+        )
         rules.write({"active": active})
 
         if active:
@@ -782,6 +840,9 @@ class StockWarehouse(models.Model):
         )
         if several == (group_multi_warehouses in group_user.implied_ids):
             return
+        dbg.lifecycle.debug(
+            "_update_multiwarehouse_group: several=%s, toggling implied groups", several
+        )
         if not several:
             group_user.sudo().write(
                 {"implied_ids": [fields.Command.unlink(group_multi_warehouses.id)]}

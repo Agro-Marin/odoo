@@ -6,6 +6,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import frozendict
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import PY_OPERATORS
 
 _logger = logging.getLogger(__name__)
@@ -277,8 +278,14 @@ class StockWarehouseOrderpoint(models.Model):
             vals = dict(vals, qty_to_order_manual_set=True)
         return vals
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "orderpoint.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         vals_list = [self._update_vals_manual_qty_override(vals) for vals in vals_list]
         default_trigger = None
         if any(vals.get("snoozed_until") for vals in vals_list):
@@ -294,7 +301,11 @@ class StockWarehouseOrderpoint(models.Model):
             )
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "orderpoint.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         vals = self._update_vals_manual_qty_override(vals)
         if "company_id" in vals:
             for orderpoint in self:
@@ -315,6 +326,9 @@ class StockWarehouseOrderpoint(models.Model):
                     ),
                 )
         if vals.get("trigger") == "auto" and "snoozed_until" not in vals:
+            dbg.logic.debug(
+                "write: trigger auto clears snoozed_until on %s", dbg.rec(self)
+            )
             vals = dict(vals, snoozed_until=False)
         return super().write(vals)
 
@@ -541,6 +555,7 @@ class StockWarehouseOrderpoint(models.Model):
             for orderpoint in self
         }
 
+    @dbg.timed
     def _read_product_qty_by_context(self, field_names):
         result = {}
         orderpoints_by_context = defaultdict(self.browse)
@@ -548,6 +563,12 @@ class StockWarehouseOrderpoint(models.Model):
             orderpoints_by_context[frozendict(orderpoint._get_product_context())] |= (
                 orderpoint
             )
+        dbg.performance.debug(
+            "_read_product_qty_by_context(%s): %d orderpoints in %d contexts",
+            field_names,
+            len(self),
+            len(orderpoints_by_context),
+        )
         for product_context, orderpoints in orderpoints_by_context.items():
             values_by_product = {
                 values["id"]: values
@@ -566,6 +587,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.qty_available_virtual",
         "product_id.seller_ids.delay",
     )
+    @dbg.timed
     @api.depends_context("global_horizon_days")
     def _compute_qty(self):
         orderpoints_to_compute = self.filtered(
@@ -585,6 +607,12 @@ class StockWarehouseOrderpoint(models.Model):
                 "qty_available"
             ]
             orderpoint.qty_forecast = qty_forecast[orderpoint.id]
+            dbg.logic.debug(
+                "[orderpoint:%s] on hand %s, forecast %s",
+                orderpoint.id,
+                orderpoint.qty_on_hand,
+                orderpoint.qty_forecast,
+            )
 
     @api.depends(
         "qty_to_order_manual",
@@ -627,6 +655,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.seller_ids.delay",
         "company_id.horizon_days",
     )
+    @dbg.timed
     def _compute_qty_to_order_computed(self):
         canonical = self._with_canonical_horizon()
         suggestions = canonical._get_qty_to_order_map()
@@ -648,6 +677,10 @@ class StockWarehouseOrderpoint(models.Model):
         by_quantity = defaultdict(self.browse)
         for orderpoint in overridden:
             by_quantity[orderpoint.qty_to_order] |= orderpoint
+        if overridden:
+            dbg.logic.debug(
+                "_inverse_qty_to_order: manual override on %s", dbg.rec(overridden)
+            )
         for quantity, group in by_quantity.items():
             group.write(
                 {"qty_to_order_manual_set": True, "qty_to_order_manual": quantity},

@@ -1,5 +1,7 @@
 from odoo import _, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class PickingLabelType(models.TransientModel):
     _name = "picking.label.type"
@@ -16,6 +18,9 @@ class PickingLabelType(models.TransientModel):
     def process(self):
         if not self.picking_ids:
             return None
+        dbg.logic.debug(
+            "label type %s for %s", self.label_type, dbg.rec(self.picking_ids)
+        )
         if self.label_type == "products":
             return self.picking_ids.action_view_label_layout()
         view = self.env.ref("stock.lot_label_layout_form_picking")

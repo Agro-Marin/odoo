@@ -5,6 +5,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import PY_OPERATORS
 from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
 
@@ -187,8 +188,14 @@ class StockLot(models.Model):
                 }
             )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.lot.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         lot_product_ids = {
             product_id
             for product_id in (
@@ -210,11 +217,16 @@ class StockLot(models.Model):
             vals_list
         )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.lot.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         identity_changed = any(
             field in vals for field in ("name", "product_id", "company_id")
         )
         if identity_changed:
+            dbg.logic.debug("stock.lot.write: identity change, checking duplicates")
             self._check_lots_allowed(
                 {vals.get("product_id"), *self.product_id.ids} - {None, False}
             )
@@ -337,6 +349,13 @@ class StockLot(models.Model):
                 continue
             message = _("Lot/Serial Number Relocated")
             breaking = quants._filtered_breaking_a_package()
+            dbg.pipeline.debug(
+                "[lot:%s] relocate to %s: breaking packages %s, intact %s",
+                lot.id,
+                lot.location_id.id,
+                dbg.rec(breaking),
+                dbg.rec(quants - breaking),
+            )
             if breaking:
                 breaking.move_quants(
                     location_dest_id=lot.location_id,
@@ -380,6 +399,7 @@ class StockLot(models.Model):
         warehouses = self.env["stock.warehouse"].search([])
         return partner_locations + warehouses.lot_stock_id
 
+    @dbg.timed
     def _get_product_qty_by_lot(self, lot_domain):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             self.env["stock.location"]

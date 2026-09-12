@@ -5,6 +5,8 @@ from markupsafe import Markup
 from odoo import _, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ReportStockLabel_Product_Product_View(models.AbstractModel):
     _name = "report.stock.label_product_product_view"
@@ -21,6 +23,12 @@ class ReportStockLabel_Product_Product_View(models.AbstractModel):
             )
 
         quantity_by_product = defaultdict(list)
+        dbg.logic.debug(
+            "product labels for %s: %d products, layout %s",
+            data.get("active_model"),
+            len(data.get("quantity_by_product") or {}),
+            data.get("layout_wizard"),
+        )
         for p, q in (data.get("quantity_by_product") or {}).items():
             product = Product.browse(int(p))
             default_code = product.default_code or ""

@@ -4,12 +4,15 @@ from odoo import models
 from odoo.tools.misc import OrderedSet, groupby
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
 class StockMovePicking(models.Model):
     _inherit = "stock.move"
 
+    @dbg.timed
     def _update_picking(self):
         Picking = self.env["stock.picking"]
         grouped_moves = groupby(self, key=lambda m: m._get_picking_assignation_key())
@@ -26,10 +29,17 @@ class StockMovePicking(models.Model):
                     lambda m: m.product_uom_id.compare(m.product_uom_qty, 0.0) >= 0,
                 )
                 if not moves:
+                    dbg.logic.debug("_update_picking: only negative moves, no picking")
                     continue
                 new_picking = True
                 picking = Picking.create(moves._prepare_new_picking_vals())
 
+            dbg.pipeline.debug(
+                "_update_picking: %s -> picking %s (%s)",
+                dbg.rec(moves),
+                picking.id,
+                "new" if new_picking else "existing",
+            )
             moves.write({"picking_id": picking.id})
             moves._post_process_picking(new=new_picking)
         return True
@@ -111,15 +121,30 @@ class StockMovePicking(models.Model):
         for picking in self.env["stock.picking"].search(domain):
             picking_set = set(picking.reference_ids.ids)
             if picking_set == reference_set:
+                dbg.logic.debug(
+                    "[move:%s] picking %s matches references exactly",
+                    self.id,
+                    picking.id,
+                )
                 return picking
             if not covered_picking and picking_set <= reference_set:
                 covered_picking = picking
+        dbg.logic.debug(
+            "[move:%s] _get_picking_for_assignation: covered picking %s",
+            self.id,
+            covered_picking.id,
+        )
         return covered_picking
 
     def _update_references(self):
         to_set = self.filtered(lambda m: not m.reference_ids and m.picking_id)
         for picking, moves in to_set.grouped("picking_id").items():
             if picking.reference_ids:
+                dbg.lifecycle.debug(
+                    "_update_references: %s inherit references of picking %s",
+                    dbg.rec(moves),
+                    picking.id,
+                )
                 moves.reference_ids = picking.reference_ids
 
     def action_view_reference(self):

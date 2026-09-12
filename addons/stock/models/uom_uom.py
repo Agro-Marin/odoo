@@ -1,6 +1,8 @@
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class UomUom(models.Model):
     _inherit = "uom.uom"
@@ -32,6 +34,10 @@ class UomUom(models.Model):
                 ),
             )
             if changed:
+                dbg.logic.debug(
+                    "uom.write: ratio change on %s, checking stock usage",
+                    dbg.rec(changed),
+                )
                 error_msg = _(
                     "You cannot change the ratio of this unit of measure"
                     " as some products with this UoM have already been moved"
@@ -78,8 +84,17 @@ class UomUom(models.Model):
     def _get_procurement_qty_and_uom(self, qty, quant_uom):
         get_param = self.env["ir.config_parameter"].sudo().get_param
         if get_param("stock.propagate_uom") == "1":
+            dbg.logic.debug(
+                "_get_procurement_qty_and_uom: propagate_uom keeps %s", self.id
+            )
             return (qty, self)
         computed_qty = self._compute_quantity_stored(qty, quant_uom)
         if qty and quant_uom.is_zero(computed_qty):
+            dbg.logic.debug(
+                "_get_procurement_qty_and_uom: %s %s rounds to zero in %s, kept",
+                qty,
+                self.id,
+                quant_uom.id,
+            )
             return (qty, self)
         return (computed_qty, quant_uom)

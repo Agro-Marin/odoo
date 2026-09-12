@@ -3,11 +3,14 @@ from collections import defaultdict
 from odoo import api, models
 from odoo.libs.colors import ROUTE_COLORS, get_palette_color
 
+from ..tools import debug_log as dbg
+
 
 class ReportStockReport_Stock_Rule(models.AbstractModel):
     _name = "report.stock.report_stock_rule"
     _description = "Stock rule report"
 
+    @dbg.timed
     @api.model
     def _get_report_values(self, docids, data=None):
         data = data or {}
@@ -29,6 +32,14 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
             [("product_id", "=", product.id)]
         )
         locations |= reordering_rules.location_id
+        dbg.logic.debug(
+            "stock rule report product=%s warehouses=%s: %d routes, %d rules, %d locations",
+            product.id,
+            warehouses.ids,
+            len(routes),
+            len(relevant_rules),
+            len(locations),
+        )
 
         header_lines = self._get_header_lines(
             locations, product.putaway_rule_ids, reordering_rules

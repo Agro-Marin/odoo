@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockBackorderConfirmationLine(models.TransientModel):
     _name = "stock.backorder.confirmation.line"
@@ -46,6 +48,11 @@ class StockBackorderConfirmation(models.TransientModel):
                 if move.product_uom_id.compare(move.product_uom_qty, picked_qty) > 0:
                     moves_to_log[move] = (picked_qty, move.product_uom_qty)
             if moves_to_log:
+                dbg.logic.debug(
+                    "[picking:%s] less than expected on moves %s",
+                    pick_id.id,
+                    [move.id for move in moves_to_log],
+                )
                 pick_id._log_less_quantities_than_expected(moves_to_log)
 
     def process(self):
@@ -58,6 +65,12 @@ class StockBackorderConfirmation(models.TransientModel):
                 pickings_not_to_do |= line.picking_id
 
         pickings_to_validate = self.env.context.get("button_validate_picking_ids")
+        dbg.pipeline.debug(
+            "backorder wizard process: backorder %s, no backorder %s, validate %s",
+            dbg.rec(pickings_to_do),
+            dbg.rec(pickings_not_to_do),
+            pickings_to_validate,
+        )
         if pickings_to_validate:
             pickings_to_validate = (
                 self.env["stock.picking"]
@@ -74,6 +87,11 @@ class StockBackorderConfirmation(models.TransientModel):
 
     def action_cancel_backorder(self):
         pickings_to_validate_ids = self.env.context.get("button_validate_picking_ids")
+        dbg.pipeline.debug(
+            "backorder wizard cancel: no backorder for %s, validate %s",
+            dbg.rec(self.pick_ids),
+            pickings_to_validate_ids,
+        )
         if pickings_to_validate_ids:
             pickings_to_validate = self.env["stock.picking"].browse(
                 pickings_to_validate_ids

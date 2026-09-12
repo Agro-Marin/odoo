@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class ProductCategory(models.Model):
     _inherit = "product.category"
@@ -58,6 +60,7 @@ class ProductCategory(models.Model):
         search="_search_filter_for_stock_putaway_rule",
     )
 
+    @dbg.timed
     @api.depends("parent_id")
     def _compute_parent_route_ids(self):
         for category in self:
@@ -78,6 +81,11 @@ class ProductCategory(models.Model):
         categ_ids = categories.filtered_domain(
             [("total_route_ids", operator, value)]
         ).ids
+        dbg.performance.debug(
+            "_search_total_route_ids: %d categories scanned in Python, %d match",
+            len(categories),
+            len(categ_ids),
+        )
         return [("id", "in", categ_ids)]
 
     def _search_filter_for_stock_putaway_rule(self, operator, value):

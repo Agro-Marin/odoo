@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockPackageType(models.Model):
     _name = "stock.package.type"
@@ -107,10 +109,19 @@ class StockPackageType(models.Model):
         "Max Weight must be positive",
     )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.package.type.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if not vals.get("sequence_id") and vals.get("sequence_code"):
+                dbg.lifecycle.debug(
+                    "create: sequence for package type code %s", vals["sequence_code"]
+                )
                 vals["sequence_id"] = (
                     self.env["ir.sequence"]
                     .sudo()
@@ -129,7 +140,11 @@ class StockPackageType(models.Model):
                 )
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.package.type.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         seq_vals = {}
         if "sequence_code" in vals:
             code = vals["sequence_code"]
@@ -161,6 +176,11 @@ class StockPackageType(models.Model):
                     )
                     package_type.sequence_id = sequence
             if seq_to_todo_ids:
+                dbg.lifecycle.debug(
+                    "write: sequences %s get %s",
+                    sorted(seq_to_todo_ids),
+                    dbg.keys(seq_vals),
+                )
                 self.env["ir.sequence"].browse(list(seq_to_todo_ids)).sudo().write(
                     seq_vals
                 )

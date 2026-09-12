@@ -2,6 +2,8 @@ from collections import defaultdict
 
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class StockMoveLineReport(models.Model):
     _inherit = "stock.move.line"
@@ -32,11 +34,20 @@ class StockMoveLineReport(models.Model):
             properties["line_key"] += f"_{move_line.result_package_id.id}"
         return properties
 
+    @dbg.timed
     def _get_aggregated_product_quantities(
         self, *, strict=False, except_package=False, **kwargs
     ):
         aggregated_move_lines = {}
         backorders = self._get_backorders()
+        dbg.logic.debug(
+            "_get_aggregated_product_quantities on %s strict=%s except_package=%s "
+            "backorders %s",
+            dbg.rec(self),
+            strict,
+            except_package,
+            dbg.rec(backorders),
+        )
         base_key_by_move = {}
 
         def get_line_key(move):
@@ -99,6 +110,10 @@ class StockMoveLineReport(models.Model):
         self._aggregate_empty_moves(
             aggregated_move_lines, agg_keys_by_base, self.picking_id | backorders
         )
+        dbg.logic.debug(
+            "_get_aggregated_product_quantities -> %d aggregated keys",
+            len(aggregated_move_lines),
+        )
         return aggregated_move_lines
 
     def _add_undelivered_quantities(
@@ -123,6 +138,9 @@ class StockMoveLineReport(models.Model):
             )
             if uom.is_zero(undelivered):
                 continue
+            dbg.logic.debug(
+                "[move:%s] undelivered %s added to ordered qty", move.id, undelivered
+            )
             entry["qty_ordered"] += undelivered
             entry["packaging_qty_ordered"] += uom._compute_quantity(
                 undelivered, move.packaging_uom_id

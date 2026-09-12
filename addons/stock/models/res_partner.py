@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
@@ -24,6 +26,12 @@ class ResPartner(models.Model):
     picking_warn_msg = fields.Text(string="Message for Stock Picking")
 
     def _update_stock_property_locations(self, location):
+        dbg.lifecycle.debug(
+            "_update_stock_property_locations: partners %s -> location %s (company %s)",
+            dbg.rec(self),
+            location.id,
+            self.env.company.id,
+        )
         self.write(
             {
                 "property_stock_customer": location.id,

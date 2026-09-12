@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockPutInPack(models.TransientModel):
     _name = "stock.put.in.pack"
@@ -41,6 +43,13 @@ class StockPutInPack(models.TransientModel):
 
     def action_put_in_pack(self):
         context = self._get_put_in_pack_context()
+        dbg.pipeline.debug(
+            "put in pack wizard: packages %s lines %s -> package %s type %s",
+            dbg.rec(self.package_ids),
+            dbg.rec(self.move_line_ids),
+            self.result_package_id.id,
+            self.package_type_id.id,
+        )
         if self.package_ids:
             return self.package_ids.with_context(**context).action_put_in_pack(
                 package_id=self.result_package_id.id,

@@ -20,6 +20,7 @@ from ..const import (
     INTERNAL_CONTEXT_FLAG,
     OUTGOING_BLOCK_TYPES,
 )
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -27,7 +28,13 @@ _logger = logging.getLogger(__name__)
 class StockMoveDone(models.Model):
     _inherit = "stock.move"
 
+    @dbg.timed
     def _action_done(self, cancel_backorder=False):
+        dbg.pipeline.debug(
+            "stock.move._action_done start on %s cancel_backorder=%s",
+            dbg.rec(self),
+            cancel_backorder,
+        )
         self = self.with_context(**self._prepare_block_completion_context())
 
         moves = self.filtered(lambda move: move.state == "draft")._action_confirm(
@@ -50,22 +57,33 @@ class StockMoveDone(models.Model):
                 )
             ),
         )
+        dbg.logic.debug(
+            "_action_done: todo %s of open %s", dbg.rec(moves_todo), dbg.rec(moves)
+        )
 
         moves_todo._check_company()
         if not cancel_backorder:
             moves_todo._create_backorder()
+        dbg.pipeline.debug(
+            "_action_done -> move lines _action_done for %s", dbg.rec(moves_todo)
+        )
         moves_todo.mapped("move_line_ids").sorted()._action_done()
         moves_todo._check_packages_not_split()
         same_package_mls = moves_todo.move_line_ids.filtered(
             lambda ml: ml.package_id and ml.package_id == ml.result_package_id
         )
         if same_package_mls:
+            dbg.logic.debug(
+                "_action_done: same-package lines %s, removing zero quants",
+                dbg.rec(same_package_mls),
+            )
             self.env["stock.quant"]._remove_zero_quants(
                 products=same_package_mls.product_id,
                 locations=same_package_mls.location_id
                 | same_package_mls.location_dest_id,
             )
         picking = moves_todo.mapped("picking_id")
+        dbg.lifecycle.debug("_action_done: %s -> done", dbg.rec(moves_todo))
         moves_todo.write({"state": "done", "date": fields.Datetime.now()})
 
         moves_todo._push_and_assign_downstream()
@@ -76,6 +94,11 @@ class StockMoveDone(models.Model):
 
         if picking and not cancel_backorder:
             backorder = picking._create_backorder()
+            dbg.pipeline.debug(
+                "_action_done: backorder %s for %s",
+                dbg.rec(backorder),
+                dbg.rec(picking),
+            )
             if any(m.state == "assigned" for m in backorder.move_ids):
                 backorder._check_entire_pack()
         if moves_todo:
@@ -138,6 +161,9 @@ class StockMoveDone(models.Model):
         entries = self._get_block_audit_entries()
         if not entries:
             return
+        dbg.lifecycle.debug(
+            "_post_block_audit: %d entries for %s", len(entries), dbg.rec(self)
+        )
         by_thread = defaultdict(list)
         for entry in entries:
             by_thread[entry["picking"] or entry["location"]].append(entry)
@@ -205,6 +231,13 @@ class StockMoveDone(models.Model):
                 )
             ):
                 move_ids_to_cancel.add(move.id)
+        dbg.logic.debug(
+            "_remove_unpicked_lines_and_cancel_empty(cancel_backorder=%s): cancel %s, "
+            "unlink lines %s",
+            cancel_backorder,
+            list(move_ids_to_cancel),
+            list(ml_ids_to_unlink),
+        )
         if move_ids_to_cancel:
             self.browse(move_ids_to_cancel)._action_cancel()
         self.env["stock.move.line"].browse(ml_ids_to_unlink).unlink()

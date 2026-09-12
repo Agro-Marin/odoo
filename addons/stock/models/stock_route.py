@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class StockRoute(models.Model):
     _name = "stock.route"
@@ -103,9 +105,18 @@ class StockRoute(models.Model):
                         ),
                     )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.route.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if "active" in vals:
             all_rules = self.with_context(active_test=False).rule_ids.sudo()
+            dbg.lifecycle.debug(
+                "stock.route.write: active=%s cascades to rules %s",
+                vals["active"],
+                dbg.rec(all_rules),
+            )
             if vals["active"]:
                 all_rules.filtered(
                     lambda rule: rule.location_dest_id.active

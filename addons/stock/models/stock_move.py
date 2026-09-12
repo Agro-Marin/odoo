@@ -10,6 +10,7 @@ from odoo.tools.misc import OrderedSet, clean_context
 from odoo.tools.translate import _
 
 from ..const import INVENTORY_REFERENCE_CONFIRMED, INVENTORY_REFERENCE_UPDATED
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -465,6 +466,7 @@ class StockMove(models.Model):
         )
         if not pending:
             return
+        dbg.lifecycle.debug("completion sequence assigned to %s", dbg.rec(pending))
         self.env.execute_query(
             SQL(
                 """
@@ -482,13 +484,20 @@ class StockMove(models.Model):
         )
         pending.invalidate_recordset(["completion_sequence"])
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.move.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         vals_list = self._prepare_create_vals(vals_list)
         res = super().create(vals_list)
         res._update_completion_sequence()
         res._update_orderpoints()
         res._update_references()
+        dbg.lifecycle.debug("stock.move.create: created %s", dbg.rec(res))
         return res
 
     def _prepare_create_vals(self, vals_list):
@@ -511,10 +520,24 @@ class StockMove(models.Model):
                 changes["state"] = "done"
             if changes.get("state", vals.get("state")) == "done":
                 changes["picked"] = True
+            if changes:
+                dbg.logic.debug(
+                    "_prepare_create_vals: picking %s forces %s on product %s",
+                    vals.get("picking_id"),
+                    changes,
+                    vals.get("product_id"),
+                )
             prepared.append({**vals, **changes} if changes else vals)
         return prepared
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.move.write on %s: keys=%s state=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            vals.get("state"),
+        )
         vals = self._check_write_vals(vals)
         receipt_moves_to_reassign = self.env["stock.move"]
         move_to_recompute_state = self.env["stock.move"]
@@ -540,7 +563,18 @@ class StockMove(models.Model):
             ),
         )
         if moves_leaving_orderpoint_scope:
+            dbg.logic.debug(
+                "write: %s leave orderpoint scope",
+                dbg.rec(moves_leaving_orderpoint_scope),
+            )
             moves_leaving_orderpoint_scope._update_orderpoints()
+        if receipt_moves_to_reassign or move_to_recompute_state:
+            dbg.logic.debug(
+                "write: reassign=%s recompute_state=%s check_location=%s",
+                dbg.rec(receipt_moves_to_reassign),
+                dbg.rec(move_to_recompute_state),
+                dbg.rec(move_to_check_location),
+            )
 
         res = super().write(vals)
 
@@ -555,6 +589,10 @@ class StockMove(models.Model):
         if "location_id" in vals or "location_dest_id" in vals:
             self._sync_warehouse_from_locations()
         if receipt_moves_to_reassign:
+            dbg.pipeline.debug(
+                "write -> _action_assign on receipts %s",
+                dbg.rec(receipt_moves_to_reassign),
+            )
             receipt_moves_to_reassign._action_assign()
         if (
             "product_id" in vals
@@ -569,7 +607,9 @@ class StockMove(models.Model):
             self._update_references()
         return res
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("stock.move.unlink %s", dbg.rec(self))
         self._unlink_except_done_or_linked()
         self.with_context(prefetch_fields=False).mapped("move_line_ids").unlink()
         orderpoints = self._get_orderpoints_to_update()
@@ -606,6 +646,13 @@ class StockMove(models.Model):
                 defaults["additional"] = True
             elif picking.state not in ("cancel", "draft"):
                 defaults["additional"] = True
+            dbg.logic.debug(
+                "default_get: picking %s in state %s -> state=%s additional=%s",
+                picking.id,
+                picking.state,
+                defaults.get("state"),
+                defaults.get("additional"),
+            )
         return defaults
 
     @api.depends(
@@ -981,6 +1028,12 @@ class StockMove(models.Model):
 
         for move in self:
             delta_qty = move.quantity - move._get_move_line_quantity()
+            dbg.logic.debug(
+                "[move:%s] _inverse_quantity: quantity=%s delta=%s",
+                move.id,
+                move.quantity,
+                delta_qty,
+            )
             if move.product_uom_id.compare(delta_qty, 0) > 0:
                 move._update_quantity_done(move.quantity)
             elif move.product_uom_id.compare(delta_qty, 0) < 0:
@@ -997,7 +1050,15 @@ class StockMove(models.Model):
         for move in self:
             move.description_picking_manual = move.description_picking
 
+    @dbg.timed
     def _action_confirm(self, merge=True, merge_into=False, create_proc=True):
+        dbg.pipeline.debug(
+            "_action_confirm start on %s merge=%s merge_into=%s create_proc=%s",
+            dbg.rec(self),
+            merge,
+            dbg.rec(merge_into) if merge_into else False,
+            create_proc,
+        )
         consumed_from_stock_dict = self.env.context.get(
             "consumed_from_stock_dict",
             defaultdict(float),
@@ -1026,11 +1087,27 @@ class StockMove(models.Model):
             if move._is_assignment_required():
                 to_assign.add(move.id)
 
+        dbg.logic.debug(
+            "_action_confirm: create_proc=%s to_confirm=%s waiting=%s to_assign=%s",
+            list(move_create_proc),
+            list(move_to_confirm),
+            list(move_waiting),
+            list(to_assign),
+        )
+        if move_create_proc:
+            dbg.pipeline.debug(
+                "_action_confirm -> _run_procurements for %s", list(move_create_proc)
+            )
         self.browse(move_create_proc)._run_procurements(consumed_from_stock_dict)
 
         move_to_confirm, move_waiting = (
             self.browse(move_to_confirm).filtered(lambda m: m.state != "cancel"),
             self.browse(move_waiting).filtered(lambda m: m.state != "cancel"),
+        )
+        dbg.lifecycle.debug(
+            "_action_confirm: %s -> confirmed, %s -> waiting",
+            dbg.rec(move_to_confirm),
+            dbg.rec(move_waiting),
         )
         move_to_confirm.write({"state": "confirmed"})
         move_waiting.write({"state": "waiting"})
@@ -1039,6 +1116,9 @@ class StockMove(models.Model):
         ).write({"date_reservation": fields.Date.today()})
 
         if to_assign:
+            dbg.pipeline.debug(
+                "_action_confirm -> _update_picking for %s", list(to_assign)
+            )
             self.browse(to_assign).with_context(
                 clean_context(self.env.context),
             )._update_picking()
@@ -1047,17 +1127,28 @@ class StockMove(models.Model):
         moves = self
         if merge:
             moves = self._merge_moves(merge_into=merge_into)
+            dbg.pipeline.debug(
+                "_action_confirm: merged %d moves into %s", len(self), dbg.rec(moves)
+            )
 
         new_push_moves = moves._reverse_negative_demand()
 
-        moves._filtered_to_assign_at_confirm()._action_assign()
+        to_assign_now = moves._filtered_to_assign_at_confirm()
+        dbg.pipeline.debug(
+            "_action_confirm -> _action_assign %s, push moves %s",
+            dbg.rec(to_assign_now),
+            dbg.rec(new_push_moves),
+        )
+        to_assign_now._action_assign()
         new_push_moves._confirm_pushed_moves()
         return moves
 
     def _action_synch_order(self):
         return True
 
+    @dbg.timed
     def _action_cancel(self):
+        dbg.pipeline.debug("_action_cancel start on %s", dbg.rec(self))
         if any(
             move.state == "done" and move.location_dest_usage != "inventory"
             for move in self
@@ -1081,12 +1172,24 @@ class StockMove(models.Model):
             .get_param("stock.cancel_moves_origin")
         )
 
+        dbg.lifecycle.debug(
+            "_action_cancel: %s -> cancel (cancel_moves_origin=%s)",
+            dbg.rec(moves_to_cancel),
+            cancel_moves_origin,
+        )
         moves_to_cancel.state = "cancel"
 
         for move in moves_to_cancel:
             siblings_states = (
                 move.move_dest_ids.mapped("move_orig_ids") - move
             ).mapped("state")
+            dbg.logic.debug(
+                "[move:%s] _action_cancel: propagate_cancel=%s siblings=%s dests=%s",
+                move.id,
+                move.propagate_cancel,
+                siblings_states,
+                dbg.rec(move.move_dest_ids),
+            )
             if move.propagate_cancel:
                 if all(state == "cancel" for state in siblings_states):
                     move_dest_to_cancel = move.move_dest_ids.filtered(
@@ -1187,6 +1290,7 @@ class StockMove(models.Model):
                     vals,
                 )
         if self.env.context.get("do_not_unreserve"):
+            dbg.logic.debug("_on_demand_change: do_not_unreserve, nothing to do")
             return self.browse(), self.browse()
         move_to_unreserve = self.filtered(
             lambda m: (
@@ -1210,6 +1314,13 @@ class StockMove(models.Model):
         )
         receipt_moves_to_reassign -= receipt_moves_to_reassign.filtered("picked")
         move_to_recompute_state = self - move_to_unreserve - receipt_moves_to_reassign
+        dbg.logic.debug(
+            "_on_demand_change to %s: unreserve=%s reassign=%s recompute=%s",
+            new_qty,
+            dbg.rec(move_to_unreserve),
+            dbg.rec(receipt_moves_to_reassign),
+            dbg.rec(move_to_recompute_state),
+        )
         return receipt_moves_to_reassign, move_to_recompute_state
 
     def _on_source_location_change(self):
@@ -1219,6 +1330,11 @@ class StockMove(models.Model):
         if not mls_to_unlink:
             return self.browse()
         affected = mls_to_unlink.move_id
+        dbg.logic.debug(
+            "_on_source_location_change: unlink %s, %s -> make_to_stock",
+            dbg.rec(mls_to_unlink),
+            dbg.rec(affected),
+        )
         affected.procure_method = "make_to_stock"
         affected.move_orig_ids = [Command.clear()]
         mls_to_unlink.unlink()
@@ -1275,6 +1391,9 @@ class StockMove(models.Model):
 
     def _recompute_state(self):
         if self.env.context.get("preserve_state"):
+            dbg.logic.debug(
+                "_recompute_state skipped (preserve_state) on %s", dbg.rec(self)
+            )
             return
         moves_state_to_write = defaultdict(set)
         for move in self:
@@ -1301,9 +1420,14 @@ class StockMove(models.Model):
             else:
                 moves_state_to_write["confirmed"].add(move.id)
         for state, moves_ids in moves_state_to_write.items():
-            self.browse(moves_ids).filtered(
+            changing = self.browse(moves_ids).filtered(
                 lambda m, state=state: m.state != state
-            ).state = state
+            )
+            if changing:
+                dbg.lifecycle.debug(
+                    "_recompute_state: %s -> %s", dbg.rec(changing), state
+                )
+            changing.state = state
 
     def _prefetch_rollup_move_dests(self):
         self._prefetch_rollup_moves("move_dest_ids")
@@ -1315,11 +1439,20 @@ class StockMove(models.Model):
         seen = set(self.ids)
         self.fetch([target_field])
         next_ids = set(self[target_field].ids)
+        depth = 0
         while not next_ids.issubset(seen):
+            depth += 1
             seen |= next_ids
             to_visit = self.browse(next_ids)
             to_visit.fetch([target_field])
             next_ids = set(to_visit[target_field].ids)
+        dbg.performance.debug(
+            "_prefetch_rollup_moves(%s) from %d moves: %d seen in %d rounds",
+            target_field,
+            len(self),
+            len(seen),
+            depth,
+        )
 
     def _rollup_move_dest_ids(self, seen=False) -> OrderedSet[int]:
         return self._rollup_move_ids(origin=False, seen=seen)
@@ -1332,12 +1465,21 @@ class StockMove(models.Model):
         if not seen:
             seen = OrderedSet()
         frontier = self
+        depth = 0
         while frontier:
             unseen = OrderedSet(frontier.ids) - seen
             if not unseen:
                 break
+            depth += 1
             seen.update(unseen)
             frontier = frontier.browse(unseen)[target_field]
+        dbg.performance.debug(
+            "_rollup_move_ids(%s) from %d moves: %d seen, depth %d",
+            target_field,
+            len(self),
+            len(seen),
+            depth,
+        )
         return seen
 
     def _sync_warehouse_from_locations(self):
@@ -1350,6 +1492,11 @@ class StockMove(models.Model):
                 continue
             wh_by_moves[move_warehouse] |= move
         for warehouse, moves in wh_by_moves.items():
+            dbg.logic.debug(
+                "_sync_warehouse_from_locations: %s -> warehouse %s",
+                dbg.rec(moves),
+                warehouse.id,
+            )
             moves.warehouse_id = warehouse.id
 
     def _get_visible_quantity(self):

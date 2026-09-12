@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class MixinStockWarnInsufficientQty(models.AbstractModel):
     _name = "mixin.stock.warn.insufficient.qty"
@@ -41,6 +43,9 @@ class MixinStockWarnInsufficientQty(models.AbstractModel):
                 ("product_id", "in", self.product_id.ids),
                 ("location_id.usage", "=", "internal"),
             ]
+        )
+        dbg.performance.debug(
+            "_compute_quant_ids: %d wizards, %d quants fetched", len(self), len(quants)
         )
         for quantity in self:
             company = company_per_record[quantity.id]

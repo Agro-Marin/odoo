@@ -6,6 +6,8 @@ from dateutil import relativedelta
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 _LEAD_TIME_STATS_QUERY = """
@@ -172,6 +174,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         "product_id.seller_ids.delay",
         "company_id.horizon_days",
     )
+    @dbg.timed
     def _compute_deadline_date(self):
         canonical = self._with_canonical_horizon()
         critical_orderpoints = canonical.filtered(
@@ -179,6 +182,11 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         )
         critical_orderpoints.deadline_date = fields.Date.today()
         orderpoints_to_compute = canonical - critical_orderpoints
+        dbg.logic.debug(
+            "_compute_deadline_date: critical %s, timeline for %s",
+            dbg.rec(critical_orderpoints),
+            dbg.rec(orderpoints_to_compute),
+        )
         if not orderpoints_to_compute:
             return
 
@@ -238,6 +246,12 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             moves_by_product[product.id].append(
                 (location.parent_path or "", out_date.date(), -out_qty),
             )
+        dbg.performance.debug(
+            "_read_pending_moves_by_product until %s: %d products, %d timeline rows",
+            horizon_date,
+            len(moves_by_product),
+            sum(len(rows) for rows in moves_by_product.values()),
+        )
         return moves_by_product
 
     def _get_deadline_from_timeline(self, timeline, horizon_date):
@@ -255,6 +269,14 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 < 0
             ):
                 deadline = move_date - relativedelta.relativedelta(days=self.lead_days)
+                dbg.logic.debug(
+                    "[orderpoint:%s] below min on %s (%s), deadline %s (horizon %s)",
+                    self.id,
+                    move_date,
+                    qty_on_hand_at_date,
+                    deadline,
+                    horizon_date,
+                )
                 return deadline if deadline < horizon_date else False
         return False
 
@@ -270,6 +292,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             orderpoint.actual_lead_time_stddev = stddev
             orderpoint.lead_time_sample_count = count
 
+    @dbg.timed
     def _read_lead_time_stats(self):
         self.env["stock.move"].flush_model()
         self.env["stock.picking"].flush_model()
@@ -306,6 +329,11 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                     max(stddev_lt, 0.0),
                     count,
                 )
+        dbg.performance.debug(
+            "_read_lead_time_stats: %d warehouses queried, %d (product, warehouse) rows",
+            len(wh_orderpoints),
+            len(result_map),
+        )
         return result_map
 
     @api.depends(
@@ -337,6 +365,13 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 )
             )
             orderpoint.lead_days = lead_days["total_delay"]
+            dbg.logic.debug(
+                "[orderpoint:%s] lead days %s, horizon %s -> %s",
+                orderpoint.id,
+                lead_days["total_delay"],
+                lead_days["horizon_time"],
+                orderpoint.lead_horizon_date,
+            )
         excluded = self - orderpoints_to_compute
         excluded.lead_horizon_date = False
         excluded.lead_days = 0.0

@@ -8,6 +8,8 @@ from odoo.fields import Command, Domain
 from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools import format_list
 
+from ..tools import debug_log as dbg
+
 
 class StockPackageContent(models.Model):
     _inherit = "stock.package"
@@ -98,6 +100,7 @@ class StockPackageContent(models.Model):
         "child_package_dest_ids",
         "child_package_dest_ids.move_line_ids",
     )
+    @dbg.timed
     def _compute_move_line_ids(self):
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         groups = self.env["stock.move.line"]._read_group(
@@ -268,6 +271,7 @@ class StockPackageContent(models.Model):
             res[package] = weight
         return res
 
+    @dbg.timed
     def _get_weight_by_picking(self, picking_ids):
         picking_ids = list(picking_ids)
         package_weights = defaultdict(float)
@@ -319,6 +323,12 @@ class StockPackageContent(models.Model):
                 all_children_by_pack[package] = list(descendants)
                 all_children_ids.update(descendants)
 
+        dbg.performance.debug(
+            "_get_all_children_package_dest_ids: %d packages -> %d with descendants, %d total",
+            len(self),
+            len(all_children_by_pack),
+            len(all_children_ids),
+        )
         return all_children_by_pack, all_children_ids
 
     @staticmethod
@@ -332,9 +342,12 @@ class StockPackageContent(models.Model):
         return seen
 
     def _update_orphaned_package_dests(self):
-        self.filtered(
+        orphaned = self.filtered(
             lambda package: package.package_dest_id and not package.picking_ids
-        ).package_dest_id = False
+        )
+        if orphaned:
+            dbg.lifecycle.debug("_update_orphaned_package_dests: %s", dbg.rec(orphaned))
+        orphaned.package_dest_id = False
 
     def _get_all_package_dest_ids(self):
         return list(self._walk_dest_tree(self, "package_dest_id"))
@@ -345,6 +358,11 @@ class StockPackageContent(models.Model):
         packages_todo = self.filtered(lambda p: p.id not in processed_package_ids)
         packs_by_container = packages_todo.grouped("package_dest_id")
         for container_package, packages in packs_by_container.items():
+            dbg.lifecycle.debug(
+                "_update_parent_packages_from_dest: %s -> container %s",
+                dbg.rec(packages),
+                container_package.id,
+            )
             if not container_package:
                 packages.write({"parent_package_id": False})
                 processed_package_ids.update(packages.ids)
@@ -397,6 +415,11 @@ class StockPackageContent(models.Model):
             ):
                 if allowed_package_ids and container.id not in allowed_package_ids:
                     continue
+                dbg.logic.debug(
+                    "_update_package_dest_for_entire_packs: %s travel with container %s",
+                    dbg.rec(packages),
+                    container.id,
+                )
                 packages.package_dest_id = container
         if self.package_dest_id:
             self.package_dest_id._update_package_dest_for_entire_packs(

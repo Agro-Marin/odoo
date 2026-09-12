@@ -5,6 +5,8 @@ from markupsafe import Markup
 from odoo import _, api, models
 from odoo.tools import format_datetime
 
+from ..tools import debug_log as dbg
+
 
 class StockTraceabilityReport(models.TransientModel):
     _name = "stock.traceability.report"
@@ -68,6 +70,7 @@ class StockTraceabilityReport(models.TransientModel):
             )
         return False
 
+    @dbg.timed
     @api.model
     def get_lines(self, line_id=False, **kw):
         context = self.env.context
@@ -76,6 +79,7 @@ class StockTraceabilityReport(models.TransientModel):
         level = kw.get("level") or 1
         move_lines = self.env["stock.move.line"]
         if model and model not in self._get_models_allowed_line():
+            dbg.logic.debug("traceability get_lines: model %s not allowed", model)
             return []
         if rec_id and model == "stock.lot":
             move_lines = move_lines.search(
@@ -98,6 +102,14 @@ class StockTraceabilityReport(models.TransientModel):
                 move_lines = record.move_finished_ids.move_line_ids.filtered(
                     lambda m: m.state == "done"
                 )
+        dbg.logic.debug(
+            "traceability get_lines model=%s id=%s level=%s line_id=%s: %d move lines",
+            model,
+            rec_id,
+            level,
+            line_id,
+            len(move_lines),
+        )
         vals = self._get_final_vals(
             line_id, model_id=rec_id, model=model, level=level, move_lines=move_lines
         )
@@ -294,8 +306,10 @@ class StockTraceabilityReport(models.TransientModel):
             )
         return self._final_vals_to_lines(final_vals)
 
+    @dbg.timed
     def get_pdf(self, line_data=None):
         lines = self.with_context(print_mode=True).get_pdf_lines(line_data or [])
+        dbg.pipeline.debug("traceability get_pdf: %d lines to render", len(lines))
         base_url = self.env["ir.config_parameter"].sudo().get_param("web.base.url")
         rcontext = {
             "mode": "print",
@@ -346,5 +360,8 @@ class StockTraceabilityReport(models.TransientModel):
     def get_main_lines(self, given_context=None):
         report = self.search([("create_uid", "=", self.env.uid)], limit=1)
         if not report:
+            dbg.lifecycle.debug(
+                "traceability: creating transient report for uid %s", self.env.uid
+            )
             report = self.create({})
         return report.with_context(given_context or {}).get_lines()

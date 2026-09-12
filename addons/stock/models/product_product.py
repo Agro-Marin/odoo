@@ -10,6 +10,7 @@ from odoo.libs.barcode import is_barcode_encoding_valid
 from odoo.tools.mail import html2plaintext, is_html_empty
 from odoo.tools.translate import LazyTranslate
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import TEMPLATE_STOCK_FLAGS
 
 _logger = logging.getLogger(__name__)
@@ -190,15 +191,29 @@ class ProductProduct(models.Model):
         string="Lots Count",
     )
 
+    @dbg.timed
     def write(self, vals):
         flags = {name: vals[name] for name in TEMPLATE_STOCK_FLAGS if name in vals}
+        if flags:
+            dbg.lifecycle.debug(
+                "product.write on %s: stock flags %s", dbg.rec(self), dbg.keys(flags)
+            )
         if len(flags) > 1:
             vals = {name: value for name, value in vals.items() if name not in flags}
             self.product_tmpl_id.write(flags)
         if "active" in vals:
-            self.filtered(lambda p: p.active != vals["active"]).with_context(
-                active_test=False
-            ).orderpoint_ids.write({"active": vals["active"]})
+            orderpoints = (
+                self.filtered(lambda p: p.active != vals["active"])
+                .with_context(active_test=False)
+                .orderpoint_ids
+            )
+            if orderpoints:
+                dbg.lifecycle.debug(
+                    "product.write: active=%s cascades to orderpoints %s",
+                    vals["active"],
+                    dbg.rec(orderpoints),
+                )
+            orderpoints.write({"active": vals["active"]})
         return super().write(vals)
 
     @api.model
@@ -498,13 +513,33 @@ class ProductProduct(models.Model):
                 ),
             )
         if not rule:
+            dbg.logic.debug(
+                "_get_rules_from_location: product %s at %s: chain ends, %s",
+                self.id,
+                location.id,
+                dbg.rec(seen_rules),
+            )
             return seen_rules
         if rule.procure_method == "make_to_stock" or rule.action not in (
             "pull_push",
             "pull",
         ):
+            dbg.logic.debug(
+                "_get_rules_from_location: product %s at %s: rule %s (%s) terminates chain",
+                self.id,
+                location.id,
+                rule.id,
+                rule.procure_method,
+            )
             return seen_rules | rule
         else:
+            dbg.logic.debug(
+                "_get_rules_from_location: product %s at %s: rule %s -> follow to %s",
+                self.id,
+                location.id,
+                rule.id,
+                rule.location_src_id.id,
+            )
             return self._get_rules_from_location(
                 rule.location_src_id,
                 route_ids=route_ids,
@@ -527,6 +562,7 @@ class ProductProduct(models.Model):
         return 0.0
 
     def _update_uom(self, to_uom_id):
+        dbg.lifecycle.debug("_update_uom on %s -> uom %s", dbg.rec(self), to_uom_id)
         self._restamp_uom("stock.move", to_uom_id)
         self._restamp_uom("stock.move.line", to_uom_id)
         return super()._update_uom(to_uom_id)
@@ -541,6 +577,11 @@ class ProductProduct(models.Model):
             self.env["stock.move"]._read_group(domain, ["product_id"]),
         )
         linked_product_ids = {product.id for groups in grouped for [product] in groups}
+        if linked_product_ids:
+            dbg.logic.debug(
+                "_filtered_to_unlink: products %s have stock data, kept",
+                sorted(linked_product_ids),
+            )
         return super(
             ProductProduct, self - self.browse(linked_product_ids)
         )._filtered_to_unlink()

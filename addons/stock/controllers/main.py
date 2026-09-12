@@ -6,6 +6,8 @@ from odoo import http
 from odoo.http import request
 from odoo.tools.misc import html_escape
 
+from ..tools import debug_log as dbg
+
 
 class StockReportController(http.Controller):
     @http.route(
@@ -41,6 +43,13 @@ class StockReportController(http.Controller):
             .with_user(uid)
             .search(domain, limit=1)
         )
+        dbg.pipeline.debug(
+            "/stock/pdf: traceability report %s for %s %s, %d lines",
+            stock_traceability.id,
+            active_model,
+            active_id,
+            len(line_data) if isinstance(line_data, list) else 0,
+        )
         try:
             return request.prepare_response(
                 stock_traceability.with_context(
@@ -55,6 +64,7 @@ class StockReportController(http.Controller):
                 ],
             )
         except Exception as e:
+            dbg.logic.debug("/stock/pdf failed: %r", e)
             se = http.serialize_exception(e)
             error = {
                 "code": 0,

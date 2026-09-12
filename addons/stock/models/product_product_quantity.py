@@ -8,6 +8,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import PY_OPERATORS, QUANTITY_FIELDS
 from odoo.addons.stock.tools.quantity import (
     QuantityFilters,
@@ -72,6 +73,7 @@ class ProductProductQuantity(models.Model):
         "stock_quant_ids.owner_id",
         "stock_quant_ids.package_id",
     )
+    @dbg.timed
     def _compute_quantities(self):
         prefetch_fields = self.env.context.get("prefetch_fields", True)
         guarded = self.with_context(skip_qty_available_update=True)
@@ -83,6 +85,11 @@ class ProductProductQuantity(models.Model):
         services = guarded - products
         for field_name in QUANTITY_FIELDS:
             services[field_name] = 0.0
+        dbg.performance.debug(
+            "_compute_quantities: %d products (%d services)",
+            len(products),
+            len(services),
+        )
         if not products:
             return
         res = products._prepare_quantities_vals(QuantityFilters.from_context(self.env))
@@ -178,6 +185,11 @@ class ProductProductQuantity(models.Model):
                 ]
         if not vals_list:
             return
+        dbg.pipeline.debug(
+            "_update_qty_available: %d inventory quants (scoped location %s)",
+            len(vals_list),
+            scoped_location.id if scoped_location else None,
+        )
         quants = (
             self.env["stock.quant"]
             .with_context(inventory_mode=True, from_inverse_qty=True)
@@ -450,6 +462,13 @@ class ProductProductQuantity(models.Model):
                 )
         else:
             domain_move_in_done = domain_move_out_done = Domain.FALSE
+        dbg.logic.debug(
+            "_prepare_quantities_scope: %d products from=%s to=%s past=%s",
+            len(self),
+            from_date,
+            to_date,
+            dates_in_the_past,
+        )
         return QuantityScope(
             quant=domain_quant,
             expired_quant=expired_quant,
@@ -562,11 +581,13 @@ class ProductProductQuantity(models.Model):
                 reads.moves_out_past.get(pid, 0.0),
             )
 
+    @dbg.timed
     def _prepare_quantities_vals(self, filters, location_domains=None):
         scope = self._prepare_quantities_scope(
             filters, location_domains=location_domains
         )
-        reads = self._read_quantities(scope)
+        with dbg.timer(self.env, "_read_quantities for %d products", len(self)):
+            reads = self._read_quantities(scope)
         res = {}
 
         for product in self.with_context(prefetch_fields=False):
@@ -625,4 +646,8 @@ class ProductProductQuantity(models.Model):
                 ["product_id"],
             )
         }
+        dbg.performance.debug(
+            "_get_quantity_search_candidates: %d products with stock data",
+            len(product_ids),
+        )
         return self.env["product.product"].browse(product_ids)

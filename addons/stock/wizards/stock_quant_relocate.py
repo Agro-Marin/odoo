@@ -3,6 +3,8 @@ from ast import literal_eval
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class StockQuantRelocate(models.TransientModel):
     _name = "stock.quant.relocate"
@@ -104,7 +106,15 @@ class StockQuantRelocate(models.TransientModel):
         product_ids = self.quant_ids.product_id
 
         if not self.dest_location_id and not self.dest_package_id:
+            dbg.logic.debug("action_relocate_quants: no destination, nothing done")
             return None
+        dbg.pipeline.debug(
+            "action_relocate_quants %s -> location %s package %s partial=%s",
+            dbg.rec(self.quant_ids),
+            self.dest_location_id.id,
+            self.dest_package_id.id,
+            self.is_partial_package,
+        )
         self.quant_ids.action_clear_inventory_quantity()
 
         if self.is_partial_package and not self.dest_package_id:

@@ -1,5 +1,7 @@
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class IrActionsReport(models.Model):
     _inherit = "ir.actions.report"
@@ -8,6 +10,9 @@ class IrActionsReport(models.Model):
         data = super()._get_rendering_context(report, docids, data)
         if report.report_name == "stock.report_reception_report_label" and not docids:
             docids = data["docids"]
+            dbg.logic.debug(
+                "reception report label: docids taken from data (%d)", len(docids)
+            )
             docs = self.env[report.model].browse(docids)
             data.update(
                 {

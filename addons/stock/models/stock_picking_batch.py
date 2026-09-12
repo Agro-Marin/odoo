@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class StockPickingBatch(models.Model):
     _name = "stock.picking.batch"
@@ -343,10 +345,14 @@ class StockPickingBatch(models.Model):
                     batch.state = "cancel"
                 continue
             if all(picking.state == "cancel" for picking in batch.picking_ids):
+                dbg.lifecycle.debug(
+                    "[batch:%s] all pickings cancelled -> cancel", batch.id
+                )
                 batch.state = "cancel"
             elif all(
                 picking.state in ["done", "cancel"] for picking in batch.picking_ids
             ):
+                dbg.lifecycle.debug("[batch:%s] all pickings closed -> done", batch.id)
                 batch.state = "done"
 
     @api.depends("picking_ids", "picking_ids.date_planned")
@@ -367,10 +373,22 @@ class StockPickingBatch(models.Model):
                 )
                 move_lines_to_unlink = old_move_lines - new_move_lines
                 if move_lines_to_unlink:
+                    dbg.logic.debug(
+                        "[batch:%s] _inverse_move_line_ids unlinks %s of picking %s",
+                        batch.id,
+                        dbg.rec(move_lines_to_unlink),
+                        picking.id,
+                    )
                     move_lines_to_unlink.unlink()
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.picking.batch.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if vals.get("name", "New") == "New":
                 company_id = vals.get("company_id", self.env.company.id)
@@ -386,7 +404,11 @@ class StockPickingBatch(models.Model):
                     )
         return super().create(vals_list)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.picking.batch.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         batches_to_rename = self.env["stock.picking.batch"]
         if vals.get("picking_type_id"):
             picking_type = self.env["stock.picking.type"].browse(
@@ -418,20 +440,30 @@ class StockPickingBatch(models.Model):
         if any(batch.state == "done" for batch in self):
             raise UserError(_("You cannot delete Done batch transfers."))
 
+    @dbg.timed
     def action_confirm(self):
         self.check_singleton()
         if not self.picking_ids:
             raise UserError(_("You have to set some pickings to batch."))
+        dbg.pipeline.debug(
+            "[batch:%s] action_confirm -> %s", self.id, dbg.rec(self.picking_ids)
+        )
         self.picking_ids.action_confirm()
         self._check_company()
         self.state = "in_progress"
         return True
 
     def action_cancel(self):
+        dbg.lifecycle.debug(
+            "action_cancel: %s -> cancel, detaching %s",
+            dbg.rec(self),
+            dbg.rec(self.picking_ids),
+        )
         self.state = "cancel"
         self.picking_ids = False
         return True
 
+    @dbg.timed
     def action_done(self):
         def has_no_quantity(picking):
             return all(
@@ -475,6 +507,12 @@ class StockPickingBatch(models.Model):
         if empty_pickings != pickings:
             pickings -= empty_pickings
             context["pickings_to_detach"] += empty_pickings.ids
+        dbg.pipeline.debug(
+            "[batch:%s] action_done: validate %s, detach %s",
+            self.id,
+            dbg.rec(pickings),
+            context["pickings_to_detach"],
+        )
 
         for picking in pickings:
             picking.message_post(
@@ -496,6 +534,9 @@ class StockPickingBatch(models.Model):
 
     def action_assign(self):
         self.check_singleton()
+        dbg.pipeline.debug(
+            "[batch:%s] action_assign -> %s", self.id, dbg.rec(self.picking_ids)
+        )
         self.picking_ids.action_assign()
 
     def action_put_in_pack(
@@ -597,6 +638,11 @@ class StockPickingBatch(models.Model):
         for batch in self.filtered(
             lambda batch: not batch.picking_type_id and batch.picking_ids
         ):
+            dbg.logic.debug(
+                "[batch:%s] picking type taken from first picking: %s",
+                batch.id,
+                batch.picking_ids[:1].picking_type_id.id,
+            )
             batch.picking_type_id = batch.picking_ids[:1].picking_type_id
 
     def _check_pickings_are_allowed(self):
@@ -623,12 +669,28 @@ class StockPickingBatch(models.Model):
             and picking_type.batch_max_lines
             and len(self.move_ids) + moves > picking_type.batch_max_lines
         ):
+            dbg.logic.debug(
+                "[batch:%s] not mergeable: %d + %d lines > %d",
+                self.id,
+                len(self.move_ids),
+                moves,
+                picking_type.batch_max_lines,
+            )
             return False
-        return not (
+        mergeable = not (
             pickings
             and picking_type.batch_max_pickings
             and len(self.picking_ids) + pickings > picking_type.batch_max_pickings
         )
+        if not mergeable:
+            dbg.logic.debug(
+                "[batch:%s] not mergeable: %d + %d pickings > %d",
+                self.id,
+                len(self.picking_ids),
+                pickings,
+                picking_type.batch_max_pickings,
+            )
+        return mergeable
 
     def _get_merged_batch_vals(self):
         self.check_singleton()

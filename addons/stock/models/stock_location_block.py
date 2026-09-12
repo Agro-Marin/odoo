@@ -20,6 +20,7 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
+from ..tools import debug_log as dbg
 from .stock_location import (
     GROUP_FORCE_BLOCK_IN,
     GROUP_FORCE_BLOCK_OUT,
@@ -91,7 +92,17 @@ class StockLocationBlock(models.Model):
         return False, None
 
     def _is_operation_allowed(self, direction):
-        return self._get_block_decision(direction)[0]
+        allowed, reason = self._get_block_decision(direction)
+        if self.effective_block_type and self.effective_block_type != "none":
+            dbg.logic.debug(
+                "[location:%s] block %s operation %s -> allowed=%s reason=%s",
+                self.id,
+                self.effective_block_type,
+                direction,
+                allowed,
+                reason,
+            )
+        return allowed
 
     def _check_operation_allowed(self, direction):
         self.check_singleton()
@@ -168,6 +179,11 @@ class StockLocationBlock(models.Model):
             self.env.context, CONTEXT_BLOCK_SKIP_HOOKS
         ) or BLOCK_GOVERNED_FIELDS.isdisjoint(vals):
             return
+        dbg.logic.debug(
+            "_check_block_governance on %s for %s",
+            dbg.rec(self),
+            sorted(BLOCK_GOVERNED_FIELDS.intersection(vals)),
+        )
         self._check_block_governance(vals)
 
     def _filtered_block_type_transitioning(self, vals):
@@ -249,6 +265,11 @@ class StockLocationBlock(models.Model):
         if not self:
             return
         reserved_by_location = self._get_reserved_quantities_by_uom()
+        dbg.lifecycle.debug(
+            "_update_block_metadata on %s: reserved %s",
+            dbg.rec(self),
+            dbg.lazy(lambda: {k: dict(v) for k, v in reserved_by_location.items()}),
+        )
         now = fields.Datetime.now()
         by_total = defaultdict(list)
         for location in self:
@@ -319,6 +340,7 @@ class StockLocationBlock(models.Model):
     def _remove_block_metadata(self):
         if not self:
             return
+        dbg.lifecycle.debug("_remove_block_metadata on %s", dbg.rec(self))
         self.with_context(
             **{CONTEXT_BLOCK_SKIP_HOOKS: INTERNAL_CONTEXT_FLAG},
         ).write(
@@ -390,6 +412,12 @@ class StockLocationBlock(models.Model):
         moves = move_lines.move_id
         line_count = len(move_lines)
         move_count = len(moves)
+        dbg.pipeline.debug(
+            "[location:%s] _unreserve_all_stock -> _unreserve %s (%d lines)",
+            self.id,
+            dbg.rec(moves),
+            line_count,
+        )
         moves._unreserve()
 
         self.sudo().message_post(

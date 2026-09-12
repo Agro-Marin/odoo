@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import ADVANCED_STOCK_OPTION_GROUPS
 
 
@@ -258,13 +259,21 @@ class ProductTemplate(models.Model):
                     continue
                 template_ids.append(product_tmpl.id)
                 quantities.append(qty)
+            dbg.pipeline.debug(
+                "product.template.create: initial qty_available on %s", template_ids
+            )
             self.browse(template_ids)._update_qty_available(quantities)
         return product_templates
 
+    @dbg.timed
     def write(self, vals):
         if vals.get("company_id"):
             products_changing_company = self.filtered(
                 lambda product: product.company_id.id != vals["company_id"],
+            )
+            dbg.logic.debug(
+                "product.template.write: company change on %s, checking stock data",
+                dbg.rec(products_changing_company),
             )
             if products_changing_company:
                 variant_ids = products_changing_company.with_context(
@@ -318,6 +327,12 @@ class ProductTemplate(models.Model):
             lambda tmpl: was_storable[tmpl.id] and not tmpl.is_storable
         )
         Quant = self.env["stock.quant"].sudo()
+        if templates_to_reset or templates_losing_storage:
+            dbg.lifecycle.debug(
+                "product.template.write: became storable %s, lost storage %s",
+                dbg.rec(templates_to_reset),
+                dbg.rec(templates_losing_storage),
+            )
         if templates_to_reset:
             products = templates_to_reset.with_context(
                 active_test=False
@@ -636,6 +651,7 @@ class ProductTemplate(models.Model):
             )
         )
 
+    @dbg.timed
     def _apply_zero_inventory(self):
         move_line_domain = Domain(
             [
@@ -669,6 +685,12 @@ class ProductTemplate(models.Model):
                 inventory_ledger[move_line.product_id, move_line.location_dest_id] += (
                     move_line.quantity_product_uom
                 )
+        dbg.logic.debug(
+            "_apply_zero_inventory on %s: %d done lines -> %d (product, location) balances",
+            dbg.rec(self),
+            len(move_lines_to_match),
+            len(inventory_ledger),
+        )
         quants_to_reset = self.env["stock.quant"].create(
             [
                 {

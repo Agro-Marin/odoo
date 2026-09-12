@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockInventoryWarning(models.TransientModel):
     _name = "stock.inventory.warning"
@@ -13,5 +15,10 @@ class StockInventoryWarning(models.TransientModel):
     def action_set(self):
         valid_quants = self.quant_ids.filtered(
             lambda quant: not quant.inventory_quantity_set
+        )
+        dbg.logic.debug(
+            "inventory warning: set on %s of %d",
+            dbg.rec(valid_quants),
+            len(self.quant_ids),
         )
         return valid_quants.action_set_inventory_quantity()

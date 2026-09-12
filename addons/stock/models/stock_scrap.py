@@ -3,6 +3,7 @@ from odoo.exceptions import UserError
 from odoo.tools import float_compare
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
@@ -260,7 +261,9 @@ class StockScrap(models.Model):
             "picking_id": self.picking_id.id,
         }
 
+    @dbg.timed
     def _action_done(self):
+        dbg.pipeline.debug("stock.scrap._action_done on %s", dbg.rec(self))
         self._check_company()
         already_done = self.filtered(lambda s: s.state == "done")
         if already_done:
@@ -275,9 +278,11 @@ class StockScrap(models.Model):
         moves = self.env["stock.move"]
         for scrap in self:
             moves |= scrap._create_scrap_move()
+        dbg.pipeline.debug("scrap -> stock.move._action_done %s", dbg.rec(moves))
         moves.with_context(is_scrap=True)._action_done()
         self.write({"state": "done", "date_done": fields.Datetime.now()})
         for scrap in self.filtered("should_replenish"):
+            dbg.pipeline.debug("[scrap:%s] replenishing %s", scrap.id, scrap.scrap_qty)
             scrap._replenish_scrapped_quantity()
         return True
 
@@ -379,6 +384,13 @@ class StockScrap(models.Model):
         ).product_id.qty_available
         scrap_qty = self.product_uom_id._compute_quantity(
             self.scrap_qty, self.product_id.uom_id
+        )
+        dbg.logic.debug(
+            "[scrap:%s] has_available_qty: available %s vs scrap %s at %s",
+            self.id,
+            available_qty,
+            scrap_qty,
+            self.location_id.id,
         )
         return float_compare(available_qty, scrap_qty, precision_digits=precision) >= 0
 

@@ -4,6 +4,8 @@ from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.tools import format_date
 
+from ..tools import debug_log as dbg
+
 ASSIGNABLE_OUT_STATES = {
     "confirmed",
     "partially_available",
@@ -33,10 +35,14 @@ class ReportStockReport_Reception(models.AbstractModel):
         report_values["show_uom"] = self.env.user.has_group("uom.group_uom")
         return report_values
 
+    @dbg.timed
     @api.model
     def _get_report_values(self, docids, data=None):
         docs, reason = self._get_validated_docs(docids)
         if not docs:
+            dbg.logic.debug(
+                "reception report: no valid docs in %s (%s)", docids, reason
+            )
             return {"docs": False, "reason": reason}
 
         doc_states = docs.mapped("state")
@@ -45,11 +51,23 @@ class ReportStockReport_Reception(models.AbstractModel):
         qty_draft, qty_to_assign, total_assigned = self._classify_incoming_moves(moves)
 
         outs = self._get_candidate_outs(docs, doc_states, qty_to_assign, qty_draft)
+        dbg.performance.debug(
+            "reception report for %s: %d incoming moves, %d products to assign, %d outs",
+            dbg.rec(docs),
+            len(moves),
+            len(qty_to_assign),
+            len(outs),
+        )
 
         sources_to_lines = self._match_outs_to_incoming(
             outs, doc_states, qty_to_assign, qty_draft
         )
         self._add_assigned_lines(sources_to_lines, total_assigned)
+        dbg.logic.debug(
+            "reception report: %d sources, %d lines",
+            len(sources_to_lines),
+            sum(len(lines) for lines in sources_to_lines.values()),
+        )
 
         sources_to_formatted_scheduled_date = {
             source: self._get_formatted_scheduled_date(source[0])
@@ -339,6 +357,9 @@ class ReportStockReport_Reception(models.AbstractModel):
             split_out_ids.append(out.id)
         new_outs = self.env["stock.move"].create(new_move_vals)
         new_outs.write({"state": "confirmed"})
+        dbg.pipeline.debug(
+            "_split_outs: split %s into new %s", split_out_ids, dbg.rec(new_outs)
+        )
         return new_outs, dict(zip(split_out_ids, new_outs, strict=True))
 
     def _update_move_lines_for_split_out(
@@ -397,6 +418,13 @@ class ReportStockReport_Reception(models.AbstractModel):
                 continue
 
             linked_qty = min(quantity_remaining, qty_to_link)
+            dbg.pipeline.debug(
+                "_link_ins: in %s -> out %s for %s (remaining on in %s)",
+                in_move.id,
+                out.id,
+                linked_qty,
+                quantity_remaining,
+            )
             in_move.move_dest_ids |= out
             self._share_source_references(in_move, out)
             out.procure_method = "make_to_order"
@@ -404,10 +432,12 @@ class ReportStockReport_Reception(models.AbstractModel):
             if out.product_id.uom_id.is_zero(qty_to_link):
                 break
 
+    @dbg.timed
     def action_assign(self, move_ids, qtys, in_ids):
         assignments = self._get_assignments(move_ids, qtys, in_ids)
         if not assignments:
             return
+        dbg.pipeline.debug("reception action_assign: %s", assignments)
         self._check_assignments(assignments)
 
         outs = self.env["stock.move"].browse(
@@ -427,9 +457,13 @@ class ReportStockReport_Reception(models.AbstractModel):
 
         outs._action_assign()
 
+    @dbg.timed
     def action_unassign(self, move_id, qty, in_ids):
         out = self.env["stock.move"].browse(move_id)
         ins = self.env["stock.move"].browse(in_ids)
+        dbg.pipeline.debug(
+            "reception action_unassign: out %s qty %s from ins %s", move_id, qty, in_ids
+        )
 
         if out.state not in ASSIGNABLE_OUT_STATES:
             raise UserError(
@@ -455,6 +489,11 @@ class ReportStockReport_Reception(models.AbstractModel):
             amount_unassigned += min(qty, move_quantity)
             if out.product_id.uom_id.compare(qty, amount_unassigned) <= 0:
                 break
+        dbg.logic.debug(
+            "action_unassign: unassigned %s, still linked %s",
+            amount_unassigned,
+            dbg.rec(out.move_orig_ids),
+        )
         if out.move_orig_ids and out.state != "done":
             total_still_linked = sum(out.move_orig_ids.mapped("product_qty"))
             new_move_vals = out._split(total_still_linked)

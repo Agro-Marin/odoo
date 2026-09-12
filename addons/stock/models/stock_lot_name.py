@@ -6,6 +6,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class StockLotName(models.Model):
     _inherit = "stock.lot"
@@ -27,6 +29,12 @@ class StockLotName(models.Model):
             sequence.next_by_id()
             if sequence
             else self.env["ir.sequence"].next_by_code("stock.lot.serial")
+        )
+        dbg.logic.debug(
+            "_get_next_sequence_value: product %s sequence %s -> %r",
+            product.id,
+            sequence.id or "stock.lot.serial",
+            value,
         )
         if not value:
             raise UserError(
@@ -108,12 +116,23 @@ class StockLotName(models.Model):
             Domain("company_id", "=", company.id) | Domain("company_id", "=", False)
         )
         candidates = [first_name]
+        rounds = 0
         while True:
+            rounds += 1
             taken = set(
                 Lot.search(owned & Domain("name", "in", candidates)).mapped("name")
             )
             for candidate in candidates:
                 if candidate not in taken:
+                    if rounds > 1 or candidate != first_name:
+                        dbg.logic.debug(
+                            "_get_free_lot_name: %r taken for product %s, using %r "
+                            "after %d rounds",
+                            first_name,
+                            product.id,
+                            candidate,
+                            rounds,
+                        )
                     return candidate
             following = self.prepare_lot_names(candidates[-1], batch + 1)
             candidates = following[1:] if following[0] == candidates[-1] else following
@@ -131,6 +150,7 @@ class StockLotName(models.Model):
             order="id DESC",
         )
         if not last_serial:
+            dbg.logic.debug("_get_next_serial: no lot yet for product %s", product.id)
             return False
         return self._get_free_lot_name(company, product, last_serial.name)
 
@@ -196,13 +216,16 @@ class StockLotName(models.Model):
             ]
         )
 
+    @dbg.timed
     def _get_delivery_ids_by_lot(self):
         all_lot_ids = set(self.ids)
         barren_lines = defaultdict(set)
         parent_map = defaultdict(set)
 
         queue = list(self.ids)
+        depth = 0
         while queue:
+            depth += 1
             domain = (
                 Domain(
                     [
@@ -229,6 +252,13 @@ class StockLotName(models.Model):
                 all_lot_ids.update(next_lots)
                 queue.extend(next_lots)
 
+        dbg.performance.debug(
+            "_get_delivery_ids_by_lot: %d lots -> %d in tree after %d rounds, %d parents",
+            len(self),
+            len(all_lot_ids),
+            depth,
+            len(parent_map),
+        )
         lots_to_propagate = set()
         delivery_by_lot = {lot_id: set() for lot_id in all_lot_ids}
         for lot_id, barren_line_ids in barren_lines.items():

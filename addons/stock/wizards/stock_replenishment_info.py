@@ -9,6 +9,8 @@ from odoo.fields import Domain
 from odoo.libs.numbers import float_round
 from odoo.tools.misc import format_date
 
+from ..tools import debug_log as dbg
+
 
 class StockReplenishmentInfo(models.TransientModel):
     _name = "stock.replenishment.info"
@@ -98,6 +100,12 @@ class StockReplenishmentInfo(models.TransientModel):
                 }
                 for route in routes
             ]
+            dbg.logic.debug(
+                "replenishment info %s: %d warehouse routes for product %s",
+                replenishment_info.id,
+                len(routes),
+                product.id,
+            )
         self.env["stock.replenishment.option"].create(option_vals)
 
     def _get_lead_days_and_description(self):
@@ -376,6 +384,12 @@ class StockReplenishmentOption(models.TransientModel):
 
     def action_select_route(self):
         if self.product_id.uom_id.compare(self.qty_free, self.qty_to_order) < 0:
+            dbg.logic.debug(
+                "action_select_route: free %s < to order %s on route %s, warning",
+                self.qty_free,
+                self.qty_to_order,
+                self.route_id.id,
+            )
             return {
                 "type": "ir.actions.act_window",
                 "res_model": "stock.replenishment.option",
@@ -392,10 +406,21 @@ class StockReplenishmentOption(models.TransientModel):
         return self.action_order_full_quantity()
 
     def action_order_available_quantity(self):
+        dbg.lifecycle.debug(
+            "[orderpoint:%s] route %s, qty_to_order capped to free %s",
+            self.replenishment_info_id.orderpoint_id.id,
+            self.route_id.id,
+            self.qty_free,
+        )
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
         self.replenishment_info_id.orderpoint_id.qty_to_order = self.qty_free
         return {"type": "ir.actions.act_window_close"}
 
     def action_order_full_quantity(self):
+        dbg.lifecycle.debug(
+            "[orderpoint:%s] route %s",
+            self.replenishment_info_id.orderpoint_id.id,
+            self.route_id.id,
+        )
         self.replenishment_info_id.orderpoint_id.route_id = self.route_id
         return {"type": "ir.actions.act_window_close"}

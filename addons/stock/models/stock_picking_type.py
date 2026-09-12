@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class GroupingCriterion(NamedTuple):
     line_path: str
@@ -280,19 +282,34 @@ class StockPickingType(models.Model):
         "reference sequence, and its transfers cannot be numbered.",
     )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.picking.type.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         picking_types = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "stock.picking.type.create: created %s", dbg.rec(picking_types)
+        )
         picking_types._update_reference_sequences()
         return picking_types
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("stock.picking.type.unlink %s", dbg.rec(self))
         sequences = self.sequence_id
         result = super().unlink()
         self._remove_orphaned_sequences(sequences)
         return result
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.picking.type.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         self._check_company_change(vals)
         types_changing_warehouse = (
             self.filtered(
@@ -315,6 +332,12 @@ class StockPickingType(models.Model):
                 picking_type.warehouse_id.id != warehouse_before[picking_type.id]
             )
         )
+        if moved or types_changing_warehouse:
+            dbg.logic.debug(
+                "write: moved to another warehouse %s, changing warehouse %s",
+                dbg.rec(moved),
+                dbg.rec(types_changing_warehouse),
+            )
         if "sequence_code" in vals:
             self._update_reference_sequences()
         elif moved:
@@ -360,6 +383,10 @@ class StockPickingType(models.Model):
                 lambda pt: pt.reservation_method == "by_date"
             )
             if leaving_by_date:
+                dbg.logic.debug(
+                    "_update_move_reservation_dates: %s leave by_date, clearing dates",
+                    dbg.rec(leaving_by_date),
+                )
                 self.env["stock.move"].search(
                     [
                         ("picking_type_id", "in", leaving_by_date.ids),
@@ -398,6 +425,13 @@ class StockPickingType(models.Model):
                 "reservation_days_before_priority",
                 picking_type.reservation_days_before_priority,
             )
+            dbg.lifecycle.debug(
+                "[picking_type:%s] reservation dates on %s: %s/%s days",
+                picking_type.id,
+                dbg.rec(moves),
+                common_days,
+                priority_days,
+            )
             moves._update_date_reservation_from_days(common_days, priority_days)
 
     def _update_default_locations_for_warehouse(self, vals):
@@ -427,6 +461,12 @@ class StockPickingType(models.Model):
                     to_update.setdefault("default_location_dest_id", self.browse())
                     to_update["default_location_dest_id"] |= picking_type
         for field_name, picking_types in to_update.items():
+            dbg.logic.debug(
+                "_update_default_locations_for_warehouse: %s.%s -> %s",
+                dbg.rec(picking_types),
+                field_name,
+                stock_location.id,
+            )
             picking_types.write({field_name: stock_location.id})
 
     @api.depends("code")

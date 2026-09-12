@@ -3,6 +3,8 @@ from collections import defaultdict
 from odoo import _, api, fields, models, modules
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -75,21 +77,27 @@ class ResCompany(models.Model):
                     _("The replenishment horizon cannot be negative.")
                 )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
         companies = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "res.company.create: stock setup for %s", dbg.rec(companies)
+        )
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
         companies_sudo = companies.sudo()
-        companies_sudo._create_per_company_locations()
-        companies_sudo._create_per_company_sequences()
-        companies_sudo._create_per_company_picking_types()
-        companies_sudo._create_per_company_rules()
-        companies_sudo._update_per_company_inter_company_locations(
-            inter_company_location
-        )
+        with dbg.timer(self.env, "per-company stock data for %s", dbg.rec(companies)):
+            companies_sudo._create_per_company_locations()
+            companies_sudo._create_per_company_sequences()
+            companies_sudo._create_per_company_picking_types()
+            companies_sudo._create_per_company_rules()
+            companies_sudo._update_per_company_inter_company_locations(
+                inter_company_location
+            )
         if modules.module.current_test:
+            dbg.logic.debug("res.company.create: test mode, creating warehouses")
             companies_sudo._create_warehouse()
         return companies
 
@@ -125,6 +133,9 @@ class ResCompany(models.Model):
             ],
         )
         for company, location in zip(self, locations, strict=True):
+            dbg.lifecycle.debug(
+                "[company:%s] transit location %s", company.id, location.id
+            )
             company.internal_transit_location_id = location.id
             company.partner_id.with_company(company)._update_stock_property_locations(
                 location
@@ -186,6 +197,10 @@ class ResCompany(models.Model):
             warehouse_by_company.setdefault(warehouse.company_id.id, warehouse)
         companies_without = self.filtered(
             lambda company: company.id not in warehouse_by_company
+        )
+        dbg.lifecycle.debug(
+            "_create_warehouse: companies without warehouse %s",
+            dbg.rec(companies_without),
         )
         vals_list = []
         taken_names = defaultdict(set)
@@ -271,8 +286,14 @@ class ResCompany(models.Model):
 
     def _update_per_company_inter_company_locations(self, inter_company_location):
         if not self.env.user.has_group("base.group_multi_company"):
+            dbg.logic.debug("inter-company locations skipped: no multi-company group")
             return
         all_companies = self._get_all_companies()
+        dbg.performance.debug(
+            "_update_per_company_inter_company_locations: %d x %d company pairs",
+            len(self),
+            len(all_companies),
+        )
         for company in self:
             other_companies = all_companies - company
             other_companies.partner_id.with_company(

@@ -10,6 +10,7 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 
 from ..const import INVENTORY_REFERENCE_RELOCATED
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -185,6 +186,11 @@ class StockQuantInventory(models.Model):
                 continue
             quant.inventory_quantity = quant.inventory_quantity_auto_apply
             quant_to_inventory |= quant
+        dbg.pipeline.debug(
+            "auto_apply inventory on %s of %s",
+            dbg.rec(quant_to_inventory),
+            dbg.rec(self),
+        )
         quant_to_inventory.action_apply_inventory()
 
     @api.onchange("inventory_quantity")
@@ -247,6 +253,10 @@ class StockQuantInventory(models.Model):
         ctx["default_quant_ids"] = self.ids
         quants_outdated = self.filtered(lambda quant: quant.is_outdated)
         if quants_outdated:
+            dbg.logic.debug(
+                "action_apply_inventory: outdated %s, opening conflict wizard",
+                dbg.rec(quants_outdated),
+            )
             ctx["default_quant_to_fix_ids"] = quants_outdated.ids
             return {
                 "name": _("Conflict in Inventory Adjustment"),
@@ -319,6 +329,10 @@ class StockQuantInventory(models.Model):
     def action_set_inventory_quantity(self):
         quants_already_set = self.filtered(lambda quant: quant.inventory_quantity_set)
         if quants_already_set:
+            dbg.logic.debug(
+                "action_set_inventory_quantity: already set %s",
+                dbg.rec(quants_already_set),
+            )
             ctx = dict(self.env.context or {}, default_quant_ids=self.ids)
             view = self.env.ref("stock.inventory_warning_set_view", False)
             return {
@@ -397,11 +411,14 @@ class StockQuantInventory(models.Model):
             )
         )
 
+    @dbg.timed
     def _apply_inventory(self, date=None):
+        dbg.pipeline.debug("_apply_inventory start on %s date=%s", dbg.rec(self), date)
         if self.env.context.get("from_inverse_qty") and not any(
             quant.product_uom_id.compare(quant.inventory_diff_quantity, 0)
             for quant in self
         ):
+            dbg.logic.debug("_apply_inventory: no diff from inverse, skipped")
             return
         self.inventory_quantity_set = True
         move_vals = []
@@ -420,6 +437,10 @@ class StockQuantInventory(models.Model):
             )
         )
         if quants_with_missing_loss_locations:
+            dbg.logic.debug(
+                "_apply_inventory: %s lack a product loss location, using company default",
+                dbg.rec(quants_with_missing_loss_locations),
+            )
             for company in quants_with_missing_loss_locations.mapped("company_id"):
                 loss_location_id = (
                     self.env["ir.default"]
@@ -468,6 +489,11 @@ class StockQuantInventory(models.Model):
                         package_id=quant.package_id,
                     )
                 )
+        dbg.pipeline.debug(
+            "_apply_inventory -> %d inventory moves for %s",
+            len(move_vals),
+            dbg.rec(self),
+        )
         moves = (
             self.env["stock.move"].with_context(inventory_mode=False).create(move_vals)
         )
@@ -665,6 +691,14 @@ class StockQuantInventory(models.Model):
             quant = quant.filtered(lambda q: q.lot_id)
         created = False
         if quant:
+            if len(quant) > 1:
+                dbg.logic.debug(
+                    "_create_inventory_quant: %d quants match product %s at %s, using %s",
+                    len(quant),
+                    product.id,
+                    location.id,
+                    quant[0].id,
+                )
             quant = quant[0].sudo()
         else:
             quant = self.sudo().create(vals)
@@ -717,6 +751,14 @@ class StockQuantInventory(models.Model):
                     result_package_id,
                 )
             )
+        dbg.pipeline.debug(
+            "move_quants %s -> location %s package %s unpack=%s: %d moves",
+            dbg.rec(self),
+            getattr(location_dest_id, "id", location_dest_id),
+            getattr(package_dest_id, "id", package_dest_id),
+            unpack,
+            len(move_vals),
+        )
         moves = (
             self.env["stock.move"].with_context(inventory_mode=False).create(move_vals)
         )

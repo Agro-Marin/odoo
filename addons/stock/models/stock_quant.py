@@ -5,6 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from ..tools.reservation import RemovalStrategy
 
 _logger = logging.getLogger(__name__)
@@ -375,8 +376,16 @@ class StockQuant(models.Model):
                         recommended_location = None
         return message, recommended_location
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.quant.create: %d vals, keys=%s, inventory_mode=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+            self._is_inventory_mode(),
+        )
+
         def _add_to_cache(quant):
             if "quants_cache" in self.env.context:
                 self.env.context["quants_cache"][
@@ -411,6 +420,12 @@ class StockQuant(models.Model):
                         )
                     )
                 counted_by_quant[quant.id] = index
+                dbg.logic.debug(
+                    "create: inventory vals %d -> quant %s (created=%s)",
+                    index,
+                    quant.id,
+                    created,
+                )
                 if created:
                     _add_to_cache(quant)
                 results[index] = quant
@@ -422,6 +437,9 @@ class StockQuant(models.Model):
                 plain_vals.append((index, vals))
         if plain_vals:
             plain_records = super().create([vals for _index, vals in plain_vals])
+            dbg.lifecycle.debug(
+                "stock.quant.create: created %s", dbg.rec(plain_records)
+            )
             for (index, _vals), quant in zip(plain_vals, plain_records, strict=True):
                 _add_to_cache(quant)
                 results[index] = quant
@@ -429,13 +447,21 @@ class StockQuant(models.Model):
                 plain_records.filtered("company_id")._check_company()
         return self.env["stock.quant"].concat(*results)
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.quant.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         forbidden_fields = set(self._get_forbidden_fields_write())
         if self._is_inventory_mode() and forbidden_fields.intersection(vals):
             if self.filtered(lambda quant: quant.location_id.usage != "inventory"):
                 raise UserError(
                     _("Quant's editing is restricted, you can't do this operation.")
                 )
+            dbg.logic.debug(
+                "write: inventory mode drops forbidden keys %s",
+                sorted(forbidden_fields.intersection(vals)),
+            )
             vals = {
                 name: value
                 for name, value in vals.items()
@@ -457,6 +483,10 @@ class StockQuant(models.Model):
                         "Quants are auto-deleted when appropriate. If you must manually delete them, please ask a stock manager to do it."
                     )
                 )
+            dbg.lifecycle.debug(
+                "manual unlink of %s by a stock manager: zeroing through inventory",
+                dbg.rec(self),
+            )
             self = self.with_context(inventory_mode=True)
             self.inventory_quantity = 0
             self._apply_inventory()

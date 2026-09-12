@@ -8,6 +8,8 @@ from odoo.exceptions import UserError
 from odoo.tools.misc import OrderedSet
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -24,6 +26,7 @@ class StockMoveForecast(models.Model):
         "product_uom_qty",
         "location_id",
     )
+    @dbg.timed
     def _compute_forecast_information(self):
         self.forecast_availability = False
         self.date_planned_forecast = False
@@ -82,6 +85,15 @@ class StockMoveForecast(models.Model):
                     forecast_availability += move.product_qty
                 move.forecast_availability = forecast_availability
 
+        dbg.logic.debug(
+            "_compute_forecast_information: %d moves, %d storable, outgoing per warehouse %s",
+            len(self),
+            len(product_moves),
+            {
+                wh.id: len(ids)
+                for wh, ids in outgoing_unreserved_moves_per_warehouse.items()
+            },
+        )
         self._update_forecast_availability_outgoing(
             outgoing_unreserved_moves_per_warehouse
         )
@@ -128,6 +140,10 @@ class StockMoveForecast(models.Model):
                 res["id"]: (res["qty_available_virtual"], res["qty_free"])
                 for res in read_res
             }
+        dbg.performance.debug(
+            "_get_forecast_virtual_available: %d (warehouse, date) contexts read",
+            len(prefetch_virtual_available),
+        )
         return virtual_available_dict
 
     def _update_forecast_availability_outgoing(
@@ -147,6 +163,7 @@ class StockMoveForecast(models.Model):
                         forecast_info[move]
                     )
 
+    @dbg.timed
     def _get_forecast_availability_outgoing(self, warehouse, location_id=False):
         wh_location_query = self.env["stock.location"]._search(
             [("id", "child_of", warehouse.view_location_id.id)],
@@ -178,6 +195,12 @@ class StockMoveForecast(models.Model):
                 )
             result[move_out] = (qty_expected, date_expected)
 
+        dbg.logic.debug(
+            "_get_forecast_availability_outgoing warehouse=%s: %d report lines, %d moves resolved",
+            warehouse.id,
+            len(forecast_lines),
+            len(result),
+        )
         return result
 
     @api.depends("move_orig_ids.date", "move_orig_ids.state", "state", "date")
@@ -275,6 +298,12 @@ class StockMoveForecast(models.Model):
         )
         if not live_origins:
             return set()
+        dbg.logic.debug(
+            "[move:%s] _walk_upstream_documents depth %d -> %s",
+            self.id,
+            depth,
+            dbg.rec(live_origins),
+        )
         walk["visited"] |= self
         return set(
             itertools.chain.from_iterable(
@@ -327,6 +356,12 @@ class StockMoveForecast(models.Model):
         deadlines = self._plan_date_deadline(new_deadline, visited)
         if not deadlines:
             return
+        dbg.pipeline.debug(
+            "_propagate_date_deadline from %s to %s: %d chained moves",
+            dbg.rec(self),
+            new_deadline,
+            len(deadlines),
+        )
         by_value = defaultdict(OrderedSet)
         for move_id, value in deadlines.items():
             by_value[value].add(move_id)

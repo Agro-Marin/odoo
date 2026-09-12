@@ -7,6 +7,7 @@ from odoo.fields import Domain
 from odoo.libs.numbers import float_compare
 
 from ..const import CONTEXT_PUTAWAY_SCAN
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class StockLocationPutaway(models.Model):
     def _filtered_putaway_access(self):
         return self
 
+    @dbg.timed
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
@@ -99,6 +101,7 @@ class StockLocationPutaway(models.Model):
                 product, quantity, package, packaging, qty_by_location
             )
 
+        from_rule = bool(putaway_location)
         if not putaway_location:
             putaway_location = (
                 locations[0]
@@ -106,12 +109,30 @@ class StockLocationPutaway(models.Model):
                 else destination
             )
 
+        dbg.logic.debug(
+            "[location:%s] putaway product=%s qty=%s package_type=%s: %d rules, "
+            "%d candidate locations -> %s (%s)",
+            self.id,
+            product.id,
+            quantity,
+            package_type.id,
+            len(putaway_rules),
+            len(locations),
+            putaway_location.id,
+            "rule" if from_rule else "default",
+        )
         return putaway_location
 
+    @dbg.timed
     def _get_putaway_strategy_batch(
         self, product, quantities, package=None, packaging=None, additional_qty=None
     ):
         self.check_singleton()
+        dbg.performance.debug(
+            "[location:%s] _get_putaway_strategy_batch: %d quantities",
+            self.id,
+            len(quantities),
+        )
         scan = PutawayScan(product, additional_qty)
         scanner = self.with_context(**{CONTEXT_PUTAWAY_SCAN: scan})
         locations = []
@@ -369,13 +390,32 @@ class StockLocationPutaway(models.Model):
         if not self._can_store_new_product(
             product, package, capacity.foreign_inbound_ids
         ):
+            dbg.logic.debug(
+                "[location:%s] _can_be_used: refuses new product %s (policy %s)",
+                self.id,
+                product.id,
+                self.storage_category_id.allow_new_product,
+            )
             return False
         forecast_weight = capacity.forecast_weight.get(self.id, 0.0)
         if package and package.package_type_id:
-            return self._can_store_package(
+            usable = self._can_store_package(
                 package, location_qty, forecast_weight, capacity.package_weight
             )
-        return self._can_store_product(product, quantity, location_qty, forecast_weight)
+        else:
+            usable = self._can_store_product(
+                product, quantity, location_qty, forecast_weight
+            )
+        dbg.logic.debug(
+            "[location:%s] _can_be_used product=%s qty=%s at %s forecast_weight=%s -> %s",
+            self.id,
+            product.id,
+            quantity,
+            location_qty,
+            forecast_weight,
+            usable,
+        )
+        return usable
 
     def _can_store_new_product(self, product, package, foreign_inbound_ids=None):
         self.check_singleton()

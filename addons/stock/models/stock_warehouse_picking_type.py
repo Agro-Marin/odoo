@@ -4,6 +4,7 @@ from odoo import api, models
 from odoo.libs.colors import TAG_COLOR_INDICES
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .stock_warehouse import WAREHOUSE_PICKING_TYPE_CODES
 
 _logger = logging.getLogger(__name__)
@@ -12,6 +13,7 @@ _logger = logging.getLogger(__name__)
 class StockWarehousePickingType(models.Model):
     _inherit = "stock.warehouse"
 
+    @dbg.timed
     def _create_or_update_picking_types(self):
         self.check_singleton()
         PickingType = self.env["stock.picking.type"]
@@ -26,6 +28,12 @@ class StockWarehousePickingType(models.Model):
 
         to_update = [field for field in data if self[field]]
         to_create = [field for field in data if not self[field]]
+        dbg.lifecycle.debug(
+            "[warehouse:%s] picking types: update %s, create %s",
+            self.id,
+            to_update,
+            to_create,
+        )
 
         for field in to_update:
             self[field].write(data[field])
@@ -64,6 +72,9 @@ class StockWarehousePickingType(models.Model):
         )
         if not (in_type and out_type):
             return
+        dbg.lifecycle.debug(
+            "_link_return_picking_types: in %s <-> out %s", in_type.id, out_type.id
+        )
         in_type.return_picking_type_id = out_type
         out_type.return_picking_type_id = in_type
 

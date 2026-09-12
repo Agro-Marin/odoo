@@ -6,6 +6,7 @@ from odoo.fields import Command, Domain
 from odoo.tools import OrderedSet
 
 from ..const import INVENTORY_REFERENCE_REVERTED
+from ..tools import debug_log as dbg
 from .stock_move_line import (
     _KEEP,
     DEST_QUANT_FIELDS,
@@ -35,6 +36,15 @@ class StockMoveLineQuant(models.Model):
                 self.location_dest_id,
                 self.package_id,
             )
+        dbg.pipeline.debug(
+            "[line:%s] _update_quants qty=%s %s -> %s reverse=%s release=%s",
+            self.id,
+            qty,
+            from_loc.id,
+            to_loc.id,
+            reverse,
+            release_reserved,
+        )
         available_qty, in_date = self._update_quant_at_location(
             -qty,
             from_loc,
@@ -47,6 +57,11 @@ class StockMoveLineQuant(models.Model):
             to_loc,
             package=self.package_id if reverse else self.result_package_id,
             in_date=in_date,
+        )
+        dbg.logic.debug(
+            "[line:%s] _update_quants: source available after move %s",
+            self.id,
+            available_qty,
         )
         return available_qty, in_date
 
@@ -76,6 +91,12 @@ class StockMoveLineQuant(models.Model):
 
     def _revert_quant_moves(self, keeping_destination=None):
         keep = set((keeping_destination or self.browse())._ids)
+        if self:
+            dbg.pipeline.debug(
+                "_revert_quant_moves on %s (keeping destination %s)",
+                dbg.rec(self),
+                sorted(keep),
+            )
         in_dates = {}
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
             _available_qty, in_date = ml._update_quants(reverse=True)
@@ -98,6 +119,8 @@ class StockMoveLineQuant(models.Model):
         }
 
     def _update_quants_by_delta(self, deltas):
+        if self:
+            dbg.pipeline.debug("_update_quants_by_delta: %s", deltas)
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
             ml._update_quants_and_reservations(quantity=deltas[ml.id])
         if self.move_id:
@@ -142,6 +165,11 @@ class StockMoveLineQuant(models.Model):
             quantity=quantity, in_date=in_date, release_reserved=release_reserved
         )
         if self.product_id.uom_id.compare(available_qty, 0) < 0:
+            dbg.logic.debug(
+                "[line:%s] source went negative (%s), freeing reservations",
+                self.id,
+                available_qty,
+            )
             self._free_reservation(
                 abs(available_qty), ml_ids_to_ignore=ml_ids_to_ignore
             )
@@ -165,6 +193,14 @@ class StockMoveLineQuant(models.Model):
         for (product, location, lot, package, owner), quantity in deltas.items():
             if product.uom_id.is_zero(quantity):
                 continue
+            dbg.lifecycle.debug(
+                "reservation delta %s for product %s at %s lot %s package %s",
+                quantity,
+                product.id,
+                location.id,
+                lot.id,
+                package.id,
+            )
             self.env["stock.quant"]._update_reserved_quantity(
                 product,
                 location,
@@ -188,6 +224,7 @@ class StockMoveLineQuant(models.Model):
         holding._update_quant_reservations(deltas)
         return holding
 
+    @dbg.timed
     def _free_reservation(self, quantity, ml_ids_to_ignore=None):
         self.check_singleton()
         product, location = self.product_id, self.location_id
@@ -195,6 +232,13 @@ class StockMoveLineQuant(models.Model):
 
         if self._is_reservation_bypass_required(location):
             return
+        dbg.pipeline.debug(
+            "[line:%s] _free_reservation of %s for product %s at %s",
+            self.id,
+            quantity,
+            product.id,
+            location.id,
+        )
         self = self.with_context(quants_cache=None)
 
         move_to_reassign = self.env["stock.move"]
@@ -218,6 +262,13 @@ class StockMoveLineQuant(models.Model):
         )
         moves_to_sever = move_line_to_unlink.move_id.filtered(
             lambda m: not (m.move_line_ids - move_line_to_unlink)
+        )
+        dbg.logic.debug(
+            "_free_reservation: unlink %s, sever %s, reassign %s, %s left unfreed",
+            dbg.rec(move_line_to_unlink),
+            dbg.rec(moves_to_sever),
+            dbg.rec(move_to_reassign),
+            quantity,
         )
         moves_to_sever.write(
             {"procure_method": "make_to_stock", "move_orig_ids": [Command.clear()]}
@@ -259,6 +310,12 @@ class StockMoveLineQuant(models.Model):
     def _reserve_new_move_lines(self):
         to_reserve = self.filtered(lambda ml: ml.state != "done")
         reserved = to_reserve._reserve_quants()
+        if to_reserve:
+            dbg.logic.debug(
+                "_reserve_new_move_lines: %s hold a reservation of %s",
+                dbg.rec(reserved),
+                dbg.rec(to_reserve),
+            )
         (
             reserved.move_id
             | to_reserve.move_id.filtered(lambda move: move.state != "draft")
@@ -297,6 +354,12 @@ class StockMoveLineQuant(models.Model):
             ) or "product_uom_id" in vals:
                 moves_to_recompute_state |= ml.move_id
 
+        dbg.logic.debug(
+            "_sync_quant_reservation on %s: %d reservation deltas, recompute %s",
+            dbg.rec(self),
+            len(deltas),
+            dbg.rec(moves_to_recompute_state),
+        )
         self._update_quant_reservations(deltas)
         return moves_to_recompute_state
 
@@ -331,6 +394,13 @@ class StockMoveLineQuant(models.Model):
             in_date=in_date,
         )
         if lot and self.product_id.uom_id.compare(available_qty, 0) < 0:
+            dbg.logic.debug(
+                "[line:%s] lot %s short by %s at %s, compensating from untracked",
+                self.id,
+                lot.id,
+                available_qty,
+                location.id,
+            )
             self._compensate_lot_shortfall(
                 location, lot, package, owner, abs(quantity), in_date
             )
@@ -354,6 +424,13 @@ class StockMoveLineQuant(models.Model):
         if not untracked_qty:
             return
         taken_from_untracked_qty = min(untracked_qty, shortfall, cap)
+        dbg.logic.debug(
+            "_compensate_lot_shortfall: shortfall %s untracked %s cap %s -> take %s",
+            shortfall,
+            untracked_qty,
+            cap,
+            taken_from_untracked_qty,
+        )
         Quant._update_available_quantity(
             self.product_id,
             location,
@@ -381,6 +458,7 @@ class StockMoveLineQuant(models.Model):
             not self.product_id.is_storable or location.is_reservation_bypass_required()
         )
 
+    @dbg.timed
     def _update_quants_done(self):
         ml_ids_to_ignore = OrderedSet()
         for ml in self.with_context(quants_cache=self._get_quants_cache()):
@@ -457,6 +535,11 @@ class StockMoveLineQuant(models.Model):
                     "message": _("There are no inventory adjustments to revert."),
                 },
             }
+        dbg.pipeline.debug(
+            "action_revert_inventory: %s -> %d reverting moves",
+            dbg.rec(revertable),
+            len(move_vals),
+        )
         moves = (
             self.env["stock.move"].with_context(inventory_mode=False).create(move_vals)
         )

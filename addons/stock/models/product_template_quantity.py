@@ -3,6 +3,7 @@ from collections import defaultdict
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import PY_OPERATORS, TEMPLATE_QUANTITY_FIELDS
 from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
 
@@ -37,8 +38,14 @@ class ProductTemplateQuantity(models.Model):
         for template in self.with_context(skip_qty_available_update=True):
             template.update(res[template.id])
 
+    @dbg.timed
     def _aggregate_variant_quantities(self):
         self.product_variant_ids._origin.fetch(TEMPLATE_QUANTITY_FIELDS)
+        dbg.performance.debug(
+            "_aggregate_variant_quantities: %d templates, %d variants",
+            len(self),
+            len(self.product_variant_ids),
+        )
         prod_available = {}
         for template in self:
             variants = template.product_variant_ids._origin
@@ -138,5 +145,9 @@ class ProductTemplateQuantity(models.Model):
         if not template_ids:
             return
         templates_to_apply = self.browse(template_ids)
+        dbg.pipeline.debug(
+            "template _update_qty_available -> variants of %s",
+            dbg.rec(templates_to_apply),
+        )
         templates_to_apply._check_qty_available_update(quantities_to_apply)
         templates_to_apply.product_variant_id._update_qty_available(quantities_to_apply)

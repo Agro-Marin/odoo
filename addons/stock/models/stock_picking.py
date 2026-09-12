@@ -6,6 +6,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 
 DONE_CANCEL_STATES = frozenset(("done", "cancel"))
@@ -384,8 +385,14 @@ class StockPicking(models.Model):
             )
         return res
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.picking.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         defaults = self.default_get(["name", "picking_type_id"])
         default_name = defaults.get("name", "/")
         default_picking_type_id = defaults.get("picking_type_id")
@@ -404,10 +411,17 @@ class StockPicking(models.Model):
             picking_type = self.env["stock.picking.type"].browse(picking_type_id)
             if picking_type.sequence_id:
                 vals["name"] = picking_type.sequence_id.next_by_id()
+                dbg.logic.debug(
+                    "create: sequence %s of type %s named picking %s",
+                    picking_type.sequence_id.id,
+                    picking_type_id,
+                    vals["name"],
+                )
 
         date_planneds = [vals.pop("date_planned", False) for vals in vals_list]
 
         pickings = super().create(vals_list)
+        dbg.lifecycle.debug("stock.picking.create: created %s", dbg.rec(pickings))
 
         ids_by_date_planned = defaultdict(list)
         for picking, date_planned in zip(pickings, date_planneds, strict=True):
@@ -421,7 +435,11 @@ class StockPicking(models.Model):
 
         return pickings
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.picking.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         pickings_changing_type = self.browse()
         if vals.get("picking_type_id"):
             picking_type = self.env["stock.picking.type"].browse(
@@ -440,6 +458,11 @@ class StockPicking(models.Model):
                     ),
                 )
             if pickings_changing_type and picking_type.sequence_id:
+                dbg.logic.debug(
+                    "write: %s change type to %s, renaming from its sequence",
+                    dbg.rec(pickings_changing_type),
+                    picking_type.id,
+                )
                 for picking in pickings_changing_type:
                     picking.name = picking_type.sequence_id.next_by_id()
 
@@ -503,9 +526,16 @@ class StockPicking(models.Model):
             )
         for location_vals, moves in moves_by_location_vals.items():
             if moves:
+                dbg.pipeline.debug(
+                    "_propagate_locations_to_moves: %s <- %s",
+                    dbg.rec(moves),
+                    dict(location_vals),
+                )
                 moves.write(dict(location_vals))
 
+    @dbg.timed
     def unlink(self):
+        dbg.lifecycle.debug("stock.picking.unlink %s", dbg.rec(self))
         self.move_ids._action_cancel()
         self.with_context(
             prefetch_fields=False,
@@ -576,6 +606,7 @@ class StockPicking(models.Model):
         "location_id",
         "is_cancelled",
     )
+    @dbg.timed
     def _compute_state(self):
         real_pickings = self.filtered("id")
         move_ids_by_picking = defaultdict(list)
@@ -623,6 +654,12 @@ class StockPicking(models.Model):
                     picking.state = "assigned"
                 else:
                     picking.state = relevant_move_state
+            dbg.logic.debug(
+                "[picking:%s] _compute_state: move states %s -> %s",
+                picking.id,
+                move_states,
+                picking.state,
+            )
 
     @api.depends("move_ids.state", "move_ids.date", "move_type")
     def _compute_date_planned(self):
@@ -765,17 +802,25 @@ class StockPicking(models.Model):
                     }
         return None
 
+    @dbg.timed
     def action_confirm(self):
+        dbg.pipeline.debug("[picking:%s] action_confirm", dbg.names(self, "name"))
         self._check_company()
         self._update_is_cancelled()
         self.move_ids.filtered(lambda move: move.state == "draft")._action_confirm()
 
-        self.move_ids.filtered(
+        to_schedule = self.move_ids.filtered(
             lambda move: move.state not in DRAFT_DONE_CANCEL_STATES,
-        )._trigger_scheduler()
+        )
+        dbg.pipeline.debug(
+            "action_confirm -> _trigger_scheduler for %s", dbg.rec(to_schedule)
+        )
+        to_schedule._trigger_scheduler()
         return True
 
+    @dbg.timed
     def action_assign(self):
+        dbg.pipeline.debug("[picking:%s] action_assign", dbg.names(self, "name"))
         self.filtered(lambda picking: picking.state == "draft").action_confirm()
         moves = self.move_ids.filtered(
             lambda move: move.state not in DRAFT_DONE_CANCEL_STATES,
@@ -790,24 +835,41 @@ class StockPicking(models.Model):
         )
         if not moves:
             raise UserError(_("Nothing to check the availability for."))
+        dbg.pipeline.debug("action_assign -> _action_assign %s", dbg.rec(moves))
         moves._action_assign()
         return True
 
+    @dbg.timed
     def action_cancel(self):
+        dbg.pipeline.debug("[picking:%s] action_cancel", dbg.names(self, "name"))
         self.move_ids._action_cancel()
         self.write({"is_locked": True})
         moveless = self.filtered(lambda picking: not picking.move_ids)
         cancelled = (self - moveless).filtered(
             lambda picking: picking.state == "cancel",
         )
+        dbg.lifecycle.debug(
+            "action_cancel: is_cancelled on moveless %s, cancelled %s",
+            dbg.rec(moveless),
+            dbg.rec(cancelled),
+        )
         (moveless | cancelled).is_cancelled = True
         return True
 
+    @dbg.timed
     def _action_done(self):
+        dbg.pipeline.debug(
+            "[picking:%s] _action_done cancel_backorder=%s",
+            dbg.names(self, "name"),
+            self.env.context.get("cancel_backorder"),
+        )
         self._check_company()
 
         todo_moves = self.move_ids.filtered(
             lambda move: move.state not in DONE_CANCEL_STATES,
+        )
+        dbg.pipeline.debug(
+            "_action_done -> stock.move._action_done %s", dbg.rec(todo_moves)
         )
         for owner, pickings in self.filtered("owner_id").grouped("owner_id").items():
             owner_moves = todo_moves.filtered(
@@ -825,6 +887,10 @@ class StockPicking(models.Model):
         done_incoming_moves = self.filtered(
             lambda p: p.picking_type_id.code in INBOUND_PICKING_CODES,
         ).move_ids.filtered(lambda m: m.state == "done")
+        dbg.pipeline.debug(
+            "_action_done -> _trigger_assign on incoming %s",
+            dbg.rec(done_incoming_moves),
+        )
         done_incoming_moves._trigger_assign()
 
         self._send_confirmation_email()
@@ -840,6 +906,7 @@ class StockPicking(models.Model):
         )
         if not pickings_to_notify:
             return
+        dbg.logic.debug("_send_confirmation_email to %s", dbg.rec(pickings_to_notify))
         subtype_id = self.env["ir.model.data"]._xmlid_to_res_id("mail.mt_comment")
         for stock_pick in pickings_to_notify:
             delivery_template = (
@@ -852,10 +919,17 @@ class StockPicking(models.Model):
             )
 
     def action_unreserve(self):
+        dbg.pipeline.debug("[picking:%s] action_unreserve", dbg.names(self, "name"))
         self.move_ids._unreserve()
         return True
 
+    @dbg.timed
     def button_validate(self):
+        dbg.pipeline.debug(
+            "[picking:%s] button_validate start, states %s",
+            dbg.names(self, "name"),
+            dbg.names(self, "state"),
+        )
         self = self.filtered(lambda p: p.state not in DONE_CANCEL_STATES)
         draft_picking = self.filtered(lambda p: p.state == "draft")
         draft_picking.action_confirm()
@@ -868,6 +942,11 @@ class StockPicking(models.Model):
             ):
                 moves_by_quantity[move.product_uom_qty] |= move
         for quantity, moves in moves_by_quantity.items():
+            dbg.logic.debug(
+                "button_validate: draft %s get quantity %s from demand",
+                dbg.rec(moves),
+                quantity,
+            )
             moves.write({"quantity": quantity})
 
         if not self.env.context.get("skip_validation_check", False):
@@ -880,10 +959,19 @@ class StockPicking(models.Model):
         )
         res = self._pre_action_done_hook()
         if res is not True:
+            dbg.pipeline.debug(
+                "button_validate: _pre_action_done_hook returned an action %s",
+                res.get("res_model") if isinstance(res, dict) else res,
+            )
             return res
 
         pickings_to_backorder, pickings_not_to_backorder = (
             self._split_backorder_pickings()
+        )
+        dbg.pipeline.debug(
+            "button_validate: backorder %s, no backorder %s",
+            dbg.rec(pickings_to_backorder),
+            dbg.rec(pickings_not_to_backorder),
         )
         if pickings_not_to_backorder:
             pickings_not_to_backorder.with_context(cancel_backorder=True)._action_done()
@@ -891,6 +979,11 @@ class StockPicking(models.Model):
             pickings_to_backorder.with_context(cancel_backorder=False)._action_done()
         report_actions = self._prepare_actions_autoprint()
         another_action = self._get_reception_report_action()
+        dbg.logic.debug(
+            "button_validate: %d autoprint reports, reception action %s",
+            len(report_actions or ()),
+            bool(another_action),
+        )
         if another_action and not report_actions:
             return another_action
         if report_actions:
@@ -938,6 +1031,12 @@ class StockPicking(models.Model):
         moves = open_moves.filtered(
             lambda m: not m.product_uom_id.is_zero(m.quantity),
         )
+        dbg.pipeline.debug(
+            "[picking:%s] action_split_transfer: splitting %s of open %s",
+            self.name,
+            dbg.rec(moves),
+            dbg.rec(open_moves),
+        )
         backorder_moves = moves._create_backorder()
         backorder_moves += open_moves.filtered(
             lambda m: m.product_uom_id.is_zero(m.quantity),
@@ -960,6 +1059,7 @@ class StockPicking(models.Model):
                     break
             if has_quantity and not has_pick:
                 to_autopick |= picking
+        dbg.logic.debug("_get_pickings_to_autopick: %s", dbg.rec(to_autopick))
         return to_autopick
 
     def _pre_action_done_hook(self):
@@ -967,6 +1067,10 @@ class StockPicking(models.Model):
         if not self.env.context.get("skip_backorder"):
             pickings_to_backorder = self._get_pickings_to_backorder()
             if pickings_to_backorder:
+                dbg.pipeline.debug(
+                    "_pre_action_done_hook: backorder confirmation for %s",
+                    dbg.rec(pickings_to_backorder),
+                )
                 return pickings_to_backorder._prepare_action_backorder_confirmation(
                     show_transfers=self._is_transfer_display_required(),
                 )
@@ -1016,10 +1120,19 @@ class StockPicking(models.Model):
             lambda picking: any(move.additional for move in picking.move_ids),
         )
         if pickings_with_additional_moves:
+            dbg.pipeline.debug(
+                "_autoconfirm_picking: additional moves on %s",
+                dbg.rec(pickings_with_additional_moves),
+            )
             pickings_with_additional_moves.action_confirm()
         to_confirm = open_pickings.move_ids.filtered(
             lambda m: m.state == "draft" and m.quantity,
         )
+        if to_confirm:
+            dbg.pipeline.debug(
+                "_autoconfirm_picking: draft moves with quantity %s",
+                dbg.rec(to_confirm),
+            )
         to_confirm._action_confirm()
 
     def _update_is_cancelled(self):
@@ -1051,6 +1164,12 @@ class StockPicking(models.Model):
             impacted_pickings |= new_moves.picking_id
             explored_moves |= new_moves
             frontier = new_moves.move_dest_ids - explored_moves
+        dbg.performance.debug(
+            "_get_impacted_pickings: %d moves explored from %d, %d pickings",
+            len(explored_moves),
+            len(moves),
+            len(impacted_pickings),
+        )
         return impacted_pickings
 
     def _get_consignment_pickings(self):

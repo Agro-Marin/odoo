@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
+
 
 class StockWarnInsufficientQtyScrap(models.TransientModel):
     _name = "stock.warn.insufficient.qty.scrap"
@@ -13,6 +15,9 @@ class StockWarnInsufficientQtyScrap(models.TransientModel):
         return self.scrap_id.company_id
 
     def action_done(self):
+        dbg.pipeline.debug(
+            "insufficient qty confirmed: scrap %s proceeds", self.scrap_id.id
+        )
         return self.with_context(
             clean_context(self.env.context)
         ).scrap_id._action_done()
@@ -24,4 +29,7 @@ class StockWarnInsufficientQtyScrap(models.TransientModel):
         if not scrap or scrap.state != "draft":
             return True
         scrap.check_access("write")
+        dbg.lifecycle.debug(
+            "insufficient qty cancelled: draft scrap %s unlinked", scrap.id
+        )
         return scrap.sudo().unlink()

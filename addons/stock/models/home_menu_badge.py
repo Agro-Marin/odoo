@@ -1,9 +1,12 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 
 class HomeMenuBadge(models.AbstractModel):
     _inherit = "home.menu.badge"
 
+    @dbg.timed
     @api.model
     def _get_badges(self) -> dict[str, int]:
         return {

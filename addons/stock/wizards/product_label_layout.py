@@ -4,6 +4,8 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.tools.misc import file_open
 
+from ..tools import debug_log as dbg
+
 
 class ProductLabelLayout(models.TransientModel):
     _inherit = "product.label.layout"
@@ -82,4 +84,11 @@ class ProductLabelLayout(models.TransientModel):
                 p: int(q) for p, q in quantities.items() if q
             }
             data["custom_barcodes"] = custom_barcodes
+        dbg.logic.debug(
+            "product label layout: format %s move_quantity %s -> report %s, %d products",
+            self.print_format,
+            self.move_quantity,
+            xml_id,
+            len(data.get("quantity_by_product") or ()),
+        )
         return xml_id, data

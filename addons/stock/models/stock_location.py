@@ -18,6 +18,7 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
+from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
 
@@ -385,20 +386,31 @@ class StockLocation(models.Model):
             ),
         )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "stock.location.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             self._check_cyclic_inventory_frequency(
                 vals.get("cyclic_inventory_frequency")
             )
         locations = super().create(vals_list)
+        dbg.lifecycle.debug("stock.location.create: created %s", dbg.rec(locations))
         locations._invalidate_location_tree()
         locations.filtered(
             lambda location: location.block_type != "none",
         )._update_block_metadata()
         return locations
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "stock.location.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         self._check_block_governance_before_write(vals)
         transitioning = self._filtered_block_type_transitioning(vals)
 
@@ -413,8 +425,14 @@ class StockLocation(models.Model):
 
         res = super().write(vals)
         if not TREE_FIELDS.isdisjoint(vals):
+            dbg.logic.debug("write: tree fields touched, invalidating location tree")
             self._invalidate_location_tree()
         if transitioning:
+            dbg.lifecycle.debug(
+                "write: block_type -> %s on %s",
+                vals["block_type"],
+                dbg.rec(transitioning),
+            )
             if vals["block_type"] == "none":
                 transitioning._remove_block_metadata()
             else:
@@ -429,9 +447,13 @@ class StockLocation(models.Model):
                 vals["name"] = _("%s (copy)", location.name)
         return vals_list
 
+    @dbg.timed
     def unlink(self):
         subtree = self.with_context(active_test=False).search(
             [("id", "child_of", self.ids)],
+        )
+        dbg.lifecycle.debug(
+            "stock.location.unlink %s (subtree %s)", dbg.rec(self), dbg.rec(subtree)
         )
         if not self.env.context.get(MODULE_UNINSTALL_FLAG):
             subtree._check_block_governance_before_unlink()
@@ -549,6 +571,7 @@ class StockLocation(models.Model):
     @api.depends(
         "warehouse_view_ids", "warehouse_view_ids.active", "location_id.warehouse_id"
     )
+    @dbg.timed
     def _compute_warehouse_id(self):
         chains = {
             location.id: list(location._get_ancestor_ids(include_self=True))
@@ -581,10 +604,16 @@ class StockLocation(models.Model):
                 False,
             )
 
+    @dbg.timed
     def _compute_child_internal_location_ids(self):
         internal_locations = self.search_fetch(
             [("id", "child_of", self.ids), ("usage", "=", "internal")],
             ["parent_path"],
+        )
+        dbg.performance.debug(
+            "_compute_child_internal_location_ids: %d roots, %d internal descendants",
+            len(self),
+            len(internal_locations),
         )
         descendant_ids = defaultdict(list)
         for location in internal_locations:
@@ -664,6 +693,12 @@ class StockLocation(models.Model):
             self.env["stock.location"]
             .with_context(active_test=False)
             .search([("id", "child_of", changing.ids)])
+        )
+        dbg.lifecycle.debug(
+            "_propagate_active(%s): %s cascade to %s",
+            active,
+            dbg.rec(changing),
+            dbg.rec(descendant_locations - changing),
         )
         if not active:
             changing._check_archivable(descendant_locations)

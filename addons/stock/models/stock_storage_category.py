@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class StockStorageCategory(models.Model):
     _name = "stock.storage.category"
@@ -68,6 +70,12 @@ class StockStorageCategory(models.Model):
 
     def _inverse_storage_capacity_ids(self):
         for storage_category in self:
+            dbg.lifecycle.debug(
+                "[storage_category:%s] capacities: %d product, %d package",
+                storage_category.id,
+                len(storage_category.product_capacity_ids),
+                len(storage_category.package_capacity_ids),
+            )
             storage_category.capacity_ids = (
                 storage_category.product_capacity_ids
                 | storage_category.package_capacity_ids
