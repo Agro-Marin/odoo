@@ -15,6 +15,7 @@ from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.access_scan import (
+    fetch_columns,
     get_accessible_query,
     prepare_document_access_error,
 )
@@ -136,15 +137,6 @@ class MailScheduledMessage(models.Model):
                 domain, offset, limit, order, bypass_access=True, **kwargs
             )
 
-        fnames = ("id", "model", "res_id")
-
-        def fetch(query: Query) -> list[tuple]:
-            return self.env.execute_query(
-                query.select(
-                    *[self._field_to_sql(self._table, fname) for fname in fnames]
-                )
-            )
-
         def allowed(rows: list[tuple]) -> list[int]:
             model_ids = defaultdict(set)
             for __, model, res_id in rows:
@@ -166,7 +158,7 @@ class MailScheduledMessage(models.Model):
             limit,
             order,
             super()._search,
-            fetch=fetch,
+            fetch=fetch_columns(self, ("id", "model", "res_id")),
             allowed=allowed,
             chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
             chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,

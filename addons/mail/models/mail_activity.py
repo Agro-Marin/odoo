@@ -19,6 +19,7 @@ from odoo.tools.misc import clean_context, get_lang
 
 from odoo.addons.mail.tools import activity_calendar
 from odoo.addons.mail.tools.access_scan import (
+    fetch_columns,
     get_accessible_query,
     prepare_document_access_error,
     stable_order,
@@ -840,14 +841,6 @@ class MailActivity(models.Model):
             return super()._search(domain, offset, limit, stable_order(order), **kwargs)
 
         _debug.logic("search_by", by="access_scan", limit=limit)
-        fnames = ("id", "res_model", "res_id", "user_id")
-
-        def fetch(query: Query) -> list[tuple]:
-            return self.env.execute_query(
-                query.select(
-                    *[self._field_to_sql(self._table, fname) for fname in fnames]
-                )
-            )
 
         def allowed(rows: list[tuple]) -> set[int]:
             return self._accessible_ids(rows, "read")
@@ -859,7 +852,7 @@ class MailActivity(models.Model):
             limit,
             order,
             super()._search,
-            fetch=fetch,
+            fetch=fetch_columns(self, ("id", "res_model", "res_id", "user_id")),
             allowed=allowed,
             chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
             chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,

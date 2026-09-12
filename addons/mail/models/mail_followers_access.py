@@ -3,9 +3,8 @@ import typing
 from odoo import api, models
 from odoo.exceptions import AccessError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
 
-from odoo.addons.mail.tools.access_scan import get_accessible_query
+from odoo.addons.mail.tools.access_scan import fetch_columns, get_accessible_query
 
 if typing.TYPE_CHECKING:
     from odoo.api import DomainType
@@ -42,16 +41,6 @@ class MailFollowers(models.Model):
         self.flush_model(["res_model", "res_id", "partner_id"])
         pid = self.env.user.partner_id.id
 
-        def fetch(query: Query) -> list[tuple]:
-            return self.env.execute_query(
-                query.select(
-                    SQL.identifier(self._table, "id"),
-                    SQL.identifier(self._table, "res_model"),
-                    SQL.identifier(self._table, "res_id"),
-                    SQL.identifier(self._table, "partner_id"),
-                )
-            )
-
         def allowed(rows: list[tuple]) -> set[int]:
             own = set()
             model_ids: dict[str, dict[int, set[int]]] = {}
@@ -71,7 +60,7 @@ class MailFollowers(models.Model):
             limit,
             order,
             super()._search,
-            fetch=fetch,
+            fetch=fetch_columns(self, ("id", "res_model", "res_id", "partner_id")),
             allowed=allowed,
             chunk_min=self._SEARCH_ACCESS_CHUNK_MIN,
             chunk_max=self._SEARCH_ACCESS_CHUNK_MAX,

@@ -44,6 +44,19 @@ def stable_order(order: str | None, tiebreak: str = "id ASC") -> str | None:
     return order
 
 
+def fetch_columns(
+    model: models.BaseModel, fnames: Sequence[str]
+) -> Callable[[Query], list[tuple]]:
+    def fetch(query: Query) -> list[tuple]:
+        return model.env.execute_query(
+            query.select(
+                *[model._field_to_sql(model._table, fname) for fname in fnames]
+            )
+        )
+
+    return fetch
+
+
 def get_accessible_ids(
     model: models.BaseModel,
     domain: DomainType,
