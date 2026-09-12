@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { accountTaxHelpers } from "@account/helpers/account_tax";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
 
 import { logPosMessage } from "../../utils/pretty_console_log.js";
 import { Base } from "../related_models/index.js";
 const CONSOLE_COLOR = "#4EFF4D";
+
+const log = makeLogger("pos.order.accounting");
 
 export class PosOrderAccounting extends Base {
     static accountingFields = new Set([
@@ -150,6 +153,10 @@ export class PosOrderAccounting extends Base {
     }
 
     setOrderPrices() {
+        log.pipeline("setOrderPrices", () => ({
+            order: this.uuid,
+            lines: this.lines.length,
+        }));
         this.amount_paid = this.amountPaid;
         this.amount_tax = this.amountTaxes;
         this.amount_total = this.currency.round(this.totalDue);
@@ -214,6 +221,7 @@ export class PosOrderAccounting extends Base {
      * @private Compute
      */
     _computeAllPrices(opts = {}) {
+        const endCompute = log.perf("computeAllPrices");
         const currency = this.currency;
         const lines = opts.lines || this.lines;
         const documentSign = this.isRefund ? -1 : 1;
@@ -251,6 +259,7 @@ export class PosOrderAccounting extends Base {
             acc[line.record.uuid] = line;
             return acc;
         }, {});
+        endCompute({ order: this.uuid, lines: lines.length });
 
         return {
             taxDetails: data,

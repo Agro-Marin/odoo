@@ -3,6 +3,7 @@
 import { isRecord, STORE_SYM } from "@mail/model/misc";
 import { Component, toRaw } from "@odoo/owl";
 import { DropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
 import { SignalStore } from "@web/core/utils/reactive";
 export const ACTION_TAGS = Object.freeze({
@@ -62,6 +63,8 @@ export const ACTION_TAGS = Object.freeze({
  * @property {Action<O>[]|Array<Action<O>[]>} [actions]
  * @property {boolean} [isMoreAction]
  */
+const log = makeLogger("mail.action");
+
 /**
  * @template {ActionOwner} [O=ActionOwner]
  * @template {ActionDefinition<O, any, any>} [D=ActionDefinition<O, any, any>]
@@ -417,6 +420,10 @@ export class Action {
     _onSelected(action, ev) {}
     /** @param {Event} ev */
     onSelected(ev) {
+        log.logic("onSelected", () => ({
+            id: this.id,
+            owner: this.owner?.constructor?.name,
+        }));
         return (
             this._onSelected(this.params, ev) ??
             this.definition.onSelected?.call(this, this.params, ev)

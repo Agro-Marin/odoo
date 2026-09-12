@@ -12,6 +12,7 @@ import {
 } from "@odoo/owl";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
@@ -475,6 +476,8 @@ class AddPageTemplates extends Component {
     }
 }
 
+const log = makeLogger("website.dialog.add_page");
+
 export class AddPageDialog extends Component {
     static template = "website.AddPageDialog";
     static props = {
@@ -556,6 +559,12 @@ export class AddPageDialog extends Component {
     }
 
     async createPage(sectionsArch, name = "", addMenu = false, pageTitle = "") {
+        log.logic("createPage", () => ({
+            name,
+            addMenu,
+            pageTitle,
+            sections: Boolean(sectionsArch),
+        }));
         // Remove any leading slash.
         const pageName = name.replace(/^\/*/, "") || _t("New Page");
         const data = await this.http.post(

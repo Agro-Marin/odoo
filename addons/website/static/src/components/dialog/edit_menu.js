@@ -8,6 +8,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
@@ -200,6 +201,8 @@ class MenuRow extends Component {
     }
 }
 
+const log = makeLogger("website.dialog.edit_menu");
+
 export class EditMenuDialog extends Component {
     static template = "website.EditMenuDialog";
     static components = {
@@ -331,6 +334,7 @@ export class EditMenuDialog extends Component {
     }
 
     addMenu(isMegaMenu) {
+        log.logic("addMenu", () => ({ isMegaMenu, menus: this.map.size }));
         this.dialogs.add(MenuDialog, {
             isMegaMenu,
             url: "",
@@ -381,6 +385,7 @@ export class EditMenuDialog extends Component {
     }
 
     deleteMenu(id) {
+        log.logic("deleteMenu", () => ({ id, name: this.map.get(id)?.fields?.name }));
         const menuToDelete = this.map.get(id);
 
         // Delete children first
@@ -399,6 +404,7 @@ export class EditMenuDialog extends Component {
     }
 
     async onClickSave(goToWebsite = true, url) {
+        log.logic("save", () => ({ goToWebsite, url, menus: this.map.size }));
         const data = [];
         this.map.forEach((menu, id) => {
             if (this.state.rootMenu.fields["id"] !== id) {

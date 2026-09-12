@@ -4,6 +4,7 @@
 import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { sharedComponents as shared } from "@web/core/shared_components";
@@ -22,6 +23,8 @@ import { useAddInlineRecord, useX2ManyCrud } from "../x2many_crud.js";
 import { useOpenX2ManyRecord } from "../x2many_dialog.js";
 
 const views = registry.category("views");
+
+const log = makeLogger("web.field.x2many");
 
 export class X2ManyField extends FieldComponent {
     static template = "web.X2ManyField";
@@ -370,6 +373,12 @@ export class X2ManyField extends FieldComponent {
      * @param {{ newWindow?: boolean }} [options]
      */
     async switchToForm(record, { newWindow = false } = {}) {
+        log.logic("switchToForm", () => ({
+            name: this.props.name,
+            resId: record.resId,
+            isNew: record.isNew,
+            newWindow,
+        }));
         let resId;
         if (record.isNew) {
             const reconciliation = this.list.snapshotCreateReconciliation();
@@ -420,6 +429,11 @@ export class X2ManyField extends FieldComponent {
 
     /** @param {{ context?: Object, editable?: string }} [params] */
     async onAdd({ context, editable } = {}) {
+        log.logic("onAdd", () => ({
+            name: this.props.name,
+            many2many: this.isMany2Many,
+            editable,
+        }));
         context = makeContext([this.props.context, context]);
         if (this.isMany2Many) {
             const domain = getFieldDomain(
@@ -446,6 +460,11 @@ export class X2ManyField extends FieldComponent {
     }
 
     async openRecord(record) {
+        log.logic("openRecord", () => ({
+            name: this.props.name,
+            resId: record.resId,
+            canOpen: this.canOpenRecord,
+        }));
         if (this.canOpenRecord) {
             return this._openRecord({
                 record,

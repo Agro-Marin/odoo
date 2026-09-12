@@ -5,6 +5,7 @@ import { Component, reactive, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { ModelEvent } from "@web/core/events";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -40,6 +41,8 @@ function useUniqueDialog() {
         close = displayDialog(...args);
     };
 }
+
+const log = makeLogger("web.view.calendar");
 
 export class CalendarController extends Component {
     static components = {
@@ -299,6 +302,11 @@ export class CalendarController extends Component {
      * @returns {Promise|undefined}
      */
     createRecord(record) {
+        log.logic("createRecord", () => ({
+            canCreate: this.model.canCreate,
+            quickCreate: this.model.hasQuickCreate,
+            start: record.start?.toISO(),
+        }));
         if (!this.model.canCreate) {
             return;
         }
@@ -334,6 +342,10 @@ export class CalendarController extends Component {
      * @param {Object} [context={}]
      */
     async editRecord(record, context = {}) {
+        log.logic("editRecord", () => ({
+            id: record.id,
+            dialog: this.model.hasEditDialog,
+        }));
         if (this.model.hasEditDialog) {
             return new Promise((resolve) => {
                 this.displayDialog(
@@ -378,6 +390,7 @@ export class CalendarController extends Component {
     }
 
     deleteRecord(record) {
+        log.logic("deleteRecord", () => ({ id: record.id }));
         this.displayDialog(
             ConfirmationDialog,
             this.deleteConfirmationDialogProps(record),
@@ -417,6 +430,11 @@ export class CalendarController extends Component {
 
     /** @param {"next"|"previous"|"today"} move */
     async setDate(move) {
+        log.logic("setDate", () => ({
+            move,
+            scale: this.model.scale,
+            date: this.model.date?.toISODate(),
+        }));
         let date = null;
         let scrollToCurrentHour = false;
         switch (move) {
