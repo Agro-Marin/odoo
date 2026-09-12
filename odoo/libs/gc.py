@@ -1,4 +1,4 @@
-__all__ = ["disabling_gc", "gc_set_timing"]
+__all__ = ["disabling_gc", "freeze_survivors", "gc_set_timing", "thaw"]
 
 import contextlib
 import gc
@@ -65,6 +65,25 @@ def gc_info() -> dict[str, Any]:
         "count": stats,
         "thresholds": (gc.get_count(), gc.get_threshold()),
     }
+
+
+def freeze_survivors() -> int:
+    # Long-lived objects (a registry's models, fields and compiled caches) are
+    # otherwise re-examined by every collection: a gen-1 pass over a warm server
+    # took ~250 ms and stalled every request thread. Collect first, so garbage
+    # is not frozen with them.
+    started = _gc_time()
+    gc.collect()
+    gc.freeze()
+    frozen = gc.get_freeze_count()
+    _logger.debug("froze %d objects in %.2fms", frozen, _to_ms(_gc_time() - started))
+    return frozen
+
+
+def thaw() -> None:
+    # A frozen object is never collected, so anything dropped after a freeze --
+    # a removed registry -- must be thawed or it stays in memory for good.
+    gc.unfreeze()
 
 
 @contextlib.contextmanager

@@ -1,7 +1,14 @@
 import gc
 import unittest
 
-from odoo.libs.gc import _record_gc_timing, disabling_gc, gc_info, gc_set_timing
+from odoo.libs.gc import (
+    _record_gc_timing,
+    disabling_gc,
+    freeze_survivors,
+    gc_info,
+    gc_set_timing,
+    thaw,
+)
 
 
 class TestDisablingGc(unittest.TestCase):
@@ -87,3 +94,46 @@ class TestGcInfo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFreezeSurvivors(unittest.TestCase):
+    def tearDown(self):
+        gc.unfreeze()
+
+    def test_garbage_is_collected_not_frozen(self):
+        import weakref
+
+        class Node:
+            pass
+
+        survivor = Node()
+        cycle = Node()
+        cycle.self = cycle
+        cycle_ref = weakref.ref(cycle)
+        del cycle
+        freeze_survivors()
+        self.assertIsNone(
+            cycle_ref(), "a cycle frozen instead of collected leaks forever"
+        )
+        self.assertGreater(gc.get_freeze_count(), 0)
+        self.assertNotIn(
+            survivor, gc.get_objects(), "survivors leave the collected generations"
+        )
+
+    def test_thaw_returns_frozen_objects_to_collection(self):
+        import weakref
+
+        class Node:
+            pass
+
+        node = Node()
+        node.self = node
+        ref = weakref.ref(node)
+        freeze_survivors()
+        del node
+        gc.collect()
+        self.assertIsNotNone(ref(), "a frozen cycle is invisible to the collector")
+        thaw()
+        gc.collect()
+        self.assertIsNone(ref())
+        self.assertEqual(gc.get_freeze_count(), 0)

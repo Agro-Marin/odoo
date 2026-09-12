@@ -108,6 +108,7 @@ class Registry(
         )
         registry.last_used = time.monotonic()
         cls._evict_idle_registries()
+        gc.freeze_survivors()
         return registry
 
     @classmethod
@@ -232,6 +233,7 @@ class Registry(
     def remove(cls, db_name: str) -> None:
         if db_name in cls.registries:
             del cls.registries[db_name]
+            gc.thaw()
             _debug.lifecycle("registry.removed", db=db_name)
         from odoo.tools.cache import remove_counters
 
@@ -270,6 +272,7 @@ class Registry(
     def remove_all(cls):
         _debug.lifecycle("registry.remove_all", registries=len(cls.registries))
         cls.registries.clear()
+        gc.thaw()
         clear_all_text_transforms()
         from odoo.tests.result import forget_assertion_report
 
