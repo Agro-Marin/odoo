@@ -381,7 +381,7 @@ test("translation dialog should close if field is not there anymore", async () =
 });
 
 test("html field translatable", async () => {
-    expect.assertions(5);
+    expect.assertions(6);
     Partner._fields.name.translate = true;
 
     serverState.lang = "en_US";
@@ -436,6 +436,9 @@ test("html field translatable", async () => {
     });
     expect(".modal .o_translation_dialog .translation").toHaveCount(4, {
         message: "four rows should be visible",
+    });
+    expect(".modal .o_translation_dialog .source").toHaveCount(4, {
+        message: "a term-based translation shows the source term of each row",
     });
     const enField = queryFirst(".modal .o_translation_dialog .translation input");
     expect(enField).toHaveValue("first paragraph", {
