@@ -429,6 +429,28 @@ class TestUrlLocalized(TestUrlCommon):
                 "/fr/no%20such/page-4",
             )
 
+    def test_dot_segments_degrade_to_the_root(self):
+        # A scanner hitting an unrouted path with ".." must not blow up the
+        # canonical url of the error page: urljoin refuses dot segments.
+        with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
+            for url in (
+                "/no/such/page/../../../../proc/self/environ",
+                "/no/such/page/%2e%2e/%2e%2e/etc/passwd",
+                "/no/such/page/.",
+            ):
+                with self.subTest(url=url):
+                    self.assertEqual(
+                        self.IrHttp._url_localized(url, lang_code="fr_FR"), "/fr"
+                    )
+                    self.assertEqual(
+                        self.IrHttp._url_localized(
+                            url,
+                            lang_code="fr_FR",
+                            canonical_domain="https://example.com",
+                        ),
+                        "https://example.com/fr",
+                    )
+
     def test_non_local_urls_untouched(self):
         with MockRequest(self.env, context={"lang": "en_US"}, mock_router=False):
             for url in (
