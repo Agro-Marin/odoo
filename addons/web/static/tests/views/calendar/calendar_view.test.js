@@ -4221,6 +4221,39 @@ test(`drag and drop rejected by the server resyncs the event`, async () => {
 });
 
 test.tags("desktop");
+test(`a reload that fails after a drag and drop is reported, not swallowed`, async () => {
+    expect.errors(1);
+
+    onRpc("event", "write", () => expect.step("write"));
+    let reads = 0;
+    onRpc("event", "search_read", () => {
+        expect.step("search_read");
+        if (++reads === 2) {
+            throw makeServerError({ message: "Reload boom" });
+        }
+    });
+
+    await mountView({
+        resModel: "event",
+        type: "calendar",
+        arch: `
+            <calendar date_start="start" date_stop="stop" mode="month">
+                <field name="name"/>
+            </calendar>
+        `,
+    });
+    expect.verifySteps(["search_read"]);
+
+    await moveEventToDate(6, "2016-11-27");
+    await animationFrame();
+
+    // the write went through; the calendar could not refetch, and the user
+    // is told so instead of looking at positions the server no longer holds
+    expect.verifySteps(["write", "search_read"]);
+    expect.verifyErrors(["Reload boom"]);
+});
+
+test.tags("desktop");
 test(`resize rejected by the server resyncs the event`, async () => {
     expect.errors(1);
 

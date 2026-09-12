@@ -4,6 +4,7 @@
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { getFieldCodec } from "@web/core/field_codec";
 import { isX2Many } from "@web/core/field_types";
 import {
@@ -436,7 +437,7 @@ export class CalendarModel extends Model {
             try {
                 await this.orm.unlink(info.writeResModel, [recordId]);
             } finally {
-                await this.debouncedLoad().catch((error) => console.error(error));
+                await this.debouncedLoad().catch(reportUncaught);
             }
         }
     }
@@ -482,7 +483,7 @@ export class CalendarModel extends Model {
                 }
             }
         } finally {
-            await this.debouncedLoad().catch((error) => console.error(error));
+            await this.debouncedLoad().catch(reportUncaught);
         }
     }
     async updateRecord(record, options = {}) {
@@ -494,7 +495,7 @@ export class CalendarModel extends Model {
             });
         } finally {
             this.invalidateUnusualDays();
-            await this.load().catch((error) => console.error(error));
+            await this.load().catch(reportUncaught);
         }
     }
 
