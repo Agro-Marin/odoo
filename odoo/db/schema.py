@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import psycopg
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL, get_index_name
 
 if TYPE_CHECKING:
@@ -18,6 +19,7 @@ else:
     BaseCursor = typing.Any
 
 _schema = logging.getLogger("odoo.schema")
+_debug = DebugLog(__name__)
 
 
 class RowCountReader(typing.Protocol):
@@ -191,7 +193,10 @@ def create_model_table(
                     colcomment,
                 )
             )
-    cr.execute(SQL("; ").join(queries))
+    with _debug.perf(
+        "schema.create_table", cr=cr, table=tablename, columns=len(columns)
+    ):
+        cr.execute(SQL("; ").join(queries))
 
     _schema.debug("Table %r: created", tablename)
 
@@ -267,7 +272,14 @@ def create_column(
                 comment,
             ),
         )
-    cr.execute(sql)
+    with _debug.perf(
+        "schema.add_column",
+        cr=cr,
+        table=tablename,
+        column=columnname,
+        type=columntype,
+    ):
+        cr.execute(sql)
     _schema.debug(
         "Table %r: added column %r of type %s",
         tablename,
@@ -313,12 +325,20 @@ def _convert_column(
         SQL(columntype),
         using,
     )
-    try:
-        with cr.savepoint(flush=False):
-            cr.execute(query, log_exceptions=False)
-    except psycopg.NotSupportedError:
-        drop_views_depending_on_table(cr, tablename, columnname)
-        cr.execute(query)
+    with _debug.perf(
+        "schema.convert_column",
+        cr=cr,
+        table=tablename,
+        column=columnname,
+        type=columntype,
+    ) as span:
+        try:
+            with cr.savepoint(flush=False):
+                cr.execute(query, log_exceptions=False)
+        except psycopg.NotSupportedError:
+            span.set(views_dropped=True)
+            drop_views_depending_on_table(cr, tablename, columnname)
+            cr.execute(query)
     _schema.debug(
         "Table %r: column %r changed to type %s",
         tablename,
@@ -328,7 +348,11 @@ def _convert_column(
 
 
 def drop_views_depending_on_table(cr: BaseCursor, table: str, column: str) -> None:
-    for v, k in get_views_depending_on_table(cr, table, column):
+    views = get_views_depending_on_table(cr, table, column)
+    _debug.pipeline(
+        "schema.dependent_views_dropped", table=table, column=column, count=len(views)
+    )
+    for v, k in views:
         cr.execute(
             SQL(
                 "DROP %s IF EXISTS %s CASCADE",
@@ -371,7 +395,8 @@ def set_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
         SQL.identifier(tablename),
         SQL.identifier(columnname),
     )
-    cr.execute(query, log_exceptions=False)
+    with _debug.perf("schema.set_not_null", cr=cr, table=tablename, column=columnname):
+        cr.execute(query, log_exceptions=False)
     _schema.debug(
         "Table %r: column %r: added constraint NOT NULL", tablename, columnname
     )
@@ -442,7 +467,10 @@ def add_constraint(
         SQL.identifier(tablename),
         definition,
     )
-    cr.execute(query1, log_exceptions=False)
+    with _debug.perf(
+        "schema.add_constraint", cr=cr, table=tablename, constraint=constraintname
+    ):
+        cr.execute(query1, log_exceptions=False)
     cr.execute(query2, log_exceptions=False)
     _schema.debug(
         "Table %r: added constraint %r as %s",
@@ -477,16 +505,24 @@ def add_foreign_key(
             f"{tablename1}.{columnname1}; expected one of "
             f"{sorted(_CONFDELTYPES)}"
         )
-    cr.execute(
-        SQL(
-            "ALTER TABLE %s ADD FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s",
-            SQL.identifier(tablename1),
-            SQL.identifier(columnname1),
-            SQL.identifier(tablename2),
-            SQL.identifier(columnname2),
-            SQL(ondelete),
+    with _debug.perf(
+        "schema.add_foreign_key",
+        cr=cr,
+        table=tablename1,
+        column=columnname1,
+        references=tablename2,
+        ondelete=ondelete,
+    ):
+        cr.execute(
+            SQL(
+                "ALTER TABLE %s ADD FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s",
+                SQL.identifier(tablename1),
+                SQL.identifier(columnname1),
+                SQL.identifier(tablename2),
+                SQL.identifier(columnname2),
+                SQL(ondelete),
+            )
         )
-    )
     _schema.debug(
         "Table %r: added foreign key %r references %r(%r) ON DELETE %s",
         tablename1,
@@ -625,6 +661,7 @@ def create_index(
     if not _SQL_NAME_TOKEN.fullmatch(method):
         raise ValueError(_get_invalid_name_message("index method", method))
     if check_exists and index_exists(cr, indexname):
+        _debug.logic("schema.index_exists", index=indexname, table=tablename)
         return
     definition = SQL(
         "USING %s (%s)%s",
@@ -664,7 +701,10 @@ def add_index(
         if comment
         else None
     )
-    cr.execute(query, log_exceptions=False)
+    with _debug.perf(
+        "schema.create_index", cr=cr, table=tablename, index=indexname, unique=unique
+    ):
+        cr.execute(query, log_exceptions=False)
     if query_comment:
         cr.execute(query_comment, log_exceptions=False)
     _schema.debug(
@@ -679,6 +719,9 @@ def drop_index(cr: BaseCursor, indexname: str, tablename: str) -> None:
 
 def drop_view_if_exists(cr: BaseCursor, viewname: str) -> None:
     kind = get_table_kind(cr, viewname)
+    _debug.logic(
+        "schema.drop_view_if_exists", view=viewname, kind=getattr(kind, "value", None)
+    )
     if kind == TableKind.View:
         cr.execute(SQL("DROP VIEW %s CASCADE", SQL.identifier(viewname)))
     elif kind == TableKind.Materialized:
@@ -715,4 +758,10 @@ def get_column_names_in_constraint(
         )
     )
     columns = cr.fetchone()
+    _debug.logic(
+        "schema.constraint_columns_resolved",
+        constraint=diagnostics.constraint_name,
+        table=diagnostics.table_name,
+        columns=len(columns[0]) if columns else 0,
+    )
     return columns[0] if columns else []

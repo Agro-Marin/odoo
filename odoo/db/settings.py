@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.settings import OptionSource, SettingsSlot
 
 __all__ = ["PoolSettings", "current", "installed", "override", "provide", "slot"]
+
+_debug = DebugLog(__name__)
 
 REPLICA_OVERRIDABLE: tuple[tuple[str, str], ...] = (
     ("host", "replica_host"),
@@ -54,6 +57,17 @@ class PoolSettings:
     @classmethod
     def from_config(cls, config: OptionSource, *, evented: bool = False) -> Self:
         replica_host = config["db_replica_host"] or None
+        _debug.lifecycle(
+            "settings.built",
+            evented=evented,
+            maxconn=config["db_maxconn"],
+            maxconn_gevent=config["db_maxconn_gevent"],
+            maxconn_replica=config["db_maxconn_replica"],
+            replica=replica_host is not None,
+            test_enable=bool(config["test_enable"]),
+            session_gucs=config["db_session_gucs"],
+            leak_detection=config["db_leak_detection"],
+        )
         return cls(
             host=config["db_host"] or None,
             port=_coerce_optional_int(config["db_port"]),

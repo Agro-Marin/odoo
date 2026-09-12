@@ -42,10 +42,16 @@ _RESET_SESSION_STATE_SQL = (
 def clear_prepared_cache(conn: psycopg.Connection) -> bool:
     prepared = getattr(conn, "_prepared", None)
     if prepared is None:
+        _debug.logic("connection.prepared_cache_unavailable", reason="no_attribute")
         return False
     try:
         prepared.clear()
-    except Exception:
+    except Exception as e:
+        _debug.logic(
+            "connection.prepared_cache_unavailable",
+            reason="clear_failed",
+            error=type(e).__name__,
+        )
         return False
     return True
 
@@ -66,19 +72,25 @@ def _configure_connection(conn: psycopg.Connection) -> None:
     conn.prepared_max = _PREPARED_MAX
 
     setattr(conn, _IDLE_SINCE_ATTR, monotonic())
+    _debug.lifecycle(
+        "connection.configured",
+        backend_pid=getattr(getattr(conn, "info", None), "backend_pid", None),
+        prepare_threshold=_PREPARE_THRESHOLD,
+        prepared_max=_PREPARED_MAX,
+    )
 
 
 def _reset_connection(conn: psycopg.Connection, *, discard: bool | None = None) -> None:
     if discard is None:
         discard = current().discard_on_return
-    _debug.lifecycle("connection.reset", discard=discard)
-    if discard:
-        conn.autocommit = True
-        conn.execute("DISCARD ALL", prepare=False)
-        clear_prepared_cache(conn)
-    else:
-        conn.autocommit = True
-        conn.execute(_RESET_SESSION_STATE_SQL, prepare=False)
+    with _debug.perf("connection.reset", discard=discard):
+        if discard:
+            conn.autocommit = True
+            conn.execute("DISCARD ALL", prepare=False)
+            clear_prepared_cache(conn)
+        else:
+            conn.autocommit = True
+            conn.execute(_RESET_SESSION_STATE_SQL, prepare=False)
     conn.autocommit = False
     conn.isolation_level = None
     conn.read_only = None
@@ -98,8 +110,8 @@ def _check_connection(conn: psycopg.Connection, *, grace: float | None = None) -
             grace=grace,
         )
         return
-    _debug.logic(
+    with _debug.perf(
         "connection.healthcheck",
         idle_s=None if idle_since is None else monotonic() - idle_since,
-    )
-    _PsycopgPool.check_connection(conn)
+    ):
+        _PsycopgPool.check_connection(conn)

@@ -257,6 +257,7 @@ class ConnectionPool:
             self._close_pool_safely(sp)
         if stale_pools:
             self.stats.record_pools_evicted_stale(len(stale_pools))
+            _debug.lifecycle("pool.stale_credential_evicted", count=len(stale_pools))
             _logger.info(
                 "%r: evicted %d stale-credential pool(s) after key change",
                 self,
@@ -266,6 +267,7 @@ class ConnectionPool:
             self._close_pool_safely(rp)
         if reaped_pools:
             self.stats.record_pools_reaped(len(reaped_pools))
+            _debug.lifecycle("pool.reaped", trigger="create", count=len(reaped_pools))
             _logger.info(
                 "%r: reaped %d idle pool(s) (>%.0fs since last borrow)",
                 self,
@@ -282,6 +284,12 @@ class ConnectionPool:
                 return
             reap_keys = self._reaper.get_keys_reapable(self._pools)
             reaped_pools = [self._pools.pop(k) for k in reap_keys]
+        _debug.pipeline(
+            "pool.reap_sweep",
+            readonly=self._readonly,
+            reaped=len(reaped_pools),
+            ttl=self._reaper.ttl,
+        )
         if reaped_pools:
             IdlePoolReaper.close_pools_in_background(
                 self._close_reaped_pools, reaped_pools, "odoo.db.pool-reaper"
@@ -291,6 +299,9 @@ class ConnectionPool:
         for rp in pools:
             self._close_pool_safely(rp)
         self.stats.record_pools_reaped(len(pools))
+        _debug.lifecycle(
+            "pool.reaped", trigger="return", count=len(pools), ttl=self._reaper.ttl
+        )
         _logger.info(
             "%r: reaped %d idle pool(s) on return (>%.0fs since last borrow)",
             self,
@@ -310,8 +321,15 @@ class ConnectionPool:
             return self._borrow_directly(connection_info, deadline)
         try:
             pool = self._get_or_create_pool(key, connection_info, deadline)
-        except BaseException:
+        except BaseException as exc:
             self.stats.record_borrow_failed()
+            _debug.logic(
+                "pool.borrow_failed",
+                db=dbname,
+                stage="pool",
+                error=type(exc).__name__,
+                waited_ms=(monotonic() - started) * 1000.0,
+            )
             raise
 
         if not self._budget.acquire(deadline - monotonic()):
@@ -344,8 +362,16 @@ class ConnectionPool:
                     available=pool.get_stats().get("pool_available", 0),
                 )
             return conn
-        except BaseException:
+        except BaseException as exc:
             self.stats.record_borrow_failed()
+            _debug.logic(
+                "pool.borrow_failed",
+                db=dbname,
+                stage="connection",
+                error=type(exc).__name__,
+                marked=conn is not None and "_odoo_pool" in conn.__dict__,
+                waited_ms=(monotonic() - started) * 1000.0,
+            )
             self._unwind_failed_borrow(conn)
             raise
 
@@ -387,6 +413,12 @@ class ConnectionPool:
         held = self._checkouts.describe(older_than=threshold)
         if held:
             self.stats.record_leak_report()
+            _debug.lifecycle(
+                "pool.leak_reported",
+                threshold=threshold,
+                outstanding=len(self._checkouts),
+                oldest_s=self._checkouts.get_oldest_age(),
+            )
             _logger.warning(
                 "%r: connection(s) checked out longer than %ss; %s",
                 self,
@@ -418,7 +450,12 @@ class ConnectionPool:
                         f"within the {self._borrow_timeout}s borrow budget"
                     )
                 kwargs["connect_timeout"] = connect_timeout
-            conn = psycopg.connect(conninfo, **kwargs)
+            with _debug.perf(
+                "pool.direct_connect",
+                db=kwargs.get("dbname"),
+                connect_timeout=kwargs.get("connect_timeout"),
+            ):
+                conn = psycopg.connect(conninfo, **kwargs)
             try:
                 _configure_connection(conn)
                 self._check_min_server_version(conn)
@@ -438,8 +475,15 @@ class ConnectionPool:
                 direct_out=self._direct_out,
             )
             return conn
-        except BaseException:
+        except BaseException as exc:
             self.stats.record_borrow_failed()
+            _debug.logic(
+                "pool.borrow_failed",
+                db=kwargs.get("dbname"),
+                stage="direct",
+                error=type(exc).__name__,
+                marked=conn is not None,
+            )
             self._unwind_failed_borrow(conn)
             raise
 
@@ -447,6 +491,7 @@ class ConnectionPool:
     def _check_min_server_version(conn: psycopg.Connection) -> None:
         sv = conn.info.server_version
         if sv < MIN_PG_VERSION * 10000:
+            _debug.logic("pool.server_version_refused", server_version=sv)
             raise PoolError(
                 f"PostgreSQL {sv // 10000}.{sv % 10000} is below the "
                 f"minimum required {MIN_PG_VERSION}.0. Please upgrade "
@@ -473,6 +518,9 @@ class ConnectionPool:
                     _logger.info("Connection to the database failed: %s", e)
                     raise PoolError(str(e)) from e
                 self._debug("Pool closed under borrow(); rebuilding for %s", dict(key))
+                _debug.lifecycle(
+                    "pool.rebuilt_under_borrow", db=dict(key).get("database")
+                )
                 pool = self._get_or_create_pool(key, connection_info, deadline)
             except PoolTimeout as e:
                 _debug.logic(
@@ -492,6 +540,13 @@ class ConnectionPool:
                 raise PoolError(str(e)) from e
             except psycopg.Error as e:
                 self._probe.clear_key(key)
+                _debug.logic(
+                    "pool.getconn_failed",
+                    db=dict(key).get("database"),
+                    attempt=attempt,
+                    error=type(e).__name__,
+                    sqlstate=getattr(e, "sqlstate", None),
+                )
                 _logger.info("Connection to the database failed: %s", e)
                 raise
         raise PoolError("getconn retry budget exhausted")
@@ -520,6 +575,7 @@ class ConnectionPool:
         self._checkouts.release(connection)
         pool = connection.__dict__.pop("_odoo_pool", None)
         if pool is None:
+            _debug.logic("pool.give_back_unmarked", closed=connection.closed)
             if not connection.closed:
                 connection.close()
             return
@@ -546,7 +602,8 @@ class ConnectionPool:
 
             try:
                 pool.putconn(connection)
-            except Exception:
+            except Exception as exc:
+                _debug.logic("pool.putconn_failed", error=type(exc).__name__)
                 _logger.debug("Failed to return connection to pool", exc_info=True)
         finally:
             self._budget.release()
@@ -555,21 +612,24 @@ class ConnectionPool:
     def _reap_idle_pools_safely(self) -> None:
         try:
             self._reap_idle_pools_if_due()
-        except Exception:
+        except Exception as exc:
+            _debug.logic("pool.reap_failed", error=type(exc).__name__)
             _logger.debug("Idle-pool reap on give_back failed", exc_info=True)
 
     @staticmethod
     def _close_pool_safely(pool: _PsycopgPool) -> None:
         try:
             pool.close()
-        except Exception:
+        except Exception as exc:
+            _debug.logic("pool.close_failed", error=type(exc).__name__)
             _logger.debug("Failed to close pool during teardown", exc_info=True)
 
     @staticmethod
     def _drain_pool_safely(pool: _PsycopgPool) -> None:
         try:
             pool.drain()
-        except Exception:
+        except Exception as exc:
+            _debug.logic("pool.drain_failed", error=type(exc).__name__)
             _logger.debug("Failed to drain pool", exc_info=True)
 
     def has_database(self, db_name: str) -> bool:
@@ -598,6 +658,12 @@ class ConnectionPool:
         for pool in pools:
             self._close_pool_safely(pool)
         if pools:
+            _debug.lifecycle(
+                "pool.pools_closed",
+                readonly=self._readonly,
+                count=len(pools),
+                db=scope.removeprefix("for ") if scope else "all",
+            )
             _logger.info(
                 "%r: Closed %d pool(s)%s",
                 self,
@@ -620,6 +686,12 @@ class ConnectionPool:
             if not pool.closed:
                 self._drain_pool_safely(pool)
         if pools:
+            _debug.lifecycle(
+                "pool.pools_drained",
+                readonly=self._readonly,
+                count=len(pools),
+                db=scope.removeprefix("for ") if scope else "all",
+            )
             _logger.debug(
                 "%r: Drained %d pool(s)%s",
                 self,
@@ -641,6 +713,14 @@ class ConnectionPool:
         with self._lock:
             n_pools = len(self._pools)
             direct_out = self._direct_out
+        _debug.perf.count(
+            "pool.health",
+            readonly=self._readonly,
+            databases=n_pools,
+            backends=sum(s.get("pool_size", 0) for s in per_database.values())
+            + direct_out,
+            checked_out=len(self._checkouts),
+        )
         return {
             "mode": "read-only" if self._readonly else "read/write",
             "databases": n_pools,

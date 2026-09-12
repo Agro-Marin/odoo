@@ -55,21 +55,27 @@ class ReachabilityProbe:
 
     def clear_key(self, key: frozenset) -> None:
         with self._lock:
+            if _debug.lifecycle.enabled and key in self._proven:
+                _debug.lifecycle(
+                    "pool.reachability_revoked", db=dict(key).get("database")
+                )
             self._proven.discard(key)
 
     def clear_keys(self, keys) -> None:
         with self._lock:
+            _debug.lifecycle("pool.reachability_revoked", count=len(keys))
             self._proven.difference_update(keys)
 
     def clear(self) -> None:
         with self._lock:
+            _debug.lifecycle("pool.reachability_revoked", count=len(self._proven))
             self._proven.clear()
 
     def clear_keys_matching(self, predicate) -> None:
         with self._lock:
-            self._proven.difference_update(
-                [key for key in self._proven if predicate(key)]
-            )
+            revoked = [key for key in self._proven if predicate(key)]
+            _debug.lifecycle("pool.reachability_revoked", count=len(revoked))
+            self._proven.difference_update(revoked)
 
     def check_connectable(
         self,
@@ -91,6 +97,7 @@ class ReachabilityProbe:
                     probe = self._inflight[key] = _InFlightProbe()
         if proven:
             self._stats.record_probe_outcome("skipped_proven")
+            _debug.logic("pool.probe.skipped_proven", db=dict(key).get("database"))
             return
         assert probe is not None
         _debug.logic(
@@ -124,7 +131,14 @@ class ReachabilityProbe:
             wait_timeout = (
                 None if deadline is None else max(0.0, deadline - monotonic())
             )
-            if probe.done.wait(wait_timeout) and probe.exc is not None:
+            done = probe.done.wait(wait_timeout)
+            _debug.logic(
+                "pool.probe.awaited",
+                db=dict(key).get("database"),
+                done=done,
+                failed=probe.exc is not None,
+            )
+            if done and probe.exc is not None:
                 raise probe.exc.with_traceback(None)
 
     def probe_connectable(
@@ -139,24 +153,35 @@ class ReachabilityProbe:
         try:
             with _debug.perf("pool.probe.connect", timeout=probe_timeout):
                 conn = psycopg.connect(conninfo, **probe_kwargs)
-        except _NON_RETRYABLE_CONNECT_ERRORS:
+        except _NON_RETRYABLE_CONNECT_ERRORS as e:
             self._stats.record_probe_outcome("permanent")
+            _debug.logic(
+                "pool.probe.permanent", reason="sqlstate", error=type(e).__name__
+            )
             raise
         except psycopg.OperationalError as e:
             translated = _resolve_connect_error(e)
             if translated is not None:
                 self._stats.record_probe_outcome("permanent")
+                _debug.logic(
+                    "pool.probe.permanent",
+                    reason="message",
+                    error=type(translated).__name__,
+                )
                 raise translated from e
             if self.is_database_absent(conninfo, kwargs, deadline):
                 self._stats.record_probe_outcome("permanent")
+                _debug.logic("pool.probe.permanent", reason="database_absent")
                 raise psycopg.errors.InvalidCatalogName(str(e)) from e
             self._stats.record_probe_outcome("transient")
+            _debug.logic("pool.probe.transient", error=type(e).__name__)
             _logger.debug(
                 "Pool pre-flight probe failed (treating as transient)",
                 exc_info=True,
             )
-        except Exception:
+        except Exception as e:
             self._stats.record_probe_outcome("transient")
+            _debug.logic("pool.probe.transient", error=type(e).__name__)
             _logger.debug(
                 "Pool pre-flight probe failed (treating as transient)",
                 exc_info=True,
@@ -186,8 +211,14 @@ class ReachabilityProbe:
                 row = mc.execute(
                     "SELECT 1 FROM pg_database WHERE datname = %s", (db_name,)
                 ).fetchone()
+            _debug.logic("pool.probe.database_absent", db=db_name, absent=row is None)
             return row is None
-        except Exception:
+        except Exception as e:
+            _debug.logic(
+                "pool.probe.absence_check_unavailable",
+                db=db_name,
+                error=type(e).__name__,
+            )
             _logger.debug(
                 "pg_database existence check unavailable for %r",
                 db_name,

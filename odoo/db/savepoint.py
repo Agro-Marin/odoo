@@ -79,7 +79,13 @@ class _FlushingSavepoint(Savepoint):
         _cr: BaseCursor
 
     def __init__(self, cr: BaseCursor) -> None:
-        cr.flush()
+        with _debug.perf(
+            "savepoint.flush_before_open",
+            cr=cr,
+            db=getattr(cr, "dbname", None),
+            depth=getattr(cr, "_savepoint_depth", None),
+        ):
+            cr.flush()
         self._save_orm_state(cr)
         super().__init__(cr)
 
@@ -100,8 +106,11 @@ class _FlushingSavepoint(Savepoint):
         try:
             if not rollback:
                 cr.flush()
-        except Exception:
+        except Exception as e:
             rollback = True
+            _debug.logic(
+                "savepoint.flush_failed", name=self.name, error=type(e).__name__
+            )
             raise
         finally:
             super()._close(rollback)
@@ -119,7 +128,9 @@ def get_or_create_row[T](
 
     try:
         with cr.savepoint(flush=flush):
-            return insert(), True
+            inserted = insert()
+            _debug.logic("savepoint.get_or_create.inserted", conflict=conflict)
+            return inserted, True
     except psycopg.errors.UniqueViolation:
         existing = find()
         _debug.logic(

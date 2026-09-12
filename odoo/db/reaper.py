@@ -4,10 +4,13 @@ import threading
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
 _LAST_BORROW_ATTR = "_odoo_last_borrow"
+_debug = DebugLog(__name__)
 
 
 def mark_active(pool) -> None:
@@ -60,8 +63,12 @@ class IdlePoolReaper:
             if get_checked_out_count(pool) > 0:
                 continue
             reapable.append(key)
+        _debug.pipeline(
+            "pool.reap_scan", pools=len(pools), reapable=len(reapable), ttl=self.ttl
+        )
         return reapable
 
     @staticmethod
     def close_pools_in_background(target, pools: list, name: str) -> None:
+        _debug.lifecycle("pool.reaper_thread_started", count=len(pools), name=name)
         threading.Thread(target=target, args=(pools,), name=name, daemon=True).start()

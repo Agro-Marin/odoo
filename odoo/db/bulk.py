@@ -246,34 +246,44 @@ class _BulkAccessMixin:
             else _nullcontext()
         )
         ph_by_len: dict[int, str] = {}
-        try:
-            with ctx:
-                for i in batches:
-                    batch = argslist[i : i + page_size]
-                    placeholders = []
-                    params: list[Any] = []
-                    for row in batch:
-                        if isinstance(row, (list, tuple)):
-                            if template:
-                                placeholders.append(template)
-                            elif (ph := ph_by_len.get(len(row))) is not None:
-                                placeholders.append(ph)
+        with _debug.perf(
+            "bulk.execute_values",
+            cr=self,
+            db=getattr(self, "dbname", None),
+            rows=len(argslist),
+            page_size=page_size,
+            pipelined=use_pipeline,
+            fetch=fetch,
+        ) as span:
+            try:
+                with ctx:
+                    for i in batches:
+                        batch = argslist[i : i + page_size]
+                        placeholders = []
+                        params: list[Any] = []
+                        for row in batch:
+                            if isinstance(row, (list, tuple)):
+                                if template:
+                                    placeholders.append(template)
+                                elif (ph := ph_by_len.get(len(row))) is not None:
+                                    placeholders.append(ph)
+                                else:
+                                    ph = "(" + ", ".join(["%s"] * len(row)) + ")"
+                                    ph_by_len[len(row)] = ph
+                                    placeholders.append(ph)
+                                params.extend(row)
                             else:
-                                ph = "(" + ", ".join(["%s"] * len(row)) + ")"
-                                ph_by_len[len(row)] = ph
-                                placeholders.append(ph)
-                            params.extend(row)
-                        else:
-                            placeholders.append(template or "(%s)")
-                            params.append(row)
-                    full_query = f"{prefix}{', '.join(placeholders)}{suffix}"
-                    self.execute(full_query, params, log_exceptions)
-                    if fetch:
-                        results.extend(self.fetchall())
-        except Exception as e:
-            if has_reached_server(e):
-                self._statement_failed(e, query, log_exceptions=log_exceptions)
-            raise
+                                placeholders.append(template or "(%s)")
+                                params.append(row)
+                        full_query = f"{prefix}{', '.join(placeholders)}{suffix}"
+                        self.execute(full_query, params, log_exceptions)
+                        if fetch:
+                            results.extend(self.fetchall())
+            except Exception as e:
+                if has_reached_server(e):
+                    self._statement_failed(e, query, log_exceptions=log_exceptions)
+                raise
+            span.set(fetched=len(results))
         return results if fetch else None
 
     def copy_from(
@@ -322,37 +332,41 @@ class _BulkAccessMixin:
         t0 = monotonic()
         counts = False
         row_count = 0
-        try:
-            with obj.copy(copy_stmt) as copy:
-                if col_types:
-                    copy.set_types(col_types)
-                for row in write_rows:
-                    copy.write_row(row)
-                    row_count += 1
-            counts = True
-        except Exception as e:
-            if binary:
-                _add_binary_types_note(e, table, columns)
-            counts = self._statement_failed(
-                e,
-                render_copy_statement,
-                label="COPY",
-                log_exceptions=log_exceptions,
-                prepared=False,
-            )
-            raise
-        finally:
-            delay = monotonic() - t0
-            self._statement_done(
-                delay,
-                counts=counts,
-                count=row_count,
-                query=render_copy_statement,
-                label="COPY",
-                hooks=hooks,
-                start=start,
-                debug=debug,
-            )
+        with _debug.perf(
+            "bulk.copy", db=getattr(self, "dbname", None), table=table, binary=binary
+        ) as span:
+            try:
+                with obj.copy(copy_stmt) as copy:
+                    if col_types:
+                        copy.set_types(col_types)
+                    for row in write_rows:
+                        copy.write_row(row)
+                        row_count += 1
+                counts = True
+            except Exception as e:
+                if binary:
+                    _add_binary_types_note(e, table, columns)
+                counts = self._statement_failed(
+                    e,
+                    render_copy_statement,
+                    label="COPY",
+                    log_exceptions=log_exceptions,
+                    prepared=False,
+                )
+                raise
+            finally:
+                delay = monotonic() - t0
+                self._statement_done(
+                    delay,
+                    counts=counts,
+                    count=row_count,
+                    query=render_copy_statement,
+                    label="COPY",
+                    hooks=hooks,
+                    start=start,
+                    debug=debug,
+                )
+                span.set(rows=row_count)
 
         if debug:
             self._record_sql_log("into", table, delay)
@@ -389,6 +403,7 @@ class _BulkAccessMixin:
             if first is _NO_ROWS:
                 return None
             rows = chain((first,), iterator)
+            _debug.logic("bulk.copy.streamed", table=table, columns=len(columns))
         return columns, rows, None
 
     def _preallocate_copy_ids(
@@ -401,11 +416,13 @@ class _BulkAccessMixin:
                 count,
             )
         )
+        _debug.perf.count("bulk.ids_preallocated", table=table, count=count)
         return [row[0] for row in self.fetchall()]
 
     def _lock_table_for_bulk(self: _CursorInternals, table: str) -> None:
         cache = self._schema_cache
         if cache.is_locked(table):
+            _debug.logic("bulk.lock_ledger_hit", table=table)
             return
         self.execute(
             _sql.SQL("LOCK TABLE {} IN ROW EXCLUSIVE MODE").format(
@@ -413,6 +430,7 @@ class _BulkAccessMixin:
             )
         )
         self._mark_table_locked(table)
+        _debug.lifecycle("bulk.table_locked", table=table)
 
     def _get_id_sequence(self: _CursorInternals, table: str) -> str:
         cache = self._schema_cache
@@ -424,6 +442,7 @@ class _BulkAccessMixin:
         row = self.fetchone()
         assert row is not None, "pg_get_serial_sequence returned no row"
         (seq_name,) = row
+        via = "pg_get_serial_sequence"  # debuglog
         if seq_name is None:
             self.execute(
                 SQL(
@@ -445,7 +464,11 @@ class _BulkAccessMixin:
             if not row or not row[0]:
                 raise ValueError(f"No serial sequence found for {table}.id")
             seq_name = row[0]
+            via = "pg_depend"  # debuglog
         cache.set_id_sequence(table, seq_name)
+        _debug.perf.count(
+            "bulk.id_sequence_resolved", table=table, sequence=seq_name, via=via
+        )
         return seq_name
 
     def _is_binary_copy_worthwhile(self: _CursorInternals, oids: list[int]) -> bool:
@@ -458,6 +481,7 @@ class _BulkAccessMixin:
         try:
             _Transformer(self._cnx).set_dumper_types(oids, _pq.Format.BINARY)
         except _errors.Error:
+            _debug.logic("bulk.copy.no_binary_dumper", oids=len(oids))
             _logger.debug(
                 "copy_from: no binary dumper for type oid(s) %s; using text COPY",
                 oids,
@@ -507,4 +531,7 @@ class _BulkAccessMixin:
                 )
             types = [type_map[col] for col in columns]
             cache.set_column_types(table, columns, types)
+            _debug.perf.count(
+                "bulk.column_types_resolved", table=table, columns=len(columns)
+            )
         return types

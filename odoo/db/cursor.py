@@ -82,15 +82,29 @@ class BaseCursor:
         self.commit_count = 0
 
     def flush(self) -> None:
+        passes = 0  # debuglog
         for _ in range(self._MAX_FLUSH_PASSES):
             if self.transaction is not None:
                 self.transaction.flush()
             if not self.precommit:
+                if _debug.pipeline.enabled and passes:
+                    _debug.pipeline(
+                        "cursor.flush_converged",
+                        db=vars(self).get("dbname"),
+                        passes=passes + 1,
+                    )
                 return
             self.precommit.run()
+            passes += 1  # debuglog
         if self.transaction is not None:
             self.transaction.flush()
         if self.precommit:
+            _debug.logic(
+                "cursor.flush_not_converged",
+                db=vars(self).get("dbname"),
+                passes=passes,
+                precommit=len(self.precommit),
+            )
             raise RuntimeError(
                 f"flush() did not converge after {self._MAX_FLUSH_PASSES} "
                 f"iterations: precommit hooks keep triggering new ORM changes; "
@@ -221,6 +235,7 @@ class BaseCursor:
             row = self.fetchone()
             assert row is not None, "SELECT now() returned no row"
             self._now = row[0]
+            _debug.perf.count("cursor.now_fetched", db=vars(self).get("dbname"))
         return self._now
 
 
@@ -285,7 +300,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             if obj is not None:
                 with suppress(Exception):
                     obj.close()
-            pool.give_back(self._cnx, keep_in_pool=self._is_connection_clean())
+            keep_in_pool = self._is_connection_clean()
+            _debug.lifecycle(
+                "cursor.open_failed",
+                db=dbname,
+                readonly=bool(getattr(pool, "readonly", None)),
+                keep_in_pool=keep_in_pool,
+            )
+            pool.give_back(self._cnx, keep_in_pool=keep_in_pool)
             raise
 
     def dictfetchone(self) -> dict[str, Any] | None:
@@ -393,6 +415,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             else:
                 msg += "Please enable sql debugging to trace the caller."
             _logger.warning(msg)
+            _debug.lifecycle(
+                "cursor.not_closed_explicitly",
+                db=vars(self).get("dbname"),
+                caller=self.__caller and f"{self.__caller[0]}:{self.__caller[1]}",
+            )
             self._close()
 
     def _statement_failed(
@@ -411,6 +438,15 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             self._invalidate_cached_plans_if_stale(exc)
         if log_exceptions:
             _log_sql_error(exc, _render_query(query), label=label)
+        _debug.logic(
+            "cursor.statement_failed",
+            db=vars(self).get("dbname"),
+            label=label,
+            error=type(exc).__name__,
+            sqlstate=getattr(exc, "sqlstate", None),
+            reached_server=has_reached_server(exc),
+            in_pipeline=vars(self).get("_pipeline_entered"),
+        )
         return has_reached_server(exc)
 
     def _statement_done(
@@ -529,6 +565,11 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             if params:
                 query = _inline_ddl_params(qs, params, self._cnx)
                 params = None
+                _debug.logic(
+                    "cursor.ddl_params_inlined",
+                    db=vars(self).get("dbname"),
+                    keyword=ddl_kw,
+                )
             if prepare is None:
                 prepare = False
         return query, params, prepare, qs, ddl_kw, rollback_to
@@ -543,9 +584,16 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             )
             self._cnx.prepare_threshold = None
             self.execute("DEALLOCATE ALL")
+            _debug.logic("cursor.prepared_cache_fallback", db=vars(self).get("dbname"))
         self._schema_cache.invalidate_catalog_facts()
 
     def _on_rollback_to_savepoint(self) -> None:
+        _debug.lifecycle(
+            "cursor.savepoint_rollback_seen",
+            db=vars(self).get("dbname"),
+            depth=self._savepoint_depth,
+            locked_tables=len(self._schema_cache.locked_tables),
+        )
         self._schema_cache.release_locks_since_depth(self._savepoint_depth)
 
     def _mark_table_locked(self, table: str) -> None:
@@ -654,6 +702,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         if self._pipeline_statements == 2 and self._pipeline_stack is not None:
             self._pipeline_stack.enter_context(self._cnx.pipeline())
             self._pipeline_entered = True
+            _debug.lifecycle("cursor.pipeline_entered", db=self.dbname)
 
     @contextmanager
     def pipeline(
@@ -717,6 +766,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     self._rollback()
                 except Exception as exc:
                     keep_in_pool = self._is_connection_clean()
+                    _debug.logic(
+                        "cursor.close_rollback_failed",
+                        db=vars(self).get("dbname"),
+                        error=type(exc).__name__,
+                        keep_in_pool=keep_in_pool,
+                        reached_server=has_reached_server(exc),
+                    )
                     if keep_in_pool:
                         _logger.warning("Failed to roll back on cursor close")
                     elif not has_reached_server(exc):
@@ -759,7 +815,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             )
         with _debug.perf("cursor.commit.flush", cr=self, db=self.dbname):
             self.flush()
-        self._cnx.commit()
+        with _debug.perf("cursor.commit.sync", db=self.dbname):
+            self._cnx.commit()
         self.commit_count += 1
         _debug.lifecycle(
             "cursor.committed",
@@ -776,7 +833,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._now = None
         self.prerollback.clear()
         self.postrollback.clear()
-        self.postcommit.run()
+        with _debug.perf(
+            "cursor.commit.postcommit",
+            cr=self,
+            db=self.dbname,
+            hooks=len(self.postcommit),
+        ):
+            self.postcommit.run()
 
     def rollback(self) -> None:
         if self._closed:
@@ -798,7 +861,13 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self.clear()
         self.postcommit.clear()
         try:
-            self.prerollback.run()
+            with _debug.perf(
+                "cursor.rollback.prerollback",
+                cr=self,
+                db=self.dbname,
+                hooks=len(self.prerollback),
+            ):
+                self.prerollback.run()
         finally:
             self._cnx.rollback()
             self._schema_changed = False

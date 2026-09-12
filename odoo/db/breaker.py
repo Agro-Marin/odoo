@@ -62,8 +62,18 @@ class CircuitBreaker:
                 return True
             now = monotonic()
             if now - self._opened_at < self._cooldown:
+                _debug.logic(
+                    "breaker.attempt_rejected",
+                    reason="cooldown",
+                    remaining_s=self._opened_at + self._cooldown - now,
+                )
                 return False
             if self._probing_since and now - self._probing_since < _PROBE_ABANDON_AFTER:
+                _debug.logic(
+                    "breaker.attempt_rejected",
+                    reason="probe_in_flight",
+                    probing_s=now - self._probing_since,
+                )
                 return False
             self._probing_since = now
             _debug.logic(
@@ -96,6 +106,12 @@ class CircuitBreaker:
                     "breaker.opened", cooldown=self._cooldown, trips=self.trips
                 )
                 return
+            if _debug.logic.enabled and not self._probing_since:
+                _debug.logic(
+                    "breaker.failure_while_open",
+                    failures=self.failures,
+                    cooldown=self._cooldown,
+                )
             if self._probing_since:
                 self._cooldown = min(self._cooldown * 2, self.max_cooldown)
                 self._opened_at = monotonic()

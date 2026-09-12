@@ -2,9 +2,12 @@ import os
 import warnings
 from urllib.parse import parse_qsl, urlsplit
 
+from odoo.libs.debug_log import DebugLog
+
 from .settings import PoolSettings, current
 
 _ODOO_PGAPPNAME_WARNED = False
+_debug = DebugLog(__name__)
 
 
 SYSTEM_DBS = frozenset({"postgres", "template0", "template1"})
@@ -120,6 +123,12 @@ def get_connection_info_for_database(
         info = {"dsn": db_or_uri, **merged}
         if "application_name" not in uri_keys:
             info["application_name"] = app_name
+        _debug.logic(
+            "db.connection_info_from_uri",
+            db=db_name,
+            uri_keys=len(uri_keys),
+            health_params_added=len(merged),
+        )
         return db_name, info
 
     connection_info = {"dbname": db_or_uri, "application_name": app_name}
@@ -130,25 +139,30 @@ def get_connection_info_for_database(
 
 
 def update_planner_stats(cr, *, reltuples: float = 1000.0, relpages: int = 100) -> int:
-    cr.execute(
-        """
-        SELECT count(*)
-          FROM (
-            SELECT pg_restore_relation_stats(
-                       'schemaname', n.nspname::text,
-                       'relname', c.relname::text,
-                       'relpages', %s::integer,
-                       'reltuples', %s::real
-                   ) AS ok
-              FROM pg_class c
-              JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE c.relkind = 'r'
-               AND n.nspname = 'public'
-               AND c.reltuples <= 0
-               AND c.relowner = quote_ident(current_user)::regrole
-          ) AS seeded
-         WHERE seeded.ok
-        """,
-        (relpages, reltuples),
-    )
-    return cr.fetchone()[0]
+    with _debug.perf(
+        "db.planner_stats_seeded", cr=cr, reltuples=reltuples, relpages=relpages
+    ) as span:
+        cr.execute(
+            """
+            SELECT count(*)
+              FROM (
+                SELECT pg_restore_relation_stats(
+                           'schemaname', n.nspname::text,
+                           'relname', c.relname::text,
+                           'relpages', %s::integer,
+                           'reltuples', %s::real
+                       ) AS ok
+                  FROM pg_class c
+                  JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE c.relkind = 'r'
+                   AND n.nspname = 'public'
+                   AND c.reltuples <= 0
+                   AND c.relowner = quote_ident(current_user)::regrole
+              ) AS seeded
+             WHERE seeded.ok
+            """,
+            (relpages, reltuples),
+        )
+        seeded: int = cr.fetchone()[0]
+        span.set(tables=seeded)
+    return seeded

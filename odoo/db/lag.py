@@ -88,6 +88,11 @@ class ReplicaLagGate:
             now = monotonic()
             if self._last_sample and now - self._last_sample < self.sample_interval:
                 return False
+            _debug.logic(
+                "replica.lag_sample_due",
+                interval=self.sample_interval,
+                since_last_s=now - self._last_sample if self._last_sample else 0.0,
+            )
             self._last_sample = now
             return True
 

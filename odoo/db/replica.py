@@ -76,13 +76,25 @@ class ReplicaRouter:
     def _resolve_replica_cursor(self, replica: Connection) -> BaseCursor | None:
         sample_due = self.lag.is_sample_due()
         if not (self.lag.is_replica_usable() or sample_due):
+            _debug.logic("replica.skipped", reason="lagging", lag=self.lag.last_lag)
             return None
         if not self.breaker.acquire_attempt():
+            _debug.logic(
+                "replica.skipped",
+                reason="breaker_open",
+                cooldown_remaining_s=self.breaker.cooldown_remaining,
+            )
             return None
         try:
             cr = replica.cursor()
-        except psycopg.OperationalError, PoolError:
+        except (psycopg.OperationalError, PoolError) as e:
             self.breaker.record_failure()
+            _debug.lifecycle(
+                "replica.cursor_failed",
+                error=type(e).__name__,
+                failures=self.breaker.failures,
+                cooldown_s=self.breaker.cooldown_remaining,
+            )
             _logger.warning(
                 "Failed to open a readonly cursor, falling back to the "
                 "read-write cursor and retrying the replica in %.0fs "
@@ -92,21 +104,25 @@ class ReplicaRouter:
             )
             return None
         if not self.breaker.closed:
+            _debug.lifecycle("replica.recovered", trips=self.breaker.trips)
             _logger.info("Replica reachable again, resuming readonly cursors")
         self.breaker.record_success()
         if sample_due and self.lag.acquire_sample_interval():
             self._sample_lag(cr)
         if self.lag.is_replica_usable():
             return cr
+        _debug.logic("replica.cursor_discarded_lagging", lag=self.lag.last_lag)
         cr.close()
         return None
 
     def _sample_lag(self, cr: BaseCursor) -> None:
         try:
-            cr.execute(LAG_SQL)  # noqa: E8501  LAG_SQL is a module constant
+            with _debug.perf("replica.lag_query", cr=cr):
+                cr.execute(LAG_SQL)  # noqa: E8501  LAG_SQL is a module constant
             row = cr.fetchone()
             measured = row[0] if row else None
-        except Exception:
+        except Exception as e:
+            _debug.logic("replica.lag_query_failed", error=type(e).__name__)
             _logger.debug("Could not measure replica lag", exc_info=True)
             measured = None
         was_allowed = self.lag.is_replica_usable()

@@ -5,6 +5,10 @@ import hashlib
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 _NON_RETRYABLE_CONNECT_ERRORS: tuple[type[psycopg.Error], ...] = (
     psycopg.errors.InvalidCatalogName,
     psycopg.errors.InvalidAuthorizationSpecification,
@@ -28,11 +32,15 @@ _ENGLISH_AUTH_MARKERS: tuple[tuple[str, ...], ...] = (
 def _resolve_connect_error(exc: psycopg.OperationalError) -> psycopg.Error | None:
     msg = str(exc).lower()
     if any(marker in msg for marker in _LOCALE_INDEPENDENT_AUTH_MARKERS):
+        _debug.logic("dsn.connect_error_classified", as_="auth", by="pg_hba")
         return psycopg.errors.InvalidAuthorizationSpecification(str(exc))
     if any(all(part in msg for part in group) for group in _ENGLISH_ABSENT_DB_MARKERS):
+        _debug.logic("dsn.connect_error_classified", as_="absent_db", by="english")
         return psycopg.errors.InvalidCatalogName(str(exc))
     if any(all(part in msg for part in group) for group in _ENGLISH_AUTH_MARKERS):
+        _debug.logic("dsn.connect_error_classified", as_="auth", by="english")
         return psycopg.errors.InvalidAuthorizationSpecification(str(exc))
+    _debug.logic("dsn.connect_error_classified", as_="unclassified")
     return None
 
 

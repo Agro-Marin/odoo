@@ -58,6 +58,12 @@ class EndpointRegistry:
         if endpoint != self.get_endpoint_for_readonly(
             False, settings
         ) and endpoint == self.get_endpoint_for_readonly(True, settings):
+            _debug.logic(
+                "endpoints.replica_maxconn",
+                endpoint=endpoint,
+                maxconn=settings.maxconn_replica or base,
+                own_ceiling=bool(settings.maxconn_replica),
+            )
             return settings.maxconn_replica or base
         return base
 
@@ -77,6 +83,12 @@ class EndpointRegistry:
             if budget is None:
                 budget = self._budgets[endpoint] = ConnectionBudget(
                     self.get_maxconn_at_endpoint(endpoint, settings)
+                )
+                _debug.lifecycle(
+                    "endpoints.budget_created",
+                    endpoint=endpoint,
+                    maxconn=budget.maxconn,
+                    budgets=len(self._budgets),
                 )
             return budget
 
@@ -145,27 +157,36 @@ class EndpointRegistry:
         health: dict = {"read_write": None, "read_only": None}
         with self._lock:
             items = list(self._pools.items())
-        for (endpoint, readonly), pool in items:
-            mode = "read_only" if readonly else "read_write"
-            if endpoint == configured[readonly]:
-                health[mode] = pool.get_health()
-            else:
-                host, port = endpoint
-                health[f"uri:{host}:{port}:{mode}"] = pool.get_health()
+        with _debug.perf("endpoints.health", pools=len(items)):
+            for (endpoint, readonly), pool in items:
+                mode = "read_only" if readonly else "read_write"
+                if endpoint == configured[readonly]:
+                    health[mode] = pool.get_health()
+                else:
+                    host, port = endpoint
+                    health[f"uri:{host}:{port}:{mode}"] = pool.get_health()
         return health
 
     def close_db(self, db_name: str) -> None:
-        for pool in self.get_all_pools():
+        pools = self.get_all_pools()
+        _debug.lifecycle("endpoints.close_db", db=db_name, pools=len(pools))
+        for pool in pools:
             pool.close_database(db_name)
 
     def close_all(self) -> None:
-        for pool in self.get_all_pools():
+        pools = self.get_all_pools()
+        _debug.lifecycle("endpoints.close_all", pools=len(pools))
+        for pool in pools:
             pool.close_all()
 
     def drain_db(self, db_name: str) -> None:
-        for pool in self.get_all_pools():
+        pools = self.get_all_pools()
+        _debug.lifecycle("endpoints.drain_db", db=db_name, pools=len(pools))
+        for pool in pools:
             pool.drain_database(db_name)
 
     def drain_all(self) -> None:
-        for pool in self.get_all_pools():
+        pools = self.get_all_pools()
+        _debug.lifecycle("endpoints.drain_all", pools=len(pools))
+        for pool in pools:
             pool.drain_all()

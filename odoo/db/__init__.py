@@ -1,6 +1,8 @@
 import atexit
 import logging
 
+from odoo.libs.debug_log import DebugLog
+
 from . import settings as pool_settings
 from .budget import ConnectionBudget
 from .cursor import BaseCursor, Cursor, Savepoint
@@ -41,6 +43,7 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 registry = EndpointRegistry()
 
@@ -51,6 +54,7 @@ def db_connect(to: str, allow_uri: bool = False, readonly: bool = False) -> Conn
     if not allow_uri and db != to:
         msg = "URI connections not allowed"
         raise ValueError(msg)
+    _debug.logic("db.connect", db=db, readonly=readonly, uri=db != to)
     return Connection(
         registry.get_pool_at_endpoint(
             get_endpoint_key(info, settings), readonly, settings
