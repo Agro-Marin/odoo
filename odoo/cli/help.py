@@ -2,6 +2,7 @@ import sys
 import textwrap
 
 import odoo.release
+from odoo.libs.debug_log import DebugLog
 
 from .command import (
     DEFAULT_COMMAND,
@@ -12,6 +13,8 @@ from .command import (
     load_addons_commands,
     load_internal_commands,
 )
+
+_debug = DebugLog(__name__)
 
 
 class Help(Command):
@@ -42,8 +45,10 @@ class Help(Command):
         if parsed.command and Command.is_valid_name(parsed.command):
             return self._show_command_help(parsed.command)
 
-        load_internal_commands()
-        load_addons_commands()
+        with _debug.perf("cli.help.discover") as span:
+            load_internal_commands()
+            load_addons_commands()
+            span.set(commands=len(commands))
 
         padding = max((len(cmd_name) for cmd_name in commands), default=0) + 2
         name_desc = [
@@ -73,6 +78,7 @@ class Help(Command):
     def _show_command_help(self, name: str) -> None:
         command = get_cli_command(name)
         if command is None:
+            _debug.logic("cli.help.unknown_command", command=name)
             sys.exit(
                 f"Unknown command {name!r}.\n"
                 f"Use '{PROG_NAME} help' to see the list of available commands."

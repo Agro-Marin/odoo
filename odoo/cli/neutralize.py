@@ -40,14 +40,24 @@ class Neutralize(DatabaseCommand):
                     queries = odoo.modules.neutralize.get_neutralization_queries(
                         installed_modules
                     )
+                    printed = 0  # debuglog
                     print("BEGIN;")
                     for query in queries:
                         print(query.rstrip(";") + ";")
+                        printed += 1  # debuglog
                     print("COMMIT;")
+                    _debug.logic(
+                        "cli.neutralize.printed",
+                        db=dbname,
+                        modules=len(installed_modules),
+                        queries=printed,
+                    )
                 else:
-                    odoo.modules.neutralize.neutralize_database(cursor)
+                    with _debug.perf("cli.neutralize.apply", cr=cursor, db=dbname):
+                        odoo.modules.neutralize.neutralize_database(cursor)
 
-        except Exception:
+        except Exception as e:
+            _debug.logic("cli.neutralize.failed", db=dbname, error=type(e).__name__)
             _logger.critical(
                 "An error occurred during the neutralization. THE DATABASE IS NOT NEUTRALIZED!",
                 exc_info=True,

@@ -55,6 +55,7 @@ class Console(code.InteractiveConsole):
             import readline
             import rlcompleter
         except ImportError:
+            _debug.logic("cli.shell.readline_unavailable")
             print("readline or rlcompleter not available, autocomplete disabled.")
         else:
             readline.set_completer(rlcompleter.Completer(local_vars).complete)
@@ -100,9 +101,11 @@ class Shell(Command):
         self._shell_file = parsed_args.shell_file
         self._shell_interface = parsed_args.shell_interface
 
-        config.parse_config(remaining, setup_logging=True)
+        with _debug.perf("cli.config.parse", command="shell", args=len(remaining)):
+            config.parse_config(remaining, setup_logging=True)
         cli_server.report_configuration()
-        server.start(preload=[], stop=True)
+        with _debug.perf("cli.shell.server_start"):
+            server.start(preload=[], stop=True)
         signal.signal(signal.SIGINT, raise_keyboard_interrupt)
 
     @staticmethod
@@ -114,8 +117,10 @@ class Shell(Command):
 
     def _enter_console(self, local_vars: dict[str, Any]) -> None:
         if not self._is_stdin_a_tty():
+            _debug.logic("cli.shell.mode", mode="piped_stdin")
             local_vars["__name__"] = "__main__"
-            exec(sys.stdin.read(), local_vars)  # noqa: S102  piped-in script IS what `odoo shell` runs
+            with _debug.perf("cli.shell.script", source="stdin"):
+                exec(sys.stdin.read(), local_vars)  # noqa: S102  piped-in script IS what `odoo shell` runs
             return None
 
         if "env" not in local_vars:
@@ -131,8 +136,21 @@ class Shell(Command):
         else:
             shells_to_try = list(self.supported_shells)
 
+        _debug.logic(
+            "cli.shell.mode",
+            mode="interactive",
+            preferred=preferred_interface,
+            candidates=len(shells_to_try),
+            startup_file=bool(pythonstartup),
+        )
         for shell in shells_to_try:
             if not self._is_repl_installed(shell):
+                _debug.logic(
+                    "cli.shell.repl_skipped",
+                    shell=shell,
+                    reason="not_installed",
+                    preferred=shell == preferred_interface,
+                )
                 if shell == preferred_interface:
                     _logger.warning(
                         "Requested shell %r is not installed; falling back.",
@@ -141,10 +159,18 @@ class Shell(Command):
                 continue
             try:
                 shell_func = getattr(self, shell)
+                _debug.lifecycle("cli.shell.repl_started", shell=shell)
                 return shell_func(local_vars, pythonstartup)
-            except Exception:
+            except Exception as e:
+                _debug.logic(
+                    "cli.shell.repl_skipped",
+                    shell=shell,
+                    reason="start_failed",
+                    error=type(e).__name__,
+                )
                 _logger.warning("Could not start '%s' shell.", shell)
                 _logger.debug("Shell error:", exc_info=True)
+        _debug.logic("cli.shell.no_repl", candidates=len(shells_to_try))
         return None
 
     def ipython(
@@ -185,11 +211,12 @@ class Shell(Command):
     ) -> None:
         console = Console(local_vars)
         if pythonstartup:
-            console.runsource(
-                Path(pythonstartup).read_text(encoding="utf-8"),
-                filename=pythonstartup,
-                symbol="exec",
-            )
+            with _debug.perf("cli.shell.script", source=pythonstartup):
+                console.runsource(
+                    Path(pythonstartup).read_text(encoding="utf-8"),
+                    filename=pythonstartup,
+                    symbol="exec",
+                )
         console.interact(banner="")
 
     def _start_shell(self, dbname: str | None) -> None:
@@ -198,7 +225,8 @@ class Shell(Command):
         }
         if dbname:
             current_worker_thread().dbname = dbname
-            registry = Registry(dbname)
+            with _debug.perf("cli.registry", db=dbname, new_registry=False):
+                registry = Registry(dbname)
             with registry.cursor() as cr:
                 uid = api.SUPERUSER_ID
                 ctx = api.Environment(cr, uid, {})["res.users"].context_get()
@@ -207,9 +235,15 @@ class Shell(Command):
                 local_vars["env"] = env
                 local_vars["self"] = env.user
                 cr.rollback()
-                self._enter_console(local_vars)
+                _debug.lifecycle(
+                    "cli.shell.env_ready", db=dbname, uid=uid, lang=ctx.get("lang")
+                )
+                with _debug.perf("cli.shell.session", cr=cr, db=dbname):
+                    self._enter_console(local_vars)
                 cr.rollback()
+                _debug.lifecycle("cli.shell.session_rolled_back", db=dbname)
         else:
+            _debug.lifecycle("cli.shell.env_ready", db=None)
             self._enter_console(local_vars)
 
     def run(self, args: list[str]) -> None:

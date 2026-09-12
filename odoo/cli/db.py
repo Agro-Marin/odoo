@@ -320,6 +320,11 @@ class Db(Command):
             config_args.extend([dest_flags[key], value])
         config.parse_config([*config_args, *unknown], setup_logging=True)
         config["list_db"] = True
+        _debug.pipeline(
+            "cli.db.config_parsed",
+            connection_flags=len(config_args) // 2,
+            forwarded=len(unknown),
+        )
         report_configuration()
 
         _debug.lifecycle(
@@ -332,25 +337,40 @@ class Db(Command):
     def init(self, args: argparse.Namespace) -> None:
         self._check_target_free(args.database, force=args.force)
         self._drop_database_if_exists(args.database)
-        exp_create_database(
-            db_name=args.database,
+        _debug.lifecycle(
+            "cli.db.init",
+            db=args.database,
             demo=args.with_demo,
             lang=args.language,
-            login=args.username,
-            user_password=args.password,
-            country_code=args.country,
-            phone=None,
+            country=args.country,
         )
+        with _debug.perf("cli.db.create", db=args.database, demo=args.with_demo):
+            exp_create_database(
+                db_name=args.database,
+                demo=args.with_demo,
+                lang=args.language,
+                login=args.username,
+                user_password=args.password,
+                country_code=args.country,
+                phone=None,
+            )
 
     def load(self, args: argparse.Namespace) -> None:
         db_name = args.database or Path(args.dump_file).stem
         try:
             check_db_name(db_name)
         except ValueError as e:
+            _debug.logic("cli.db.load.rejected", db=db_name, reason="invalid_name")
             sys.exit(f"{e}")
         self._check_target_free(db_name, force=args.force)
 
         url = urllib.parse.urlparse(args.dump_file)
+        _debug.logic(
+            "cli.db.load.source",
+            db=db_name,
+            kind="url" if url.scheme else "file",
+            named=bool(args.database),
+        )
         with ExitStack() as stack:
             if url.scheme:
                 eprint(f"Fetching {args.dump_file}...", end="")
@@ -358,12 +378,19 @@ class Db(Command):
                     requests.get(args.dump_file, timeout=(10, None), stream=True)
                 )
                 if not r.ok:
+                    _debug.logic(
+                        "cli.db.load.fetch_failed",
+                        status=r.status_code,
+                        reason=r.reason,
+                    )
                     sys.exit(f" unable to fetch {args.dump_file}: {r.reason}")
                 downloaded = stack.enter_context(
                     tempfile.SpooledTemporaryFile(max_size=256 * 1024 * 1024)
                 )
-                for chunk in r.iter_content(chunk_size=1024 * 1024):
-                    downloaded.write(chunk)
+                with _debug.perf("cli.db.load.fetch", status=r.status_code) as span:
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        downloaded.write(chunk)
+                    span.set(bytes=downloaded.tell())
                 downloaded.seek(0)
                 dump_file = downloaded
                 eprint(" done")
@@ -372,6 +399,7 @@ class Db(Command):
                 dump_file = args.dump_file
 
             if not zipfile.is_zipfile(dump_file):
+                _debug.logic("cli.db.load.rejected", db=db_name, reason="not_zip")
                 sys.exit(
                     "Not a zipped dump file, use `pg_restore` to restore raw dumps,"
                     " and `psql` to execute sql dumps or scripts."
@@ -379,30 +407,57 @@ class Db(Command):
 
             if args.force:
                 self._drop_database_if_exists(db_name)
-            restore_db(
-                db=db_name,
-                dump_file=dump_file,
-                copy=args.copy,
-                neutralize_database=args.neutralize,
-            )
+            with _debug.perf(
+                "cli.db.restore", db=db_name, copy=args.copy, neutralize=args.neutralize
+            ):
+                restore_db(
+                    db=db_name,
+                    dump_file=dump_file,
+                    copy=args.copy,
+                    neutralize_database=args.neutralize,
+                )
 
     def dump(self, args: argparse.Namespace) -> None:
         if args.database in SYSTEM_DBS:
+            _debug.logic("cli.db.dump.rejected", db=args.database, reason="system_db")
             sys.exit(f"Refusing to dump system database {args.database}.")
         self._check_source_exists(args.database)
         if args.dump_path == "-":
-            dump_db(args.database, sys.stdout.buffer, args.dump_format, args.filestore)
+            with _debug.perf(
+                "cli.db.dump",
+                db=args.database,
+                format=args.dump_format,
+                filestore=args.filestore,
+                to="stdout",
+            ):
+                dump_db(
+                    args.database, sys.stdout.buffer, args.dump_format, args.filestore
+                )
         else:
             destination = Path(args.dump_path)
             if not destination.parent.is_dir():
+                _debug.logic(
+                    "cli.db.dump.rejected", db=args.database, reason="no_parent_dir"
+                )
                 sys.exit(
                     f"Cannot write {args.dump_path}: {destination.parent} is not "
                     "a directory."
                 )
             try:
                 with destination.open("wb") as f:
-                    dump_db(args.database, f, args.dump_format, args.filestore)
+                    with _debug.perf(
+                        "cli.db.dump",
+                        db=args.database,
+                        format=args.dump_format,
+                        filestore=args.filestore,
+                        to=str(destination),
+                    ) as span:
+                        dump_db(args.database, f, args.dump_format, args.filestore)
+                        span.set(bytes=f.tell())
             except BaseException:
+                _debug.logic(
+                    "cli.db.dump.aborted", db=args.database, to=str(destination)
+                )
                 destination.unlink(missing_ok=True)
                 raise
 
@@ -411,9 +466,15 @@ class Db(Command):
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_database_if_exists(args.target)
-        _duplicate_database(
-            args.source, args.target, neutralize_database=args.neutralize
-        )
+        with _debug.perf(
+            "cli.db.duplicate",
+            source=args.source,
+            target=args.target,
+            neutralize=args.neutralize,
+        ):
+            _duplicate_database(
+                args.source, args.target, neutralize_database=args.neutralize
+            )
 
     def rename(self, args: argparse.Namespace) -> None:
         self._check_source_not_target(args.source, args.target)
@@ -421,12 +482,15 @@ class Db(Command):
         self._check_target_free(args.target, force=args.force)
         self._check_source_exists(args.source)
         self._drop_database_if_exists(args.target)
-        _rename_database(args.source, args.target)
+        with _debug.perf("cli.db.rename", source=args.source, target=args.target):
+            _rename_database(args.source, args.target)
         if args.neutralize:
             try:
                 with db_connect(args.target).cursor() as cr:
-                    neutralize_database(cr)
+                    with _debug.perf("cli.db.neutralize", cr=cr, db=args.target):
+                        neutralize_database(cr)
             except Exception:
+                _debug.logic("cli.db.neutralize_failed", db=args.target)
                 _logger.critical(
                     "An error occurred during the neutralization. THE "
                     "DATABASE IS NOT NEUTRALIZED!",
@@ -436,16 +500,22 @@ class Db(Command):
 
     def drop(self, args: argparse.Namespace) -> None:
         check_db_not_maintenance(args.database)
+        _debug.lifecycle("cli.db.drop", db=args.database)
         if not _drop_database(args.database):
+            _debug.logic("cli.db.drop.missing", db=args.database)
             sys.exit(f"Database {args.database} does not exist.")
 
     def list_databases(self, _args: argparse.Namespace) -> None:
-        for db_name in list_dbs(force=True):
+        with _debug.perf("cli.db.list") as span:
+            db_names = list_dbs(force=True)
+            span.set(count=len(db_names))
+        for db_name in db_names:
             print(db_name)
 
     def _check_target_free(self, target: str, *, force: bool) -> None:
         check_db_not_maintenance(target)
         if not force and exp_db_exist(target):
+            _debug.logic("cli.db.target_exists", target=target, force=False)
             sys.exit(
                 f"Target database {target} exists, aborting.\n\n"
                 f"\tuse `--force` to delete the existing database anyway."
@@ -453,13 +523,16 @@ class Db(Command):
 
     def _check_source_exists(self, source: str) -> None:
         if not exp_db_exist(source):
+            _debug.logic("cli.db.source_missing", source=source)
             sys.exit(f"Source database {source} does not exist.")
 
     def _check_source_not_target(self, source: str, target: str) -> None:
         if source == target:
+            _debug.logic("cli.db.source_is_target", db=source)
             sys.exit(f"Source and target database are both {source!r}: aborting.")
 
     def _drop_database_if_exists(self, target: str) -> None:
         check_db_not_maintenance(target)
         if exp_db_exist(target):
+            _debug.lifecycle("cli.db.existing_dropped", db=target)
             _drop_database(target)

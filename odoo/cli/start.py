@@ -3,11 +3,14 @@ import re
 from pathlib import Path
 
 import odoo.cli
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.module import MANIFEST_NAMES, Manifest
 from odoo.tools import config
 
 from . import Command
 from .server import run_server
+
+_debug = DebugLog(__name__)
 
 
 class Start(Command):
@@ -53,6 +56,13 @@ class Start(Command):
         )
 
         mods = self._get_module_names_in_directory(project_path)
+        _debug.pipeline(
+            "cli.start.project_resolved",
+            path=str(project_path),
+            db=db_name,
+            modules=len(mods),
+            explicit_path=args.path is not None,
+        )
         if mods and not _has_arg(server_args, "--addons-path"):
             addons_paths = [str(project_path)]
             if bootstrap_value := odoo.cli.BOOTSTRAP_ADDONS_PATH:
@@ -61,13 +71,20 @@ class Start(Command):
                     p for p in addons_paths if p not in user_paths
                 ]
             server_args.append(f"--addons-path={','.join(addons_paths)}")
+            _debug.logic(
+                "cli.start.addons_path_derived",
+                paths=len(addons_paths),
+                merged_bootstrap=bool(odoo.cli.BOOTSTRAP_ADDONS_PATH),
+            )
 
         if not args.db_name:
             server_args.extend(("-d", db_name))
 
         if not _has_arg(server_args, "--db-filter"):
             server_args.append(f"--db-filter=^{re.escape(db_name)}$")
+            _debug.logic("cli.start.db_filter_derived", db=db_name)
 
+        _debug.pipeline("cli.start.server_args", count=len(server_args))
         run_server(server_args)
 
     def _get_project_path_and_db_name(
@@ -77,6 +94,7 @@ class Start(Command):
             path = os.environ.get("VIRTUAL_ENV") or "."
         project_path = Path(os.path.expandvars(path)).expanduser().resolve()
         if not project_path.is_dir():
+            _debug.logic("cli.start.path_rejected", path=str(path), reason="not_dir")
             hint = (
                 " (`-p` is --path here; the server's port option is --http-port)"
                 if str(path).isdigit()
@@ -88,8 +106,16 @@ class Start(Command):
         if is_path_in_module(project_path):
             db_name = project_path.name
             project_path = project_path.parent.resolve()
+            _debug.logic("cli.start.path_in_module", module=db_name)
 
         configured = config["db_name"]
+        _debug.logic(
+            "cli.start.db_name_candidates",
+            explicit=explicit_db_name,
+            module=db_name,
+            configured=len(configured) if configured else 0,
+            fallback=project_path.name,
+        )
         db_name = (
             explicit_db_name
             or db_name

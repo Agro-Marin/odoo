@@ -20,6 +20,7 @@ _debug = DebugLog(__name__)
 
 
 def _exit_nothing_done(verb: str, requested: list[str] | set[str]) -> NoReturn:
+    _debug.logic("cli.module.nothing_done", verb=verb, requested=len(requested))
     sys.exit(
         f"Nothing to {verb}: none of the requested modules "
         f"({', '.join(sorted(requested))}) could be resolved."
@@ -127,15 +128,24 @@ class Module(DatabaseCommand):
 
     def _get_module_names_on_disk(self, module_names: list[str]) -> set[str]:
         initialize_sys_path()
-        return {
+        found = {
             module
             for module in set(module_names)
             if get_module_path(module) or self._get_zip_path(module)
         }
+        _debug.logic(
+            "cli.module.on_disk", requested=len(set(module_names)), found=len(found)
+        )
+        return found
 
     def _sync_module_list(self, env: Environment) -> Any:
         Module = env["ir.module.module"]
-        Module.update_list()
+        with _debug.perf("cli.module.update_list", cr=env.cr) as span:
+            result = Module.update_list()
+            span.set(
+                updated=getattr(result, "updated", None),
+                added=getattr(result, "added", None),
+            )
         return Module
 
     def _get_modules_installed(self, env: Environment) -> Any:
@@ -148,8 +158,20 @@ class Module(DatabaseCommand):
         with open_environment(parsed_args.db_name, new_registry=True) as env:
             valid_module_names = self._get_module_names_on_disk(parsed_args.modules)
             installable_modules = self._get_modules_named(env, valid_module_names)
+            _debug.pipeline(
+                "cli.module.install",
+                db=parsed_args.db_name,
+                requested=len(parsed_args.modules),
+                on_disk=len(valid_module_names),
+                installable=len(installable_modules),
+            )
             if installable_modules:
-                installable_modules.button_immediate_install()
+                with _debug.perf(
+                    "cli.module.install_run",
+                    cr=env.cr,
+                    modules=len(installable_modules),
+                ):
+                    installable_modules.button_immediate_install()
 
             installed_names = set(installable_modules.mapped("name"))
             non_installable_modules = OrderedSet(
@@ -165,6 +187,11 @@ class Module(DatabaseCommand):
             unknown_modules = [
                 m for m in non_installable_modules if not self._get_zip_path(m)
             ]
+            _debug.logic(
+                "cli.module.install_leftovers",
+                zips=len(importable_zipfiles),
+                unknown=len(unknown_modules),
+            )
             if unknown_modules:
                 _logger.warning(
                     "Ignoring %d unrecognised module name(s) (not found on disk "
@@ -176,17 +203,24 @@ class Module(DatabaseCommand):
                 _exit_nothing_done("install", unknown_modules)
             if importable_zipfiles:
                 if "imported" not in env["ir.module.module"]._fields:
+                    _debug.logic(
+                        "cli.module.import_zip_refused", reason="no_base_import_module"
+                    )
                     sys.exit(
                         f"Cannot import {len(importable_zipfiles)} data "
                         "module(s): the `base_import_module` module is not "
                         "installed in this database."
                     )
                 for importable_zipfile in importable_zipfiles:
-                    env["ir.module.module"]._import_zipfile(importable_zipfile)
+                    with _debug.perf(
+                        "cli.module.import_zip", cr=env.cr, path=str(importable_zipfile)
+                    ):
+                        env["ir.module.module"]._import_zipfile(importable_zipfile)
 
     def _upgrade_modules(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
             if "all" in parsed_args.modules:
+                _debug.logic("cli.module.upgrade_scope", scope="all")
                 upgradable_modules = self._get_modules_installed(env)
             else:
                 valid_module_names = self._get_module_names_on_disk(parsed_args.modules)
@@ -217,12 +251,25 @@ class Module(DatabaseCommand):
                         parse_version(x.manifest_version) > parse_version(x.db_version)
                     ),
                 )
+            _debug.pipeline(
+                "cli.module.upgrade",
+                db=parsed_args.db_name,
+                requested=len(parsed_args.modules),
+                candidates=len(upgradable_modules),
+                outdated_only=parsed_args.outdated,
+            )
             if not upgradable_modules:
                 if parsed_args.outdated:
+                    _debug.logic(
+                        "cli.module.nothing_done", verb="upgrade", reason="up_to_date"
+                    )
                     _logger.info("Nothing to upgrade: every module is up to date.")
                     return
                 _exit_nothing_done("upgrade", parsed_args.modules)
-            upgradable_modules.button_immediate_upgrade()
+            with _debug.perf(
+                "cli.module.upgrade_run", cr=env.cr, modules=len(upgradable_modules)
+            ):
+                upgradable_modules.button_immediate_upgrade()
 
     def _uninstall_modules(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
@@ -231,10 +278,22 @@ class Module(DatabaseCommand):
                 _logger.warning(
                     "Ignoring unknown modules: %s", ", ".join(sorted(unknown))
                 )
+            _debug.pipeline(
+                "cli.module.uninstall",
+                db=parsed_args.db_name,
+                requested=len(parsed_args.modules),
+                candidates=len(modules),
+            )
             if not modules:
                 _exit_nothing_done("uninstall", parsed_args.modules)
-            modules.button_immediate_uninstall()
+            with _debug.perf(
+                "cli.module.uninstall_run", cr=env.cr, modules=len(modules)
+            ):
+                modules.button_immediate_uninstall()
 
     def _force_demo_data(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name, new_registry=True) as env:
-            force_demo(env)
+            with _debug.perf(
+                "cli.module.force_demo", cr=env.cr, db=parsed_args.db_name
+            ):
+                force_demo(env)

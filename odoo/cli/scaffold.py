@@ -8,12 +8,16 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs.debug_log import DebugLog
+
 from . import Command
 
 if TYPE_CHECKING:
     from jinja2 import Environment
 else:
     Environment = Any
+
+_debug = DebugLog(__name__)
 
 _MODNAME_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 
@@ -28,6 +32,7 @@ class Scaffold(Command):
                 d.name for d in _get_template_path().iterdir() if d.is_dir()
             )
         except OSError:
+            _debug.logic("cli.scaffold.templates_unavailable")
             templates = []
         self.epilog = (
             f"Built-in templates available are: {', '.join(templates)}"
@@ -65,13 +70,26 @@ class Scaffold(Command):
             params = args.template.parse_params(args.name)
             modname = args.template.get_module_name(args.name, params)
         except ValueError as err:
+            _debug.logic("cli.scaffold.name_rejected", name=args.name)
             parser.error(str(err))
         dest = _get_or_create_directory(args.dest)
         if not args.force and (dest / modname).exists():
+            _debug.logic("cli.scaffold.rejected", module=modname, reason="exists")
             parser.error(
                 f"{dest / modname} already exists; pass --force to overwrite it"
             )
-        args.template.render_to_directory(modname, dest, params=params)
+        _debug.pipeline(
+            "cli.scaffold.render",
+            template=str(args.template),
+            module=modname,
+            dest=str(dest),
+            force=args.force,
+            params=len(params),
+        )
+        with _debug.perf(
+            "cli.scaffold.render", template=str(args.template), module=modname
+        ):
+            args.template.render_to_directory(modname, dest, params=params)
 
 
 def _get_template_path(*parts: str) -> Path:
@@ -93,7 +111,9 @@ def _get_or_create_directory(p: str) -> Path:
     expanded = Path(os.path.expandvars(p)).expanduser().resolve()
     if not expanded.exists():
         expanded.mkdir(parents=True)
+        _debug.lifecycle("cli.scaffold.directory_created", path=str(expanded))
     if not expanded.is_dir():
+        _debug.logic("cli.scaffold.rejected", path=str(expanded), reason="not_dir")
         sys.exit(f"{p} is not a directory")
     return expanded
 
@@ -103,6 +123,7 @@ def _get_jinja_env() -> Environment:
     try:
         import jinja2
     except ImportError:
+        _debug.logic("cli.scaffold.rejected", reason="jinja2_missing")
         sys.exit(
             "odoo-bin scaffold needs Jinja2, which is not installed.\n"
             "    pip install Jinja2      (or: pip install 'odoo[scaffold]')"
@@ -147,10 +168,15 @@ class Template:
         self.id = identifier
         self.path = _get_template_path(identifier)
         if self.path.is_dir():
+            _debug.logic(
+                "cli.scaffold.template_resolved", id=identifier, source="builtin"
+            )
             return
         self.path = Path(identifier)
         if self.path.is_dir():
+            _debug.logic("cli.scaffold.template_resolved", id=identifier, source="path")
             return
+        _debug.logic("cli.scaffold.template_resolved", id=identifier, source=None)
         raise argparse.ArgumentTypeError(
             f"{identifier!r} is not a valid module template"
         )
@@ -183,6 +209,8 @@ class Template:
         self, modname: str, directory: Path, params: dict[str, str] | None = None
     ) -> None:
         env = _get_jinja_env()
+        files = 0  # debuglog
+        templated = 0  # debuglog
         for path, content in self._read_files():
             rendered = Path(env.from_string(str(path)).render(params))
             local = rendered.relative_to(self.path)
@@ -191,6 +219,7 @@ class Template:
                 local = local.with_suffix("")
             dest = Path(directory) / modname / local
             dest.parent.mkdir(parents=True, exist_ok=True)
+            files += 1  # debuglog
 
             with dest.open("wb") as f:
                 if ext not in (
@@ -208,3 +237,11 @@ class Template:
                         f, encoding="utf-8"
                     )
                     f.write(b"\n")
+                    templated += 1  # debuglog
+        _debug.pipeline(
+            "cli.scaffold.rendered",
+            module=modname,
+            template=self.id,
+            files=files,
+            templated=templated,
+        )

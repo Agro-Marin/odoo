@@ -22,11 +22,13 @@ _debug = DebugLog(__name__)
 
 def warn_running_as_root() -> None:
     if os.name == "posix" and os.getuid() == 0:
+        _debug.logic("cli.server.running_as_root")
         sys.stderr.write("Running as user 'root' is a security risk.\n")
 
 
 def check_db_user_not_postgres() -> None:
     if (config["db_user"] or os.environ.get("PGUSER")) == "postgres":
+        _debug.logic("cli.server.refused", reason="postgres_db_user")
         sys.stderr.write(
             "Using the database user 'postgres' is a security risk, aborting.\n"
         )
@@ -50,6 +52,16 @@ def report_configuration() -> None:
     _logger.info("database: %s@%s:%s", user, host, port)
     replica_host = config["db_replica_host"]
     replica_port = config["db_replica_port"]
+    _debug.pipeline(
+        "cli.server.configured",
+        config_file=Path(config["config"]).is_file(),
+        addons_paths=len(odoo.addons.__path__),
+        db_names=len(config["db_name"]),
+        db_host=host,
+        replica=bool(replica_host or replica_port),
+        upgrade_path=bool(config.get("upgrade_path")),
+        dev_mode=len(config["dev_mode"]),
+    )
     if replica_host or replica_port or "replica" in config["dev_mode"]:
         _logger.info(
             "replica database: %s@%s:%s",
@@ -69,22 +81,28 @@ def remove_pid_file(main_pid: int) -> None:
     if config["pidfile"] and main_pid == os.getpid():
         with contextlib.suppress(OSError):
             Path(config["pidfile"]).unlink()
+            _debug.lifecycle(
+                "cli.server.pid_removed", pid=main_pid, path=config["pidfile"]
+            )
 
 
 def write_pid_file() -> None:
     # Reload candidates are children of the persistent supervisor. They must
     # neither replace its PID file nor register cleanup that removes it.
     if int(os.environ.get("ODOO_RELOAD_SUPERVISOR_PID", "0")):
+        _debug.logic("cli.server.pid_skipped", reason="reload_candidate")
         return
     if not odoo.evented and config["pidfile"]:
         pid = os.getpid()
         Path(config["pidfile"]).write_text(str(pid), encoding="utf-8")
         atexit.register(remove_pid_file, pid)
+        _debug.lifecycle("cli.server.pid_written", pid=pid, path=config["pidfile"])
 
 
 def run_server(args: list[str]) -> None:
     warn_running_as_root()
-    config.parse_config(args, setup_logging=True)
+    with _debug.perf("cli.config.parse", command="server", args=len(args)):
+        config.parse_config(args, setup_logging=True)
     check_db_user_not_postgres()
     report_configuration()
 
@@ -99,17 +117,29 @@ def run_server(args: list[str]) -> None:
 
     for db_name in config["db_name"]:
         try:
-            db._create_empty_database(db_name)
+            with _debug.perf("cli.server.create_empty_database", db=db_name):
+                db._create_empty_database(db_name)
             config["init"]["base"] = True
+            _debug.lifecycle("cli.server.database_created", db=db_name, init_base=True)
         except InsufficientPrivilege as err:
+            _debug.logic(
+                "cli.server.database_probe", db=db_name, outcome="no_privilege"
+            )
             _logger.info(
                 "Could not determine if database %s exists, skipping auto-creation: %s",
                 db_name,
                 err,
             )
         except db.DatabaseExists:
+            _debug.logic("cli.server.database_probe", db=db_name, outcome="exists")
             pass
         except Exception as err:
+            _debug.logic(
+                "cli.server.database_probe",
+                db=db_name,
+                outcome="create_failed",
+                error=type(err).__name__,
+            )
             sys.exit(f"Could not create database {db_name!r}. ({err})")
 
     stop = config["stop_after_init"]
@@ -117,12 +147,17 @@ def run_server(args: list[str]) -> None:
     write_pid_file()
     _debug.lifecycle(
         "cli.server.start",
+        pid=os.getpid(),
         databases=len(config["db_name"]),
         stop_after_init=stop,
         workers=config["workers"],
+        evented=odoo.evented,
         test_enable=config["test_enable"],
+        init=len(config["init"]),
+        update=len(config["update"]),
     )
-    rc = server.start(preload=config["db_name"], stop=stop)
+    with _debug.perf("cli.server.run", stop_after_init=stop):
+        rc = server.start(preload=config["db_name"], stop=stop)
     _debug.lifecycle("cli.server.exit", rc=rc)
     sys.exit(rc)
 

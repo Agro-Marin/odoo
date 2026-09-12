@@ -1,8 +1,11 @@
 import sys
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import cloc
 
 from . import DatabaseCommand
+
+_debug = DebugLog(__name__)
 
 
 class Cloc(DatabaseCommand):
@@ -35,13 +38,22 @@ class Cloc(DatabaseCommand):
         opt, unknown = self.parse_args(args)
         counter = cloc.Cloc()
 
+        _debug.logic(
+            "cli.cloc.mode",
+            database=bool(opt.db_name),
+            paths=len(opt.path) if opt.path else 0,
+            verbose=opt.verbose,
+        )
         if opt.db_name or not opt.path:
             db_name = self.bootstrap_config(opt, allow_none=True, extra_args=unknown)
             if db_name is None:
+                _debug.logic("cli.cloc.rejected", reason="no_database_no_path")
                 self.parser.print_help(sys.stderr)
                 sys.exit(2)
-            counter.count_database(db_name)
+            with _debug.perf("cli.cloc.count_database", db=db_name):
+                counter.count_database(db_name)
         if opt.path:
             for path in dict.fromkeys(opt.path):
-                counter.count_path(path)
+                with _debug.perf("cli.cloc.count_path", path=path):
+                    counter.count_path(path)
         print(counter.report(opt.verbose))

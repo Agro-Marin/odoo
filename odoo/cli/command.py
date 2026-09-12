@@ -56,12 +56,14 @@ def get_single_database(
     if not db_names:
         if allow_none:
             return None
+        _debug.logic("cli.database.rejected", reason="none")
         error_handler(
             "No database specified. Use -d/--database or set db_name in the config file."
         )
         return None
 
     if len(db_names) > 1:
+        _debug.logic("cli.database.rejected", reason="multiple", count=len(db_names))
         error_handler(
             f"Multiple databases configured ({db_names}); "
             "please provide a single one via -d/--database."
@@ -70,6 +72,7 @@ def get_single_database(
 
     db_name = db_names[0]
     if is_maintenance_db(db_name):
+        _debug.logic("cli.database.rejected", reason="maintenance", db=db_name)
         error_handler(MAINTENANCE_DB_MESSAGE.format(db_name=db_name))
         return None
 
@@ -84,6 +87,7 @@ def check_db_not_maintenance(
     if error_handler is None:
         error_handler = sys.exit
     if is_maintenance_db(db_name):
+        _debug.logic("cli.database.rejected", reason="maintenance", db=db_name)
         error_handler(MAINTENANCE_DB_MESSAGE.format(db_name=db_name))
 
 
@@ -113,10 +117,13 @@ def open_environment(
         uid=uid,
         new_registry=new_registry,
     )
-    with registry_cls(db_name).cursor(readonly=readonly) as cr:
+    with _debug.perf("cli.registry", db=db_name, new_registry=new_registry):
+        registry = registry_cls(db_name)
+    with registry.cursor(readonly=readonly) as cr:
         env = Environment(cr, uid, context)
         env.transaction.default_env = env
-        yield env
+        with _debug.perf("cli.environment", cr=cr, db=db_name, readonly=readonly):
+            yield env
 
 
 class Command:
@@ -151,6 +158,12 @@ class Command:
                 "`run(self, args: list[str]) -> None`"
             )
         if cls.name in commands:
+            _debug.logic(
+                "cli.command.redefined",
+                name=cls.name,
+                was=commands[cls.name].__module__,
+                now=cls.__module__,
+            )
             _logger.warning(
                 "Command %r redefined: was %s, now %s (second registration wins)",
                 cls.name,
@@ -158,6 +171,7 @@ class Command:
                 cls.__module__,
             )
         commands[cls.name] = cls
+        _debug.lifecycle("cli.command.registered", name=cls.name, module=cls.__module__)
 
     @property
     def prog(self) -> str:
@@ -172,6 +186,7 @@ class Command:
                 description=cleandoc(self.description or self.__doc__ or ""),
                 epilog=cleandoc(self.epilog or ""),
             )
+            _debug.lifecycle("cli.parser.built", command=self.name)
         return self._parser
 
     @classmethod
@@ -242,7 +257,16 @@ class DatabaseCommand(Command, register=False):
             parsed_args.db_name,
             extra_args=forwarded or None,
         )
-        config.parse_config(config_args, setup_logging=True)
+        with _debug.perf("cli.config.parse", command=self.name, args=len(config_args)):
+            config.parse_config(config_args, setup_logging=True)
+        _debug.pipeline(
+            "cli.config.bootstrapped",
+            command=self.name,
+            config_file=bool(parsed_args.config),
+            db=parsed_args.db_name,
+            data_dir=bool(getattr(parsed_args, "data_dir", None)),
+            forwarded=len(forwarded),
+        )
         return self.get_configured_database(parsed_args, allow_none=allow_none)
 
     def get_configured_database(
@@ -267,12 +291,16 @@ def load_internal_commands() -> None:
             if module.suffix != ".py" or module.stem.startswith("_"):
                 continue
             __import__(f"odoo.cli.{module.stem}")
+    _debug.pipeline("cli.commands.internal_loaded", registered=len(commands))
 
 
 def load_addons_commands(command: str | None = None) -> None:
     if command is None:
         command = "*"
     elif not Command.is_valid_name(command):
+        _debug.logic(
+            "cli.commands.addons_skipped", command=command, reason="invalid_name"
+        )
         return
 
     mapping: dict[str, Path] = {}
@@ -284,6 +312,12 @@ def load_addons_commands(command: str | None = None) -> None:
                 continue
             fq_name = f"odoo.cli.{found_command}"
             if fq_name in mapping:
+                _debug.logic(
+                    "cli.commands.addon_shadowed",
+                    command=found_command,
+                    winner=str(fullpath),
+                    loser=str(mapping[fq_name]),
+                )
                 _logger.warning(
                     "Addon CLI command %r is defined in multiple addons: "
                     "%s shadows %s (iteration order is not guaranteed)",
@@ -292,18 +326,36 @@ def load_addons_commands(command: str | None = None) -> None:
                     mapping[fq_name],
                 )
             mapping[fq_name] = fullpath
+    _debug.pipeline(
+        "cli.commands.addons_discovered",
+        command=command,
+        found=len(mapping),
+        addons_paths=len(odoo.addons.__path__),
+    )
 
     for fq_name, fullpath in mapping.items():
         try:
-            load_script(str(fullpath), fq_name)
+            with _debug.perf(
+                "cli.commands.addon_load", name=fq_name, path=str(fullpath)
+            ):
+                load_script(str(fullpath), fq_name)
         except ImportError as e:
+            _debug.logic(
+                "cli.commands.addon_load_failed", name=fq_name, reason="import"
+            )
             _logger.debug("Could not load CLI command %s: %s", fq_name, e)
         except Exception as e:
+            _debug.logic(
+                "cli.commands.addon_load_failed", name=fq_name, reason=type(e).__name__
+            )
             _logger.warning("Failed to load CLI command %s: %s", fq_name, e)
 
 
 def get_cli_command(name: str) -> type[Command] | None:
     if not Command.is_valid_name(name):
+        _debug.logic(
+            "cli.command.resolved", name=name, found=False, reason="invalid_name"
+        )
         return None
 
     if name not in commands:
@@ -313,8 +365,10 @@ def get_cli_command(name: str) -> type[Command] | None:
         except ModuleNotFoundError as e:
             if e.name != expected_module:
                 raise
+            _debug.logic("cli.command.internal_missing", name=name)
         load_addons_commands(command=name)
 
+    _debug.logic("cli.command.resolved", name=name, found=name in commands)
     return commands.get(name)
 
 
@@ -329,6 +383,7 @@ def _select_run_mode() -> None:
         return
     sys.argv.remove("evented")
     odoo.evented = True
+    _debug.lifecycle("cli.evented_mode", enabled=True)
 
 
 def main() -> None:
@@ -358,8 +413,10 @@ def main() -> None:
         addons_path=bootstrap.addons_path is not None,
     )
     if command := get_cli_command(command_name):
-        command().run(args)
+        with _debug.perf("cli.command.run", command=command_name):
+            command().run(args)
     else:
+        _debug.logic("cli.command.unknown", command=command_name)
         sys.exit(
             f"Unknown command {command_name!r}.\n"
             f"Use '{PROG_NAME} --help' to see the list of available commands."
