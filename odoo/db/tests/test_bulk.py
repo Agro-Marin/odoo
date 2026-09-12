@@ -110,6 +110,9 @@ class _FakeCursorForCopyMetrics(_BulkAccessMixin):
     def _statement_failed(self, *args, **kwargs):
         return False
 
+    def _record_sql_log(self, query_type, table, delay):
+        pass
+
 
 class TestCopyFromMetrics(unittest.TestCase):
     def test_reports_the_actual_row_count_not_a_fixed_one(self):

@@ -3,6 +3,7 @@ import os
 import threading
 import unittest
 from time import monotonic
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from psycopg_pool import PoolTimeout
@@ -142,6 +143,7 @@ class TestSemaphoreAccounting(unittest.TestCase):
 
         class Conn:
             closed = False
+            info = SimpleNamespace(dsn="dbname=x")
 
             def close(self):
                 type(self).closed = True
@@ -159,6 +161,7 @@ class TestSemaphoreAccounting(unittest.TestCase):
 
         class Conn:
             closed = False
+            info = SimpleNamespace(dsn="dbname=x")
 
             def __init__(self):
                 self._odoo_pool = _DIRECT_CONNECTION
