@@ -3,7 +3,7 @@ from datetime import datetime
 from itertools import starmap
 from random import randint
 
-from odoo import fields, tools
+from odoo import fields, models, tools
 from odoo.fields import Command
 from odoo.tests import Form
 
@@ -1322,6 +1322,11 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                         else "not_reconciled"
                     )
             account_move_line_ids = account_move.line_ids.filtered(line_ids_predicate)
+            account_move_line_ids, line_ids, reconciliation_statuses = (
+                self._align_lines_for_comparison(
+                    account_move_line_ids, line_ids, reconciliation_statuses
+                )
+            )
             self.assertRecordValues(account_move_line_ids, line_ids)
             self.assertRecordValues(account_move, [expected_account_move_vals])
 
@@ -1343,6 +1348,39 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                     self.assertFalse(line.reconciled)
         else:
             self.assertFalse(account_move)
+
+    @staticmethod
+    def _comparison_key(value):
+        if isinstance(value, models.BaseModel):
+            value = value.id if len(value) <= 1 else sorted(value.ids)
+        if value is None:
+            return "False"
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, int | float):
+            return f"{float(value):.6f}"
+        return str(value)
+
+    def _align_lines_for_comparison(self, lines, expected_lines, statuses):
+        if not expected_lines:
+            return lines, expected_lines, statuses
+        field_names = list(expected_lines[0])
+
+        def expected_key(index):
+            return tuple(
+                self._comparison_key(expected_lines[index].get(name))
+                for name in field_names
+            )
+
+        def line_key(line):
+            return tuple(self._comparison_key(line[name]) for name in field_names)
+
+        order = sorted(range(len(expected_lines)), key=expected_key)
+        return (
+            lines.sorted(line_key),
+            [expected_lines[index] for index in order],
+            [statuses[index] for index in order],
+        )
 
     def make_payment(self, order, payment_method, amount):
         payment_context = {"active_id": order.id, "active_ids": order.ids}

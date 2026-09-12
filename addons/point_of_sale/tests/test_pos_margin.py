@@ -24,6 +24,9 @@ class TestPosMargin(TestPoSCommon):
         self.supplier_location = self.env.ref("stock.stock_location_suppliers")
         self.uom_unit = self.env.ref("uom.product_uom_unit")
 
+    def _synced_orders(self):
+        return self.pos_session.order_ids.sorted("id")
+
     def test_positive_margin(self):
 
         product1 = self.create_product("Product 1", self.categ_basic, 10, 5)
@@ -39,13 +42,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 5)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 20)
-        self.assertEqual(self.pos_session.order_ids[2].margin, 50)
+        self.assertEqual(self._synced_orders()[0].margin, 5)
+        self.assertEqual(self._synced_orders()[1].margin, 20)
+        self.assertEqual(self._synced_orders()[2].margin, 50)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.4)
-        self.assertEqual(round(self.pos_session.order_ids[2].margin_percent, 2), 0.42)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.5)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.4)
+        self.assertEqual(round(self._synced_orders()[2].margin_percent, 2), 0.42)
 
         self.pos_session.action_pos_session_validate()
 
@@ -64,13 +67,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, -5)
-        self.assertEqual(self.pos_session.order_ids[1].margin, -50)
-        self.assertEqual(self.pos_session.order_ids[2].margin, -110)
+        self.assertEqual(self._synced_orders()[0].margin, -5)
+        self.assertEqual(self._synced_orders()[1].margin, -50)
+        self.assertEqual(self._synced_orders()[2].margin, -110)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, -0.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, -1)
-        self.assertEqual(round(self.pos_session.order_ids[2].margin_percent, 2), -0.92)
+        self.assertEqual(self._synced_orders()[0].margin_percent, -0.5)
+        self.assertEqual(self._synced_orders()[1].margin_percent, -1)
+        self.assertEqual(round(self._synced_orders()[2].margin_percent, 2), -0.92)
 
         self.pos_session.action_pos_session_validate()
 
@@ -89,13 +92,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 10)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 50)
-        self.assertEqual(self.pos_session.order_ids[2].margin, 120)
+        self.assertEqual(self._synced_orders()[0].margin, 10)
+        self.assertEqual(self._synced_orders()[1].margin, 50)
+        self.assertEqual(self._synced_orders()[2].margin, 120)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 1)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 1)
-        self.assertEqual(self.pos_session.order_ids[2].margin_percent, 1)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 1)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 1)
+        self.assertEqual(self._synced_orders()[2].margin_percent, 1)
 
         self.pos_session.action_pos_session_validate()
 
@@ -118,13 +121,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 5)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 20)
-        self.assertEqual(self.pos_session.order_ids[2].margin, 50)
+        self.assertEqual(self._synced_orders()[0].margin, 5)
+        self.assertEqual(self._synced_orders()[1].margin, 20)
+        self.assertEqual(self._synced_orders()[2].margin, 50)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.4)
-        self.assertEqual(round(self.pos_session.order_ids[2].margin_percent, 2), 0.42)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.5)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.4)
+        self.assertEqual(round(self._synced_orders()[2].margin_percent, 2), 0.42)
 
         self.pos_session.action_pos_session_validate()
 
@@ -146,13 +149,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 2.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 10)
-        self.assertEqual(self.pos_session.order_ids[2].margin, 25)
+        self.assertEqual(self._synced_orders()[0].margin, 2.5)
+        self.assertEqual(self._synced_orders()[1].margin, 10)
+        self.assertEqual(self._synced_orders()[2].margin, 25)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.4)
-        self.assertEqual(round(self.pos_session.order_ids[2].margin_percent, 2), 0.42)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.5)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.4)
+        self.assertEqual(round(self._synced_orders()[2].margin_percent, 2), 0.42)
 
         self.pos_session.action_pos_session_validate()
 
@@ -180,13 +183,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 2.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 10)
-        self.assertEqual(self.pos_session.order_ids[2].margin, 25)
+        self.assertEqual(self._synced_orders()[0].margin, 2.5)
+        self.assertEqual(self._synced_orders()[1].margin, 10)
+        self.assertEqual(self._synced_orders()[2].margin, 25)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.4)
-        self.assertEqual(self.pos_session.order_ids[2].margin_percent, 0.4167)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.5)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.4)
+        self.assertEqual(self._synced_orders()[2].margin_percent, 0.4167)
 
         self.pos_session.action_pos_session_validate()
 
@@ -207,13 +210,13 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, -5)
-        self.assertEqual(self.pos_session.order_ids[1].margin, -20)
-        self.assertEqual(self.pos_session.order_ids[2].margin, -50)
+        self.assertEqual(self._synced_orders()[0].margin, -5)
+        self.assertEqual(self._synced_orders()[1].margin, -20)
+        self.assertEqual(self._synced_orders()[2].margin, -50)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.5)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.4)
-        self.assertEqual(round(self.pos_session.order_ids[2].margin_percent, 2), 0.42)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.5)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.4)
+        self.assertEqual(round(self._synced_orders()[2].margin_percent, 2), 0.42)
 
         self.pos_session.action_pos_session_validate()
 
@@ -273,11 +276,11 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 27)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 10)
+        self.assertEqual(self._synced_orders()[0].margin, 27)
+        self.assertEqual(self._synced_orders()[1].margin, 10)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.45)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.5)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.45)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.5)
 
         self.pos_session.action_pos_session_validate()
 
@@ -339,11 +342,11 @@ class TestPosMargin(TestPoSCommon):
 
         self.env["pos.order"].sync_from_ui(orders)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 0)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 0)
+        self.assertEqual(self._synced_orders()[0].margin, 0)
+        self.assertEqual(self._synced_orders()[1].margin, 0)
 
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0)
 
         total_cash_payment = sum(
             self.pos_session.mapped("order_ids.payment_ids")
@@ -353,10 +356,10 @@ class TestPosMargin(TestPoSCommon):
         self.pos_session.update_closing_cash_details(total_cash_payment)
         self.pos_session.close_session_from_ui()
 
-        self.assertEqual(self.pos_session.order_ids[0].margin, 26)
-        self.assertEqual(self.pos_session.order_ids[1].margin, 12)
+        self.assertEqual(self._synced_orders()[0].margin, 26)
+        self.assertEqual(self._synced_orders()[1].margin, 12)
 
-        self.assertEqual(self.pos_session.order_ids[0].margin_percent, 0.4333)
-        self.assertEqual(self.pos_session.order_ids[1].margin_percent, 0.6)
+        self.assertEqual(self._synced_orders()[0].margin_percent, 0.4333)
+        self.assertEqual(self._synced_orders()[1].margin_percent, 0.6)
 
         self.env.company.point_of_sale_update_stock_quantities = "real"
