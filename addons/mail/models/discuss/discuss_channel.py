@@ -15,6 +15,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.colors import get_hsl_from_seed
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 from odoo.tools import email_normalize, format_list
 from odoo.tools.misc import OrderedSet, hash_sign
@@ -36,6 +37,8 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.res_users import ResUsers
     from odoo.addons.bus.models.ir_attachment import IrAttachment
     from odoo.addons.bus.models.res_groups import ResGroups
+
+_debug = DebugLog(__name__)
 
 
 def format_sql_in_literals(values: list[str]) -> str:
@@ -455,6 +458,12 @@ class DiscussChannel(models.Model):
             ),
         ).create(vals_list)
         channels = channels.with_context(mail_create_bypass_create_check=None)
+        _debug.lifecycle(
+            "create",
+            channels=channels.ids,
+            types=sorted({vals.get("channel_type") or "" for vals in vals_list}),
+            members=sum(len(vals["channel_member_ids"]) for vals in vals_list),
+        )
         channels._subscribe_users_automatically()
         if not self.env.context.get("install_mode") and not self.env.user._is_public():
             Store(bus_channel=self.env.user).add(channels).bus_send()
@@ -467,6 +476,13 @@ class DiscussChannel(models.Model):
             targets |= self.sudo().sub_channel_ids
         sync_field_names, old_vals = self._prepare_sync_snapshot(vals, targets)
         result = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            channels=self.ids,
+            fields=list(vals),
+            targets=len(targets),
+            synced=sorted(str(name) for name in sync_field_names),
+        )
         self._notify_sync_diffs(sync_field_names, old_vals)
         if vals.get("group_ids"):
             self._subscribe_users_automatically()
@@ -858,6 +874,14 @@ class DiscussChannel(models.Model):
         )
         domain = self._get_domain_notification_member(pids, author_id)
         members = self.env["discuss.channel.member"].sudo().search(domain)
+        _debug.logic(
+            "channel_recipients",
+            channel=self.id,
+            message=message.id,
+            message_type=message_type,
+            mentioned=len(recipients_data),
+            members=len(members),
+        )
         recipients_data.extend(
             prepare_recipient_data(
                 partner_id=member.partner_id.id,
@@ -970,6 +994,13 @@ class DiscussChannel(models.Model):
             payload["temporary_id"] = temporary_id
         if kwargs.get("silent"):
             payload["silent"] = True
+        _debug.pipeline(
+            "new_message_broadcast",
+            channel=self.id,
+            message=message.id,
+            silent=bool(kwargs.get("silent")),
+            temporary=bool(temporary_id),
+        )
         self._bus_send("discuss.channel/new_message", payload)
         return rdata
 
@@ -1080,6 +1111,11 @@ class DiscussChannel(models.Model):
         if message_type not in ["notification", "user_notification"]:
             self.sudo().last_interest_dt = fields.Datetime.now()
         if "everyone" in kwargs.pop("special_mentions", []):
+            _debug.logic(
+                "mention_everyone",
+                channel=self.id,
+                members=len(self.channel_member_ids),
+            )
             partner_ids = list(
                 OrderedSet((partner_ids or []) + self.channel_member_ids.partner_id.ids)
             )
@@ -1119,6 +1155,13 @@ class DiscussChannel(models.Model):
                 to_invite |= (message.partner_ids - members.partner_id).filtered(
                     self._partner_wants_channel_notifications
                 )
+            _debug.logic(
+                "sub_channel_mentions_invited",
+                channel=self.id,
+                parent=self.parent_channel_id.id,
+                mentioned=len(message.partner_ids),
+                invited=len(to_invite),
+            )
             self._add_members(partners=to_invite)
         return super()._message_post_after_hook(message, msg_vals)
 
@@ -1214,7 +1257,11 @@ class DiscussChannel(models.Model):
             ]
         )
         if not message_to_update:
+            _debug.logic("pin_noop", channel=self.id, message=message_id, pinned=pinned)
             return
+        _debug.lifecycle(
+            "message_pinned", channel=self.id, message=message_id, pinned=pinned
+        )
         message_to_update.flush_recordset(["pinned_at"])
         self.env.cr.execute(
             "UPDATE mail_message SET pinned_at=%s WHERE id=%s",
@@ -1277,6 +1324,14 @@ class DiscussChannel(models.Model):
         )
         if not member:
             return
+        _debug.lifecycle(
+            "unfollow",
+            channel=self.id,
+            member=member.id,
+            partner=partner.id or None,
+            guest=guest.id or None,
+            narrated=post_leave_message and self._narrates_membership_changes(),
+        )
         if post_leave_message and self._narrates_membership_changes():
             notification = Markup(
                 '<div class="o_mail_notification" data-oe-type="channel-left">%s</div>'
@@ -1324,6 +1379,15 @@ class DiscussChannel(models.Model):
         existing_by_channel = self._get_existing_members_by_channel(partners, guests)
         all_new_members, new_members_by_channel = self._create_missing_members(
             partners, guests, existing_by_channel, create_member_params
+        )
+        _debug.lifecycle(
+            "members_added",
+            channels=self.ids,
+            partners=len(partners),
+            guests=len(guests),
+            created=len(all_new_members),
+            invite_to_call=invite_to_rtc_call,
+            post_joined=post_joined_message,
         )
         for channel in self:
             new_members = new_members_by_channel[channel]
@@ -1433,6 +1497,7 @@ class DiscussChannel(models.Model):
         by_channel = defaultdict(lambda: Member)
         all_created = Member
         for as_sudo, vals in vals_by_sudo.items():
+            _debug.logic("members_created_as", sudo=as_sudo, count=len(vals))
             created = (Member.sudo() if as_sudo else Member).create(vals)
             all_created += created
             for channel, member in zip(channels_by_sudo[as_sudo], created, strict=True):
@@ -1499,6 +1564,9 @@ class DiscussChannel(models.Model):
             )
         to_create = self._prepare_invitation_mail_vals(
             self._get_uninvited_emails(emails)
+        )
+        _debug.lifecycle(
+            "invited_by_email", channel=self.id, asked=len(emails), mails=len(to_create)
         )
         if not to_create:
             return
@@ -1590,6 +1658,12 @@ class DiscussChannel(models.Model):
             for partner_id in new_members_to_create[channel_id]
         ]
         new_members = self.env["discuss.channel.member"].sudo().create(to_create)
+        _debug.lifecycle(
+            "auto_subscribed",
+            channels=list(new_members_to_create),
+            members=len(new_members),
+            by="partners" if partners is not None else "groups",
+        )
         notifications = defaultdict(lambda: self.env["discuss.channel.member"])
         for member in new_members:
             bus_channel = member._bus_channel()
@@ -1716,6 +1790,9 @@ class DiscussChannel(models.Model):
     def channel_pin(self, pinned: bool = False) -> None:
         self.check_singleton()
         member = self.self_member_id.filtered(lambda m: m.is_pinned != pinned)
+        _debug.lifecycle(
+            "channel_pin", channel=self.id, pinned=pinned, changed=bool(member)
+        )
         if member:
             member.write({"unpin_dt": False if pinned else fields.Datetime.now()})
         if not pinned:
@@ -1764,6 +1841,13 @@ class DiscussChannel(models.Model):
             ([member.id for member, _ in outdated], [mid for _, mid in outdated]),
         )
         fetched_by_member_id = dict(self.env.cr.fetchall())
+        _debug.pipeline(
+            "channel_fetched",
+            channels=len(channels),
+            members=len(members),
+            outdated=len(outdated),
+            updated=len(fetched_by_member_id),
+        )
         if not fetched_by_member_id:
             return
         members.invalidate_recordset(["fetched_message_id"])
@@ -1970,6 +2054,12 @@ class DiscussChannel(models.Model):
         result = self.env.cr.dictfetchall()
         now = fields.Datetime.now()
         last_interest_dt = now - timedelta(seconds=1)
+        _debug.logic(
+            "chat_resolved",
+            partners=len(partners),
+            channel=result[0].get("channel_id") if result else None,
+            pin=pin,
+        )
         if result:
             channel = self.browse(result[0].get("channel_id"))
             if pin:
@@ -2072,6 +2162,13 @@ class DiscussChannel(models.Model):
         )
         partners.main_user_id.fetch(["partner_id", "share"])
         all_members.guest_id.sudo().fetch(["im_status", "name", "write_date"])
+        _debug.perf.count(
+            "store_members_prefetched",
+            channels=len(self),
+            full=len(channels_with_all_members),
+            members=len(all_members),
+            partners=len(partners),
+        )
 
     def _to_store_defaults_for_self(self) -> list[StoreFieldSpec]:
         bus_last_id = self.env["bus.bus"].sudo()._bus_last_id()

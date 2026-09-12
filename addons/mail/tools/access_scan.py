@@ -11,11 +11,14 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import Query
 
 if typing.TYPE_CHECKING:
     from odoo import models
     from odoo.api import DomainType
+
+_debug = DebugLog(__name__)
 
 
 def prepare_document_access_error(
@@ -71,6 +74,7 @@ def get_accessible_ids(
     ordered: list[int] = []
     seen: set[int] = set()
     sql_offset = 0
+    passes = 0  # debuglog
     while True:
         query = base_search(
             domain, offset=sql_offset, limit=chunk, order=scan_order, **kwargs
@@ -85,10 +89,20 @@ def get_accessible_ids(
 
         got = len(rows)
         sql_offset += got
+        passes += 1  # debuglog
         if target is None or len(ordered) >= target or got < chunk:
             break
         chunk = min(chunk * 2, chunk_max)
 
+    _debug.perf.count(
+        "access_scan",
+        model=model._name,
+        target=target,
+        passes=passes,
+        scanned=sql_offset,
+        allowed=len(ordered),
+        last_chunk=chunk,
+    )
     return ordered[offset:target]
 
 

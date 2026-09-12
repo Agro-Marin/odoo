@@ -1,6 +1,7 @@
 import typing
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
@@ -8,6 +9,8 @@ if typing.TYPE_CHECKING:
     from .mail_link_preview import MailLinkPreview
     from .mail_message import MailMessage
     from .res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MessageMailLinkPreview(models.Model):
@@ -34,6 +37,7 @@ class MessageMailLinkPreview(models.Model):
     def _hide_and_notify(self) -> None:
         if not self:
             return
+        _debug.lifecycle("hidden", previews=self.ids)
         self.is_hidden = True
         for message_link_preview in self:
             Store(bus_channel=message_link_preview._bus_channel()).delete(
@@ -43,6 +47,7 @@ class MessageMailLinkPreview(models.Model):
     def _unlink_and_notify(self) -> None:
         if not self:
             return
+        _debug.lifecycle("unlinked", previews=self.ids)
         for message_link_preview in self:
             Store(bus_channel=message_link_preview._bus_channel()).delete(
                 message_link_preview

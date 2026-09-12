@@ -7,11 +7,13 @@ import requests
 
 from odoo import SUPERUSER_ID, api, fields, release
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.models import AbstractModel
 from odoo.tools import cloc, config
 from odoo.tools.translate import _
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Publisher_WarrantyContract(AbstractModel):
@@ -119,8 +121,10 @@ class Publisher_WarrantyContract(AbstractModel):
     def update_notification(self, cron_mode: bool = True) -> bool:
         try:
             try:
-                result = self._get_sys_logs()
-            except Exception:
+                with _debug.perf("publisher_warranty_contacted", cron=cron_mode):
+                    result = self._get_sys_logs()
+            except Exception as error:
+                _debug.logic("publisher_warranty_failed", error=type(error).__name__)
                 if cron_mode:
                     return False
                 _logger.debug("Exception while sending a get logs messages", exc_info=1)
@@ -130,6 +134,12 @@ class Publisher_WarrantyContract(AbstractModel):
             user = self.env["res.users"].sudo().browse(SUPERUSER_ID)
             poster = self.sudo().env.ref(
                 "mail.channel_all_employees", raise_if_not_found=False
+            )
+            _debug.pipeline(
+                "update_notification",
+                messages=len(result.get("messages", ())),
+                poster=poster.id if poster else None,
+                enterprise_info=bool(result.get("enterprise_info")),
             )
             for message in result.get("messages", ()) if poster else ():
                 with contextlib.suppress(Exception):

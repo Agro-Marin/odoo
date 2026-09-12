@@ -5,10 +5,13 @@ from typing import Literal
 from odoo import _, api, exceptions, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .mail_template import MailTemplate
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 
 class MailActivityType(models.Model):
@@ -167,6 +170,9 @@ class MailActivityType(models.Model):
                 ):
                     modified += activity_type
             if modified:
+                _debug.logic(
+                    "write_refused", types=modified.ids, reason="res_model_protected"
+                )
                 raise exceptions.UserError(
                     _(
                         "You cannot modify %(activities_names)s target model as they are are required in various apps.",
@@ -205,9 +211,14 @@ class MailActivityType(models.Model):
 
     def unlink(self) -> Literal[True]:
         todo_type = self.env.ref("mail.mail_activity_data_todo")
-        self.env["mail.activity"].sudo().with_context(active_test=False).search(
-            [("activity_type_id", "in", self.ids)]
-        ).write(
+        orphaned = (
+            self.env["mail.activity"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([("activity_type_id", "in", self.ids)])
+        )
+        _debug.lifecycle("unlink", types=self.ids, activities_retyped=len(orphaned))
+        orphaned.write(
             {
                 "activity_type_id": todo_type.id,
             }

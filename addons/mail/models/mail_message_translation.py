@@ -3,9 +3,12 @@ import typing
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
+
+_debug = DebugLog(__name__)
 
 
 class MailMessageTranslation(models.Model):
@@ -38,4 +41,6 @@ class MailMessageTranslation(models.Model):
     @api.autovacuum
     def _gc_translations(self) -> None:
         treshold = fields.Datetime().now() - relativedelta(weeks=2)
-        self.search([("create_date", "<", treshold)]).unlink()
+        stale = self.search([("create_date", "<", treshold)])
+        _debug.lifecycle("gc_translations", removed=len(stale))
+        stale.unlink()

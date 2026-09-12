@@ -3,9 +3,12 @@ from typing import Literal, Self
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.base import SuggestionSources
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailThreadCc(models.AbstractModel):
@@ -47,6 +50,13 @@ class MixinMailThreadCc(models.AbstractModel):
         new_cc = self._mail_cc_sanitized_raw_dict(msg_dict.get("cc"))
         if new_cc:
             old_cc = self._mail_cc_sanitized_raw_dict(self.email_cc)
+            _debug.logic(
+                "cc_merged",
+                model=self._name,
+                records=self.ids,
+                new=len(new_cc),
+                old=len(old_cc),
+            )
             new_cc.update(old_cc)
             cc_values["email_cc"] = ", ".join(new_cc.values())
         cc_values.update(update_vals)

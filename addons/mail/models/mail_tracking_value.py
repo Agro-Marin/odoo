@@ -6,6 +6,7 @@ from typing import Any, Literal, Self
 
 from odoo import api, fields, models
 from odoo.exceptions import MissingError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
@@ -16,6 +17,7 @@ if typing.TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _tracking_sort_key(
@@ -81,7 +83,15 @@ class MailTrackingValue(models.Model):
                 model._has_field_access(model_field, "read") if model_field else False
             )
 
-        return self.filtered(has_field_access)
+        accessible = self.filtered(has_field_access)
+        if _debug.logic.enabled and len(accessible) != len(self):
+            _debug.logic(
+                "tracking_values_hidden",
+                asked=len(self),
+                hidden=len(self) - len(accessible),
+                uid=env.uid,
+            )
+        return accessible
 
     def _filtered_free_field_access(self) -> Self:
         def has_free_access(tracking: MailTrackingValue) -> bool:
@@ -105,6 +115,7 @@ class MailTrackingValue(models.Model):
     ) -> dict:
         field = self.env["ir.model.fields"]._get(record._name, col_name)
         if not field:
+            _debug.logic("tracking_field_unknown", model=record._name, field=col_name)
             raise ValueError(f"Unknown field {col_name} on model {record._name}")
 
         col_type = col_info["type"]
@@ -261,6 +272,9 @@ class MailTrackingValue(models.Model):
         formatted = []
         for model, ids in model_ids.items():
             formatted += self.browse(ids)._tracking_value_format_model(model)
+        _debug.perf.count(
+            "tracking_values_formatted", values=len(self), models=len(model_ids)
+        )
         return formatted
 
     def _tracking_value_format_model(self, model: str | Literal[False]) -> list:

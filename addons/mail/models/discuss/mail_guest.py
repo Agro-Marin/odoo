@@ -7,6 +7,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.http import Request, request
 from odoo.libs.datetime import all_timezones
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import consteq, get_lang
 from odoo.tools.misc import limited_field_access_token
 
@@ -17,6 +18,8 @@ if typing.TYPE_CHECKING:
     from ..mail_presence import MailPresence
     from .discuss_channel import DiscussChannel
     from odoo.addons.base.models.res_country import ResCountry
+
+_debug = DebugLog(__name__)
 
 
 class MailGuest(models.Model):
@@ -91,6 +94,7 @@ class MailGuest(models.Model):
                 or not guest.access_token
                 or not consteq(guest.access_token, guest_access_token)
             ):
+                _debug.logic("guest_token_rejected", guest=int(guest_id))
                 guest = self.env["mail.guest"]
         return guest.sudo(False)
 
@@ -115,6 +119,13 @@ class MailGuest(models.Model):
                     "timezone": timezone,
                 }
             )
+            _debug.lifecycle(
+                "guest_created",
+                guest=guest.id,
+                country=country_code,
+                timezone=timezone,
+                lang=guest.lang,
+            )
             guest._set_auth_cookie()
         return guest.sudo(False)
 
@@ -130,6 +141,7 @@ class MailGuest(models.Model):
         if len(name) > 512:
             raise UserError(_("Guest's name is too long."))
         self.name = name
+        _debug.lifecycle("guest_renamed", guest=self.id, channels=len(self.channel_ids))
         payload = Store(bus_channel=self).add(self, ["avatar_128", "name"]).get_result()
         if payload:
             targets = self.channel_ids
@@ -148,6 +160,12 @@ class MailGuest(models.Model):
             )
         """
         self.env.cr.execute(query, (timezone, self.id))
+        _debug.lifecycle(
+            "guest_timezone",
+            guest=self.id,
+            timezone=timezone,
+            updated=self.env.cr.rowcount,
+        )
         self.invalidate_recordset(["timezone"])
 
     def _get_im_status_access_token(self) -> str:

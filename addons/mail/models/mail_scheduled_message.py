@@ -10,6 +10,7 @@ from markupsafe import Markup
 from odoo import _, api, fields, models, modules
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
@@ -25,6 +26,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.ir_attachment import IrAttachment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailScheduledMessage(models.Model):
@@ -106,6 +108,12 @@ class MailScheduledMessage(models.Model):
                         "res_id": scheduled_message.id,
                     }
                 )
+        _debug.lifecycle(
+            "create",
+            count=len(scheduled_messages),
+            models=sorted({vals["model"] for vals in vals_list}),
+            dates=sorted(set(scheduled_messages.mapped("scheduled_date"))),
+        )
         if scheduled_messages:
             self.env.ref("mail.ir_cron_post_scheduled_message")._add_triggers(
                 set(scheduled_messages.mapped("scheduled_date"))
@@ -183,11 +191,18 @@ class MailScheduledMessage(models.Model):
             model: self._get_postable_ids(model, res_ids)
             for model, res_ids in model_ids.items()
         }
-        return self.browse(
+        forbidden = self.browse(
             scheduled_message.id
             for scheduled_message in self.sudo()
             if scheduled_message.res_id not in postable_ids[scheduled_message.model]
         )
+        _debug.logic(
+            "documents_checked",
+            asked=len(self),
+            models=len(model_ids),
+            forbidden=len(forbidden),
+        )
+        return forbidden
 
     def _check_access(self, operation: str) -> tuple | None:
         result = super()._check_access(operation)
@@ -209,6 +224,7 @@ class MailScheduledMessage(models.Model):
                 )
             )
         res = super().write(vals)
+        _debug.lifecycle("write", scheduled=self.ids, fields=list(vals))
         if new_scheduled_date := vals.get("scheduled_date"):
             self.env.ref("mail.ir_cron_post_scheduled_message")._trigger(
                 fields.Datetime.to_datetime(new_scheduled_date)
@@ -276,10 +292,24 @@ class MailScheduledMessage(models.Model):
                     )
                 )
                 scheduled_message._message_created_hook(message)
+                _debug.lifecycle(
+                    "posted",
+                    scheduled=scheduled_message.id,
+                    model=scheduled_message.model,
+                    record=scheduled_message.res_id,
+                    message=message.id,
+                    creator=message_creator.id,
+                )
                 scheduled_message.unlink()
                 if auto_commit:
                     self.env.cr.commit()
-            except Exception:
+            except Exception as error:
+                _debug.logic(
+                    "post_failed",
+                    scheduled=scheduled_message.id,
+                    error=type(error).__name__,
+                    raised=raise_exception,
+                )
                 if raise_exception:
                     raise
                 _logger.info(
@@ -348,6 +378,7 @@ class MailScheduledMessage(models.Model):
     def _post_messages_cron(self, limit: int = 50) -> None:
         domain = [("scheduled_date", "<=", fields.Datetime.now())]
         messages_to_post = self.search(domain, limit=limit)
+        _debug.pipeline("cron_pass", due=len(messages_to_post), limit=limit)
         _logger.info("Posting %s scheduled messages", len(messages_to_post))
         messages_to_post.with_context(mail_notify_force_send=True)._post_message(
             raise_exception=False

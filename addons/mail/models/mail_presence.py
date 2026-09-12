@@ -6,11 +6,14 @@ from psycopg.errors import UniqueViolation
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 from odoo.service.transaction import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
 
 if typing.TYPE_CHECKING:
     from .discuss.mail_guest import MailGuest
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 IM_STATUS_PRIORITY = ("online", "away", "busy")
 UPDATE_PRESENCE_DELAY = 60
@@ -55,6 +58,10 @@ class MailPresence(models.Model):
         status_by_presence = {presence: presence.status for presence in self}
         result = super().write(vals)
         updated = self.filtered(lambda p: status_by_presence[p] != p.status)
+        if _debug.lifecycle.enabled and updated:
+            _debug.lifecycle(
+                "status_changed", presences=updated.ids, status=vals.get("status")
+            )
         updated._send_presence()
         return result
 
@@ -97,6 +104,12 @@ class MailPresence(models.Model):
                 self._update_presence(user_or_guest, inactivity_period)
                 self.env.cr.commit()
         except PG_CONCURRENCY_EXCEPTIONS_TO_RETRY:
+            _debug.logic(
+                "presence_update_lost",
+                target_model=user_or_guest._name,
+                target=user_or_guest.id,
+                reason="concurrency",
+            )
             return self.env.cr.rollback()
 
     @api.model
@@ -120,6 +133,11 @@ class MailPresence(models.Model):
                 with self.env.cr.savepoint():
                     self.env["mail.presence"].sudo().create(values)
             except UniqueViolation:
+                _debug.logic(
+                    "presence_raced",
+                    target_model=user_or_guest._name,
+                    target=user_or_guest.id,
+                )
                 user_or_guest_sudo.invalidate_recordset(["presence_ids"])
                 user_or_guest_sudo.presence_ids.write(values)
 
@@ -158,7 +176,7 @@ class MailPresence(models.Model):
 
     @api.autovacuum
     def _gc_bus_presence(self) -> None:
-        self.search(
+        outdated = self.search(
             [
                 (
                     "last_poll",
@@ -166,4 +184,6 @@ class MailPresence(models.Model):
                     fields.Datetime.now() - timedelta(seconds=PRESENCE_OUTDATED_TIMER),
                 )
             ]
-        ).unlink()
+        )
+        _debug.lifecycle("gc_presence", removed=len(outdated))
+        outdated.unlink()

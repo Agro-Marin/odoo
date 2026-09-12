@@ -11,12 +11,15 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import is_html_empty, remove_accents
 
 if typing.TYPE_CHECKING:
     from .mail_alias_domain import MailAliasDomain
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.base.models.res_company import ResCompany
+
+_debug = DebugLog(__name__)
 
 atext = r"[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]"
 dot_atom_text = re.compile(r"^%s+(\.%s+)*$" % (atext, atext))
@@ -364,6 +367,12 @@ class MailAlias(models.Model):
                 for vals in prepared
             ]
         )
+        _debug.lifecycle(
+            "create",
+            count=len(prepared),
+            named=sum(1 for vals in prepared if vals["alias_name"]),
+            defaulted=defaults is not None,
+        )
         return super().create(prepared)
 
     def write(self, vals: ValuesType) -> Literal[True]:
@@ -371,6 +380,7 @@ class MailAlias(models.Model):
             vals
         ):
             vals = {**vals, "alias_status": "not_tested"}
+        _debug.lifecycle("write", aliases=self.ids, fields=list(vals))
 
         if "alias_name" in vals or "alias_domain_id" in vals:
             vals = dict(vals)
@@ -422,6 +432,7 @@ class MailAlias(models.Model):
             if wanted
             else {}
         )
+        _debug.logic("alias_domain_from_name", pending=len(pending), found=len(found))
         for vals, domain_part in pending:
             domain_name = sanitized[domain_part]
             if not domain_name:
@@ -464,6 +475,12 @@ class MailAlias(models.Model):
         if self:
             domain &= Domain("id", "not in", self.ids)
         if existing := self.sudo().search(domain, limit=1):
+            _debug.logic(
+                "alias_address_taken",
+                aliases=self.ids,
+                existing=existing.id,
+                name=existing.alias_name,
+            )
             self._alias_raise_address_taken(existing)
 
     def _alias_raise_address_taken(self, existing: Self) -> typing.NoReturn:
@@ -571,9 +588,11 @@ class MailAlias(models.Model):
     def _alias_mark_valid(self) -> None:
         for alias in self:
             if alias.alias_status != "valid":
+                _debug.lifecycle("alias_status", alias=alias.id, status="valid")
                 alias.sudo().alias_status = "valid"
 
     def _alias_mark_invalid(self) -> None:
+        _debug.lifecycle("alias_status", aliases=self.ids, status="invalid")
         self.sudo().alias_status = "invalid"
 
     def _alias_with_author_lang(self, message_dict: dict) -> Self:

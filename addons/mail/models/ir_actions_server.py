@@ -6,6 +6,7 @@ from typing import Literal, Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 FOLLOWER_STATES = frozenset({"followers", "remove_followers"})
@@ -25,6 +26,8 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.base.models.ir_model_fields import IrModelFields
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsServer(models.Model):
@@ -486,7 +489,16 @@ class IrActionsServer(models.Model):
         records = self._get_records_targeted().with_context(self._get_run_context())
         if not records:
             return
-        for partner_ids, batch in self._get_follower_batches(records).items():
+        batches = self._get_follower_batches(records)
+        _debug.pipeline(
+            "followers_action",
+            action=self.id,
+            subscribe=subscribe,
+            records=len(records),
+            batches=len(batches),
+            by=self.followers_type,
+        )
+        for partner_ids, batch in batches.items():
             if subscribe:
                 batch.message_subscribe(partner_ids=list(partner_ids))
             else:
@@ -529,6 +541,14 @@ class IrActionsServer(models.Model):
             pending |= records & self.env.get_records_to_compute(
                 records._fields[field_name]
             )
+        if _debug.logic.enabled and pending:
+            _debug.logic(
+                "recompute_pending",
+                action=self.id,
+                records=len(records),
+                pending=len(pending),
+                fields=sorted(field_names),
+            )
         return pending
 
     def _is_recompute(self) -> bool:
@@ -554,6 +574,13 @@ class IrActionsServer(models.Model):
             return False
 
         context = self._get_mail_post_context()
+        _debug.pipeline(
+            "mail_post_action",
+            action=self.id,
+            template=self.template_id.id,
+            records=len(records),
+            method=self.mail_post_method,
+        )
         if subtype_xmlid := POST_SUBTYPE_XMLIDS.get(self.mail_post_method):
             self._post_template_on(
                 records.with_context(context),
@@ -594,7 +621,16 @@ class IrActionsServer(models.Model):
             "summary": self.activity_summary or "",
             "note": self.activity_note or "",
         }
-        for user, batch in self._get_activity_assignees(records):
+        assignees = self._get_activity_assignees(records)
+        _debug.pipeline(
+            "next_activity_action",
+            action=self.id,
+            activity_type=self.activity_type_id.id,
+            records=len(records),
+            assignee_batches=len(assignees),
+            by=self.activity_user_type,
+        )
+        for user, batch in assignees:
             batch_vals = dict(vals)
             if user:
                 batch_vals["user_id"] = user.id

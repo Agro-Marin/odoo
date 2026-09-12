@@ -4,9 +4,12 @@ from typing import Any
 from lxml import etree
 
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.rendering_tools import BINARY_TYPES
 
 from odoo.addons.base.models.ir_qweb import CompileContext, indent_code
+
+_debug = DebugLog(__name__)
 
 STATIC_EXPRESSION_RE = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\Z")
 
@@ -95,6 +98,7 @@ class IrQweb(models.AbstractModel):
             "raise_on_forbidden_code_for_model" in compile_context
             and directive not in self.allowed_directives
         ):
+            _debug.logic("directive_refused", directive=directive)
             raise PermissionError(
                 "This directive is not allowed for this rendering mode."
             )
@@ -114,6 +118,7 @@ class IrQweb(models.AbstractModel):
         if forbidden := {
             name for name in el.attrib if name.startswith("t-") and name not in allowed
         }:
+            _debug.logic("attributes_refused", attributes=sorted(forbidden))
             raise PermissionError(
                 f"QWeb directives not allowed for this rendering mode: "
                 f"{', '.join(sorted(forbidden))}"
@@ -122,6 +127,7 @@ class IrQweb(models.AbstractModel):
     def _compile_expr(self, expr: str, raise_on_missing: bool = False) -> str:
         model = self.env.context.get("raise_on_forbidden_code_for_model")
         if model is not None and not self._is_expression_allowed(expr, model):
+            _debug.logic("expression_refused", model=model, expression=expr.strip())
             raise PermissionError(
                 "This directive is not allowed for this rendering mode."
             )

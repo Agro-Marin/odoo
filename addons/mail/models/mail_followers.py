@@ -5,6 +5,7 @@ from typing import Literal, NamedTuple, Self
 
 from odoo import Command, api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
@@ -18,6 +19,8 @@ if typing.TYPE_CHECKING:
     from .mail_message_subtype import MailMessageSubtype
     from .res_partner import ResPartner
 
+
+_debug = DebugLog(__name__)
 
 ExistingPolicy = Literal["skip", "replace", "update"]
 
@@ -225,11 +228,19 @@ class MailFollowers(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(res),
+            models=sorted({vals.get("res_model") or "" for vals in vals_list}),
+        )
         res._invalidate_documents()
         return res
 
     def write(self, vals: ValuesType) -> Literal[True]:
         moved = {"res_model", "res_id"} & vals.keys()
+        _debug.lifecycle(
+            "write", followers=self.ids, fields=list(vals), moved=bool(moved)
+        )
         if moved:
             self._invalidate_documents()
         res = super().write(vals)
@@ -239,6 +250,7 @@ class MailFollowers(models.Model):
 
     def unlink(self) -> Literal[True]:
         documents = [(record.res_model, record.res_id) for record in self]
+        _debug.lifecycle("unlink", followers=self.ids, documents=len(set(documents)))
         res = super().unlink()
         self._invalidate_documents(documents)
         return res
@@ -317,6 +329,16 @@ class MailFollowers(models.Model):
                 ]
         else:
             res = []
+        _debug.perf.count(
+            "recipient_rows_fetched",
+            model=records._name if records else None,
+            records=len(res_ids),
+            message_type=message_type,
+            subtype=subtype_id or None,
+            partners=len(pids),
+            include_followers=include_followers,
+            rows=len(res),
+        )
 
         doc_infos: dict[int, dict[int, RecipientData]] = {
             res_id: {} for res_id in res_ids
@@ -377,6 +399,12 @@ class MailFollowers(models.Model):
                 to_flush=self._fields_read_by(_SUBSCRIPTION_READS),
             )
         )
+        _debug.perf.count(
+            "subscription_rows_fetched",
+            models=len(doc_data),
+            partners=None if partner_ids is None else len(partner_ids),
+            rows=len(rows),
+        )
         return [SubscriptionRow._make(row) for row in rows]
 
     def _add_followers(
@@ -412,9 +440,24 @@ class MailFollowers(models.Model):
             existing_policy=existing_policy,
         )
         sudo_self = self.sudo()
+        _debug.pipeline(
+            "add_followers",
+            model=res_model,
+            records=len(subtypes_per_record),
+            new=len(new_vals),
+            updates=len(updates),
+            check_existing=check_existing,
+            policy=existing_policy,
+        )
         if new_vals:
             raced = self._create_followers(sudo_self, new_vals)
             if raced and existing_policy != "skip":
+                _debug.logic(
+                    "followers_raced",
+                    model=res_model,
+                    raced=len(raced),
+                    policy=existing_policy,
+                )
                 raced_per_record = defaultdict(dict)
                 for res_id, partner_id in raced:
                     raced_per_record[res_id][partner_id] = subtypes_per_record[res_id][
@@ -487,6 +530,12 @@ class MailFollowers(models.Model):
             )
         self.env["mail.followers"].invalidate_model()
         self._invalidate_documents(list(zip(res_models, res_ids, strict=True)))
+        _debug.lifecycle(
+            "followers_created",
+            asked=len(new_vals),
+            created=len(created),
+            subtype_rows=len(subtype_rows),
+        )
         return [key for key in subtype_ids_by_key if key not in created]
 
     def _get_default_subtypes(

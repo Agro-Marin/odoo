@@ -4,6 +4,7 @@ from typing import Any, Literal, Self
 from odoo import api, models
 from odoo.api import DomainType
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.paging import (
     FETCH_LIMIT_DEFAULT,
@@ -11,6 +12,8 @@ from odoo.addons.mail.tools.paging import (
     FETCH_PARAMS,
     clamp_limit,
 )
+
+_debug = DebugLog(__name__)
 
 
 class MailMessage(models.Model):
@@ -82,11 +85,25 @@ class MailMessage(models.Model):
             count = self.search_count(domain, limit=self._SEARCH_COUNT_CAP)
             res["count"] = count
             res["count_is_capped"] = count >= self._SEARCH_COUNT_CAP
-        if around is not None:
-            return {**res, "messages": self._get_page_around(domain, around, limit)}
-        res["messages"] = self._get_page(
-            domain, before=before, after=after, limit=limit
-        )
+        with _debug.perf(
+            "message_fetch",
+            cr=self.env.cr,
+            model=thread._name if thread else None,
+            record=thread.id if thread else None,
+            search=bool(search_term),
+            notification=is_notification,
+            before=before,
+            after=after,
+            around=around,
+            limit=limit,
+        ) as span:
+            if around is not None:
+                res["messages"] = self._get_page_around(domain, around, limit)
+            else:
+                res["messages"] = self._get_page(
+                    domain, before=before, after=after, limit=limit
+                )
+            span.set(messages=len(res["messages"]), count=res.get("count"))
         return res
 
     def _get_domain_scope(
@@ -156,6 +173,12 @@ class MailMessage(models.Model):
         )
         tracking_values = (
             self.env["mail.tracking.value"].sudo().search(tracking_value_domain)
+        )
+        _debug.perf.count(
+            "tracking_search",
+            model=thread._name,
+            record=thread.id,
+            values=len(tracking_values),
         )
         return tracking_values._filtered_has_field_access(self.env).mail_message_id.ids
 

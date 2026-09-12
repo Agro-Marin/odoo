@@ -6,6 +6,7 @@ from odoo import api, models
 from odoo.api import DomainType
 from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query
 
 from odoo.addons.mail.tools.access_scan import (
@@ -14,6 +15,7 @@ from odoo.addons.mail.tools.access_scan import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailMessage(models.Model):
@@ -54,6 +56,12 @@ class MailMessage(models.Model):
         self.env["mail.notification"].flush_model(["mail_message_id", "res_partner_id"])
 
         pid = self.env.user.partner_id.id
+        _debug.logic(
+            "search_by",
+            by="access_scan",
+            internal=self.env.user._is_internal(),
+            limit=limit,
+        )
 
         return get_accessible_query(
             self,
@@ -206,15 +214,31 @@ class MailMessage(models.Model):
                 return forbidden
 
         remaining = self._get_access_values(operation)
+        asked = len(remaining)  # debuglog
         self._discard_own_messages(remaining, operation)
+        own = asked - len(remaining)  # debuglog
         if operation == "read":
             self._discard_notified_messages(remaining)
         documents = self._group_ids_by_document(remaining)
+        before_documents = len(remaining)  # debuglog
         self._discard_accessible_documents(remaining, documents, operation)
+        by_document = before_documents - len(remaining)  # debuglog
         if operation == "create":
             self._discard_notified_parents(remaining)
             self._discard_followed_documents(remaining, documents)
 
+        _debug.logic(
+            "access_scanned",
+            operation=operation,
+            asked=asked,
+            internal_forbidden=len(forbidden),
+            own=own,
+            notified=asked - own - before_documents,
+            documents=sum(len(docs) for docs in documents.values()),
+            by_document=by_document,
+            by_parent_or_follow=before_documents - by_document - len(remaining),
+            forbidden=len(remaining),
+        )
         return forbidden + self.browse(remaining)
 
     def _get_forbidden_internal(self, operation: str) -> api.Self:

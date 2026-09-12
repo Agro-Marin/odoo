@@ -1,6 +1,9 @@
 from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ImStatusController(http.Controller):
@@ -16,6 +19,7 @@ class ImStatusController(http.Controller):
             )
         user = request.env.user
         user.manual_im_status = False if status == "online" else status
+        _debug.lifecycle("manual_im_status", user=user.id, status=status)
         user._bus_send(
             "bus.bus/im_status_updated",
             {

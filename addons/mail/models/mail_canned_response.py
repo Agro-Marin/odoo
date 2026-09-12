@@ -3,12 +3,15 @@ from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_groups import ResGroups
+
+_debug = DebugLog(__name__)
 
 
 class MailCannedResponse(models.Model):
@@ -86,6 +89,12 @@ class MailCannedResponse(models.Model):
                 for user in self.env.user | canned_response.create_uid
                 if not user.all_group_ids & canned_response.group_ids
             )
+            _debug.lifecycle(
+                "broadcast",
+                canned_response=canned_response.id,
+                delete=delete,
+                targets=len(stores),
+            )
             for store in stores:
                 if delete:
                     store.delete(canned_response)
@@ -109,6 +118,7 @@ class MailCannedResponse(models.Model):
         ids = self.browse(ids)._filtered_access("read").ids
         if not ids:
             return
+        _debug.lifecycle("usage_registered", canned_responses=ids)
         self.env.cr.execute(
             SQL(
                 """

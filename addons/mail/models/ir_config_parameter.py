@@ -4,8 +4,10 @@ from typing import Any, Literal, Self
 
 from odoo import api, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 RESTRICT_TEMPLATE_RENDERING_KEY = "mail.restrict.template.rendering"
 
@@ -41,8 +43,10 @@ class IrConfig_Parameter(models.Model):
         group_user = self.env.ref("base.group_user")
         group_mail_template_editor = self.env.ref("mail.group_mail_template_editor")
         if not restrict and group_mail_template_editor not in group_user.implied_ids:
+            _debug.lifecycle("template_editor_group", restrict=False, action="implied")
             group_user._add_implied_group(group_mail_template_editor)
         elif restrict and group_mail_template_editor in group_user.implied_ids:
+            _debug.lifecycle("template_editor_group", restrict=True, action="removed")
             group_user._remove_group(group_mail_template_editor)
 
     @api.model
@@ -61,6 +65,7 @@ class IrConfig_Parameter(models.Model):
                 if value
                 else False
             )
+            _debug.logic("allowed_domains_sanitized", value=value)
 
         return super().set_param(key, value)
 

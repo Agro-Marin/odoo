@@ -5,6 +5,7 @@ from markupsafe import Markup
 from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import NotFound, request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.utils import (
     clamp_limit,
@@ -17,6 +18,8 @@ from odoo.addons.mail.controllers.utils import (
 )
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
+
+_debug = DebugLog(__name__)
 
 MAX_AVATAR_B64_BYTES = 10 * 1024 * 1024
 
@@ -31,6 +34,11 @@ class DiscussChannelWebclientController(WebclientController):
         )
         super()._process_request_loop(store, fetch_params)
         channels = request.env.context["channels"]
+        _debug.pipeline(
+            "channels_collected",
+            channels=len(channels),
+            last_messages=request.env.context["add_channels_last_message"],
+        )
         if channels:
             store.add(channels)
         if request.env.context["add_channels_last_message"]:
@@ -133,9 +141,15 @@ class ChannelController(http.Controller):
         self, channel_id: int, fetch_params: dict | None = None
     ) -> dict:
         channel = get_channel_or_404(channel_id)
-        return message_fetch_response(
-            thread=channel, fetch_params=fetch_params, mark_done=True
-        )
+        with _debug.perf(
+            "channel_messages",
+            cr=request.env.cr,
+            channel=channel.id,
+            params=sorted(fetch_params) if isinstance(fetch_params, dict) else None,
+        ):
+            return message_fetch_response(
+                thread=channel, fetch_params=fetch_params, mark_done=True
+            )
 
     @http.route(
         "/discuss/channel/pinned_messages",
@@ -218,6 +232,14 @@ class ChannelController(http.Controller):
         )
         has_more = len(attachments) > page_size
         attachments = attachments[:page_size]
+        _debug.perf.count(
+            "channel_attachments",
+            channel=channel.id,
+            page_size=page_size,
+            before=before,
+            fetched=len(attachments),
+            has_more=has_more,
+        )
         return {
             "store_data": Store().add(attachments).get_result(),
             "count": len(attachments),
@@ -249,6 +271,12 @@ class ChannelController(http.Controller):
         channel = get_channel_or_404(parent_channel_id)
         sub_channel = channel._create_sub_channel(
             to_record_id(from_message_id) if from_message_id else None, name
+        )
+        _debug.lifecycle(
+            "sub_channel_created",
+            parent=channel.id,
+            sub_channel=sub_channel.id,
+            from_message=from_message_id,
         )
         return {
             "store_data": Store().add(sub_channel).get_result(),

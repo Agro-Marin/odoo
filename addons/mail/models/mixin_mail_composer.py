@@ -2,11 +2,14 @@ import typing
 from collections.abc import Callable
 
 from odoo import api, fields, models, tools
+from odoo.libs.debug_log import DebugLog
 
 from .mixin_mail_render import BYPASS_RESTRICTED_RENDERING
 
 if typing.TYPE_CHECKING:
     from .mail_template import MailTemplate
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailComposer(models.AbstractModel):
@@ -173,6 +176,15 @@ class MixinMailComposer(models.AbstractModel):
         if self._is_template_value_render_required(field) or (
             translation_asked and from_template
         ):
+            _debug.logic(
+                "composer_field_render",
+                model=self._name,
+                record=self.id,
+                field=field,
+                by="template",
+                template=self.template_id.id,
+                translation=translation_asked,
+            )
             if translation_asked and not res_ids_lang and not set_lang:
                 res_ids_lang = self._get_res_ids_lang(res_ids)
             return self.template_id._render_field(
@@ -191,6 +203,14 @@ class MixinMailComposer(models.AbstractModel):
             record = self.with_context(
                 bypass_restricted_rendering=BYPASS_RESTRICTED_RENDERING
             )
+        _debug.logic(
+            "composer_field_render",
+            model=self._name,
+            record=self.id,
+            field=field,
+            by="composer",
+            bypass=from_template and not self.is_mail_template_editor,
+        )
         return super(MixinMailComposer, record)._render_field(
             field,
             res_ids,

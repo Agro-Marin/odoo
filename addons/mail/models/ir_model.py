@@ -3,7 +3,10 @@ from typing import Any, Literal
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import ormcache
+
+_debug = DebugLog(__name__)
 
 
 class IrModel(models.Model):
@@ -32,6 +35,7 @@ class IrModel(models.Model):
                 ("model", "!=", "mixin.mail.thread.blacklist"),
             ]
         )
+        _debug.perf.count("blacklist_models_computed", models=len(blacklist_models))
         return tuple(
             model.model for model in blacklist_models if model.model in self.env
         )
@@ -88,6 +92,12 @@ class IrModel(models.Model):
         query = """DELETE FROM ir_attachment WHERE res_model = ANY(%s)"""
         self.env.cr.execute(query, [models])
 
+        _debug.lifecycle(
+            "mail_data_purged",
+            models=models,
+            purged_mail_tables=not (self & mail_models),
+            orphan_files=len(fnames),
+        )
         if fnames:
             self.env["ir.attachment"]._remove_stored_file_multi(fnames)
 
@@ -122,11 +132,21 @@ class IrModel(models.Model):
             model_names = self.mapped("model")
             self.pool.setup_models(self.env.cr, model_names)
             model_names = self.pool.get_descendants(model_names, "_inherits")
-            self.pool.init_models(
-                self.env.cr,
-                model_names,
-                dict(self.env.context, update_custom_fields=True),
-            )
+            with _debug.perf(
+                "mail_flags_init_models",
+                cr=self.env.cr,
+                models=model_names,
+                flags=sorted(
+                    k
+                    for k in ("is_mail_thread", "is_mail_activity", "is_mail_blacklist")
+                    if k in vals
+                ),
+            ):
+                self.pool.init_models(
+                    self.env.cr,
+                    model_names,
+                    dict(self.env.context, update_custom_fields=True),
+                )
         else:
             res = super().write(vals)
         return res

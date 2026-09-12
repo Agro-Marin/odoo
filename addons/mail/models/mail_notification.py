@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.models import GC_UNLINK_LIMIT
 from odoo.tools.translate import _
 
@@ -16,6 +17,8 @@ if typing.TYPE_CHECKING:
     from .mail_mail import MailMail
     from .mail_message import MailMessage
     from .res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MailNotification(models.Model):
@@ -101,6 +104,15 @@ class MailNotification(models.Model):
             if vals.get("is_read"):
                 vals["read_date"] = fields.Datetime.now()
         notifications = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            count=len(notifications),
+            messages=len(messages),
+            types=sorted({vals.get("notification_type") or "" for vals in vals_list}),
+            statuses=sorted(
+                {vals.get("notification_status") or "" for vals in vals_list}
+            ),
+        )
         notifications.mail_message_id._invalidate_notification_state()
         return notifications
 
@@ -114,6 +126,13 @@ class MailNotification(models.Model):
         if vals.get("is_read"):
             vals["read_date"] = fields.Datetime.now()
         res = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            count=len(self),
+            fields=list(vals),
+            status=vals.get("notification_status"),
+            failure_type=vals.get("failure_type"),
+        )
         if vals.keys() & {
             "is_read",
             "notification_status",
@@ -135,6 +154,9 @@ class MailNotification(models.Model):
             ("notification_status", "in", ("sent", "canceled")),
         ]
         records = self.search(domain, limit=GC_UNLINK_LIMIT)
+        _debug.lifecycle(
+            "gc_notifications", removed=len(records), max_age_days=max_age_days
+        )
         records.unlink()
         return len(records), len(records) == GC_UNLINK_LIMIT
 

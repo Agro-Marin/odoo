@@ -2,6 +2,7 @@ import typing
 
 from odoo import api, models
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from odoo.addons.mail.tools.access_scan import get_accessible_query
@@ -9,6 +10,8 @@ from odoo.addons.mail.tools.access_scan import get_accessible_query
 if typing.TYPE_CHECKING:
     from odoo.api import DomainType
     from odoo.tools import Query
+
+_debug = DebugLog(__name__)
 
 
 class MailFollowers(models.Model):
@@ -33,6 +36,7 @@ class MailFollowers(models.Model):
                 domain, offset, limit, order, bypass_access=True, **kwargs
             )
         if not self.env.user._is_internal():
+            _debug.logic("search_refused", uid=self.env.uid, reason="not_internal")
             return self.browse()._as_query()
 
         self.flush_model(["res_model", "res_id", "partner_id"])
@@ -110,5 +114,12 @@ class MailFollowers(models.Model):
                 ).add(follower.id)
         allowed = set(own) | self.env["mail.message"]._get_readable_message_ids(
             model_ids
+        )
+        _debug.logic(
+            "readable_by_document",
+            asked=len(self),
+            own=len(own),
+            models=len(model_ids),
+            allowed=len(allowed),
         )
         return self.browse([fol_id for fol_id in self._ids if fol_id in allowed])

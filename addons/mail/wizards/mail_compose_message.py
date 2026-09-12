@@ -10,6 +10,7 @@ from odoo import Command, _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import (
     email_normalize,
     email_normalize_all,
@@ -39,6 +40,8 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.res_company import ResCompany
     from odoo.addons.bus.models.ir_attachment import IrAttachment
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 COMPOSER_FIELD_TO_TEMPLATE_FIELD = {
     "attachments": "report_template_ids",
@@ -763,14 +766,16 @@ class MailComposeMessage(models.TransientModel):
     @api.autovacuum
     def _gc_lost_attachments(self) -> None:
         limit_date = fields.Datetime.subtract(fields.Datetime.now(), days=1)
-        self.env["ir.attachment"].search(
+        lost = self.env["ir.attachment"].search(
             [
                 ("res_model", "=", self._name),
                 ("res_id", "=", 0),
                 ("create_date", "<", limit_date),
                 ("write_date", "<", limit_date),
             ]
-        ).unlink()
+        )
+        _debug.lifecycle("gc_lost_attachments", removed=len(lost))
+        lost.unlink()
 
     def action_schedule_message(self) -> dict:
         self._action_schedule_message()
@@ -816,6 +821,9 @@ class MailComposeMessage(models.TransientModel):
             create_values.append(
                 wizard._prepare_schedule_message_post_values(post_values)
             )
+        _debug.lifecycle(
+            "messages_scheduled", wizards=self.ids, scheduled=len(create_values)
+        )
         return self.env["mail.scheduled.message"].create(create_values)
 
     def action_send_mail(self) -> dict:
@@ -850,12 +858,23 @@ class MailComposeMessage(models.TransientModel):
                     f"record. No records found (model {wizard.model})."
                 )
 
-            if wizard.composition_mode == "mass_mail":
-                result_mails_su += wizard._action_send_mail_mass_mail(
-                    res_ids, auto_commit=auto_commit
-                )
-            else:
-                result_messages += wizard._action_send_mail_comment(res_ids)
+            with _debug.perf(
+                "send_mail",
+                cr=self.env.cr,
+                wizard=wizard.id,
+                model=wizard.model or None,
+                mode=wizard.composition_mode,
+                records=len(res_ids),
+                template=wizard.template_id.id or None,
+                by_domain=bool(wizard.res_domain),
+                auto_commit=auto_commit,
+            ):
+                if wizard.composition_mode == "mass_mail":
+                    result_mails_su += wizard._action_send_mail_mass_mail(
+                        res_ids, auto_commit=auto_commit
+                    )
+                else:
+                    result_messages += wizard._action_send_mail_comment(res_ids)
 
         return result_mails_su, result_messages
 
@@ -872,6 +891,14 @@ class MailComposeMessage(models.TransientModel):
                 mail_post_autofollow_author_skip=True,
             )
         messages = self.env["mail.message"]
+        _debug.pipeline(
+            "send_comment",
+            wizard=self.id,
+            model=ActiveModel._name,
+            records=len(post_values_all),
+            batch=self.composition_batch,
+            by="notify" if ActiveModel._name == "mixin.mail.thread" else "post",
+        )
         for res_id, post_values in post_values_all.items():
             if ActiveModel._name == "mixin.mail.thread":
                 post_values.pop("message_type")
@@ -929,6 +956,16 @@ class MailComposeMessage(models.TransientModel):
                 self.env["ir.cron"]._commit_progress(
                     batch_done, remaining=len(res_ids) - counter_mails_done
                 )
+            _debug.pipeline(
+                "mass_mail_batch",
+                wizard=self.id,
+                batch=len(res_ids_iter),
+                prepared=len(prepared_mail_values_filtered),
+                mails=len(iter_mails_sudo),
+                sent=sent_in_batch,
+                done=counter_mails_done,
+                total=len(res_ids),
+            )
             if not (sent_in_batch and auto_commit):
                 self.env.invalidate_all()
 
@@ -936,6 +973,9 @@ class MailComposeMessage(models.TransientModel):
 
     def _generate_mail_notification_values(self, mails: MailMail) -> list:
         if self.auto_delete and not self.auto_delete_keep_log:
+            _debug.logic(
+                "mail_notifications_skipped", wizard=self.id, reason="auto_delete"
+            )
             return []
 
         create_vals_all = []
@@ -992,6 +1032,12 @@ class MailComposeMessage(models.TransientModel):
             "user_id": self.env.uid,
         }
         template = self.env["mail.template"].create(values)
+        _debug.lifecycle(
+            "template_created_from_composer",
+            wizard=self.id,
+            template=template.id,
+            model=self.model,
+        )
 
         if self.attachment_ids:
             attachments = (
@@ -1041,6 +1087,17 @@ class MailComposeMessage(models.TransientModel):
         base_values = self._prepare_mail_values_static()
 
         additional_values_all = {}
+        _debug.logic(
+            "mail_values_by",
+            wizard=self.id,
+            records=len(res_ids),
+            by="dynamic"
+            if rendering_mode and self.model
+            else "rendered"
+            if not rendering_mode
+            else "static",
+            email_mode=email_mode,
+        )
         if rendering_mode and self.model:
             additional_values_all = self._prepare_mail_values_dynamic(res_ids)
         elif not rendering_mode:
@@ -1117,6 +1174,15 @@ class MailComposeMessage(models.TransientModel):
         emails_from = self._render_field("email_from", res_ids)
         mail_values_all = self._prepare_mail_values_per_record(
             records, res_ids, langs, emails_from, email_mode
+        )
+        _debug.pipeline(
+            "dynamic_mail_values",
+            wizard=self.id,
+            records=len(res_ids),
+            langs=len(set(langs.values())),
+            template=self.template_id.id or None,
+            reply_to_force_new=self.reply_to_force_new,
+            layout=self.email_layout_xmlid or None,
         )
 
         if self.template_id:
@@ -1293,6 +1359,9 @@ class MailComposeMessage(models.TransientModel):
             )
         )
         if not classified:
+            _debug.logic(
+                "layout_body_skipped", wizard=self.id, record=res_id, reason="no_group"
+            )
             return
         _lang, render_values, recipients_group = classified[-1]
         merged_group = {
@@ -1416,6 +1485,24 @@ class MailComposeMessage(models.TransientModel):
                 for mail_to in recipients["mail_to_normalized"]:
                     sent_emails_mapping.setdefault(mail_to, []).append(mail_values)
 
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "mail_values_state",
+                wizard=self.id,
+                records=len(mail_values_dict),
+                blacklisted=len(blacklist_ids),
+                optout=len(optout_emails),
+                done=len(done_emails),
+                canceled=sum(
+                    1 for v in mail_values_dict.values() if v.get("state") == "cancel"
+                ),
+                invalid=sum(
+                    1
+                    for v in mail_values_dict.values()
+                    if v.get("failure_type")
+                    in ("mail_email_missing", "mail_email_invalid")
+                ),
+            )
         return mail_values_dict
 
     def _prepare_template_vals(
@@ -1484,6 +1571,13 @@ class MailComposeMessage(models.TransientModel):
                     for res_id, recipient_info in recipients_info.items()
                     if blacklist & set(recipient_info["mail_to_normalized"])
                 )
+            _debug.logic(
+                "blacklist_applied",
+                wizard=self.id,
+                blacklist=len(blacklist),
+                records=len(mail_values_dict),
+                blacklisted=len(blacklisted_rec_ids),
+            )
         return blacklisted_rec_ids
 
     def _get_done_emails(self, mail_values_dict: dict) -> list:

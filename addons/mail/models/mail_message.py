@@ -16,6 +16,7 @@ from odoo import _, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, clean_context
 from odoo.tools.misc import OrderedSet
 
@@ -37,6 +38,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.ir_attachment import IrAttachment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _image_dataurl = re.compile(
     r'(data:image/[a-z]+?);base64,([a-z0-9+/\n]{3,}=*)\n*([\'"])(?: data-filename="([^"]*)")?',
     re.IGNORECASE,
@@ -456,6 +458,7 @@ class MailMessage(models.Model):
             and self.env["mail.guest"]._get_guest_from_context()
         ):
             if not message.sudo(False)._get_forbidden_access(mode):
+                _debug.logic("access", message=message_id, mode=mode, by="guest")
                 return message
         elif message.sudo(False).has_access(mode):
             return message
@@ -465,6 +468,7 @@ class MailMessage(models.Model):
             and not self.env.user._is_internal()
             and message.sudo(False)._get_forbidden_internal(mode)
         ):
+            _debug.logic("access_refused", message=message_id, mode=mode, by="internal")
             return self.browse()
 
         if message.res_id and message._is_thread_model():
@@ -475,14 +479,25 @@ class MailMessage(models.Model):
             if access_mode and self.env[message.model]._get_thread_with_access(
                 message.res_id, mode=access_mode, **kwargs
             ):
+                _debug.logic(
+                    "access",
+                    message=message_id,
+                    mode=mode,
+                    by="thread",
+                    thread_mode=access_mode,
+                )
                 return message
 
+        _debug.logic("access_refused", message=message_id, mode=mode, by="thread")
         return self.browse()
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         vals_list = [dict(values) for values in vals_list]
         if not (self.env.su or self.env.user.has_group("base.group_user")):
+            _debug.logic(
+                "author_fields_stripped", count=len(vals_list), uid=self.env.uid
+            )
             for values in vals_list:
                 for field_name in self._AUTHOR_FIELD_NAMES:
                     values.pop(field_name, None)
@@ -533,6 +548,13 @@ class MailMessage(models.Model):
         if commands_per_message:
             self._create_tracking_values(commands_per_message)
 
+        _debug.lifecycle(
+            "create",
+            count=len(messages),
+            visible=len(visible),
+            tracked=len(commands_per_message),
+            types=sorted({values.get("message_type") or "" for values in vals_list}),
+        )
         return messages
 
     def _update_email_from(self, vals_list: list[ValuesType]) -> None:
@@ -625,6 +647,7 @@ class MailMessage(models.Model):
                         }
                     )
                 except binascii_error:
+                    _debug.logic("inline_image_rejected", model=model, record=res_id)
                     _logger.warning(
                         "Impossible to create an attachment out of badly formated base64 embedded image. Image has been removed."
                     )
@@ -641,6 +664,13 @@ class MailMessage(models.Model):
             return f'{data_to_url[key][0]}{match.group(3)} alt="{data_to_url[key][1]}" data-attachment-id="{data_to_url[key][2]}"'
 
         body = _image_dataurl.sub(base64_to_boundary, values["body"] or "")
+        if _debug.pipeline.enabled and commands:
+            _debug.pipeline(
+                "inline_images_extracted",
+                model=model,
+                record=res_id,
+                attachments=len(commands),
+            )
         return body, commands
 
     def _check_created_attachments_access(
@@ -691,6 +721,13 @@ class MailMessage(models.Model):
                 )
                 ._ids
             )
+        _debug.logic(
+            "created_attachments_checked",
+            messages=len(messages),
+            opaque=len(opaque_messages),
+            attachments=len(attachment_ids_all),
+            foreign=len(foreign_ids),
+        )
         if foreign_ids:
             self.env["ir.attachment"].browse(foreign_ids).check_access("read")
 
@@ -708,6 +745,11 @@ class MailMessage(models.Model):
             ]
             if other_cmd:
                 message.sudo().write({"tracking_value_ids": other_cmd})
+        _debug.lifecycle(
+            "tracking_values_created",
+            messages=len(commands_per_message),
+            values=len(vals_list),
+        )
         if vals_list:
             self.env["mail.tracking.value"].sudo().create(vals_list)
 
@@ -754,11 +796,15 @@ class MailMessage(models.Model):
             }
         record_changed = "model" in vals or "res_id" in vals
         if record_changed and not self.env.is_system():
+            _debug.logic("write_refused", messages=self.ids, reason="record_change")
             raise AccessError(
                 _("Only administrators can modify 'model' and 'res_id' fields.")
             )
         if vals.get("parent_id") and not self.env.is_system():
             self._check_parent_on_same_document(vals["parent_id"])
+        _debug.lifecycle(
+            "write", count=len(self), fields=list(vals), record_changed=record_changed
+        )
         if record_changed or "message_type" in vals:
             self._invalidate_documents()
         res = super().write(vals)
@@ -796,6 +842,9 @@ class MailMessage(models.Model):
                 message_ids_by_partner[partner].add(elem.id)
         for partner, message_ids in message_ids_by_partner.items():
             partner._bus_send("mail.message/delete", {"message_ids": list(message_ids)})
+        _debug.lifecycle(
+            "unlink", count=len(self), notified_partners=len(message_ids_by_partner)
+        )
         return super(MailMessage, self.sudo()).unlink()
 
     def export_data(self, fields_to_export: list[str]) -> dict:
@@ -849,6 +898,12 @@ class MailMessage(models.Model):
             return []
         notifications.write({"is_read": True})
         message_ids = notifications.mail_message_id.ids
+        _debug.lifecycle(
+            "notifications_read",
+            partner=self.env.user.partner_id.id,
+            notifications=len(notifications),
+            messages=len(message_ids),
+        )
         self.env.user._bus_send(
             "mail.message/mark_as_read",
             {
@@ -866,6 +921,11 @@ class MailMessage(models.Model):
         starred_messages.starred_partner_ids = [
             Command.unlink(self.env.user.partner_id.id)
         ]
+        _debug.lifecycle(
+            "unstar_all",
+            partner=self.env.user.partner_id.id,
+            count=len(starred_messages),
+        )
         self.env.user._bus_send(
             "mail.message/toggle_star",
             {"message_ids": starred_messages.ids, "starred": False},
@@ -875,6 +935,7 @@ class MailMessage(models.Model):
         self.check_singleton()
         self.check_access("read")
         starred = not self.starred
+        _debug.lifecycle("star_toggled", message=self.id, starred=starred)
         if starred:
             self.sudo().starred_partner_ids = [
                 Command.link(self.env.user.partner_id.id)
@@ -923,10 +984,20 @@ class MailMessage(models.Model):
                 with self.env.cr.savepoint():
                     group |= self.env["mail.message.reaction"].create(create_values)
             except UniqueViolation:
+                _debug.logic("reaction_duplicate", message=self.id, content=content)
                 group = self._reaction_group(content)
         if action == "remove" and own:
             own.unlink()
             group -= own
+        _debug.lifecycle(
+            "reaction",
+            message=self.id,
+            action=action,
+            content=content,
+            partner=partner.id or None,
+            guest=guest.id or None,
+            group=len(group),
+        )
         if store:
             self._reaction_group_to_store(store, content, group)
         self._bus_send_reaction_group(content, group)
@@ -1045,6 +1116,12 @@ class MailMessage(models.Model):
         for record in self:
             if record.res_id and self._is_thread_model_name(record.model):
                 ids_by_model[record.model].add(record.res_id)
+        _debug.perf.count(
+            "documents_invalidated",
+            messages=len(self),
+            models=len(ids_by_model),
+            records=sum(len(ids) for ids in ids_by_model.values()),
+        )
         for rec_model, rec_ids in ids_by_model.items():
             self.env[rec_model].browse(rec_ids).invalidate_recordset(fnames)
 

@@ -2,6 +2,7 @@ from typing import Any
 
 from odoo import http, models
 from odoo.http import NotFound, request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import file_open
 
 from odoo.addons.mail.tools.discuss import (  # noqa: F401 - re-exports, read by every controller
@@ -13,6 +14,8 @@ from odoo.addons.mail.tools.paging import (
     FETCH_LIMIT_MAX,
     clamp_limit,  # noqa: F401 - re-export, read by discuss/search.py
 )
+
+_debug = DebugLog(__name__)
 
 MAX_FETCH_LIMIT = FETCH_LIMIT_MAX
 
@@ -56,6 +59,14 @@ def message_fetch_response(
     messages = res.pop("messages")
     if mark_done and not request.env.user._is_public():
         messages.set_message_done()
+    _debug.pipeline(
+        "fetch_response",
+        model=thread._name if thread else None,
+        record=thread.id if thread else None,
+        messages=len(messages),
+        mark_done=mark_done and not request.env.user._is_public(),
+        add_followers=add_followers,
+    )
     store_kwargs = {}
     if extra_fields is not None:
         store_kwargs["extra_fields"] = extra_fields

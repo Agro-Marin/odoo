@@ -6,12 +6,14 @@ from typing import Literal, NamedTuple, Self
 from odoo import _, api, exceptions, fields, models
 from odoo.api import ValuesType
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import ormcache
 
 if typing.TYPE_CHECKING:
     from odoo.addons.base.models.res_company import ResCompany
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class AliasDomainConfig(NamedTuple):
@@ -232,6 +234,7 @@ class MailAliasDomain(models.Model):
     @ormcache(cache="stable")
     def _get_config(self) -> AliasDomainConfig:
         domains = self.sudo().search([])
+        _debug.perf.count("config_computed", domains=len(domains))
         return AliasDomainConfig(
             tuple(domains.ids),
             tuple(filter(None, domains.mapped("name"))),
@@ -301,6 +304,9 @@ class MailAliasDomain(models.Model):
 
         alias_domains = super().create(vals_list)
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle(
+            "create", domains=alias_domains.ids, was_unconfigured=was_unconfigured
+        )
 
         if was_unconfigured and alias_domains:
             default = self._get_default_domain()
@@ -317,10 +323,12 @@ class MailAliasDomain(models.Model):
         self._sanitize_configuration(vals)
         ret = super().write(vals)
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle("write", domains=self.ids, fields=list(vals))
         return ret
 
     def unlink(self) -> Literal[True]:
         self.env.registry.clear_cache("stable")
+        _debug.lifecycle("unlink", domains=self.ids)
         return super().unlink()
 
     @api.ondelete(at_uninstall=False)
@@ -450,6 +458,13 @@ class MailAliasDomain(models.Model):
             ):
                 seen.add(email)
                 res.append(email)
+        _debug.logic(
+            "alias_emails",
+            asked=len(split),
+            candidates=len(potential_aliases),
+            matched=len(res),
+            allowed_domains=len(allowed_domains),
+        )
         return res
 
     @api.model
@@ -461,6 +476,7 @@ class MailAliasDomain(models.Model):
 
         alias_domain = self.env["mail.alias"]._sanitize_alias_domain_name(raw_name)
         if not alias_domain:
+            _debug.logic("icp_migration_skipped", reason="unusable_domain")
             _logger.warning(
                 "Ignoring `mail.catchall.domain` = %r: not a usable domain name. "
                 "No alias domain was created; configure one in Settings.",
@@ -469,7 +485,9 @@ class MailAliasDomain(models.Model):
             return self.browse()
 
         if existing := self.search([("name", "=", alias_domain)], limit=1):
+            _debug.logic("icp_migration", domain=existing.id, by="existing")
             return existing
+        _debug.lifecycle("icp_migration", name=alias_domain, by="created")
         return self.create(
             {
                 "bounce_alias": Icp.get_param("mail.bounce.alias") or "bounce",

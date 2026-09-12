@@ -6,12 +6,14 @@ from typing import Any
 from odoo import http
 from odoo.exceptions import AccessDenied, AccessError, MissingError, UserError
 from odoo.http import HTTPException, NotFound, SessionExpiredException, request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.mail.controllers.utils import to_record_id
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 PROPAGATED_BATCH_ERRORS = (
     HTTPException,
@@ -61,9 +63,18 @@ class WebclientController(ThreadController):
                 failed="Batched fetch failed; answering each param in isolation.",
                 traceback=False,
             ):
+                _debug.logic("fetch_answered", by="batch", params=len(fetch_params))
                 return store.get_result()
+            _debug.logic("fetch_batch_fell_back", params=len(fetch_params))
         store = Store()
-        cls._process_request_loop(store, fetch_params)
+        with _debug.perf(
+            "fetch_answered",
+            cr=request.env.cr,
+            by="isolated",
+            params=len(fetch_params) if isinstance(fetch_params, (list, tuple)) else 0,
+            readonly=request.env.cr.readonly,
+        ):
+            cls._process_request_loop(store, fetch_params)
         return store.get_result()
 
     @classmethod
@@ -75,13 +86,15 @@ class WebclientController(ThreadController):
         for fetch_param in fetch_params:
             parsed = cls._parse_fetch_param(fetch_param)
             if parsed is None:
+                _debug.logic("fetch_param_malformed", type=type(fetch_param).__name__)
                 _logger.info(
                     "Discarding a malformed fetch param: %s", repr(fetch_param)[:200]
                 )
                 continue
             name, params, data_id = parsed
             store.data_id = data_id
-            cls._process_one_request(store, name, params)
+            with _debug.perf("fetch_param", cr=request.env.cr, name=name):
+                cls._process_one_request(store, name, params)
         store.data_id = None
 
     @staticmethod
@@ -122,10 +135,12 @@ class WebclientController(ThreadController):
         except PROPAGATED_BATCH_ERRORS:
             raise
         except MissingError:
+            _debug.logic("fetch_absorbed", error="MissingError")
             _logger.info(missing)
         except UserError:
             raise
-        except Exception:
+        except Exception as error:
+            _debug.logic("fetch_absorbed", error=type(error).__name__)
             _logger.log(
                 logging.ERROR if traceback else logging.INFO, failed, exc_info=True
             )

@@ -4,12 +4,15 @@ from typing import Literal
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .mail_activity_plan import MailActivityPlan
     from .mail_activity_type import MailActivityType
     from odoo.addons.base.models.res_company import ResCompany
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 
 class MailActivityPlanTemplate(models.Model):
@@ -181,6 +184,14 @@ class MailActivityPlanTemplate(models.Model):
                 )
         else:
             raise ValueError(f"Invalid responsible value {self.responsible_type}.")
+        _debug.logic(
+            "plan_responsible",
+            template=self.id,
+            record=applied_on_record.id,
+            by=self.responsible_type,
+            responsible=responsible.id or None,
+            error=bool(error),
+        )
         return {
             "responsible": responsible,
             "error": error,

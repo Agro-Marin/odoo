@@ -6,7 +6,10 @@ from imaplib import IMAP4, IMAP4_SSL
 from poplib import POP3, POP3_SSL
 from typing import Literal, Protocol
 
+from odoo.libs.debug_log import DebugLog
+
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAIL_TIMEOUT = 60
 
@@ -94,8 +97,10 @@ class OdooIMAP4(IMAP4):
             typ, data = self.uid("FETCH", num, "(BODY.PEEK[])")
             self._check(typ, data, "UID FETCH")
             if not data or not isinstance(data[0], tuple | list) or len(data[0]) < 2:
+                _debug.logic("imap_message_vanished", uid=num)
                 _logger.debug("IMAP message uid %r vanished before FETCH.", num)
                 continue
+            _debug.perf.count("imap_fetched", uid=num, size=len(data[0][1]))
             yield num, data[0][1]
 
     def mark_message_handled(self, num: bytes) -> None:
@@ -130,6 +135,7 @@ class OdooPOP3(POP3):
         while self._unread_messages:
             num = self._unread_messages.pop()
             (_header, lines, _octets) = self.retr(num)
+            _debug.perf.count("pop_fetched", num=num, size=_octets)
             yield num, b"\r\n".join(lines)
 
     def mark_message_handled(self, num: int) -> None:
@@ -151,6 +157,14 @@ def connect(
 ) -> OdooIMAP4 | OdooPOP3:
     context = ssl_context_for_encryption(encryption)
     implicit_tls = encryption in ("ssl", "ssl_strict")
+    _debug.logic(
+        "connect",
+        kind=server_type,
+        host=host,
+        port=port,
+        encryption=encryption,
+        implicit_tls=implicit_tls,
+    )
     if server_type == "imap":
         if implicit_tls:
             connection = OdooIMAP4_SSL(

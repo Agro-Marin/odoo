@@ -12,7 +12,10 @@ import requests
 from lxml import html
 from urllib3.exceptions import LocationParseError
 
+from odoo.libs.debug_log import DebugLog
+
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAX_HEAD_BYTES = 512 * 1024
 MAX_REDIRECTS = 5
@@ -42,6 +45,7 @@ def _classify_url_safety(
     if cache is not None and (host, port) in cache:
         return cache[host, port]
     safety = _classify_host_safety(host, port)
+    _debug.logic("host_classified", host=host, port=port, safety=safety.value)
     if cache is not None:
         cache[host, port] = safety
     return safety
@@ -76,16 +80,23 @@ def _get_link_preview_response(
 ) -> requests.Response | None:
     getter = request_session or requests
     current = url
-    for _ in range(MAX_REDIRECTS + 1):
+    for hop in range(MAX_REDIRECTS + 1):
         if deadline is not None and time.monotonic() > deadline:
+            _debug.logic("preview_aborted", reason="deadline", hops=hop)
             _logger.info("Link preview timed out (redirect chain) for: %s", url)
             return None
         if not _url_is_safe(current):
+            _debug.logic("preview_aborted", reason="unsafe_url", hops=hop)
             _logger.info("Link preview blocked for non-public URL: %s", current)
             return None
-        response = getter.get(
-            current, timeout=3, headers=headers, allow_redirects=False, stream=True
-        )
+        with _debug.perf("preview_fetched", hop=hop) as span:
+            response = getter.get(
+                current, timeout=3, headers=headers, allow_redirects=False, stream=True
+            )
+            span.set(
+                status=getattr(response, "status_code", None),
+                redirect=getattr(response, "is_redirect", None),
+            )
         if response.is_redirect:
             location = response.headers.get("location")
             response.close()
@@ -107,14 +118,21 @@ def get_link_preview_from_url(
     deadline = time.monotonic() + MAX_FETCH_SECONDS
     try:
         response = _get_link_preview_response(url, request_session, headers, deadline)
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as error:
+        _debug.logic("preview_failed", error=type(error).__name__)
         return False
     except LocationParseError:
+        _debug.logic("preview_failed", error="LocationParseError")
         return False
     if response is None:
         return False
     with response:
         if not response.ok or not response.headers.get("Content-Type"):
+            _debug.logic(
+                "preview_skipped",
+                status=response.status_code,
+                content_type=response.headers.get("Content-Type"),
+            )
             return False
         content_type = response.headers["Content-Type"].split(";")
         if response.headers["Content-Type"].startswith("image/"):
@@ -146,6 +164,9 @@ def get_link_preview_from_html(
 
     if not content:
         return False
+    _debug.perf.count(
+        "head_scanned", bytes=len(content), truncated=len(content) > MAX_HEAD_BYTES
+    )
 
     header_declared_charset = (
         "charset=" in response.headers.get("Content-Type", "").lower()

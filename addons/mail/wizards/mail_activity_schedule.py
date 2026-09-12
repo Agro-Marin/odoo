@@ -9,6 +9,7 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import html2plaintext
 from odoo.tools.misc import format_date
 
@@ -25,6 +26,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailActivitySchedule(models.TransientModel):
@@ -463,6 +465,15 @@ class MailActivitySchedule(models.TransientModel):
                     )
                 )
 
+        _debug.pipeline(
+            "plan_scheduled",
+            wizard=self.id,
+            plan=self.plan_id.id,
+            model=self.res_model,
+            records=len(applied_on),
+            templates=len(templates),
+            groups=len(record_ids_by_group),
+        )
         for (
             template,
             responsible,
@@ -528,6 +539,14 @@ class MailActivitySchedule(models.TransientModel):
         if not self.res_model:
             return self._action_schedule_activities_personal()
         self._check_assignee_can_upload()
+        _debug.lifecycle(
+            "activities_scheduled",
+            wizard=self.id,
+            model=self.res_model,
+            activity_type=self.activity_type_id.id,
+            user=self.activity_user_id.id,
+            by="wizard",
+        )
         return self._get_applied_on_records().activity_schedule(
             activity_type_id=self.activity_type_id.id,
             automated=False,
@@ -542,6 +561,13 @@ class MailActivitySchedule(models.TransientModel):
             raise UserError(
                 _("Scheduling personal activities requires an assigned user.")
             )
+        _debug.lifecycle(
+            "activities_scheduled",
+            wizard=self.id,
+            activity_type=self.activity_type_id.id,
+            user=self.activity_user_id.id,
+            by="personal",
+        )
         return self.env["mail.activity"].create(
             {
                 "activity_type_id": self.activity_type_id.id,

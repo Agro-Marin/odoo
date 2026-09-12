@@ -3,9 +3,12 @@ import typing
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, email_normalize, single_email_re
 
 from odoo.addons.mail.tools.discuss import Store, to_record_id
+
+_debug = DebugLog(__name__)
 
 if typing.TYPE_CHECKING:
     from .discuss_channel import DiscussChannel
@@ -86,6 +89,14 @@ class ResPartner(models.Model):
                     > 0
                 )
 
+        _debug.logic(
+            "channel_invite_search",
+            channel=channel_id,
+            limit=limit,
+            count=channel_invites["count"],
+            selectable_email=bool(selectable_email),
+            email_already_sent=email_already_sent,
+        )
         return {
             **channel_invites,
             "email_already_sent": email_already_sent,
@@ -169,6 +180,14 @@ class ResPartner(models.Model):
             ("partner_id", "in", partners.ids),
         ]
         members = self.env["discuss.channel.member"].search(members_domain)
+        _debug.logic(
+            "mention_suggestions",
+            channel=channel.id,
+            limit=limit,
+            group=allowed_group.id or None,
+            partners=len(partners),
+            members=len(members),
+        )
         member_fields = [
             Store.One("channel_id", [], as_thread=True),
             *self.env["discuss.channel.member"]._to_store_persona([]),

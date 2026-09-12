@@ -9,12 +9,14 @@ from werkzeug.utils import send_file
 from odoo import http, models
 from odoo.exceptions import AccessError
 from odoo.http import STATIC_CACHE, NotFound, Response, request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import consteq
 from odoo.tools.misc import file_open
 
 from odoo.addons.mail.tools.discuss import add_guest_to_context
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAX_ICON_GLYPHS = 8
 
@@ -92,8 +94,10 @@ class MailController(http.Controller):
         }
         token = str(token)
         if consteq(MailThread._encode_link(base_link, params), token):
+            _debug.logic("action_token", path=base_link, by="hmac")
             return True
         if consteq(MailThread._encode_link_legacy_sha1(base_link, params), token):
+            _debug.logic("action_token", path=base_link, by="legacy_sha1")
             _logger.info(
                 "Accepted a legacy SHA-1 action link token on route %s",
                 request.httprequest.path,
@@ -107,6 +111,7 @@ class MailController(http.Controller):
     ) -> tuple:
         comparison = cls._is_token_valid(token)
         if not comparison:
+            _debug.logic("action_token_invalid", model=model, record=res_id)
             _logger.warning("Invalid token in route %s", request.httprequest.url)
             return comparison, None, cls._redirect_to_generic_fallback(model, res_id)
         try:
@@ -150,17 +155,20 @@ class MailController(http.Controller):
         RecordModel = request.env[model]
         record_sudo = RecordModel.sudo().browse(res_id).exists()
         if not record_sudo:
+            _debug.logic("redirect", model=model, record=res_id, by="missing")
             return fallback()
 
         suggested_company = record_sudo._get_redirect_suggested_company()
         if uid is not None:
             if not RecordModel.with_user(uid).has_access("read"):
+                _debug.logic("redirect", model=model, record=res_id, by="no_access")
                 return fallback()
             try:
                 cids = cls._get_allowed_company_ids(
                     record_sudo, uid, user, suggested_company
                 )
             except AccessError:
+                _debug.logic("redirect", model=model, record=res_id, by="company")
                 return fallback()
             record_action = record_sudo._get_access_action(access_uid=uid)
         else:
@@ -169,9 +177,18 @@ class MailController(http.Controller):
                 record_action["type"] == "ir.actions.act_url"
                 and record_action.get("target_type") != "public"
             ):
+                _debug.logic("redirect", model=model, record=res_id, by="login")
                 return login()
 
         record_action.pop("target_type", None)
+        _debug.logic(
+            "redirect",
+            model=model,
+            record=res_id,
+            uid=uid,
+            by=record_action["type"],
+            companies=len(cids),
+        )
         if record_action["type"] == "ir.actions.act_url":
             return request.redirect(
                 cls._get_url_with_highlight(
@@ -305,6 +322,7 @@ class MailController(http.Controller):
             raise NotFound
 
         record_sudo = record.sudo()
+        _debug.lifecycle("unfollow_link", model=model, record=res_id, partner=pid)
         record_sudo.message_unsubscribe([pid])
 
         display_link = True

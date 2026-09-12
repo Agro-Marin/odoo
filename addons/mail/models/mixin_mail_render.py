@@ -13,6 +13,7 @@ from odoo import _, api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.db.errors import PG_RECOVERABLE_EXCEPTIONS
 from odoo.exceptions import AccessError, MissingError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import (
     is_html_empty,
     prepend_html_content,
@@ -35,6 +36,7 @@ if typing.TYPE_CHECKING:
     from odoo.api import Environment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 BYPASS_RESTRICTED_RENDERING = object()
 
@@ -173,6 +175,13 @@ class MixinMailRender(models.AbstractModel):
             if may_move_model
             else self.browse()
         )
+        _debug.logic(
+            "write_dynamic_checked",
+            model=self._name,
+            records=self.ids,
+            written=sorted(written),
+            moved=len(moved),
+        )
         if rest := self - moved:
             if written:
                 rest._check_access_right_dynamic_template(fnames=written)
@@ -229,14 +238,22 @@ class MixinMailRender(models.AbstractModel):
         template_ctx = self._render_encapsulate_context(
             html_content, add_context or {}, context_record
         )
-        rendered = self.env["ir.qweb"]._render(
-            layout_xmlid,
-            template_ctx,
-            minimal_qcontext=True,
-            raise_if_not_found=False,
+        with _debug.perf(
+            "encapsulate",
+            cr=self.env.cr,
+            layout=layout_xmlid,
             lang=template_ctx["lang"],
-        )
+            record=context_record.id if context_record else None,
+        ):
+            rendered = self.env["ir.qweb"]._render(
+                layout_xmlid,
+                template_ctx,
+                minimal_qcontext=True,
+                raise_if_not_found=False,
+                lang=template_ctx["lang"],
+            )
         if not rendered:
+            _debug.logic("encapsulate_layout_missing", layout=layout_xmlid)
             _logger.warning(
                 "QWeb template %s not found when rendering encapsulation template; "
                 "sending the body without layout.",
@@ -359,6 +376,13 @@ class MixinMailRender(models.AbstractModel):
                     else template._has_unsafe_expression_template_inline_template
                 )
                 if check(template[fname], template.render_model, fname):
+                    _debug.logic(
+                        "unsafe_expression",
+                        model=self._name,
+                        record=template.id,
+                        field=fname,
+                        engine=engine,
+                    )
                     return True
         return False
 
@@ -377,6 +401,7 @@ class MixinMailRender(models.AbstractModel):
             except PG_RECOVERABLE_EXCEPTIONS:
                 raise
             except Exception:
+                _debug.logic("qweb_check_compile_failed", model=model, field=fname)
                 _logger.debug(
                     "QWeb refused to compile a %s template while checking it "
                     "for unsafe placeholders; treating it as unsafe.",
@@ -414,6 +439,12 @@ class MixinMailRender(models.AbstractModel):
             and not self.env.user.has_group("mail.group_mail_template_editor")
             and self._has_unsafe_expression(fnames=fnames)
         ):
+            _debug.logic(
+                "dynamic_template_refused",
+                model=self._name,
+                records=self.ids,
+                uid=self.env.uid,
+            )
             raise AccessError(self._prepare_template_editor_error())
 
     def _prepare_template_editor_error(self) -> str:
@@ -477,6 +508,9 @@ class MixinMailRender(models.AbstractModel):
         except StaticRenderUnsupported:
             pass
 
+        _debug.logic(
+            "qweb_render_by", model=model, records=len(res_ids), by="evaluator"
+        )
         variables = self._render_eval_context()
         if add_context:
             variables.update(add_context)
@@ -499,12 +533,15 @@ class MixinMailRender(models.AbstractModel):
         )
         records = self.env[model].browse(res_ids)
         try:
-            rendered = qweb._render_batch(
-                template_node,
-                variables,
-                ({"object": record} for record in records),
-                **qweb_options,
-            )
+            with _debug.perf(
+                "qweb_render", cr=self.env.cr, model=model, records=len(res_ids)
+            ):
+                rendered = qweb._render_batch(
+                    template_node,
+                    variables,
+                    ({"object": record} for record in records),
+                    **qweb_options,
+                )
         except Exception as error:
             self._check_render_error(error, template_src, model, engine="qweb")
             raise
@@ -542,6 +579,13 @@ class MixinMailRender(models.AbstractModel):
             "lang", _("No language detected in context")
         )
 
+        _debug.logic(
+            "render_error",
+            engine=engine,
+            model=model,
+            error=type(error).__name__,
+            lang=lang_context,
+        )
         _logger.error(
             "Failed to render %s template for %s - Context language:%s\n"
             "Target Model: %s\nError: %s\n%s",
@@ -647,12 +691,19 @@ class MixinMailRender(models.AbstractModel):
                     template_src, model, preserve_comments
                 )
             except StaticRenderUnsupported as reason:
+                _debug.logic("static_render_declined", model=model, reason=str(reason))
                 _logger.debug(
                     "Evaluation-free renderer declined a template for model %s: %s",
                     model,
                     reason,
                 )
                 programs[key] = None
+            _debug.perf.count(
+                "static_program_compiled",
+                model=model,
+                preserve_comments=preserve_comments,
+                compiled=programs[key] is not None,
+            )
         return programs[key]
 
     @api.model
@@ -712,6 +763,13 @@ class MixinMailRender(models.AbstractModel):
                 "this template needs an evaluator; see the debug log for which part"
             )
         segments, holes = program
+        _debug.logic(
+            "qweb_render_by",
+            model=model,
+            records=len(res_ids),
+            by="static",
+            holes=len(holes),
+        )
         return {
             record.id: self._render_static_program(segments, holes, record)
             for record in self.env[model].browse(res_ids)
@@ -751,18 +809,25 @@ class MixinMailRender(models.AbstractModel):
         )
         records = self.env[model].browse(res_ids)
         try:
-            rendered = qweb._render_batch(
-                view_ref,
-                variables,
-                ({"object": record} for record in records),
-                minimal_qcontext=True,
-                raise_if_not_found=False,
-                **{
-                    name: value
-                    for name, value in (options or {}).items()
-                    if name in QWEB_RENDER_OPTIONS
-                },
-            )
+            with _debug.perf(
+                "qweb_view_render",
+                cr=self.env.cr,
+                view=view_ref,
+                model=model,
+                records=len(res_ids),
+            ):
+                rendered = qweb._render_batch(
+                    view_ref,
+                    variables,
+                    ({"object": record} for record in records),
+                    minimal_qcontext=True,
+                    raise_if_not_found=False,
+                    **{
+                        name: value
+                        for name, value in (options or {}).items()
+                        if name in QWEB_RENDER_OPTIONS
+                    },
+                )
         except Exception as error:
             self._check_render_error(error, str(view_ref), model, engine="qweb_view")
             raise
@@ -789,6 +854,9 @@ class MixinMailRender(models.AbstractModel):
                     static_template, model, res_ids
                 )
             except StaticRenderUnsupported:
+                _debug.logic(
+                    "static_inline_declined", model=model, records=len(res_ids)
+                )
                 _logger.debug(
                     "Evaluation-free renderer declined an inline template; "
                     "falling back to evaluation for model %s",
@@ -796,8 +864,12 @@ class MixinMailRender(models.AbstractModel):
                 )
 
         if self._is_restricted():
+            _debug.logic("inline_render_refused", model=model, reason="restricted")
             raise AccessError(self._prepare_template_editor_error())
 
+        _debug.logic(
+            "inline_render_by", model=model, records=len(res_ids), by="evaluator"
+        )
         variables = self._render_eval_context()
         if add_context:
             variables.update(add_context)
@@ -901,12 +973,25 @@ class MixinMailRender(models.AbstractModel):
                 f"{', '.join(sorted(options.keys() - valid_render_options))}"
             )
 
-        rendered = engines[engine](
-            self, template_src, model, res_ids, add_context=add_context, options=options
-        )
+        with _debug.perf(
+            "render_template",
+            cr=self.env.cr,
+            engine=engine,
+            model=model,
+            records=len(res_ids),
+            post_process=bool(options.get("post_process")),
+        ):
+            rendered = engines[engine](
+                self,
+                template_src,
+                model,
+                res_ids,
+                add_context=add_context,
+                options=options,
+            )
 
-        if options.get("post_process"):
-            rendered = self._render_template_postprocess(model, rendered)
+            if options.get("post_process"):
+                rendered = self._render_template_postprocess(model, rendered)
 
         return rendered
 
@@ -952,6 +1037,13 @@ class MixinMailRender(models.AbstractModel):
             lang = res_ids_lang.get(res_id, default_lang)
             lang_to_res_ids.setdefault(lang, []).append(res_id)
 
+        _debug.logic(
+            "classified_per_lang",
+            model=self._name,
+            record=self.id,
+            records=len(res_ids),
+            langs=sorted(lang or "" for lang in lang_to_res_ids),
+        )
         return {
             lang: (self._with_render_lang(lang), lang_res_ids)
             for lang, lang_res_ids in lang_to_res_ids.items()

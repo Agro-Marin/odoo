@@ -13,6 +13,7 @@ from odoo import _, api, fields, models
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, is_html_empty
 from odoo.tools.misc import clean_context, get_lang
 
@@ -41,6 +42,7 @@ type AccessRow = tuple[
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 ORPHAN_BUCKET = "mail.activity"
 
@@ -480,6 +482,8 @@ class MailActivity(models.Model):
     ) -> None:
         for user in sorted(before.keys() | after.keys(), key=lambda u: u.id):
             count_diff = len(after.get(user, ())) - len(before.get(user, ()))
+            if _debug.logic.enabled and count_diff:
+                _debug.logic("todo_count_changed", user=user.id, diff=count_diff)
             if count_diff > 0:
                 user._bus_send(
                     "mail.activity/updated",
@@ -600,6 +604,12 @@ class MailActivity(models.Model):
         reachable = activities._accessible_ids(activities._access_rows(), operation)
         forbidden_ids = [id_ for id_ in activities._ids if id_ not in reachable]
 
+        _debug.logic(
+            "access_checked",
+            operation=operation,
+            asked=len(activities),
+            forbidden=len(forbidden_ids),
+        )
         if forbidden_ids:
             forbidden = self.browse(forbidden_ids)
             if result:
@@ -641,6 +651,13 @@ class MailActivity(models.Model):
             activities_to_notify = activities.filtered(
                 lambda act: act.user_id and act.user_id != self.env.user
             )
+        _debug.lifecycle(
+            "create",
+            count=len(activities),
+            notify=len(activities_to_notify),
+            quick_update=bool(self.env.context.get("mail_activity_quick_update")),
+            models=sorted(model or "" for model in activities.mapped("res_model")),
+        )
         if activities_to_notify:
             readable_ids = set(readable_user_partners._ids)
             to_sudo = activities_to_notify.filtered(
@@ -742,6 +759,14 @@ class MailActivity(models.Model):
 
         res = super().write(vals)
 
+        _debug.lifecycle(
+            "write",
+            count=len(self),
+            fields=list(vals),
+            reassigned=len(reassigned),
+            moved=len(moved),
+            recounted=bool(moves_count),
+        )
         if (
             reassigned
             and vals["user_id"] != self.env.uid
@@ -762,6 +787,7 @@ class MailActivity(models.Model):
 
     def unlink(self) -> Literal[True]:
         mine = self.sudo()._todo_keys()
+        _debug.lifecycle("unlink", count=len(self), todo_users=len(mine))
         if not mine:
             return super().unlink()
         keys = set().union(*mine.values())
@@ -804,8 +830,10 @@ class MailActivity(models.Model):
                 domain, offset, limit, stable_order(order), bypass_access=True, **kwargs
             )
         if self._domain_is_mine(domain):
+            _debug.logic("search_by", by="mine", limit=limit)
             return super()._search(domain, offset, limit, stable_order(order), **kwargs)
 
+        _debug.logic("search_by", by="access_scan", limit=limit)
         fnames = ("id", "res_model", "res_id", "user_id")
 
         def fetch(query: Query) -> list[tuple]:
@@ -847,6 +875,13 @@ class MailActivity(models.Model):
             if not existing:
                 continue
             batches = activities._notify_batches(model, set(existing._ids))
+            _debug.pipeline(
+                "assignees_notified",
+                model=model,
+                activities=len(activities),
+                existing=len(existing),
+                batches=len(batches),
+            )
             for (user, *_key), batch in batches.items():
                 self._notify_assignee_batch(
                     self.env[model].sudo(), batch, user, author_id
@@ -1015,9 +1050,17 @@ class MailActivity(models.Model):
             return self.env["mail.message"], self.browse()
 
         gone = open_activities._vanished_documents()
-        messages, attachments_to_remove = open_activities._post_done_messages(
-            feedback, attachment_ids, gone
-        )
+        with _debug.perf(
+            "done_messages_posted",
+            cr=self.env.cr,
+            activities=len(open_activities),
+            gone=len(gone),
+            attachments=len(attachment_ids or ()),
+        ) as span:
+            messages, attachments_to_remove = open_activities._post_done_messages(
+                feedback, attachment_ids, gone
+            )
+            span.set(messages=len(messages), removed=len(attachments_to_remove))
         next_values = [
             activity.with_context(
                 activity_previous_deadline=activity.date_deadline
@@ -1037,6 +1080,13 @@ class MailActivity(models.Model):
             gone.unlink()
 
         done = open_activities - gone
+        _debug.lifecycle(
+            "done",
+            activities=done.ids,
+            gone=len(gone),
+            next_activities=len(next_activities),
+            feedback=bool(feedback),
+        )
         done.write({"active": False, **({"feedback": feedback} if feedback else {})})
         return messages, next_activities
 
@@ -1203,6 +1253,9 @@ class MailActivity(models.Model):
     ) -> None:
         by_tz = self.filtered("active").grouped("user_tz")
         today_by_tz = self._today_by_tz(by_tz)
+        _debug.lifecycle(
+            "rescheduled", activities=self.ids, offset=str(offset), timezones=len(by_tz)
+        )
         for tz, activities in by_tz.items():
             today = today_by_tz[tz]
             activities.date_deadline = today + offset if offset else today
@@ -1259,10 +1312,25 @@ class MailActivity(models.Model):
     ) -> dict:
         self._check_activity_view_model(res_model)
         limit = min(limit or self._VIEW_DATA_MAX_LIMIT, self._VIEW_DATA_MAX_LIMIT)
-        all_ongoing, all_completed = self._get_activity_data_activities(
-            res_model, domain, limit, offset, fetch_done
-        )
-        grouped_activities = self._get_activity_data_cells(all_ongoing, all_completed)
+        with _debug.perf(
+            "activity_data",
+            cr=self.env.cr,
+            model=res_model,
+            limit=limit,
+            offset=offset,
+            fetch_done=fetch_done,
+        ) as span:
+            all_ongoing, all_completed = self._get_activity_data_activities(
+                res_model, domain, limit, offset, fetch_done
+            )
+            grouped_activities = self._get_activity_data_cells(
+                all_ongoing, all_completed
+            )
+            span.set(
+                ongoing=len(all_ongoing),
+                completed=len(all_completed),
+                cells=len(grouped_activities),
+            )
         return {
             "activity_res_ids": self._get_activity_data_order(grouped_activities),
             "activity_types": [
@@ -1469,6 +1537,7 @@ class MailActivity(models.Model):
     def _gc_retention_years(self, parameter: str) -> int:
         years = self.env["ir.config_parameter"]._get_int_param(parameter, 0)
         if years < 0:
+            _debug.logic("gc_skipped", parameter=parameter, reason="negative")
             _logger.warning(
                 "The ir.config_parameter %r is set to a negative number which is "
                 "invalid. Skipping gc routine.",
@@ -1507,4 +1576,5 @@ class MailActivity(models.Model):
         )
         removed = len(collected)
         collected.unlink()
+        _debug.lifecycle("gc_batch", removed=removed, more=removed == self._GC_BATCH)
         return removed, removed == self._GC_BATCH

@@ -2,12 +2,15 @@ import typing
 
 from odoo import http, models
 from odoo.http import NotFound, request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.thread import ThreadController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.mail_message import MailMessage
+
+_debug = DebugLog(__name__)
 
 
 class MessageReactionController(ThreadController):
@@ -25,6 +28,7 @@ class MessageReactionController(ThreadController):
             raise NotFound
         partner, guest = self._get_reaction_author(message, **kwargs)
         if not partner and not guest:
+            _debug.logic("reaction_refused", message=message.id, reason="no_persona")
             raise NotFound
         store = Store()
         message.sudo()._message_reaction(content, action, partner, guest, store)

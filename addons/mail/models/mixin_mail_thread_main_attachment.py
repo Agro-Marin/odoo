@@ -1,12 +1,15 @@
 import typing
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
     from odoo.addons.bus.models.ir_attachment import IrAttachment
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailThreadMainAttachment(models.AbstractModel):
@@ -45,15 +48,25 @@ class MixinMailThreadMainAttachment(models.AbstractModel):
                 )
 
             if attachments:
-                self.with_context(
-                    tracking_disable=True
-                ).message_main_attachment_id = max(
+                chosen = max(
                     attachments,
                     key=lambda r: (
                         r.mimetype.endswith("pdf"),
                         r.mimetype.startswith("image"),
                     ),
-                ).id
+                )
+                _debug.lifecycle(
+                    "main_attachment_set",
+                    model=self._name,
+                    record=self.id,
+                    attachment=chosen.id,
+                    mimetype=chosen.mimetype,
+                    candidates=len(attachments),
+                    force=force,
+                )
+                self.with_context(
+                    tracking_disable=True
+                ).message_main_attachment_id = chosen.id
 
     def _thread_to_store(
         self,

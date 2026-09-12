@@ -1,7 +1,10 @@
 from odoo import models
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import Store
+
+_debug = DebugLog(__name__)
 
 
 class IrHttp(models.AbstractModel):
@@ -20,8 +23,9 @@ class IrHttp(models.AbstractModel):
             ResUsers = self.with_context(allowed_company_ids=allowed_company_ids).env[
                 "res.users"
             ]
-        ResUsers._init_store_data(store)
-        result["storeData"] = store.get_result()
+        with _debug.perf("session_store_data", cr=self.env.cr, uid=self.env.uid):
+            ResUsers._init_store_data(store)
+            result["storeData"] = store.get_result()
         guest = self.env["mail.guest"]._get_guest_from_context()
         if not request.session.uid and guest:
             user_context = {"lang": guest.lang}

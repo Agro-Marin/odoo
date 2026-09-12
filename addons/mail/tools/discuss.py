@@ -14,12 +14,15 @@ import odoo
 from odoo import models
 from odoo.exceptions import MissingError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import groupby
 
 from odoo.addons.bus.websocket import wsrequest
 
 if typing.TYPE_CHECKING:
     from odoo.api import Environment
+
+_debug = DebugLog(__name__)
 
 EMPTY_EDIT_MARKER = '<span class="o-mail-Message-edited"></span>'
 
@@ -38,6 +41,7 @@ def add_guest_to_context[F: Callable](func: F) -> F:
             if timezone:
                 guest._update_timezone(timezone)
         if guest:
+            _debug.logic("guest_in_context", guest=guest.id, route=func.__name__)
             req.update_context(guest=guest)
             if isinstance(self, models.BaseModel):
                 self = self.with_context(guest=guest)
@@ -81,6 +85,11 @@ def get_sfu_url(env: Environment) -> str | None:
     )
     if not sfu_url:
         sfu_url = os.getenv("ODOO_SFU_URL")
+    _debug.logic(
+        "sfu_url",
+        configured=bool(sfu_url),
+        by="env" if os.getenv("ODOO_SFU_URL") else "param",
+    )
     if sfu_url:
         return sfu_url.rstrip("/")
     return None
@@ -223,6 +232,13 @@ class Store:
             "Missing `bus_channel`. Pass it to the `Store` constructor to use `bus_send`."
         )
         if res := self.get_result():
+            _debug.pipeline(
+                "bus_send",
+                notification_type=notification_type,
+                channel=self.target.channel._name,
+                models=sorted(res),
+                records=sum(len(v) for v in res.values()),
+            )
             self.target.channel._bus_send(
                 notification_type, res, subchannel=self.target.subchannel
             )

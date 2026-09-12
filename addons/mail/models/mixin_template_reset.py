@@ -6,10 +6,13 @@ from lxml import etree
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.module import get_resource_from_path
 from odoo.tools.convert import xml_import
 from odoo.tools.misc import file_path
 from odoo.tools.translate import TranslationImporter, get_po_paths
+
+_debug = DebugLog(__name__)
 
 
 class MixinTemplateReset(models.AbstractModel):
@@ -65,6 +68,13 @@ class MixinTemplateReset(models.AbstractModel):
             external_id = template.get_external_id().get(template.id)
             module, xml_id = external_id.split(".")
             fullpath = file_path(template.template_fs)
+            _debug.lifecycle(
+                "template_reset",
+                model=self._name,
+                record=template.id,
+                xmlid=external_id,
+                source_found=bool(fullpath),
+            )
             if fullpath:
                 for field_name, field in template._fields.items():
                     if field.translate is True:

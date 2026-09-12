@@ -6,6 +6,7 @@ from typing import Literal
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from ..tools.jwt import InvalidVapidError, generate_vapid_keys
 from ..tools.web_push import decode_browser_keys
@@ -14,6 +15,7 @@ if typing.TYPE_CHECKING:
     from .res_partner import ResPartner
 
 _logger = logger.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAX_DEVICES_PER_PARTNER = 20
 
@@ -53,7 +55,9 @@ class MailPushDevice(models.Model):
         public_key = "mail.web_push_vapid_public_key"
         public_key_value = ir_params_sudo.get_param(public_key)
         if not public_key_value:
-            self.sudo().search([]).unlink()
+            devices = self.sudo().search([])
+            _debug.lifecycle("vapid_keys_generated", devices_dropped=len(devices))
+            devices.unlink()
             private_key_value, public_key_value = generate_vapid_keys()
             ir_params_sudo.set_param(
                 "mail.web_push_vapid_private_key", private_key_value
@@ -67,6 +71,7 @@ class MailPushDevice(models.Model):
         sw_vapid_public_key = kw.get("vapid_public_key")
         valid_sub = self._is_vapid_public_key_current(sw_vapid_public_key)
         if not valid_sub:
+            _debug.logic("register_refused", reason="stale_vapid_key", uid=self.env.uid)
             raise InvalidVapidError("Invalid VAPID public key")
         endpoint = kw.get("endpoint")
         browser_keys = kw.get("keys")
@@ -92,6 +97,13 @@ class MailPushDevice(models.Model):
             conflicting = self.sudo().search(
                 [("endpoint", "=", endpoint), ("id", "!=", mail_push_device.id)]
             )
+            _debug.lifecycle(
+                "device_updated",
+                device=mail_push_device.id,
+                partner=partner.id,
+                moved=search_endpoint != endpoint,
+                conflicting=len(conflicting),
+            )
             if conflicting:
                 conflicting.unlink()
             mail_push_device.write(
@@ -115,6 +127,12 @@ class MailPushDevice(models.Model):
             devices = self.sudo().search(
                 [("partner_id", "=", partner.id)], order="id desc"
             )
+            _debug.lifecycle(
+                "device_registered",
+                partner=partner.id,
+                devices=len(devices),
+                pruned=max(len(devices) - MAX_DEVICES_PER_PARTNER, 0),
+            )
             if len(devices) > MAX_DEVICES_PER_PARTNER:
                 devices[MAX_DEVICES_PER_PARTNER:].unlink()
 
@@ -128,6 +146,11 @@ class MailPushDevice(models.Model):
                 ("endpoint", "=", endpoint),
                 ("partner_id", "=", self.env.user.partner_id.id),
             ]
+        )
+        _debug.lifecycle(
+            "device_unregistered",
+            partner=self.env.user.partner_id.id,
+            found=bool(mail_push_device),
         )
         if mail_push_device:
             mail_push_device.unlink()

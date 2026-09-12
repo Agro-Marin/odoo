@@ -11,6 +11,7 @@ from markupsafe import Markup
 
 from odoo import _, api, exceptions, fields, models, tools
 from odoo.db.schema import column_exists
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, parse_contact_from_email
 from odoo.tools.mail import (
     email_split_and_format,
@@ -36,6 +37,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.res_partner import ResPartner
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class RecipientSources(TypedDict):
@@ -150,9 +152,18 @@ class Base(models.AbstractModel):
         )
         if not self.env.cr.fetchone()[0]:
             return
-        Activity.with_context(active_test=False).sudo().search(
-            [("res_model", "=", self._name), ("res_id", "in", record_ids)]
-        ).unlink()
+        activities = (
+            Activity.with_context(active_test=False)
+            .sudo()
+            .search([("res_model", "=", self._name), ("res_id", "in", record_ids)])
+        )
+        _debug.lifecycle(
+            "activities_unlinked_with_records",
+            model=self._name,
+            records=len(record_ids),
+            activities=len(activities),
+        )
+        activities.unlink()
 
     def _to_store_defaults(self, target: Store.Target) -> StoreFieldsInput:
         return []
@@ -430,6 +441,14 @@ class Base(models.AbstractModel):
                 ]
             )
 
+        if _debug.logic.enabled and updated:
+            _debug.logic(
+                "tracked",
+                model=self._name,
+                record=self.id,
+                fields=sorted(updated),
+                values=len(tracking_value_ids),
+            )
         return updated, tracking_value_ids
 
     def _mail_track_field_sequences(
@@ -585,6 +604,14 @@ class Base(models.AbstractModel):
                 "email_to": email_to,
                 "partner_ids": partner_ids,
             }
+        _debug.logic(
+            "default_recipients",
+            model=self._name,
+            records=len(self),
+            prioritize_email=prioritize_email,
+            with_cc=with_cc,
+            banned=len(ban_emails),
+        )
         return res
 
     def _message_get_suggested_recipients_sources(
@@ -658,6 +685,16 @@ class Base(models.AbstractModel):
             customer_information=customer_information,
         )
         partner_ids |= {pid for recs in records_partners.values() for pid in recs._ids}
+        _debug.pipeline(
+            "suggested_recipients",
+            model=self._name,
+            records=len(self),
+            reply_discussion=reply_discussion,
+            reply_message=reply_message.id if reply_message else None,
+            no_create=no_create,
+            partners=len(partner_ids),
+            banned=len(ban_emails),
+        )
 
         suggested_recipients = {}
         for record in self:
@@ -925,6 +962,15 @@ class Base(models.AbstractModel):
                 emails_key_all.append(email_key)
         if not emails_all:
             return found_results
+        _debug.logic(
+            "partners_from_emails",
+            model=self._name,
+            records=len(res_ids),
+            emails=len(emails_all),
+            avoid_alias=avoid_alias,
+            no_create=no_create,
+            companies=len(emails_key_company_id),
+        )
 
         alias_emails = (
             self.env["mail.alias.domain"].sudo()._get_alias_emails(emails_key_all)
@@ -956,6 +1002,13 @@ class Base(models.AbstractModel):
         for mail_key, partner in zip(emails_key_all, partners, strict=True):
             for res_id in emails_key_res_ids[mail_key]:
                 found_results[res_id] |= partner
+        _debug.perf.count(
+            "partners_resolved",
+            model=self._name,
+            emails=len(emails_all),
+            partners=len(partners),
+            banned=len(ban_emails),
+        )
         return found_results
 
     def _mail_get_customer_information_batch(self) -> dict[str, dict]:
@@ -1138,6 +1191,7 @@ class Base(models.AbstractModel):
                     alias.alias_full_name,
                 )
 
+        by_alias = len(reply_to_email)  # debuglog
         if set(_res_ids) - set(reply_to_email):
             for company, record_ids in company_to_res_ids.items():
                 if not company.catchall_email:
@@ -1147,6 +1201,14 @@ class Base(models.AbstractModel):
                     reply_to_email.update(
                         dict.fromkeys(left_ids, company.catchall_email)
                     )
+        _debug.logic(
+            "reply_to_addresses",
+            model=model or None,
+            records=len(_res_ids),
+            by_alias=by_alias,
+            by_catchall=len(reply_to_email) - by_alias,
+            companies=len(company_to_res_ids),
+        )
         return reply_to_email
 
     def _notify_get_reply_to_batch(

@@ -1,9 +1,12 @@
 import typing
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .res_users_settings_volumes import ResUsersSettingsVolumes
+
+_debug = DebugLog(__name__)
 
 
 class ResUsersSettings(models.Model):
@@ -53,6 +56,9 @@ class ResUsersSettings(models.Model):
 
     def set_res_users_settings(self, new_settings: dict) -> dict:
         formatted = super().set_res_users_settings(new_settings)
+        _debug.lifecycle(
+            "settings_changed", settings=self.ids, fields=sorted(new_settings)
+        )
         self._bus_send("res.users.settings", formatted)
         return formatted
 
@@ -66,6 +72,13 @@ class ResUsersSettings(models.Model):
                 ("partner_id", "=", partner_id),
                 ("guest_id", "=", guest_id),
             ]
+        )
+        _debug.lifecycle(
+            "volume_set",
+            settings=self.id,
+            partner=partner_id,
+            guest=guest_id,
+            existing=bool(volume_setting),
         )
         if volume_setting:
             volume_setting.volume = volume

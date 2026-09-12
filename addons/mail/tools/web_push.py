@@ -15,6 +15,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
+from odoo.libs.debug_log import DebugLog
+
 from . import jwt
 from .link_preview import UrlSafety, _classify_url_safety
 
@@ -40,6 +42,7 @@ class PUSH_NOTIFICATION_ACTION:
 
 
 _logger = logger.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class DeviceUnreachableError(Exception):
@@ -166,11 +169,14 @@ def push_to_end_point(
     endpoint = device["endpoint"]
     url = urlsplit(endpoint)
     if (url.hostname or "").endswith(".invalid"):
+        _debug.logic("push_refused", device=device.get("id"), reason="invalid_host")
         raise DeviceUnreachableError("Device Unreachable")
     safety = _classify_url_safety(endpoint, cache=safety_cache)
     if safety is UrlSafety.BLOCKED:
+        _debug.logic("push_refused", device=device.get("id"), reason="blocked_host")
         raise DeviceUnreachableError("Device Unreachable")
     if safety is UrlSafety.UNRESOLVABLE:
+        _debug.logic("push_refused", device=device.get("id"), reason="unresolvable")
         raise PushEndpointUnresolvableError(endpoint)
     jwt_claims = {
         "aud": f"{url.scheme}://{url.netloc}",
@@ -190,13 +196,21 @@ def push_to_end_point(
         "TTL": "60",
     }
 
-    response = session.post(
-        endpoint,
-        headers=headers,
-        data=encrypted_payload,
-        timeout=5,
-        allow_redirects=False,
-    )
+    with _debug.perf(
+        "push_posted",
+        device=device.get("id"),
+        host=url.hostname,
+        payload=len(body_payload),
+        encrypted=len(encrypted_payload),
+    ) as span:
+        response = session.post(
+            endpoint,
+            headers=headers,
+            data=encrypted_payload,
+            timeout=5,
+            allow_redirects=False,
+        )
+        span.set(status=getattr(response, "status_code", None))
     if response.status_code == 201:
         _logger.debug("Sent push notification %s", endpoint)
     else:

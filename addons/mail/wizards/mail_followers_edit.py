@@ -2,11 +2,14 @@ import typing
 
 from odoo import fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.parser import parse_res_ids
 
 if typing.TYPE_CHECKING:
     from ..models.res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MailFollowersEdit(models.TransientModel):
@@ -40,6 +43,15 @@ class MailFollowersEdit(models.TransientModel):
                 raise UserError(
                     self.env._("No documents found for the selected records.")
                 )
+            _debug.lifecycle(
+                "followers_edited",
+                wizard=wizard.id,
+                model=wizard.res_model,
+                documents=len(documents),
+                partners=len(wizard.partner_ids),
+                operation=wizard.operation,
+                notify=wizard.notify,
+            )
             if wizard.operation == "remove":
                 documents.message_unsubscribe(partner_ids=wizard.partner_ids.ids)
             else:

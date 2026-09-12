@@ -5,6 +5,7 @@ from typing import Literal
 from odoo import models, modules, tools
 from odoo.exceptions import MissingError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import groupby
 from odoo.tools.misc import OrderedSet
 
@@ -12,6 +13,8 @@ from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSp
 
 if typing.TYPE_CHECKING:
     from .mail_followers import MailFollowers
+
+_debug = DebugLog(__name__)
 
 
 class MailMessage(models.Model):
@@ -129,6 +132,13 @@ class MailMessage(models.Model):
         record_by_message = self._record_by_message()
         records = list(
             {(r._name, r.id): r for r in record_by_message.values()}.values()
+        )
+        _debug.perf.count(
+            "message_format",
+            messages=len(self),
+            threads=len(records),
+            add_followers=add_followers,
+            format_reply=format_reply,
         )
         record_fields = self._store_thread_fields(
             store, records, add_followers=add_followers, followers=followers
@@ -367,6 +377,12 @@ class MailMessage(models.Model):
                 for user in message.author_id.with_context(active_test=False).user_ids
             ):
                 message_ids_by_partner[message.author_id].add(message.id)
+        _debug.pipeline(
+            "notification_update",
+            messages=len(self),
+            models=len(ids_by_model),
+            partners=len(message_ids_by_partner),
+        )
         for partner, message_ids in message_ids_by_partner.items():
             if user := partner.main_user_id:
                 store = Store(bus_channel=user)

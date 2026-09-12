@@ -8,6 +8,7 @@ from typing import Any, Literal
 from odoo import api, fields, models
 from odoo.api import DomainType, ValuesType
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, Query, partition
 
 if typing.TYPE_CHECKING:
@@ -16,6 +17,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _DEADLINE_LAST = date.max
 
@@ -383,6 +385,12 @@ class MixinMailActivity(models.AbstractModel):
         result = super().write(vals)
         if not self._display_name_field_names().isdisjoint(vals):
             activities = self.sudo().with_context(active_test=False).activity_ids
+            _debug.logic(
+                "res_name_recompute_queued",
+                model=self._name,
+                records=len(self),
+                activities=len(activities),
+            )
             if activities:
                 self.env.add_to_compute(
                     self.env["mail.activity"]._fields["res_name"], activities
@@ -506,10 +514,19 @@ class MixinMailActivity(models.AbstractModel):
         only_automated: bool = True,
     ) -> MailActivity:
         if self.env.context.get("mail_activity_automation_skip"):
+            _debug.logic(
+                "activity_search_skipped", model=self._name, reason="automation_skip"
+            )
             return self.env["mail.activity"]
 
         activity_types_ids = self._get_activity_type_ids(act_type_xmlids)
         if not activity_types_ids:
+            _debug.logic(
+                "activity_search_skipped",
+                model=self._name,
+                reason="no_type",
+                xmlids=list(act_type_xmlids),
+            )
             return self.env["mail.activity"]
 
         domain = Domain(
@@ -554,6 +571,12 @@ class MixinMailActivity(models.AbstractModel):
         if act_type_xmlid:
             activity_type = self._activity_type_from_xmlid(act_type_xmlid)
             if not activity_type:
+                _debug.logic(
+                    "activity_type_fallback",
+                    model=self._name,
+                    xmlid=act_type_xmlid,
+                    reason="unknown_xmlid",
+                )
                 _logger.warning(
                     "Unknown activity type xml id %s on %s, falling back on the "
                     "model's default type",
@@ -565,6 +588,12 @@ class MixinMailActivity(models.AbstractModel):
                 act_values.get("activity_type_id") or ()
             )
         if activity_type.res_model and activity_type.res_model != self._name:
+            _debug.logic(
+                "activity_type_fallback",
+                model=self._name,
+                xmlid=act_type_xmlid or None,
+                reason="model_mismatch",
+            )
             _logger.warning(
                 "Invalid activity type model %s used on %s (tried with xml id "
                 "%s), falling back on the model's default type",
@@ -590,6 +619,7 @@ class MixinMailActivity(models.AbstractModel):
         if not date_deadline:
             date_deadline = self.env["mail.activity"]._today_for(assignee)
         if isinstance(date_deadline, datetime):
+            _debug.logic("deadline_is_datetime", model=self._name)
             _logger.warning(
                 "Scheduled deadline should be a date (got %s)", date_deadline
             )
@@ -604,6 +634,14 @@ class MixinMailActivity(models.AbstractModel):
         if assignee and not shared.get("user_id"):
             shared["user_id"] = assignee.id
         default_note = activity_type.default_note
+        _debug.lifecycle(
+            "activity_scheduled",
+            model=self._name,
+            records=len(self),
+            activity_type=activity_type.id,
+            user=shared.get("user_id"),
+            deadline=date_deadline,
+        )
         return self.env["mail.activity"].create(
             [
                 {
@@ -666,6 +704,12 @@ class MixinMailActivity(models.AbstractModel):
             write_vals["date_deadline"] = date_deadline
         if new_user_id:
             write_vals["user_id"] = new_user_id
+        _debug.lifecycle(
+            "activity_rescheduled",
+            model=self._name,
+            activities=len(activities),
+            fields=list(write_vals),
+        )
         if activities and write_vals:
             activities.write(write_vals)
         return activities
@@ -681,6 +725,9 @@ class MixinMailActivity(models.AbstractModel):
         activities = self.activity_search(
             act_type_xmlids, user_id=user_id, only_automated=only_automated
         )
+        _debug.lifecycle(
+            "activity_feedback", model=self._name, activities=len(activities)
+        )
         if activities:
             activities.action_feedback(feedback=feedback, attachment_ids=attachment_ids)
         return activities
@@ -693,6 +740,9 @@ class MixinMailActivity(models.AbstractModel):
     ) -> MailActivity:
         activities = self.activity_search(
             act_type_xmlids, user_id=user_id, only_automated=only_automated
+        )
+        _debug.lifecycle(
+            "activity_unlinked", model=self._name, activities=len(activities)
         )
         activities.unlink()
         return activities

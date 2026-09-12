@@ -5,12 +5,14 @@ from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from .mail_alias import MailAlias
     from .mail_alias_domain import MailAliasDomain
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MixinMailAliasMixinOptional(models.AbstractModel):
@@ -98,6 +100,13 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                 valid_vals_list.append(vals)
 
         records = super().create(valid_vals_list)
+        _debug.lifecycle(
+            "create",
+            model=self._name,
+            count=len(records),
+            aliases_created=len(alias_vals_list),
+            overrides=len(overrides_by_index),
+        )
 
         for index, record in enumerate(records):
             if not record.alias_id:
@@ -122,6 +131,11 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
                 for record in self.filtered(lambda rec: not rec.alias_id)
             ]
             if alias_create_values:
+                _debug.lifecycle(
+                    "aliases_created_on_write",
+                    model=self._name,
+                    records=len(alias_create_values),
+                )
                 aliases = self.env["mail.alias"].sudo().create(alias_create_values)
                 for record, alias in zip(
                     self.filtered(lambda rec: not rec.alias_id), aliases, strict=False
@@ -143,12 +157,21 @@ class MixinMailAliasMixinOptional(models.AbstractModel):
         if alias_vals:
             if not record_vals:
                 self.check_access("write")
+            _debug.lifecycle(
+                "alias_written",
+                model=self._name,
+                records=self.ids,
+                fields=list(alias_vals),
+            )
             self.mapped("alias_id").sudo().write(alias_vals)
 
         return True
 
     def unlink(self) -> Literal[True]:
         aliases = self.mapped("alias_id")
+        _debug.lifecycle(
+            "unlink", model=self._name, records=self.ids, aliases=len(aliases)
+        )
         res = super().unlink()
         aliases.sudo().unlink()
         return res

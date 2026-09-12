@@ -9,6 +9,7 @@ from lxml import html
 from psycopg import IntegrityError
 
 from odoo import api, fields, models, tools
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
@@ -17,6 +18,8 @@ from odoo.addons.mail.tools.link_preview import get_link_preview_from_url
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
     from .mail_message_link_preview import MessageMailLinkPreview
+
+_debug = DebugLog(__name__)
 
 
 class MailLinkPreview(models.Model):
@@ -109,6 +112,14 @@ class MailLinkPreview(models.Model):
             message_link_previews_values.append(
                 (sequence, new_link_preview_by_url[values["source_url"]])
             )
+        _debug.pipeline(
+            "link_previews",
+            message=message.id,
+            urls=len(urls),
+            kept=len(message_link_previews_ok),
+            reused=len(message_link_previews_values) - len(link_previews_values),
+            fetched=len(link_previews_values),
+        )
         message_link_previews_ok += self.env["mail.message.link.preview"].create(
             [
                 {
@@ -152,6 +163,13 @@ class MailLinkPreview(models.Model):
         link_preview_throttle = self.env["ir.config_parameter"]._get_int_param(
             "mail.link_preview_throttle", 99
         )
+        if _debug.logic.enabled and call_counter > link_preview_throttle:
+            _debug.logic(
+                "domain_throttled",
+                domain=domain,
+                calls=call_counter,
+                throttle=link_preview_throttle,
+            )
         return call_counter > link_preview_throttle
 
     @api.model
@@ -165,6 +183,7 @@ class MailLinkPreview(models.Model):
             except IntegrityError:
                 raced_urls.append(values["source_url"])
         if raced_urls:
+            _debug.logic("previews_raced", urls=len(raced_urls))
             previews += self.search([("source_url", "in", raced_urls)])
         return previews
 
@@ -197,9 +216,11 @@ class MailLinkPreview(models.Model):
     @api.autovacuum
     def _gc_link_previews(self) -> None:
         threshold = fields.Datetime.now() - relativedelta(weeks=2)
-        self.search(
+        stale = self.search(
             [
                 ("message_link_preview_ids", "=", False),
                 ("create_date", "<", threshold),
             ]
-        ).unlink()
+        )
+        _debug.lifecycle("gc_link_previews", removed=len(stale))
+        stale.unlink()

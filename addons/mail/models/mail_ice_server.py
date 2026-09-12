@@ -5,10 +5,12 @@ import logging
 import requests
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.discuss import get_twilio_credentials
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class MailIceServer(models.Model):
@@ -46,6 +48,7 @@ class MailIceServer(models.Model):
     def _get_ice_servers(self) -> list:
         (account_sid, auth_token) = get_twilio_credentials(self.env)
         if not (account_sid and auth_token):
+            _debug.logic("ice_servers", by="local")
             return self._get_local_ice_servers()
 
         icp = self.env["ir.config_parameter"].sudo()
@@ -55,13 +58,18 @@ class MailIceServer(models.Model):
             try:
                 payload = json.loads(cached)
                 if datetime.datetime.fromisoformat(payload["expiry"]) > now:
+                    _debug.logic(
+                        "ice_servers", by="twilio_cache", expiry=payload["expiry"]
+                    )
                     return payload["servers"]
             except ValueError, KeyError, TypeError:
                 pass
 
         servers = self._get_twilio_ice_servers(account_sid, auth_token)
         if servers is None:
+            _debug.logic("ice_servers", by="local_fallback")
             return self._get_local_ice_servers()
+        _debug.logic("ice_servers", by="twilio", servers=len(servers))
         icp.set_param(
             self._ICE_CACHE_PARAM,
             json.dumps(
@@ -78,7 +86,9 @@ class MailIceServer(models.Model):
     def _get_twilio_ice_servers(self, account_sid: str, auth_token: str) -> list | None:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Tokens.json"
         try:
-            response = requests.post(url, auth=(account_sid, auth_token), timeout=5)
+            with _debug.perf("twilio_tokens_requested") as span:
+                response = requests.post(url, auth=(account_sid, auth_token), timeout=5)
+                span.set(status=getattr(response, "status_code", None))
         except requests.RequestException:
             _logger.warning("Could not reach Twilio for TURN servers", exc_info=True)
             return None

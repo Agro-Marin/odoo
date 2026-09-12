@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 import requests
 
 from odoo.http import Controller, NotFound, ServiceUnavailable, request, route
+from odoo.libs.debug_log import DebugLog
 
 KLIPY_CONTENT_FILTER = "medium"
 KLIPY_GIF_LIMIT = 8
@@ -14,6 +15,7 @@ MAX_GIF_ID_LEN = 128
 GIF_FAVORITES_PAGE = 20
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def _query_string(params: dict) -> str:
@@ -39,12 +41,20 @@ class DiscussGifController(Controller):
 
     def _request_gifs(self, endpoint: str) -> requests.Response:
         if not self._api_key():
+            _debug.logic("gif_request_refused", reason="no_api_key")
             _logger.debug("Klipy GIF API is not configured; refusing the request.")
             raise ServiceUnavailable
         try:
-            response = requests.get(f"https://api.klipy.com/v2/{endpoint}", timeout=3)
+            with _debug.perf(
+                "gif_api_requested", endpoint=endpoint.partition("?")[0]
+            ) as span:
+                response = requests.get(
+                    f"https://api.klipy.com/v2/{endpoint}", timeout=3
+                )
+                span.set(status=getattr(response, "status_code", None))
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
+            _debug.logic("gif_request_failed", error=type(e).__name__)
             _logger.warning("Klipy GIF API request failed: %s", e)
             raise ServiceUnavailable from None
         return response

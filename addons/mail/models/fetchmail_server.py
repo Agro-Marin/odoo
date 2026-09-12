@@ -12,6 +12,7 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from ..tools.incoming_mail import (
     ENCRYPTION_SELECTION,
@@ -30,6 +31,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.ir_model import IrModel
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MAIL_SERVER_DOMAIN = (
     Domain("state", "=", "done")
@@ -277,15 +279,22 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         res = super().create(vals_list)
+        _debug.lifecycle(
+            "create",
+            servers=res.ids,
+            types=sorted({vals.get("server_type") or "" for vals in vals_list}),
+        )
         self._update_cron(vals_list)
         return res
 
     def write(self, vals: ValuesType) -> Literal[True]:
         res = super().write(vals)
+        _debug.lifecycle("write", servers=self.ids, fields=list(vals))
         self._update_cron([vals])
         return res
 
     def unlink(self) -> Literal[True]:
+        _debug.lifecycle("unlink", servers=self.ids)
         res = super().unlink()
         self._update_cron()
         return res
@@ -377,12 +386,22 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
                     fields=", ".join(missing),
                 )
             )
-        connection = connect(connection_type, self.server, self.port, self.encryption)
-        if connection_type == "imap":
-            self._imap_login__(connection)
-        else:
-            connection.user(self.user)
-            connection.pass_(self.password)
+        with _debug.perf(
+            "connect",
+            server=self.id,
+            kind=connection_type,
+            host=self.server,
+            port=self.port,
+            encryption=self.encryption,
+        ):
+            connection = connect(
+                connection_type, self.server, self.port, self.encryption
+            )
+            if connection_type == "imap":
+                self._imap_login__(connection)
+            else:
+                connection.user(self.user)
+                connection.pass_(self.password)
         return connection
 
     def _imap_login__(self, connection: OdooIMAP4) -> None:
@@ -393,7 +412,15 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         self.check_singleton()
         for exc_types, make_message in CONNECTION_ERROR_MESSAGES:
             if isinstance(exc, exc_types):
+                _debug.logic(
+                    "connection_error_classified",
+                    server=self.id,
+                    error=type(exc).__name__,
+                )
                 return UserError(make_message(exc))
+        _debug.logic(
+            "connection_error_unclassified", server=self.id, error=type(exc).__name__
+        )
         _logger.warning(
             "Connection test on %s server %s failed with an unexpected error.",
             self.server_type,
@@ -411,9 +438,18 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         self.check_singleton()
         now = fields.Datetime.now()
         self.error_message = str(exc) or repr(exc)
+        _debug.lifecycle(
+            "poll_failure",
+            server=self.id,
+            error=type(exc).__name__,
+            since=self.error_since or None,
+        )
         if not self.error_since:
             self.error_since = now
         elif self.error_since < now - MAIL_SERVER_DEACTIVATE_TIME:
+            _debug.logic(
+                "server_deactivated", server=self.id, reason="too_many_failures"
+            )
             message = "Deactivating fetchmail %s server %s (too many failures)" % (
                 self.server_type,
                 self.name,
@@ -432,6 +468,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         deadline = self.env.context["cron_end_time"] - (
             SERVER_TEARDOWN_BUDGET * len(records)
         )
+        _debug.pipeline("poll_due", servers=records.ids, deadline=deadline)
         records.with_context(cron_end_time=deadline)._poll_mailboxes(**kw)
         if not self.search_count(MAIL_SERVER_DOMAIN, limit=1):
             self.env["ir.cron"]._commit_progress(deactivate=True)
@@ -451,19 +488,33 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             if not server.try_lock_for_update(allow_referencing=True).filtered_domain(
                 MAIL_SERVER_DOMAIN
             ):
+                _debug.logic("poll_skipped", server=server.id, reason="unavailable")
                 _logger.info(
                     "Skip checking for new mails on mail server id %d (unavailable)",
                     server.id,
                 )
                 commit_progress(0, remaining=total_remaining)
                 continue
-            outcome = server._poll_mailbox(batch_limit, total_remaining)
+            with _debug.perf(
+                "poll_mailbox",
+                cr=self.env.cr,
+                server=server.id,
+                batch_limit=batch_limit,
+            ) as span:
+                outcome = server._poll_mailbox(batch_limit, total_remaining)
+                span.set(
+                    remaining=outcome.remaining,
+                    error=type(outcome.exception).__name__
+                    if outcome.exception
+                    else None,
+                )
             total_remaining = outcome.remaining
             if outcome.exception is not None:
                 result_exception = outcome.exception
             server.date = fields.Datetime.now()
             server.env.cr.commit()
             if not commit_progress(1, remaining=total_remaining):
+                _debug.logic("poll_interrupted", server=server.id, reason="cron_budget")
                 break
         return result_exception
 
@@ -484,6 +535,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             sink = self._prepare_message_sink(message_cr)
             commit_progress = sink.thread.env["ir.cron"]._commit_progress
             announced = connection.count_unread_messages()
+            _debug.pipeline("mailbox_opened", server=self.id, announced=announced)
             _logger.debug("%d unread messages on %s server %s.", announced, *label)
             for num, message in connection.get_unread_messages():
                 _logger.debug("Fetched message %r on %s server %s.", num, *label)
@@ -494,6 +546,12 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
                 remaining = max(beyond_this_server + announced - count, 0)
                 time_left = commit_progress(1, remaining=remaining)
                 if count >= batch_limit or not time_left:
+                    _debug.logic(
+                        "fetch_interrupted",
+                        server=self.id,
+                        reason="batch_limit" if count >= batch_limit else "time",
+                        fetched=count,
+                    )
                     interrupted = True
                     break
             self.write(self._prepare_cleared_error_vals())
@@ -526,6 +584,17 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
                 count,
             )
         undelivered = max(announced - count, 0) if interrupted else 0
+        _debug.pipeline(
+            "mailbox_polled",
+            server=self.id,
+            announced=announced,
+            fetched=count,
+            delivered=outcomes[_MessageOutcome.DELIVERED],
+            refused=outcomes[_MessageOutcome.REFUSED],
+            unacknowledged=outcomes[_MessageOutcome.UNACKNOWLEDGED],
+            undelivered=undelivered,
+            error=type(exception).__name__ if exception else None,
+        )
         _logger.info(
             "Fetched %d email(s) on %s server %s; %d delivered, %d refused, "
             "%d delivered but not acknowledged.",
@@ -561,8 +630,11 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         label: tuple[str, str],
     ) -> _MessageOutcome:
         try:
-            sink.process(message)
-            sink.cr.commit()
+            with _debug.perf(
+                "message_processed", cr=sink.cr, server=self.id, size=len(message)
+            ):
+                sink.process(message)
+                sink.cr.commit()
         except Exception:
             sink.cr.rollback()
             _logger.info(
@@ -572,6 +644,7 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
         try:
             connection.mark_message_handled(num)
         except Exception:
+            _debug.logic("acknowledge_failed", server=self.id)
             _logger.warning(
                 "Processed message %r on %s server %s but could not acknowledge it; "
                 "the server will deliver it again.",
@@ -596,4 +669,5 @@ odoo_mailgate: "|/path/to/odoo-mailgate.py --host=localhost -u {uid} --password-
             cron = self.env.ref("mail.ir_cron_mail_gateway_action")
         except ValueError:
             return
+        _debug.lifecycle("cron_toggled", cron=cron.id)
         cron.toggle(model=self._name, domain=MAIL_SERVER_DOMAIN)

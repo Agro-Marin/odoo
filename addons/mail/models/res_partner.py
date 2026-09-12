@@ -7,12 +7,15 @@ from odoo import Command, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import limited_field_access_token
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
 
 if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 ROOT_EMAIL_UNIQUENESS_FIELDS = frozenset({"email", "active"})
 
@@ -73,6 +76,7 @@ class ResPartner(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         partners = super().create(vals_list)
         if partners._mail_shares_root_email():
+            _debug.lifecycle("root_email_uniqueness_invalidated", by="create")
             self._mail_invalidate_root_email_uniqueness()
         return partners
 
@@ -85,6 +89,7 @@ class ResPartner(models.Model):
             or (watched and self._mail_shares_root_email())
             or ("email" in vals and self._mail_get_root_partner_id() in self._ids)
         ):
+            _debug.lifecycle("root_email_uniqueness_invalidated", by="write")
             self._mail_invalidate_root_email_uniqueness()
         return result
 
@@ -170,11 +175,15 @@ class ResPartner(models.Model):
                 limit=1,
             )
             if partners:
+                _debug.logic("get_or_create", partner=partners.id, by="found")
                 return partners
 
         create_values = {self._rec_name: parsed_name or parsed_email_normalized}
         if parsed_email_normalized:
             create_values["email"] = parsed_email_normalized
+        _debug.lifecycle(
+            "get_or_create", by="created", valid_email=bool(parsed_email_normalized)
+        )
         return self.create(create_values)
 
     @api.model
@@ -256,6 +265,16 @@ class ResPartner(models.Model):
         if sort_key:
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
+        _debug.logic(
+            "partners_from_emails",
+            emails=len(emails),
+            normalized=len(emails_normalized),
+            names=len(names),
+            banned=len(ban_emails),
+            found=len(partners) - len(tocreate_vals_list),
+            created=len(tocreate_vals_list),
+            no_create=no_create,
+        )
         return self._get_partner_per_email(name_emails, emails, partners)
 
     @api.model

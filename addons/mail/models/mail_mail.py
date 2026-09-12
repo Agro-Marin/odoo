@@ -18,6 +18,7 @@ from dateutil.parser import parse
 from odoo import SUPERUSER_ID, _, api, fields, models, modules, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 
 from odoo.addons.base.models.ir_mail_server import (
@@ -38,6 +39,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.bus.models.ir_attachment import IrAttachment
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _PROGRESS_REPORT_EVERY = 50
 
 _UNFOLLOW_LINK = "/mail/unfollow"
@@ -307,6 +309,13 @@ class MailMail(models.Model):
         if ids_w_attach:
             self.browse(ids_w_attach).attachment_ids.check_access("read")
 
+        _debug.lifecycle(
+            "create",
+            count=len(new_mails),
+            notifications=sum(1 for v in vals_list if v.get("is_notification")),
+            scheduled=sum(1 for v in vals_list if v.get("scheduled_date")),
+            with_attachments=len(ids_w_attach),
+        )
         return new_mails
 
     def write(self, vals: ValuesType) -> Literal[True]:
@@ -317,6 +326,10 @@ class MailMail(models.Model):
         res = super().write(vals)
         if vals.get("attachment_ids"):
             self.attachment_ids.check_access("read")
+        if _debug.lifecycle.enabled and "state" in vals:
+            _debug.lifecycle(
+                "state", mails=self.ids, state=vals["state"], fields=list(vals)
+            )
         return res
 
     def unlink(self) -> Literal[True]:
@@ -331,6 +344,11 @@ class MailMail(models.Model):
                 .mapped("mail_message_id.id")
             )
             orphan_ids = mail_msg_cascade_ids - still_referenced
+            _debug.lifecycle(
+                "unlink",
+                count=len(mail_msg_cascade_ids),
+                orphan_messages=len(orphan_ids),
+            )
             if orphan_ids:
                 self.env["mail.message"].browse(orphan_ids).unlink()
         return res
@@ -378,6 +396,12 @@ class MailMail(models.Model):
             lambda notif: notif.notification_status in self._FAILING_NOTIFICATION_STATUS
         )
         status_per_mail = {mail.id: mail._get_notification_status() for mail in self}
+        _debug.pipeline(
+            "notification_status_synced",
+            mails=len(self),
+            notifications=len(notifications),
+            was_failing=len(was_failing),
+        )
         per_status = defaultdict(list)
         for notification in notifications:
             per_status[status_per_mail[notification.mail_mail_id.id]].append(
@@ -417,6 +441,12 @@ class MailMail(models.Model):
         )
         send_limit = None if email_ids else batch_size
         send_ids = self.search(domain, limit=send_limit, order="id").ids
+        _debug.pipeline(
+            "queue_pass",
+            forced=len(email_ids),
+            batch_size=batch_size,
+            selected=len(send_ids),
+        )
         _logger.info(
             "Processing email queue with send limit of '%s'%s",
             send_limit,
@@ -450,9 +480,15 @@ class MailMail(models.Model):
 
         try:
             auto_commit = not modules.module.current_test
-            self.browse(send_ids).send(
-                auto_commit=auto_commit, post_send_callback=post_send_callback
-            )
+            with _debug.perf(
+                "queue_send",
+                cr=self.env.cr,
+                mails=len(send_ids),
+                auto_commit=auto_commit,
+            ):
+                self.browse(send_ids).send(
+                    auto_commit=auto_commit, post_send_callback=post_send_callback
+                )
         except self._FATAL_SEND_ERRORS:
             raise
         except Exception:
@@ -498,6 +534,13 @@ class MailMail(models.Model):
                 )
         if not failure_type or failure_type in self._AUTO_DELETE_FAILURE_TYPES:
             to_delete = self.sudo().filtered(lambda mail: mail.auto_delete)
+            _debug.lifecycle(
+                "auto_delete",
+                mails=self.ids,
+                deleted=len(to_delete),
+                deferred=defer_auto_delete is not None,
+                failure_type=failure_type,
+            )
             if defer_auto_delete is None:
                 to_delete.unlink()
             else:
@@ -533,6 +576,16 @@ class MailMail(models.Model):
             )
         )
         failed = unreached if failure_type else self.env["mail.notification"]
+        _debug.pipeline(
+            "notifications_settled",
+            mails=self.ids,
+            notifications=len(notifications),
+            sent=len(notifications) - len(unreached),
+            failed=len(failed),
+            unreached=len(unreached) - len(failed),
+            was_failing=len(was_failing),
+            failure_type=failure_type,
+        )
         (notifications - unreached).sudo().write(
             {"notification_status": "sent", "failure_type": "", "failure_reason": ""}
         )
@@ -617,6 +670,7 @@ class MailMail(models.Model):
                 try:
                     parsed_datetime = parsed_datetime.astimezone(UTC)
                 except ValueError, OverflowError, OSError:
+                    _debug.logic("scheduled_date_rejected", reason="utc_conversion")
                     _logger.warning(
                         "Could not convert scheduled date %r to UTC; ignoring it.",
                         scheduled_datetime,
@@ -800,6 +854,12 @@ class MailMail(models.Model):
             )
         )
         if url_attachments:
+            _debug.logic(
+                "attachments_linked",
+                mail=self.id,
+                reason="url",
+                count=len(url_attachments),
+            )
             body = self._link_instead_of_attach(body, url_attachments)
             attachments -= url_attachments
 
@@ -823,6 +883,14 @@ class MailMail(models.Model):
                 * 1024
             )
             if estimated_email_size_bytes > max_email_size_bytes:
+                _debug.logic(
+                    "attachments_linked",
+                    mail=self.id,
+                    reason="size",
+                    count=len(record_owned_attachments),
+                    estimated=estimated_email_size_bytes,
+                    max=max_email_size_bytes,
+                )
                 body = self._link_instead_of_attach(body, record_owned_attachments)
                 attachments -= record_owned_attachments
         read_attachments = attachments.sorted("id").read(["name", "raw", "mimetype"])
@@ -832,6 +900,11 @@ class MailMail(models.Model):
             if a["raw"] is not False
         ]
         if len(email_attachments) != len(read_attachments):
+            _debug.logic(
+                "attachments_without_content",
+                mail=self.id,
+                count=len(read_attachments) - len(email_attachments),
+            )
             _logger.warning(
                 "Mail (mail.mail) with ID %r sent without %s attachment(s) that "
                 "hold no content: %s",
@@ -872,6 +945,11 @@ class MailMail(models.Model):
         if self.is_notification and recipients:
             sent_pids = self._get_already_sent_pids(already_sent_pids=already_sent_pids)
             if sent_pids:
+                _debug.logic(
+                    "recipients_already_sent",
+                    mail=self.id,
+                    skipped=len(recipients.filtered(lambda p: p.id in sent_pids)),
+                )
                 recipients = recipients.filtered(
                     lambda partner: partner.id not in sent_pids
                 )
@@ -894,6 +972,14 @@ class MailMail(models.Model):
                 }
             )
 
+        _debug.logic(
+            "recipient_groups",
+            mail=self.id,
+            raw=raw_group is not None,
+            covered=len(covered),
+            partners=len(recipients),
+            groups=len(email_list),
+        )
         return email_list
 
     def _prepare_raw_recipient_group(self) -> tuple[dict | None, list[str]]:
@@ -941,6 +1027,9 @@ class MailMail(models.Model):
             if isinstance(self.headers, dict):
                 headers = dict(self.headers)
             else:
+                _debug.logic(
+                    "headers_rejected", mail=self.id, type=type(self.headers).__name__
+                )
                 _logger.warning(
                     "Mail headers must be a mapping (received %r)", self.headers
                 )
@@ -997,6 +1086,14 @@ class MailMail(models.Model):
                 }
             )
 
+        _debug.pipeline(
+            "outgoing_list",
+            mail=self.id,
+            emails=len(results),
+            attachments=len(email_attachments),
+            bodies=len(plaintext_per_body),
+            unfollow=unfollow_block is not None,
+        )
         return results
 
     def _split_by_mail_configuration(self) -> Iterator[tuple]:
@@ -1047,6 +1144,14 @@ class MailMail(models.Model):
         batch_size = self.env["ir.config_parameter"]._get_positive_int_param(
             "mail.session.batch.size", 1000
         )
+        _debug.pipeline(
+            "split_by_configuration",
+            mails=len(self),
+            servers=len(all_mail_servers),
+            from_groups=len(group_per_email_from),
+            smtp_groups=len(group_per_smtp_from),
+            batch_size=batch_size,
+        )
         for (
             mail_server_id,
             alias_domain_id,
@@ -1089,6 +1194,12 @@ class MailMail(models.Model):
             mail_server.owner_limit_time or current_minute - timedelta(minutes=1)
         )
         if server_limit_minute > current_minute:
+            _debug.logic(
+                "quota_minute_in_future",
+                server=mail_server.id,
+                limit_minute=server_limit_minute,
+                current=current_minute,
+            )
             _logger.error(
                 "Mail: invalid owner_limit_time %s > %s for %s",
                 server_limit_minute,
@@ -1124,6 +1235,14 @@ class MailMail(models.Model):
         ):
             self.browse(list(mail_ids)).scheduled_date = scheduled_date
 
+        _debug.lifecycle(
+            "delayed_batch_scheduled",
+            server=mail_server.id,
+            mails=len(self),
+            max_send=max_send,
+            first=min(scheduled_per_mail.values()),
+            last=max(scheduled_per_mail.values()),
+        )
         self.env.ref("mail.ir_cron_mail_scheduler_action")._trigger(
             min(scheduled_per_mail.values()) + timedelta(seconds=59)
         )
@@ -1170,6 +1289,14 @@ class MailMail(models.Model):
         if to_delay:
             to_delay._schedule_delayed_batch(mail_server, server_limit_minute, MAX_SEND)
 
+        _debug.logic(
+            "personal_server_quota",
+            server=mail_server.id,
+            max_send=MAX_SEND,
+            used=mail_server.owner_limit_count,
+            to_send=len(to_send),
+            delayed=len(to_delay),
+        )
         _logger.info(
             "Mail: personal server %s: %s emails about to be sent / %s emails delayed",
             mail_server.name,
@@ -1211,6 +1338,13 @@ class MailMail(models.Model):
                 )
             )
         ).mail_mail_id = new_mail
+        _debug.lifecycle(
+            "sendable_copy_split",
+            mail=self.id,
+            new_mail=new_mail.id,
+            moved=len(moved_partners),
+            raw=raw_cost,
+        )
         return new_mail
 
     def send_after_commit(self) -> None:
@@ -1221,6 +1355,7 @@ class MailMail(models.Model):
         email_ids = self.ids
         dbname = self.env.cr.dbname
         _context = self.env.context
+        _debug.logic("send_after_commit", mails=len(email_ids))
 
         @self.env.cr.postcommit.add
         def send_emails_with_new_cursor() -> None:
@@ -1252,6 +1387,14 @@ class MailMail(models.Model):
                 if not batch_ids:
                     continue
 
+            _debug.pipeline(
+                "send_batch",
+                mails=len(batch_ids),
+                server=mail_server_id,
+                alias_domain=alias_domain_id,
+                smtp_from=smtp_from,
+                quota_charged=quota_charged,
+            )
             smtp_session = None
             try:
                 smtp_session = self.env["ir.mail_server"]._connect__(
@@ -1260,6 +1403,12 @@ class MailMail(models.Model):
                     resolve_server=False,
                 )
             except Exception as exc:
+                _debug.logic(
+                    "smtp_connect_failed",
+                    server=mail_server_id,
+                    error=type(exc).__name__,
+                    raised=raise_exception,
+                )
                 if raise_exception:
                     raise MailDeliveryError(
                         _("Unable to connect to SMTP Server"), exc
@@ -1268,14 +1417,20 @@ class MailMail(models.Model):
                     exc, mail_server, quota_charged
                 )
             else:
-                self.browse(batch_ids)._send(
-                    auto_commit=auto_commit,
-                    raise_exception=raise_exception,
-                    smtp_session=smtp_session,
-                    alias_domain_id=alias_domain_id,
-                    mail_server=mail_server,
-                    post_send_callback=post_send_callback,
-                )
+                with _debug.perf(
+                    "send_batch",
+                    cr=self.env.cr,
+                    mails=len(batch_ids),
+                    server=mail_server_id,
+                ):
+                    self.browse(batch_ids)._send(
+                        auto_commit=auto_commit,
+                        raise_exception=raise_exception,
+                        smtp_session=smtp_session,
+                        alias_domain_id=alias_domain_id,
+                        mail_server=mail_server,
+                        post_send_callback=post_send_callback,
+                    )
                 if not modules.module.current_test:
                     _logger.info(
                         "Processed batch of %s mail.mail records via mail server ID #%s",
@@ -1316,6 +1471,12 @@ class MailMail(models.Model):
             else str(exception)
         )
         outgoing = self.filtered(lambda mail: mail.state == "outgoing")
+        _debug.lifecycle(
+            "connect_failure_recorded",
+            mails=outgoing.ids,
+            server=mail_server.id or None,
+            quota_refunded=quota_charged,
+        )
         outgoing.write(
             {
                 "state": "exception",
@@ -1352,6 +1513,7 @@ class MailMail(models.Model):
         post_send_callback: Callable[..., bool] | None = None,
     ) -> bool:
         if self.env["ir.mail_server"]._disable_send():
+            _debug.logic("send_disabled", mails=len(self))
             return True
 
         to_send = self
@@ -1360,6 +1522,12 @@ class MailMail(models.Model):
                 lambda mail: not mail._filtered_mail_mail_servers(mail_server)
             )
             if unauthorized:
+                _debug.logic(
+                    "unauthorized_server",
+                    server=mail_server.id,
+                    mails=unauthorized.ids,
+                    raised=raise_exception,
+                )
                 if raise_exception:
                     raise UserError(
                         _("Unauthorized server for some of the sending mails.")
@@ -1383,6 +1551,9 @@ class MailMail(models.Model):
                 if not (post_send_callback and post_send_callback([mail_id])):
                     self.env.cr.commit()
         if batch.deferred_auto_delete:
+            _debug.lifecycle(
+                "deferred_auto_delete", count=len(batch.deferred_auto_delete)
+            )
             self.browse(batch.deferred_auto_delete).sudo().unlink()
         if post_send_callback:
             post_send_callback(self.ids, final=True)
@@ -1434,6 +1605,14 @@ class MailMail(models.Model):
         already_sent_pids, pending_notification_ids = (
             self._get_email_notifications_batch(self.ids)
         )
+        _debug.perf.count(
+            "send_batch_prepared",
+            mails=len(self),
+            unfollow=len(mails_with_unfollow_link),
+            already_sent=len(already_sent_pids),
+            pending=len(pending_notification_ids),
+            cache_survives=cache_survives_loop,
+        )
         return _SendBatch(
             commits_per_mail=auto_commit,
             deferred_auto_delete=set() if cache_survives_loop else None,
@@ -1468,6 +1647,7 @@ class MailMail(models.Model):
             ):
                 raise outcome.delivery_error
         except self._FATAL_MEMORY_ERRORS:
+            _debug.logic("send_fatal", mail=self.id, kind="memory")
             _logger.exception(
                 "MemoryError while processing mail with ID %r and Msg-Id %r. "
                 "Consider raising the --limit-memory-hard startup option",
@@ -1476,6 +1656,7 @@ class MailMail(models.Model):
             )
             raise
         except self._FATAL_SESSION_ERRORS:
+            _debug.logic("send_fatal", mail=self.id, kind="session")
             _logger.exception(
                 "Exception while processing mail with ID %r and Msg-Id %r.",
                 self.id,
@@ -1549,8 +1730,15 @@ class MailMail(models.Model):
             smtp_session=batch.smtp_session,
             already_sent_pids=batch.already_sent_pids,
         )
-        for email in email_list:
-            outcome.absorb(self._deliver_one(email, batch, outcome.failure_type))
+        with _debug.perf(
+            "deliver", cr=self.env.cr, mail=self.id, emails=len(email_list)
+        ) as span:
+            for email in email_list:
+                outcome.absorb(self._deliver_one(email, batch, outcome.failure_type))
+            span.set(
+                delivered=len(outcome.success_partners) + len(outcome.success_emails),
+                failure_type=outcome.failure_type,
+            )
         return email_list
 
     def _record_send_success(
@@ -1566,6 +1754,15 @@ class MailMail(models.Model):
             mark.had_recipients
             and not email_list
             and bool(batch.already_sent_pids.get(self.id))
+        )
+        _debug.lifecycle(
+            "send_success",
+            mail=self.id,
+            message_id=outcome.message_id or None,
+            partners=len(outcome.success_partners),
+            emails=len(outcome.success_emails),
+            failure_type=outcome.failure_type,
+            nothing_left=nothing_left_to_deliver,
         )
         self._record_send_outcome(
             outcome,
@@ -1602,6 +1799,14 @@ class MailMail(models.Model):
             failure_type=outcome.failure_type,
             failure_reason=outcome.failure_reason,
         )
+        _debug.lifecycle(
+            "send_failure",
+            mail=self.id,
+            error=type(exception).__name__,
+            failure_type=outcome.failure_type,
+            partners=len(outcome.success_partners),
+            emails=len(outcome.success_emails),
+        )
         _logger.error(
             "failed sending mail (id: %s) due to %s",
             self.id,
@@ -1637,6 +1842,12 @@ class MailMail(models.Model):
             else not self._has_any_recipient()
         )
         mark = _SendingMark(had_recipients=not no_recipients)
+        _debug.logic(
+            "mark_sending",
+            mail=self.id,
+            no_recipients=no_recipients,
+            pending=len(pending_notification_ids or ()),
+        )
         placeholder = _(
             "Placeholder recorded before sending. Still present means the send "
             "was interrupted before it could record an outcome; see the server log."
@@ -1735,6 +1946,9 @@ class MailMail(models.Model):
             else:
                 result.failure_type = "mail_email_invalid"
             result.failure_reason = str(error)
+            _debug.logic(
+                "recipient_invalid", mail=self.id, failure_type=result.failure_type
+            )
             _logger.info(
                 "Ignoring invalid recipients for mail.mail %s: %s",
                 self.message_id,
@@ -1746,6 +1960,9 @@ class MailMail(models.Model):
             else:
                 result.failure_type = "unknown"
             result.failure_reason = str(error)
+            _debug.logic(
+                "delivery_failed", mail=self.id, failure_type=result.failure_type
+            )
             _logger.warning(
                 "Delivery failed for one recipient of mail.mail %s: %s",
                 self.message_id,
@@ -1785,6 +2002,12 @@ class MailMail(models.Model):
             }
         )
         if outcome.message_id != self.message_id:
+            _debug.logic(
+                "message_id_rewritten",
+                mail=self.id,
+                old=self.message_id,
+                new=outcome.message_id,
+            )
             try:
                 self.mail_message_id.message_id = outcome.message_id
             except AccessError:
@@ -1847,6 +2070,11 @@ class MailMail(models.Model):
             failure_reason = str(exception)
         if not failure_type:
             failure_type = "unknown"
+        _debug.logic(
+            "send_error_classified",
+            error=type(exception).__name__,
+            failure_type=failure_type,
+        )
         return failure_type, failure_reason
 
     def _get_notification_values(self) -> list[dict]:

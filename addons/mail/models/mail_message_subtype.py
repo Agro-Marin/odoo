@@ -2,6 +2,9 @@ from typing import Literal, Self
 
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class MailMessageSubtype(models.Model):
@@ -56,14 +59,17 @@ class MailMessageSubtype(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        _debug.lifecycle("create", count=len(vals_list), cache="cleared")
         self.env.registry.clear_cache()
         return super().create(vals_list)
 
     def write(self, vals: ValuesType) -> Literal[True]:
+        _debug.lifecycle("write", subtypes=self.ids, fields=list(vals), cache="cleared")
         self.env.registry.clear_cache()
         return super().write(vals)
 
     def unlink(self) -> Literal[True]:
+        _debug.lifecycle("unlink", subtypes=self.ids, cache="cleared")
         self.env.registry.clear_cache()
         return super().unlink()
 
@@ -93,6 +99,13 @@ class MailMessageSubtype(models.Model):
                 )
             if subtype.internal:
                 all_int_ids += subtype.ids
+        _debug.perf.count(
+            "auto_subscription_subtypes_computed",
+            model=model_name,
+            subtypes=len(subtypes),
+            defaults=len(def_ids),
+            relations=len(relation),
+        )
         return child_ids, def_ids, all_int_ids, parent, relation
 
     @api.model
@@ -116,4 +129,10 @@ class MailMessageSubtype(models.Model):
             self.sudo() if not self.env.su and self.env.user.share else self
         ).search(domain)
         internal = subtypes.filtered("internal")
+        _debug.perf.count(
+            "default_subtypes_computed",
+            model=model_name,
+            subtypes=len(subtypes),
+            internal=len(internal),
+        )
         return subtypes.ids, internal.ids, (subtypes - internal).ids

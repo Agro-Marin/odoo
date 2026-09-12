@@ -1,7 +1,10 @@
 from odoo.http import SessionExpiredException, request, route
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.bus.controllers.websocket import WebsocketController
 from odoo.addons.mail.tools.discuss import add_guest_to_context
+
+_debug = DebugLog(__name__)
 
 
 class WebsocketControllerPresence(WebsocketController):
@@ -19,6 +22,9 @@ class WebsocketControllerPresence(WebsocketController):
         try:
             inactivity_period = int(inactivity_period)
         except TypeError, ValueError:
+            _debug.logic(
+                "inactivity_period_rejected", value=type(inactivity_period).__name__
+            )
             inactivity_period = 0
         request.env["ir.websocket"]._update_mail_presence(inactivity_period)
         return {}

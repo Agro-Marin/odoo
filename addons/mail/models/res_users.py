@@ -8,6 +8,7 @@ from odoo import Command, _, api, fields, models, modules, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import email_normalize, str2bool
 
 from odoo.addons.mail.models.mail_activity import ORPHAN_BUCKET
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
     from odoo.addons.base.models.ir_mail_server import IrMail_Server
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 ActivityBucket = tuple[str, str]
 
@@ -120,12 +122,16 @@ class ResUsers(models.Model):
     def create(self, vals_list: list[ValuesType]) -> Self:
         users = super().create(vals_list)
         if any(vals.get("out_of_office_from") for vals in vals_list):
+            _debug.lifecycle(
+                "out_of_office_cache_cleared", users=users.ids, by="create"
+            )
             self.env.registry.clear_cache("stable")
         users._remove_inbox_group_from_shared_users()
 
         log_portal_access = not self.env.context.get(
             "mail_create_nolog"
         ) and not self.env.context.get("mail_notrack")
+        _debug.lifecycle("create", users=users.ids, log_portal_access=log_portal_access)
         if log_portal_access:
             for user in users:
                 if user._is_portal():
@@ -162,7 +168,15 @@ class ResUsers(models.Model):
             )
 
         write_res = super().write(vals)
+        _debug.lifecycle(
+            "write",
+            users=self.ids,
+            fields=list(vals),
+            email_changed=len(previous_email_by_user),
+            notification_type_changed=len(user_notification_type_modified),
+        )
         if "out_of_office_from" in vals:
+            _debug.lifecycle("out_of_office_cache_cleared", users=self.ids, by="write")
             self.env.registry.clear_cache("stable")
 
         if log_portal_access:
@@ -172,6 +186,9 @@ class ResUsers(models.Model):
                     user_has_group != user_portal_access_dict[user.id]
                 )
                 if portal_access_changed:
+                    _debug.logic(
+                        "portal_access_changed", user=user.id, granted=user_has_group
+                    )
                     body = user._get_portal_access_update_body(user_has_group)
                     user.partner_id.message_post(
                         body=body,
@@ -214,6 +231,12 @@ class ResUsers(models.Model):
             ]
         else:
             users_to_blacklist = []
+        _debug.lifecycle(
+            "portal_user_deactivated",
+            users=self.ids,
+            by=current_user.id,
+            blacklisted=len(users_to_blacklist),
+        )
 
         super(
             ResUsers, self.with_context(mail_notify_security_skip=True)
@@ -367,6 +390,16 @@ class ResUsers(models.Model):
     ) -> None:
         if self.env.context.get("mail_notify_security_skip"):
             return
+        if _debug.logic.enabled and (
+            "login" in vals or "password" in vals or previous_email_by_user
+        ):
+            _debug.logic(
+                "security_notifications",
+                users=self.ids,
+                login="login" in vals,
+                password="password" in vals,
+                emails=len(previous_email_by_user),
+            )
         if "login" in vals:
             self._notify_security_setting_update(
                 _("Security Update: Login Changed"),
@@ -406,6 +439,7 @@ class ResUsers(models.Model):
             for user in self
         ]
         mails = self.env["mail.mail"].sudo().create(mail_create_values)
+        _debug.lifecycle("security_alert_mails", users=self.ids, mails=mails.ids)
         try:
             mails.send_after_commit()
         except Exception:
@@ -553,6 +587,12 @@ class ResUsers(models.Model):
             store.add_global_values(
                 self_guest=Store.One(guest.sudo(), ["avatar_128", "name"])
             )
+        _debug.pipeline(
+            "store_data_initialized",
+            user=user.id,
+            identified=is_identified,
+            guest=bool(guest),
+        )
 
     def _init_messaging(self, store: Store) -> None:
         self.check_singleton()
@@ -609,6 +649,12 @@ class ResUsers(models.Model):
                 order="id desc",
                 limit=limit,
             )
+        )
+        _debug.perf.count(
+            "systray_activities",
+            user=self.env.uid,
+            activities=len(activities),
+            limit=limit,
         )
         if len(activities) >= limit:
             _logger.warning(
@@ -788,7 +834,13 @@ class ResUsers(models.Model):
         return body
 
     def _remove_assigned_activities(self) -> None:
-        self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)]).unlink()
+        activities = (
+            self.env["mail.activity"].sudo().search([("user_id", "in", self.ids)])
+        )
+        _debug.lifecycle(
+            "assigned_activities_removed", users=self.ids, activities=len(activities)
+        )
+        activities.unlink()
 
     def _remove_inbox_group_from_shared_users(self) -> None:
         inbox_group_id = self.env["ir.model.data"]._xmlid_to_res_id(
@@ -798,6 +850,7 @@ class ResUsers(models.Model):
             [("share", "=", True), ("group_ids", "in", inbox_group_id)]
         )
         if shared_with_inbox:
+            _debug.logic("inbox_group_removed_from_shared", users=shared_with_inbox.ids)
             shared_with_inbox.write({"group_ids": [Command.unlink(inbox_group_id)]})
 
     @api.model
@@ -880,10 +933,14 @@ class ResUsers(models.Model):
         cutoff = self.env.cr.now() - timedelta(
             minutes=IrMailServer._get_personal_mail_server_grace()
         )
-        servers.filtered(
+        stale = servers.filtered(
             lambda server: (
                 server.owner_user_id.outgoing_mail_server_id != server
                 if server.active
                 else server.create_date < cutoff
             )
-        ).unlink()
+        )
+        _debug.lifecycle(
+            "gc_personal_mail_servers", servers=len(servers), removed=len(stale)
+        )
+        stale.unlink()

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from odoo import models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import is_valid_limited_field_access_token
 
 from odoo.addons.mail.tools.discuss import add_guest_to_context
@@ -16,6 +17,7 @@ PRESENCE_CHANNEL_REGEX = re.compile(
     r"(?:-(?P<token>[a-f0-9]{64}o0x[a-f0-9]+))?$"
 )
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class IrWebsocket(models.AbstractModel):
@@ -35,6 +37,12 @@ class IrWebsocket(models.AbstractModel):
         partner, guest = self.env["res.partner"]._get_current_persona()
         if not partner and not guest:
             return
+        _debug.lifecycle(
+            "presence_updated",
+            partner=partner.id or None,
+            guest=guest.id or None,
+            inactivity_ms=inactivity_period,
+        )
         self.env["mail.presence"]._try_update_presence(
             self.env.user if partner else guest, inactivity_period
         )
@@ -123,7 +131,9 @@ class IrWebsocket(models.AbstractModel):
     def _on_websocket_closed(self, cookies: dict) -> None:
         super()._on_websocket_closed(cookies)
         if self.env.user and not self.env.user._is_public():
+            _debug.lifecycle("websocket_closed", user=self.env.user.id)
             self.env.user.sudo().presence_ids.status = "offline"
         token = cookies.get(self.env["mail.guest"]._cookie_name, "")
         if guest := self.env["mail.guest"]._get_guest_from_token(token):
+            _debug.lifecycle("websocket_closed", guest=guest.id)
             guest.sudo().presence_ids.status = "offline"

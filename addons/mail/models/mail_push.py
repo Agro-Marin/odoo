@@ -6,6 +6,7 @@ from requests import Session
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.tools.web_push import (
     DeviceUnreachableError,
@@ -17,6 +18,7 @@ if typing.TYPE_CHECKING:
     from .mail_push_device import MailPushDevice
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 PUSH_ENDPOINT_RETRY_DAYS = 3
 PUSH_ENDPOINT_RETRY_DELAY = timedelta(minutes=15)
@@ -59,6 +61,7 @@ class MailPush(models.Model):
         )
         vapid_public_key = ir_parameter_sudo.get_param("mail.web_push_vapid_public_key")
         if not vapid_private_key or not vapid_public_key:
+            _debug.logic("push_cron_skipped", reason="no_vapid_keys")
             return
 
         session = Session()
@@ -109,6 +112,15 @@ class MailPush(models.Model):
                 and n.create_date
                 and n.create_date > retry_cutoff
             )
+        )
+        _debug.pipeline(
+            "push_cron_pass",
+            batch_size=batch_size,
+            notifications=len(web_push_notifications_sudo),
+            devices=len(devices),
+            unreachable=len(devices_to_unlink),
+            retried=len(retry_delay_by_notif_id),
+            kept=len(notifs_to_keep),
         )
         (web_push_notifications_sudo - notifs_to_keep).unlink()
         for notif in notifs_to_keep:

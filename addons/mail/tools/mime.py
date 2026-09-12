@@ -2,6 +2,7 @@ import logging
 from email.message import EmailMessage
 from typing import NamedTuple
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import add_html_content, html_sanitize
 
 from .html_body import (
@@ -11,6 +12,7 @@ from .html_body import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class Attachment(NamedTuple):
@@ -59,6 +61,7 @@ def repair_part_headers(part: EmailMessage) -> None:
     if content_type.startswith("pdf;"):
         part.replace_header("Content-Type", "application/pdf" + content_type[3:])
     elif (bad_content_type := part.get_content_type()) in BAD_CONTENT_TYPES:
+        _debug.logic("part_content_type_repaired", content_type=bad_content_type)
         _logger.warning(
             "Message containing an unexpected Content-Type %r, assuming "
             "'application/octet-stream'",
@@ -186,6 +189,14 @@ def extract_payload(
     body = fragment.body
     if fragment.html:
         body = html_sanitize(body, sanitize_tags=False, strip_classes=True)
+    _debug.pipeline(
+        "payload_extracted",
+        html=fragment.html,
+        body=len(body),
+        attachments=len(fragment.attachments),
+        original_saved=save_original,
+        is_bounce=is_bounce,
+    )
     return Payload(body, attachments + fragment.attachments)
 
 
@@ -215,6 +226,7 @@ def postprocess_payload(payload: Payload) -> Payload:
 
     for node in to_remove:
         node.getparent().remove(node)
+    _debug.logic("payload_postprocessed", changed=postprocessed, removed=len(to_remove))
     if postprocessed:
         body = render_body_fragments(fragments)
     return Payload(body, attachments)

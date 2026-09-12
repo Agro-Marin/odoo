@@ -4,10 +4,13 @@ from typing import Any
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 if typing.TYPE_CHECKING:
     from .res_partner import ResPartner
+
+_debug = DebugLog(__name__)
 
 
 class MixinMailThreadBlacklist(models.AbstractModel):
@@ -106,11 +109,17 @@ class MixinMailThreadBlacklist(models.AbstractModel):
 
     def _message_receive_bounce(self, email: str, partner: ResPartner) -> None:
         super()._message_receive_bounce(email, partner)
+        _debug.lifecycle(
+            "bounce_counted", model=self._name, records=self.ids, email=email
+        )
         for bounce, records in self.grouped("message_bounce").items():
             records.write({"message_bounce": bounce + 1})
 
     def _message_reset_bounce(self, email: str) -> None:
         super()._message_reset_bounce(email)
+        _debug.lifecycle(
+            "bounce_reset", model=self._name, records=self.ids, email=email
+        )
         self.write({"message_bounce": 0})
 
     def mail_action_blacklist_remove(self) -> dict:

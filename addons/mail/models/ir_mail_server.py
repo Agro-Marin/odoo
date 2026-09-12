@@ -3,11 +3,14 @@ import typing
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import email_normalize
 
 if typing.TYPE_CHECKING:
     from .mail_template import MailTemplate
     from odoo.addons.bus.models.res_users import ResUsers
+
+_debug = DebugLog(__name__)
 
 
 class IrMail_Server(models.Model):
@@ -46,12 +49,14 @@ class IrMail_Server(models.Model):
     @api.model
     def _get_default_bounce_address(self) -> str:
         if self.env.company.bounce_email:
+            _debug.logic("bounce_address", by="company", company=self.env.company.id)
             return self.env.company.bounce_email
         return super()._get_default_bounce_address()
 
     @api.model
     def _get_default_from_address(self) -> str:
         if default_from := self.env.company.default_from_email:
+            _debug.logic("from_address", by="company", company=self.env.company.id)
             return default_from
         return super()._get_default_from_address()
 
@@ -91,6 +96,13 @@ class IrMail_Server(models.Model):
         super()._check_forced_mail_server(allow_archived, smtp_from)
 
         if self.owner_user_id:
+            _debug.logic(
+                "personal_server_forced",
+                server=self.id,
+                owner=self.owner_user_id.id,
+                active=self.active,
+                current=self.owner_user_id.outgoing_mail_server_id == self,
+            )
             if email_normalize(smtp_from) != email_normalize(self.from_filter):
                 raise UserError(
                     _(

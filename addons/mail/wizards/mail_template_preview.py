@@ -2,12 +2,15 @@ import typing
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.debug_log import DebugLog
 
 if typing.TYPE_CHECKING:
     from ..models.mail_template import MailTemplate
     from ..models.res_partner import ResPartner
     from odoo.addons.base.models.ir_model import IrModel
     from odoo.addons.bus.models.ir_attachment import IrAttachment
+
+_debug = DebugLog(__name__)
 
 
 class MailTemplatePreview(models.TransientModel):
@@ -141,6 +144,12 @@ class MailTemplatePreview(models.TransientModel):
             preview.resource_ref = f"{model},{res.id}" if res else False
 
     def _update_mail_attributes(self, values: dict | None = None) -> None:
+        _debug.logic(
+            "preview_attributes",
+            template=self.mail_template_id.id,
+            rendered=values is not None,
+            fields=sorted(values) if values else [],
+        )
         for field in self._MAIL_TEMPLATE_FIELDS:
             if field == "partner_to":
                 continue

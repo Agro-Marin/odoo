@@ -5,8 +5,11 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import fields
 from odoo.http import Controller, NotFound, request, route
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.mail.controllers.utils import get_channel_or_404
+
+_debug = DebugLog(__name__)
 
 MAX_MUTE_MINUTES = 525_600_000
 
@@ -34,6 +37,9 @@ class DiscussSettingsController(Controller):
             )
         else:
             member.mute_until_dt = False
+        _debug.lifecycle(
+            "muted", channel=channel.id, member=member.id, minutes=minutes or 0
+        )
         member._notify_mute()
 
     @route(
@@ -54,6 +60,12 @@ class DiscussSettingsController(Controller):
         )
         if custom_notifications not in allowed:
             raise NotFound
+        _debug.lifecycle(
+            "custom_notifications",
+            channel=channel_id,
+            value=custom_notifications or "default",
+            by="channel" if channel_id else "user",
+        )
         if channel_id:
             channel = get_channel_or_404(channel_id)
             member = channel._get_or_create_member_for_self()
