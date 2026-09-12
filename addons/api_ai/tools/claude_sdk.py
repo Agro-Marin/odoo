@@ -18,11 +18,7 @@ _LEGACY_WORKDIR_PARAM = "ai_claude.base_workdir"
 
 def get_claude_api_token(env):
     credential = env["credential.credential"]._get_for_endpoint_code(_ENDPOINT_CODE)
-    api_key = credential and (
-        credential.get_credential_dict().get("api_key")
-        or credential.api_key
-        or credential.credential_value
-    )
+    api_key = credential and credential._use_secret(prefer="api_key")
     if not api_key:
         raise UserError(
             env._(

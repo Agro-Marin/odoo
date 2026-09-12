@@ -813,16 +813,10 @@ class DeliveryCarrier(models.Model):
         credential = self.carrier_credential_id.sudo()
         if not credential:
             return False
-        if field_name in NATIVE_CREDENTIAL_FIELDS:
-            return credential[field_name] or False
-        try:
-            data = json.loads(credential.credential_data or "{}")
-        except ValueError:
-            _logger.warning(
-                "Carrier %s has a credential whose data is not JSON", self.id
-            )
-            return False
-        return data.get(field_name) or False
+        # Read through the vault's use path: rating runs per checkout under the
+        # shared website user, so the per-user reveal allowance would cap every
+        # shopper's quote together.
+        return credential._use_secret_payload().get(field_name) or False
 
     def _carrier_store_secret(self, field_name, value):
         """Write one secret into this carrier's credential.
