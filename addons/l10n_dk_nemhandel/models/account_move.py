@@ -71,11 +71,11 @@ class AccountMove(models.Model):
             )
         return super().action_send_and_print()
 
-    def _need_ubl_cii_xml(self, ubl_cii_format):
+    def _is_ubl_cii_xml_required(self, ubl_cii_format):
         if ubl_cii_format == "oioubl_21" and (
             not self.partner_id.vat
             or self.partner_id._get_nemhandel_verification_state(ubl_cii_format)
             != "valid"
         ):
             return False
-        return super()._need_ubl_cii_xml(ubl_cii_format)
+        return super()._is_ubl_cii_xml_required(ubl_cii_format)

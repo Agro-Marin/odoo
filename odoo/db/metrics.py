@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import contextmanager
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,7 @@ sql_counter: int = 0
 
 if TYPE_CHECKING:
     import threading
+    from collections.abc import Iterator
     from typing import Protocol
 
     class _MetricsHost(Protocol):
@@ -82,6 +84,22 @@ class _MetricsMixin:
             return
         stat_count, stat_time = log_target.get(table or "", (0, 0))
         log_target[table or ""] = (stat_count + 1, stat_time + delay * 1e6)
+
+    @contextmanager
+    def _enable_logging(self) -> Iterator[None]:
+        """Force this cursor's queries to be logged for the duration of the block.
+
+        Restores the level afterwards. The logger is process-wide, so this is not
+        thread-safe -- it exists for a test that has just failed an
+        `assertQueryCount` and wants to see which queries ran, which is worth more
+        than isolation at that moment.
+        """
+        level = _logger.level
+        _logger.setLevel(logging.DEBUG)
+        try:
+            yield
+        finally:
+            _logger.setLevel(level)
 
     def log_sql_stats(self) -> None:
         if not _logger.isEnabledFor(logging.DEBUG):

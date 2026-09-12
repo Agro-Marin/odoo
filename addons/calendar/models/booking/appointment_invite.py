@@ -200,6 +200,7 @@ class AppointmentInvite(models.Model):
         "suggested_staff_user_ids",
         "resources_choice",
     )
+    @api.depends_context("uid")
     def _compute_disable_save_button(self):
         for invite in self:
             conditions = [
@@ -316,6 +317,7 @@ class AppointmentInvite(models.Model):
             )
 
     @api.depends("appointment_type_ids")
+    @api.depends_context("uid")
     def _compute_resources_choice(self):
         for invite in self:
             if len(invite.appointment_type_ids) != 1:
@@ -338,6 +340,7 @@ class AppointmentInvite(models.Model):
                 invite.resource_ids = False
 
     @api.depends("appointment_type_ids", "resources_choice")
+    @api.depends_context("uid")
     def _compute_staff_user_ids(self):
         for invite in self:
             if (

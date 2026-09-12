@@ -1,9 +1,11 @@
+import logging
 import subprocess
 import threading
 import unittest
 
 from odoo.db import metrics
 from odoo.db.cursor import BaseCursor
+from odoo.db.errors import CURSOR_LOGGER_NAME
 from odoo.db.savepoint import Savepoint, _FlushingSavepoint
 from odoo.libs.sql import SQL
 
@@ -462,3 +464,41 @@ class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
             f"only {recorded:.4f}s of {wall:.4f}s wall time was accounted for "
             f"-- the pipeline sync/flush cost is going untimed again",
         )
+
+
+class TestEnableLogging(unittest.TestCase):
+    """`_enable_logging` is the aid a failed `assertQueryCount` reaches for.
+
+    It went missing in the odoo/db split -- `addons/test_discuss_full`'s performance
+    test still called it, so the warm branch of that test raised AttributeError
+    instead of showing the queries it had just counted. Restored with this test, so
+    the next split notices.
+    """
+
+    class _Metered(metrics._MetricsMixin):
+        pass
+
+    def _cursor(self):
+        cursor = self._Metered()
+        cursor._init_metrics_state()
+        return cursor
+
+    def test_the_block_logs_at_debug_and_the_level_comes_back(self):
+        logger = logging.getLogger(CURSOR_LOGGER_NAME)
+        logger.setLevel(logging.WARNING)
+        try:
+            with self._cursor()._enable_logging():
+                self.assertTrue(logger.isEnabledFor(logging.DEBUG))
+            self.assertEqual(logger.level, logging.WARNING)
+        finally:
+            logger.setLevel(logging.NOTSET)
+
+    def test_the_level_comes_back_even_when_the_block_raises(self):
+        logger = logging.getLogger(CURSOR_LOGGER_NAME)
+        logger.setLevel(logging.WARNING)
+        try:
+            with self.assertRaises(ValueError), self._cursor()._enable_logging():
+                raise ValueError("the block failed")
+            self.assertEqual(logger.level, logging.WARNING)
+        finally:
+            logger.setLevel(logging.NOTSET)

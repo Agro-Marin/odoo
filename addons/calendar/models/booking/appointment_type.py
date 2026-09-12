@@ -561,6 +561,7 @@ class AppointmentType(models.Model):
             appointment_type.resource_ids = False
 
     @api.depends("schedule_based_on", "staff_user_ids")
+    @api.depends_context("uid")
     def _compute_connectors_displayed(self):
         connectors_enabled = (
             not self._get_calendars_already_setup()
