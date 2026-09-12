@@ -389,6 +389,55 @@ def get_views_depending_on_table(
     return cr.fetchall()
 
 
+def rename_column(
+    cr: BaseCursor, tablename: str, columnname: str, newname: str
+) -> None:
+    """Rename a column, and the NOT NULL constraint that is named after it.
+
+    `set_not_null` uses `ALTER COLUMN ... SET NOT NULL`, and PostgreSQL names the
+    resulting constraint `<table>_<column>_not_null`. A bare `RENAME COLUMN`
+    leaves that name behind, so an upgraded database and a freshly installed one
+    end up enforcing the same rule under different names -- the constraint still
+    works, but a schema diff between the two reports a difference that is not
+    one, and a later migration dropping it by name finds nothing on exactly the
+    databases that have been upgraded.
+
+    Renaming both is what makes the two paths arrive at the same schema, which
+    is the property a migration exists to keep.
+    """
+    cr.execute(
+        SQL(
+            "ALTER TABLE %s RENAME COLUMN %s TO %s",
+            SQL.identifier(tablename),
+            SQL.identifier(columnname),
+            SQL.identifier(newname),
+        )
+    )
+    old_constraint = f"{tablename}_{columnname}_not_null"
+    cr.execute(
+        SQL(
+            """
+            SELECT 1
+              FROM pg_constraint
+             WHERE conrelid = %s::regclass
+               AND conname = %s
+            """,
+            tablename,
+            old_constraint,
+        )
+    )
+    if cr.fetchone():
+        cr.execute(
+            SQL(
+                "ALTER TABLE %s RENAME CONSTRAINT %s TO %s",
+                SQL.identifier(tablename),
+                SQL.identifier(old_constraint),
+                SQL.identifier(f"{tablename}_{newname}_not_null"),
+            )
+        )
+    _schema.debug("Table %r: renamed column %r to %r", tablename, columnname, newname)
+
+
 def set_not_null(cr: BaseCursor, tablename: str, columnname: str) -> None:
     query = SQL(
         "ALTER TABLE %s ALTER COLUMN %s SET NOT NULL",
