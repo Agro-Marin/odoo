@@ -4,7 +4,8 @@ from odoo.tests import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestEmployeeChangeRequest(TransactionCase):
-    """A person asks; an HR user decides. Nobody edits their own HR data."""
+    """A person asks; an HR user decides through the approval engine. Nobody
+    edits their own HR data, and nobody reviews their own request."""
 
     @classmethod
     def setUpClass(cls):
@@ -31,9 +32,23 @@ class TestEmployeeChangeRequest(TransactionCase):
             {"employee_id": self.employee.id, **values}
         )
 
+    def _decide(self, request, decision, user=None):
+        """Decide as the engine's own tests do: on the approver row, with the
+        refusal wizard skipped. `action_refuse` on the request opens the wizard
+        that demands a structured reason, and returns without deciding."""
+        user = user or self.officer
+        row = request.approval_request_id.approver_ids.filtered(
+            lambda approver: approver.user_id == user
+        )
+        self.assertTrue(row, f"{user.login} holds no approver row")
+        getattr(
+            row.with_user(user).with_context(skip_wizard=True), f"action_{decision}"
+        )()
+
     def test_a_person_can_ask_to_change_their_own_information(self):
         request = self._raise_request(private_street="New Street 2")
-        self.assertEqual(request.state, "pending")
+        self.assertEqual(request.approval_state, "pending")
+        self.assertTrue(request.approval_request_id)
         self.assertEqual(request.requested_by_uid, self.person)
         self.assertEqual(self.employee.private_street, "Old Street 1")
 
@@ -43,41 +58,65 @@ class TestEmployeeChangeRequest(TransactionCase):
                 {"employee_id": self.other_employee.id, "private_street": "Nosy"}
             )
 
+    def test_the_requester_is_not_asked_to_approve(self):
+        request = self._raise_request(private_street="New Street 2")
+        self.assertNotIn(
+            self.person,
+            request.pending_approver_ids,
+            "the person asking must not be staged as an approver of their own "
+            "request; the engine narrows the step's pool through the document",
+        )
+        self.assertIn(self.officer, request.pending_approver_ids)
+
     def test_a_person_cannot_approve_their_own_request(self):
         request = self._raise_request(private_street="New Street 2")
-        with self.assertRaises(AccessError):
-            request.with_user(self.person).action_approve()
+        with self.assertRaises(UserError):
+            request.approval_request_id.with_user(self.person).action_approve()
+        self.employee.invalidate_recordset(["private_street"])
         self.assertEqual(self.employee.private_street, "Old Street 1")
 
     def test_an_hr_user_approving_applies_the_change(self):
         request = self._raise_request(
             private_street="New Street 2", emergency_contact="New Contact"
         )
-        request.with_user(self.officer).action_approve()
+        self._decide(request, "approve")
         self.employee.invalidate_recordset(["private_street", "emergency_contact"])
         self.assertEqual(self.employee.private_street, "New Street 2")
         self.assertEqual(self.employee.emergency_contact, "New Contact")
-        self.assertEqual(request.state, "approved")
-        self.assertEqual(request.reviewed_by_uid, self.officer)
-        self.assertTrue(request.reviewed_on)
+        self.assertEqual(request.approval_state, "approved")
+        self.assertTrue(request.date_approval_granted)
+        self.assertEqual(
+            request.approval_request_id.approver_ids.filtered(
+                lambda approver: approver.state == "approved"
+            ).decided_by_user_id,
+            self.officer,
+            "who decided is recorded on the approver row, which is what the "
+            "hand-written reviewed_by_uid used to hold",
+        )
 
     def test_refusing_leaves_the_employee_untouched(self):
         request = self._raise_request(private_street="Never Applied")
-        request.with_user(self.officer).action_refuse()
+        self._decide(request, "refuse")
         self.employee.invalidate_recordset(["private_street"])
         self.assertEqual(self.employee.private_street, "Old Street 1")
-        self.assertEqual(request.state, "refused")
+        self.assertEqual(request.approval_state, "refused")
 
     def test_a_decided_request_cannot_be_decided_again(self):
         request = self._raise_request(private_street="Once")
-        request.with_user(self.officer).action_approve()
+        self._decide(request, "approve")
         with self.assertRaises(UserError):
-            request.with_user(self.officer).action_approve()
+            self._decide(request, "approve")
 
     def test_only_one_request_may_be_pending_at_a_time(self):
         self._raise_request(private_street="First")
         with self.assertRaises(ValidationError):
             self._raise_request(private_street="Second")
+
+    def test_a_decided_request_frees_the_employee_to_ask_again(self):
+        first = self._raise_request(private_street="First")
+        self._decide(first, "refuse")
+        second = self._raise_request(private_street="Second")
+        self.assertEqual(second.approval_state, "pending")
 
     def test_only_the_fields_that_changed_are_written(self):
         request = self._raise_request(

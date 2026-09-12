@@ -9,19 +9,12 @@
                 <form string="Change Request">
                     <header>
                         <button
-                            name="action_approve"
-                            string="Approve"
+                            name="action_view_approval_request"
+                            string="Approval Request"
                             type="object"
                             class="btn-primary"
-                            groups="hr.group_hr_user"
-                            invisible="state != 'pending'" />
-                        <button
-                            name="action_refuse"
-                            string="Refuse"
-                            type="object"
-                            groups="hr.group_hr_user"
-                            invisible="state != 'pending'" />
-                        <field name="state" widget="statusbar" />
+                            invisible="not approval_request_id" />
+                        <field name="approval_state" widget="statusbar" />
                     </header>
                     <sheet>
                         <group>
@@ -30,17 +23,16 @@
                                 <field name="requested_by_uid" readonly="1" />
                             </group>
                             <group>
+                                <field name="approval_request_id" readonly="1" />
                                 <field
-                                    name="reviewed_by_uid"
+                                    name="pending_approver_ids"
+                                    widget="many2many_tags"
                                     readonly="1"
-                                    invisible="state == 'pending'" />
+                                    invisible="approval_state not in ['new', 'pending']" />
                                 <field
-                                    name="reviewed_on"
+                                    name="date_approval_granted"
                                     readonly="1"
-                                    invisible="state == 'pending'" />
-                                <field
-                                    name="refusal_reason"
-                                    invisible="state != 'refused'" />
+                                    invisible="approval_state != 'approved'" />
                             </group>
                         </group>
                         <group>
@@ -51,52 +43,52 @@
                                         name="private_street"
                                         placeholder="Street..."
                                         class="o_address_street"
-                                        readonly="state != 'pending'" />
+                                        readonly="approval_state not in ['new', 'pending']" />
                                     <field
                                         name="private_street2"
                                         placeholder="Street 2..."
                                         class="o_address_street"
-                                        readonly="state != 'pending'" />
+                                        readonly="approval_state not in ['new', 'pending']" />
                                     <field
                                         name="private_city"
                                         placeholder="City"
                                         class="o_address_city"
-                                        readonly="state != 'pending'" />
+                                        readonly="approval_state not in ['new', 'pending']" />
                                     <field
                                         name="private_state_id"
                                         class="o_address_state"
                                         placeholder="State"
                                         options="{'no_open': True, 'no_create': True}"
-                                        readonly="state != 'pending'" />
+                                        readonly="approval_state not in ['new', 'pending']" />
                                     <field
                                         name="private_zip"
                                         placeholder="ZIP"
                                         class="o_address_zip"
-                                        readonly="state != 'pending'" />
+                                        readonly="approval_state not in ['new', 'pending']" />
                                     <field
                                         name="private_country_id"
                                         placeholder="Country"
                                         class="o_address_country"
                                         options="{'no_open': True, 'no_create': True}"
-                                        readonly="state != 'pending'" />
+                                        readonly="approval_state not in ['new', 'pending']" />
                                 </div>
                                 <field
                                     name="private_email"
-                                    readonly="state != 'pending'" />
+                                    readonly="approval_state not in ['new', 'pending']" />
                                 <field
                                     name="private_phone_ids"
                                     widget="many2many_tags"
-                                    readonly="state != 'pending'" />
+                                    readonly="approval_state not in ['new', 'pending']" />
                             </group>
                             <group string="Emergency Contact">
                                 <field
                                     name="emergency_contact"
                                     placeholder="e.g. John Doe"
-                                    readonly="state != 'pending'" />
+                                    readonly="approval_state not in ['new', 'pending']" />
                                 <field
                                     name="emergency_phone_ids"
                                     widget="many2many_tags"
-                                    readonly="state != 'pending'" />
+                                    readonly="approval_state not in ['new', 'pending']" />
                             </group>
                         </group>
                     </sheet>
@@ -111,8 +103,8 @@
                     <field name="create_date" string="Requested" />
                     <field name="employee_id" />
                     <field name="requested_by_uid" />
-                    <field name="reviewed_by_uid" optional="hide" />
-                    <field name="state" widget="badge" />
+                    <field name="approval_request_id" optional="hide" />
+                    <field name="approval_state" widget="badge" />
                 </list>
             </field>
         </record>
@@ -131,12 +123,12 @@
                     <filter
                         name="pending"
                         string="Pending"
-                        domain="[('state', '=', 'pending')]" />
+                        domain="[('approval_state', 'in', ['new', 'pending'])]" />
                     <group>
                         <filter
                             name="group_by_state"
                             string="Status"
-                            context="{'group_by': 'state'}" />
+                            context="{'group_by': 'approval_state'}" />
                     </group>
                 </search>
             </field>

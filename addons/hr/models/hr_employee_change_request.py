@@ -1,11 +1,12 @@
 from collections import Counter
 
 from odoo import Command, api, fields, models
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 
 class HrEmployeeChangeRequest(models.Model):
     _name = "hr.employee.change.request"
+    _inherit = ["mixin.mail.thread", "mixin.approval"]
     _description = "Employee Personal Information Change Request"
     _order = "create_date desc, id desc"
     _rec_name = "employee_id"
@@ -31,18 +32,9 @@ class HrEmployeeChangeRequest(models.Model):
         default=lambda self: self.env.user.employee_id,
     )
     company_id = fields.Many2one(related="employee_id.company_id", store=True)
-    state = fields.Selection(
-        [("pending", "Pending"), ("approved", "Approved"), ("refused", "Refused")],
-        default="pending",
-        required=True,
-        index=True,
-    )
     requested_by_uid = fields.Many2one(
         "res.users", default=lambda self: self.env.user, readonly=True
     )
-    reviewed_by_uid = fields.Many2one("res.users", readonly=True)
-    reviewed_on = fields.Datetime(readonly=True)
-    refusal_reason = fields.Char()
 
     private_street = fields.Char("Private Street")
     private_street2 = fields.Char("Private Street2")
@@ -63,9 +55,9 @@ class HrEmployeeChangeRequest(models.Model):
 
     # A partial unique index would say this in SQL, but EXCLUDE needs
     # btree_gist and this template does not carry it.
-    @api.constrains("employee_id", "state")
+    @api.constrains("employee_id", "approval_state")
     def _check_one_pending_request_per_employee(self):
-        pending = self.filtered(lambda request: request.state == "pending")
+        pending = self.filtered(lambda request: request._is_awaiting_decision())
         if not pending:
             return
         # One query for the batch, and count the batch itself too: two pending
@@ -75,7 +67,7 @@ class HrEmployeeChangeRequest(models.Model):
         already = self.sudo().search(
             [
                 ("employee_id", "in", pending.employee_id.ids),
-                ("state", "=", "pending"),
+                ("approval_state", "in", self._AWAITING_APPROVAL_STATES),
                 ("id", "not in", pending.ids),
             ]
         )
@@ -91,6 +83,12 @@ class HrEmployeeChangeRequest(models.Model):
                     .display_name,
                 )
             )
+
+    _AWAITING_APPROVAL_STATES = ("new", "pending")
+
+    def _is_awaiting_decision(self):
+        self.check_singleton()
+        return self.approval_state in self._AWAITING_APPROVAL_STATES
 
     def _proposed_values(self):
         """The fields this request actually changes, as employee write values."""
@@ -110,41 +108,38 @@ class HrEmployeeChangeRequest(models.Model):
                 values[fname] = proposed
         return values
 
-    def _check_reviewer(self):
-        if not self.env.user.has_group("hr.group_hr_user"):
-            raise AccessError(
-                self.env._("Only an HR user may review a change request.")
-            )
+    @api.model_create_multi
+    def create(self, vals_list):
+        requests = super().create(vals_list)
+        # Asking IS submitting: there is no draft a person would edit twice, so
+        # the record raises and confirms its approval in the same breath the
+        # hand-written workflow used to reach `pending` in.
+        for request in requests:
+            request.action_create_approval_request()
+        return requests
 
-    def action_approve(self):
-        self._check_reviewer()
+    def _get_domain_approval_category(self):
+        category = self.env.ref(
+            "hr.approval_category_employee_change_request", raise_if_not_found=False
+        )
+        return [("id", "=", category.id)] if category else []
+
+    def _filter_approval_step_user_ids(self, step, user_ids):
+        """Nobody reviews their own information change.
+
+        The hand-written workflow said this with a group check plus a test; the
+        engine says it by never staging the requester as an approver, so there
+        is no row for them to decide from in the first place.
+        """
+        user_ids = super()._filter_approval_step_user_ids(step, user_ids)
+        return user_ids - {self.requested_by_uid.id}
+
+    def _on_approval_approved(self):
+        super()._on_approval_approved()
         for request in self:
-            if request.state != "pending":
-                raise UserError(self.env._("Only a pending request can be approved."))
             values = request._proposed_values()
             if values:
                 request.employee_id.sudo().write(values)
-            request.write(
-                {
-                    "state": "approved",
-                    "reviewed_by_uid": self.env.user.id,
-                    "reviewed_on": fields.Datetime.now(),
-                }
-            )
-        return True
-
-    def action_refuse(self):
-        self._check_reviewer()
-        for request in self:
-            if request.state != "pending":
-                raise UserError(self.env._("Only a pending request can be refused."))
-        return self.write(
-            {
-                "state": "refused",
-                "reviewed_by_uid": self.env.user.id,
-                "reviewed_on": fields.Datetime.now(),
-            }
-        )
 
     @api.model
     def action_open_my_request(self):
@@ -155,7 +150,11 @@ class HrEmployeeChangeRequest(models.Model):
                 self.env._("You have no employee record to raise a request about.")
             )
         request = self.search(
-            [("employee_id", "=", employee.id), ("state", "=", "pending")], limit=1
+            [
+                ("employee_id", "=", employee.id),
+                ("approval_state", "in", self._AWAITING_APPROVAL_STATES),
+            ],
+            limit=1,
         )
         if not request:
             seed = {"employee_id": employee.id}

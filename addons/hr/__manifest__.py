@@ -1,6 +1,6 @@
 {
     "name": "Employees",
-    "version": "1.20",
+    "version": "1.21",
     "category": "Human Resources/Employees",
     "sequence": 95,
     "summary": "Centralize employee information",
@@ -11,6 +11,7 @@
     ],
     "license": "LGPL-3",
     "depends": [
+        "approval",
         "digest",
         "phone_validation",
         "resource_mail",
@@ -18,6 +19,7 @@
     "data": [
         "security/hr_security.xml",
         "security/ir.model.access.csv",
+        "data/approval_category_data.xml",
         "data/digest_data.xml",
         "data/res_partner_identifier_type_data.xml",
         "data/report_paperformat.xml",
