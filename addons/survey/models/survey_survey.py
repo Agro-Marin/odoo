@@ -1863,7 +1863,7 @@ class SurveySurvey(models.Model):
     def _create_certification_badge_trigger(self) -> None:
         self.check_singleton()
         if not self.certification_badge_id:
-            raise ValueError(
+            raise UserError(
                 _(
                     "Certification Badge is not configured for the survey %(survey_name)s",
                     survey_name=self.title,

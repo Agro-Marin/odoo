@@ -201,7 +201,7 @@ class MailGroupMessage(models.Model):
 
     def _create_moderation_rule(self, status):
         if status not in ("ban", "allow"):
-            raise ValueError(_("Wrong status (%s)", status))
+            raise ValueError(f"Wrong status ({status})")
 
         for message in self:
             if not email_normalize(message.email_from):

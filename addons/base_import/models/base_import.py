@@ -238,7 +238,7 @@ def read_xls_rows(data, options):
             elif cell.ctype is xlrd.XL_CELL_BOOLEAN:
                 values.append("True" if cell.value else "False")
             elif cell.ctype is xlrd.XL_CELL_ERROR:
-                raise ValueError(
+                raise ImportValidationError(
                     _(
                         "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
                         row=rowx,
@@ -273,7 +273,7 @@ def read_xlsx_rows(data, options):
             values = []
             for colx, cell in enumerate(row, 1):
                 if cell.data_type == types.TYPE_ERROR:
-                    raise ValueError(
+                    raise ImportValidationError(
                         _(
                             "Invalid cell value at row %(row)s, column %(col)s: %(cell_value)s",
                             row=rowx,
@@ -296,7 +296,7 @@ def read_xlsx_rows(data, options):
                     elif d_fmt == "date":
                         values.append(cell.value.date())
                     else:
-                        raise ValueError(
+                        raise ImportValidationError(
                             _(
                                 "Invalid cell format at row %(row)s, column %(col)s: %(cell_value)s, with format: %(cell_format)s, as (%(format_type)s) formats are not supported.",
                                 row=rowx,

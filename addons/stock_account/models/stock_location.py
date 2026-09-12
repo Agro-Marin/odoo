@@ -30,7 +30,7 @@ class StockLocation(models.Model):
 
     def _search_is_valued_internal(self, operator, value):
         if operator not in ["=", "!="]:
-            raise NotImplementedError(self.env._("Invalid search operator or value"))
+            raise NotImplementedError("Invalid search operator or value")
         positive_operator = (operator == "=" and value) or (
             operator == "!=" and not value
         )

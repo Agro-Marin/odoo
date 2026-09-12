@@ -1,6 +1,6 @@
 from psycopg import IntegrityError
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.tools import mute_logger
 
 from odoo.addons.survey.tests import common
@@ -224,7 +224,7 @@ class TestCertificationBadge(common.TestSurveyCommon):
             self.env["gamification.badge"],
             "Badge should be empty",
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(UserError):
             duplicate_survey.write({"certification_give_badge": True})
 
     def test_certification_badge_access(self):

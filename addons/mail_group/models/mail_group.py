@@ -757,7 +757,7 @@ class MailGroup(models.Model):
 
     def _generate_action_url(self, email, action):
         if action not in ["subscribe", "unsubscribe"]:
-            raise ValueError(_("Invalid action for URL generation (%s)", action))
+            raise ValueError(f"Invalid action for URL generation ({action})")
         self.check_singleton()
 
         confirm_action_url = "/group/%s-confirm?%s" % (
@@ -776,7 +776,7 @@ class MailGroup(models.Model):
 
     def _generate_action_token(self, email, action):
         if action not in ["subscribe", "unsubscribe"]:
-            raise ValueError(_("Invalid action for URL generation (%s)", action))
+            raise ValueError(f"Invalid action for URL generation ({action})")
         self.check_singleton()
 
         email_normalized = email_normalize(email)

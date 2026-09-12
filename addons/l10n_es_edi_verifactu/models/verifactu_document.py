@@ -36,7 +36,7 @@ def _sha256(string):
 def _get_zeep_operation(company, operation):
     """The creation of the zeep client may raise (in case of networking issues)."""
     if operation not in ("registration", "registration_xml"):
-        raise NotImplementedError(_("Unsupported `operation` '%s'", operation))
+        raise NotImplementedError(f"Unsupported `operation` {operation!r}")
 
     session = requests.Session()
 

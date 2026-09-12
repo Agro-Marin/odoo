@@ -1007,7 +1007,7 @@ class ResourceCalendar(models.Model):
         if not dt.tzinfo or (
             search_range and not (search_range[0].tzinfo and search_range[1].tzinfo)
         ):
-            raise ValueError(self.env._("Provided datetimes needs to be timezoned"))
+            raise ValueError("Provided datetimes needs to be timezoned")
 
         dt = dt.astimezone(timezone(tz))
 

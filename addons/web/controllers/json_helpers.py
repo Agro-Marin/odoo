@@ -78,9 +78,7 @@ def get_domain_default_filter(model, action, context, eval_context):
                     filter_name = key[15:]
                     if not is_valid_object_name(filter_name):
                         raise ValueError(
-                            model.env._(
-                                "Invalid default search filter name for %s", key
-                            )
+                            f"Invalid default search filter name for {key}"
                         )
                     if view_tree is None:
                         view = model.get_view(action.search_view_id.id, "search")

@@ -1174,7 +1174,7 @@ class MailingMailing(models.Model):
     def action_compare_versions(self):
         self.check_singleton()
         if not self.campaign_id:
-            raise ValueError(_("No mailing campaign has been found"))
+            raise UserError(_("No mailing campaign has been found"))
         return {
             "name": _("A/B Tests"),
             "type": "ir.actions.act_window",
@@ -1202,13 +1202,13 @@ class MailingMailing(models.Model):
         the mailings based on the selection that can be used with sub-modules like CRM and Sales
         """
         if len(self.campaign_id) != 1:
-            raise ValueError(
+            raise UserError(
                 _(
                     "To send the winner mailing the same campaign should be used by the mailings"
                 )
             )
         if any(mailing.ab_testing_completed for mailing in self):
-            raise ValueError(
+            raise UserError(
                 _(
                     "To send the winner mailing the campaign should not have been completed."
                 )
@@ -1235,7 +1235,7 @@ class MailingMailing(models.Model):
     def action_select_as_winner(self):
         self.check_singleton()
         if not self.ab_testing_enabled:
-            raise ValueError(_("A/B test option has not been enabled"))
+            raise UserError(_("A/B test option has not been enabled"))
         final_mailing = self.copy(
             {
                 "ab_testing_pc": 100,

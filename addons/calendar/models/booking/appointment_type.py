@@ -903,10 +903,7 @@ class AppointmentType(models.Model):
         """
         if category not in ["punctual", "recurring", "anytime"]:
             raise ValueError(
-                _(
-                    "Default slots cannot be applied to the %s appointment type category.",
-                    category,
-                )
+                f"Default slots cannot be applied to the {category} appointment type category."
             )
         if category in ["punctual", "recurring"]:
             weekday_range = (1, 6)

@@ -173,7 +173,7 @@ class WebsiteSnippetFilter(models.Model):
                     field_expr = condition.field_expr
                     if "." in field_expr or field_expr not in model._fields:
                         raise ValueError(
-                            _("Invalid field '%s' in search domain") % field_expr
+                            f"Invalid field {field_expr!r} in search domain"
                         )
                 domain &= search_domain
             try:

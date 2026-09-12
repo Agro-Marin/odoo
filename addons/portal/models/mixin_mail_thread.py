@@ -1,14 +1,14 @@
 import hashlib
 import hmac
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 from odoo.fields import Domain
 
 from odoo.addons.mail.tools.discuss import EMPTY_EDIT_MARKER
 from odoo.addons.portal.utils import (
-    resolve_thread_for_credentials,
     is_thread_hash_pid_valid,
     is_thread_token_valid,
+    resolve_thread_for_credentials,
 )
 
 
@@ -98,11 +98,8 @@ class MixinMailThread(models.AbstractModel):
         self.check_singleton()
         if self._mail_post_token_field not in self._fields:
             raise NotImplementedError(
-                _(
-                    "Model %(model_name)s does not support token signature, as it does not have %(field_name)s field.",
-                    model_name=self._name,
-                    field_name=self._mail_post_token_field,
-                )
+                f"Model {self._name} does not support token signature, as it does "
+                f"not have {self._mail_post_token_field} field."
             )
         secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
         token = (self.env.cr.dbname, self[self._mail_post_token_field], pid)

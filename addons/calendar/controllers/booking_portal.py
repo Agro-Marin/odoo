@@ -112,7 +112,7 @@ class AppointmentPortal(portal.CustomerPortal):
         groupby_field = groupby_mapping.get(groupby, None)
         if groupby_field is not None and groupby_field not in Event._fields:
             raise ValueError(
-                _("The field '%s' does not exist in the targeted model", groupby_field)
+                f"The field {groupby_field!r} does not exist in the targeted model"
             )
         order = "%s, %s" % (groupby_field, sort_order) if groupby_field else sort_order
 

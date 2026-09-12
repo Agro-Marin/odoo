@@ -145,10 +145,7 @@ class MixinMailThread(models.AbstractModel):
         """
         if rate < 0 or rate > 5:
             raise ValueError(
-                _(
-                    "Wrong rating value. A rate should be between 0 and 5 (received %d).",
-                    rate,
-                )
+                f"Wrong rating value. A rate should be between 0 and 5 (received {rate})."
             )
         if token:
             rating = (
@@ -157,7 +154,7 @@ class MixinMailThread(models.AbstractModel):
                 .search([("access_token", "=", token)], limit=1)
             )
         if not rating:
-            raise ValueError(_("Invalid token or rating."))
+            raise ValueError("Invalid token or rating.")
 
         rating.write({"rating": rate, "feedback": feedback, "consumed": True})
         if isinstance(self, self.env.registry["mixin.mail.thread"]):

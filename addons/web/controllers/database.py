@@ -136,7 +136,7 @@ class Database(http.Controller):
         self._handle_insecure_password(master_pwd)
         try:
             if not re.match(DBNAME_PATTERN, name):
-                raise ValueError(
+                raise UserError(
                     _(
                         "Houston, we have a database naming issue! Make sure you only use letters, numbers, underscores, hyphens, or dots in the database name, and you'll be golden."
                     )
@@ -189,7 +189,7 @@ class Database(http.Controller):
         self._handle_insecure_password(master_pwd)
         try:
             if not re.match(DBNAME_PATTERN, new_name):
-                raise ValueError(
+                raise UserError(
                     _(
                         "Houston, we have a database naming issue! Make sure you only use letters, numbers, underscores, hyphens, or dots in the database name, and you'll be golden."
                     )
@@ -292,7 +292,7 @@ class Database(http.Controller):
             self._handle_insecure_password(master_pwd)
             db.check_super(master_pwd)
             if not re.match(DBNAME_PATTERN, name):
-                raise ValueError(
+                raise UserError(
                     _(
                         "Houston, we have a database naming issue! Make sure you only use letters, numbers, underscores, hyphens, or dots in the database name, and you'll be golden."
                     )

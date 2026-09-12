@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 import requests
 import werkzeug.utils
 
-from odoo import _, http, modules
+from odoo import http, modules
 from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.libs.filesystem import guess_mimetype
@@ -30,7 +30,7 @@ class Web_Unsplash(HTML_Editor):
                 not url.startswith("https://api.unsplash.com/photos/")
                 and not modules.module.current_test
             ):
-                raise ValueError(_("ERROR: Unknown Unsplash notify URL!"))
+                raise ValueError("ERROR: Unknown Unsplash notify URL!")
             access_key = self._get_access_key()
             requests.get(
                 url,
@@ -74,7 +74,7 @@ class Web_Unsplash(HTML_Editor):
                     and not modules.module.current_test
                 ):
                     logger.error("ERROR: Unknown Unsplash URL!: %s", url)
-                    raise ValueError(_("ERROR: Unknown Unsplash URL!"))
+                    raise ValueError("ERROR: Unknown Unsplash URL!")
 
                 req = requests.get(url, timeout=REQUEST_TIMEOUT)
                 if req.status_code != requests.codes.ok:

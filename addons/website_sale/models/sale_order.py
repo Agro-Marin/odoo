@@ -186,7 +186,7 @@ class SaleOrder(models.Model):
                 if "company_id" in vals:
                     company = self.env["res.company"].browse(vals["company_id"])
                     if website.company_id.id != company.id:
-                        raise ValueError(
+                        raise UserError(
                             _(
                                 "The company of the website you are trying to sell from (%(website_company)s)"
                                 " is different than the one you want to use (%(company)s)",
