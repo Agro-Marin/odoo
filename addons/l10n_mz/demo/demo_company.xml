@@ -3,7 +3,7 @@
 
     <record id="base.partner_demo_company_mz" model="res.partner" forcecreate="1">
         <field name="name">MZ Company</field>
-        <field name="vat">530781296</field>
+        <field name="vat">530781291</field>
         <field name="street">692 Eileen Knoll</field>
         <field name="city">Niassa Province</field>
         <field name="country_id" ref="base.mz" />

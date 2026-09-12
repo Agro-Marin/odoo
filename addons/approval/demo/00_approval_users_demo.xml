@@ -45,7 +45,7 @@
 
     <record id="user_employee" model="res.users" context="{'no_reset_password': True}">
         <field name="name">Employee User</field>
-        <field name="login">employee</field>
+        <field name="login">approval_employee</field>
         <field name="password">employee</field>
         <field name="group_ids" eval="[Command.link(ref('base.group_user'))]" />
     </record>

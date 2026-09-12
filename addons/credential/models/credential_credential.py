@@ -395,9 +395,9 @@ class CredentialCredential(models.Model):
     )
 
     def _check_required_fields_for_category(self):
-        self.invalidate_recordset(["credential_value_encrypted"])
+        self.invalidate_recordset(["credential_value_encrypted", "is_provisioned"])
 
-        for record in self:
+        for record in self.filtered("is_provisioned"):
             specs = record.category_id.sudo().field_ids._requirement_specs()
             if not specs:
                 continue

@@ -95,7 +95,6 @@ Get weather forecasts, historical weather data, and climate information worldwid
         <field name="category_id" ref="credential.credential_category_api_key" />
         <field name="company_id" ref="base.main_company" />
         <field name="environment">production</field>
-        <field name="api_key">demo-key-not-required</field>
         <field name="active" eval="True" />
     </record>
 
@@ -105,13 +104,12 @@ Get weather forecasts, historical weather data, and climate information worldwid
         <field name="category_id" ref="credential.credential_category_api_key" />
         <field name="company_id" ref="base.main_company" />
         <field name="environment">production</field>
-        <field name="api_key">no-auth-required</field>
         <field name="active" eval="True" />
     </record>
 
     <record id="service_test" model="api.endpoint.outbound">
-        <field name="name">Testing Service</field>
-        <field name="code">test_service</field>
+        <field name="name">httpbin.org</field>
+        <field name="code">httpbin</field>
         <field name="category">other</field>
         <field name="provider">Test</field>
         <field name="endpoint_url">https://httpbin.org</field>
@@ -125,7 +123,6 @@ Get weather forecasts, historical weather data, and climate information worldwid
         <field name="category_id" ref="credential.credential_category_api_key" />
         <field name="company_id" ref="base.main_company" />
         <field name="environment">production</field>
-        <field name="api_key">demo-free-tier</field>
         <field name="active" eval="True" />
     </record>
 
@@ -135,7 +132,6 @@ Get weather forecasts, historical weather data, and climate information worldwid
         <field name="category_id" ref="credential.credential_category_api_key" />
         <field name="company_id" ref="base.main_company" />
         <field name="environment">production</field>
-        <field name="api_key">no-auth-required</field>
         <field name="active" eval="True" />
     </record>
 

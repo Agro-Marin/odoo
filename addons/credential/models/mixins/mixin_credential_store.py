@@ -31,6 +31,14 @@ class MixinCredentialStore(models.AbstractModel):
         help="Encrypted storage for credential value (API key, token, secret, etc.)",
     )
 
+    is_provisioned = fields.Boolean(
+        compute="_compute_is_provisioned",
+        store=True,
+        help="Whether the vault holds a secret for this record. A credential "
+        "created by a data or demo file, or one whose secret has not been "
+        "entered yet, exists unprovisioned until a secret is stored.",
+    )
+
     cached_plaintext = fields.Char(
         compute="_compute_cached_plaintext",
         store=False,
@@ -54,6 +62,13 @@ class MixinCredentialStore(models.AbstractModel):
         "by the first payload write and sealed thereafter. Mixing simple "
         "and JSON storage on the same record is not permitted.",
     )
+
+    @api.depends("credential_value_encrypted")
+    def _compute_is_provisioned(self):
+        for record in self:
+            record.is_provisioned = bool(
+                record.with_context(bin_size=False).credential_value_encrypted
+            )
 
     credential_value = fields.Char(
         compute="_compute_credential_value",

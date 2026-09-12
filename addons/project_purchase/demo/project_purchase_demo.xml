@@ -44,7 +44,7 @@
                 name="date_order"
                 eval="(datetime.today()).strftime('%Y-%m-%d %H:%M:%S')" />
             <field
-                name="date_planned"
+                name="date_commitment"
                 eval="(datetime.today()).strftime('%Y-%m-%d %H:%M:%S')" />
         </record>
         <record
@@ -63,7 +63,7 @@
                 name="analytic_distribution"
                 eval="{ref('project.analytic_construction'): 100}" />
             <field
-                name="date_planned"
+                name="date_commitment"
                 eval="(datetime.today()).strftime('%Y-%m-%d %H:%M:%S')" />
         </record>
         <record
@@ -82,7 +82,7 @@
                 name="analytic_distribution"
                 eval="{ref('project.analytic_construction'): 100}" />
             <field
-                name="date_planned"
+                name="date_commitment"
                 eval="(datetime.today()).strftime('%Y-%m-%d %H:%M:%S')" />
         </record>
         <record
@@ -101,7 +101,7 @@
                 name="analytic_distribution"
                 eval="{ref('project.analytic_construction'): 100}" />
             <field
-                name="date_planned"
+                name="date_commitment"
                 eval="(datetime.today()).strftime('%Y-%m-%d %H:%M:%S')" />
         </record>
     </data>

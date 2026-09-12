@@ -418,15 +418,17 @@ class TestEncryptionSecurity(EncryptionKeyCase, TransactionCase):
         self.assertEqual(credential.api_secret, "new_secret")
 
     def test_03_credential_constraint_enforcement(self):
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Test No Credentials",
+                "endpoint_id": self.service.id,
+                "company_id": self.env.company.id,
+                "category_id": self.env.ref(
+                    "credential.credential_category_bearer_token"
+                ).id,
+                "environment": "production",
+            },
+        )
+        self.assertFalse(credential.is_provisioned)
         with self.assertRaises(ValidationError):
-            self.env["credential.credential"].create(
-                {
-                    "name": "Test No Credentials",
-                    "endpoint_id": self.service.id,
-                    "company_id": self.env.company.id,
-                    "category_id": self.env.ref(
-                        "credential.credential_category_bearer_token"
-                    ).id,
-                    "environment": "production",
-                },
-            )
+            credential.api_key = "a key where the category wants a bearer token"

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { webVitalsService } from "@web/core/network/web_vitals/web_vitals_service";
+import { session } from "@web/session";
 
 describe.current.tags("headless");
 
@@ -74,6 +75,7 @@ beforeEach(() => {
             return true;
         },
     });
+    patchWithCleanup(session, { test_mode: false });
     service = /** @type {any} */ (webVitalsService.start());
 });
 
@@ -155,6 +157,11 @@ test("a long session stays inside the server's accepted CLS range", async () => 
     const payload = await flush();
     expect(payload.cls).toBeCloseTo(0.05, { margin: TOL });
     expect(payload.cls).toBeLessThan(5);
+});
+
+test("the service does not start in test mode", () => {
+    patchWithCleanup(session, { test_mode: true });
+    expect(webVitalsService.start()).toBe(undefined);
 });
 
 test("no beacon is sent when nothing was measured", async () => {

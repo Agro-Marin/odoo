@@ -129,13 +129,23 @@ class TestValidationWithoutSystemGroup(TestHardeningFixesBase):
                 ],
             }
         )
-        with self.assertRaises(ValidationError) as ctx:
-            self.env["credential.credential"].with_user(user).create(
+        credential = (
+            self.env["credential.credential"]
+            .with_user(user)
+            .create(
                 {
                     "name": "No Payload API Key",
                     "category_id": self.category_api_key.id,
                 }
             )
+        )
+        self.assertFalse(
+            credential.is_provisioned,
+            "a credential created without a secret is unprovisioned, and "
+            "checking that must not read a system-only field on the user's behalf",
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            credential.sudo().write({"api_secret": "secret-without-its-key"})
         self.assertIn("secret value", str(ctx.exception))
 
 

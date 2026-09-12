@@ -166,6 +166,8 @@ class AccountChartTemplate(models.AbstractModel):
     ):
         if not company:
             return None
+        if isinstance(company, int):
+            company = self.env["res.company"].browse([company])
         if (
             not self.env.registry.loaded
             and not install_demo

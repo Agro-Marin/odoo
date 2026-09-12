@@ -226,8 +226,8 @@ class SaleOrder(models.Model):
         string="Has Upselling Opportunity",
         compute="_compute_has_upsell_opportunity",
         store=True,
-        help="Indicates when delivered quantities exceed ordered quantities for delivery-based products, "
-        "representing a commercial opportunity to increase the order and invoice the extra delivered amount.",
+        help="Set when a line invoiced on ordered quantities has delivered more than "
+        "was ordered: the excess is not billable until the order is increased.",
     )
 
     transaction_ids = fields.Many2many(

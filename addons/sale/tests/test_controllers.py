@@ -133,6 +133,7 @@ class TestSalesControllers(HttpCase, SaleCommon):
 
     def test_signature_acceptance_propagates_signature_context(self):
         self.sale_order.require_signature = True
+        self.sale_order.require_payment = False
         self.sale_order._portal_ensure_token()
 
         seen_contexts = []

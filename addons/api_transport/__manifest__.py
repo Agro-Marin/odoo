@@ -18,6 +18,13 @@ Models
 * ``api.response.cache`` -- outbound response cache
 * ``mixin.api.channel`` -- behaviour shared by both endpoint models
 
+Requirements
+------------
+* ``ODOO_API_ENCRYPTION_KEY`` in the server's environment before a secret is
+  stored: every credential is encrypted with it. The module, its data and its
+  demo install without it -- their credentials exist unprovisioned until a
+  secret is entered.
+
 Authentication
 --------------
 * Bearer token

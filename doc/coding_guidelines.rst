@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.33
-:Date: 2026-09-11
+:Version: 6.35
+:Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -521,6 +521,27 @@ Keys come from the known set, in the canonical order
   file is loaded only when the database has demo data, so the move changes
   what a fresh install without it loads not at all. **A file listed under both
   keys is a data file**: drop the ``demo`` entry rather than move it.
+* **Demo data reaches a workflow state through the workflow** ``[review]``. A
+  record whose ``state`` the model computes from decisions is created in its
+  initial state and driven by a ``<function>`` calling the same actions a user
+  would -- ``approval``'s demo confirms, approves, refuses and cancels its
+  requests through ``_load_demo_workflow`` -- never by writing ``state``,
+  ``date_confirmed`` or a refusal into the record. A model that guards those
+  fields refuses the forged record; one that does not gets a record no
+  transition produced, with every side effect (approver rows, activities,
+  chatter, dates) missing. The same rule as a test that reaches a state.
+* **A demo file must load** ``[review]``. The loader catches a failing demo
+  file, logs *installed without demo data* and carries on, so a broken one is
+  red in no lane anyone runs. Measured 2026-09-11 with ``--with-demo`` over
+  every module that ships a ``demo`` key: nine files named a field this fork
+  had renamed (``product_uom_qty``, ``date_planned``, ``deadline``,
+  ``product_category_id``), one forged a workflow state, one duplicated a
+  unique key, one carried an invalid VAT. Load your demo data before landing
+  it, on a server with nothing in its environment: a demo or data file
+  never stores a secret (``credential.credential`` exists unprovisioned
+  until one is entered, and a ``post_init_hook`` that generates one checks
+  ``_is_encryption_key_configured()`` first), because a file that needs
+  ``ODOO_API_ENCRYPTION_KEY`` fails on every server that lacks it.
 * **``license``** must match how the module is actually distributed. The fork
   ships ``LGPL-3``, ``OPL-1``, ``AGPL-3`` and ``OEEL-1``; do not copy a
   neighbour's value unchecked.
@@ -6564,6 +6585,19 @@ Naming: files ``test_<feature>.py``, classes ``TestFeatureName``, methods
 * **Mock external services.** Tests run offline.
 * **Test with minimal permissions** -- a user in only the group under test
   surfaces access-rule bugs early. ``@users("demo")`` covers multi-user cases.
+* **A fixture that reuses a shipped record states every setting it relies
+  on** ``[review]``. Demo data may have reconfigured the record before the
+  test runs, and a suite that is green without demo can be red with it:
+  ``approval``'s tests cleared ``approver_ids`` on
+  ``approval_category_data_business_trip`` and added one approver, while the
+  demo had set ``approval_minimum`` to 2 and ``approve_sequentially`` on the
+  same category -- 33 errors under ``--with-demo``, none without. Reset the
+  minimum and the sequencing beside the approvers, or build the record with
+  the class's own helper. Logins collide the same way: a test user named
+  ``approver1`` fails ``setUpClass`` on a database whose demo created one.
+  And so do windows: ``approval_sale``'s rate-limit tests counted the orders
+  the superuser had created in the last 24 hours, which on a demo database
+  are the demo's -- create the records under test as a user of your own.
 * **Never call ``cr.commit()``.** Test data lives in the test transaction and is
   rolled back; a commit permanently pollutes the database. The one exception is a
   concurrency or cron test that deliberately opens ``self.registry.cursor()``.
@@ -7987,6 +8021,18 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.35
+     - 2026-09-12
+     - §1.2: a demo or data file never stores a secret -- a
+       ``credential.credential`` exists unprovisioned until one is entered,
+       so a module installs and loads its demo on a server with no
+       ``ODOO_API_ENCRYPTION_KEY``.
+   * - 6.34
+     - 2026-09-12
+     - §1.2: demo data reaches a workflow state through the workflow, and a
+       demo file must load -- the ``--with-demo`` sweep that found twelve
+       that did not; §6.2: a fixture reusing a shipped record states every
+       setting it relies on, because demo may have reconfigured it.
    * - 6.33
      - 2026-09-11
      - Appendix A gains ``hr.expense.approval_state`` to ``review_state``: the

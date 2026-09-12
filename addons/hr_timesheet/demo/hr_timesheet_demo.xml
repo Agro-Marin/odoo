@@ -4902,7 +4902,7 @@
 
     <record id="project.project_1_milestone_2" model="project.milestone">
         <field
-            name="deadline"
+            name="date_deadline"
             eval="(DateTime.now() + relativedelta(years=1, months=3)).strftime('%Y-%m-15')" />
     </record>
 

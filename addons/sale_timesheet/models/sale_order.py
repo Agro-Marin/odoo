@@ -144,7 +144,7 @@ class SaleOrder(models.Model):
         return self.line_ids.filtered(
             lambda sol: (
                 sol.is_service
-                and sol.invoice_state != "done"
+                and (sol.invoice_state != "done" or sol._is_upsell_opportunity())
                 and not sol.has_displayed_warning_upsell
                 and sol.product_id.service_policy == "ordered_prepaid"
                 and float_compare(

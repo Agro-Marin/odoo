@@ -25,7 +25,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">1000</field>
-            <field name="product_uom_qty">2</field>
+            <field name="product_qty">2</field>
             <field name="event_id" ref="event.event_0" />
             <field name="event_ticket_id" ref="event.event_0_ticket_1" />
         </record>
@@ -34,7 +34,7 @@
             <field name="name">Event Registration</field>
             <field name="product_id" ref="event_product.product_product_event" />
             <field name="price_unit">0</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_0" />
             <field name="event_ticket_id" ref="event.event_0_ticket_0" />
         </record>
@@ -52,7 +52,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">1000</field>
-            <field name="product_uom_qty">2</field>
+            <field name="product_qty">2</field>
             <field name="event_id" ref="event.event_2" />
             <field name="event_ticket_id" ref="event.event_2_ticket_1" />
         </record>
@@ -61,7 +61,7 @@
             <field name="name">Event Registration - VIP</field>
             <field name="product_id" ref="event_product.product_product_event_vip" />
             <field name="price_unit">1500</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_2" />
             <field name="event_ticket_id" ref="event.event_2_ticket_2" />
         </record>
@@ -78,7 +78,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">1000</field>
-            <field name="product_uom_qty">2</field>
+            <field name="product_qty">2</field>
             <field name="event_id" ref="event.event_2" />
             <field name="event_ticket_id" ref="event.event_2_ticket_1" />
         </record>
@@ -96,7 +96,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">499</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_4" />
             <field name="event_ticket_id" ref="event.event_4_ticket_0" />
         </record>
@@ -113,7 +113,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">499</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_4" />
             <field name="event_ticket_id" ref="event.event_4_ticket_0" />
         </record>
@@ -130,7 +130,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">499</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_4" />
             <field name="event_ticket_id" ref="event.event_4_ticket_0" />
         </record>
@@ -147,7 +147,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">0</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_7" />
             <field name="event_ticket_id" ref="event.event_7_ticket_1" />
         </record>
@@ -156,7 +156,7 @@
             <field name="name">Event Registration - VIP</field>
             <field name="product_id" ref="event_product.product_product_event_vip" />
             <field name="price_unit">0</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_7" />
             <field name="event_ticket_id" ref="event.event_7_ticket_2" />
         </record>
@@ -172,7 +172,7 @@
                 name="product_id"
                 ref="event_product.product_product_event_standard" />
             <field name="price_unit">0</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_7" />
             <field name="event_ticket_id" ref="event.event_7_ticket_1" />
         </record>
@@ -181,7 +181,7 @@
             <field name="name">Event Registration - VIP</field>
             <field name="product_id" ref="event_product.product_product_event_vip" />
             <field name="price_unit">0</field>
-            <field name="product_uom_qty">1</field>
+            <field name="product_qty">1</field>
             <field name="event_id" ref="event.event_7" />
             <field name="event_ticket_id" ref="event.event_7_ticket_2" />
         </record>

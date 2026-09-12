@@ -8,7 +8,7 @@
             <field name="state">done</field>
             <field
                 name="line_ids"
-                eval="[(5, 0, 0),                 (0, 0, {                     'product_id': ref('product.product_delivery_02'),                     'price_unit': 10.0,                     'name': 'Office Lamp',                     'product_qty': 5.0,                     'date_planned': time.strftime('%Y-%m-%d')}),             ]"
+                eval="[(5, 0, 0),                 (0, 0, {                     'product_id': ref('product.product_delivery_02'),                     'price_unit': 10.0,                     'name': 'Office Lamp',                     'product_qty': 5.0,                     'date_commitment': time.strftime('%Y-%m-%d')}),             ]"
                 model="purchase.order.line" />
         </record>
     </data>

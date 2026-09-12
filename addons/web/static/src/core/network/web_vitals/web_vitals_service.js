@@ -187,7 +187,7 @@ class WebVitalsService {
 export const webVitalsService = {
     /** @returns {WebVitalsService | undefined} */
     start() {
-        if (!browser.PerformanceObserver) {
+        if (!browser.PerformanceObserver || session.test_mode) {
             return;
         }
         const rawRate = Number(session.cwv_sample_rate);

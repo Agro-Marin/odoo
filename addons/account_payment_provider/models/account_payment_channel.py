@@ -10,7 +10,6 @@ class AccountPaymentChannel(models.Model):
         compute="_compute_payment_provider_id",
         store=True,
         readonly=False,
-        recursive=True,
         domain="[('code', '=', code)]",
     )
     payment_provider_state = fields.Selection(related="payment_provider_id.state")
@@ -22,14 +21,7 @@ class AccountPaymentChannel(models.Model):
             if line.payment_provider_id and not line.name:
                 line.name = line.payment_provider_id.name
 
-    @api.depends(
-        "payment_method_id",
-        "journal_id",
-        "journal_id.inbound_payment_channel_ids.payment_method_id",
-        "journal_id.inbound_payment_channel_ids.payment_provider_id",
-        "journal_id.outbound_payment_channel_ids.payment_method_id",
-        "journal_id.outbound_payment_channel_ids.payment_provider_id",
-    )
+    @api.depends("payment_method_id")
     def _compute_payment_provider_id(self):
         info = self.journal_id._get_journals_payment_method_information()
         manage_providers = info.manage_providers

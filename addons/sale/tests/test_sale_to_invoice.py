@@ -1553,19 +1553,20 @@ class TestSaleToInvoice(TestSaleCommon):
             len(self.sale_order.invoice_ids) == 2, "Sale: invoice is missing"
         )
 
-        self.sol_serv_deliver.write({"qty_transferred": 10})
+        self.sol_serv_order.write({"qty_transferred": 10})
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertTrue(
-            self.sale_order.invoice_state == "partial",
-            'Sale: SO invoice_state should be "partial" (line has more to invoice but also some already invoiced)',
+            self.sale_order.invoice_state == "done",
+            'Sale: SO invoice_state stays "done" -- the excess delivered on an '
+            "ordered-quantity line is not billable until the order is increased",
         )
         self.assertTrue(
             self.sale_order.has_upsell_opportunity,
             "Sale: SO should have upselling opportunity when delivered qty exceeds ordered qty",
         )
 
-        self.sol_serv_deliver.write({"product_qty": 10})
+        self.sol_serv_order.write({"product_qty": 10})
 
         self.env.flush_all()
         self.env.invalidate_all()
@@ -1575,7 +1576,7 @@ class TestSaleToInvoice(TestSaleCommon):
             len(invoice3.invoice_line_ids), 1, "Sale: third invoice is missing lines"
         )
         self.assertEqual(
-            invoice3.amount_total, 1440.0, "Sale: third invoice total amount is wrong"
+            invoice3.amount_total, 720.0, "Sale: third invoice total amount is wrong"
         )
         invoice3.action_post()
         self.assertTrue(

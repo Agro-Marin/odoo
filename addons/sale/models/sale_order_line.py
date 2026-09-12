@@ -1195,9 +1195,14 @@ class SaleOrderLine(models.Model):
 
     def _is_upsell_opportunity(self):
         self.check_singleton()
+        if self._is_invoiced_on_transferred() or self.product_qty <= 0:
+            return False
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         return (
-            self._is_invoiced_on_transferred()
-            and self.qty_transferred > self.product_qty
+            float_compare(
+                self.qty_transferred, self.product_qty, precision_digits=precision
+            )
+            > 0
         )
 
     def _prepare_aml_vals(self, **optional_values):

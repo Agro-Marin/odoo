@@ -28,6 +28,7 @@
             eval="[(6, 0, [ref('appointment_type_dental_care')])]" />
         <field name="is_reusable">False</field>
         <field name="title">Symptoms</field>
+        <field name="question_type">char_box</field>
         <field name="sequence">10</field>
     </record>
 

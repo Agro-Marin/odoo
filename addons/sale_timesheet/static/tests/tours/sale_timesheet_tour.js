@@ -435,7 +435,7 @@ registry.category("web_tour.tours").add("sale_timesheet_tour", {
             run: "edit New milestone",
         },
         {
-            trigger: "input[data-field=deadline]",
+            trigger: "input[data-field=date_deadline]",
             content: "Edit new Milestone",
             run: "edit 12/12/2099",
         },

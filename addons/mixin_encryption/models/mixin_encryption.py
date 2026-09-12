@@ -370,6 +370,10 @@ class MixinEncryption(models.AbstractModel):
             _KEY_STATE["version_cache_checked"] = True
             return _KEY_STATE["version_cache"]
 
+    @api.model
+    def _is_encryption_key_configured(self) -> bool:
+        return bool(os.environ.get("ODOO_API_ENCRYPTION_KEY"))
+
     def _get_encryption_key(self, version: int | None = None) -> bytes | None:
         if version is None:
             env_var = "ODOO_API_ENCRYPTION_KEY"

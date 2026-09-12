@@ -315,9 +315,11 @@ class AccountMove(models.Model):
         for rec in self.filtered(
             lambda x: x.journal_id and x.l10n_latam_use_documents and x.partner_id
         ):
-            rec.l10n_latam_available_document_type_ids = self.env[
-                "l10n_latam.document.type"
-            ].search(rec._get_domain_l10n_latam_documents())
+            rec.l10n_latam_available_document_type_ids = (
+                self.env["l10n_latam.document.type"]
+                .with_context(active_test=True)
+                .search(rec._get_domain_l10n_latam_documents())
+            )
 
     @api.depends("l10n_latam_available_document_type_ids")
     def _compute_l10n_latam_document_type_id(self):
