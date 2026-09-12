@@ -2,6 +2,7 @@ import logging
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
 from odoo.addons.point_of_sale.models.pos_config import format_epson_certified_domain
 
 _logger = logging.getLogger(__name__)
@@ -428,12 +429,22 @@ class ResConfigSettings(models.TransientModel):
 
         for pos_config_id, pos_fields_vals in pos_config_id_to_fields_vals_map.items():
             pos_config = self.env["pos.config"].browse(pos_config_id)
+            dbg.pipeline.debug(
+                "[config:%s] settings -> pos.config write keys=%s",
+                pos_config_id,
+                dbg.keys(pos_fields_vals),
+            )
             pos_config.with_context(from_settings_view=True).write(pos_fields_vals)
 
         return result
 
     def set_values(self):
         super().set_values()
+        dbg.lifecycle.debug(
+            "res.config.settings.set_values: pricelist group=%s cash rounding group=%s",
+            self.group_product_pricelist,
+            self.group_cash_rounding,
+        )
         if not self.group_product_pricelist:
             self.env["pos.config"].search(
                 [("use_pricelist", "=", True)]

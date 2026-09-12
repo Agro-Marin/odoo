@@ -1,5 +1,7 @@
 from odoo import _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountMove(models.Model):
     _name = "account.move"
@@ -140,6 +142,10 @@ class AccountMove(models.Model):
 
     def action_draft(self):
         if self.sudo().pos_order_ids.filtered(lambda o: o.session_id.state != "closed"):
+            dbg.logic.debug(
+                "account.move %s reset to draft refused: pos session still open",
+                dbg.rec(self),
+            )
             self.env.user._bus_send(
                 "simple_notification",
                 {
@@ -175,6 +181,13 @@ class AccountMoveLine(models.Model):
         if sudo_order:
             pos_price_unit = sudo_order._get_pos_anglo_saxon_price_unit(
                 self.product_id, self.quantity
+            )
+            dbg.logic.debug(
+                "[order:%s] cogs for %s: pos price %s vs account %s",
+                dbg.names(sudo_order, "uuid"),
+                dbg.rec(self.product_id),
+                pos_price_unit,
+                price_unit,
             )
             if not self.product_id.sudo().cost_currency_id.is_zero(pos_price_unit):
                 price_unit = pos_price_unit

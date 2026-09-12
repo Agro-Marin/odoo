@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.tools import is_html_empty
 
+from ..tools import debug_log as dbg
+
 
 class ProductTag(models.Model):
     _name = "product.tag"
@@ -20,5 +22,8 @@ class ProductTag(models.Model):
 
     def write(self, vals):
         if vals.get("pos_description") and is_html_empty(vals["pos_description"]):
+            dbg.logic.debug(
+                "product.tag %s: empty html pos_description cleared", dbg.rec(self)
+            )
             vals["pos_description"] = ""
         return super().write(vals)

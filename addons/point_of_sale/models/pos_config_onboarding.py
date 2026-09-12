@@ -1,6 +1,8 @@
 from odoo import _, api, models
 from odoo.tools import convert
 
+from ..tools import debug_log as dbg
+
 
 class PosConfigOnboarding(models.Model):
     _inherit = "pos.config"
@@ -17,6 +19,12 @@ class PosConfigOnboarding(models.Model):
             self.get_external_id().get(self.id) or self._get_default_demo_data_xml_id()
         )
         loaders = self._get_demo_data_loader_methods()
+        dbg.lifecycle.debug(
+            "[config:%s] load_demo_data: xml_id=%s loaders=%s",
+            self.id,
+            xml_id,
+            list(loaders),
+        )
         for prefix, loader in loaders.items():
             if xml_id.startswith(prefix):
                 return loader(True)
@@ -310,6 +318,11 @@ class PosConfigOnboarding(models.Model):
         if main_company and self.env.company.id == main_company.id:
             return ref_name
         else:
+            dbg.logic.debug(
+                "onboarding ref %s suffixed for company %s",
+                ref_name,
+                self.env.company.id,
+            )
             return f"{ref_name}_{self.env.company.id}"
 
     def _get_env_with_clean_context(self):

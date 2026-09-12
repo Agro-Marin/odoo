@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ProductProduct(models.Model):
     _name = "product.product"
@@ -35,6 +37,7 @@ class ProductProduct(models.Model):
         )
 
     @api.model
+    @dbg.timed
     def get_pos_stock_quantities(self, product_ids, config_id):
         config = self.env["pos.config"].browse(config_id)
         config.check_access("read")
@@ -46,6 +49,13 @@ class ProductProduct(models.Model):
         quantities = dict.fromkeys(product_ids, 0.0)
         for product in products:
             quantities[product.id] = product.qty_available
+        dbg.logic.debug(
+            "[config:%s] stock quantities for %d products (scope %s): %d found",
+            config_id,
+            len(product_ids),
+            config._get_stock_scope(),
+            len(products),
+        )
         return quantities
 
     @api.ondelete(at_uninstall=False)
@@ -75,6 +85,7 @@ class ProductProduct(models.Model):
         self.product_tmpl_id._check_is_special_product()
 
     @api.model
+    @dbg.timed
     def _load_pos_data_read(self, records, config):
         records = records._with_pos_company(config)
         rows = super()._load_pos_data_read(records, config)

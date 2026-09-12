@@ -1,6 +1,7 @@
 from . import models
 from . import controllers
 from . import reports
+from . import tools
 from . import wizards
 
 

@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
 from odoo.addons.stock.const import OUTGOING_BLOCK_TYPES
 
 
@@ -76,8 +77,17 @@ class PosConfigStock(models.Model):
             )
             roots = warehouses.view_location_id.ids
         if not roots:
+            dbg.logic.debug("[config:%s] no stock roots: no locations", self.id)
             return Location
         domain = [("location_id", "child_of", roots), ("usage", "=", "internal")]
         if not self.env.user.has_group("stock.group_stock_user"):
             domain.append(("effective_block_type", "not in", OUTGOING_BLOCK_TYPES))
-        return Location.search(domain)
+        locations = Location.search(domain)
+        dbg.logic.debug(
+            "[config:%s] stock scope %s roots=%s -> %s",
+            self.id,
+            scope,
+            roots,
+            dbg.rec(locations),
+        )
+        return locations

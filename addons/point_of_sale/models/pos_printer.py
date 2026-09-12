@@ -4,6 +4,8 @@ from hashlib import sha256
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 def format_epson_certified_domain(serial_number):
     if "." in serial_number:
@@ -13,6 +15,7 @@ def format_epson_certified_domain(serial_number):
 
     sha256_hash = sha256(serial_number.encode()).digest()
     base32_text = b32encode(sha256_hash).decode().rstrip("=")
+    dbg.logic.debug("epson serial %r -> certified domain", serial_number)
     return f"{base32_text.lower()}.{epson_domain}"
 
 

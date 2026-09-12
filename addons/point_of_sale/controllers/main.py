@@ -9,6 +9,7 @@ from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import file_open, format_amount
 
+from ..tools import debug_log as dbg
 from odoo.addons.account.controllers.portal import PortalAccount
 
 _logger = logging.getLogger(__name__)
@@ -41,9 +42,18 @@ class PosController(PortalAccount):
     def pos_web(self, config_id=False, from_backend=False, subpath=None, **k):
         is_internal_user = request.env.user._is_internal()
         pos_config = False
+        dbg.lifecycle.debug(
+            "[http] /pos/ui config=%s uid=%s from_backend=%s subpath=%s internal=%s",
+            config_id,
+            request.session.uid,
+            from_backend,
+            subpath,
+            is_internal_user,
+        )
         if not is_internal_user:
             return request.prepare_not_found_error()
         if not request.env.user.has_group("point_of_sale.group_pos_user"):
+            dbg.logic.debug("[http] /pos/ui: not a pos user, redirect to menu")
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
         if config_id:
             try:
@@ -68,6 +78,13 @@ class PosController(PortalAccount):
             ]
             pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
 
+        dbg.logic.debug(
+            "[http] /pos/ui config=%s active=%s has_active_session=%s session=%s",
+            pos_config.id if pos_config else None,
+            pos_config.active if pos_config else None,
+            pos_config.has_active_session if pos_config else None,
+            dbg.rec(pos_session),
+        )
         if (
             not pos_config
             or not pos_config.active
@@ -82,16 +99,29 @@ class PosController(PortalAccount):
                     (pos_config.id,),
                 )
             except LockNotAvailable:
+                dbg.logic.debug(
+                    "[http] /pos/ui config %s locked by another opener", pos_config.id
+                )
                 return request.redirect(
                     "/odoo/action-point_of_sale.action_client_pos_menu"
                 )
             pos_config.open_ui()
             pos_session = request.env["pos.session"].sudo().search(domain, limit=1)
+            dbg.pipeline.debug(
+                "[http] /pos/ui opened session %s on config %s",
+                dbg.rec(pos_session),
+                pos_config.id,
+            )
 
         company = pos_session.company_id
         session_info = request.env["ir.http"].session_info()
         allowed_companies = session_info["user_companies"]["allowed_companies"]
         if company.id not in allowed_companies:
+            dbg.logic.debug(
+                "[http] /pos/ui company %s not in allowed %s",
+                company.id,
+                list(allowed_companies),
+            )
             return request.redirect("/odoo/action-point_of_sale.action_client_pos_menu")
         session_info["user_context"]["allowed_company_ids"] = company.ids
         session_info["user_companies"] = {
@@ -120,6 +150,13 @@ class PosController(PortalAccount):
             ),
             "use_lna": use_lna,
         }
+        dbg.pipeline.debug(
+            "[http] /pos/ui rendering session=%s config=%s company=%s lna=%s",
+            pos_session.id,
+            pos_session.config_id.id,
+            company.id,
+            use_lna,
+        )
         response = request.render("point_of_sale.index", context)
         response.headers["Cache-Control"] = "no-store"
         return response
@@ -132,10 +169,13 @@ class PosController(PortalAccount):
     def print_sale_details(self, date_start=False, date_stop=False, **kw):
         if not request.env.user.has_group("point_of_sale.group_pos_manager"):
             return request.prepare_not_found_error()
-        pdf, _ = request.env["ir.actions.report"]._render_qweb_pdf(
-            "point_of_sale.sale_details_report",
-            data={"date_start": date_start, "date_stop": date_stop},
-        )
+        with dbg.timer(
+            request.env, "[http] sale_details_report %s..%s", date_start, date_stop
+        ):
+            pdf, _ = request.env["ir.actions.report"]._render_qweb_pdf(
+                "point_of_sale.sale_details_report",
+                data={"date_start": date_start, "date_stop": date_stop},
+            )
         pdfhttpheaders = [
             ("Content-Type", "application/pdf"),
             ("Content-Length", len(pdf)),
@@ -155,6 +195,11 @@ class PosController(PortalAccount):
     def invoice_request_screen(self, **kwargs):
         errors = {}
         form_values = {}
+        dbg.lifecycle.debug(
+            "[http] /pos/ticket %s keys=%s",
+            request.httprequest.method,
+            dbg.keys(kwargs),
+        )
         if request.httprequest.method == "POST":
             for field in ["pos_reference", "date_order", "ticket_code"]:
                 if not kwargs.get(field):
@@ -197,6 +242,12 @@ class PosController(PortalAccount):
                         ],
                         limit=1,
                     )
+                )
+                dbg.logic.debug(
+                    "[http] /pos/ticket lookup ref=%s date=%s -> %s",
+                    form_values["pos_reference"],
+                    date_order,
+                    dbg.rec(order),
                 )
                 if order:
                     return request.redirect(
@@ -251,6 +302,13 @@ class PosController(PortalAccount):
             .sudo()
             .search([("access_token", "=", access_token)], limit=1)
         )
+        dbg.lifecycle.debug(
+            "[http] /pos/ticket/validate %s order=%s state=%s invoiced=%s",
+            request.httprequest.method,
+            dbg.rec(pos_order),
+            pos_order.state if pos_order else None,
+            bool(pos_order.account_move) if pos_order else None,
+        )
         if not pos_order:
             return request.prepare_not_found_error()
 
@@ -273,6 +331,9 @@ class PosController(PortalAccount):
         if not request.env["res.company"]._with_locked_records(
             pos_order, allow_raising=False
         ):
+            dbg.logic.debug(
+                "[order:%s] ticket validation: order locked", pos_order.uuid
+            )
             return None
 
         pos_order_country = pos_order.company_id.account_fiscal_country_id
@@ -302,6 +363,13 @@ class PosController(PortalAccount):
             missing_fields, error_messages = self._get_missing_fields_and_errors(
                 partner_values | invoice_values,
                 additional_partner_fields + additional_invoice_fields,
+            )
+            dbg.logic.debug(
+                "[order:%s] ticket form: partner=%s connected=%s missing=%s",
+                pos_order.uuid,
+                dbg.rec(partner) if partner else None,
+                user_is_connected,
+                sorted(missing_fields),
             )
             if not missing_fields:
                 address_values = (
@@ -404,6 +472,12 @@ class PosController(PortalAccount):
     def _get_invoice(
         self, partner, invoice_values, pos_order, additional_invoice_fields, kwargs
     ):
+        dbg.pipeline.debug(
+            "[order:%s] portal invoice request: partner=%s extra=%s",
+            pos_order.uuid,
+            dbg.rec(partner),
+            dbg.keys(invoice_values),
+        )
 
         pos_order.partner_id = partner
         with_context = {}

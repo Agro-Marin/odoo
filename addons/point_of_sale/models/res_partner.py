@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ResPartner(models.Model):
     _name = "res.partner"
@@ -44,6 +46,7 @@ class ResPartner(models.Model):
         return data_list
 
     @api.model
+    @dbg.timed
     def get_new_partner(self, config_id, domain, offset):
         config = self.env["pos.config"].browse(config_id)
         if len(domain) == 0:
@@ -55,6 +58,14 @@ class ResPartner(models.Model):
         else:
             new_partners = self.search(domain, offset=offset, limit=100)
         fiscal_positions = new_partners.fiscal_position_id
+        dbg.pipeline.debug(
+            "[load:res.partner] on demand config=%s offset=%s %s -> %s fpos=%s",
+            config_id,
+            offset,
+            "ranked" if not domain or domain[-1][0] == "id" else "searched",
+            dbg.rec(new_partners),
+            dbg.rec(fiscal_positions),
+        )
         return {
             "res.partner": self._load_pos_data_read(new_partners, config),
             "phone.number": new_partners.phone_ids._load_pos_data_read(
@@ -79,6 +90,12 @@ class ResPartner(models.Model):
 
         limited_partner_ids.add(self.env.user.partner_id.id)
         partner_ids = limited_partner_ids.union(loaded_order_partner_ids)
+        dbg.logic.debug(
+            "[load:res.partner] %d ranked + %d from open orders -> %d",
+            len(limited_partner_ids),
+            len(loaded_order_partner_ids),
+            len(partner_ids),
+        )
         return [("id", "in", list(partner_ids))]
 
     def _compute_fiscal_position_id(self):
@@ -166,6 +183,9 @@ class ResPartner(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_if_pos_no_orders(self):
         if self.sudo().pos_order_ids:
+            dbg.logic.debug(
+                "res.partner unlink refused: %s has pos orders", dbg.rec(self)
+            )
             raise ValidationError(
                 _(
                     "You cannot delete a customer that has point of sales orders. You can archive it instead."

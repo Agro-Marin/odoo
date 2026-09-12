@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class PosDetailsWizard(models.TransientModel):
     _name = "pos.details.wizard"
@@ -43,6 +45,7 @@ class PosDetailsWizard(models.TransientModel):
             "date_stop": self.end_date,
             "config_ids": self.pos_config_ids.ids,
         }
+        dbg.lifecycle.debug("[wizard:details] print %s", data)
         return self.env.ref("point_of_sale.sale_details_report").report_action(
             [], data=data
         )

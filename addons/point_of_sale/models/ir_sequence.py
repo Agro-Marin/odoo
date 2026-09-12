@@ -1,6 +1,8 @@
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class IrSequence(models.Model):
     _inherit = "ir.sequence"
@@ -19,6 +21,11 @@ class IrSequence(models.Model):
             ]
         )
         if len(configs):
+            dbg.logic.debug(
+                "ir.sequence unlink of %s refused: used by %s",
+                dbg.rec(self),
+                dbg.rec(configs),
+            )
             raise UserError(
                 _(
                     "You cannot delete a sequence used in an active POS config: %s",

@@ -1,5 +1,7 @@
 from odoo import _, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class PosConfirmationWizard(models.TransientModel):
     _name = "pos.confirmation.wizard"
@@ -24,6 +26,11 @@ class PosConfirmationWizard(models.TransientModel):
 
     def action_confirm(self):
         selected_orders = self.get_selected_orders()
+        dbg.lifecycle.debug(
+            "[wizard:confirmation] partner %s set on %s",
+            dbg.rec(selected_orders.partner_id),
+            dbg.rec(selected_orders),
+        )
         selected_orders.write({"partner_id": selected_orders.partner_id.id})
         return {
             "name": _("Create Invoice(s)"),

@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class PosCategory(models.Model):
     _name = "pos.category"
@@ -61,6 +63,11 @@ class PosCategory(models.Model):
                     + config.iface_available_categ_ids.ids,
                 )
             ]
+            dbg.logic.debug(
+                "[load:pos.category] limited: %d printer + %d config categories",
+                len(flattened_preparation_categories),
+                len(config.iface_available_categ_ids),
+            )
         return domain
 
     @api.model
@@ -108,6 +115,11 @@ class PosCategory(models.Model):
             )
         )
         if blocking_session:
+            dbg.logic.debug(
+                "pos.category unlink of %s refused by open %s",
+                dbg.rec(self),
+                dbg.rec(blocking_session),
+            )
             raise UserError(
                 _(
                     "You cannot delete a point of sale category while the session"

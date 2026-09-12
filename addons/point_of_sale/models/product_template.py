@@ -2,6 +2,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import SQL, is_html_empty
 
+from ..tools import debug_log as dbg
+
 
 class ProductTemplate(models.Model):
     _name = "product.template"
@@ -97,12 +99,20 @@ class ProductTemplate(models.Model):
         self._update_pos_sequence_vals(vals_list)
         for vals in vals_list:
             self._update_available_in_pos_vals(vals)
+        dbg.lifecycle.debug(
+            "product.template.create: %d vals, %d available_in_pos",
+            len(vals_list),
+            sum(1 for vals in vals_list if vals.get("available_in_pos")),
+        )
         return super().create(vals_list)
 
     def write(self, vals):
         self._update_public_description_vals([vals])
         self._update_available_in_pos_vals(vals)
         if "active" in vals and not vals["active"]:
+            dbg.lifecycle.debug(
+                "product.template archive: %s (pos checks)", dbg.rec(self)
+            )
             self._check_unused_in_pos()
             self._check_is_special_product()
         return super().write(vals)
@@ -141,6 +151,9 @@ class ProductTemplate(models.Model):
 
     def set_pos_favorite(self, is_favorite):
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "product.template %s favorite -> %s", dbg.rec(self), bool(is_favorite)
+        )
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError(_("Only Point of Sale users can change a POS favorite."))
         if not self.available_in_pos:
@@ -162,12 +175,19 @@ class ProductTemplate(models.Model):
             attribute_value_ids
         )
         product_variant = self._create_product_variant(attribute_values)
+        dbg.lifecycle.debug(
+            "product.template %s: variant %s from attribute values %s",
+            dbg.rec(self),
+            dbg.rec(product_variant),
+            attribute_value_ids,
+        )
         return {
             "product.product": self.env["product.product"]._load_pos_data_read(
                 product_variant, config
             ),
         }
 
+    @dbg.timed
     def get_product_info_pos(
         self, price, quantity, pos_config_id, product_variant_id=False
     ):
@@ -316,6 +336,11 @@ class ProductTemplate(models.Model):
             SQL("SELECT MAX(pos_sequence) FROM %s", SQL.identifier(self._table))
         )
         next_sequence = (rows[0][0] or 0) + 1
+        dbg.logic.debug(
+            "product.template pos_sequence: %d pending from %s",
+            len(pending),
+            next_sequence,
+        )
         for offset, vals in enumerate(pending):
             vals["pos_sequence"] = next_sequence + offset
 

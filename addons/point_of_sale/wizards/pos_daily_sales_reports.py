@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class PosDailySalesReportsWizard(models.TransientModel):
     _name = "pos.daily.sales.reports.wizard"
@@ -16,6 +18,9 @@ class PosDailySalesReportsWizard(models.TransientModel):
         }
 
     def action_print_report(self):
+        dbg.lifecycle.debug(
+            "[wizard:daily.report] print for %s", dbg.rec(self.pos_session_id)
+        )
         return self.env.ref("point_of_sale.sale_details_report").report_action(
             [], data=self._get_report_data()
         )

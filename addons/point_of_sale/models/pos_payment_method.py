@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class PosPaymentMethod(models.Model):
     _name = "pos.payment.method"
@@ -245,6 +247,11 @@ class PosPaymentMethod(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "pos.payment.method.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if vals.get("payment_method_type", False):
                 self._force_payment_method_type_values(
@@ -253,6 +260,12 @@ class PosPaymentMethod(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "pos.payment.method.write: %s keys=%s open_sessions=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            dbg.rec(self.open_session_ids),
+        )
         if self._is_write_forbidden(set(vals.keys())):
             raise UserError(
                 _(
@@ -269,6 +282,12 @@ class PosPaymentMethod(models.Model):
         pmt_terminal = self.filtered(lambda pm: pm.payment_method_type == "terminal")
         pmt_qr = self.filtered(lambda pm: pm.payment_method_type == "qr_code")
         not_pmt = self - pmt_terminal - pmt_qr
+        dbg.logic.debug(
+            "pos.payment.method.write split: terminal=%s qr=%s other=%s",
+            dbg.rec(pmt_terminal),
+            dbg.rec(pmt_qr),
+            dbg.rec(not_pmt),
+        )
 
         res = True
         if pmt_terminal:
@@ -374,6 +393,13 @@ class PosPaymentMethod(models.Model):
         debtor_partner,
     ):
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "[pm:%s] qr code requested: amount=%s currency=%s partner=%s",
+            self.id,
+            amount,
+            currency,
+            debtor_partner,
+        )
         if self not in self.open_session_ids.config_id.payment_method_ids:
             raise UserError(
                 _(

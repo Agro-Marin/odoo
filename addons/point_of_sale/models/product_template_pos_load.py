@@ -2,6 +2,8 @@ from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class ProductTemplatePosLoad(models.Model):
     _inherit = "product.template"
@@ -55,17 +57,29 @@ class ProductTemplatePosLoad(models.Model):
         ]
 
     @api.model
+    @dbg.timed
     def _load_pos_data_search_read(self, data, config):
         domain = self._load_pos_data_domain(data, config)
         limit_count = config.get_limited_product_count()
-        if limit_count and self.env.context.get("pos_limited_loading", True):
+        limited = bool(
+            limit_count and self.env.context.get("pos_limited_loading", True)
+        )
+        dbg.pipeline.debug(
+            "[load:product.template] limit=%s limited=%s domain=%s",
+            limit_count,
+            limited,
+            domain,
+        )
+        if limited:
             dated_domain = self._add_server_date_to_domain(domain)
             if dated_domain is False:
                 return []
-            recent_ids = self._get_ids_ranked_for_pos(dated_domain, limit_count)
+            with dbg.timer(self.env, "[load:product.template] ranked ids"):
+                recent_ids = self._get_ids_ranked_for_pos(dated_domain, limit_count)
             products = self._load_product_with_domain([("id", "in", recent_ids)])
         else:
             products = self._load_product_with_domain(domain)
+        base_count = len(products)
 
         combos = products.filtered(lambda product: product.type == "combo")
         products |= combos.combo_ids.combo_item_ids.product_id.product_tmpl_id
@@ -86,6 +100,13 @@ class ProductTemplatePosLoad(models.Model):
                 .browse([line["product_id"] for line in data["pos.order.line"]])
                 .product_tmpl_id
             )
+        dbg.logic.debug(
+            "[load:product.template] %d ranked + combos(%d)/special/optional/open"
+            " order lines -> %d templates",
+            base_count,
+            len(combos),
+            len(products),
+        )
 
         return self._load_pos_data_read(products, config)
 
@@ -93,14 +114,18 @@ class ProductTemplatePosLoad(models.Model):
     def _load_pos_data_read(self, records, config):
         records = records._with_pos_company(config)
         rows = super()._load_pos_data_read(records, config)
-        self._update_rows_with_config_currency(rows, config)
-        self._update_rows_with_company_taxes(rows, config)
-        self._add_archived_combinations(rows)
+        with dbg.timer(self.env, "[load:product.template] currency rows"):
+            self._update_rows_with_config_currency(rows, config)
+        with dbg.timer(self.env, "[load:product.template] company taxes"):
+            self._update_rows_with_company_taxes(rows, config)
+        with dbg.timer(self.env, "[load:product.template] archived combinations"):
+            self._add_archived_combinations(rows)
         for row in rows:
             row["image_128"] = bool(row["image_128"])
         return rows
 
     @api.model
+    @dbg.timed
     def load_product_from_pos(self, config_id, domain, offset=0, limit=0):
         config = self.env["pos.config"].browse(config_id)
         config.check_access("read")
@@ -112,6 +137,17 @@ class ProductTemplatePosLoad(models.Model):
         combos = product_tmpls.filtered(lambda template: template.type == "combo")
         product_tmpls |= combos.combo_ids.combo_item_ids.product_id.product_tmpl_id
         products = product_tmpls.product_variant_ids
+        dbg.pipeline.debug(
+            "[load:product] on demand config=%s domain=%s offset=%s limit=%s"
+            " archived=%s -> %d templates, %d variants",
+            config_id,
+            domain,
+            offset,
+            limit,
+            load_archived,
+            len(product_tmpls),
+            len(products),
+        )
 
         return {
             **self._get_pos_pricelist_data(product_tmpls, products, config),
@@ -151,7 +187,11 @@ class ProductTemplatePosLoad(models.Model):
             query.where_clause or SQL("TRUE"),
             limit,
         )
-        return [row[0] for row in self.env.execute_query(sql)]
+        ids = [row[0] for row in self.env.execute_query(sql)]
+        dbg.logic.debug(
+            "[load:product.template] ranked query: limit=%s -> %d ids", limit, len(ids)
+        )
+        return ids
 
     def _load_product_with_domain(self, domain, load_archived=False, offset=0, limit=0):
         return self.with_context(
@@ -273,6 +313,12 @@ class ProductTemplatePosLoad(models.Model):
         )
         if len(taxes_by_company) < 2:
             return
+        dbg.logic.debug(
+            "[load:product.template] branch company %s: taxes narrowed across %d"
+            " companies",
+            company.id,
+            len(taxes_by_company),
+        )
         for row in rows:
             if len(row["taxes_id"]) > 1:
                 row["taxes_id"] = self._get_tax_ids_of_nearest_company(

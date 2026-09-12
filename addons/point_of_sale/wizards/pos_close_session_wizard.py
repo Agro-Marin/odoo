@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class PosCloseSessionWizard(models.TransientModel):
     _name = "pos.close.session.wizard"
@@ -12,6 +14,12 @@ class PosCloseSessionWizard(models.TransientModel):
 
     def action_close_session(self):
         session = self.env["pos.session"].browse(self.env.context["active_ids"])
+        dbg.lifecycle.debug(
+            "[wizard:close.session][session:%s] force close: balance %s on %s",
+            dbg.names(session, "name"),
+            self.amount_to_balance,
+            dbg.rec(self.account_id),
+        )
         return session.action_pos_session_closing_control(
             self.account_id,
             self.amount_to_balance,

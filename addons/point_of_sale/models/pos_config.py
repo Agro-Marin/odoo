@@ -8,6 +8,7 @@ from odoo.libs.datetime import timezone
 from odoo.service.common import exp_version
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from odoo.addons.point_of_sale.models.pos_printer import format_epson_certified_domain
 
 DEFAULT_LIMIT_LOAD_PRODUCT = 5000
@@ -429,6 +430,14 @@ class PosConfig(models.Model):
         year_2_digits = fields.Datetime.now().astimezone(self.env.tz).strftime("%y")
         digits = "".join(c for c in next_number if c.isdigit()) or "0"
         tracking_number = f"{int(digits) % 1000}"
+        dbg.logic.debug(
+            "[config:%s] next order refs: seq=%s device=%s -> %s / %s",
+            self.id,
+            next_number,
+            device_identifier,
+            f"{year_2_digits}{device_identifier}-{self.id}-{next_number}",
+            tracking_number,
+        )
         return (
             f"{year_2_digits}{device_identifier}-{self.id}-{next_number}",
             tracking_number,
@@ -444,6 +453,14 @@ class PosConfig(models.Model):
             browsed = self.env[model].browse(ids).exists()
             static_records[model] = self.env[model]._load_pos_data_read(browsed, self)
 
+        dbg.pipeline.debug(
+            "[config:%s] SYNCHRONISATION -> session=%s device=%s records=%s trusted=%s",
+            self.id,
+            session_id,
+            device_identifier,
+            dbg.lazy(lambda: {k: len(v) for k, v in records.items()}),
+            self.trusted_config_ids.ids,
+        )
         self._notify(
             "SYNCHRONISATION",
             {
@@ -465,6 +482,7 @@ class PosConfig(models.Model):
                 },
             )
 
+    @dbg.timed
     def read_config_open_orders(self, domain, record_ids=None):
         if record_ids is None:
             record_ids = {}
@@ -482,6 +500,14 @@ class PosConfig(models.Model):
                 delete_record_ids[model] += existing.filtered(
                     lambda r: r.state == "cancel"
                 ).ids
+            dbg.logic.debug(
+                "[config:%s] open orders %s: %d known, %s found, %d to delete",
+                self.id,
+                model,
+                len(ids),
+                dbg.rec(dynamic_records[model]),
+                len(delete_record_ids[model]),
+            )
 
         pos_order_data = dynamic_records.get("pos.order") or self.env["pos.order"]
         data = pos_order_data.read_pos_data([], self)
@@ -506,6 +532,7 @@ class PosConfig(models.Model):
     def _load_pos_data_domain(self, data, config):
         return [("id", "=", config.id)]
 
+    @dbg.timed
     def get_pos_ui_product_pricelist_item_by_product(
         self, product_tmpl_ids, product_ids
     ):
@@ -596,6 +623,17 @@ class PosConfig(models.Model):
             config.company_id.country_id.id
             in self.env.ref("base.europe").country_ids.ids
         )
+        dbg.logic.debug(
+            "[config:%s] client record: server_date=%s cash_move=%s cash_delete=%s"
+            " special_products=%s pricelist=%s vat=%s",
+            config.id,
+            record["_data_server_date"],
+            record["_has_cash_move_perm"],
+            record["_has_cash_delete_perm"],
+            record["_pos_special_products_ids"],
+            record["pricelist_id"],
+            record["_IS_VAT"],
+        )
         return read_records
 
     @api.depends("payment_method_ids")
@@ -674,6 +712,13 @@ class PosConfig(models.Model):
             pos_config.current_session_id = session.id or False
             pos_config.current_session_state = session.state or False
             pos_config.number_of_rescue_session = len(open_sessions.filtered("rescue"))
+            dbg.logic.debug(
+                "[config:%s] current session %s state=%s rescue=%d",
+                pos_config.id,
+                session.id or None,
+                session.state or None,
+                pos_config.number_of_rescue_session,
+            )
 
     @api.depends("session_ids", "session_ids.state")
     def _compute_statistics_for_current_session(self):
@@ -1030,10 +1075,19 @@ class PosConfig(models.Model):
         warehouse = Warehouse.search(Warehouse._check_company_domain(company), limit=1)
         if warehouse:
             return warehouse
+        dbg.logic.debug(
+            "no warehouse for company %s: creating one for config %r", company.id, name
+        )
         return Warehouse.create({"code": (name or "POS")[:3], "company_id": company.id})
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "pos.config.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             company = (
                 self.env["res.company"].browse(vals["company_id"])
@@ -1042,6 +1096,12 @@ class PosConfig(models.Model):
             )
             self._get_or_create_company_warehouse(company, vals.get("name"))
             if vals.get("company_id") and vals["company_id"] != self.env.company.id:
+                dbg.logic.debug(
+                    "pos.config.create: company %s differs from env company %s,"
+                    " defaults recomputed",
+                    vals["company_id"],
+                    self.env.company.id,
+                )
                 self._add_company_defaults(vals)
         for vals in vals_list:
             self._check_header_footer(vals)
@@ -1052,12 +1112,18 @@ class PosConfig(models.Model):
                 _dummy, payment_methods = config.with_company(
                     config.company_id
                 )._create_journal_and_payment_methods()
+                dbg.logic.debug(
+                    "[config:%s] no payment methods given: created %s",
+                    config.id,
+                    payment_methods,
+                )
                 config.payment_method_ids = self.env["pos.payment.method"].browse(
                     payment_methods
                 )
         pos_configs._create_sequences()
         pos_configs.sudo()._install_missing_modules()
         pos_configs._update_preparation_printers_menuitem_visibility()
+        dbg.lifecycle.debug("pos.config.create: created %s", dbg.rec(pos_configs))
         return pos_configs
 
     _SEQUENCE_SPECS = (
@@ -1116,6 +1182,7 @@ class PosConfig(models.Model):
             )
         )
         if not sequence:
+            dbg.logic.debug("[config:%s] no pos.session sequence: name '/'", self.id)
             return "/"
         prefix = self.name if sequence.prefix == "/" else ""
         return f"{prefix}{sequence.next_by_code('pos.session')}"
@@ -1123,6 +1190,7 @@ class PosConfig(models.Model):
     def register_new_device_identifier(self):
         self.check_singleton()
         identifier = self.sudo().device_seq_id._next()
+        dbg.lifecycle.debug("[config:%s] device registered: %s", self.id, identifier)
         return {
             "device_identifier": identifier,
         }
@@ -1174,6 +1242,12 @@ class PosConfig(models.Model):
 
     def write(self, vals):
         vals = dict(vals)
+        dbg.lifecycle.debug(
+            "pos.config.write: %s keys=%s from_settings=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            bool(self.env.context.get("from_settings_view")),
+        )
         self._check_header_footer(vals)
         self._update_vals_default_tip_product(vals)
         if "is_order_printer" in vals and not vals["is_order_printer"]:
@@ -1189,6 +1263,13 @@ class PosConfig(models.Model):
             lambda s: s.state != "closed"
         )
         if opened_session:
+            dbg.logic.debug(
+                "pos.config.write: open sessions %s, forbidden keys present=%s"
+                " bypass=%s",
+                dbg.rec(opened_session),
+                sorted(set(vals) & set(self._get_fields_forbidden_change())),
+                bypass_payment_method_ids_forbidden_change,
+            )
             forbidden_fields = []
             for key in self._get_fields_forbidden_change():
                 if key in vals:
@@ -1228,6 +1309,10 @@ class PosConfig(models.Model):
             ).use_fast_payment = False
         self.sudo()._update_fiscal_position_ids(vals)
         if any(k.startswith(("module_", "group_")) for k in vals):
+            dbg.logic.debug(
+                "pos.config.write: module_/group_ keys %s -> install check",
+                sorted(k for k in vals if k.startswith(("module_", "group_"))),
+            )
             self.sudo()._install_missing_modules()
         if "is_order_printer" in vals:
             self._update_preparation_printers_menuitem_visibility()
@@ -1266,12 +1351,20 @@ class PosConfig(models.Model):
                 record_value = config_field.convert_to_record(cache_value, self)
                 if record_value != self[field]:
                     new_vals[field] = val
+        dbg.logic.debug(
+            "[config:%s] settings write: %d of %d keys actually changed: %s",
+            self.id,
+            len(new_vals),
+            len(vals),
+            dbg.keys(new_vals),
+        )
         return new_vals
 
     def _get_fields_forbidden_change(self):
         return ["module_pos_restaurant", "payment_method_ids", "active"]
 
     def unlink(self):
+        dbg.lifecycle.debug("pos.config.unlink: %s", dbg.rec(self))
         sequences_to_delete = (
             self.order_seq_id
             | self.order_backend_seq_id
@@ -1309,6 +1402,11 @@ class PosConfig(models.Model):
                 self.env["ir.module.module"].sudo().search([("name", "in", expected)])
             )
             modules = modules.filtered(lambda module: module.state not in STATES)
+            dbg.logic.debug(
+                "_install_missing_modules: expected=%s to install=%s",
+                expected,
+                dbg.names(modules, "name"),
+            )
             if modules:
                 modules.button_immediate_install()
                 return True
@@ -1316,6 +1414,11 @@ class PosConfig(models.Model):
 
     def _get_or_create_current_session(self):
         if not self.current_session_id:
+            dbg.lifecycle.debug(
+                "[config:%s] no current session: creating one for uid %s",
+                self.id,
+                self.env.uid,
+            )
             self.env["pos.session"].create(
                 {"user_id": self.env.uid, "config_id": self.id}
             )
@@ -1353,8 +1456,15 @@ class PosConfig(models.Model):
         self._check_profit_loss_cash_journal()
         self._check_payment_method_ids()
 
+    @dbg.timed
     def open_ui(self):
         self.check_singleton()
+        dbg.pipeline.debug(
+            "[config:%s] open_ui: uid=%s current_session=%s",
+            self.id,
+            self.env.uid,
+            self.current_session_id.id or None,
+        )
         if self.env.uid == SUPERUSER_ID and not tools.config["test_enable"]:
             raise UserError(
                 _(
@@ -1363,7 +1473,8 @@ class PosConfig(models.Model):
             )
 
         if not self.current_session_id:
-            self._check_before_creating_new_session()
+            with dbg.timer(self.env, "[config:%s] pre-session checks", self.id):
+                self._check_before_creating_new_session()
         self._check_fields(self._fields)
 
         self._check_company_has_fiscal_country()
@@ -1421,6 +1532,11 @@ class PosConfig(models.Model):
         try:
             return int(config_param)
         except TypeError, ValueError, OverflowError:
+            dbg.logic.debug(
+                "limited_product_count %r unusable: default %s",
+                config_param,
+                DEFAULT_LIMIT_LOAD_PRODUCT,
+            )
             return DEFAULT_LIMIT_LOAD_PRODUCT
 
     def _get_limited_partner_count(self):
@@ -1434,8 +1550,14 @@ class PosConfig(models.Model):
         try:
             return int(config_param)
         except TypeError, ValueError, OverflowError:
+            dbg.logic.debug(
+                "limited_customer_count %r unusable: default %s",
+                config_param,
+                DEFAULT_LIMIT_LOAD_PARTNER,
+            )
             return DEFAULT_LIMIT_LOAD_PARTNER
 
+    @dbg.timed
     def get_limited_partners_loading(self, offset=0):
         self.env["res.partner"].flush_model(["active", "name", "company_id"])
         self.env["pos.order"].flush_model(["partner_id", "company_id"])
@@ -1538,6 +1660,11 @@ class PosConfig(models.Model):
             journal_vals["default_account_id"] = default_cash_account.id
 
         cash_journal = self.env["account.journal"].create(journal_vals)
+        dbg.lifecycle.debug(
+            "cash journal %s created (default account %s)",
+            dbg.rec(cash_journal),
+            dbg.rec(default_cash_account),
+        )
         return self.env["pos.payment.method"].create(
             {
                 "name": _("Cash"),
@@ -1559,9 +1686,18 @@ class PosConfig(models.Model):
                 cash_pm_from_ref.check_access("read")
                 cash_pm = cash_pm_from_ref
             except AccessError:
+                dbg.logic.debug(
+                    "cash method %s not readable: creating a new one", cash_ref
+                )
                 cash_pm = self._create_cash_payment_method(cash_journal_vals)
         else:
             cash_pm = self._create_cash_payment_method(cash_journal_vals)
+        dbg.logic.debug(
+            "journal+methods: cash_ref=%s -> cash method %s (from ref=%s)",
+            cash_ref,
+            dbg.rec(cash_pm),
+            cash_pm == cash_pm_from_ref,
+        )
 
         if cash_ref and cash_pm != cash_pm_from_ref:
             self.env["ir.model.data"]._update_xmlids(
@@ -1636,6 +1772,13 @@ class PosConfig(models.Model):
             )
 
         payment_methods |= pay_later_pm
+        dbg.pipeline.debug(
+            "journal %s with methods %s (bank=%s pay_later=%s)",
+            dbg.rec(journal),
+            dbg.rec(payment_methods),
+            dbg.rec(bank_pm),
+            dbg.rec(pay_later_pm),
+        )
 
         return journal, payment_methods.ids
 

@@ -15,6 +15,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import float_compare, float_is_zero, float_repr, float_round, formatLang
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -262,6 +264,13 @@ class PosOrder(models.Model):
             ],
             limit=1,
         )
+        dbg.logic.debug(
+            "[order:%s] replacement session for closed %s on config %s: %s",
+            order.get("uuid"),
+            dbg.rec(closed_session),
+            closed_session.config_id.id,
+            dbg.rec(open_session),
+        )
 
         if open_session:
             _logger.warning(
@@ -350,9 +359,22 @@ class PosOrder(models.Model):
         ]
 
     @api.model
+    @dbg.timed
     def _process_order(self, order, existing_order):
         draft = order.get("state") == "draft"
         pos_session = self.env["pos.session"].browse(order.get("session_id"))
+        dbg.pipeline.debug(
+            "[order:%s] _process_order: existing=%s draft=%s state=%s session=%s(%s)"
+            " lines=%s payments=%s",
+            order.get("uuid"),
+            dbg.rec(existing_order) if existing_order else None,
+            draft,
+            order.get("state"),
+            pos_session.id,
+            pos_session.state,
+            dbg.count(order.get("lines") or ()),
+            dbg.count(order.get("payment_ids") or ()),
+        )
         if pos_session.state in {"closing_control", "closed"}:
             pos_session = self._get_replacement_open_session(order)
             order["session_id"] = pos_session.id
@@ -363,6 +385,11 @@ class PosOrder(models.Model):
         if order.get("partner_id"):
             partner_id = self.env["res.partner"].browse(order["partner_id"])
             if not partner_id.exists():
+                dbg.logic.debug(
+                    "[order:%s] partner %s vanished: clearing partner and to_invoice",
+                    order.get("uuid"),
+                    order["partner_id"],
+                )
                 order.update(
                     {
                         "partner_id": False,
@@ -376,6 +403,10 @@ class PosOrder(models.Model):
             self.env.context.get("current_order_uuid")
             and order["uuid"] == self.env.context["current_order_uuid"]
         ):
+            dbg.logic.debug(
+                "[order:%s] is the current order: date_order reset to now",
+                order["uuid"],
+            )
             order["date_order"] = fields.Datetime.now()
 
         pos_order = False
@@ -389,6 +420,9 @@ class PosOrder(models.Model):
                     if key not in ("name", "access_token")
                 }
             )
+            dbg.pipeline.debug(
+                "[order:%s] created %s", order.get("uuid"), dbg.rec(pos_order)
+            )
         else:
             pos_order = existing_order
 
@@ -396,6 +430,12 @@ class PosOrder(models.Model):
                 order.get("session_id")
                 and order["session_id"] != pos_order.session_id.id
             ):
+                dbg.logic.debug(
+                    "[order:%s] session moved %s -> %s",
+                    order.get("uuid"),
+                    pos_order.session_id.id,
+                    order["session_id"],
+                )
                 pos_order.write({"session_id": order["session_id"]})
 
             for field in ["lines", "payment_ids"]:
@@ -404,6 +444,7 @@ class PosOrder(models.Model):
                     existing_line_ids = {
                         line.uuid: line.id for line in pos_order[field]
                     }
+                    rewritten = 0
                     for line in order[field]:
                         if len(line) < 3:
                             continue
@@ -414,6 +455,16 @@ class PosOrder(models.Model):
                         ):
                             line[0] = Command.UPDATE
                             line[1] = existing_line_ids[line_vals.get("uuid")]
+                            rewritten += 1
+                    dbg.logic.debug(
+                        "[order:%s] %s: %d commands, %d CREATE->UPDATE by uuid,"
+                        " %d existing",
+                        order.get("uuid"),
+                        field,
+                        len(order[field]),
+                        rewritten,
+                        len(existing_ids),
+                    )
                     pos_order.write({field: order[field]})
                     added_ids = set(pos_order[field].ids) - existing_ids
                     if added_ids:
@@ -428,12 +479,30 @@ class PosOrder(models.Model):
             del order["uuid"]
             order.pop("access_token", None)
             if order.get("state") == "paid":
+                dbg.logic.debug(
+                    "[order:%s] incoming state 'paid' kept as server state %r",
+                    pos_order.uuid,
+                    pos_order.state,
+                )
                 order["state"] = pos_order.state
+            dbg.lifecycle.debug(
+                "[order:%s] updating %s with keys=%s",
+                pos_order.uuid,
+                dbg.rec(pos_order),
+                dbg.keys(order),
+            )
             pos_order.write(order)
 
         for model_name, mapping in record_uuid_mapping.items():
             owner_records = self.env[model_name].search(
                 [("uuid", "in", mapping.keys())]
+            )
+            dbg.logic.debug(
+                "[order:%s] relations_uuid_mapping %s: %d owners by uuid, %s found",
+                pos_order.uuid,
+                model_name,
+                len(mapping),
+                dbg.rec(owner_records),
             )
             for uuid, field_names in mapping.items():
                 for name, uuids in field_names.items():
@@ -457,8 +526,19 @@ class PosOrder(models.Model):
         self._process_payment_lines(order, pos_order, draft)
         return pos_order._process_saved_order(draft)
 
+    @dbg.timed
     def _process_saved_order(self, draft):
         self.check_singleton()
+        dbg.pipeline.debug(
+            "[order:%s] _process_saved_order: draft=%s state=%s to_invoice=%s"
+            " amount_total=%s amount_paid=%s",
+            self.uuid,
+            draft,
+            self.state,
+            self.to_invoice,
+            self.amount_total,
+            self.amount_paid,
+        )
         if not draft and self.state != "cancel":
             self.action_pos_order_paid()
             self._create_order_picking()
@@ -472,6 +552,7 @@ class PosOrder(models.Model):
                 raise UserError(
                     _("No invoice journal configured for this POS session.")
                 )
+            dbg.pipeline.debug("[order:%s] -> invoice", self.uuid)
             self._generate_pos_order_invoice()
 
         return self.id
@@ -491,6 +572,12 @@ class PosOrder(models.Model):
             cash_payment_method = order.session_id.payment_method_ids.filtered(
                 "is_cash_count"
             )[:1]
+            dbg.logic.debug(
+                "[order:%s] change %s recorded on cash method %s",
+                order.uuid,
+                amount_return,
+                dbg.rec(cash_payment_method),
+            )
             if not cash_payment_method:
                 raise UserError(
                     _(
@@ -555,6 +642,7 @@ class PosOrder(models.Model):
             ),
         }
 
+    @dbg.timed
     def _prepare_aml_vals(self, move_type):
         invoice_lines = []
         for order in self:
@@ -565,6 +653,14 @@ class PosOrder(models.Model):
                 order.pricelist_id.item_ids.filtered(
                     lambda rule: rule.compute_price == "percentage"
                 )
+            )
+            dbg.logic.debug(
+                "[order:%s] invoice lines for %s: %d base lines, percentage"
+                " pricelist=%s",
+                order.uuid,
+                move_type,
+                len(line_values_list),
+                bool(is_percentage),
             )
             for line_values in line_values_list:
                 line = line_values["record"]
@@ -652,6 +748,10 @@ class PosOrder(models.Model):
 
         local_change = json.loads(vals.get("last_order_preparation_change", "{}"))
         if not local_change.get("metadata"):
+            dbg.logic.debug(
+                "[order:%s] local preparation change has no metadata: server kept",
+                self.uuid,
+            )
             vals["last_order_preparation_change"] = self.last_order_preparation_change
             return
 
@@ -660,6 +760,13 @@ class PosOrder(models.Model):
             local_change["metadata"].get("serverDate")
         )
 
+        dbg.logic.debug(
+            "[order:%s] preparation change dates server=%s local=%s -> %s",
+            self.uuid,
+            server_date,
+            local_date,
+            "server" if server_date > local_date else "local",
+        )
         if server_date > local_date:
             _logger.warning(
                 "Preparation changes were outdated, probably linked to a synching issue."
@@ -759,6 +866,11 @@ class PosOrder(models.Model):
                 storable_fifo_avco_lines = lines.filtered(
                     lambda l: l._is_product_storable_fifo_avco()
                 )
+                dbg.logic.debug(
+                    "[order:%s] cost deferred to closing for %s (fifo/avco)",
+                    order.uuid,
+                    dbg.rec(storable_fifo_avco_lines),
+                )
                 lines -= storable_fifo_avco_lines
             stock_moves = order.picking_ids.move_ids
             lines._compute_total_cost(stock_moves)
@@ -792,6 +904,7 @@ class PosOrder(models.Model):
     def _onchange_amount_all(self):
         self._recompute_amounts()
 
+    @dbg.timed
     def _recompute_amounts(self):
         AccountTax = self.env["account.tax"]
         for order in self:
@@ -826,6 +939,17 @@ class PosOrder(models.Model):
             )
             refund_factor = -1 if order._is_refund_order() else 1
             amount_total = refund_factor * tax_totals["total_amount_currency"]
+            dbg.logic.debug(
+                "[order:%s] amounts: paid=%s return=%s tax=%s total=%s"
+                " cash_rounding=%s refund=%s",
+                order.uuid,
+                amount_paid,
+                amount_return,
+                refund_factor * tax_totals["tax_amount_currency"],
+                amount_total,
+                dbg.rec(cash_rounding) if cash_rounding else None,
+                refund_factor < 0,
+            )
             order.write(
                 {
                     "amount_paid": amount_paid,
@@ -850,6 +974,7 @@ class PosOrder(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_draft_or_cancel(self):
+        dbg.lifecycle.debug("pos.order.unlink: %s", dbg.rec(self))
         order_to_cancel = self.env["pos.order"]
         for pos_order in self:
             if pos_order.state not in ["draft", "cancel"]:
@@ -861,15 +986,23 @@ class PosOrder(models.Model):
         if order_to_cancel:
             order_to_cancel.action_pos_order_cancel()
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = [dict(vals) for vals in vals_list]
+        dbg.lifecycle.debug(
+            "pos.order.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         for vals in vals_list:
             if not vals.get("session_id"):
                 raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._update_values_from_session(session, vals)
-        return super().create(vals_list)
+        orders = super().create(vals_list)
+        dbg.lifecycle.debug("pos.order.create: created %s", dbg.rec(orders))
+        return orders
 
     def _update_sequence_number(self, session, values):
         values["sequence_number"] = (
@@ -892,6 +1025,12 @@ class PosOrder(models.Model):
             reference, tracking_number = session.config_id._get_next_order_refs()
             values["pos_reference"] = reference
             values["tracking_number"] = tracking_number
+            dbg.logic.debug(
+                "[order:%s] server-side refs: pos_reference=%s tracking=%s",
+                values.get("uuid"),
+                reference,
+                tracking_number,
+            )
 
         if not values.get("sequence_number"):
             self._update_sequence_number(session, values)
@@ -900,6 +1039,12 @@ class PosOrder(models.Model):
 
     def write(self, vals):
         vals = dict(vals)
+        dbg.lifecycle.debug(
+            "pos.order.write: %s keys=%s state->%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            vals.get("state"),
+        )
         if len(self) > 1 and (
             vals.get("payment_ids")
             or (vals.get("state") == "paid" and any(o.name == "/" for o in self))
@@ -908,6 +1053,9 @@ class PosOrder(models.Model):
                 and any(o.has_deleted_line for o in self)
             )
         ):
+            dbg.logic.debug(
+                "pos.order.write: fan-out to %d singleton writes", len(self)
+            )
             for order in self:
                 order.write(dict(vals))
             return True
@@ -926,7 +1074,14 @@ class PosOrder(models.Model):
                     else False
                 )
                 vals["name"] = order._get_order_name(session)
+                dbg.logic.debug(
+                    "[order:%s] paid: name assigned %r", order.uuid, vals["name"]
+                )
             if vals.get("has_deleted_line") is not None and order.has_deleted_line:
+                dbg.logic.debug(
+                    "[order:%s] has_deleted_line already set: incoming value dropped",
+                    order.uuid,
+                )
                 del vals["has_deleted_line"]
             allowed_vals = ["paid", "done"]
             if (
@@ -947,6 +1102,14 @@ class PosOrder(models.Model):
                 order._recompute_amounts()
                 totally_paid_or_more = order.currency_id.compare_amounts(
                     order.amount_paid, order.amount_total
+                )
+                dbg.logic.debug(
+                    "[order:%s] after payment write: paid=%s total=%s cmp=%s state=%s",
+                    order.uuid,
+                    order.amount_paid,
+                    order.amount_total,
+                    totally_paid_or_more,
+                    order.state,
                 )
                 if totally_paid_or_more < 0 and order.state in ["paid", "done"]:
                     raise UserError(
@@ -1219,6 +1382,7 @@ class PosOrder(models.Model):
 
         return partner_bank_id.id if partner_bank_id else False
 
+    @dbg.timed
     def _create_invoice(self, move_vals):
         AccountMove = self.env["account.move"]
 
@@ -1231,6 +1395,17 @@ class PosOrder(models.Model):
         currency = self.currency_id
         amount_total = sum(order.amount_total for order in self)
         payment_total = sum(order.amount_paid for order in self)
+        dbg.pipeline.debug(
+            "[order:%s] invoice %s created: type=%s lines=%d amount_total=%s"
+            " orders_total=%s orders_paid=%s",
+            dbg.names(self, "uuid"),
+            dbg.rec(invoice),
+            move_vals["move_type"],
+            len(move_vals.get("invoice_line_ids") or ()),
+            invoice.amount_total,
+            amount_total,
+            payment_total,
+        )
 
         if self.config_id.cash_rounding and invoice.invoice_cash_rounding_id:
             line_ids_commands = []
@@ -1243,11 +1418,24 @@ class PosOrder(models.Model):
                 if rate
                 else 0.0
             )
+            dbg.logic.debug(
+                "[order:%s] invoice cash rounding: difference=%s balance=%s rate=%s",
+                dbg.names(self, "uuid"),
+                difference_currency,
+                difference_balance,
+                rate,
+            )
             if not currency.is_zero(difference_currency):
                 rounding_line = invoice.line_ids.filtered(
                     lambda line: (
                         line.display_type == "rounding" and not line.tax_line_id
                     )
+                )
+                dbg.logic.debug(
+                    "[order:%s] rounding line %s: %s",
+                    dbg.names(self, "uuid"),
+                    dbg.rec(rounding_line),
+                    "updated" if rounding_line else "created",
                 )
                 if rounding_line:
                     line_ids_commands.append(
@@ -1316,6 +1504,16 @@ class PosOrder(models.Model):
         isPaid = float_is_zero(
             total - self.amount_paid, precision_rounding=self.currency_id.rounding
         )
+        dbg.logic.debug(
+            "[order:%s] action_pos_order_paid: total=%s rounded=%s paid=%s isPaid=%s"
+            " cash_rounding=%s",
+            self.uuid,
+            self.amount_total,
+            total,
+            self.amount_paid,
+            isPaid,
+            self.config_id.cash_rounding,
+        )
 
         if not isPaid and not self.config_id.cash_rounding:
             raise UserError(_("Order %s is not fully paid.", self.name))
@@ -1327,9 +1525,16 @@ class PosOrder(models.Model):
                 maxDiff = currency.round(self.config_id.rounding_method.rounding)
 
             diff = currency.round(self.amount_total - self.amount_paid)
+            dbg.logic.debug(
+                "[order:%s] rounding tolerance: diff=%s maxDiff=%s",
+                self.uuid,
+                diff,
+                maxDiff,
+            )
             if not abs(diff) <= maxDiff:
                 raise UserError(_("Order %s is not fully paid.", self.name))
 
+        dbg.lifecycle.debug("[order:%s] state %s -> paid", self.uuid, self.state)
         self.write({"state": "paid"})
 
         return True
@@ -1361,6 +1566,18 @@ class PosOrder(models.Model):
             if self.partner_id.property_payment_term_id
             and any(p.payment_method_id.type == "pay_later" for p in self.payment_ids)
             else False
+        )
+        dbg.logic.debug(
+            "[order:%s] invoice vals: move_type=%s single=%s date=%s refunded"
+            " invoices=%s payment_term=%s fpos=%s journal=%s",
+            dbg.names(self, "uuid"),
+            move_type,
+            is_single_order,
+            invoice_date,
+            pos_refunded_invoice_ids,
+            invoice_payment_term_id,
+            fiscal_position.id,
+            pos_config.invoice_journal_id.id,
         )
 
         vals = {
@@ -1424,6 +1641,7 @@ class PosOrder(models.Model):
             "no_followup": False,
         }
 
+    @dbg.timed
     def _prepare_aml_values_list_per_nature(self):
         AccountTax = self.env["account.tax"]
         sign = 1 if self._is_refund_order() else -1
@@ -1460,6 +1678,14 @@ class PosOrder(models.Model):
 
         self._add_stock_aml_vals(aml_vals_list_per_nature, commercial_partner)
         self._add_payment_term_aml_vals(aml_vals_list_per_nature, commercial_partner)
+        dbg.pipeline.debug(
+            "[order:%s] reversal aml per nature: %s (sign=%s rate=%s total=%s)",
+            self.uuid,
+            dbg.lazy(lambda: {k: len(v) for k, v in aml_vals_list_per_nature.items()}),
+            sign,
+            rate,
+            total_amount_currency,
+        )
 
         return aml_vals_list_per_nature
 
@@ -1511,6 +1737,12 @@ class PosOrder(models.Model):
                 amount_currency = cash_rounding.compute_difference(
                     self.currency_id, total_amount_currency
                 )
+            dbg.logic.debug(
+                "[order:%s] reversal cash rounding: strategy=%s amount=%s",
+                self.uuid,
+                cash_rounding.strategy,
+                amount_currency,
+            )
             if not self.currency_id.is_zero(amount_currency):
                 balance = company_currency.round(amount_currency * rate)
 
@@ -1558,6 +1790,12 @@ class PosOrder(models.Model):
                         ("product_id.valuation", "=", "real_time"),
                     ]
                 )
+            )
+            dbg.logic.debug(
+                "[order:%s] stock aml from %s real-time moves on %s",
+                self.uuid,
+                len(stock_moves),
+                dbg.rec(self.picking_ids),
             )
             for stock_move in stock_moves:
                 product_accounts = stock_move.product_id._get_product_accounts()
@@ -1661,6 +1899,13 @@ class PosOrder(models.Model):
             )
         )
         reversal_entry.action_post()
+        dbg.pipeline.debug(
+            "[order:%s] misc reversal %s posted with %d lines for closing entry %s",
+            self.uuid,
+            dbg.rec(reversal_entry),
+            len(move_lines),
+            dbg.rec(self.session_move_id),
+        )
 
         partner = self.partner_id.commercial_partner_id
         accounts = (
@@ -1687,6 +1932,14 @@ class PosOrder(models.Model):
                     line.account_id, self.env["account.move.line"]
                 )
                 lines_by_account[line.account_id] |= line
+        dbg.logic.debug(
+            "[order:%s] reversal reconciliation: payment_moves=%s candidates=%d"
+            " groups=%s",
+            self.uuid,
+            dbg.rec(payment_moves),
+            len(candidate_lines),
+            dbg.lazy(lambda: {a.code: len(l) for a, l in lines_by_account.items()}),
+        )
         for lines in lines_by_account.values():
             lines.reconcile()
 
@@ -1695,6 +1948,14 @@ class PosOrder(models.Model):
         if not (move := self.account_move):
             is_picking_created = self._is_real_time_picking_required()
             self.write({"to_invoice": True})
+            dbg.logic.debug(
+                "[order:%s] action_pos_order_invoice: real-time before=%s after=%s"
+                " session=%s",
+                self.uuid,
+                is_picking_created,
+                self._is_real_time_picking_required(),
+                self.session_id.state,
+            )
             if (
                 not is_picking_created
                 and self._is_real_time_picking_required()
@@ -1719,7 +1980,14 @@ class PosOrder(models.Model):
     def _get_payments(self):
         return self.payment_ids.sudo().with_company(self.company_id)
 
+    @dbg.timed
     def _generate_pos_order_invoice(self):
+        dbg.pipeline.debug(
+            "[order:%s] _generate_pos_order_invoice: %s states=%s",
+            dbg.names(self, "uuid"),
+            dbg.rec(self),
+            dbg.names(self, "state"),
+        )
         if invalid_orders := self.filtered(lambda o: o.state not in ("paid", "done")):
             raise UserError(
                 _(
@@ -1729,17 +1997,22 @@ class PosOrder(models.Model):
                 )
             )
         if not self.env["res.company"]._with_locked_records(self, allow_raising=False):
+            dbg.logic.debug(
+                "[order:%s] invoicing refused: records locked", dbg.names(self, "uuid")
+            )
             raise UserError(
                 _("Some orders are already being invoiced. Please try again later.")
             )
+        dbg.lifecycle.debug("[order:%s] state -> done", dbg.names(self, "uuid"))
         self.state = "done"
 
         company = self.company_id
         invoice_vals = self._prepare_invoice_vals()
         invoice = self._create_invoice(invoice_vals)
-        invoice.sudo().with_company(company).with_context(
-            **self._get_invoice_post_context()
-        )._post()
+        with dbg.timer(self.env, "[order:%s] invoice post", dbg.names(self, "uuid")):
+            invoice.sudo().with_company(company).with_context(
+                **self._get_invoice_post_context()
+            )._post()
 
         payment_moves_from_closed_sessions = {}
         all_payment_moves = self.env["account.move"].sudo()
@@ -1751,6 +2024,13 @@ class PosOrder(models.Model):
                 all_payment_moves |= payment_moves
                 if is_session_closed:
                     payment_moves_from_closed_sessions[order] = payment_moves
+            dbg.pipeline.debug(
+                "[order:%s] session %s closed=%s: payment moves %s",
+                dbg.names(orders, "uuid"),
+                dbg.rec(session),
+                is_session_closed,
+                dbg.rec(all_payment_moves),
+            )
 
         self._reconcile_invoice_payments(invoice, all_payment_moves)
 
@@ -1758,7 +2038,10 @@ class PosOrder(models.Model):
             order._create_misc_reversal_move(payment_moves)
 
         if self.env.context.get("generate_pdf", True):
-            invoice.with_context(skip_invoice_sync=True)._generate_and_send()
+            with dbg.timer(
+                self.env, "[order:%s] invoice pdf+send", dbg.names(self, "uuid")
+            ):
+                invoice.with_context(skip_invoice_sync=True)._generate_and_send()
 
         return invoice
 
@@ -1767,12 +2050,24 @@ class PosOrder(models.Model):
             self.company_id
         ).property_account_receivable_id
         if not receivable_account.reconcile:
+            dbg.logic.debug(
+                "[order:%s] receivable %s not reconcilable: invoice left open",
+                dbg.names(self, "uuid"),
+                receivable_account.code,
+            )
             return
         payment_receivable_lines = payment_moves.sudo().pos_payment_ids._get_receivable_lines_for_invoice_reconciliation(
             receivable_account
         )
         invoice_receivable_lines = invoice.sudo().line_ids.filtered(
             lambda line: line.account_id == receivable_account and not line.reconciled
+        )
+        dbg.pipeline.debug(
+            "[order:%s] reconcile invoice %s: payment lines %s, invoice lines %s",
+            dbg.names(self, "uuid"),
+            dbg.rec(invoice),
+            dbg.rec(payment_receivable_lines),
+            dbg.rec(invoice_receivable_lines),
         )
         (payment_receivable_lines | invoice_receivable_lines).sudo().with_company(
             invoice.company_id
@@ -1797,6 +2092,9 @@ class PosOrder(models.Model):
 
     def _cancel_draft_orders(self):
         draft_orders = self.filtered(lambda order: order.state == "draft")
+        dbg.lifecycle.debug(
+            "pos.order cancel: %s of %s are draft", dbg.rec(draft_orders), dbg.rec(self)
+        )
         if not draft_orders:
             return draft_orders
         draft_orders.write({"state": "cancel"})
@@ -1817,6 +2115,7 @@ class PosOrder(models.Model):
         return {k: order.get(k) for k in ("name", "uuid")}
 
     @api.model
+    @dbg.timed
     def sync_from_ui(self, orders):
         sync_token = randrange(100_000_000)
         _logger.info(
@@ -1842,9 +2141,27 @@ class PosOrder(models.Model):
                     _("You can only refund products from the same order.")
                 )
             if len(refunded_orders) == 1:
+                dbg.logic.debug(
+                    "[sync:%d][order:%s] refunds %s",
+                    sync_token,
+                    order.get("uuid"),
+                    dbg.rec(refunded_orders),
+                )
                 order_ids.append(refunded_orders[0].id)
 
             existing_order = self._get_open_order(order)
+            dbg.pipeline.debug(
+                "[sync:%d][order:%s] existing=%s state=%s -> %s",
+                sync_token,
+                order.get("uuid"),
+                dbg.rec(existing_order),
+                existing_order.state if existing_order else None,
+                "update"
+                if existing_order and existing_order.state == "draft"
+                else "create"
+                if not existing_order
+                else "ignore",
+            )
             if existing_order and existing_order.state == "draft":
                 existing_order._keep_newest_preparation_change(order)
                 order_ids.append(self._process_order(order, existing_order))
@@ -1884,9 +2201,14 @@ class PosOrder(models.Model):
                     order_config.current_session_id.id,
                     self.env.context.get("device_identifier", 0),
                 )
+        else:
+            dbg.logic.debug(
+                "[sync:%d] preparation context: no bus notification", sync_token
+            )
 
         _logger.info("PoS synchronisation #%d finished", sync_token)
-        return pos_order_ids.read_pos_data(orders, config)
+        with dbg.timer(self.env, "[sync:%d] read_pos_data", sync_token):
+            return pos_order_ids.read_pos_data(orders, config)
 
     @api.model
     def read_pos_orders(self, domain=False):
@@ -1908,6 +2230,7 @@ class PosOrder(models.Model):
         "account.move",
     )
 
+    @dbg.timed
     def read_pos_data(self, data, config):
         if not config:
             return {model: [] for model in self._READ_POS_DATA_MODELS}
@@ -1957,11 +2280,22 @@ class PosOrder(models.Model):
     def _is_real_time_picking_forced(self):
         return self.company_id.anglo_saxon_accounting and self.to_invoice
 
+    @dbg.timed
     def _create_order_picking(self):
         self.check_singleton()
         if self.picking_ids:
+            dbg.logic.debug(
+                "[order:%s] picking already exists: %s",
+                self.uuid,
+                dbg.rec(self.picking_ids),
+            )
             return
         if self.shipping_date:
+            dbg.pipeline.debug(
+                "[order:%s] shipping_date=%s -> procurement route",
+                self.uuid,
+                self.shipping_date,
+            )
             self.sudo().lines._launch_stock_rule_from_pos_order_lines()
         elif self._is_real_time_picking_required():
             picking_type = self.config_id.picking_type_id
@@ -1973,6 +2307,13 @@ class PosOrder(models.Model):
                 )
             else:
                 destination_id = picking_type.default_location_dest_id.id
+            dbg.pipeline.debug(
+                "[order:%s] real-time picking: type=%s dest=%s lines=%d",
+                self.uuid,
+                dbg.rec(picking_type),
+                destination_id,
+                len(self.lines),
+            )
 
             pickings = (
                 self.env["stock.picking"]
@@ -1994,9 +2335,26 @@ class PosOrder(models.Model):
                     "origin": self.name,
                 }
             )
+            dbg.pipeline.debug(
+                "[order:%s] pickings %s backorders %s",
+                self.uuid,
+                dbg.rec(pickings),
+                dbg.rec(pickings.backorder_ids),
+            )
+        else:
+            dbg.logic.debug(
+                "[order:%s] no picking: stock updated at closing", self.uuid
+            )
 
     def add_payment(self, data):
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "[order:%s] add_payment: method=%s amount=%s change=%s",
+            self.uuid,
+            data.get("payment_method_id"),
+            data.get("amount"),
+            data.get("is_change", False),
+        )
         self.env["pos.payment"].create(data)
         self.amount_paid = self._get_amount_paid()
 
@@ -2029,6 +2387,12 @@ class PosOrder(models.Model):
                     )
                 )
             refund_order = order.copy(order._prepare_refund_values(current_session))
+            dbg.lifecycle.debug(
+                "[order:%s] refund order %s created in %s",
+                order.uuid,
+                dbg.rec(refund_order),
+                dbg.rec(current_session),
+            )
             for line in order.lines.filtered(lambda l: l.refunded_qty < l.qty):
                 PosPackOperationLot = self.env["pos.pack.operation.lot"]
                 for pack_lot in line.pack_lot_ids:
@@ -2073,6 +2437,13 @@ class PosOrder(models.Model):
 
     def action_send_receipt(self, email, ticket_image, basic_image):
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "[order:%s] send receipt to %s (basic=%s invoice=%s)",
+            self.uuid,
+            email,
+            bool(basic_image),
+            bool(self.account_move),
+        )
         self.email = email
         mail_template_id = "point_of_sale.email_template_pos_receipt"
         mail_template = self.env.ref(mail_template_id, raise_if_not_found=False)
@@ -2139,12 +2510,16 @@ class PosOrder(models.Model):
     @api.model
     def remove_from_ui(self, server_ids):
         orders = self.search([("id", "in", server_ids), ("state", "=", "draft")])
+        dbg.lifecycle.debug(
+            "remove_from_ui: asked %s, draft %s", server_ids, dbg.rec(orders)
+        )
         orders._cancel_draft_orders()
         orders.mapped("payment_ids").sudo().unlink()
         orders.sudo().unlink()
         return orders.ids
 
     @api.model
+    @dbg.timed
     def search_paid_order_ids(self, config_id, domain, limit, offset):
         pos_config = self.env["pos.config"].browse(config_id)
         real_domain = Domain(domain) & (
@@ -2383,10 +2758,17 @@ class PosOrderLine(models.Model):
             "refunded_orderline_id": self.id,
         }
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = [dict(vals) for vals in vals_list]
         unnamed = [vals for vals in vals_list if not vals.get("name")]
+        dbg.lifecycle.debug(
+            "pos.order.line.create: %d vals (%d unnamed), keys=%s",
+            len(vals_list),
+            len(unnamed),
+            dbg.vals_keys(vals_list),
+        )
         if unnamed:
             PosOrder = self.env["pos.order"]
             orders = PosOrder.browse(
@@ -2415,6 +2797,9 @@ class PosOrderLine(models.Model):
 
     def write(self, vals):
         new_qty = vals.get("qty")
+        dbg.lifecycle.debug(
+            "pos.order.line.write: %s keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if new_qty is not None:
             digits = self.env["decimal.precision"].get_precision("Product Unit")
             edited = self.browse()
@@ -2424,6 +2809,13 @@ class PosOrderLine(models.Model):
                     continue
                 if float_compare(new_qty, line.qty, digits) >= 0:
                     continue
+                dbg.logic.debug(
+                    "[order:%s] line %s qty %s -> %s tracked as edit",
+                    line.order_id.uuid,
+                    line.id,
+                    line.qty,
+                    new_qty,
+                )
                 edited |= line
                 body = _(
                     "%(product_name)s: Ordered quantity: %(old_qty)s",
@@ -2565,12 +2957,19 @@ class PosOrderLine(models.Model):
             "reference_ids": self.order_id.reference_ids,
         }
 
+    @dbg.timed
     def _launch_stock_rule_from_pos_order_lines(self):
 
         procurements = []
         for line in self:
             line = line.with_company(line.company_id)
             if line.product_id.type != "consu":
+                dbg.logic.debug(
+                    "[order:%s] line %s skipped: product type %s",
+                    line.order_id.uuid,
+                    line.id,
+                    line.product_id.type,
+                )
                 continue
 
             reference_ids = line.order_id.reference_ids
@@ -2581,6 +2980,11 @@ class PosOrderLine(models.Model):
                     .create(line._prepare_reference_vals())
                 )
                 line.order_id.reference_ids = [Command.set(reference_ids.ids)]
+                dbg.pipeline.debug(
+                    "[order:%s] stock.reference %s created",
+                    line.order_id.uuid,
+                    dbg.rec(reference_ids),
+                )
 
             values = line._prepare_procurement_vals()
             product_qty = line.qty
@@ -2598,12 +3002,21 @@ class PosOrderLine(models.Model):
                     values,
                 )
             )
+        dbg.pipeline.debug(
+            "procurements: %d for %s", len(procurements), dbg.rec(self.order_id)
+        )
         if procurements:
-            self.env["stock.rule"].run(procurements)
+            with dbg.timer(self.env, "stock.rule.run for %s", dbg.rec(self.order_id)):
+                self.env["stock.rule"].run(procurements)
 
         orders = self.mapped("order_id")
         for order in orders:
             pickings_to_confirm = order.picking_ids
+            dbg.pipeline.debug(
+                "[order:%s] pickings to confirm: %s",
+                order.uuid,
+                dbg.rec(pickings_to_confirm),
+            )
             if pickings_to_confirm:
                 tracked_lines = order.lines.filtered(
                     lambda l: l.product_id.tracking != "none"
@@ -2636,6 +3049,7 @@ class PosOrderLine(models.Model):
         self.check_singleton()
         return moves._get_price_unit()
 
+    @dbg.timed
     def _compute_total_cost(self, stock_moves):
         for line in self.filtered(lambda l: not l.is_total_cost_computed):
             product = line.product_id
@@ -2647,14 +3061,26 @@ class PosOrderLine(models.Model):
             )
             if moves and line._is_product_storable_fifo_avco():
                 product_cost = line._get_product_cost_with_moves(moves)
+                source = "moves"
                 if cost_currency.is_zero(product_cost) and line.order_id.shipping_date:
                     refunded = line.refunded_orderline_id
                     if refunded and refunded.qty:
                         product_cost = refunded.total_cost / refunded.qty
+                        source = "refunded line"
                     else:
                         product_cost = product.standard_price
+                        source = "standard_price (zero move cost)"
             else:
                 product_cost = product.standard_price
+                source = "standard_price"
+            dbg.logic.debug(
+                "[order:%s] line %s cost %s from %s (moves=%s)",
+                line.order_id.uuid,
+                line.id,
+                product_cost,
+                source,
+                dbg.rec(moves) if moves else None,
+            )
             line.total_cost = line.qty * cost_currency._convert(
                 from_amount=product_cost,
                 to_currency=line.currency_id,
@@ -2741,6 +3167,7 @@ class PosOrderLine(models.Model):
         return [line._prepare_base_line_for_taxes_computation() for line in self]
 
     def unlink(self):
+        dbg.lifecycle.debug("pos.order.line.unlink: %s", dbg.rec(self))
         bodies_per_order = defaultdict(list)
         for line in self:
             if line.order_id.config_id.order_edit_tracking:

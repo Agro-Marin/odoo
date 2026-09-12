@@ -2,6 +2,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class ResCompany(models.Model):
     _name = "res.company"
@@ -89,6 +91,11 @@ class ResCompany(models.Model):
                 )
             )
             if sessions_in_period:
+                dbg.logic.debug(
+                    "lock date on company %s refused by open sessions %s",
+                    record.id,
+                    dbg.rec(sessions_in_period),
+                )
                 sessions_str = ", ".join(sessions_in_period.mapped("name"))
                 raise ValidationError(
                     _(

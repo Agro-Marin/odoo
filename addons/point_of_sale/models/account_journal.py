@@ -1,6 +1,7 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 
@@ -47,6 +48,11 @@ class AccountJournal(models.Model):
     @api.ondelete(at_uninstall=True)
     def _unlink_journal_cascade_pos_payment_methods(self):
         if self.env.context.get(MODULE_UNINSTALL_FLAG):
+            dbg.lifecycle.debug(
+                "uninstall: journal %s cascades to methods %s",
+                dbg.rec(self),
+                dbg.rec(self.pos_payment_method_ids),
+            )
             self.pos_payment_method_ids.unlink()
             self.env["pos.config"].search([("journal_id", "in", self.ids)]).unlink()
 
@@ -80,5 +86,10 @@ class AccountJournal(models.Model):
                     "type": "general",
                     "company_id": self.env.company.id,
                 }
+            )
+            dbg.lifecycle.debug(
+                "POSS journal %s created for company %s",
+                dbg.rec(journal),
+                self.env.company.id,
             )
         return journal

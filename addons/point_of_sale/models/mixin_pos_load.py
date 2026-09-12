@@ -2,6 +2,8 @@ from odoo import api, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class MixinPosLoad(models.AbstractModel):
     _name = "mixin.pos.load"
@@ -16,9 +18,13 @@ class MixinPosLoad(models.AbstractModel):
             self._load_pos_data_domain(data, config)
         )
         if domain is False:
+            dbg.logic.debug("[load:%s] domain is False: nothing loaded", self._name)
             return []
 
         records = self.search(domain)
+        dbg.pipeline.debug(
+            "[load:%s] search %s -> %s", self._name, domain, dbg.rec(records)
+        )
         return self._load_pos_data_read(records, config)
 
     @api.model
@@ -43,6 +49,9 @@ class MixinPosLoad(models.AbstractModel):
         model_included = self._name not in ["pos.session", "pos.config"]
 
         if limited_loading and last_server_date and model_included:
+            dbg.logic.debug(
+                "[load:%s] incremental: write_date > %s", self._name, last_server_date
+            )
             domain = Domain.AND([domain, [("write_date", ">", last_server_date)]])
 
         return domain
@@ -54,6 +63,9 @@ class MixinPosLoad(models.AbstractModel):
         allowed = self.env.companies.ids
         if allowed[:1] == [company_id]:
             return self
+        dbg.logic.debug(
+            "[load:%s] company %s promoted ahead of %s", self._name, company_id, allowed
+        )
         return self.with_context(
             allowed_company_ids=[company_id]
             + [other for other in allowed if other != company_id]
@@ -66,7 +78,10 @@ class MixinPosLoad(models.AbstractModel):
         config.check_singleton()
 
         fields = self._load_pos_data_fields(config)
-        records = records._filtered_access("read").read(fields, load=False)
+        with dbg.timer(
+            self.env, "[load:%s] read %d fields of %s", self._name, len(fields), records
+        ):
+            records = records._filtered_access("read").read(fields, load=False)
         return records or []
 
     def _get_inactive_ids(self, config):
@@ -75,6 +90,11 @@ class MixinPosLoad(models.AbstractModel):
         try:
             return (self - self.filtered("active")).ids
         except AccessError:
+            dbg.logic.debug(
+                "[load:%s] AccessError on active: %s all treated inactive",
+                self._name,
+                dbg.rec(self),
+            )
             return self.ids
 
     @api.model

@@ -2,6 +2,8 @@ from odoo import http
 from odoo.http import request
 from odoo.tools import consteq
 
+from ..tools import debug_log as dbg
+
 
 class PosCustomerDisplay(http.Controller):
     @http.route(
@@ -16,6 +18,17 @@ class PosCustomerDisplay(http.Controller):
         except TypeError, ValueError:
             return request.prepare_not_found_error()
         pos_config_sudo = request.env["pos.config"].sudo().browse(config_id)
+        token_ok = bool(access_token) and consteq(
+            access_token, pos_config_sudo.access_token or ""
+        )
+        dbg.lifecycle.debug(
+            "[http] customer display config=%s device=%s exists=%s active=%s token=%s",
+            config_id,
+            device_uuid,
+            pos_config_sudo.exists(),
+            pos_config_sudo.has_active_session,
+            token_ok,
+        )
         if (
             not pos_config_sudo.exists()
             or not pos_config_sudo.has_active_session

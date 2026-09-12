@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class AccountPayment(models.Model):
     _inherit = "account.payment"
@@ -17,6 +19,11 @@ class AccountPayment(models.Model):
         super()._compute_outstanding_account_id()
         for payment in self:
             if payment.force_outstanding_account_id:
+                dbg.logic.debug(
+                    "account.payment %s: outstanding forced to %s",
+                    payment.id,
+                    dbg.rec(payment.force_outstanding_account_id),
+                )
                 payment.outstanding_account_id = payment.force_outstanding_account_id
 
     def _get_payment_method_codes_to_exclude(self):

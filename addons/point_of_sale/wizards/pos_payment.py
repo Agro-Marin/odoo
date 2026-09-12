@@ -2,6 +2,8 @@ from odoo import _, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import float_is_zero
 
+from ..tools import debug_log as dbg
+
 
 class PosMakePayment(models.TransientModel):
     _name = "pos.make.payment"
@@ -71,6 +73,15 @@ class PosMakePayment(models.TransientModel):
         payment_method = self.env["pos.payment.method"].browse(
             init_data["payment_method_id"][0]
         )
+        dbg.lifecycle.debug(
+            "[wizard:make.payment][order:%s] method=%s amount=%s state=%s paid=%s/%s",
+            order.uuid,
+            dbg.rec(payment_method),
+            init_data["amount"],
+            order.state,
+            order.amount_paid,
+            order.amount_total,
+        )
         if not float_is_zero(init_data["amount"], precision_rounding=currency.rounding):
             order.add_payment(
                 {
@@ -86,6 +97,10 @@ class PosMakePayment(models.TransientModel):
             )
 
         if order.state == "draft" and order._is_pos_order_paid():
+            dbg.pipeline.debug(
+                "[wizard:make.payment][order:%s] fully paid -> _process_saved_order",
+                order.uuid,
+            )
             order._process_saved_order(False)
             if order.state in {"paid", "done"}:
                 order._send_order()

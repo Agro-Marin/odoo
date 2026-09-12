@@ -13,6 +13,8 @@ from odoo.fields import Command, Domain
 from odoo.models import PREFETCH_MAX
 from odoo.tools import float_compare, float_is_zero, frozendict, plaintext2html
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -160,6 +162,12 @@ class PosSession(models.Model):
     )
 
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "pos.session.write: %s keys=%s state->%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            vals.get("state"),
+        )
         if vals.get("state") == "closed":
             for record in self:
                 record.config_id._notify(
@@ -286,8 +294,16 @@ class PosSession(models.Model):
             "access_token",
         ]
 
+    @dbg.timed
     def load_data(self, models_to_load):
         response = {}
+        dbg.pipeline.debug(
+            "[session:%s] load_data: models_to_load=%s last_server_date=%s limited=%s",
+            self.name,
+            models_to_load,
+            self.env.context.get("pos_last_server_date"),
+            self.env.context.get("pos_limited_loading", True),
+        )
         response["pos.session"] = self._load_pos_data_search_read(
             response, self.config_id
         )
@@ -297,8 +313,15 @@ class PosSession(models.Model):
                 continue
 
             try:
-                response[model] = self.env[model]._load_pos_data_search_read(
-                    response, self.config_id
+                with dbg.timer(self.env, "[session:%s] load %s", self.name, model):
+                    response[model] = self.env[model]._load_pos_data_search_read(
+                        response, self.config_id
+                    )
+                dbg.pipeline.debug(
+                    "[session:%s] loaded %s: %d rows",
+                    self.name,
+                    model,
+                    len(response[model]),
                 )
             except AccessError as e:
                 response[model] = []
@@ -306,6 +329,7 @@ class PosSession(models.Model):
 
         return response
 
+    @dbg.timed
     def load_data_params(self):
         response = {}
         fields = self._load_pos_data_fields(self.config_id)
@@ -323,6 +347,7 @@ class PosSession(models.Model):
 
         return response
 
+    @dbg.timed
     def filter_local_data(self, models_to_filter):
         response = {}
         for model, ids in models_to_filter.items():
@@ -332,6 +357,14 @@ class PosSession(models.Model):
             inactive_ids = set(existing_records._get_inactive_ids(self.config_id))
 
             response[model] = list(non_existent_ids | inactive_ids)
+            dbg.logic.debug(
+                "[session:%s] filter_local_data %s: %d asked, %d gone, %d inactive",
+                self.name,
+                model,
+                len(ids),
+                len(non_existent_ids),
+                len(inactive_ids),
+            )
         return response
 
     def remove_opening_control_session(self):
@@ -346,6 +379,7 @@ class PosSession(models.Model):
                     "You can only cancel a session that is in opening control state and has no orders."
                 )
             )
+        dbg.lifecycle.debug("[session:%s] opening-control session removed", self.name)
         self.sudo().unlink()
         return {
             "status": "success",
@@ -594,10 +628,21 @@ class PosSession(models.Model):
             if vals.get("name", "/") == "/":
                 vals["name"] = pos_config._get_next_session_name()
 
+        dbg.lifecycle.debug(
+            "pos.session.create: %d vals for configs %s, keys=%s",
+            len(vals_list),
+            config_ids,
+            dbg.vals_keys(vals_list),
+        )
         if self.env.user.has_group("point_of_sale.group_pos_user"):
             sessions = super(PosSession, self.sudo()).create(vals_list)
         else:
             sessions = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "pos.session.create: created %s names=%s",
+            dbg.rec(sessions),
+            dbg.names(sessions, "name"),
+        )
 
         sessions.action_pos_session_open()
         return sessions
@@ -630,6 +675,12 @@ class PosSession(models.Model):
             session.cash_register_balance_start = (
                 last_session.cash_register_balance_end_real if last_session else 0.0
             )
+            dbg.logic.debug(
+                "[session:%s] opening balance %s from %s",
+                session.name,
+                session.cash_register_balance_start,
+                dbg.rec(last_session) if last_session else None,
+            )
         return True
 
     def get_session_orders(self):
@@ -659,6 +710,17 @@ class PosSession(models.Model):
         if self.state == "closed":
             raise UserError(_("This session is already closed."))
         stop_at = self.stop_at or fields.Datetime.now()
+        dbg.lifecycle.debug(
+            "[session:%s] %s -> closing_control (cash_control=%s rescue=%s"
+            " balancing=%s/%s bank_diffs=%s)",
+            self.name,
+            self.state,
+            self.config_id.cash_control,
+            self.rescue,
+            dbg.rec(balancing_account) if balancing_account else None,
+            amount_to_balance,
+            bank_payment_method_diffs,
+        )
         self.write({"state": "closing_control", "stop_at": stop_at})
         if not self.config_id.cash_control:
             return self.action_pos_session_close(
@@ -685,6 +747,9 @@ class PosSession(models.Model):
                 + self.cash_register_balance_start
             )
             self.cash_register_balance_end_real = total_cash
+            dbg.logic.debug(
+                "[session:%s] rescue session counted cash %s", self.name, total_cash
+            )
         return self.action_pos_session_validate(
             balancing_account, amount_to_balance, bank_payment_method_diffs
         )
@@ -709,6 +774,7 @@ class PosSession(models.Model):
             balancing_account, amount_to_balance, bank_payment_method_diffs
         )
 
+    @dbg.timed
     def _close_session(
         self,
         balancing_account=False,
@@ -723,27 +789,45 @@ class PosSession(models.Model):
                 (self.id,),
             )
         except LockNotAvailable as e:
+            dbg.logic.debug("[session:%s] close refused: row locked", self.name)
             raise UserError(_("Another user is currently closing this session.")) from e
         if self.env.user.has_group("point_of_sale.group_pos_user"):
             record = record.sudo()
         if self.state == "closed":
             raise UserError(_("This session is already closed."))
         data = {}
-        if (
+        has_activity = bool(
             record.get_session_orders().filtered(lambda o: o.state != "cancel")
             or record.statement_line_ids
-        ):
+        )
+        dbg.pipeline.debug(
+            "[session:%s] _close_session: orders=%d statement_lines=%d activity=%s"
+            " update_stock_at_closing=%s",
+            self.name,
+            len(record.order_ids),
+            len(record.statement_line_ids),
+            has_activity,
+            self.update_stock_at_closing,
+        )
+        if has_activity:
             self.cash_real_transaction = sum(
                 self.sudo().statement_line_ids.mapped("amount")
             )
             self._check_no_draft_orders()
             self._check_invoices_are_posted()
             cash_difference_before_statements = self.cash_register_difference
+            dbg.logic.debug(
+                "[session:%s] cash: real_transaction=%s difference=%s",
+                self.name,
+                self.cash_real_transaction,
+                cash_difference_before_statements,
+            )
             if self.update_stock_at_closing:
-                self._create_picking_at_end_of_session()
-                self._get_closed_orders().filtered(
-                    lambda o: not o.is_total_cost_computed
-                )._update_total_cost_at_session_closing(self.picking_ids.move_ids)
+                with dbg.timer(self.env, "[session:%s] closing pickings", self.name):
+                    self._create_picking_at_end_of_session()
+                    self._get_closed_orders().filtered(
+                        lambda o: not o.is_total_cost_computed
+                    )._update_total_cost_at_session_closing(self.picking_ids.move_ids)
             data = (
                 record.with_company(record.company_id)
                 .with_context(check_move_validity=False, skip_invoice_sync=True)
@@ -753,24 +837,46 @@ class PosSession(models.Model):
             )
 
             balance = sum(record.move_id.line_ids.mapped("balance"))
+            dbg.logic.debug(
+                "[session:%s] closing entry %s: %d lines, balance=%s",
+                self.name,
+                dbg.rec(record.move_id),
+                len(record.move_id.line_ids),
+                balance,
+            )
             try:
                 with self.move_id._check_balanced({"records": self.move_id.sudo()}):
                     pass
             except UserError:
+                dbg.logic.debug(
+                    "[session:%s] closing entry unbalanced by %s: rollback and"
+                    " force-close wizard",
+                    self.name,
+                    balance,
+                )
                 self.env.cr.rollback()
                 return self._open_force_close_wizard(balance, bank_payment_method_diffs)
 
             self.sudo()._post_statement_difference(cash_difference_before_statements)
             if record.move_id.line_ids:
-                record.move_id.with_company(self.company_id)._post()
+                with dbg.timer(self.env, "[session:%s] post closing entry", self.name):
+                    record.move_id.with_company(self.company_id)._post()
             else:
+                dbg.logic.debug(
+                    "[session:%s] empty closing entry %s unlinked",
+                    self.name,
+                    dbg.rec(record.move_id),
+                )
                 record.move_id.sudo().unlink()
-            record.order_ids.filtered(lambda order: order.state == "paid").write(
-                {"state": "done"}
+            paid_orders = record.order_ids.filtered(lambda order: order.state == "paid")
+            dbg.lifecycle.debug(
+                "[session:%s] orders paid -> done: %s", self.name, dbg.rec(paid_orders)
             )
-            self.sudo().with_company(self.company_id)._reconcile_account_move_lines(
-                data
-            )
+            paid_orders.write({"state": "done"})
+            with dbg.timer(self.env, "[session:%s] reconcile", self.name):
+                self.sudo().with_company(self.company_id)._reconcile_account_move_lines(
+                    data
+                )
         else:
             self.sudo()._post_statement_difference(self.cash_register_difference)
 
@@ -789,11 +895,19 @@ class PosSession(models.Model):
 
         self.picking_ids.move_ids.sudo()._trigger_scheduler()
 
+        dbg.lifecycle.debug("[session:%s] %s -> closed", self.name, self.state)
         self.write({"state": "closed"})
         self.env.flush_all()
         return True
 
     def _post_statement_difference(self, amount):
+        dbg.logic.debug(
+            "[session:%s] statement difference %s (cash_control=%s): %s",
+            self.name,
+            amount,
+            self.config_id.cash_control,
+            "posted" if amount and self.config_id.cash_control else "skipped",
+        )
         if amount and self.config_id.cash_control:
             st_line_vals = {
                 "journal_id": self.cash_journal_id.id,
@@ -878,14 +992,27 @@ class PosSession(models.Model):
             },
         }
 
+    @dbg.timed
     def close_session_from_ui(self, bank_payment_method_diff_pairs=None):
         bank_payment_method_diffs = dict(bank_payment_method_diff_pairs or [])
         self.check_singleton()
         open_order_ids = (
             self.get_session_orders().filtered(lambda o: o.state == "draft").ids
         )
+        dbg.pipeline.debug(
+            "[session:%s] close_session_from_ui: state=%s open_orders=%s bank_diffs=%s",
+            self.name,
+            self.state,
+            open_order_ids,
+            bank_payment_method_diffs,
+        )
         check_closing_session = self._resolve_close_refusal(bank_payment_method_diffs)
         if check_closing_session:
+            dbg.logic.debug(
+                "[session:%s] close refused: %s",
+                self.name,
+                check_closing_session.get("message"),
+            )
             check_closing_session["open_order_ids"] = open_order_ids
             return check_closing_session
 
@@ -896,6 +1023,11 @@ class PosSession(models.Model):
                 ("preset_time", ">", fields.Datetime.now()),
             ]
         )
+        dbg.logic.debug(
+            "[session:%s] future draft orders detached: %s",
+            self.name,
+            dbg.rec(future_orders),
+        )
         future_orders.session_id = False
 
         validate_result = self.action_pos_session_closing_control(
@@ -903,6 +1035,11 @@ class PosSession(models.Model):
         )
 
         if isinstance(validate_result, dict):
+            dbg.logic.debug(
+                "[session:%s] close redirected to action %r",
+                self.name,
+                validate_result.get("name"),
+            )
             return {
                 "open_order_ids": open_order_ids,
                 "successful": False,
@@ -920,6 +1057,12 @@ class PosSession(models.Model):
     def update_closing_control_state_session(self, notes):
         if self.state == "closed":
             raise UserError(_("This session is already closed."))
+        dbg.lifecycle.debug(
+            "[session:%s] %s -> closing_control from UI (notes=%s)",
+            self.name,
+            self.state,
+            bool(notes),
+        )
         self.write(
             {
                 "state": "closing_control",
@@ -947,6 +1090,12 @@ class PosSession(models.Model):
         if not self.cash_journal_id:
             raise UserError(_("There is no cash register in this session."))
 
+        dbg.logic.debug(
+            "[session:%s] counted cash %s (expected %s)",
+            self.name,
+            counted_cash,
+            self.cash_register_balance_end,
+        )
         self.cash_register_balance_end_real = counted_cash
 
         return {"successful": True}
@@ -958,6 +1107,12 @@ class PosSession(models.Model):
 
         diff_line_vals = self._prepare_diff_line_vals(payment_method.id, diff_amount)
         if not diff_line_vals:
+            dbg.logic.debug(
+                "[session:%s] no diff move for %s (amount=%s)",
+                self.name,
+                dbg.rec(payment_method),
+                diff_amount,
+            )
             return
 
         source_vals, dest_vals = diff_line_vals
@@ -971,6 +1126,13 @@ class PosSession(models.Model):
             }
         )
         diff_move._post()
+        dbg.pipeline.debug(
+            "[session:%s] diff move %s posted for %s amount=%s",
+            self.name,
+            dbg.rec(diff_move),
+            dbg.rec(payment_method),
+            diff_amount,
+        )
 
     def _get_diff_account_move_ref(self, payment_method):
         return _(
@@ -1088,6 +1250,7 @@ class PosSession(models.Model):
             )
         return cash_in_out_list
 
+    @dbg.timed
     def get_closing_control_data(self):
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
             raise AccessError(
@@ -1176,8 +1339,10 @@ class PosSession(models.Model):
         else:
             session_destination_id = picking_type.default_location_dest_id.id
 
+        skipped = 0
         for order in self._get_closed_orders():
             if order._is_real_time_picking_forced() or order.shipping_date:
+                skipped += 1
                 continue
             destination_id = (
                 order.partner_id.property_stock_customer.id or session_destination_id
@@ -1187,6 +1352,16 @@ class PosSession(models.Model):
             else:
                 lines_grouped_by_dest_location[destination_id] = order.lines
 
+        dbg.pipeline.debug(
+            "[session:%s] closing pickings: %d destinations, %d orders skipped"
+            " (real-time forced or shipping_date): %s",
+            self.name,
+            len(lines_grouped_by_dest_location),
+            skipped,
+            dbg.lazy(
+                lambda: {k: len(v) for k, v in lines_grouped_by_dest_location.items()}
+            ),
+        )
         for location_dest_id, lines in lines_grouped_by_dest_location.items():
             self.env["stock.picking"]._create_picking_from_pos_order_lines(
                 location_dest_id,
@@ -1233,6 +1408,7 @@ class PosSession(models.Model):
             or self.env["account.account"]
         )
 
+    @dbg.timed
     def _create_account_move(
         self,
         balancing_account=False,
@@ -1247,16 +1423,35 @@ class PosSession(models.Model):
             }
         )
         self.write({"move_id": account_move.id})
+        dbg.pipeline.debug(
+            "[session:%s] closing entry %s in journal %s",
+            self.name,
+            dbg.rec(account_move),
+            dbg.rec(self.config_id.journal_id),
+        )
 
         data = {"bank_payment_method_diffs": bank_payment_method_diffs or {}}
-        data = self._accumulate_amounts(data)
-        data = self._create_non_reconciliable_move_lines(data)
-        data = self._create_bank_payment_moves(data)
-        data = self._create_pay_later_receivable_lines(data)
-        data = self._create_cash_statement_lines_and_cash_move_lines(data)
-        data = self._create_invoice_receivable_lines(data)
-        data = self._create_stock_valuation_lines(data)
+        with dbg.timer(self.env, "[session:%s] accumulate amounts", self.name):
+            data = self._accumulate_amounts(data)
+        with dbg.timer(self.env, "[session:%s] non-reconciliable lines", self.name):
+            data = self._create_non_reconciliable_move_lines(data)
+        with dbg.timer(self.env, "[session:%s] bank payment moves", self.name):
+            data = self._create_bank_payment_moves(data)
+        with dbg.timer(self.env, "[session:%s] pay-later receivables", self.name):
+            data = self._create_pay_later_receivable_lines(data)
+        with dbg.timer(self.env, "[session:%s] cash statement lines", self.name):
+            data = self._create_cash_statement_lines_and_cash_move_lines(data)
+        with dbg.timer(self.env, "[session:%s] invoice receivables", self.name):
+            data = self._create_invoice_receivable_lines(data)
+        with dbg.timer(self.env, "[session:%s] stock valuation lines", self.name):
+            data = self._create_stock_valuation_lines(data)
         if balancing_account and amount_to_balance:
+            dbg.logic.debug(
+                "[session:%s] balancing line %s on %s",
+                self.name,
+                amount_to_balance,
+                dbg.rec(balancing_account),
+            )
             data = self._create_balancing_line(
                 data, balancing_account, amount_to_balance
             )
@@ -1355,6 +1550,20 @@ class PosSession(models.Model):
 
         self._accumulate_stock_amounts(stock_expense, stock_return, stock_valuation)
 
+        dbg.pipeline.debug(
+            "[session:%s] accumulated over %d orders: sales=%d taxes=%d"
+            " stock_expense=%d stock_return=%d stock_valuation=%d rounding=%s"
+            " buckets=%s",
+            self.name,
+            len(closed_orders),
+            len(sales),
+            len(taxes),
+            len(stock_expense),
+            len(stock_return),
+            len(stock_valuation),
+            rounding_difference,
+            dbg.lazy(lambda: {k: len(v) for k, v in payment_buckets.items() if v}),
+        )
         MoveLine = self.env["account.move.line"].with_context(
             check_move_validity=False, skip_invoice_sync=True
         )
@@ -1392,6 +1601,17 @@ class PosSession(models.Model):
             scope = "split" if is_split_payment else "combine"
             key = payment if is_split_payment else payment_method
 
+            dbg.logic.debug(
+                "[session:%s][order:%s] payment %s: type=%s scope=%s amount=%s"
+                " invoiced=%s",
+                self.name,
+                order.uuid,
+                payment.id,
+                payment_type,
+                scope,
+                amount,
+                order_is_invoiced,
+            )
             if payment_type == "pay_later":
                 if not order_is_invoiced:
                     add(f"{scope}_receivables_pay_later", key, amount, date)
@@ -1421,6 +1641,7 @@ class PosSession(models.Model):
             + self.picking_ids.filtered(lambda p: not p.pos_order_id).ids
         )
         if not all_picking_ids:
+            dbg.logic.debug("[session:%s] no pickings to value", self.name)
             return
 
         stock_moves = (
@@ -1433,6 +1654,12 @@ class PosSession(models.Model):
                     ("product_id.valuation", "=", "real_time"),
                 ]
             )
+        )
+        dbg.pipeline.debug(
+            "[session:%s] stock valuation over %d pickings: %d real-time moves",
+            self.name,
+            len(all_picking_ids),
+            len(stock_moves),
         )
         accounts_per_product = {}
         for stock_moves_batch in (
@@ -1479,6 +1706,11 @@ class PosSession(models.Model):
         partners_by_increment = defaultdict(list)
         for partner_id, increment in partner_rank_increments.items():
             partners_by_increment[increment].append(partner_id)
+        dbg.logic.debug(
+            "[session:%s] customer_rank increments: %s",
+            self.name,
+            dbg.lazy(lambda: {k: len(v) for k, v in partners_by_increment.items()}),
+        )
         for increment, partner_ids in partners_by_increment.items():
             self.env["res.partner"].browse(partner_ids)._increase_rank(
                 "customer_rank", increment
@@ -1521,6 +1753,15 @@ class PosSession(models.Model):
         MoveLine.create(tax_vals)
         move_line_ids = MoveLine.create(
             list(starmap(self._prepare_sale_vals, sales.items()))
+        )
+        dbg.pipeline.debug(
+            "[session:%s] lines: %d tax, %d sale %s, %d stock expense, rounding=%s",
+            self.name,
+            len(tax_vals),
+            len(move_line_ids),
+            dbg.rec(move_line_ids),
+            len(stock_expense),
+            bool(rounding_vals),
         )
         for key, ml_id in zip(sales.keys(), move_line_ids.ids, strict=False):
             sales[key]["move_line_id"] = ml_id
@@ -1579,6 +1820,13 @@ class PosSession(models.Model):
                 bank_payment_method_diffs.get(bank_payment_method.id) or 0,
             )
 
+        dbg.pipeline.debug(
+            "[session:%s] bank: %d combined methods, %d split payments, diffs=%s",
+            self.name,
+            len(payment_method_to_receivable_lines),
+            len(payment_to_receivable_lines),
+            bank_payment_method_diffs,
+        )
         data["payment_method_to_receivable_lines"] = payment_method_to_receivable_lines
         data["payment_to_receivable_lines"] = payment_to_receivable_lines
         return data
@@ -1620,6 +1868,11 @@ class PosSession(models.Model):
             )
             < 0
         ):
+            dbg.logic.debug(
+                "[session:%s] negative payment %s: flipped to outbound",
+                self.name,
+                dbg.rec(payment),
+            )
             payment.write(
                 {
                     "force_outstanding_account_id": payment.destination_account_id,
@@ -1655,6 +1908,14 @@ class PosSession(models.Model):
 
         self._update_payment_outstanding_account(account_payment, amounts["amount"])
         account_payment.action_post()
+        dbg.pipeline.debug(
+            "[session:%s] combined account.payment %s for %s amount=%s diff=%s",
+            self.name,
+            dbg.rec(account_payment),
+            dbg.rec(payment_method),
+            amounts["amount"],
+            diff_amount,
+        )
 
         diff_amount_compare_to_zero = self.currency_id.compare_amounts(diff_amount, 0)
         if diff_amount_compare_to_zero != 0:
@@ -1683,6 +1944,14 @@ class PosSession(models.Model):
             + self._convert_amount_to_company_currency(diff_amount, self.stop_at, False)
         )
         new_balance_compare_to_zero = self.currency_id.compare_amounts(new_balance, 0)
+        dbg.logic.debug(
+            "[session:%s] diff %s applied on %s: outstanding balance %s -> %s",
+            self.name,
+            diff_amount,
+            dbg.rec(account_payment),
+            outstanding_line.balance,
+            new_balance,
+        )
         account_payment.move_id.action_draft()
         account_payment.move_id.write(
             {
@@ -1710,6 +1979,11 @@ class PosSession(models.Model):
     def _create_split_account_payment(self, payment, amounts):
         payment_method = payment.payment_method_id
         if not payment_method.journal_id:
+            dbg.logic.debug(
+                "[session:%s] split payment %s: method has no journal, skipped",
+                self.name,
+                dbg.rec(payment),
+            )
             return self.env["account.move.line"]
         outstanding_account = payment_method.outstanding_account_id
         accounting_partner = payment.partner_id.commercial_partner_id
@@ -1796,6 +2070,15 @@ class PosSession(models.Model):
         )
         split_cash_receivable_lines = MoveLine.create(split_cash_receivable_vals)
         combine_cash_receivable_lines = MoveLine.create(combine_cash_receivable_vals)
+        dbg.pipeline.debug(
+            "[session:%s] cash: %d split / %d combined statement lines, receivable"
+            " lines %s / %s",
+            self.name,
+            len(split_cash_statement_line_vals),
+            len(combine_cash_statement_line_vals),
+            dbg.rec(split_cash_receivable_lines),
+            dbg.rec(combine_cash_receivable_lines),
+        )
 
         data.update(
             {
@@ -1882,9 +2165,14 @@ class PosSession(models.Model):
             | split_cash_receivable_lines
             | combine_cash_receivable_lines
         )
-        all_lines.filtered(lambda line: line.move_id.state != "posted").move_id._post(
-            soft=False
+        unposted = all_lines.filtered(lambda line: line.move_id.state != "posted")
+        dbg.pipeline.debug(
+            "[session:%s] reconcile: %d cash lines, posting %s",
+            self.name,
+            len(all_lines),
+            dbg.rec(unposted.move_id),
         )
+        unposted.move_id._post(soft=False)
 
         accounts = all_lines.mapped("account_id")
         lines_by_account = [
@@ -1894,6 +2182,11 @@ class PosSession(models.Model):
             for account in accounts
             if account.reconcile
         ]
+        dbg.logic.debug(
+            "[session:%s] cash reconciliation groups: %s",
+            self.name,
+            dbg.lazy(lambda: [len(lines) for lines in lines_by_account]),
+        )
         for lines in lines_by_account:
             lines.with_context(no_cash_basis=True).reconcile()
 
@@ -1910,6 +2203,14 @@ class PosSession(models.Model):
                     no_cash_basis=True
                 ).reconcile()
 
+        dbg.logic.debug(
+            "[session:%s] invoice receivable reconciliation: default account"
+            " reconcilable=%s, %d combined, %d split",
+            self.name,
+            self.company_id.account_default_pos_receivable_account_id.reconcile,
+            len(combine_inv_payment_receivable_lines),
+            len(split_inv_payment_receivable_lines),
+        )
         if self.company_id.account_default_pos_receivable_account_id.reconcile:
             for payment_method in combine_inv_payment_receivable_lines:
                 lines = combine_inv_payment_receivable_lines[
@@ -2281,6 +2582,13 @@ class PosSession(models.Model):
         return self.config_id.open_ui()
 
     def _set_opening_control_data(self, cashbox_value: int, notes: str):
+        dbg.lifecycle.debug(
+            "[session:%s] %s -> opened (cashbox=%s expected=%s)",
+            self.name,
+            self.state,
+            cashbox_value,
+            self.cash_register_balance_start,
+        )
         self.state = "opened"
         self.start_at = fields.Datetime.now()
         cash_payment_method_ids = self.config_id.payment_method_ids.filtered(
@@ -2301,6 +2609,11 @@ class PosSession(models.Model):
 
     def set_opening_control(self, cashbox_value: int, notes: str):
         if self.state != "opening_control":
+            dbg.logic.debug(
+                "[session:%s] set_opening_control ignored in state %s",
+                self.name,
+                self.state,
+            )
             return
 
         self._set_opening_control_data(cashbox_value, notes)
@@ -2362,6 +2675,11 @@ class PosSession(models.Model):
                 [("res_model", "=", "pos.session"), ("res_id", "in", sessions.ids)],
                 ["res_id"],
             )
+        )
+        dbg.lifecycle.debug(
+            "cron _alert_old_sessions: %s open >7d, %s already alerted",
+            dbg.rec(sessions),
+            dbg.rec(already_alerted),
         )
         for session in sessions - already_alerted:
             session.activity_schedule(
@@ -2451,6 +2769,14 @@ class PosSession(models.Model):
             )
             for session in sessions
         ]
+        dbg.lifecycle.debug(
+            "[session:%s] cash %s %s reason=%r partner=%s",
+            dbg.names(sessions, "name"),
+            _type,
+            amount,
+            reason,
+            partner_id,
+        )
 
         self.env["account.bank.statement.line"].with_context(
             no_retrieve_partner=True
@@ -2468,6 +2794,9 @@ class PosSession(models.Model):
             )
         action = ": ".join(
             part for part in (absl.partner_id.name, str(absl.amount)) if part
+        )
+        dbg.lifecycle.debug(
+            "[session:%s] cash move %s removed (%s)", self.name, absl_id, action
         )
         absl.unlink()
         self.log_partner_message(partner_id, action, "CASH_IN_OUT_UNLINK")

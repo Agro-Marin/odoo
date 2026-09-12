@@ -4,6 +4,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import float_is_zero, formatLang
 
+from ..tools import debug_log as dbg
+
 
 class PosPayment(models.Model):
     _name = "pos.payment"
@@ -132,6 +134,9 @@ class PosPayment(models.Model):
                 )
 
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "pos.payment.write: %s keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if {
             "amount",
             "pos_order_id",
@@ -145,6 +150,7 @@ class PosPayment(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_posted_order(self):
+        dbg.lifecycle.debug("pos.payment.unlink: %s", dbg.rec(self))
         self._check_order_is_editable()
 
     @api.constrains("payment_method_id", "pos_order_id")
@@ -160,6 +166,7 @@ class PosPayment(models.Model):
                     )
                 )
 
+    @dbg.timed
     def _create_payment_moves(self, is_reverse=False):
         result = self.env["account.move"]
         change_payment = self.filtered(
@@ -171,15 +178,34 @@ class PosPayment(models.Model):
         payments = self
         if change_payment and payment_to_change:
             payments = self - change_payment
+        dbg.pipeline.debug(
+            "[payments] %s: reverse=%s change=%s folded into %s",
+            dbg.rec(self),
+            is_reverse,
+            dbg.rec(change_payment),
+            dbg.rec(payment_to_change),
+        )
 
         for payment in payments:
             if payment.account_move_id:
+                dbg.logic.debug(
+                    "[payments] %s already has move %s",
+                    payment.id,
+                    dbg.rec(payment.account_move_id),
+                )
                 continue
             order = payment.pos_order_id
             payment_method = payment.payment_method_id
             if payment_method.type == "pay_later" or float_is_zero(
                 payment.amount, precision_rounding=order.currency_id.rounding
             ):
+                dbg.logic.debug(
+                    "[order:%s] payment %s skipped: type=%s amount=%s",
+                    order.uuid,
+                    payment.id,
+                    payment_method.type,
+                    payment.amount,
+                )
                 continue
             accounting_partner = payment.partner_id.commercial_partner_id
             pos_session = order.session_id
@@ -254,6 +280,14 @@ class PosPayment(models.Model):
             )
             self.env["account.move.line"].create([credit_line_vals, debit_line_vals])
             payment_move._post()
+            dbg.pipeline.debug(
+                "[order:%s] payment move %s: amount=%s receivable=%s split=%s",
+                order.uuid,
+                dbg.rec(payment_move),
+                payment_amount,
+                reversed_move_receivable_account_id,
+                is_split_transaction,
+            )
         return result
 
     def _get_receivable_lines_for_invoice_reconciliation(self, receivable_account):
@@ -280,4 +314,10 @@ class PosPayment(models.Model):
                 elif currency.compare_amounts(line.balance, 0) > 0:
                     result |= line
 
+        dbg.logic.debug(
+            "[payments] %s receivable lines for reconciliation on %s: %s",
+            dbg.rec(self),
+            receivable_account.code,
+            dbg.rec(result),
+        )
         return result

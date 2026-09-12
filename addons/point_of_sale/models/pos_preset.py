@@ -4,6 +4,8 @@ from datetime import timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class PosPreset(models.Model):
     _name = "pos.preset"
@@ -145,6 +147,12 @@ class PosPreset(models.Model):
             sql_datetime_str = order.preset_time.strftime("%Y-%m-%d %H:%M:%S")
             usage[sql_datetime_str].append(order.id)
 
+        dbg.logic.debug(
+            "[preset:%s] slot usage: %d orders over %d slots",
+            self.id,
+            len(orders),
+            len(usage),
+        )
         return usage
 
     def action_view_linked_orders(self):
@@ -173,6 +181,7 @@ class PosPreset(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_used_preset(self):
+        dbg.lifecycle.debug("pos.preset.unlink: %s", dbg.rec(self))
         for preset in self:
             if preset.count_linked_config:
                 raise UserError(

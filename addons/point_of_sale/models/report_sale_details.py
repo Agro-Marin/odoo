@@ -3,6 +3,8 @@ from datetime import UTC, timedelta
 from odoo import _, api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
     _name = "report.point_of_sale.report_saledetails"
@@ -10,6 +12,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
     _description = "Point of Sale Details"
 
     @api.model
+    @dbg.timed
     def get_sale_details(
         self,
         date_start=False,
@@ -31,9 +34,20 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             config_ids, session_ids, date_start, date_stop
         )
         currency = self._get_report_currency(configs)
+        dbg.pipeline.debug(
+            "[report] sale details %s..%s configs=%s sessions=%s -> %s in %s",
+            date_start,
+            date_stop,
+            dbg.rec(configs),
+            dbg.rec(sessions),
+            dbg.rec(orders),
+            currency.name,
+        )
 
-        sales = self._get_sales_totals(orders, currency)
-        payments = self._get_counted_payments(orders, sessions)
+        with dbg.timer(self.env, "[report] sales totals over %d orders", len(orders)):
+            sales = self._get_sales_totals(orders, currency)
+        with dbg.timer(self.env, "[report] counted payments"):
+            payments = self._get_counted_payments(orders, sessions)
 
         return {
             "state": sessions.state if len(sessions) == 1 else "multiple",
@@ -77,6 +91,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             }
         )
         args, kwargs = self._prepare_get_sale_details_args_kwargs(data)
+        dbg.lifecycle.debug(
+            "[report] _get_report_values docids=%s data keys=%s", docids, dbg.keys(data)
+        )
         data.update(self.get_sale_details(*args, **kwargs))
         return data
 
@@ -101,6 +118,11 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         if date_stop:
             date_stop = fields.Datetime.from_string(date_stop)
             if date_stop < date_start:
+                dbg.logic.debug(
+                    "[report] date_stop %s before date_start %s: span reset",
+                    date_stop,
+                    date_start,
+                )
                 date_stop = date_start + self._get_default_report_span()
         else:
             date_stop = date_start + self._get_default_report_span()
@@ -154,6 +176,11 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
     def _get_report_currency(self, configs):
         currencies = configs.currency_id
+        if len(currencies) != 1:
+            dbg.logic.debug(
+                "[report] %d config currencies: company currency used",
+                len(currencies),
+            )
         return currencies if len(currencies) == 1 else self.env.company.currency_id
 
     def _get_sales_totals(self, orders, report_currency):
@@ -186,6 +213,15 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     discounted_orders.add(order.id)
                     discount_amount += line._get_discount_amount()
 
+        dbg.logic.debug(
+            "[report] totals: total=%s sold categories=%d refunded categories=%d"
+            " discounted orders=%d discount=%s",
+            total,
+            len(sold["products"]),
+            len(refunded["products"]),
+            len(discounted_orders),
+            discount_amount,
+        )
         return {
             "total": total,
             "sold": sold,
@@ -387,6 +423,12 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     )
             counted += session_payments
 
+        dbg.logic.debug(
+            "[report] payments: %d counted rows, %d orphan sessions, %d diff moves",
+            len(counted),
+            len(payments_by_session),
+            len(diff_moves),
+        )
         for orphan_payments in payments_by_session.values():
             counted += orphan_payments
         return counted
@@ -584,6 +626,11 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             lambda p, method_id=payment["id"]: p.pos_payment_method_id.id == method_id
         )
         if not settled_by:
+            dbg.logic.debug(
+                "[report] method %s in session %s: no diff move, no account.payment",
+                payment["id"],
+                payment["session"],
+            )
             return
         payment["final_count"] = payment["total"]
         payment["money_counted"] = sum(settled_by.mapped("amount_signed"))

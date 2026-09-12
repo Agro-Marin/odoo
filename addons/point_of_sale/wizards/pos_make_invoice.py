@@ -1,6 +1,8 @@
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class PosMakeInvoice(models.TransientModel):
     _name = "pos.make.invoice"
@@ -28,6 +30,12 @@ class PosMakeInvoice(models.TransientModel):
                     and o.state not in {"draft", "cancel"}
                 )
             )
+        )
+        dbg.lifecycle.debug(
+            "[wizard:make.invoice] active_ids=%s invoiceable=%s consolidated=%s",
+            self.env.context.get("active_ids"),
+            dbg.rec(selected_orders),
+            self.consolidated_billing,
         )
         if not selected_orders:
             raise UserError(
@@ -94,9 +102,19 @@ class PosMakeInvoice(models.TransientModel):
                                 )
                             )
 
+            dbg.logic.debug(
+                "[wizard:make.invoice] %d groups by (config, partner, user, fpos): %s",
+                len(grouped_orders),
+                dbg.lazy(lambda: [len(orders) for _key, orders in grouped_orders]),
+            )
             for _key, orders in grouped_orders:
                 invoices |= orders._generate_pos_order_invoice()
 
+        dbg.pipeline.debug(
+            "[wizard:make.invoice] invoices %s for %s",
+            dbg.rec(invoices),
+            dbg.rec(selected_orders),
+        )
         if invoices:
             return selected_orders.action_view_invoice()
         return None

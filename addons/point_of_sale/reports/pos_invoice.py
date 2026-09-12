@@ -1,6 +1,8 @@
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ReportPoint_Of_SaleReport_Invoice(models.AbstractModel):
     _name = "report.point_of_sale.report_invoice"
@@ -16,6 +18,12 @@ class ReportPoint_Of_SaleReport_Invoice(models.AbstractModel):
             ids_to_print.append(order.account_move.id)
             invoiced_posorders_ids.append(order.id)
         not_invoiced_orders_ids = list(set(docids) - set(invoiced_posorders_ids))
+        dbg.lifecycle.debug(
+            "[report:invoice] docids=%s invoices=%s not invoiced=%s",
+            docids,
+            ids_to_print,
+            not_invoiced_orders_ids,
+        )
         if not_invoiced_orders_ids:
             not_invoiced_posorders = PosOrder.browse(not_invoiced_orders_ids)
             not_invoiced_orders_names = [a.name for a in not_invoiced_posorders]
