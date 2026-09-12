@@ -51,7 +51,7 @@ def exp_dump(db_name: str, backup_format: str) -> str:
 
 def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
     v = cr.connection.info.server_version
-    pg_version = f"{v // 10000}.{v // 100 % 100}"
+    pg_version = f"{v // 10000}.{v % 10000}"
     cr.execute(
         "SELECT name, db_version FROM ir_module_module WHERE state = 'installed'"
     )

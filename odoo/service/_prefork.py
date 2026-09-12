@@ -21,6 +21,7 @@ if os.name == "posix":
     import fcntl
 
 from odoo import db
+from odoo.libs import backoff
 from odoo.modules.registry import Registry
 from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks, stripped_sys_argv
@@ -30,7 +31,7 @@ from ._base_server import CommonServer
 from ._env import _IS_POSIX, get_env_float
 from ._limits import empty_pipe, get_cron_real_time_budget, get_job_real_time_budget
 from ._worker import Worker, WorkerCron, WorkerHTTP, WorkerJob
-from .lifecycle import _reexec_server, preload_registries
+from .lifecycle import preload_registries
 
 _logger = logging.getLogger("odoo.service.server")
 
@@ -155,8 +156,8 @@ class PreforkServer(CommonServer):
         self.workers_cron: dict[int, WorkerCron] = {}
         self.workers_job: dict[int, WorkerJob] = {}
         self.workers: dict[int, Worker] = {}
-        self._drain_procs: dict[int, psutil.Process] = {}
         self._killed_workers: dict[int, Worker] = {}
+        self._retiring_workers: set[int] = set()
         self.generation = 0
         self.queue: deque[int] = deque()
         self.long_polling_pid: int | None = None
@@ -167,6 +168,12 @@ class PreforkServer(CommonServer):
         self._selector: selectors.BaseSelector | None = None
         self._watched: dict[int, Worker] = {}
         self._census_written_at = float("-inf")
+        self._replacement: subprocess.Popen | None = None
+        self._candidate: subprocess.Popen | None = None
+        self._reload_reader: tuple[int, selectors.BaseSelector] | None = None
+        self._reload_supervisor = int(os.environ.pop("ODOO_RELOAD_SUPERVISOR_PID", "0"))
+        self.is_reload_watcher_owner = not self._reload_supervisor
+        self._ready_fd = os.environ.pop("ODOO_RELOAD_READY_FD", None)
 
     def open_pipe(self) -> tuple[int, int]:
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
@@ -186,8 +193,8 @@ class PreforkServer(CommonServer):
                 raise
 
     def signal_handler(self, sig: int, frame: Any) -> None:
-        if sig == signal.SIGCHLD:
-            if signal.SIGCHLD not in self.queue:
+        if sig in (signal.SIGCHLD, signal.SIGHUP):
+            if sig not in self.queue:
                 self.queue.append(sig)
                 self.ping_pipe(self.pipe)
             return
@@ -216,15 +223,28 @@ class PreforkServer(CommonServer):
                 with contextlib.suppress(OSError):
                     os.close(fd)
         self._close_watchdog_selector()
+        if self._reload_reader is not None:
+            fd, selector = self._reload_reader
+            os.close(fd)
+            selector.close()
+            self._reload_reader = None
+        if self._ready_fd is not None:
+            os.close(int(self._ready_fd))
+            self._ready_fd = None
 
     def _record_spawn_failure(self) -> None:
         self._consecutive_fast_deaths += 1
-        backoff = min(2.0**self._consecutive_fast_deaths, WORKER_RESPAWN_BACKOFF_CAP_S)
-        self._respawn_not_before = time.monotonic() + backoff
+        delay = self._get_respawn_delay()
+        self._respawn_not_before = time.monotonic() + delay
         self.logger.warning(
             "worker spawn failed before fork (attempt %d); holding respawn for %.0fs",
             self._consecutive_fast_deaths,
-            backoff,
+            delay,
+        )
+
+    def _get_respawn_delay(self) -> float:
+        return backoff.get_bound(
+            self._consecutive_fast_deaths, base=2, cap=WORKER_RESPAWN_BACKOFF_CAP_S
         )
 
     def spawn_worker(self, klass: type, workers_registry: dict) -> Worker | None:
@@ -297,6 +317,7 @@ class PreforkServer(CommonServer):
             popen.returncode = returncode if returncode is not None else -signal.SIGKILL
 
     def remove_worker(self, pid: int) -> None:
+        self._retiring_workers.discard(pid)
         if pid == self.long_polling_pid:
             self.long_polling_pid = None
         if pid in self.workers:
@@ -322,7 +343,16 @@ class PreforkServer(CommonServer):
                 self._record_killed_worker(pid)
                 self.remove_worker(pid)
 
-    def apply_pending_signals(self) -> None:
+    def apply_pending_signals(self, *, draining: bool = False) -> None:
+        if draining:
+            # Leave reload and scaling requests in order for the next serving
+            # generation. Shutdown takes priority and must reach the outer loop.
+            for sig in tuple(self.queue):
+                if sig in (signal.SIGINT, signal.SIGTERM):
+                    self.queue.remove(sig)
+                    self.queue.appendleft(sig)
+                    raise KeyboardInterrupt
+            return
         while self.queue:
             sig = self.queue.popleft()
             if sig in [signal.SIGINT, signal.SIGTERM]:
@@ -330,6 +360,11 @@ class PreforkServer(CommonServer):
             if sig == signal.SIGHUP:
                 _process_state.set_phoenix(True)
                 raise KeyboardInterrupt
+            if self._replacement is not None and sig in (
+                signal.SIGTTIN,
+                signal.SIGTTOU,
+            ):
+                self._replacement.send_signal(sig)
             if sig == signal.SIGTTIN:
                 self.population += 1
             elif sig == signal.SIGTTOU:
@@ -349,6 +384,10 @@ class PreforkServer(CommonServer):
                 raise
 
     def _record_worker_exit(self, pid: int, status: int) -> None:
+        for process in (self._candidate, self._replacement):
+            if process is not None and process.pid == pid:
+                process.returncode = os.waitstatus_to_exitcode(status)
+                return
         if pid == self.long_polling_pid:
             name = "Long-polling (evented) subprocess"
             lifetime = time.monotonic() - self.long_polling_spawn_time
@@ -369,10 +408,8 @@ class PreforkServer(CommonServer):
         )
         if exited_nonzero or crashed_by_signal:
             self._consecutive_fast_deaths += 1
-            backoff = min(
-                2.0**self._consecutive_fast_deaths, WORKER_RESPAWN_BACKOFF_CAP_S
-            )
-            self._respawn_not_before = time.monotonic() + backoff
+            delay = self._get_respawn_delay()
+            self._respawn_not_before = time.monotonic() + delay
             cause = (
                 f"exit {os.WEXITSTATUS(status)}"
                 if exited_nonzero
@@ -385,7 +422,7 @@ class PreforkServer(CommonServer):
                 pid,
                 lifetime,
                 cause,
-                backoff,
+                delay,
                 self._consecutive_fast_deaths,
             )
 
@@ -405,6 +442,7 @@ class PreforkServer(CommonServer):
                 self.kill_worker(pid, signal.SIGKILL)
 
     def spawn_missing_workers(self) -> None:
+        self._retire_excess_workers()
         if time.monotonic() < self._respawn_not_before:
             return
         registries = Registry.registries.snapshot
@@ -414,6 +452,7 @@ class PreforkServer(CommonServer):
             nonlocal checked
             if checked or not registries:
                 return
+
             checked = True
             for db_name, registry in registries.items():
                 try:
@@ -429,7 +468,9 @@ class PreforkServer(CommonServer):
             db.close_all()
 
         if self.settings.http_enable:
-            while len(self.workers_http) < self.population:
+            while (
+                len(self.workers_http) - len(self._retiring_workers) < self.population
+            ):
                 check_registries()
                 if self.spawn_worker(WorkerHTTP, self.workers_http) is None:
                     return
@@ -444,6 +485,13 @@ class PreforkServer(CommonServer):
             check_registries()
             if self.spawn_worker(WorkerJob, self.workers_job) is None:
                 return
+
+    def _retire_excess_workers(self) -> None:
+        """Drain excess HTTP workers once, retaining watchdog/reaping ownership."""
+        active = [pid for pid in self.workers_http if pid not in self._retiring_workers]
+        for pid in active[: max(0, len(active) - self.population)]:
+            self._retiring_workers.add(pid)
+            self.kill_worker(pid, signal.SIGINT)
 
     def _close_watchdog_selector(self) -> None:
         sel, self._selector = getattr(self, "_selector", None), None
@@ -478,14 +526,19 @@ class PreforkServer(CommonServer):
                 sel.register(self.pipe[0], selectors.EVENT_READ)
         return sel, fds
 
-    def sleep(self) -> None:
+    def sleep(self, timeout: float | None = None) -> None:
         sel, fds = self._get_watchdog_selector()
-        ready = sel.select(self.beat)
+        ready = sel.select(self.beat if timeout is None else timeout)
         for key, _ in ready:
             fd = key.fd
             if fd in fds:
                 fds[fd].watchdog_time = time.monotonic()
-            empty_pipe(fd)
+                with contextlib.suppress(BlockingIOError):
+                    while data := os.read(fd, 4096):
+                        if b"R" in data:
+                            fds[fd].ready = True
+            else:
+                empty_pipe(fd)
 
     def start(self) -> None:
         self.pipe = self.open_pipe()
@@ -534,53 +587,125 @@ class PreforkServer(CommonServer):
                     self.port,
                 )
 
-    def fork_and_reload(self) -> bool:
+    def reload(self) -> bool:
+        """Promote a fresh generation only after its preload and worker startup.
+
+        The original master remains the supervisor across every reload. A
+        replacement asks it to reload, avoiding chains of proxy masters and
+        keeping the service manager's PID valid after a failed replacement.
+        """
         self.logger.info("Reloading server")
-        pid = os.fork()
-        if pid != 0:
+        read_fd, write_fd = os.pipe2(os.O_CLOEXEC)
+        try:
+            env = dict(os.environ)
+            env["ODOO_RELOAD_SUPERVISOR_PID"] = str(self.pid)
+            env["ODOO_RELOAD_READY_FD"] = str(write_fd)
+            pass_fds = [write_fd]
             if self.socket is not None:
-                http_socket_fileno = self.socket.fileno()
-                flags = fcntl.fcntl(http_socket_fileno, fcntl.F_GETFD)
-                fcntl.fcntl(
-                    http_socket_fileno, fcntl.F_SETFD, flags & ~fcntl.FD_CLOEXEC
-                )
-                os.environ["ODOO_HTTP_SOCKET_FD"] = str(http_socket_fileno)
-            os.environ["ODOO_READY_SIGHUP_PID"] = str(pid)
-            try:
-                super().stop()
-            except Exception:
-                self.logger.warning(
-                    "Exception while running stop hooks before reload", exc_info=True
-                )
-            _reexec_server()
-
-        self.logger.info("Waiting for new server to start ...")
-        phoenix_hatched = False
-
-        def sighup_handler(sig, frame):
-            nonlocal phoenix_hatched
-            phoenix_hatched = True
-
-        signal.signal(signal.SIGHUP, sighup_handler)
-
-        timeout_s = get_env_float(
-            "ODOO_RELOAD_TIMEOUT", 60.0, minimum=1.0, logger=self.logger
-        )
-        self.logger.info("Reload timeout: %.0fs", timeout_s)
-
-        reload_timeout = time.monotonic() + timeout_s
-        while not phoenix_hatched and time.monotonic() < reload_timeout:
-            time.sleep(0.1)
-
-        if not phoenix_hatched:
-            self.logger.error(
-                "Server reload timed out after %.0fs (check the updated code; "
-                "set ODOO_RELOAD_TIMEOUT for slower start)",
-                timeout_s,
+                env["ODOO_HTTP_SOCKET_FD"] = str(self.socket.fileno())
+                pass_fds.append(self.socket.fileno())
+            args = stripped_sys_argv()
+            if not args or args[0] not in (sys.executable, Path(sys.executable).name):
+                args.insert(0, sys.executable)
+            promoted = False
+            self._candidate = subprocess.Popen(
+                args, env=env, pass_fds=pass_fds, start_new_session=True
             )
-        else:
+            os.close(write_fd)
+            write_fd = -1
+            timeout = get_env_float(
+                "ODOO_RELOAD_TIMEOUT", 60.0, minimum=1.0, logger=self.logger
+            )
+            deadline = time.monotonic() + timeout
+            with selectors.DefaultSelector() as selector:
+                self._reload_reader = (read_fd, selector)
+                selector.register(read_fd, selectors.EVENT_READ)
+                while time.monotonic() < deadline:
+                    # Shutdown must not wait for a stuck preload's deadline.
+                    if any(
+                        sig in (signal.SIGINT, signal.SIGTERM) for sig in self.queue
+                    ):
+                        return False
+                    if self._replacement is None:
+                        # The first generation still depends on this master
+                        # while the candidate preloads. Read queued heartbeats
+                        # before enforcing deadlines or recovering capacity.
+                        self.sleep(timeout=0)
+                        self.reap_exited_workers()
+                        self.kill_timed_out_workers()
+                        self.spawn_missing_workers()
+                        self._publish_census()
+                    if selector.select(min(0.1, max(0, deadline - time.monotonic()))):
+                        promoted = os.read(read_fd, 1) == b"1"
+                        break
+                    if self._candidate.poll() is not None:
+                        break
+            if not promoted or self._candidate.poll() is not None:
+                self.logger.error(
+                    "Reload aborted: replacement not ready; keeping current workers"
+                )
+                return False
             self.logger.info("New server has started")
-        return phoenix_hatched
+            if self._replacement is not None:
+                self._stop_generation(self._replacement)
+            else:
+                self.stop_workers_gracefully()
+                self.beat = 4
+            self._replacement = self._candidate
+            self._candidate = None
+            return True
+        finally:
+            self._reload_reader = None
+            os.close(read_fd)
+            if write_fd >= 0:
+                os.close(write_fd)
+            if self._candidate is not None:
+                self._stop_generation(self._candidate, graceful=False)
+                self._candidate = None
+
+    def _stop_generation(
+        self, process: subprocess.Popen, *, graceful: bool = True
+    ) -> None:
+        """Bound generation shutdown, including its evented subprocess."""
+        if not graceful:
+            # An unready candidate may be stuck in preload and unable to handle
+            # queued signals. Do not pause the healthy generation to drain it.
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            return
+        with contextlib.suppress(ProcessLookupError):
+            process.terminate()
+        try:
+            process.wait(timeout=_get_graceful_stop_timeout(self.logger) + 10)
+        except subprocess.TimeoutExpired:
+            self.logger.warning(
+                "Generation %s did not stop; killing its process group", process.pid
+            )
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        finally:
+            # A crashed master can exit before stopping its descendants.
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+
+    def _notify_reload_ready(self) -> None:
+        if self._ready_fd is None:
+            return
+        if len(self.workers_http) < self.population and self.settings.http_enable:
+            return
+        if len(self.workers_cron) < self.settings.max_cron_threads:
+            return
+        if len(self.workers_job) < self.settings.job_workers:
+            return
+        if not all(worker.ready for worker in self.workers.values()):
+            return
+        fd, self._ready_fd = int(self._ready_fd), None
+        try:
+            os.write(fd, b"1")
+        finally:
+            os.close(fd)
 
     def _stop_long_polling(self) -> None:
         pid = self.long_polling_pid
@@ -625,14 +750,6 @@ class PreforkServer(CommonServer):
         for pid in list(self.workers):
             self.kill_worker(pid, signal.SIGINT)
 
-        is_main_server = self.pid == os.getpid()
-        processes = {}
-        if not is_main_server:
-            for pid in list(self.workers):
-                with contextlib.suppress(psutil.NoSuchProcess):
-                    processes[pid] = psutil.Process(pid)
-        self._drain_procs = processes
-
         self.beat = 0.1
         phoenix_decided = _process_state.server_phoenix
         stop_timeout = _get_graceful_stop_timeout(self.logger)
@@ -640,18 +757,14 @@ class PreforkServer(CommonServer):
         escalated = False
         while self.workers:
             try:
-                self.apply_pending_signals()
+                # Reload also drains workers here. Its outer supervisor loop
+                # must observe shutdown even when this nested loop handles it.
+                self.apply_pending_signals(draining=True)
             except KeyboardInterrupt:
                 self.logger.info("Forced shutdown.")
                 break
 
-            if is_main_server:
-                self.reap_exited_workers()
-            else:
-                for pid, proc in list(processes.items()):
-                    if not proc.is_running():
-                        self.remove_worker(pid)
-                        processes.pop(pid)
+            self.reap_exited_workers()
 
             if not escalated and time.monotonic() >= deadline:
                 escalated = True
@@ -669,34 +782,13 @@ class PreforkServer(CommonServer):
 
         _process_state.set_phoenix(phoenix_decided)
 
-    def _remove_stale_workers(self) -> None:
-        for pid in list(self.workers):
-            proc = self._drain_procs.get(pid)
-            if proc is None or not proc.is_running():
-                self.remove_worker(pid)
-                continue
-            self.kill_worker(pid, signal.SIGTERM)
-
     def stop(self, graceful: bool = True) -> None:
-        if _process_state.server_phoenix:
-            _process_state.set_phoenix(False)
-
-            try:
-                if not self.fork_and_reload():
-                    self.logger.error(
-                        "Reload aborted: new server failed to come up within "
-                        "timeout. Old workers kept alive; this (old) master is "
-                        "exiting."
-                    )
-                    return
-                self.stop_workers_gracefully()
-                self._remove_stale_workers()
-
-                self.logger.info("Old server stopped")
-                return
-            finally:
-                super().stop()
-
+        if self._replacement is not None:
+            self._stop_generation(self._replacement)
+            self._replacement = None
+        if self._ready_fd is not None:
+            os.close(int(self._ready_fd))
+            self._ready_fd = None
         if self.socket:
             self.socket.close()
         try:
@@ -712,40 +804,56 @@ class PreforkServer(CommonServer):
             self.kill_worker(pid, signal.SIGTERM)
         self._close_watchdog_selector()
         self._discard_census()
+        for fd in getattr(self, "pipe", ()):
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        if hasattr(self, "pipe"):
+            del self.pipe
 
     def run(self, preload: list[str] | None = None, stop: bool = False) -> int | None:
-        self.start()
+        try:
+            self.start()
+            rc = preload_registries(preload)
+        except BaseException:
+            self.stop(False)
+            raise
 
-        rc = preload_registries(preload)
-
-        if stop:
+        if stop or rc:
             self.stop()
             return rc
 
         db.close_all()
-
-        ready_pid = os.environ.pop("ODOO_READY_SIGHUP_PID", None)
-        if ready_pid:
-            try:
-                os.kill(int(ready_pid), signal.SIGHUP)
-            except (ValueError, ProcessLookupError, PermissionError) as e:
-                self.logger.warning(
-                    "ODOO_READY_SIGHUP_PID=%r could not be signaled: %s. "
-                    "Old workers may need to be cleaned up manually.",
-                    ready_pid,
-                    e,
-                )
 
         self.logger.debug("starting")
         while True:
             try:
                 self.apply_pending_signals()
                 self.reap_exited_workers()
+                if self._replacement is not None:
+                    code = self._replacement.poll()
+                    if code is not None:
+                        self.stop()
+                        return code
+                    time.sleep(self.beat)
+                    continue
                 self.kill_timed_out_workers()
                 self.spawn_missing_workers()
+                self._notify_reload_ready()
                 self._publish_census()
                 self.sleep()
             except KeyboardInterrupt:
+                if _process_state.server_phoenix:
+                    _process_state.set_phoenix(False)
+                    if self._reload_supervisor:
+                        os.kill(self._reload_supervisor, signal.SIGHUP)
+                    else:
+                        try:
+                            self.reload()
+                        except Exception:
+                            self.logger.exception(
+                                "Reload failed; keeping current generation"
+                            )
+                    continue
                 self.logger.debug("clean stop")
                 self.stop()
                 break

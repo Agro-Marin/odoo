@@ -48,6 +48,7 @@ ATTACKS = {
 }
 
 BENIGN = {
+    "setting-in-function": "CREATE FUNCTION pg_temp.scanner_literal() RETURNS text LANGUAGE sql AS $$ SELECT 'standard_conforming_strings = off' $$;\n",
     "inside-string": "SELECT '\\! touch {C}';\n",
     "inside-dollar-body": "SELECT $$\\! touch {C}$$;\n",
     "inside-line-comment": "-- \\! touch {C}\nSELECT 1;\n",

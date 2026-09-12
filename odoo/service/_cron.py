@@ -231,14 +231,16 @@ class CronListener:
 
     def connect(self) -> None:
         cursor = open_cron_listener(self._channel, self._logger)
-        selector = selectors.DefaultSelector()
+        selector = None
         try:
+            selector = selectors.DefaultSelector()
             if self._extra_read_fd is not None:
                 selector.register(self._extra_read_fd, selectors.EVENT_READ)
             selector.register(cursor.connection, selectors.EVENT_READ)
         except BaseException:
-            with contextlib.suppress(Exception):
-                selector.close()
+            if selector is not None:
+                with contextlib.suppress(Exception):
+                    selector.close()
             close_cron_cursor(cursor)
             raise
         self.close()
@@ -298,6 +300,11 @@ class CronSchedule:
 
     def _is_stale(self) -> bool:
         return self._clock() - self._listed_at >= self._refresh_interval
+
+    @property
+    def polling_delay(self) -> float:
+        """Bound listener sleep by the next sweep, including the first one."""
+        return max(0.0, self._listed_at + self._refresh_interval - self._clock())
 
     def reset_known_databases(self) -> OrderedSet[str]:
         self._known = OrderedSet(self._list_databases())

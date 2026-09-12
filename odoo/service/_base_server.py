@@ -53,6 +53,7 @@ def run_on_stop_hooks(logger: logging.Logger) -> None:
 
 
 class CommonServer:
+    is_reload_watcher_owner = True
     flavor = "unknown"
     """How this server names itself to an operator, a metric, an alert.
 

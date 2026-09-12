@@ -24,7 +24,7 @@ class TestTheWorkerCensusCrossesTheFork:
 
     @pytest.fixture
     def master(self, tmp_path):
-        obj = object.__new__(_prefork.PreforkServer)
+        obj = _prefork.PreforkServer(None)
         obj.pid = os.getpid()
         obj.logger = MagicMock()
         obj.population = 3
@@ -39,7 +39,7 @@ class TestTheWorkerCensusCrossesTheFork:
 
     def _child_of(self, master):
         """A forked child: same `self.pid` (the master's), different os.getpid()."""
-        child = object.__new__(_prefork.PreforkServer)
+        child = _prefork.PreforkServer(None)
         child.pid = master.pid
         child.logger = MagicMock()
         return child
@@ -192,7 +192,7 @@ class TestTheWorkerCensusCrossesTheFork:
 
 @pytest.fixture
 def prefork():
-    obj = object.__new__(_prefork.PreforkServer)
+    obj = _prefork.PreforkServer(None)
     obj.population = 2
     obj.logger = MagicMock()
     obj.workers = {}
@@ -228,11 +228,12 @@ class TestSignalHandlerCoalescesSigchld:
         prefork.signal_handler(signal.SIGCHLD, None)
         assert prefork.queue == [signal.SIGCHLD]
 
-    def test_other_signals_are_not_coalesced(self, prefork):
-        prefork.signal_handler(signal.SIGHUP, None)
-        prefork.signal_handler(signal.SIGHUP, None)
-        assert prefork.queue == [signal.SIGHUP, signal.SIGHUP], (
-            "two SIGHUPs are two reload requests; collapsing them drops one"
+    @pytest.mark.parametrize("sig", [signal.SIGTTIN, signal.SIGTTOU])
+    def test_population_signals_are_not_coalesced(self, prefork, sig):
+        prefork.signal_handler(sig, None)
+        prefork.signal_handler(sig, None)
+        assert prefork.queue == [sig, sig], (
+            "population changes count each signal, even while another is pending"
         )
 
     def test_every_signal_wakes_the_select_loop(self, prefork):
@@ -727,31 +728,8 @@ class TestRun:
         with pytest.raises(SystemExit):
             running(stop=False, loop_raises=SystemExit(2))
 
-    def test_the_old_master_is_signalled_that_this_one_is_ready(self, running):
-        _, _, kill, _ = running(stop=False, ready_pid="4242")
-        kill.assert_called_once_with(4242, signal.SIGHUP)
-
-    def test_the_handover_variable_is_consumed_not_inherited(self, running):
-        running(stop=False, ready_pid="4242")
-        assert "ODOO_READY_SIGHUP_PID" not in os.environ, (
-            "left in the environment it is inherited by every worker fork, and "
-            "each of them signals the old master again"
-        )
-
-    def test_an_unsignalable_old_master_is_a_warning_not_a_failure(self, running):
-        rc, _calls, kill, _ = running(stop=False, ready_pid="not-a-pid")
-        assert rc is None, (
-            "the new server is up; failing the boot because the old one had "
-            "already exited would be the one outcome worse than a stale process"
-        )
-        assert not kill.called
-
-    def test_a_dead_old_master_is_also_survivable(self, running):
-        rc, _, kill, _ = running(
-            stop=False, ready_pid="999999", kill_raises=ProcessLookupError
-        )
-        assert rc is None, (
-            "the old master exited on its own between handing over and being "
-            "told to; there is nothing left to do and nothing wrong"
-        )
-        kill.assert_called_once()
+    def test_failed_preload_never_enters_the_supervisor_loop(self, running):
+        rc, calls, kill, _ = running(stop=False, preload_rc=3)
+        assert rc == 3
+        assert calls == ["start", "stop"]
+        kill.assert_not_called()

@@ -208,7 +208,7 @@ class TestGetPublicMethodCache:
             first = mod.get_public_method(_FakeModel(), "public_method")
             second = mod.get_public_method(_FakeModel(), "public_method")
         assert first is second
-        assert cache[_FakeModel]["public_method"] is first
+        assert cache[_FakeModel]["public_method"][0] is first
 
     def test_rejections_are_not_cached(self, mod, cache) -> None:
         from odoo.exceptions import AccessError
@@ -237,15 +237,15 @@ class TestGetPublicMethodCache:
             b = mod.get_public_method(Other(), "public_method")
         try:
             assert a is not b
-            assert cache[_FakeModel]["public_method"] is a
-            assert cache[Other]["public_method"] is b
+            assert cache[_FakeModel]["public_method"][0] is a
+            assert cache[Other]["public_method"][0] is b
         finally:
             cache.pop(Other, None)
 
     def test_rebinding_the_method_invalidates_the_entry(self, mod, cache) -> None:
         with patch.object(mod, "BaseModel", _FakeBaseModel):
             original = mod.get_public_method(_FakeModel(), "public_method")
-            assert cache[_FakeModel]["public_method"] is original
+            assert cache[_FakeModel]["public_method"][0] is original
 
             def replacement(self) -> str:
                 return "replaced"
@@ -379,22 +379,25 @@ class TestForceLazyValues:
         mod._force_lazy_values([1, 2.0, True, None, "s", b"b", lz1, {"x": 3, "y": lz2}])
         assert f1() and f2()
 
-    def test_cyclic_result_does_not_crash_with_recursionerror(self, mod) -> None:
+    def test_cyclic_result_fails_before_the_commit(self, mod) -> None:
         cyclic_list: list = [1]
         cyclic_list.append(cyclic_list)
-        assert mod._force_lazy_values(cyclic_list) is cyclic_list
+        with pytest.raises(ValueError, match="cyclic"):
+            mod._force_lazy_values(cyclic_list)
 
         cyclic_dict: dict = {}
         cyclic_dict["self"] = cyclic_dict
-        assert mod._force_lazy_values(cyclic_dict) is cyclic_dict
+        with pytest.raises(ValueError, match="cyclic"):
+            mod._force_lazy_values(cyclic_dict)
 
-    def test_result_nested_past_recursion_limit_does_not_crash(self, mod) -> None:
+    def test_excessively_nested_result_fails_before_the_commit(self, mod) -> None:
         import sys
 
         deep: object = "leaf"
         for _ in range(sys.getrecursionlimit() + 500):
             deep = [deep]
-        mod._force_lazy_values(deep)
+        with pytest.raises(ValueError, match="nested too deeply"):
+            mod._force_lazy_values(deep)
 
 
 class TestParamsStr:
@@ -1114,7 +1117,8 @@ class TestExecuteCr:
         sentinel = object()
         with (
             patch.object(mod.api, "Environment", return_value=env),
-            patch.object(mod, "retrying", return_value="raw"),
+            patch.object(mod, "retrying", side_effect=lambda fn, *a: fn()),
+            patch.object(mod, "call_kw", return_value="raw"),
             patch.object(mod, "_force_lazy_values", return_value=sentinel) as forced,
         ):
             out = mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
@@ -1136,7 +1140,8 @@ class TestExecuteCr:
         env = self._env(MagicMock())
         with (
             patch.object(mod.api, "Environment", return_value=env),
-            patch.object(mod, "retrying", return_value={"total": lazy(produce)}),
+            patch.object(mod, "retrying", side_effect=lambda fn, *a: fn()),
+            patch.object(mod, "call_kw", return_value={"total": lazy(produce)}),
         ):
             out = mod.execute_cr(cr, 7, "res.partner", "read", [[1]], {})
             assert produced == [1], (
@@ -1164,8 +1169,9 @@ class TestExecuteCr:
         thunk, passed_env, participant = retry.call_args.args
         assert participant is None, "the RPC path runs with no retry participant"
         assert passed_env is env
-        assert thunk.func is mod.call_kw
-        assert thunk.args[1:] == ("read", [[1]], {})
+        with patch.object(mod, "call_kw", return_value="ok") as called:
+            assert thunk() == "ok"
+        assert called.call_args.args[1:] == ("read", [[1]], {})
 
     def test_thread_is_labelled_with_model_and_method(self, mod, owns_rpc_model_method):
         self._run(mod)

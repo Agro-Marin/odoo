@@ -29,35 +29,16 @@ base, and `base=2` is what reproduces this curve exactly.
 """
 
 
-def _is_inherited_from_cron(limit: int) -> bool:
-    return limit <= INHERIT_FROM_CRON
-
-
-def _get_inherited_budget(*keys: str) -> int:
-    settings = current()
-    limit: int = getattr(settings, keys[0])
-    for key in keys[1:]:
-        if not _is_inherited_from_cron(limit):
-            break
-        limit = getattr(settings, key)
-    return limit
-
-
 def get_job_max_age() -> int:
-    return _get_inherited_budget("limit_time_worker_job", "limit_time_worker_cron")
+    return current().job_max_age
 
 
 def get_cron_real_time_budget() -> float:
-    return max(_get_inherited_budget("limit_time_real_cron", "limit_time_real"), 0)
+    return current().cron_real_time_budget
 
 
 def get_job_real_time_budget() -> float:
-    return max(
-        _get_inherited_budget(
-            "limit_time_real_job", "limit_time_real_cron", "limit_time_real"
-        ),
-        0,
-    )
+    return current().job_real_time_budget
 
 
 def get_memory_rss(process: Any) -> int:

@@ -175,12 +175,10 @@ class TestRunStopAfterInit:
 
 
 class TestRunServing:
-    def test_serving_returns_none_whatever_the_preload_said(self, run_server):
-        rc, _ = run_server(stop=False, preload_rc=3)
-        assert rc is None, (
-            "the preload code is only an exit status for --stop-after-init; a "
-            "server that ran and was signalled exited normally"
-        )
+    def test_failed_preload_stops_without_starting_background_work(self, run_server):
+        rc, calls = run_server(stop=False, preload_rc=3)
+        assert rc == 3
+        assert calls == ["start", "stop"]
 
     def test_it_spawns_cron_and_job_workers_before_the_loop(self, run_server):
         _, calls = run_server(stop=False)

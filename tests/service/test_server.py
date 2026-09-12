@@ -2,14 +2,12 @@ import contextlib
 import errno
 import fcntl
 import http.server
-import itertools
 import logging
 import os
 import signal
 import socket
 import threading
 import time
-from collections import deque
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -76,22 +74,9 @@ def worker_cron(srv, multi):
 
 @pytest.fixture
 def prefork_server(srv):
-    obj = object.__new__(srv.PreforkServer)
-    obj.queue = deque()
-    obj.population = 4
-    obj.logger = MagicMock()
-    obj.workers = {}
-    obj.long_polling_pid = None
-    obj.long_polling_popen = None
-    obj.long_polling_spawn_time = 0.0
-    obj._consecutive_fast_deaths = 0
-    obj._respawn_not_before = 0.0
-    obj._drain_procs = {}
-    obj._killed_workers = {}
-    obj.workers_http = {}
-    obj.workers_cron = {}
-    obj.workers_job = {}
-    return obj
+    with server_settings.override(workers=4):
+        return srv.PreforkServer(None)
+
 
 
 class TestEmptyPipe:
@@ -196,46 +181,6 @@ class TestPreforkServerProcessSignals:
         assert prefork_server.population == 4
 
 
-class TestPreforkForkAndReloadNoSocket:
-    def test_reload_without_socket_reaches_reexec(self, prefork_server):
-        prefork_server.socket = None
-        seen = {}
-
-        def fake_reexec(*a, **k):
-            seen["env"] = dict(os.environ)
-            raise SystemExit("reexec-sentinel")
-
-        with (
-            patch("odoo.service._prefork.os.fork", return_value=4242),
-            patch("odoo.service._prefork._reexec_server", fake_reexec),
-            patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
-        ):
-            with pytest.raises(SystemExit, match="reexec-sentinel"):
-                prefork_server.fork_and_reload()
-        assert "env" in seen
-        assert "ODOO_HTTP_SOCKET_FD" not in seen["env"]
-
-    def test_reload_with_socket_hands_off_fd(self, prefork_server):
-        sock = MagicMock()
-        sock.fileno.return_value = 7
-        prefork_server.socket = sock
-        seen = {}
-
-        def fake_reexec(*a, **k):
-            seen["env"] = dict(os.environ)
-            raise SystemExit
-
-        with (
-            patch("odoo.service._prefork.os.fork", return_value=4242),
-            patch("odoo.service._prefork._reexec_server", fake_reexec),
-            patch("odoo.service._prefork.fcntl.fcntl", return_value=0),
-            patch.dict("odoo.service._prefork.os.environ", {}, clear=False),
-        ):
-            with pytest.raises(SystemExit):
-                prefork_server.fork_and_reload()
-        assert seen["env"].get("ODOO_HTTP_SOCKET_FD") == "7"
-
-
 class TestCronListenerConnect:
     def _mock_db(self, *, in_recovery: bool):
         conn = MagicMock()
@@ -297,6 +242,8 @@ class TestCronListenerConnect:
 class TestWorkerCronSleepWatchdog:
     def _select_timeout(self, worker_cron):
         worker_cron.db_queue.clear()
+        worker_cron.schedule._list_databases = list
+        worker_cron.schedule.get_due_databases([])
         with (
             patch("odoo.service._worker.time.sleep"),
             patch("odoo.service._worker.empty_pipe"),
@@ -312,14 +259,14 @@ class TestWorkerCronSleepWatchdog:
     def test_idle_sleep_uncapped_when_watchdog_disabled(self, worker_cron):
         worker_cron.watchdog_timeout = None
         timeout = self._select_timeout(worker_cron)
-        assert timeout >= 60, timeout
+        assert 59 <= timeout <= 60, timeout
 
     def test_default_watchdog_does_not_shorten_idle_sleep_below_interval(
         self, worker_cron
     ):
         worker_cron.watchdog_timeout = 120
         timeout = self._select_timeout(worker_cron)
-        assert timeout >= 60, timeout
+        assert 59 <= timeout <= 60, timeout
 
 
 class TestWorkerCronProcessWorkReconnect:
@@ -804,11 +751,11 @@ class TestWorkerRunFaultExit:
         w.alive = True
         w.pid = os.getpid()
         w.request_count = 0
-        w.watchdog_pipe = (0, 0)
+        w.watchdog_pipe = os.pipe()
         w.multi = MagicMock()
         w.logger = MagicMock()
         w.start = MagicMock()
-        w.stop = MagicMock()
+        w.stop = MagicMock(side_effect=lambda: [os.close(fd) for fd in w.watchdog_pipe])
         w.check_limits = MagicMock()
         w.sleep = MagicMock()
         return w
@@ -1692,6 +1639,7 @@ def request_handler(srv):
 class TestRequestHandlerWebSocket:
     def test_websocket_connection_close_is_suppressed(self, request_handler):
         request_handler.headers.get.return_value = "websocket"
+        request_handler._switching_protocols = True
         with patch.object(
             http.server.BaseHTTPRequestHandler, "send_header"
         ) as mock_send:
@@ -1710,6 +1658,7 @@ class TestRequestHandlerWebSocket:
 
     def test_end_headers_websocket_replaces_streams(self, request_handler):
         request_handler.headers.get.return_value = "websocket"
+        request_handler._switching_protocols = True
         with patch.object(http.server.BaseHTTPRequestHandler, "end_headers"):
             request_handler.end_headers()
         assert isinstance(request_handler.rfile, BytesIO)
@@ -2116,7 +2065,7 @@ def inherited_listener(request):
 
 
 def _adopt_inherited_fd(fd, *, via_env, interface):
-    server = object.__new__(_prefork.PreforkServer)
+    server = _prefork.PreforkServer(None)
     server.logger = MagicMock()
     server.interface, server.port, server.population = interface, 0, 2
     server.open_pipe = MagicMock(return_value=(0, 0))
@@ -2177,91 +2126,6 @@ class TestInheritedListenSocketKeepsItsFamily:
             assert flags & fcntl.FD_CLOEXEC
         finally:
             adopted.detach()
-
-
-class TestForkAndReloadTimeout:
-    def test_fork_and_reload_returns_true_on_sighup(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.socket.fileno.return_value = 99
-
-        with (
-            patch.object(os, "fork", return_value=0),
-            patch.object(_prefork.fcntl, "fcntl", return_value=0),
-            patch.object(signal, "signal") as mock_sig,
-            patch.object(time, "monotonic", side_effect=itertools.count(0.0, 0.1)),
-            patch.object(time, "sleep"),
-        ):
-            handlers = {}
-
-            def capture_handler(sig, handler):
-                handlers[sig] = handler
-
-            mock_sig.side_effect = capture_handler
-
-            def fire_handler_on_install(sig, handler):
-                handlers[sig] = handler
-                if sig == signal.SIGHUP:
-                    handler(sig, None)
-
-            mock_sig.side_effect = fire_handler_on_install
-
-            result = ps.fork_and_reload()
-
-        assert result is True
-
-    def test_fork_and_reload_returns_false_on_timeout(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.socket.fileno.return_value = 99
-
-        times = itertools.chain([0.0], itertools.count(70.0, 0.1))
-
-        with (
-            patch.object(os, "fork", return_value=0),
-            patch.object(_prefork.fcntl, "fcntl", return_value=0),
-            patch.object(signal, "signal"),
-            patch.object(time, "monotonic", side_effect=lambda: next(times)),
-            patch.object(time, "sleep"),
-        ):
-            result = ps.fork_and_reload()
-
-        assert result is False
-        ps.logger.error.assert_called()
-
-    def test_stop_preserves_old_workers_when_reload_fails(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.workers = {}
-
-        with (
-            patch.object(ps, "fork_and_reload", return_value=False) as mock_fr,
-            patch.object(ps, "stop_workers_gracefully") as mock_swg,
-            patch.object(_process_state, "server_phoenix", True),
-        ):
-            ps.stop()
-
-        mock_fr.assert_called_once()
-        mock_swg.assert_not_called()
-        ps.logger.error.assert_called()
-
-    def test_stop_shuts_down_workers_when_reload_succeeds(self, srv):
-        ps = object.__new__(srv.PreforkServer)
-        ps.logger = MagicMock()
-        ps.socket = MagicMock()
-        ps.workers = {}
-
-        with (
-            patch.object(ps, "fork_and_reload", return_value=True),
-            patch.object(ps, "stop_workers_gracefully") as mock_swg,
-            patch.object(_process_state, "server_phoenix", True),
-        ):
-            ps.stop()
-
-        mock_swg.assert_called_once()
 
 
 class TestOnStopFuncsModuleLevel:
@@ -2665,19 +2529,17 @@ class TestListenThreadDoesNotSwallowUnwinds:
         _drive_listen_thread(listen_server, boom, sleeps_before_stop=3)
 
 
-class TestPreforkPhoenixStopTerminatesSurvivors:
+class TestPreforkStopTerminatesSurvivors:
     @pytest.fixture
     def phoenix_server(self, prefork_server):
         prefork_server.socket = None
         prefork_server.workers = {4242: MagicMock()}
-        prefork_server._drain_procs = {4242: MagicMock(is_running=lambda: True)}
         return prefork_server
 
     def test_survivor_is_sigtermed_after_cut_short_reload_drain(
         self, srv, phoenix_server, monkeypatch
     ):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
         )
@@ -2696,7 +2558,6 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
 
     def test_fully_drained_reload_kills_nothing(self, srv, phoenix_server, monkeypatch):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
 
         def drained(self):
             self.workers.clear()
@@ -2714,7 +2575,7 @@ class TestPreforkPhoenixStopTerminatesSurvivors:
         assert killed == []
 
 
-class TestPreforkPhoenixStopRunsOnStopHooks:
+class TestPreforkStopRunsOnStopHooks:
     @pytest.fixture
     def hooked(self, srv, monkeypatch):
         from odoo.service import _base_server
@@ -2726,14 +2587,12 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
     def _phoenix(self, prefork_server):
         prefork_server.socket = None
         prefork_server.workers = {}
-        prefork_server._drain_procs = {}
         return prefork_server
 
     def test_successful_reload_runs_the_hooks(
         self, srv, prefork_server, hooked, monkeypatch
     ):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: True)
         monkeypatch.setattr(
             srv.PreforkServer, "stop_workers_gracefully", lambda self: None
         )
@@ -2749,7 +2608,6 @@ class TestPreforkPhoenixStopRunsOnStopHooks:
         self, srv, prefork_server, hooked, monkeypatch
     ):
         monkeypatch.setattr(_process_state, "server_phoenix", True)
-        monkeypatch.setattr(srv.PreforkServer, "fork_and_reload", lambda self: False)
 
         self._phoenix(prefork_server).stop()
 
@@ -2949,7 +2807,7 @@ class TestTheStartupLineNamesTheSocketItActuallyGot:
 
     @staticmethod
     def _start(*, env, socket_activation):
-        server = object.__new__(_prefork.PreforkServer)
+        server = _prefork.PreforkServer(None)
         server.logger = MagicMock()
         server.interface, server.port, server.population = "127.0.0.1", 0, 1
         server.open_pipe = MagicMock(return_value=(0, 0))

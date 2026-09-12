@@ -3,7 +3,7 @@ import os
 import shutil
 import time
 from collections.abc import Callable
-from contextlib import closing, suppress
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -187,8 +187,14 @@ def _create_empty_database(
 
 def _rollback_new_database(db_name: str, what: str) -> None:
     _logger.info("%s: rolling back database %r after failure", what, db_name)
-    with suppress(Exception):
+    try:
         _drop_database(db_name)
+    except Exception:
+        _logger.exception(
+            "%s: could not remove database %r after failure; manual cleanup required",
+            what,
+            db_name,
+        )
 
 
 def _check_filestore_dest_free(dest: str, problem: str) -> None:

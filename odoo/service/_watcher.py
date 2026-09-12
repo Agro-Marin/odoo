@@ -94,6 +94,9 @@ class FSWatcherBase:
         self._burst_active = False
         self._burst_timer: threading.Timer | None = None
         self._reload_triggered = False
+        # Prefork keeps this process as its supervisor across reloads. Threaded
+        # mode replaces the process, so its watcher still stops after one edit.
+        self._reload_in_place = bool(current().workers)
 
     @staticmethod
     def get_watch_paths() -> list[str]:
@@ -192,13 +195,13 @@ class FSWatcherBase:
                     path,
                 )
             else:
-                if not _process_state.server_phoenix:
-                    self._reload_triggered = True
+                if self._reload_in_place or not _process_state.server_phoenix:
+                    self._reload_triggered = not self._reload_in_place
                     _logger.info(
                         "autoreload: python code updated, autoreload activated"
                     )
                     restart()
-                    return True
+                    return not self._reload_in_place
         return None
 
 
@@ -224,7 +227,8 @@ class FSWatcherWatchdog(FSWatcherBase):
     def stop(self) -> None:
         self._end_burst()
         self.observer.stop()
-        self.observer.join(timeout=_OBSERVER_JOIN_TIMEOUT_S)
+        if self.observer.ident is not None:
+            self.observer.join(timeout=_OBSERVER_JOIN_TIMEOUT_S)
         if self.observer.is_alive():
             _logger.warning(
                 "autoreload: watchdog observer did not stop within %.0fs; "
@@ -422,7 +426,13 @@ class FSWatcherInotify(FSWatcherBase):
             target=self.run, name="odoo.service.autoreload.watcher"
         )
         self.thread.daemon = True
-        self.thread.start()
+        try:
+            self.thread.start()
+        except BaseException:
+            self.started = False
+            self.thread = None
+            self._release_watcher()
+            raise
 
     def stop(self) -> None:
         self.started = False

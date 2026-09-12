@@ -11,7 +11,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from io import BytesIO
-from typing import Any, Protocol, cast
+from typing import Any, BinaryIO, Protocol, cast
 
 import werkzeug.serving
 from werkzeug.urls import uri_to_iri
@@ -178,6 +178,9 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 
 
 class RequestHandler(CommonRequestHandler):
+    rfile: BinaryIO
+    wfile: BinaryIO
+
     def setup(self) -> None:
         timeout = get_http_socket_timeout()
         if current().test_enable:
@@ -195,8 +198,7 @@ class RequestHandler(CommonRequestHandler):
         return environ
 
     def _is_websocket_upgrade(self) -> bool:
-        headers = getattr(self, "headers", None)
-        return headers is not None and headers.get("Upgrade") == "websocket"
+        return getattr(self, "_switching_protocols", False)
 
     def send_header(self, keyword: str, value: str) -> None:
         if (
@@ -211,14 +213,16 @@ class RequestHandler(CommonRequestHandler):
     def end_headers(self, *a: Any, **kw: Any) -> None:
         super().end_headers(*a, **kw)
         if self._is_websocket_upgrade():
-            orphans = (self.rfile, self.wfile)
+            read_stream, write_stream = self.rfile, self.wfile
             self.rfile = BytesIO()
             self.wfile = BytesIO()
-            for orphan in orphans:
-                with suppress(OSError):
-                    orphan.close()
+            with suppress(OSError):
+                read_stream.close()
+            with suppress(OSError):
+                write_stream.close()
 
     def send_response(self, code: int, message: str | None = None) -> None:
+        self._switching_protocols = code == 101
         super().send_response(code, message)
         if code == 101:
             conn = getattr(self, "connection", None)

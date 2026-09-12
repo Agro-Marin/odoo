@@ -78,6 +78,7 @@ class Worker:
         self.ppid = os.getpid()
         self.pid: int | None = None
         self.alive = True
+        self.ready = False
         self.request_max = multi.limit_request
         self.request_count = 0
         self.logger = _logger.getChild(self.__class__.__name__)
@@ -198,17 +199,20 @@ class Worker:
             self.stop()
 
     def _run_work_loop(self) -> None:
-        signal.pthread_sigmask(
-            signal.SIG_BLOCK,
-            {
-                signal.SIGXCPU,
-                signal.SIGINT,
-                signal.SIGQUIT,
-                signal.SIGUSR1,
-                signal.SIGUSR2,
-            },
-        )
         try:
+            signal.pthread_sigmask(
+                signal.SIG_BLOCK,
+                {
+                    signal.SIGXCPU,
+                    signal.SIGINT,
+                    signal.SIGQUIT,
+                    signal.SIGUSR1,
+                    signal.SIGUSR2,
+                },
+            )
+            # Readiness means the work thread actually started. A heartbeat
+            # during listener reconnect or main-thread setup cannot prove it.
+            os.write(self.watchdog_pipe[1], b"R")
             while self.alive:
                 self.check_limits()
                 self.multi.ping_pipe(self.watchdog_pipe)
@@ -228,13 +232,13 @@ class WorkerHTTP(Worker):
         self.sock_timeout = get_http_socket_timeout()
 
     def process_request(self, client: socket.socket, addr: tuple[str, int]) -> None:
-        client.setblocking(True)
-        client.settimeout(self.sock_timeout)
-        client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        flags = fcntl.fcntl(client, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
-        fcntl.fcntl(client, fcntl.F_SETFD, flags)
         self.server.socket = client
         try:
+            client.setblocking(True)
+            client.settimeout(self.sock_timeout)
+            client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            flags = fcntl.fcntl(client, fcntl.F_GETFD) | fcntl.FD_CLOEXEC
+            fcntl.fcntl(client, fcntl.F_SETFD, flags)
             with contextlib.suppress(BrokenPipeError):
                 self.server.finish_request(client, addr)
         finally:
@@ -292,6 +296,7 @@ class WorkerCron(Worker):
                 return
 
             interval: float = CRON_POLL_INTERVAL_S + os.getpid() % 10
+            interval = min(interval, self.schedule.polling_delay)
 
             if self.watchdog_timeout:
                 interval = min(interval, max(self.watchdog_timeout / 2, 1))

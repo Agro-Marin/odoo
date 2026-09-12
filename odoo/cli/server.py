@@ -70,6 +70,10 @@ def remove_pid_file(main_pid: int) -> None:
 
 
 def write_pid_file() -> None:
+    # Reload candidates are children of the persistent supervisor. They must
+    # neither replace its PID file nor register cleanup that removes it.
+    if int(os.environ.get("ODOO_RELOAD_SUPERVISOR_PID", "0")):
+        return
     if not odoo.evented and config["pidfile"]:
         pid = os.getpid()
         Path(config["pidfile"]).write_text(str(pid), encoding="utf-8")

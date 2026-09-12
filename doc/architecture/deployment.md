@@ -54,6 +54,30 @@ Cron workers hold registries and database connections exactly like an HTTP
 worker, so they count against `db_maxconn` and against the per-registry memory
 measured in [`qualities.md`](qualities.md#scenario-3--multi-tenancy-cost).
 
+### Reload and worker retirement
+
+Prefork reload keeps the original master as a stable supervisor. A replacement
+inherits the listening socket, preloads its registries, and waits for its workers
+to report startup completion before acknowledging readiness over an owned pipe.
+An ordinary watchdog heartbeat during a listener reconnect is not that signal.
+Failed preload or a readiness timeout discards the replacement and keeps the
+current generation supervised and serving. Successful promotion drains the old
+workers; later reload requests return to the original supervisor, avoiding a
+growing chain of proxy masters. The stable supervisor owns the file watcher so
+an edit does not schedule duplicate reloads. The replacement rereads configuration normally.
+
+The evented process restarts with its generation; this handoff does not preserve
+established WebSocket connections. Shutdown bounds generation draining and kills
+remaining descendants in its owned process group after the generation exits.
+`tests/process/test_reload_continuity.py` covers served requests during successful
+reload and preservation of the current generation after rejected replacements.
+
+SIGTTOU initiates graceful retirement of excess HTTP workers. Retiring workers
+remain in the watchdog and reaping registries until exit, and are not signaled
+repeatedly on subsequent supervision passes. A failed initial preload also
+returns a failing exit status in serving mode, for both threaded and prefork
+servers, before starting cron and job workers.
+
 ## The limits that end a request or a worker
 
 Defaults, from `odoo/tools/config.py`:
@@ -158,5 +182,5 @@ in about a second while the worst case is unchanged.
   memory and signalling cost are unmeasured.
 - **Cron contention across workers.** How `max_cron_threads` workers avoid
   running the same job is a runtime concern, not described in this view.
-- **Rolling restarts and zero-downtime upgrade**, which interact with registry
-  signalling and are not specified anywhere in this document set.
+- **Database migrations during rolling upgrades.** Keeping a healthy generation
+  running after a rejected replacement does not undo committed schema changes.

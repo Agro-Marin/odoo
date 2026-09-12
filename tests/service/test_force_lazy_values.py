@@ -151,7 +151,11 @@ class TestTheWalkDoesNotDisturbOrdinaryResults:
     def test_a_set_survives(self):
         assert _force_lazy_values({1, 2}) == {1, 2}
 
-    def test_a_cycle_does_not_take_the_rpc_down(self):
+    def test_a_cycle_is_rejected_before_commit(self):
         value: list = []
         value.append(value)
-        assert _force_lazy_values(value) is value
+        with pytest.raises(ValueError, match="cyclic"):
+            _force_lazy_values(value)
+
+    def test_a_lazy_iterator_keeps_its_materialized_result(self):
+        assert _force_lazy_values(lazy(lambda: _gen(1, 2))) == [1, 2]

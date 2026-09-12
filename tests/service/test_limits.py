@@ -247,13 +247,14 @@ def test_the_job_budget_still_walks_the_three_level_chain(real_job, real_cron, r
 
 def test_a_chain_whose_last_link_also_inherits_returns_the_sentinel():
     """Documented edge: the caller's clamp, not the resolver, absorbs it."""
-    from odoo.service._limits import _get_inherited_budget, get_cron_real_time_budget
+    from odoo.service._limits import get_cron_real_time_budget
+    from odoo.service.settings import _get_first_owned_limit
     from odoo.tools import config
 
     with patch.dict(
         config.options, {"limit_time_real_cron": -1, "limit_time_real": -1}
     ):
-        assert _get_inherited_budget("limit_time_real_cron", "limit_time_real") == -1
+        assert _get_first_owned_limit(-1, -1) == -1
         assert get_cron_real_time_budget() == 0
 
 

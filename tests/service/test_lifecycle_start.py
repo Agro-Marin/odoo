@@ -18,15 +18,19 @@ def start(monkeypatch):
         inotify=True,
         watchdog=False,
         watcher_raises=None,
+        watcher_start_raises=None,
+        watcher_stop_raises=None,
         phoenix=False,
         run_returns=0,
         run_raises=None,
+        watcher_owner=True,
     ):
         classes = {
             name: MagicMock(name=name)
             for name in ("EventServer", "PreforkServer", "ThreadedServer")
         }
         for cls in classes.values():
+            cls.return_value.is_reload_watcher_owner = watcher_owner
             cls.return_value.run = MagicMock(
                 side_effect=run_raises, return_value=run_returns
             )
@@ -37,6 +41,8 @@ def start(monkeypatch):
                 if watcher_raises is not None:
                     raise watcher_raises
                 w = MagicMock(name=name)
+                w.start.side_effect = watcher_start_raises
+                w.stop.side_effect = watcher_stop_raises
                 made_watchers.append((name, w))
                 return w
 
@@ -128,6 +134,12 @@ class TestWatcherSelection:
             "source edit would drop every open websocket"
         )
 
+    def test_replacement_does_not_duplicate_the_supervisors_watcher(self, start):
+        _, _, watchers, _, _ = start(
+            dev_mode=("reload",), workers=2, watcher_owner=False
+        )
+        assert watchers == []
+
     def test_neither_backend_warns_and_serves_anyway(self, start, caplog):
         rc, _, watchers, _, _ = start(
             dev_mode=("reload",), inotify=False, watchdog=False
@@ -153,6 +165,46 @@ class TestWatcherSelection:
 
 
 class TestShutdownAndPhoenix:
+    def test_start_and_cleanup_failures_do_not_prevent_serving(self, start, caplog):
+        rc, classes, watchers, _, _ = start(
+            dev_mode=("reload",),
+            watcher_start_raises=RuntimeError("watch start failed"),
+            watcher_stop_raises=RuntimeError("watch cleanup failed"),
+        )
+        assert rc == 0
+        watchers[0][1].stop.assert_called_once()
+        classes["ThreadedServer"].return_value.run.assert_called_once()
+        assert "watch start failed" in caplog.text
+        assert "watch cleanup failed" in caplog.text
+
+    def test_failed_watcher_start_is_cleaned_up_before_serving(self, start):
+        rc, classes, watchers, _, _ = start(
+            dev_mode=("reload",),
+            watcher_start_raises=RuntimeError("thread start failed"),
+        )
+        assert rc == 0
+        watchers[0][1].stop.assert_called_once()
+        classes["ThreadedServer"].return_value.run.assert_called_once()
+
+    def test_watcher_cleanup_does_not_mask_the_server_failure(self, start, caplog):
+        original = RuntimeError("bind failed")
+        rc, _, _, _, _ = start(
+            dev_mode=("reload",),
+            run_raises=original,
+            watcher_stop_raises=RuntimeError("observer cleanup failed"),
+        )
+        assert rc is original
+        assert "observer cleanup failed" in caplog.text
+
+    def test_watcher_cleanup_preserves_the_server_exit_status(self, start, caplog):
+        rc, _, _, _, _ = start(
+            dev_mode=("reload",),
+            run_returns=7,
+            watcher_stop_raises=RuntimeError("observer cleanup failed"),
+        )
+        assert rc == 7
+        assert "observer cleanup failed" in caplog.text
+
     def test_the_watcher_is_stopped_even_when_run_raises(self, start):
         rc, _, watchers, _, _ = start(
             dev_mode=("reload",), run_raises=RuntimeError("bind failed")

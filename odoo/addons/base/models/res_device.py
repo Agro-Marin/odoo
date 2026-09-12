@@ -147,7 +147,9 @@ class ResDeviceLog(models.Model):
             cursor = self.env.registry.cursor(readonly=False)
         else:
             cursor = nullcontext(self.env.cr)
-        with cursor as cr:
+        # Contain this optional SQL write without adding savepoints to requests
+        # whose trace did not change, or flushing unrelated pending ORM work.
+        with cursor as cr, cr.savepoint(flush=False):
             cr.execute(
                 SQL(
                     """

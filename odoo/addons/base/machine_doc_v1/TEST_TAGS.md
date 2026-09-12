@@ -5,7 +5,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 ## Quick Reference
 
 ```bash
-# All base tests (4041 methods, 834 classes, 136 files)
+# All base tests (4044 methods, 835 classes, 137 files)
 --test-tags '/base' -u base
 
 # Only post_install tests
@@ -104,7 +104,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 
 ## Test File Reference
 
-### Tagged Files (75 files, 504 classes)
+### Tagged Files (76 files, 505 classes)
 
 | File | Tags | Classes | Tests | Base Class |
 |------|------|---------|-------|------------|
@@ -117,6 +117,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_decimal_precision_audit.py` | `post_install`, `-at_install` | 1 | 4 | TransactionCase |
 | `test_depends_completeness.py` | `-standard`, `depends_sweep` | 3 | 5 | TransactionCase |
 | `test_deprecation.py` | `-at_install`, `post_install`, `deprecation` | 1 | 2 | TransactionCase |
+| `test_device_log_isolation.py` | `post_install`, `-at_install` | 1 | 2 | TransactionCase |
 | `test_display_name.py` | `-at_install`, `post_install` | 1 | 3 | TransactionCase |
 | `test_expression.py` | `res_partner` | 8 | 87 | SavepointCaseWithUserDemo, TransactionExpressionCase, TransactionCase |
 | `test_field_description_audit.py` | `post_install`, `-at_install` | 2 | 3 | TransactionCase |
@@ -254,12 +255,12 @@ These run in **both** at_install and post_install phases by default.
 
 | Metric | Value |
 |--------|-------|
-| Total test files | 136 |
-| Total test classes | 834 |
-| Total test methods | 4041 |
-| Files with @tagged | 75 (55%) |
+| Total test files | 137 |
+| Total test classes | 835 |
+| Total test methods | 4044 |
+| Files with @tagged | 76 (55%) |
 | Files without @tagged | 61 (45%) |
-| Classes using post_install | 299 |
+| Classes using post_install | 300 |
 | Unique tags | 30 |
 | Largest test file | test_db_cursor.py (114 classes, 382 tests) |
 
@@ -292,3 +293,5 @@ regenerates every figure above and the header line under Quick Reference.
 # Skip slow and benchmarks for quick iteration
 --test-tags '/base,-base_perf,-slow,-profiling' -u base
 ```
+
+Device-log error containment: `test_device_log_isolation.py` verifies that a rejected optional SQL write preserves the request transaction and an unchanged trace performs no SQL.

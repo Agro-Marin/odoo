@@ -5,13 +5,11 @@ from collections.abc import (
     Iterable,
     Iterator,
     Mapping,
-    MutableMapping,
     MutableSequence,
     Sequence,
 )
 from collections.abc import Set as AbstractSet
 from contextlib import suppress
-from functools import partial
 from weakref import WeakKeyDictionary
 
 import psycopg
@@ -54,7 +52,9 @@ class Params:
         return ", ".join(params)
 
 
-_PUBLIC_METHOD_CACHE: WeakKeyDictionary[type, dict[str, Callable]] = WeakKeyDictionary()
+_PUBLIC_METHOD_CACHE: WeakKeyDictionary[type, dict[str, tuple[Callable, object]]] = (
+    WeakKeyDictionary()
+)
 
 
 def get_public_method(model: BaseModel, name: str) -> Callable:
@@ -72,13 +72,28 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
     cls = type(model)
 
     method: Callable | None = getattr(cls, name, None)
+    descriptor: object = None
+    # Visibility is live metadata, including inherited methods. Cache only
+    # descriptor validation, never an authorization decision.
+    for mro_cls in cls.__mro__:
+        if name not in mro_cls.__dict__:
+            continue
+        cla_method = mro_cls.__dict__[name]
+        if descriptor is None:
+            descriptor = cla_method
+        if getattr(cla_method, "_api_private", False):
+            raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
+                f"Private methods (such as '{model._name}.{name}') "
+                f"cannot be called remotely."
+            )
+
     per_class = _PUBLIC_METHOD_CACHE.get(cls)
     if per_class is None:
         per_class = _PUBLIC_METHOD_CACHE[cls] = {}
     else:
         cached = per_class.get(name)
-        if cached is not None and cached is method:
-            return cached
+        if cached is not None and cached[0] is method and cached[1] is descriptor:
+            return cached[0]
 
     if not callable(method):
         error = AttributeError(f"The method '{model._name}.{name}' does not exist")
@@ -90,16 +105,7 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
             f"The method '{model._name}.{name}' cannot be called remotely."
         )
 
-    for mro_cls in cls.__mro__:
-        if not (cla_method := mro_cls.__dict__.get(name)):
-            continue
-        if getattr(cla_method, "_api_private", False):
-            raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
-                f"Private methods (such as '{model._name}.{name}') "
-                f"cannot be called remotely."
-            )
-
-    per_class[name] = method
+    per_class[name] = (method, descriptor)
     return method
 
 
@@ -224,8 +230,12 @@ def execute_cr(
         )
     thread = current_worker_thread()
     thread.rpc_model_method = f"{obj}.{method}"
-    result = retrying(partial(call_kw, recs, method, args, kw), env, participant)
-    result = _force_lazy_values(result)
+
+    def invoke():
+        # Deferred model work belongs to the attempt, before flush and commit.
+        return _force_lazy_values(call_kw(recs, method, args, kw))
+
+    result = retrying(invoke, env, participant)
     if result is None:
         _logger.debug("The method %s of the object %s returned `None`.", method, obj)
     return result
@@ -233,47 +243,49 @@ def execute_cr(
 
 def _force_lazy_values(result: typing.Any) -> typing.Any:
     try:
-        return _force_lazy_in_value(result)
-    except RecursionError:
-        _logger.warning(
-            "RPC result is cyclic or nested too deep to force lazies; "
-            "leaving it to the marshaller",
-            exc_info=True,
-        )
-        return result
+        return _force_lazy_in_value(result, {}, set())
+    except RecursionError as exc:
+        raise ValueError("RPC result is cyclic or nested too deeply") from exc
 
 
 _SCALAR_LEAF_TYPES = frozenset({int, float, bool, str, bytes, type(None)})
+_LazyMemo = dict[int, tuple[object, typing.Any]]
 
 
 def _is_bare_iterator(val: typing.Any) -> bool:
     return not isinstance(val, lazy) and isinstance(val, Iterator)
 
 
-def _force_lazy_in_mapping(val: Mapping) -> Mapping:
-    if isinstance(val, MutableMapping):
-        for key, value in list(val.items()):
-            if value.__class__ not in _SCALAR_LEAF_TYPES:
-                forced = _force_lazy_in_value(value)
-                if forced is not value:
-                    val[key] = forced
-        return val
-    for value in val.values():
-        if value.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(value):
-            _force_lazy_in_value(value)
-    return val
+def _force_lazy_in_mapping(val: Mapping, memo: _LazyMemo, active: set[int]) -> Mapping:
+    # Mapping ABCs do not establish writability: frozendict inherits dict but
+    # rejects assignment. Keep replacement values in a wire-compatible copy.
+    items = {key: val[key] for key in val}
+    changed = False
+    for key, value in items.items():
+        forced = (
+            value
+            if value.__class__ in _SCALAR_LEAF_TYPES
+            else _force_lazy_in_value(value, memo, active)
+        )
+        items[key] = forced
+        changed |= forced is not value
+    return items if changed else val
 
 
-def _force_lazy_in_sequence(val: Sequence) -> Sequence:
+def _force_lazy_in_sequence(
+    val: Sequence, memo: _LazyMemo, active: set[int]
+) -> Sequence:
     if isinstance(val, MutableSequence):
         for index, item in enumerate(val):
             if item.__class__ not in _SCALAR_LEAF_TYPES:
-                forced = _force_lazy_in_value(item)
+                forced = _force_lazy_in_value(item, memo, active)
                 if forced is not item:
                     val[index] = forced
         return val
     items = [
-        item if item.__class__ in _SCALAR_LEAF_TYPES else _force_lazy_in_value(item)
+        item
+        if item.__class__ in _SCALAR_LEAF_TYPES
+        else _force_lazy_in_value(item, memo, active)
         for item in val
     ]
     if any(new is not old for new, old in zip(items, val, strict=True)):
@@ -281,29 +293,46 @@ def _force_lazy_in_sequence(val: Sequence) -> Sequence:
     return val
 
 
-def _force_lazy_in_place(val: Iterable) -> None:
+def _force_lazy_in_place(val: Iterable, memo: _LazyMemo, active: set[int]) -> None:
     for item in val:
         if item.__class__ not in _SCALAR_LEAF_TYPES and not _is_bare_iterator(item):
-            _force_lazy_in_value(item)
+            _force_lazy_in_value(item, memo, active)
 
 
-def _force_lazy_in_value(val: typing.Any) -> typing.Any:
+def _force_lazy_in_value(
+    val: typing.Any, memo: _LazyMemo, active: set[int]
+) -> typing.Any:
     if val.__class__ in _SCALAR_LEAF_TYPES:
         return val
-    if isinstance(val, lazy):
-        _force_lazy_in_value(val._value)
-        return val
-    if isinstance(val, (str, bytes, BaseModel)):
-        return val
-    if isinstance(val, Mapping):
-        return _force_lazy_in_mapping(val)
-    if isinstance(val, Iterator):
-        return [_force_lazy_in_value(item) for item in val]
-    if isinstance(val, Sequence):
-        return _force_lazy_in_sequence(val)
-    if isinstance(val, (AbstractSet, Iterable)):
-        _force_lazy_in_place(val)
-    return val
+    marker = id(val)
+    cached = memo.get(marker)
+    if cached is not None:
+        return cached[1]
+    if marker in active:
+        raise ValueError("RPC result is cyclic")
+    active.add(marker)
+    try:
+        result = val
+        if isinstance(val, lazy):
+            value = val._value
+            forced = _force_lazy_in_value(value, memo, active)
+            result = val if forced is value else forced
+        elif isinstance(val, (str, bytes, BaseModel)):
+            pass
+        elif isinstance(val, Mapping):
+            result = _force_lazy_in_mapping(val, memo, active)
+        elif isinstance(val, Iterator):
+            result = [_force_lazy_in_value(item, memo, active) for item in val]
+        elif isinstance(val, Sequence):
+            result = _force_lazy_in_sequence(val, memo, active)
+        elif isinstance(val, (AbstractSet, Iterable)):
+            _force_lazy_in_place(val, memo, active)
+        # Retain the input too: temporary values yielded by generators may
+        # otherwise be destroyed and have their identities reused mid-walk.
+        memo[marker] = (val, result)
+        return result
+    finally:
+        active.remove(marker)
 
 
 __all__ = (

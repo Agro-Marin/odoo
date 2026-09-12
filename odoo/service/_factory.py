@@ -75,6 +75,13 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     return _run_configured_server(current(), preload, stop)
 
 
+def _stop_watcher(watcher: FSWatcherInotify | FSWatcherWatchdog) -> None:
+    try:
+        watcher.stop()
+    except Exception:
+        _logger.warning("Could not stop the file watcher", exc_info=True)
+
+
 def _run_configured_server(
     settings: ServerSettings, preload: list[str] | None, stop: bool
 ) -> int:
@@ -89,12 +96,18 @@ def _run_configured_server(
     _warn_on_connection_budget()
 
     watcher = None
-    if {"reload", "assets"} & set(settings.dev_mode) and not odoo.evented:
+    if (
+        {"reload", "assets"} & set(settings.dev_mode)
+        and not odoo.evented
+        and server.is_reload_watcher_owner
+    ):
         if inotify or watchdog:
             try:
                 watcher = FSWatcherInotify() if inotify else FSWatcherWatchdog()
                 watcher.start()
             except Exception:
+                if watcher is not None:
+                    _stop_watcher(watcher)
                 watcher = None
                 _logger.warning(
                     "Could not start the file watcher — the server runs without "
@@ -122,8 +135,8 @@ def _run_configured_server(
     try:
         rc = server.run(preload, stop)
     finally:
-        if watcher:
-            watcher.stop()
+        if watcher is not None:
+            _stop_watcher(watcher)
     if _process_state.server_phoenix:
         _reexec_server()
 

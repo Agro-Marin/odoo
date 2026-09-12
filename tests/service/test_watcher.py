@@ -1,3 +1,4 @@
+import os
 import pathlib
 import shutil
 import time
@@ -94,6 +95,64 @@ class TestFSWatcherBase:
             result = watcher.on_file_changed(str(py))
         mock_restart.assert_not_called()
         assert result is None
+
+
+@pytest.mark.parametrize("phoenix", [False, True])
+def test_prefork_watcher_keeps_accepting_source_edits(tmp_path, phoenix):
+    source = tmp_path / "source.py"
+    source.write_text("value = 1\n")
+    with (
+        server_settings.override(workers=2, dev_mode=("reload",)),
+        patch("odoo.service._process_state.server_phoenix", phoenix),
+        patch.object(_watcher, "restart") as restart,
+    ):
+        watcher = _watcher.FSWatcherBase()
+        assert not watcher.on_file_changed(str(source))
+        source.write_text("value = 2\n")
+        assert not watcher.on_file_changed(str(source))
+    assert restart.call_count == 2
+
+
+@requires_inotify
+def test_failed_watch_thread_start_releases_inotify(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        _watcher.FSWatcherBase, "get_watch_paths", staticmethod(lambda: [str(tmp_path)])
+    )
+    watcher = _watcher.FSWatcherInotify()
+    descriptors = watcher.internals.get_descriptors()
+    try:
+        with patch.object(
+            _watcher.threading.Thread,
+            "start",
+            side_effect=RuntimeError("thread exhausted"),
+        ):
+            with pytest.raises(RuntimeError, match="thread exhausted"):
+                watcher.start()
+        assert not watcher.started
+        assert watcher.thread is None
+        for fd in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(fd)
+    finally:
+        # Let the pre-fix control release its never-started thread too.
+        if watcher.thread is not None and watcher.thread.ident is None:
+            watcher.thread = None
+        watcher.stop()
+
+
+def test_watchdog_cleanup_accepts_an_observer_that_never_started(monkeypatch):
+    class Observer(_watcher.threading.Thread):
+        def stop(self):
+            pass
+
+    monkeypatch.setattr(_watcher, "Observer", Observer, raising=False)
+    monkeypatch.setattr(
+        _watcher.FSWatcherBase, "get_watch_paths", staticmethod(list)
+    )
+    watcher = _watcher.FSWatcherWatchdog()
+    watcher.stop()
+    assert watcher.observer.ident is None
+    assert not watcher.observer.is_alive()
 
 
 class TestFSWatcherAssetInvalidation:

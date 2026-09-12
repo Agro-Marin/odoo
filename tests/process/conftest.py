@@ -86,11 +86,17 @@ class ServerHandle:
 
     def http_workers(self):
         out = []
-        for child in self.children():
+        try:
+            children = psutil.Process(self.proc.pid).children(recursive=True)
+        except psutil.NoSuchProcess:
+            return out
+        for child in children:
             try:
                 if child.status() == psutil.STATUS_ZOMBIE:
                     continue
-                if "evented" not in " ".join(child.cmdline()):
+                # Reload keeps the original supervisor and one serving master.
+                # Only their leaf, non-evented descendants are HTTP workers.
+                if "evented" not in " ".join(child.cmdline()) and not child.children():
                     out.append(child)
             except psutil.NoSuchProcess, psutil.AccessDenied:
                 continue

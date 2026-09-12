@@ -145,6 +145,8 @@ class ThreadedServer(CommonServer):
                             thread_limit_time_real,
                         )
                         self.limits_reached_threads.add(thread)
+        # An observed overrun requests process recycling, even if that cron/job
+        # finishes before the monitor's next pass. Only thread exit clears it.
         for thread in list(self.limits_reached_threads):
             if not thread.is_alive():
                 self.limits_reached_threads.remove(thread)
@@ -407,6 +409,9 @@ class ThreadedServer(CommonServer):
                                 )
                             )
                             log("%s when loading database %r", report, db_name)
+                return rc
+
+            if rc:
                 return rc
 
             self.spawn_cron_threads()
