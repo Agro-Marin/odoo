@@ -968,6 +968,7 @@ does not is left as it was.
 - `_check_pool`: a quorum of at least one, and members, a group or an approver path to give it
 - `_check_source_user_path`: an approver path names its source model, every part of it exists there, and it ends in a field whose comodel is `res.users`
 - `_check_condition`: a condition names its source model, and every path it reads exists there
+- `_check_in_order_without_consent`: consent auto-approval approves every member at once, so a step whose members decide in order refuses it (and `approval.category._constrains_consent_sequential` refuses it from the category's side)
 - `_check_in_order_pool`: a step whose members decide in order lists its approvers as members, with no group and no approver path
 - `_check_figure_condition`: a figure condition has a comparison, and a `between` band's upper bound is above its lower one (or 0 for none)
 - `_check_category_not_sequential`: the same refusal as `approval.category._constrains_steps_not_sequential`, from the step's side, since creating a step does not write the category
