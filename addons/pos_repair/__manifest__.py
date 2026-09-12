@@ -16,6 +16,5 @@
             "pos_repair/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

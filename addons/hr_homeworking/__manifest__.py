@@ -21,6 +21,5 @@
             "hr_homeworking/static/tests/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

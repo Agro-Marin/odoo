@@ -35,5 +35,4 @@ This module adds the batch transfer option in warehouse management
             "stock_picking_batch/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
 }

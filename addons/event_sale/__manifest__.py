@@ -48,6 +48,5 @@ this event.
             "event_sale/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

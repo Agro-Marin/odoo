@@ -45,7 +45,6 @@ The module adds following features:
             "l10n_fr_pos_cert/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "_setup_inalterability",
 }

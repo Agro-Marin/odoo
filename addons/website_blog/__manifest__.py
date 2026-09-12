@@ -60,5 +60,4 @@
             "website_blog/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
 }

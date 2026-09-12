@@ -31,6 +31,5 @@ internal transfer document is needed.
     "demo": [
         "demo/stock_dropshipping_demo.xml",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

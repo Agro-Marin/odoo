@@ -581,6 +581,6 @@ This module provides the core of the Odoo Web Client.
             ],
         },
     },
-    "auto_install": True,
     "bootstrap": True,
+    "auto_install": True,
 }

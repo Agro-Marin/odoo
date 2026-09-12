@@ -72,6 +72,5 @@
             "purchase/static/tests/**/*.test.js",
         ],
     },
-    "installable": True,
     "application": True,
 }

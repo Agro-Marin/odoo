@@ -19,6 +19,5 @@
         "views/res_company_view.xml",
         "views/res_partner_view.xml",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

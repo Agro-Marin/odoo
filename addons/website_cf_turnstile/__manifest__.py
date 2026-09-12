@@ -26,5 +26,4 @@ This module implements Cloudflare Turnstile so that you can prevent bot spam on 
             "website_cf_turnstile/static/src/interactions/**/*.xml",
         ],
     },
-    "installable": True,
 }

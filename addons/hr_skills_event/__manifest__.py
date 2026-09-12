@@ -20,6 +20,5 @@ This module add completed course events to resume for employees.
         "views/event_event_views.xml",
         "views/hr_views.xml",
     ],
-    "assets": {},
     "auto_install": True,
 }

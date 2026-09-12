@@ -75,6 +75,6 @@ the methods over HTTP, with examples in various programming languages.
             "api_doc.assets",
         ],
     },
-    "auto_install": True,
     "bootstrap": True,
+    "auto_install": True,
 }

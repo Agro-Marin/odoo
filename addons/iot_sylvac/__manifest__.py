@@ -12,5 +12,4 @@ and over Bluetooth.
         "iot",
     ],
     "iot_handlers_in_image": True,
-    "installable": True,
 }

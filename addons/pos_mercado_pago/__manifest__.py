@@ -17,5 +17,4 @@
             "pos_mercado_pago/static/**/*",
         ],
     },
-    "installable": True,
 }

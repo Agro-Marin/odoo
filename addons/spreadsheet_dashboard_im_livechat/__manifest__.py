@@ -14,7 +14,6 @@
         "data/livechat_ongoing_sessions_actions.xml",
         "data/dashboards.xml",
     ],
-    "installable": True,
     "auto_install": [
         "im_livechat",
     ],

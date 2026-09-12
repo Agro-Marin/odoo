@@ -20,5 +20,4 @@ a plain internal user must not reach it at all.
         "approval",
         "approval_automation",
     ],
-    "installable": True,
 }

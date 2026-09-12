@@ -12,5 +12,4 @@ reports the device; l10n_se_pos carries the fiscal rules.
         "iot",
     ],
     "iot_handlers_in_image": True,
-    "installable": True,
 }

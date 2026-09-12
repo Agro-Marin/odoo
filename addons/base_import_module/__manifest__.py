@@ -23,6 +23,5 @@ for customization purpose.
             "base_import_module/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

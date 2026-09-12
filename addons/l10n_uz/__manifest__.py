@@ -27,5 +27,4 @@ Uzbekistan accounting chart and localization.
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
 }

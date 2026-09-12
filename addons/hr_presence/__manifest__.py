@@ -33,5 +33,4 @@ Allows to contact directly the employee in case of unjustified absence.
             "hr_presence/static/src/**/*",
         ],
     },
-    "installable": True,
 }

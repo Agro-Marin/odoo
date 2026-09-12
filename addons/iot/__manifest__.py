@@ -60,6 +60,5 @@ their own ``iot_*`` modules, so installing one never drags an application in.
             "iot/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

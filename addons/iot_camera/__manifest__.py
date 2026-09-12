@@ -11,5 +11,4 @@ Adds the IoT Box interface and driver for USB cameras.
         "iot",
     ],
     "iot_handlers_in_image": True,
-    "installable": True,
 }

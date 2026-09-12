@@ -35,5 +35,4 @@
         "wizards/myinvois_consolidate_invoice_wizard.xml",
         "wizards/myinvois_document_status_update_wizard.xml",
     ],
-    "installable": True,
 }

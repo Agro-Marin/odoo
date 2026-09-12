@@ -17,5 +17,4 @@
         "views/res_partner_iap_views.xml",
         "security/ir.model.access.csv",
     ],
-    "installable": True,
 }

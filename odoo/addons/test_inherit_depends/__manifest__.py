@@ -9,5 +9,4 @@
         "test_inherit",
         "test_orm",
     ],
-    "installable": True,
 }

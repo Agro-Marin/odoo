@@ -44,7 +44,6 @@
             "website_hr_recruitment/static/tests/**/*",
         ],
     },
-    "installable": True,
     "application": True,
     "auto_install": [
         "hr_recruitment",

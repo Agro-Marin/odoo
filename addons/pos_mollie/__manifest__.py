@@ -18,5 +18,4 @@
             "pos_mollie/static/src/**/*",
         ],
     },
-    "installable": True,
 }

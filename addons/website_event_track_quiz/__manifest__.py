@@ -34,5 +34,4 @@
             "website_event_track_quiz/static/src/xml/quiz_templates.xml",
         ],
     },
-    "installable": True,
 }

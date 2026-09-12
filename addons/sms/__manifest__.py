@@ -48,6 +48,5 @@ The service is provided by the In App Purchase Odoo platform.
             "sms/static/tests/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

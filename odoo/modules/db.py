@@ -196,6 +196,11 @@ def initialize(cr: Cursor) -> None:
     _mark_auto_install_modules(cr)
 
 
+def category_xml_id(categories: list[str]) -> str:
+    slug = "_".join(x.lower() for x in categories).replace("&", "and").replace(" ", "_")
+    return f"module_category_{slug}"
+
+
 def get_or_create_category_id(
     cr: Cursor,
     categories: list[str],
@@ -205,9 +210,7 @@ def get_or_create_category_id(
     built = []
     for cat_name in categories:
         built.append(cat_name)
-        xml_id = "module_category_" + ("_".join(x.lower() for x in built)).replace(
-            "&", "and"
-        ).replace(" ", "_")
+        xml_id = category_xml_id(built)
         if category_cache is not None and xml_id in category_cache:
             p_id = category_cache[xml_id]
             continue

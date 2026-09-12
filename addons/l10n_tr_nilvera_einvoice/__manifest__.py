@@ -1,5 +1,5 @@
 {
-    "name": "T\u00fcrkiye - Nilvera E-Invoice",
+    "name": "Türkiye - Nilvera E-Invoice",
     "version": "1.0",
     "category": "Accounting/Accounting",
     "description": """

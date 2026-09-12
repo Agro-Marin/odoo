@@ -16,6 +16,5 @@
         "views/crm_mail_plugin_lead.xml",
         "views/crm_lead_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

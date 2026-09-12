@@ -48,5 +48,4 @@
             "loyalty/static/src/interactions/*",
         ],
     },
-    "installable": True,
 }

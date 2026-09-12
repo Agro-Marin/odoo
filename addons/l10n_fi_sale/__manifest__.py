@@ -9,6 +9,5 @@
         "l10n_fi",
         "sale",
     ],
-    "installable": True,
     "auto_install": True,
 }

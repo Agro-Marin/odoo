@@ -34,5 +34,4 @@ following:
             "pos_razorpay/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

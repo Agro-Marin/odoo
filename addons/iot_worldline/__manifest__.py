@@ -13,5 +13,4 @@ to pay with one from the Point of Sale.
         "iot_payment_terminal",
     ],
     "iot_handlers_in_image": True,
-    "installable": True,
 }

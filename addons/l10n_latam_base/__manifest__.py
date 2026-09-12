@@ -62,6 +62,5 @@ This module is compatible with account_vat module in order to be able to validat
             "l10n_latam_base/static/src/components/select_menu_wrapper/**.*",
         ],
     },
-    "installable": True,
     "post_init_hook": "_set_default_identification_type",
 }

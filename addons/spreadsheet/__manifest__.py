@@ -126,5 +126,4 @@
             ],
         },
     },
-    "installable": True,
 }

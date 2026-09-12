@@ -31,6 +31,5 @@ e-invoicing for Croatia
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
     "post_init_hook": "post_init",
 }

@@ -21,6 +21,5 @@ Install this if you are using the Point of Sale app in Peru.
             "l10n_pe_pos/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

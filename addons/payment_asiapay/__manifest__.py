@@ -4,7 +4,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "An payment provider based in Hong Kong covering most Asian countries.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

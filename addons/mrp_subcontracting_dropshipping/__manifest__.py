@@ -15,6 +15,5 @@ This bridge module allows to manage subcontracting with the dropshipping module.
         "data/mrp_subcontracting_dropshipping_data.xml",
         "views/purchase_order_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

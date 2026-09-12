@@ -63,5 +63,4 @@ There are 2 main Payment Methods additions:
         "views/report_payment_receipt_templates.xml",
         "wizards/account_payment_register_views.xml",
     ],
-    "installable": True,
 }

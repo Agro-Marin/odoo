@@ -15,6 +15,5 @@
         "views/purchase_views.xml",
         "views/purchase_requisition_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

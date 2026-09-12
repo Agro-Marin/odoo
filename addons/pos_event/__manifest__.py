@@ -32,6 +32,5 @@
             "pos_event/static/tests/unit/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

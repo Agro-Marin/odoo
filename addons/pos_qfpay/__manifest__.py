@@ -21,5 +21,4 @@
             "pos_qfpay/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
 }

@@ -15,6 +15,5 @@
         "views/stock_picking_views.xml",
         "views/report_delivery_guide.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

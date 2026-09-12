@@ -13,6 +13,5 @@
     "data": [
         "views/sale_order_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

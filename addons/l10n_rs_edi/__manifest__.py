@@ -20,6 +20,5 @@ eFaktura E-invoice implementation for Serbia
         "views/account_move.xml",
         "views/res_partner_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

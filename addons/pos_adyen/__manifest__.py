@@ -24,5 +24,4 @@
             "pos_adyen/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

@@ -20,5 +20,4 @@ The wizard used is similar as the one for the credit note.
         "views/account_journal_views.xml",
         "security/ir.model.access.csv",
     ],
-    "installable": True,
 }

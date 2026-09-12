@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.37
+:Version: 6.38
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -223,7 +223,9 @@ The registry and tree gates carry no code and are named by test.
    * - ``test_override_signatures``
      - Override whose signature diverges from its parent (§2.4.15)
    * - ``test_manifests``
-     - Unknown or misordered ``__manifest__.py`` key (§1.2)
+     - ``__manifest__.py`` the fixer would rewrite (``lint_manifest_shape``),
+       or a value it cannot decide -- unknown key, wrong type, missing file,
+       unresolvable dependency, unbound hook (``lint_manifest_value``) (§1.2)
    * - ``test_test_holes``
      - Test file not imported exactly once in ``tests/__init__.py`` (§6.1)
    * - ``test_docstring``
@@ -428,14 +430,55 @@ feature folder. The flat ``js/`` + ``xml/`` + ``scss/`` split is legacy (§4.1).
 -----------------------
 
 Keys come from the known set, in the canonical order
-``[test_lint test_manifests]``; the fixer owns it ``[fixer _sort_manifests]``:
+``[test_lint lint_manifest_shape]``; the fixer owns the shape
+``[fixer _sort_manifests]`` and the vocabulary is its ``MANIFEST_KEY_ORDER``:
 
 ``name``, ``version``, ``category``, ``sequence``, ``summary``, ``description``,
-``author``, ``contributors``, ``website``, ``icon``, ``images``, ``license``,
-``depends``, ``external_dependencies``, ``countries``, ``data``, ``demo``,
-``assets``, ``esm``, ``installable``, ``application``, ``auto_install``,
-``post_load``,
-``pre_init_hook``, ``post_init_hook``, ``uninstall_hook``.
+``author``, ``contributors``, ``maintainer``, ``maintainers``, ``website``,
+``url``, ``support``, ``live_test_url``, ``price``, ``currency``, ``icon``,
+``images``, ``images_preview_theme``, ``license``, ``depends``,
+``external_dependencies``, ``countries``, ``data``, ``demo``,
+``oca_data_manual``, ``assets``, ``esm``, ``bootstrap``, ``web``,
+``configurator_snippets``, ``configurator_snippets_addons``,
+``new_page_templates``, ``theme_customizations``, ``iot_handlers_in_image``,
+``cloc_exclude``, ``installable``, ``application``, ``auto_install``,
+``post_load``, ``pre_init_hook``, ``post_init_hook``, ``uninstall_hook``.
+
+``init_xml``, ``update_xml``, ``demo_xml`` and ``test`` are deprecated: the
+loader defaults them and nothing reads them ``[test_lint lint_manifest_value]``.
+
+**The fixer normalises, and the shape gate reads "the fixer would rewrite
+it".** What it changes is loader-neutral or a rule of this section: a key
+restating its ``_DEFAULT_MANIFEST`` value is dropped (``installable: True``,
+``application: False``, ``auto_install: False``, ``data: []``, ``sequence:
+100`` -- ``version`` is kept, and ``auto_install: []`` is not the default, it
+means *always*); ``name``, ``category``, ``author``, ``license`` and the URL
+keys are stripped; ``summary`` is one line; a whitespace-only ``description``
+or ``website`` is dropped (a whitespace ``description`` is truthy, so it
+*blocks* the README fallback); ``countries`` is lowercase; an ``icon`` equal to
+``/<module>/static/description/icon.png`` is dropped; a ``set`` under
+``assets`` becomes a sorted list. Strings are written as they are, never
+``\uXXXX``-escaped.
+
+**What the fixer cannot decide is a value finding** ``[test_lint
+lint_manifest_value]``: an unknown key; a wrong type; a ``version`` the loader
+would mark uninstallable; a ``license`` outside ``ir.module.module``'s
+selection; a ``category`` with an empty segment or a root no
+``ir_module_category_data.xml`` declares; a URL key without a scheme;
+``depends`` naming itself, a duplicate, or a module on no addons path; an
+``auto_install`` trigger outside ``depends``; ``external_dependencies`` with a
+kind other than ``python``, ``bin``, ``apt``, or an ``apt`` hint for a
+dependency ``python`` does not declare; a ``countries`` code that is not two
+letters, or one country with no ``l10n`` in the module name; a ``data`` or
+``demo`` entry matching no file or listed twice, a ``demo`` entry outside
+``demo/``, a ``data`` entry under ``demo/`` or named ``*_demo``; an ``icon``
+matching no file; a hook ``__init__.py`` does not bind; an ``assets`` bundle
+not ``<module>.<bundle>``, not a list, or carrying a directive the asset
+pipeline does not know. Both gates read only this checkout; the sibling
+repositories run the same two scripts by hand, from the workspace root::
+
+   p314o19m/bin/python odoo/odoo/addons/test_lint/tests/_sort_manifests.py --dry-run enterprise agromarin design-themes
+   p314o19m/bin/python odoo/odoo/addons/test_lint/tests/_checker_manifest.py odoo/odoo/addons odoo/addons enterprise agromarin design-themes
 
 .. code-block:: python
 
@@ -8005,6 +8048,13 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.38
+     - 2026-09-12
+     - §1.2: the manifest vocabulary is ``MANIFEST_KEY_ORDER`` alone, the
+       fixer normalises (defaults dropped, whitespace, case, set bundles,
+       unescaped strings) and the shape gate reads "would rewrite"; the
+       value rules the fixer cannot decide are listed, and the two scripts
+       run over the sibling repositories by hand.
    * - 6.37
      - 2026-09-12
      - §2.2.2: "every consumer already reaches it" is a manifest closure, run

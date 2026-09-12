@@ -92,5 +92,4 @@ Ask questions, get answers, no distractions
             "website_forum/static/src/interactions/loader_loading.js",
         ],
     },
-    "installable": True,
 }

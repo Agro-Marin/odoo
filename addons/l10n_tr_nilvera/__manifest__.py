@@ -1,5 +1,5 @@
 {
-    "name": "T\u00fcrkiye - Nilvera",
+    "name": "Türkiye - Nilvera",
     "version": "1.0",
     "category": "Accounting/Accounting",
     "description": """

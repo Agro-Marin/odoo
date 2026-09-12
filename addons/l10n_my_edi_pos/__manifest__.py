@@ -22,6 +22,5 @@
         "views/pos_order_views.xml",
         "views/product_view.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

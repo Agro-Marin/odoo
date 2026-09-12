@@ -13,6 +13,5 @@
     "data": [
         "views/event_lead_rule_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

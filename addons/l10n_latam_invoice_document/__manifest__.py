@@ -38,5 +38,4 @@ If your localization needs this logic will then need to add this module as depen
         "wizards/account_move_reversal_view.xml",
         "security/ir.model.access.csv",
     ],
-    "installable": True,
 }

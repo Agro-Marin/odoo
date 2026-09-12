@@ -52,5 +52,4 @@ three is a localisation.
         "views/exchange_menus.xml",
         "data/ir_cron.xml",
     ],
-    "installable": True,
 }

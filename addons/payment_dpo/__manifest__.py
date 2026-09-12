@@ -3,7 +3,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A Kenyan payment provider covering several African countries.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

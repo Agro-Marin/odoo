@@ -12,5 +12,4 @@ devices, so install it only if you have one.
     "depends": [
         "iot",
     ],
-    "installable": True,
 }

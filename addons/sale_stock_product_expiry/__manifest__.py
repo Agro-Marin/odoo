@@ -17,6 +17,5 @@
             "sale_stock_product_expiry/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

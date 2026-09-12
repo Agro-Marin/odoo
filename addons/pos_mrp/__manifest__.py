@@ -21,6 +21,5 @@ This is a link module between Point of Sale and Mrp.
             "pos_mrp/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

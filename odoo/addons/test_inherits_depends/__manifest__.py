@@ -8,5 +8,4 @@
     "depends": [
         "test_inherits",
     ],
-    "installable": True,
 }

@@ -48,7 +48,6 @@ The following topics are covered by this module:
             "repair/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "_create_warehouse_data",
 }

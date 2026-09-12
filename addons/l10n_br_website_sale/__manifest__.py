@@ -12,7 +12,6 @@
     "data": [
         "views/templates.xml",
     ],
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "_l10n_br_website_sale_post_init_hook",
 }

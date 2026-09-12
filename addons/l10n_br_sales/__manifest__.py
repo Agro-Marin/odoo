@@ -14,6 +14,5 @@
         "reports/sale_order_templates.xml",
         "reports/report_invoice_templates.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

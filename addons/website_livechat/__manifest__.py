@@ -69,6 +69,5 @@
             "website_livechat/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

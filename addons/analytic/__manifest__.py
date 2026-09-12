@@ -38,5 +38,4 @@ that have no counterpart in the general financial accounts.
             "analytic/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

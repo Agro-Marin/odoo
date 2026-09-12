@@ -4,7 +4,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A Dutch payment provider covering several countries in Europe.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

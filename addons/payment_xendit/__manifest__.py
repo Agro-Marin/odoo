@@ -4,7 +4,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A payment provider for Indonesian and the Philippines.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

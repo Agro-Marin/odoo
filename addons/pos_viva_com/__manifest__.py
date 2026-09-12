@@ -23,5 +23,4 @@
             "pos_viva_com/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

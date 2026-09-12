@@ -66,7 +66,6 @@ This module introduces skills and resume management for employees.
             "/hr_skills/static/src/scss/report_employee_cv.scss",
         ],
     },
-    "installable": True,
     "application": True,
     "auto_install": True,
 }

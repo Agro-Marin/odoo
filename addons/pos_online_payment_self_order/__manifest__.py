@@ -30,6 +30,5 @@
             "pos_online_payment_self_order/static/tests/unit/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

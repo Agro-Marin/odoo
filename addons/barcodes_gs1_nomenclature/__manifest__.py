@@ -22,5 +22,4 @@
             "barcodes_gs1_nomenclature/static/src/js/tests/**/*",
         ],
     },
-    "installable": True,
 }

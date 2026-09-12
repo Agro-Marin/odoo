@@ -48,7 +48,6 @@ Dashboard / Reports for Warehouse Management includes:
             "stock_account/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "_post_init_hook",
 }

@@ -36,5 +36,4 @@ Step 4: Repeat steps 1,2,3 for all GSTIN you have in odoo. If you have a multi-c
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
 }

@@ -4,7 +4,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "An Egyptian payment provider for the Middle East.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

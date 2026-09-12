@@ -165,6 +165,5 @@ Featuring
             "website_slides.slide_embed_assets",
         ],
     },
-    "installable": True,
     "application": True,
 }

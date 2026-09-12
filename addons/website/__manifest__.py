@@ -506,10 +506,6 @@
             ],
         },
     },
-    "installable": True,
-    "application": True,
-    "post_init_hook": "post_init_hook",
-    "uninstall_hook": "uninstall_hook",
     "configurator_snippets": {
         "homepage": [
             "s_cover",
@@ -790,4 +786,7 @@
             ],
         },
     },
+    "application": True,
+    "post_init_hook": "post_init_hook",
+    "uninstall_hook": "uninstall_hook",
 }

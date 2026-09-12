@@ -84,6 +84,5 @@ A synchronization with an internal agenda (Meetings of the CRM module) is also p
             "/hr_holidays/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

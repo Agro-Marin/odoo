@@ -14,7 +14,6 @@
     "data": [
         "data/dashboards.xml",
     ],
-    "installable": True,
     "auto_install": [
         "pos_hr",
         "pos_restaurant",

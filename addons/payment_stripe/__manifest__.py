@@ -4,7 +4,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "An Irish-American payment provider covering the US and many others.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

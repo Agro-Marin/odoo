@@ -38,6 +38,5 @@ Finally, the module comes with an option to display an attribute summary table i
             "website_sale_comparison/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

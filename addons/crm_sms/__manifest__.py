@@ -14,6 +14,5 @@
         "security/ir.model.access.csv",
         "security/sms_security.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

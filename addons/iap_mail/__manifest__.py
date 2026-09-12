@@ -20,6 +20,5 @@
             "iap_mail/static/src/scss/iap_mail.scss",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

@@ -137,13 +137,6 @@
             "web/static/src/webclient/icons.scss",
             "web/static/src/views/**/*.js",
             "web/static/src/views/*.xml",
-            # webclient/**/* below pulls in the mobile pivot renderer, and
-            # views/**/*.js already carries the pivot view's own JS, but
-            # views/*.xml -- one star -- leaves web.PivotRenderer out, so the
-            # extension had no parent and every project-sharing page logged
-            # "Missing (extension) parent templates". Supply the parent beside
-            # the JS that is already here; dropping the extension instead moves
-            # @web/core/utils/macro into another chunk and breaks web_tour.
             "web/static/src/views/pivot/*.xml",
             "web/static/src/views/settings/**/*",
             "web/static/src/views/*.scss",
@@ -224,7 +217,6 @@
             ],
         },
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "_project_post_init",
     "uninstall_hook": "_project_uninstall_hook",

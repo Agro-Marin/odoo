@@ -23,5 +23,4 @@ governements, etc.)
         "views/account_journal_views.xml",
         "data/cron.xml",
     ],
-    "installable": True,
 }

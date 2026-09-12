@@ -16,6 +16,5 @@
         "wizards/compliance_letter_view.xml",
         "reports/compliance_letter_report.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

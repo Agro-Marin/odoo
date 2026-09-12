@@ -12,5 +12,4 @@ protocol. Install pos_iot_ingenico as well to pay with one from the Point of Sal
         "iot",
     ],
     "iot_handlers_in_image": True,
-    "installable": True,
 }

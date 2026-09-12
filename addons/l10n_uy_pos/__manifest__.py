@@ -17,6 +17,5 @@ Install this if you are using the Point of Sale app in Uruguay.
             "l10n_uy_pos/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

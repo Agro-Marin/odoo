@@ -27,6 +27,5 @@ Using SInvoice by Viettel
         "wizards/account_move_reversal_view.xml",
         "wizards/l10n_vn_edi_cancellation_request_views.xml",
     ],
-    "installable": True,
     "uninstall_hook": "uninstall_hook",
 }

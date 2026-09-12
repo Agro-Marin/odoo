@@ -282,6 +282,5 @@ Help your customers with this chat, and analyse their feedback.
             ],
         },
     },
-    "installable": True,
     "application": True,
 }

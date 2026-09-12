@@ -2,9 +2,7 @@
     "name": "Saudi Arabia - E-invoicing (Simplified)",
     "version": "0.2",
     "category": "Accounting/Localizations/EDI",
-    "summary": """
-        ZATCA E-Invoicing, support for PoS
-    """,
+    "summary": "ZATCA E-Invoicing, support for PoS",
     "description": """
 E-invoice implementation for Saudi Arabia; Integration with ZATCA (POS)
     """,

@@ -13,7 +13,6 @@
     "data": [
         "data/dashboards.xml",
     ],
-    "installable": True,
     "auto_install": [
         "website_sale",
     ],

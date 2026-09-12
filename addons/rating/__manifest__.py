@@ -35,5 +35,4 @@ This module allows a customer to give rating.
             "rating/static/src/core/common/**/*",
         ],
     },
-    "installable": True,
 }

@@ -8,6 +8,5 @@
         "pos_event",
         "pos_sale",
     ],
-    "installable": True,
     "auto_install": True,
 }

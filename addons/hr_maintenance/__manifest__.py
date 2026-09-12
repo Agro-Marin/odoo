@@ -18,6 +18,5 @@ Bridge between HR and Maintenance.""",
         "views/hr_views.xml",
         "wizards/hr_departure_wizard_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

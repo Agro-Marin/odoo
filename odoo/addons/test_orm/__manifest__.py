@@ -22,5 +22,4 @@
             "test_orm/static/tests/tours/x2many.js",
         ],
     },
-    "installable": True,
 }

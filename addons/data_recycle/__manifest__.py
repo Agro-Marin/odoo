@@ -27,6 +27,5 @@
             "data_recycle/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "application": True,
 }

@@ -16,6 +16,5 @@ Add relation information between Sale Orders and Purchase Orders if Make to Orde
     "data": [
         "views/purchase_order_views.xml",
     ],
-    "installable": True,
     "auto_install": True,
 }

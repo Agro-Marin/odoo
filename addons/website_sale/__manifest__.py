@@ -175,7 +175,6 @@
             "website_sale/static/src/js/components/website_sale_image_viewer.js",
         ],
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "_post_init_hook",
     "uninstall_hook": "uninstall_hook",

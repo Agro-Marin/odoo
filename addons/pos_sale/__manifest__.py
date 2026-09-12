@@ -36,7 +36,6 @@ This module adds a custom Sales Team for the Point of Sale. This enables you to 
             "pos_sale/static/tests/unit/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "post_init_hook": "_pos_sale_post_init",
 }

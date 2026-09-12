@@ -23,6 +23,5 @@
             "l10n_ar_website_sale/static/src/scss/*.scss",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

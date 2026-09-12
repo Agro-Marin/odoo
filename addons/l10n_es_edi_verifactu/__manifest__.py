@@ -30,6 +30,5 @@
             "l10n_es_edi_verifactu/static/src/css/warning.scss",
         ],
     },
-    "installable": True,
     "post_init_hook": "_l10n_es_edi_verifactu_post_init_hook",
 }

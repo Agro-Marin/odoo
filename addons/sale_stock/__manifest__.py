@@ -55,6 +55,8 @@ Preferences
             "sale_stock/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
-    "auto_install": ["sale", "stock_account"],
+    "auto_install": [
+        "sale",
+        "stock_account",
+    ],
 }

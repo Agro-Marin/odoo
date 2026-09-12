@@ -12,6 +12,5 @@ When hiding the timesheets in the portal, this module allows also hiding timeshe
         "website",
         "hr_timesheet",
     ],
-    "installable": True,
     "auto_install": True,
 }

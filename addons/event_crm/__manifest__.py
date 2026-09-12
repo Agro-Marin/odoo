@@ -30,6 +30,5 @@
             "event_crm/static/tests/tours/*.js",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

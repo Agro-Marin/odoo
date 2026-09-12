@@ -28,5 +28,4 @@ tests independently to functional aspects of other models. """,
             "test_mail/static/tests/tours/*",
         ],
     },
-    "installable": True,
 }

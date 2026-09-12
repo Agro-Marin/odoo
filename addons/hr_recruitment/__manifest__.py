@@ -56,6 +56,5 @@
             "hr_recruitment/static/tests/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

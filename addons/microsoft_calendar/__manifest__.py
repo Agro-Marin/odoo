@@ -25,6 +25,5 @@
             "microsoft_calendar/static/tests/**/*",
         ],
     },
-    "installable": True,
     "post_init_hook": "init_initiating_microsoft_uuid",
 }

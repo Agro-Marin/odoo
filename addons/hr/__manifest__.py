@@ -73,6 +73,5 @@
             "hr/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

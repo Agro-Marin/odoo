@@ -31,5 +31,4 @@
             "pos_glory_cash/static/src/utils/*.js",
         ],
     },
-    "installable": True,
 }

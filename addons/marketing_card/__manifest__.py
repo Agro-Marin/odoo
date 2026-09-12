@@ -31,6 +31,5 @@
             "marketing_card/static/src/scss/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

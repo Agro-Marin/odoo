@@ -3,7 +3,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A payment provider covering Latin America.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

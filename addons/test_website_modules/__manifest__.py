@@ -24,5 +24,4 @@ installed.""",
             "test_website_modules/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

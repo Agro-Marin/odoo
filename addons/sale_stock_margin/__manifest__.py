@@ -9,6 +9,5 @@
         "sale_stock",
         "sale_margin",
     ],
-    "installable": True,
     "auto_install": True,
 }

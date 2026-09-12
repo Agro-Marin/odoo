@@ -45,5 +45,4 @@ models which only purpose is to run tests.""",
             "test_website/static/tests/tours/*",
         ],
     },
-    "installable": True,
 }

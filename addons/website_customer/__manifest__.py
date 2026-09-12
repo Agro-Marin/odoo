@@ -27,5 +27,4 @@ Publish your customers as business references on your website to attract new pot
             "website_customer/static/src/website_builder/**/*",
         ],
     },
-    "installable": True,
 }

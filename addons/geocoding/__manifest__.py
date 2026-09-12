@@ -20,5 +20,4 @@ through a pluggable provider.
         "views/res_config_settings_views.xml",
         "data/data.xml",
     ],
-    "installable": True,
 }

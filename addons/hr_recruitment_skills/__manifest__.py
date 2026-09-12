@@ -25,6 +25,5 @@
             "hr_recruitment_skills/static/src/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

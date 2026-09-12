@@ -28,5 +28,4 @@
             "test_discuss_full/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
 }

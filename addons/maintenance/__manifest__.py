@@ -2,7 +2,6 @@
     "name": "Maintenance",
     "version": "1.0",
     "category": "Supply Chain/Maintenance",
-    "sequence": 100,
     "summary": "Track equipment and manage maintenance requests",
     "description": """
 Track equipment and maintenance requests""",
@@ -33,6 +32,5 @@ Track equipment and maintenance requests""",
             "maintenance/static/tests/tours/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

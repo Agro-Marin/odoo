@@ -26,5 +26,4 @@ This is the base module for managing Units of measure.
             "uom/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

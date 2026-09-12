@@ -82,5 +82,4 @@ Key Features
             "/event/static/src/scss/event_full_page_ticket_report_pdf.scss",
         ],
     },
-    "installable": True,
 }

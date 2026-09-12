@@ -16,6 +16,7 @@ please go to http://translations.launchpad.net/openerp-costa-rica.
     """,
     "author": "ClearCorp S.A.",
     "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
+    "url": "https://github.com/CLEARCORP/odoo-costa-rica",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
     "depends": [
@@ -30,5 +31,4 @@ please go to http://translations.launchpad.net/openerp-costa-rica.
     "auto_install": [
         "account",
     ],
-    "url": "https://github.com/CLEARCORP/odoo-costa-rica",
 }

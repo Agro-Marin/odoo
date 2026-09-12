@@ -2,9 +2,7 @@
     "name": "HTML Editor",
     "version": "1.0",
     "category": "Hidden",
-    "summary": """
-        A Html Editor component and plugin system
-    """,
+    "summary": "A Html Editor component and plugin system",
     "description": """
 Html Editor
 ==========================

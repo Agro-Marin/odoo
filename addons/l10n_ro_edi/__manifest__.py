@@ -23,7 +23,6 @@ E-invoice implementation for Romania
             "l10n_ro_edi/static/src/components/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
 }

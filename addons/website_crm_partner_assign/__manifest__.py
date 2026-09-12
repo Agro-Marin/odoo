@@ -61,5 +61,4 @@ The automatic assignment is figured from the weight of partner levels and the ge
             "website_crm_partner_assign/static/tests/tours/*",
         ],
     },
-    "installable": True,
 }

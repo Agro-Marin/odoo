@@ -26,6 +26,5 @@ driver only reports the device; pos_blackbox_be carries the fiscal rules.
         ],
     },
     "iot_handlers_in_image": True,
-    "installable": True,
     "auto_install": True,
 }

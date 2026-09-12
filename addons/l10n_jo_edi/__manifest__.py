@@ -23,7 +23,6 @@
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
     "auto_install": [
         "l10n_jo",
     ],

@@ -34,5 +34,4 @@ Using this application you can manage Sales Teams with CRM and/or Sales
             "sales_team/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

@@ -13,5 +13,4 @@ carries only what those have in common.
         "iot",
     ],
     "iot_handlers_in_image": True,
-    "installable": True,
 }

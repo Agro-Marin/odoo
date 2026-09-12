@@ -44,7 +44,6 @@ Pro rules and show the errors.
             "account_edi_ubl_cii/static/src/scss/**/*",
         ],
     },
-    "installable": True,
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",
 }

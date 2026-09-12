@@ -27,6 +27,5 @@ Module holding mail improvements for website. It holds the follow widget.
             "website_mail/static/tests/**/*.test.js",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

@@ -3,7 +3,6 @@
     "category": "Accounting/Payment Providers",
     "sequence": 350,
     "summary": "A payment provider covering the Spanish market.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

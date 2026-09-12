@@ -51,6 +51,5 @@ Main Features
             "fleet/static/src/**/*",
         ],
     },
-    "installable": True,
     "application": True,
 }

@@ -50,6 +50,5 @@ Re-implement Odoo's file import system:
             "base_import/static/tests/**/*.test.js",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

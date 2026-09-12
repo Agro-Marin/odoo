@@ -2,7 +2,7 @@
     "name": "delivery_mondialrelay",
     "version": "0.1",
     "category": "Shipping Connectors",
-    "summary": " Let's choose a Point Relais\u00ae as shipping address ",
+    "summary": "Let's choose a Point Relais® as shipping address",
     "description": """
 This module allow your customer to choose a Point Relais® and use it as shipping address.
 This module doesn't implement the WebService. It is only the integration of the widget.

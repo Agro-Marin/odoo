@@ -24,6 +24,5 @@
         "security/security.xml",
         "data/earnings_table_data.xml",
     ],
-    "installable": True,
     "post_init_hook": "_l10n_ar_wth_post_init",
 }

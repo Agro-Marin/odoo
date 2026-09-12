@@ -26,5 +26,4 @@ valid ones.
         "l10n_nl",
         "l10n_au",
     ],
-    "installable": True,
 }

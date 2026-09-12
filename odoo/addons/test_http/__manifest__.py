@@ -15,5 +15,4 @@
         "ir.model.access.csv",
         "views.xml",
     ],
-    "installable": True,
 }

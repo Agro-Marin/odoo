@@ -142,6 +142,5 @@ sent mails with personal token for the invitation of the survey.
             "chartjs-plugin-datalabels": "/survey/static/lib/chartjs-plugin-datalabels.js",
         },
     },
-    "installable": True,
     "application": True,
 }

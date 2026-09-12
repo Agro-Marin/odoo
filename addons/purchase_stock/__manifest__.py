@@ -51,7 +51,9 @@
             "purchase_stock/static/tests/*.test.js",
         ],
     },
-    "installable": True,
-    "auto_install": ["purchase", "stock_account"],
+    "auto_install": [
+        "purchase",
+        "stock_account",
+    ],
     "post_init_hook": "_create_buy_rules",
 }

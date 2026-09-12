@@ -10,6 +10,5 @@
         "crm",
         "iap_mail",
     ],
-    "installable": True,
     "auto_install": True,
 }

@@ -54,6 +54,5 @@
             "bus.websocket_worker_assets",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

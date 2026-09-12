@@ -19,14 +19,10 @@ copies agreeing. `test_python_lint.py` iterates the registry.
 
 ## Where the floors live
 
-**Not in Python.** `LintCase.assert_ratchet` takes a ratchet *gate name* and
-reads `tooling/ratchet/baselines/`; handed an integer it raises. Absence of a
-baseline file means a floor of zero.
-
-```bash
-python tooling/ratchet/ratchet.py --list | grep '^lint_'
-python tooling/ratchet/ratchet.py <gate> --count N --update --note '<what moved and why>'
-```
+**Not in Python.** `LintCase.assert_ratchet` takes a *gate name* and reads
+`tests/floors.json` -- one integer per gate, hand-edited, no entry meaning zero;
+handed an integer it raises. The ratchet is exact: above the floor fails, below
+it fails until the floor is lowered in the same change.
 
 This module was edited as a shared ledger: 24 of its last 40 commits changed
 nothing in it but an integer and the comment above it.
@@ -48,6 +44,8 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_shadowed_def.py` | `shadowed-definition` |
 | `_checker_noqa_rationale.py` | `noqa-rationale` |
 | `_checker_translated_unique.py` | `unique-over-translated-column` (cross-unit) |
+| `_checker_null_unique.py` | `null-exempt-composite-unique` (cross-unit) |
+| `_checker_manifest.py` | the manifest value rules behind `lint_manifest_value`; not in `_rules.py`, because a manifest is a dict, not a Python unit |
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
 | `_checker_tax_company.py` | `tax-company-singular` |
 | `_checker_http_json.py` | `http-json-string` |
@@ -98,10 +96,71 @@ comments cannot be read is one whose every waiver is silently inert.
 |---|---|---|
 | `_pretty_xml.py` | `_xml_identity.is_faithful` | order-**preserving**: it only reindents |
 | `_sort_xml_records.py` | `_xml_identity.preserves_content` | order-**insensitive**: reordering is the job |
-| `_sort_manifests.py` | its own round-trip check | |
+| `_sort_manifests.py` | `normalize` then a round-trip: the rendered dict must equal `normalize(data)` | value-**normalising**: see below |
 
 `_xml_sweep.py` runs a fixer over every data file **once**; the gates read the
 result rather than each making their own pass.
+
+## Manifests: one vocabulary, one fixer, two gates
+
+`_sort_manifests.MANIFEST_KEY_ORDER` is the whole vocabulary: every key the
+loader reads (`_DEFAULT_MANIFEST` plus `author`, `license`, `icon`, the
+app-store fields, `oca_data_manual` for agromarin's seed tooling) in canonical
+order. `DEPRECATED_KEYS` names the four the loader defaults but nothing reads
+(`init_xml`, `update_xml`, `demo_xml`, `test`). A key in neither is unknown.
+`test_manifests` pins that the two sets together cover `_DEFAULT_MANIFEST`.
+
+`normalize(module, data)` is what the fixer may change, and all of it is
+loader-neutral or a stated `doc/coding_guidelines.rst` §1.2 rule: keys go to
+canonical order; a key restating its `_DEFAULT_MANIFEST` value is dropped
+(`version` excepted, the guide wants it stated; `auto_install: []` is not the
+default, it means *always*); `name`, `category`, `author`, `license` and the
+URL keys are stripped; `summary` collapses to one line; a whitespace-only
+`description` or `website` goes (a whitespace `description` is truthy and
+**blocks the README fallback** -- 37 modules had one); `countries` lowercases
+(`ir.module.module._update_countries` uppercases anyway); an `icon` equal to
+its own default goes; a `set` bundle under `assets` becomes a sorted list (a
+set has no order, and `crm_livechat` shipped one). Strings are written as
+they are, not `\uXXXX`-escaped -- the 2026-09-11 sweep escaped 12 manifests'
+authors, which the `ensure_ascii` default did silently. What follows the dict
+literal is kept.
+
+| gate | reads | floor |
+|---|---|---|
+| `lint_manifest_shape` | `sort_manifest(path, dry_run=True)` is `True` (would rewrite) or `None` (declines) | hard zero |
+| `lint_manifest_value` | `_checker_manifest.ManifestChecker.findings` | hard zero |
+
+The value rules are what no fixer can decide: unknown or deprecated key; a
+value of the wrong type; `version` the loader would mark uninstallable
+(`_normalize_version`); `license` outside `ir.module.module`'s selection
+(pinned against the field); `category` with an empty segment or a root no
+`odoo/addons/base/data/ir_module_category_data.xml` -- or a sibling's file of
+that name -- declares (the loader creates
+any category on the fly, so a typo is a stray category); a URL key without a
+scheme; `depends` naming itself, a duplicate, or a module on no addons path;
+an `auto_install` trigger outside `depends`; `external_dependencies` with a
+kind other than `python`, `bin`, `apt` (`l10n_ec_edi` wrote `deb`, read by
+nothing), or an `apt` hint for a dependency `python` does not declare; a
+`countries` code that is not two letters, or a single country with no `l10n`
+in the module name; a `data`/`demo` entry matching no file, listed twice, a
+`demo` entry outside `demo/`, a `data` entry under `demo/` or named `*_demo`;
+an `icon` matching no file; a hook name `__init__.py` does not bind (a `from
+.x import *` waives it); an `assets` bundle not `<module>.<bundle>`, not a
+list, or a directive the asset pipeline does not know or with the wrong arity.
+
+**The sibling repositories are read by the same two scripts, without
+odoo-bin.** From the workspace root, with the venv interpreter:
+
+```bash
+p314o19m/bin/python odoo/odoo/addons/test_lint/tests/_sort_manifests.py --dry-run enterprise agromarin design-themes
+p314o19m/bin/python odoo/odoo/addons/test_lint/tests/_checker_manifest.py odoo/odoo/addons odoo/addons enterprise agromarin design-themes
+```
+
+Both locate the `odoo` package from their own path when it is not importable.
+The checker resolves `depends` and `icon` across every root it is handed, so
+hand it all of them. Measured 2026-09-12 over 1615 manifests: 1194 rewritten,
+one value finding left (`partner_relationship_blocklist`, single-country with
+no `l10n`, a rename that is not the fixer's call).
 
 ## Scope, and what it excludes
 
@@ -110,27 +169,10 @@ additionally drops `_vendor/`, `upgrades/` and `migrations/`;
 `_pretty_xml.is_formattable` drops `_vendor`, `static`, `node_modules` and
 `tests`, because a fixture is not a data file.
 
-**The sibling repositories are gated from their own CI.**
-`tooling/lint/py_lint.py` runs these same checkers over any roots without
-odoo-bin, and `enterprise`, `agromarin` and `design-themes` each call it with
-`--check --scope <repo>` from their "Architecture Boundaries (cross-repo)"
-workflow, which already checks this fork out beside itself. Their floors live
-here, scoped by provenance, alongside every other floor:
-
-```bash
-python tooling/ratchet/ratchet.py --list | grep -E '^lint_.*_(agromarin|enterprise|design-themes)'
-python tooling/lint/py_lint.py ../agromarin --check --scope agromarin
-python tooling/lint/py_lint.py odoo addons --count   # agrees with the gate, rule for rule
-```
-
-Those runs are `--mode no-increase`: an exact floor across a repository boundary
-would make every fix in a sibling red until a matching commit landed here to bank
-it. **Lowering a sibling floor therefore needs a workspace holding all four
-checkouts**, which is what `naming` already asks for.
-
-`tooling/lint/test_py_lint.py` pins what makes the tool worth trusting: the
-corpus exclusions, the addon/framework split (which decides whether the facade
-rule applies), and that a rule driven to zero keeps being evaluated.
+**Nothing gates the sibling repositories any more.** The cross-repo runner
+under `tooling/` went on 2026-09-11 with the rest of `tooling/`; the Python
+checkers run only here, over this checkout. The manifest scripts above are the
+one exception, because they take roots on the command line.
 
 ## Running the gates locally
 

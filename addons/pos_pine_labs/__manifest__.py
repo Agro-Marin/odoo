@@ -33,5 +33,4 @@ Features include:
             "pos_pine_labs/static/tests/unit/data/**/*",
         ],
     },
-    "installable": True,
 }

@@ -100,5 +100,4 @@
             "test_assetsbundle.lazy_test_component",
         ],
     },
-    "installable": True,
 }

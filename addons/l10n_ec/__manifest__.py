@@ -32,6 +32,7 @@ Master Data:
 * Partners: Consumidor Final, SRI, IESS, and also basic VAT validation
 """,
     "author": "TRESCLOUD (https://trescloud.com)",
+    "maintainer": "TRESCLOUD",
     "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/ecuador.html",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
@@ -72,9 +73,7 @@ Master Data:
     "demo": [
         "demo/demo_company.xml",
     ],
-    "installable": True,
     "auto_install": [
         "account",
     ],
-    "maintainer": "TRESCLOUD",
 }

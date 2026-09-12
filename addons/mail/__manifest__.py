@@ -319,7 +319,6 @@ For more specific needs, you may also assign custom-defined actions
             ],
         },
     },
-    "installable": True,
     "application": True,
     "post_init_hook": "_mail_post_init",
 }

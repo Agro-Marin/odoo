@@ -24,6 +24,5 @@
             "website_sale_autocomplete/static/tests/**/*.js",
         ],
     },
-    "installable": True,
     "auto_install": True,
 }

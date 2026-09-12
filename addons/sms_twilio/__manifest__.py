@@ -19,5 +19,4 @@ up their account to start sending SMS messages.
         "wizards/sms_twilio_account_manage_views.xml",
         "security/ir.model.access.csv",
     ],
-    "installable": True,
 }

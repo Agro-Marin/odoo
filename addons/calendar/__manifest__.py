@@ -101,6 +101,5 @@
             "calendar/static/src/booking/xml/*.xml",
         ],
     },
-    "installable": True,
     "application": True,
 }

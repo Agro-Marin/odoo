@@ -31,5 +31,4 @@
             "hr_work_entry/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

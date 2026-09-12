@@ -81,5 +81,4 @@ Print product labels with barcode.
             "product/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

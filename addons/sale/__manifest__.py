@@ -104,6 +104,5 @@ This module contains all the common features of Sales Management and eCommerce.
             "sale/static/src/scss/sale_report.scss",
         ],
     },
-    "installable": True,
     "post_init_hook": "_post_init_hook",
 }

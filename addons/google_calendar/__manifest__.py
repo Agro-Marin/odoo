@@ -26,5 +26,4 @@
             "google_calendar/static/tests/**/*",
         ],
     },
-    "installable": True,
 }

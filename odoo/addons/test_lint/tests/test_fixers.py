@@ -490,7 +490,10 @@ class TestSortManifests(BaseCase):
         before = ast.literal_eval(_manifest_dict(path))
         result = _sort_manifests.sort_manifest(path)
         self.assertIsNotNone(result, "the fixer declined a manifest it should render")
-        self.assertEqual(ast.literal_eval(_manifest_dict(path)), before)
+        self.assertEqual(
+            ast.literal_eval(_manifest_dict(path)),
+            _sort_manifests.normalize(path.parent.name, before),
+        )
 
     def test_a_multiline_string_ending_in_a_quote_does_not_break_the_file(self):
         for value in (
@@ -598,6 +601,43 @@ class TestSortManifests(BaseCase):
         self.assertIs(_sort_manifests.sort_manifest(path), False)
         self.assertEqual(path.read_text(), once)
 
+    def test_non_ascii_is_written_as_is(self):
+        self.assertEqual(
+            _sort_manifests._fmt_str("Martín — ünïcode"), '"Martín — ünïcode"'
+        )
+        self.assertEqual(_sort_manifests._fmt_str("\udcff"), '"\\udcff"')
+
+    def test_what_follows_the_dict_is_kept(self):
+        path = self._write("""
+            {
+                "depends": ["base"],
+                "name": "thing",
+            }  # trailing
+            SUFFIX = 1
+        """)
+        self.assertIs(_sort_manifests.sort_manifest(path), True)
+        text = path.read_text()
+        self.assertTrue(text.endswith("}  # trailing\nSUFFIX = 1\n"), text)
+        self.assertEqual(
+            ast.literal_eval(_manifest_dict(path)),
+            {"name": "thing", "depends": ["base"]},
+        )
+
+    def test_a_restated_default_is_dropped(self):
+        path = self._write("""
+            {
+                "name": "thing",
+                "installable": True,
+                "application": False,
+                "depends": ["base"],
+            }
+        """)
+        self.assertIs(_sort_manifests.sort_manifest(path), True)
+        self.assertEqual(
+            ast.literal_eval(_manifest_dict(path)),
+            {"name": "thing", "depends": ["base"]},
+        )
+
     def test_an_unfaithful_rewrite_is_refused_rather_than_written(self):
         path = self._write("""
             {
@@ -648,7 +688,7 @@ class TestSortManifestsOverTheRepository(LintCase):
                 except (SyntaxError, ValueError, AssertionError) as exc:
                     offences.append(f"{manifest.name}: does not parse after: {exc}")
                     continue
-                if after != before:
+                if after != _sort_manifests.normalize(manifest.name, before):
                     offences.append(f"{manifest.name}: value changed")
 
         self.assertGreater(checked, 100, "the scan reached almost no manifests")

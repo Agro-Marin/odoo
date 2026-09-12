@@ -75,6 +75,5 @@
             "crm/static/tests/crm_mock_server.js",
         ],
     },
-    "installable": True,
     "application": True,
 }

@@ -4,7 +4,6 @@
     "category": "Accounting/Accounting",
     "sequence": 350,
     "summary": "A payment provider for running fake payment flows for demo purposes.",
-    "description": " ",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
