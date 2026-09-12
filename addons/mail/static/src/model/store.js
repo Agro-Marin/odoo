@@ -416,11 +416,21 @@ export class Store extends Record {
             /** @type {Map<string|number, [string, RecordData]>} */
             const recordsDataToDelete = new Map();
             let unresolvedIdentity = 0;
+            /**
+             * @param {string} modelName
+             * @param {RecordData} vals
+             * @returns {string|number}
+             */
+            const identityOf = (modelName, vals) => {
+                try {
+                    return `${modelName}:${models[modelName].localId(vals)}`;
+                } catch {
+                    return ++unresolvedIdentity;
+                }
+            };
+            const models = /** @type {StoreModels} */ (/** @type {unknown} */ (store));
             for (const [pyOrJsModelName, data] of Object.entries(dataByModelName)) {
                 const modelName = store._insertModelName(ctx, pyOrJsModelName);
-                const models = /** @type {StoreModels} */ (
-                    /** @type {unknown} */ (store)
-                );
                 if (!models[modelName]) {
                     log.logic("insert unknown model", () => ({ modelName }));
                     console.warn(
@@ -434,20 +444,21 @@ export class Store extends Record {
                     if (extraFields) {
                         vals = { ...vals, ...extraFields };
                     }
-                    let identity;
-                    try {
-                        identity = `${modelName}:${models[modelName].localId(vals)}`;
-                    } catch {
-                        identity = ++unresolvedIdentity;
-                    }
+                    // the identity only matters to pair a `_DELETE` row with an
+                    // insert of the same record in one payload: the later one wins
                     if (vals._DELETE) {
                         if (!extraFields) {
                             vals = { ...vals };
                         }
                         delete vals._DELETE;
-                        recordsDataToDelete.set(identity, [modelName, vals]);
+                        recordsDataToDelete.set(identityOf(modelName, vals), [
+                            modelName,
+                            vals,
+                        ]);
                     } else {
-                        recordsDataToDelete.delete(identity);
+                        if (recordsDataToDelete.size) {
+                            recordsDataToDelete.delete(identityOf(modelName, vals));
+                        }
                         insertData.push(vals);
                     }
                 }
