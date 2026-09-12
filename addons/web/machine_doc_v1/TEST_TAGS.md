@@ -12,8 +12,8 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 | `web_unit` | TransactionCase (pure Python) | 350 tests | ~45s |
 | `web_http` | HttpCase (url_open, no browser) | 114 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 7 tests | ~2 min |
-| `web_js` | Full JS suites (HOOT) | 36 tests | ~1-2 hr † |
-| `addon_js` | HOOT suites of addons with no runner of their own | 88 tests | depends on the DB's module set |
+| `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
+| `addon_js` | HOOT suites of addons with no runner of their own | 90 tests | depends on the DB's module set |
 | `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
@@ -89,6 +89,25 @@ is false and the **whole bundle** runs.
 The `./hoot` warm runner, `./hoot-shard` and `--affected` lived in the tooling
 tree and were deleted with it in `7b0f58cb517f`. Run suites through `WebSuite` /
 `MobileWebSuite` as described above.
+
+### Driving a suite by hand
+
+One `odoo-bin` of your own with `--dev=xml`, and a browser loading
+`/web/tests?headless&loglevel=2&preset=desktop&timeout=15000&id=<hash>&module_scope=<addon>`
+where `<hash>` is `HOOTCommon._generate_hash("<suite id>")`; the run ends on a
+console line `[HOOT] Test suite succeeded` or `[HOOT] Failed N tests`. Two traps:
+
+- **The mobile preset does not resize the browser.** `MobileWebSuite` sets
+  `browser_size = "375x667"` and touch on Chrome itself, plus `&tag=-headless`;
+  a page driven at 1366x768 with `preset=mobile` reads `innerWidth 1366`,
+  `ui.size 4`, and five `@web/ui` mobile reds that look exactly like an
+  `isSmall` regression. They are the harness.
+- **An unscoped page on a database with `point_of_sale` is a POS world.**
+  `_assets_pos` patches `ConfirmationDialog.setup` to run `usePos()` and
+  `utils.isSmall` to `<= MD`, so 27 of `@web/ui` read red for POS's reasons.
+  `_run_hoot` sends the scope for a lane, and since `d47df8cfe02e` also for a
+  filtered `--test-tags '…[@web/ui/dialog]'` whose positive filters all name one
+  addon; a hand-driven URL has to carry it itself.
 
 > **Stale-source warning.** A long-lived `--dev=assets` server can serve the
 > *previous* `static/src` with no error — `*.test.js` edits rebuild while
