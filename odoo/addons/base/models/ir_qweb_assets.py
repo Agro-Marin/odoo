@@ -86,6 +86,29 @@ class _StandaloneBundleDeclined(_BuildDeclined):
 class IrQweb(models.AbstractModel):
     _inherit = "ir.qweb"
 
+    def _render(
+        self,
+        template: int | str | etree._Element,
+        values: dict[str, Any] | None = None,
+        **options: Any,
+    ):
+        # The request's page state (whether an import map was written, which
+        # specifiers it maps, which bundles are on the page) describes one HTML
+        # document. A render not nested in another starts a document of its own:
+        # a controller may render two, as Studio's report editor does for the
+        # report and for the iframe that shows it, and the second one must map
+        # the specifiers the first one already mapped in a different document.
+        if not request or getattr(request, "_esm_document_open", False):
+            return super()._render(template, values, **options)
+        request._esm_import_map_rendered = False
+        request._esm_import_map_specs = frozenset()
+        request._esm_page_bundles = ()
+        request._esm_document_open = True
+        try:
+            return super()._render(template, values, **options)
+        finally:
+            request._esm_document_open = False
+
     def _get_asset_nodes(
         self,
         bundle: str,
