@@ -5,7 +5,7 @@ import { fields } from "@mail/model/misc";
 import { observeKey } from "@mail/model/store";
 import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { reactive } from "@odoo/owl";
-import { mockService } from "@web/../tests/web_test_helpers";
+import { mockService, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
 describe.current.tags("desktop");
@@ -273,4 +273,70 @@ test("updates preserve callback result identity after flushing", async () => {
     const store = await start();
     const result = { value: 42 };
     expect(store.MAKE_UPDATE(() => store.MAKE_UPDATE(() => result))).toBe(result);
+});
+
+async function startCountingDrains() {
+    const env = await start2();
+    const store = env.services.store;
+    const counter = { drains: 0 };
+    patchWithCleanup(Store.prototype, {
+        _drainQueuesOnce(...args) {
+            counter.drains++;
+            return super._drainQueuesOnce(...args);
+        },
+    });
+    return { store, counter };
+}
+
+test("deleting a record with no hooks drains the queues once", async () => {
+    (class Person extends Record {
+        static id = "id";
+        id;
+    }).register(localRegistry);
+    const { store, counter } = await startCountingDrains();
+    const person = store.Person.insert({ id: 1 });
+    counter.drains = 0;
+    person.delete();
+    expect(person.exists()).toBe(false);
+    expect(store.Person.get(1)).toBe(undefined);
+    expect(counter.drains).toBe(1);
+});
+
+test("a record deleted by the onDelete hook of a record deleted in the same flush is detached from both sides", async () => {
+    (class Thread extends Record {
+        static id = "id";
+        id;
+        members = fields.Many(/** @type {string} */ ("Member"), {
+            inverse: "thread",
+            onDelete: (member) => member.delete(),
+        });
+        newest = fields.One(/** @type {string} */ ("Member"));
+    }).register(localRegistry);
+    (class Member extends Record {
+        static id = "id";
+        id;
+        thread = fields.One(/** @type {string} */ ("Thread"));
+        buddy = fields.One(/** @type {string} */ ("Member"));
+    }).register(localRegistry);
+    const { store } = await startCountingDrains();
+    const thread = store.Thread.insert({ id: 1, members: [{ id: 1 }, { id: 2 }] });
+    const [john, marc] = thread.members;
+    john.buddy = marc;
+    marc.buddy = john;
+    thread.newest = marc;
+    thread.delete();
+    expect(thread.exists()).toBe(false);
+    expect(john.exists()).toBe(false);
+    expect(marc.exists()).toBe(false);
+    expect(store.Member.get(1)).toBe(undefined);
+    expect(store.Member.get(2)).toBe(undefined);
+    expect(store.recordByLocalId.size).toBe(1, {
+        message: "only the store record survives (no dangling reverse uses)",
+    });
+    const survivor = store.Member.insert({ id: 3, buddy: { id: 4 } });
+    const buddy = store.Member.get(4);
+    buddy.delete();
+    expect(survivor.buddy).toBe(undefined, {
+        message: "a use registered after the cascade is still released on delete",
+    });
 });
