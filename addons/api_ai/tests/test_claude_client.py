@@ -98,6 +98,41 @@ class TestClaudeStructuredOutput(EncryptionKeyCase, TransactionCase):
         self.assertNotIn("maxLength", line["properties"]["label"])
         self.assertIn("minimum", _SCHEMA["properties"]["total"], "input left intact")
 
+    def test_a_property_named_like_a_keyword_is_still_a_property(self):
+        schema = get_json_output_config(
+            {
+                "type": "object",
+                "properties": {
+                    "maximum": {"type": "number", "minimum": 0},
+                    "properties": {
+                        "type": "object",
+                        "properties": {"x": {"type": "string"}},
+                    },
+                },
+                "$defs": {"line": {"type": "object", "properties": {}}},
+            }
+        )["format"]["schema"]
+        self.assertEqual(sorted(schema["properties"]), ["maximum", "properties"])
+        self.assertNotIn("minimum", schema["properties"]["maximum"])
+        nested = schema["properties"]["properties"]
+        self.assertEqual(sorted(nested["properties"]), ["x"])
+        self.assertIs(nested["additionalProperties"], False)
+        self.assertIs(schema["$defs"]["line"]["additionalProperties"], False)
+        self.assertNotIn("additionalProperties", schema["$defs"])
+
+    def test_a_callers_output_config_is_kept_beside_the_format(self):
+        body = {"content": [{"type": "text", "text": "{}"}], "stop_reason": "end_turn"}
+        with patch.object(self.client._client, "post", return_value=_ok(body)) as post:
+            self.client.structured_output(
+                "x",
+                {"type": "object", "properties": {}},
+                model="claude-fable-5-1",
+                output_config={"effort": "low"},
+            )
+        sent = post.call_args.kwargs["json"]["output_config"]
+        self.assertEqual(sent["effort"], "low")
+        self.assertEqual(sent["format"]["type"], "json_schema")
+
     def test_the_default_output_budget_leaves_room_to_think(self):
         body = {"content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn"}
         with patch.object(self.client._client, "post", return_value=_ok(body)) as post:

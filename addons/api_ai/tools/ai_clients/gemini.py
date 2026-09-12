@@ -89,6 +89,7 @@ class GeminiClient(BaseAIClient):
         )
 
     def _complete(self, contents, model, **kwargs):
+        model = self._resolve_model(model)
         generation_config = {
             wire: kwargs.pop(name)
             for name, wire in _GENERATION_CONFIG_KEYS.items()

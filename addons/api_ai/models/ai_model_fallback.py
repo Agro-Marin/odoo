@@ -44,8 +44,8 @@ class AIModelFallback(models.Model):
             if not hop.fallback_id._can_stand_in_for(hop.model_id):
                 raise ValidationError(
                     self.env._(
-                        "%(fallback)s is a %(kind)s model and cannot answer for "
-                        "%(model)s.",
+                        "%(fallback)s cannot answer for %(model)s: its kind is "
+                        "%(kind)s.",
                         fallback=hop.fallback_id.display_name,
                         kind=hop.fallback_id.kind,
                         model=hop.model_id.display_name,

@@ -49,7 +49,8 @@ def _carry_fallback_relation(cr):
                r.fallback_id,
                row_number() OVER (
                    PARTITION BY r.model_id
-                   ORDER BY e.sequence, f.sequence, f.name->>'en_US', f.id
+                   ORDER BY e.sequence, e.name->>'en_US', p.id,
+                            f.sequence, f.name->>'en_US', f.id
                ),
                now() AT TIME ZONE 'UTC',
                now() AT TIME ZONE 'UTC'
@@ -65,8 +66,8 @@ def _carry_fallback_relation(cr):
     cr.execute("DROP TABLE ai_model_fallback_rel")
     _logger.info(
         "api_ai 19.0.1.18.0: carried %s fallback hop(s) into ai.model.fallback in "
-        "the order the Many2many used to run them (provider, then model sequence, "
-        "then name); ai_model_fallback_rel is dropped, the relation it held now "
+        "the order the Many2many used to run them (provider sequence and name, then "
+        "model sequence and name); ai_model_fallback_rel is dropped, the relation it held now "
         "has a sequence",
         carried,
     )

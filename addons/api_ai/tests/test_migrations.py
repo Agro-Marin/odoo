@@ -91,6 +91,33 @@ class TestFallbackRelationCarried(TransactionCase):
         cr.execute("SELECT to_regclass('ai_model_fallback_rel')")
         self.assertIsNone(cr.fetchone()[0])
 
+    def test_providers_tied_on_sequence_keep_their_name_order(self):
+        claude = self.env.ref("api_ai.ai_model_claude_sonnet_5")
+        moonshot = self.env["ai.provider"].search([("code", "=", "moonshot")])
+        groq = self.env["ai.provider"].search([("code", "=", "groq")])
+        (moonshot | groq).endpoint_id.write({"sequence": 5})
+        by_moonshot = self.env["ai.model"].create(
+            {"provider_id": moonshot.id, "name": "A hop", "code": "a-hop"}
+        )
+        by_groq = self.env["ai.model"].create(
+            {"provider_id": groq.id, "name": "Z hop", "code": "z-hop"}
+        )
+        self.env.flush_all()
+        cr = self.env.cr
+        cr.execute("CREATE TABLE ai_model_fallback_rel (model_id int, fallback_id int)")
+        cr.execute(
+            "INSERT INTO ai_model_fallback_rel VALUES (%s, %s), (%s, %s)",
+            (claude.id, by_moonshot.id, claude.id, by_groq.id),
+        )
+        _load("1.18.0").migrate(cr, "19.0.1.17.0")
+        self.env.invalidate_all()
+        self.assertEqual(
+            claude.fallback_model_ids.ids,
+            [by_groq.id, by_moonshot.id],
+            "the Many2many ordered tied providers by provider name, Groq before "
+            "Moonshot, before it looked at the models' own names",
+        )
+
     def test_a_database_without_the_relation_is_left_alone(self):
         _load("1.18.0").migrate(self.env.cr, "19.0.1.17.0")
 
@@ -132,3 +159,23 @@ class TestExperimentalGeminiRetired(TransactionCase):
         self.google.default_model_id = chosen
         _load("1.18.0").migrate(self.env.cr, "19.0.1.17.0")
         self.assertEqual(self.google.default_model_id, chosen)
+
+
+@tagged("post_install", "-at_install")
+class TestProviderChainsCarried(TransactionCase):
+    def test_a_provider_chain_becomes_a_hop_between_default_models(self):
+        claude = self.env["ai.provider"].search([("code", "=", "claude")])
+        openai = self.env["ai.provider"].search([("code", "=", "openai")])
+        cr = self.env.cr
+        cr.execute(
+            "CREATE TABLE ai_provider_fallback_rel (provider_id int, fallback_id int)"
+        )
+        cr.execute(
+            "INSERT INTO ai_provider_fallback_rel VALUES (%s, %s)",
+            (claude.id, openai.id),
+        )
+        _load("1.14.0").migrate(cr, "19.0.1.13.0")
+        self.env.invalidate_all()
+        self.assertEqual(
+            claude.default_model_id.fallback_model_ids, openai.default_model_id
+        )

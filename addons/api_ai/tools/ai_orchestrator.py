@@ -194,20 +194,20 @@ class AIOrchestrator:
         )
 
     def _rank(self, ai_models, strategy):
+        priced = [cost for cost in (m._get_unit_cost() for m in ai_models) if cost]
+        typical = statistics.median(priced) if priced else 1.0
+
+        def cost_of(ai_model):
+            return ai_model._get_unit_cost() or typical
+
         if strategy == "cost":
             return ai_models.sorted(
-                lambda m: (
-                    m._get_unit_cost() or float("inf"),
-                    not m.provider_id.has_free_tier,
-                )
+                lambda m: (cost_of(m), not m.provider_id.has_free_tier)
             )
         if strategy == "accuracy":
             return ai_models.sorted(lambda m: int(m.accuracy_rating), reverse=True)
         if strategy == "speed":
             return ai_models.sorted(lambda m: int(m.speed_rating), reverse=True)
-
-        priced = [cost for cost in (m._get_unit_cost() for m in ai_models) if cost]
-        typical = statistics.median(priced) if priced else 1.0
 
         def balanced_score(ai_model):
             quality = (
@@ -215,8 +215,7 @@ class AIOrchestrator:
                 + int(ai_model.speed_rating)
                 + int(ai_model.provider_id.reliability_rating)
             )
-            relative_cost = (ai_model._get_unit_cost() or typical) / typical
-            return quality / max(0.1, relative_cost)
+            return quality / max(0.1, cost_of(ai_model) / typical)
 
         return ai_models.sorted(balanced_score, reverse=True)
 

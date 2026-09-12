@@ -47,17 +47,34 @@ def get_json_output_config(schema):
     return {"format": {"type": "json_schema", "schema": _close_schema(schema)}}
 
 
-def _close_schema(node):
-    if isinstance(node, list):
-        return [_close_schema(item) for item in node]
-    if not isinstance(node, dict):
-        return node
-    closed = {
-        key: _close_schema(value)
-        for key, value in node.items()
-        if key not in _UNSUPPORTED_SCHEMA_KEYWORDS
-    }
-    if closed.get("type") == "object" or "properties" in closed:
+_SCHEMA_MAPS = ("properties", "patternProperties", "$defs", "definitions")
+
+_SCHEMA_LISTS = ("anyOf", "allOf", "oneOf", "prefixItems")
+
+_SCHEMA_CHILDREN = ("items", "not", "contains", "additionalProperties")
+
+
+def _close_schema(schema):
+    if not isinstance(schema, dict):
+        return schema
+    closed = {}
+    for key, value in schema.items():
+        if key in _UNSUPPORTED_SCHEMA_KEYWORDS:
+            continue
+        if key in _SCHEMA_MAPS and isinstance(value, dict):
+            closed[key] = {name: _close_schema(child) for name, child in value.items()}
+        elif (key in _SCHEMA_LISTS or key == "items") and isinstance(value, list):
+            closed[key] = [_close_schema(child) for child in value]
+        elif key in _SCHEMA_CHILDREN:
+            closed[key] = _close_schema(value)
+        else:
+            closed[key] = value
+    types = closed.get("type")
+    if (
+        "properties" in closed
+        or types == "object"
+        or (isinstance(types, list) and "object" in types)
+    ):
         closed.setdefault("additionalProperties", False)
     return closed
 
@@ -260,9 +277,11 @@ class ClaudeClient(BaseAIClient):
         )
 
     def _get_json_output(self, messages, schema, model, **kwargs):
-        text = self._complete(
-            messages, model, output_config=get_json_output_config(schema), **kwargs
-        )
+        output_config = {
+            **(kwargs.pop("output_config", None) or {}),
+            **get_json_output_config(schema),
+        }
+        text = self._complete(messages, model, output_config=output_config, **kwargs)
         try:
             return json.loads(text)
         except json.JSONDecodeError as error:

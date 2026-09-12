@@ -81,6 +81,19 @@ class TestSelectModel(_SelectionCase):
             self.orch.select_model(kind="audio", optimize_for="cost"), cheap
         )
 
+    def test_an_unpriced_model_is_not_ranked_behind_an_expensive_one(self):
+        provider = self._provider("sel_unpriced_cost")
+        self._model(provider, "sel-a-cheap", cost_per_1m_input=0.2)
+        self._model(provider, "sel-b-dear", cost_per_1m_input=20.0)
+        unpriced = self._model(provider, "sel-c-unpriced")
+        ranked = self.orch._rank(
+            self.env["ai.model"].search([("provider_id", "=", provider.id)]), "cost"
+        )
+        self.assertLess(
+            list(ranked).index(unpriced),
+            list(ranked).index(ranked.filtered(lambda m: m.code == "sel-b-dear")),
+        )
+
     def test_the_output_price_counts_toward_cost(self):
         provider = self._provider("sel_blend")
         self._model(

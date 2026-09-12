@@ -49,6 +49,20 @@ class TestFallbackOrder(_SelectionCase):
                     self.primary.fallback_model_ids.ids, [m.id for m in order]
                 )
 
+    def test_a_model_created_with_its_fallbacks_keeps_their_order(self):
+        created = self.env["ai.model"].create(
+            {
+                "provider_id": self.primary.provider_id.id,
+                "name": "order created",
+                "code": "order-created",
+                "fallback_model_ids": [Command.set([self.second.id, self.first.id])],
+            }
+        )
+        self.assertEqual(
+            created.fallback_ids.sorted("sequence").fallback_id.ids,
+            [self.second.id, self.first.id],
+        )
+
     def test_a_hop_that_cannot_stand_in_is_refused_when_configured(self):
         audio = self._model(self._provider("order_audio"), "order-audio", kind="audio")
         with self.assertRaises(ValidationError):

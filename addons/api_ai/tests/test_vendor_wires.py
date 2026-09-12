@@ -57,6 +57,14 @@ class TestGeminiWire(EncryptionKeyCase, TransactionCase):
             [turn["role"] for turn in sent["contents"]], ["user", "model", "user"]
         )
 
+    def test_the_cap_checked_is_the_resolved_models(self):
+        google = self.env["ai.provider"].search([("code", "=", "gemini")])
+        google.default_model_id.max_output_tokens = 100
+        body = {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+        with patch.object(self.client._client, "post", return_value=_ok(body)):
+            with self.assertLogs("odoo.addons.api_ai.tools.ai_clients.base", "WARNING"):
+                self.client.simple_completion("q", max_tokens=500)
+
     def test_a_small_image_is_still_sent(self):
         body = {"candidates": [{"content": {"parts": [{"text": "a dot"}]}}]}
         with patch.object(self.client._client, "post", return_value=_ok(body)) as post:
