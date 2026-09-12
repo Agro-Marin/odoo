@@ -19,6 +19,7 @@ from odoo.db.errors import PG_RECOVERABLE_EXCEPTIONS
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import SQL
 from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
 
@@ -1376,20 +1377,36 @@ class MailTemplate(models.Model):
             .with_context(default_type=None)
             .create(attachment_vals)
         )
-        commands_per_mail: dict[int, list] = {}
-        for mail, attachment in zip(owners, created, strict=True):
-            commands_per_mail.setdefault(mail.id, []).append(
-                Command.link(attachment.id)
+        messages = (
+            self.env["mail.message"]
+            .sudo()
+            .browse([mail.mail_message_id.id for mail in owners])
+        )
+        relation = self.env["mail.message"]._fields["attachment_ids"]
+        self.env.execute_query(
+            SQL(
+                """
+                INSERT INTO %(table)s (%(column1)s, %(column2)s)
+                     SELECT * FROM unnest(%(message_ids)s::int[], %(attachment_ids)s::int[])
+                ON CONFLICT DO NOTHING
+                """,
+                table=SQL.identifier(relation.relation),
+                column1=SQL.identifier(relation.column1),
+                column2=SQL.identifier(relation.column2),
+                message_ids=messages.ids,
+                attachment_ids=created.ids,
             )
+        )
+        touched = self.env["mail.message"].sudo().browse(set(messages.ids))
+        touched.invalidate_recordset(["attachment_ids"])
+        mails.invalidate_recordset(["attachment_ids"])
+        touched.modified(["attachment_ids"])
         _debug.lifecycle(
             "reports_attached",
             template=self.id,
-            mails=len(commands_per_mail),
+            mails=len(set(messages.ids)),
             attachments=len(created),
         )
-        for mail in mails:
-            if commands := commands_per_mail.get(mail.id):
-                mail.with_context(default_type=None).write({"attachment_ids": commands})
 
     def _has_unsafe_expression_template_qweb(
         self, template_src: str, model: str, fname: str | None = None
