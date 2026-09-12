@@ -949,16 +949,17 @@ class CalendarEvent(models.Model):
         # Resource related events must stay visible and accessible from the gantt view whatever
         # their privacy: privacy derives from the user settings, and resource events aren't
         # typically linked to any user, so their visibility shouldn't depend on it.
-        domain = super()._get_domain_default_privacy()
-        return Domain.OR(
-            [
-                domain,
-                [
-                    "&",
-                    ("appointment_type_id", "!=", False),
-                    ("appointment_type_id.schedule_based_on", "=", "resources"),
-                ],
-            ]
+        #
+        # `any!`, not a dotted path: this domain is visibility policy that
+        # `_search` injects into every search touching a non-public field, so it
+        # must not be evaluated under the caller's rights on `appointment.type`.
+        # Through `any` the subselect checked them, and a portal user -- who may
+        # read their own appointments but not appointment types -- could not
+        # count or list calendar events at all.
+        return super()._get_domain_default_privacy() | Domain(
+            "appointment_type_id",
+            "any!",
+            Domain("schedule_based_on", "=", "resources"),
         )
 
     def _get_customer_description(self):

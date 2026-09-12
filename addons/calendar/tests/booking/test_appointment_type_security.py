@@ -6,6 +6,7 @@ from odoo.tests import tagged, users
 from odoo.tools import file_open, mute_logger
 
 from odoo.addons.calendar.tests.booking.common import AppointmentSecurityCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged("security")
@@ -206,6 +207,49 @@ class TestAppointmentTypeSecurity(AppointmentSecurityCommon):
                 )
                 self.assertEqual(res.status_code, 200)
                 self.assertEqual(res.content, expected_image)
+
+    def test_portal_attendee_can_search_appointment_events(self):
+        """A portal attendee searches calendar events without reading appointment types.
+
+        Any search on a non-public field makes `calendar.event._search` inject
+        the privacy domain, and the booking override of that domain names
+        resource-based appointment types. A portal user has no read right on
+        `appointment.type`, so the term must not be evaluated under theirs --
+        otherwise `/my/counters` and `/my/appointments` fail for every portal
+        user as soon as the appointment half of `calendar` is present.
+        """
+        portal_user = mail_new_test_user(
+            self.env, login="portal_attendee", groups="base.group_portal"
+        )
+        events = self.env["calendar.event"].create(
+            [
+                {
+                    "name": f"Booked with {appointment_type.name}",
+                    "appointment_type_id": appointment_type.id,
+                    "partner_ids": [(4, portal_user.partner_id.id)],
+                    "start": self.reference_monday,
+                    "stop": self.reference_monday + timedelta(hours=1),
+                    "user_id": self.apt_manager.id,
+                }
+                for appointment_type in self.apt_type_apt_manager
+                + self.apt_type_resource
+            ]
+        )
+        with self.assertRaises(AccessError):
+            self.apt_type_resource.with_user(portal_user).read(["name"])
+
+        found = (
+            self.env["calendar.event"]
+            .with_user(portal_user)
+            .search(
+                [
+                    ("user_id", "!=", portal_user.id),
+                    ("partner_ids", "in", portal_user.partner_id.ids),
+                    ("appointment_type_id", "!=", False),
+                ]
+            )
+        )
+        self.assertEqual(found, events)
 
     def _prepare_types_with_user(self):
         """Prepare the appointment types by applying the user to be the one from the environment."""
