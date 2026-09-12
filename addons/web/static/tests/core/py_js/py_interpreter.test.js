@@ -606,6 +606,14 @@ describe("builtins — len", () => {
     test("len of non-collection throws", () => {
         expect(() => evaluateExpr("len(42)")).toThrow();
     });
+    test("the trailing kwargs object is not a positional argument", () => {
+        expect(evaluateExpr("str()")).toBe("");
+        expect(evaluateExpr("str({})")).toBe("{}");
+        expect(() => evaluateExpr("len()")).toThrow();
+        expect(() => evaluateExpr("repr()")).toThrow();
+        expect(() => evaluateExpr("sorted()")).toThrow();
+        expect(evaluateExpr("sorted([2, 1])")).toEqual([1, 2]);
+    });
 });
 
 describe("builtins — abs", () => {

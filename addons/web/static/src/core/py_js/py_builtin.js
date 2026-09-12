@@ -357,6 +357,9 @@ export const BUILTINS = {
     },
 
     sorted(/** @type {any} */ iterable, /** @type {any[]} */ ...rest) {
+        if (!rest.length) {
+            throw new EvaluationError("sorted expected 1 argument, got 0");
+        }
         const kwargs = rest.at(-1) ?? {};
         const unsupported = Object.keys(kwargs).filter((key) => key !== "reverse");
         if (unsupported.length) {
@@ -371,6 +374,9 @@ export const BUILTINS = {
     },
 
     repr(/** @type {any} */ value) {
+        if (arguments.length < 2) {
+            throw new EvaluationError("repr() takes exactly one argument (0 given)");
+        }
         return pyRepr(value);
     },
 
@@ -381,7 +387,7 @@ export const BUILTINS = {
     },
 
     len(/** @type {any} */ value) {
-        if (arguments.length > 2) {
+        if (arguments.length !== 2) {
             throw new EvaluationError(
                 `len() takes exactly one argument (${arguments.length - 1} given)`,
             );
@@ -483,6 +489,9 @@ export const BUILTINS = {
     },
 
     str(/** @type {any} */ value) {
+        if (arguments.length < 2) {
+            return "";
+        }
         return pyStr(value);
     },
 
