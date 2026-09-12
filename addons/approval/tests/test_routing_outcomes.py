@@ -660,6 +660,11 @@ class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
                     "approver_ids": [(6, 0, [self.people["c"].id])],
                 }
             )
+        self.assertIn("they are not tiers", category.steps_conversion_blockers)
         with self.assertRaisesRegex(UserError, "they are not tiers"):
             category.action_convert_routing_to_steps()
         self.assertFalse(category.step_ids)
+
+    def test_a_convertible_category_says_nothing_against_it(self):
+        category = self._flat([("a", False, 10)], approval_minimum=1)
+        self.assertFalse(category.steps_conversion_blockers)

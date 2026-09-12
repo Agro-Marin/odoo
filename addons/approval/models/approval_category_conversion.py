@@ -1,4 +1,4 @@
-from odoo import models
+from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 
@@ -28,6 +28,36 @@ class ApprovalCategoryConversion(models.Model):
     """
 
     _inherit = "approval.category"
+
+    steps_conversion_blockers = fields.Text(
+        string="Why It Cannot Convert",
+        compute="_compute_steps_conversion_blockers",
+        help="What keeps this category's approvers and routing rules from being "
+        "rewritten as steps that route every request the same. Empty when it can.",
+    )
+
+    @api.depends_context("lang")
+    @api.depends(
+        "step_ids",
+        "approve_sequentially",
+        "group_approval",
+        "notify_pool_members",
+        "company_id",
+        "rule_ids.active",
+        "rule_ids.action_type",
+        "rule_ids.condition_type",
+        "rule_ids.condition_field",
+        "rule_ids.operator",
+        "rule_ids.approver_required",
+        "rule_ids.company_id",
+        "rule_ids.currency_id",
+    )
+    def _compute_steps_conversion_blockers(self) -> None:
+        for category in self:
+            blockers = category._get_steps_conversion_blockers()
+            category.steps_conversion_blockers = "\n".join(
+                f"- {reason}" for reason in blockers
+            )
 
     def _get_steps_conversion_blockers(self) -> list[str]:
         self.check_singleton()
