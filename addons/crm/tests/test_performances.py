@@ -124,7 +124,7 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
         self.assertInitialData()
 
         self.env.ref("crm.ir_cron_crm_lead_assign").write(
-            {"interval_type": "days", "interval_number": 30}
+            {"repeat_unit": "day", "repeat_interval": 30}
         )
         sales_team_3 = self.env["crm.team"].create(
             {

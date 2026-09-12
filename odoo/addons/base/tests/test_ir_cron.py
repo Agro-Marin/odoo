@@ -50,8 +50,8 @@ def make_job(cron, **overrides):
         "active": True,
         "nextcall": cron.nextcall,
         "lastcall": None,
-        "interval_type": cron.interval_type,
-        "interval_number": cron.interval_number,
+        "repeat_unit": cron.repeat_unit,
+        "repeat_interval": cron.repeat_interval,
         "failure_count": 0,
         "first_failure_date": None,
         "progress_id": None,
@@ -82,8 +82,8 @@ class CronMixinCase:
             "model_name": "res.partner",
             "user_id": env.uid,
             "active": True,
-            "interval_number": 1,
-            "interval_type": "days",
+            "repeat_interval": 1,
+            "repeat_unit": "day",
             "nextcall": fields.Datetime.now() + timedelta(hours=1),
             "lastcall": False,
             "priority": priority,
@@ -1054,8 +1054,8 @@ class TestIrCronAcquireLock(BaseCase):
                     "model_id": env.ref("base.model_res_partner").id,
                     "user_id": env.uid,
                     "active": True,
-                    "interval_number": 1,
-                    "interval_type": "days",
+                    "repeat_interval": 1,
+                    "repeat_unit": "day",
                     "nextcall": datetime(2000, 1, 1, 0, 0, 0),
                 }
             )
@@ -1172,7 +1172,7 @@ class TestIrCronComputeNextCall(TransactionCase):
     def test_utc_daily_plain_advance(self):
         rec = self._rec("UTC")
         nextcall = IrCron._get_next_call(
-            rec, datetime(2026, 1, 1, 0, 0), datetime(2026, 1, 3, 12, 0), "days", 1
+            rec, datetime(2026, 1, 1, 0, 0), datetime(2026, 1, 3, 12, 0), "day", 1
         )
         self.assertEqual(nextcall, datetime(2026, 1, 4, 0, 0))
 
@@ -1182,7 +1182,7 @@ class TestIrCronComputeNextCall(TransactionCase):
             rec,
             datetime(2026, 3, 7, 12, 0),
             datetime(2026, 3, 9, 6, 0),
-            "days",
+            "day",
             1,
         )
         self.assertEqual(nextcall, datetime(2026, 3, 9, 11, 0))
@@ -1195,67 +1195,65 @@ class TestIrCronComputeNextCall(TransactionCase):
             rec,
             datetime(2026, 10, 31, 11, 0),
             datetime(2026, 11, 2, 6, 0),
-            "days",
+            "day",
             1,
         )
         self.assertEqual(nextcall, datetime(2026, 11, 2, 12, 0))
         local = fields.Datetime.context_timestamp(rec, nextcall)
         self.assertEqual(local.hour, 7, "local wall-clock hour must be preserved")
 
-    def test_result_is_strictly_after_now_for_all_interval_types(self):
+    def test_result_is_strictly_after_now_for_all_units(self):
         rec = self._rec("Europe/Brussels")
         now = datetime(2026, 6, 15, 12, 0)
         overdue = now - timedelta(days=400)
-        for interval_type in ("minutes", "hours", "days", "weeks", "months"):
-            with self.subTest(interval_type=interval_type):
-                nextcall = IrCron._get_next_call(rec, overdue, now, interval_type, 1)
+        for unit in ("minute", "hour", "day", "week", "month"):
+            with self.subTest(unit=unit):
+                nextcall = IrCron._get_next_call(rec, overdue, now, unit, 1)
                 self.assertGreater(nextcall, now)
 
     def test_fixed_interval_catchup_matches_stepwise_loop(self):
         rec = self._rec("America/New_York")
         now = datetime(2026, 6, 15, 12, 0)
-        for interval_type, interval_number, overdue in [
-            ("minutes", 1, timedelta(hours=3)),
-            ("minutes", 7, timedelta(days=2, minutes=3)),
-            ("minutes", 30, timedelta(seconds=1)),
-            ("hours", 1, timedelta(days=5, minutes=30)),
-            ("hours", 6, timedelta(days=1)),
+        for unit, interval, overdue in [
+            ("minute", 1, timedelta(hours=3)),
+            ("minute", 7, timedelta(days=2, minutes=3)),
+            ("minute", 30, timedelta(seconds=1)),
+            ("hour", 1, timedelta(days=5, minutes=30)),
+            ("hour", 6, timedelta(days=1)),
         ]:
-            with self.subTest(interval_type=interval_type, n=interval_number):
+            with self.subTest(unit=unit, n=interval):
                 nextcall = now - overdue
                 expected = nextcall
-                step = timedelta(**{interval_type: interval_number})
+                step = timedelta(**{f"{unit}s": interval})
                 while expected <= now:
                     expected += step
                 self.assertEqual(
-                    IrCron._get_next_call(
-                        rec, nextcall, now, interval_type, interval_number
-                    ),
+                    IrCron._get_next_call(rec, nextcall, now, unit, interval),
                     expected,
                 )
 
     def test_fixed_interval_boundary_nextcall_equals_now_advances_once(self):
         rec = self._rec("UTC")
         now = datetime(2026, 6, 15, 12, 0)
-        for interval_type in ("minutes", "hours"):
-            with self.subTest(interval_type=interval_type):
+        for unit in ("minute", "hour"):
+            with self.subTest(unit=unit):
                 self.assertEqual(
-                    IrCron._get_next_call(rec, now, now, interval_type, 5),
-                    now + timedelta(**{interval_type: 5}),
+                    IrCron._get_next_call(rec, now, now, unit, 5),
+                    now + timedelta(**{f"{unit}s": 5}),
                 )
 
     def test_fixed_interval_future_nextcall_unchanged(self):
         rec = self._rec("UTC")
         now = datetime(2026, 6, 15, 12, 0)
         future = now + timedelta(seconds=1)
-        self.assertEqual(IrCron._get_next_call(rec, future, now, "minutes", 5), future)
+        self.assertEqual(IrCron._get_next_call(rec, future, now, "minute", 5), future)
 
     def test_fixed_interval_long_overdue_catchup(self):
         rec = self._rec("UTC")
         now = datetime(2026, 6, 15, 12, 0, 30)
         nextcall = now - timedelta(days=400)
         self.assertEqual(
-            IrCron._get_next_call(rec, nextcall, now, "minutes", 1),
+            IrCron._get_next_call(rec, nextcall, now, "minute", 1),
             datetime(2026, 6, 15, 12, 1, 30),
         )
 

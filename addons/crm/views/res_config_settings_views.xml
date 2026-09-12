@@ -119,15 +119,15 @@
                                 class="row mt16"
                                 invisible="not crm_use_auto_assignment or crm_auto_assignment_action == 'manual'">
                                 <label
-                                    for="crm_auto_assignment_interval_type"
+                                    for="crm_auto_assignment_repeat_unit"
                                     string="Repeat every"
                                     class="col-lg-3 o_light_label" />
                                 <field
-                                    name="crm_auto_assignment_interval_number"
+                                    name="crm_auto_assignment_repeat_interval"
                                     required="crm_use_auto_assignment and crm_auto_assignment_action == 'auto'"
                                     class="oe_inline me-2" />
                                 <field
-                                    name="crm_auto_assignment_interval_type"
+                                    name="crm_auto_assignment_repeat_unit"
                                     required="crm_use_auto_assignment and crm_auto_assignment_action == 'auto'"
                                     class="oe_inline" />
                             </div>

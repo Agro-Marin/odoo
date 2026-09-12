@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools.date_utils import get_timedelta, time_unit_selection
+from odoo.tools.date_utils import get_timedelta, next_after, time_unit_selection
 
 REPEAT_UNIT_SELECTION = time_unit_selection("day", "week", "month", "year")
 
@@ -24,3 +24,7 @@ class MixinRecurrenceInterval(models.AbstractModel):
     def _get_recurrence_delta(self):
         self.check_singleton()
         return get_timedelta(self.repeat_interval, self.repeat_unit)
+
+    def _get_next_recurrence_after(self, start, after, tz=None):
+        self.check_singleton()
+        return next_after(start, after, self.repeat_interval, self.repeat_unit, tz)

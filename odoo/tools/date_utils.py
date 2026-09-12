@@ -31,6 +31,12 @@ from odoo.libs.datetime import (
     weeknumber,
     weekstart,
 )
+from odoo.libs.datetime.recurrence import (
+    Anchor,
+    next_after,
+    next_anchor,
+    previous_anchor,
+)
 
 
 def utcnow() -> datetime:
@@ -62,6 +68,7 @@ _SHORT_DATE_UNIT = {
 __all__ = [
     "TIME_UNIT_SELECTION",
     "WEEKDAY_NUMBER",
+    "Anchor",
     "TimeUnit",
     "add",
     "date_range",
@@ -74,8 +81,11 @@ __all__ = [
     "get_quarter_number",
     "get_timedelta",
     "localized",
+    "next_after",
+    "next_anchor",
     "parse_date_expression",
     "parse_iso_date",
+    "previous_anchor",
     "start_of",
     "subtract",
     "time_to_float",

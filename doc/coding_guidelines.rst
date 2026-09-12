@@ -876,9 +876,10 @@ live. The reasoning was sound about affinity and wrong about reach, because it
 was run over the five consumers then folding and not over the question "who
 asks how does this repeat".
 
-``ir.cron`` asks it: ``interval_number``, ``interval_type``, ``nextcall`` and a
-``CHECK(interval_number > 0)`` that is the constraint
-``mixin.recurrence.interval`` owns. It is the most-read recurrence in the tree
+``ir.cron`` asks it: a count, a unit, ``nextcall`` and a positive-count CHECK
+that is the constraint ``mixin.recurrence.interval`` owns -- which is why it now
+takes that mixin, as ``repeat_interval`` / ``repeat_unit``, widened with minute
+and hour by ``selection_add``. It is the most-read recurrence in the tree
 and it lives in ``base``. ``resource`` depends on ``web``, ``web`` depends on
 ``base``, so a ``base`` -> ``resource`` edge is a cycle: ``ir.cron`` could never
 take the mixin, at any price. Six more askers -- ``mail``, and ``event``,

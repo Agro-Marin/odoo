@@ -632,7 +632,7 @@ being retried on every request.
 
 ### models/ir_cron.py
 
-#### IrCron — `ir.cron` (`_name`, `_inherits = {'ir.actions.server': 'ir_actions_server_id'}`)
+#### IrCron — `ir.cron` (`_name`, `_inherit = ['mixin.recurrence.interval']`, `_inherits = {'ir.actions.server': 'ir_actions_server_id'}`)
 
 Scheduled jobs — executes server actions on a recurring schedule.
 
@@ -641,7 +641,7 @@ Scheduled jobs — executes server actions on a recurring schedule.
 - `cron_name` (Char, computed/stored)
 - `user_id` (Many2one → res.users, required)
 - `active` (Boolean, default=True)
-- `interval_number` (Integer, default=1), `interval_type` (Selection) — minutes/hours/days/weeks/months
+- `repeat_interval` (Integer, default=1, required), `repeat_unit` (Selection, default=month) — from `mixin.recurrence.interval`, widened with minute/hour; next run computed by `odoo.tools.date_utils.next_after`
 - `nextcall` (Datetime, required), `lastcall` (Datetime)
 - `priority` (Integer, default=5)
 - `failure_count` (Integer), `first_failure_date` (Datetime)
@@ -1827,6 +1827,30 @@ Contract for anything that publishes a KPI summary.
 **Key Methods:** `get_kpi_summary()` — Override to return this provider's KPIs
 
 ---
+
+### models/mixin_recurrence_interval.py
+
+#### MixinRecurrenceInterval — `mixin.recurrence.interval` (AbstractModel)
+
+Every N units. `repeat_interval` (Integer, default 1, positive), `repeat_unit` (Selection day/week/month/year; consumers widen it with `selection_add`). `_get_recurrence_delta()`, `_get_next_recurrence_after(start, after, tz)` over `odoo.tools.date_utils.next_after`. Taken by `ir.cron`, `account.move`, `account.transfer.model`, `fleet.vehicle.log.contract`, `sale.subscription.plan` and the rule mixin.
+
+### models/mixin_recurrence_rule.py
+
+#### MixinRecurrenceRule — `mixin.recurrence.rule` (AbstractModel, `_inherit = ['mixin.recurrence.interval']`)
+
+Adds the end policy `repeat_type` (forever/until); `REPEAT_TYPE_COUNT` is `selection_add`-ed only by consumers that can stop on a count.
+
+### models/mixin_recurrence_rrule.py
+
+#### MixinRecurrenceRrule — `mixin.recurrence.rrule` (AbstractModel, `_inherit = ['mixin.recurrence.rule']`)
+
+The iCalendar half: weekday set, `month_by`, `day`, `weekday`, `byday`, timezone, `repeat_number`, `repeat_until` and the serialised `rrule`, with parse/serialise and occurrence enumeration capped at `MAX_RECURRENT_OCCURRENCES`.
+
+### models/mixin_recurrence_occurrence.py
+
+#### MixinRecurrenceOccurrence — `mixin.recurrence.occurrence` (AbstractModel)
+
+`recurrence_update` (this/subsequent/all, not stored): which occurrences an edit or deletion applies to.
 
 ## Config
 

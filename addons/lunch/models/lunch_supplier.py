@@ -213,8 +213,8 @@ class LunchSupplier(models.Model):
                     {
                         "user_id": self.env.ref("base.user_root").id,
                         "active": False,
-                        "interval_type": "days",
-                        "interval_number": 1,
+                        "repeat_unit": "day",
+                        "repeat_interval": 1,
                         "name": "Lunch: send automatic email",
                         "model_id": self.env["ir.model"]._get_id(self._name),
                         "state": "code",

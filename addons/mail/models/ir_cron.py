@@ -11,8 +11,8 @@ class IrCron(models.AbstractModel):
     _inherit = ["ir.cron", "mixin.mail.thread", "mixin.mail.activity"]
 
     user_id: ResUsers = fields.Many2one(tracking=True)
-    interval_number = fields.Integer(tracking=True)
-    interval_type = fields.Selection(tracking=True)
+    repeat_interval = fields.Integer(tracking=True)
+    repeat_unit = fields.Selection(tracking=True)
     priority = fields.Integer(tracking=True)
 
     def _notify_admin(self, message: str) -> None:

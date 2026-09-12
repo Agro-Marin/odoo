@@ -12,7 +12,6 @@ from typing import Any, Self
 
 import psycopg
 import psycopg.errors
-from dateutil.relativedelta import relativedelta
 
 from odoo import api, db, fields, models
 from odoo.api import SUPERUSER_ID, ValuesType
@@ -29,6 +28,7 @@ from odoo.service import get_cron_real_time_budget
 from odoo.service.transaction import retrying
 from odoo.tools import SQL, str2bool
 from odoo.tools.constants import CRON_TRIGGER_CHANNEL
+from odoo.tools.date_utils import next_after
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -130,8 +130,8 @@ class CronJob:
     active: bool
     nextcall: datetime
     lastcall: datetime | None
-    interval_type: str
-    interval_number: int
+    repeat_unit: str
+    repeat_interval: int
     failure_count: int
     first_failure_date: datetime | None
     progress_id: int | None
@@ -147,8 +147,8 @@ class CronJob:
         "active",
         "nextcall",
         "lastcall",
-        "interval_type",
-        "interval_number",
+        "repeat_unit",
+        "repeat_interval",
         "failure_count",
         "first_failure_date",
     )
@@ -194,6 +194,7 @@ class CompletionStatus(StrEnum):
 
 class IrCron(models.Model):
     _name = "ir.cron"
+    _inherit = ["mixin.recurrence.interval"]
     _order = "cron_name, id"
     _description = "Scheduled Actions"
     _allow_sudo_commands = False
@@ -216,19 +217,14 @@ class IrCron(models.Model):
         required=True,
     )
     active = fields.Boolean(default=True)
-    interval_number = fields.Integer(
-        default=1, help="Repeat every x.", required=True, aggregator="avg"
+    repeat_interval = fields.Integer(
+        string="Execute Every", help="Repeat every x.", required=True, aggregator="avg"
     )
-    interval_type = fields.Selection(
-        [
-            ("minutes", "Minutes"),
-            ("hours", "Hours"),
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-            ("months", "Months"),
-        ],
+    repeat_unit = fields.Selection(
+        selection_add=[("minute", "Minutes"), ("hour", "Hours"), ("day",)],
+        ondelete={"minute": "set default", "hour": "set default"},
         string="Interval Unit",
-        default="months",
+        default="month",
         required=True,
     )
     nextcall = fields.Datetime(
@@ -256,7 +252,7 @@ class IrCron(models.Model):
     )
 
     _check_strictly_positive_interval = models.Constraint(
-        "CHECK(interval_number > 0)",
+        "CHECK(repeat_interval > 0)",
         "The interval number must be a strictly positive number.",
     )
 
@@ -885,28 +881,17 @@ class IrCron(models.Model):
         record: models.BaseModel,
         nextcall: datetime,
         now: datetime,
-        interval_type: str,
-        interval_number: int,
+        repeat_unit: str,
+        repeat_interval: int,
     ) -> datetime:
-        if interval_type in ("minutes", "hours"):
-            interval = timedelta(**{interval_type: interval_number})
-            if nextcall <= now:
-                steps = (now - nextcall) // interval + 1
-                nextcall += steps * interval
-            return nextcall
-
-        interval = relativedelta(**{interval_type: interval_number})
-        while nextcall <= now:
-            local = fields.Datetime.context_timestamp(record, nextcall)
-            nextcall = (local + interval).astimezone(UTC).replace(tzinfo=None)
-        return nextcall
+        return next_after(nextcall, now, repeat_interval, repeat_unit, record.env.tz)
 
     @api.model
     def _prepare_reschedule_vals(self, job: CronJob) -> dict[str, Any]:
         now = self._get_now()
         return {
             "nextcall": self._get_next_call(
-                self, job.nextcall, now, job.interval_type, job.interval_number
+                self, job.nextcall, now, job.repeat_unit, job.repeat_interval
             ),
             "lastcall": now,
         }

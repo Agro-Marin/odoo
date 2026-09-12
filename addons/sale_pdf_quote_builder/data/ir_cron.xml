@@ -8,8 +8,8 @@
         <field name="state">code</field>
         <field name="code">model._cron_post_upgrade_assign_missing_form_fields()</field>
         <field name="user_id" ref="base.user_root" />
-        <field name="interval_number">9999</field>
-        <field name="interval_type">months</field>
+        <field name="repeat_interval">9999</field>
+        <field name="repeat_unit">month</field>
     </record>
 
 </odoo>

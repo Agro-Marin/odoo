@@ -8,8 +8,8 @@
             <field name="state">code</field>
             <field name="code">model._cron_assign_leads()</field>
             <field name="user_id" ref="base.user_root" />
-            <field name="interval_number">1</field>
-            <field name="interval_type">days</field>
+            <field name="repeat_interval">1</field>
+            <field name="repeat_unit">day</field>
             <field name="active" eval="False" />
         </record>
     </data>

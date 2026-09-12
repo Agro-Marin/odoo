@@ -36,6 +36,9 @@ from . import ir_attachment
 from . import ir_attachment_assets
 from . import ir_binary
 
+from . import mixin_recurrence_interval
+from . import mixin_recurrence_rule
+from . import mixin_recurrence_occurrence
 from . import ir_cron
 from . import ir_job
 from . import ir_autovacuum
@@ -99,11 +102,9 @@ from . import res_partner_identifier_type
 
 # After res_partner: mixin.recurrence.rrule takes its timezone selection
 # from _selection_timezones, so importing it earlier evaluates res_partner
-# before the mixins it inherits are registered.
-from . import mixin_recurrence_interval
-from . import mixin_recurrence_rule
+# before the mixins it inherits are registered. The other recurrence mixins
+# are imported before ir_cron, which inherits the interval one.
 from . import mixin_recurrence_rrule
-from . import mixin_recurrence_occurrence
 
 
 from . import res_bank

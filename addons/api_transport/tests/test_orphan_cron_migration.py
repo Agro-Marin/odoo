@@ -55,8 +55,8 @@ class TestOrphanCronMigration(TransactionCase):
                     "model_id": self.env.ref("base.model_res_partner").id,
                     "state": "code",
                     "code": "model.browse()",
-                    "interval_number": 1,
-                    "interval_type": "days",
+                    "repeat_interval": 1,
+                    "repeat_unit": "day",
                 }
             )
         )

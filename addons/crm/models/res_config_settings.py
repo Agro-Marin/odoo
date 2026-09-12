@@ -1,9 +1,8 @@
 from datetime import timedelta
 
-from dateutil.relativedelta import relativedelta
-
 from odoo import _, api, exceptions, fields, models
 from odoo.tools import format_list
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 
 class ResConfigSettings(models.TransientModel):
@@ -25,20 +24,15 @@ class ResConfigSettings(models.TransientModel):
         store=True,
         help="Manual assign allow to trigger assignment from team form view using an action button. Automatic configures a cron running repeatedly assignment in all teams.",
     )
-    crm_auto_assignment_interval_type = fields.Selection(
-        [
-            ("minutes", "Minutes"),
-            ("hours", "Hours"),
-            ("days", "Days"),
-            ("weeks", "Weeks"),
-        ],
+    crm_auto_assignment_repeat_unit = fields.Selection(
+        time_unit_selection("minute", "hour", "day", "week"),
         string="Auto Assignment Interval Unit",
         compute="_compute_crm_auto_assignment_data",
         readonly=False,
         store=True,
         help="Interval type between each cron run (e.g. each 2 days or each 2 hours)",
     )
-    crm_auto_assignment_interval_number = fields.Integer(
+    crm_auto_assignment_repeat_interval = fields.Integer(
         string="Repeat every",
         compute="_compute_crm_auto_assignment_data",
         readonly=False,
@@ -106,26 +100,26 @@ class ResConfigSettings(models.TransientModel):
                 setting.crm_auto_assignment_action = (
                     "auto" if assign_cron.active else "manual"
                 )
-                setting.crm_auto_assignment_interval_type = (
-                    assign_cron.interval_type or "days"
+                setting.crm_auto_assignment_repeat_unit = (
+                    assign_cron.repeat_unit or "day"
                 )
-                setting.crm_auto_assignment_interval_number = (
-                    assign_cron.interval_number or 1
+                setting.crm_auto_assignment_repeat_interval = (
+                    assign_cron.repeat_interval or 1
                 )
                 setting.crm_auto_assignment_run_datetime = assign_cron.nextcall
             else:
                 setting.crm_auto_assignment_action = "manual"
-                setting.crm_auto_assignment_interval_type = "days"
+                setting.crm_auto_assignment_repeat_unit = "day"
                 setting.crm_auto_assignment_run_datetime = False
-                setting.crm_auto_assignment_interval_number = 1
+                setting.crm_auto_assignment_repeat_interval = 1
 
     @api.onchange(
-        "crm_auto_assignment_interval_type", "crm_auto_assignment_interval_number"
+        "crm_auto_assignment_repeat_unit", "crm_auto_assignment_repeat_interval"
     )
     def _onchange_crm_auto_assignment_run_datetime(self):
-        if self.crm_auto_assignment_interval_number <= 0:
+        if self.crm_auto_assignment_repeat_interval <= 0:
             raise exceptions.UserError(_("Repeat frequency should be positive."))
-        if self.crm_auto_assignment_interval_number >= 100:
+        if self.crm_auto_assignment_repeat_interval >= 100:
             raise exceptions.UserError(
                 _(
                     "Invalid repeat frequency. Consider changing frequency type instead of using large numbers."
@@ -134,8 +128,8 @@ class ResConfigSettings(models.TransientModel):
         self.crm_auto_assignment_run_datetime = (
             self._get_crm_auto_assignmment_run_datetime(
                 self.crm_auto_assignment_run_datetime,
-                self.crm_auto_assignment_interval_type,
-                self.crm_auto_assignment_interval_number,
+                self.crm_auto_assignment_repeat_unit,
+                self.crm_auto_assignment_repeat_interval,
             )
         )
 
@@ -219,8 +213,8 @@ class ResConfigSettings(models.TransientModel):
             cron_vals = {
                 "active": self.crm_use_auto_assignment
                 and self.crm_auto_assignment_action == "auto",
-                "interval_type": self.crm_auto_assignment_interval_type,
-                "interval_number": self.crm_auto_assignment_interval_number,
+                "repeat_unit": self.crm_auto_assignment_repeat_unit,
+                "repeat_interval": self.crm_auto_assignment_repeat_interval,
                 "nextcall": self.crm_auto_assignment_run_datetime
                 or assign_cron.nextcall,
             }
@@ -239,9 +233,7 @@ class ResConfigSettings(models.TransientModel):
             return False
         if run_interval == "manual":
             return run_datetime or False
-        return fields.Datetime.now() + relativedelta(
-            **{run_interval: run_interval_number}
-        )
+        return fields.Datetime.now() + get_timedelta(run_interval_number, run_interval)
 
     def action_crm_assign_leads(self):
         self.check_singleton()

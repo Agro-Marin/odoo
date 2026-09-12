@@ -13,6 +13,7 @@ from odoo.exceptions import LockError, MissingError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import safe_eval
+from odoo.tools.date_utils import get_timedelta
 
 from ._canvas import (
     NODE_HEADER_HEIGHT,
@@ -84,16 +85,6 @@ DATE_RANGE_FACTOR = {
     "day": 24 * 60,
     "month": MONTH_APPROXIMATION_DAYS * 24 * 60,
     False: 0,
-}
-
-TIMEDELTA_TYPES = {
-    "minutes": lambda interval: datetime.timedelta(minutes=interval),
-    "hours": lambda interval: datetime.timedelta(hours=interval),
-    "days": lambda interval: datetime.timedelta(days=interval),
-    "weeks": lambda interval: datetime.timedelta(weeks=interval),
-    "months": lambda interval: datetime.timedelta(
-        days=MONTH_APPROXIMATION_DAYS * interval
-    ),
 }
 
 CREATE_TRIGGERS = [
@@ -1340,11 +1331,11 @@ class AutomationRule(models.Model):
         else:
             interval = DEFAULT_CRON_INTERVAL_MINUTES
 
-        interval_type = "minutes"
+        unit = "minute"
         if interval % 60 == 0:
             interval //= 60
-            interval_type = "hours"
-        return interval, interval_type
+            unit = "hour"
+        return interval, unit
 
     def _prepare_eval_context(self, payload=None):
         self.check_singleton()
@@ -1887,19 +1878,18 @@ class AutomationRule(models.Model):
             automations = self.with_context(active_test=True).search(
                 [("trigger", "in", TIME_TRIGGERS)],
             )
-            interval_number, interval_type = self._get_cron_interval(automations)
+            repeat_interval, repeat_unit = self._get_cron_interval(automations)
             vals = {"active": bool(automations)}
 
-            actual_cron_timedelta = TIMEDELTA_TYPES[cron.interval_type](
-                cron.interval_number,
-            )
-            new_cron_timedelta = TIMEDELTA_TYPES[interval_type](interval_number)
-            if new_cron_timedelta < actual_cron_timedelta:
+            # Compared by where each cadence lands from one instant, not by a
+            # length: a month has none, and the old table priced it at 30 days.
+            reference = fields.Datetime.now()
+            if (
+                reference + get_timedelta(repeat_interval, repeat_unit)
+                < reference + cron._get_recurrence_delta()
+            ):
                 vals.update(
-                    {
-                        "interval_type": interval_type,
-                        "interval_number": interval_number,
-                    },
+                    {"repeat_unit": repeat_unit, "repeat_interval": repeat_interval},
                 )
             cron.write(vals)
 

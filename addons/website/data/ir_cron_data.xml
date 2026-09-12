@@ -6,8 +6,8 @@
         <field name="model_id" ref="model_website" />
         <field name="state">code</field>
         <field name="code">model._disable_unused_snippets_assets()</field>
-        <field name="interval_number">1</field>
-        <field name="interval_type">weeks</field>
+        <field name="repeat_interval">1</field>
+        <field name="repeat_unit">week</field>
     </record>
 
 </odoo>

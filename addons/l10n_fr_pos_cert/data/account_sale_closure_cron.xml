@@ -5,8 +5,8 @@
         <field name="model_id" ref="model_account_sale_closing" />
         <field name="state">code</field>
         <field name="code">model._automated_closing('daily')</field>
-        <field name="interval_number">1</field>
-        <field name="interval_type">days</field>
+        <field name="repeat_interval">1</field>
+        <field name="repeat_unit">day</field>
     </record>
 
     <record id="account_sale_closing_monthly" model="ir.cron">
@@ -14,8 +14,8 @@
         <field name="model_id" ref="model_account_sale_closing" />
         <field name="state">code</field>
         <field name="code">model._automated_closing('monthly')</field>
-        <field name="interval_number">1</field>
-        <field name="interval_type">months</field>
+        <field name="repeat_interval">1</field>
+        <field name="repeat_unit">month</field>
     </record>
 
     <record id="account_sale_closing_annually" model="ir.cron">
@@ -23,8 +23,8 @@
         <field name="model_id" ref="model_account_sale_closing" />
         <field name="state">code</field>
         <field name="code">model._automated_closing('annually')</field>
-        <field name="interval_number">12</field>
-        <field name="interval_type">months</field>
+        <field name="repeat_interval">12</field>
+        <field name="repeat_unit">month</field>
     </record>
 
 </odoo>

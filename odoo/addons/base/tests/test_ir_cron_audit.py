@@ -25,8 +25,8 @@ class TestCronTriggerCoalesce(TransactionCase):
             "model_id": env.ref("base.model_res_partner").id,
             "user_id": user.id,
             "active": True,
-            "interval_number": 1,
-            "interval_type": "days",
+            "repeat_interval": 1,
+            "repeat_unit": "day",
             "nextcall": fields.Datetime.now() + timedelta(hours=1),
         }
 

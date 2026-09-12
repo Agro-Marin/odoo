@@ -678,8 +678,8 @@ class TestLeadConvertCommon(TestCrmCommon):
         cls.assign_cron.update(
             {
                 "active": True,
-                "interval_type": "days",
-                "interval_number": 1,
+                "repeat_unit": "day",
+                "repeat_interval": 1,
             }
         )
 

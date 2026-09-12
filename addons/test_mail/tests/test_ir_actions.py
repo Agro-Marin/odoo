@@ -878,8 +878,8 @@ class TestServerActionsMailBatch(MailCommon):
                 "state": "mail_post",
                 "mail_post_method": "email",
                 "template_id": self.template.id,
-                "interval_number": 1,
-                "interval_type": "days",
+                "repeat_interval": 1,
+                "repeat_unit": "day",
             }
         )
         self.assertIn("scheduled action", cron.ir_actions_server_id.warning or "")
@@ -890,8 +890,8 @@ class TestServerActionsMailBatch(MailCommon):
                 "model_id": self.lead_model.id,
                 "state": "code",
                 "code": "pass",
-                "interval_number": 1,
-                "interval_type": "days",
+                "repeat_interval": 1,
+                "repeat_unit": "day",
             }
         )
         self.assertFalse(

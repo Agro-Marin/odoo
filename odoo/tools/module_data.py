@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
-from odoo.db.schema import get_tables_existing
+from odoo.db.schema import column_exists, get_tables_existing, rename_column
 from odoo.libs.sql import SQL
 
 if TYPE_CHECKING:
@@ -347,3 +347,85 @@ def repair_orphaned_cron_actions(cr: _SqlCursor) -> int:
                 name,
             )
     return repaired
+
+
+def rename_field(
+    cr: BaseCursor,
+    model: str,
+    old: str,
+    new: str,
+    *,
+    values: Mapping[str, str] | None = None,
+) -> None:
+    # A stored field renamed in place, not dropped and re-added: the column keeps
+    # its data, and the `ir.model.fields` row keeps its id -- which is what every
+    # `mail.tracking.value`, export template and access record points at, so a
+    # drop-and-add would delete that history with the old row. Its external id
+    # and, for a Selection, the value rows and their external ids follow.
+    table = model.replace(".", "_")
+    if column_exists(cr, table, old) and not column_exists(cr, table, new):
+        rename_column(cr, table, old, new)
+        if values:
+            for old_value, new_value in values.items():
+                cr.execute(
+                    SQL(
+                        "UPDATE %s SET %s = %s WHERE %s = %s",
+                        SQL.identifier(table),
+                        SQL.identifier(new),
+                        new_value,
+                        SQL.identifier(new),
+                        old_value,
+                    )
+                )
+
+    cr.execute(
+        SQL(
+            "SELECT id FROM ir_model_fields WHERE model = %s AND name = %s",
+            model,
+            old,
+        )
+    )
+    row = cr.fetchone()
+    if row is None:
+        return
+    field_id = row[0]
+    cr.execute(
+        SQL(
+            "SELECT 1 FROM ir_model_fields WHERE model = %s AND name = %s",
+            model,
+            new,
+        )
+    )
+    if cr.fetchone():
+        return
+    cr.execute(SQL("UPDATE ir_model_fields SET name = %s WHERE id = %s", new, field_id))
+    xmlid_model = table
+    cr.execute(
+        SQL(
+            "UPDATE ir_model_data SET name = %s "
+            "WHERE model = 'ir.model.fields' AND name = %s",
+            f"field_{xmlid_model}__{new}",
+            f"field_{xmlid_model}__{old}",
+        )
+    )
+    if not values:
+        return
+    for old_value, new_value in values.items():
+        cr.execute(
+            SQL(
+                "UPDATE ir_model_fields_selection SET value = %s "
+                "WHERE field_id = %s AND value = %s",
+                new_value,
+                field_id,
+                old_value,
+            )
+        )
+        cr.execute(
+            SQL(
+                "UPDATE ir_model_data SET name = %s "
+                "WHERE model = 'ir.model.fields.selection' AND name = %s",
+                f"selection__{xmlid_model}__{new}__{new_value}",
+                f"selection__{xmlid_model}__{old}__{old_value}",
+            )
+        )
+    _logger.info("renamed %s.%s to %s", model, old, new)

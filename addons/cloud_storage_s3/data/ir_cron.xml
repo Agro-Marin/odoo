@@ -6,8 +6,8 @@
         <field name="model_id" ref="base.model_ir_attachment" />
         <field name="state">code</field>
         <field name="code">model._cron_mirror_pending_to_s3()</field>
-        <field name="interval_number" eval="5" />
-        <field name="interval_type">minutes</field>
+        <field name="repeat_interval" eval="5" />
+        <field name="repeat_unit">minute</field>
         <field
             name="nextcall"
             eval="(DateTime.now() + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')" />

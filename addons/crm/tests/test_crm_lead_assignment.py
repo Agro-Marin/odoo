@@ -85,8 +85,8 @@ class TestLeadAssign(TestLeadAssignCommon):
                 {
                     "crm_use_auto_assignment": True,
                     "crm_auto_assignment_action": "auto",
-                    "crm_auto_assignment_interval_number": 19,
-                    "crm_auto_assignment_interval_type": "hours",
+                    "crm_auto_assignment_repeat_interval": 19,
+                    "crm_auto_assignment_repeat_unit": "hour",
                 }
             )
             config._onchange_crm_auto_assignment_run_datetime()
@@ -99,8 +99,8 @@ class TestLeadAssign(TestLeadAssignCommon):
 
             config.write(
                 {
-                    "crm_auto_assignment_interval_number": 2,
-                    "crm_auto_assignment_interval_type": "days",
+                    "crm_auto_assignment_repeat_interval": 2,
+                    "crm_auto_assignment_repeat_unit": "day",
                 }
             )
             config._onchange_crm_auto_assignment_run_datetime()
@@ -344,7 +344,7 @@ class TestLeadAssign(TestLeadAssignCommon):
         self.assertInitialData()
 
         self.env.ref("crm.ir_cron_crm_lead_assign").write(
-            {"interval_type": "days", "interval_number": 30}
+            {"repeat_unit": "day", "repeat_interval": 30}
         )
         sales_team_3 = self.env["crm.team"].create(
             {
