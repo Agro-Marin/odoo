@@ -290,6 +290,11 @@ class _Response(werkzeug.wrappers.Response):
 
         if isinstance(result, werkzeug.exceptions.HTTPException):
             _logger.warning("%s returns an HTTPException instead of raising it.", fname)
+            _debug.logic(
+                "http.response.exception_returned",
+                endpoint=fname,
+                error=type(result).__name__,
+            )
             raise result
 
         if isinstance(result, werkzeug.wrappers.Response):
@@ -304,6 +309,11 @@ class _Response(werkzeug.wrappers.Response):
             )
             return Response(result)
 
+        _debug.logic(
+            "http.response.invalid_result",
+            endpoint=fname,
+            result_type=type(result).__name__,
+        )
         raise TypeError(
             f"{fname} returns an invalid value: {result!r}. type='http' routes "
             "return str/bytes/None/Response; for a dict or list, return "
@@ -343,6 +353,7 @@ class _Response(werkzeug.wrappers.Response):
 
     def flatten(self) -> None:
         if self.template:
+            _debug.pipeline("http.response.flattened", template=self.template)
             self.response.append(self.render())
             self.template = None
 
@@ -557,6 +568,7 @@ def get_response(
     self: HTTPException, environ: dict[str, Any] | None = None, scope: Any = None
 ) -> Response:
     if self.response is None and self.code is None:
+        _debug.logic("http.exception.statusless_to_500", error=type(self).__name__)
         self = werkzeug.exceptions.InternalServerError(self.description)
     return Response(
         werkzeug.exceptions._odoo_original_get_response(self, environ, scope)

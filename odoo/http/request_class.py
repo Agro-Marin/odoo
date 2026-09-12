@@ -136,10 +136,13 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             session.can_save = False
             if http.filter_dbs_served([header_dbname], host=host):
                 dbname = header_dbname
+            else:
+                _debug.logic("http.session.header_db_rejected", header_db=header_dbname)
         else:
             all_dbs = http.get_dbs_served(force=True, host=host)
             if len(all_dbs) == 1:
                 dbname = all_dbs[0]
+            _debug.logic("http.session.db_inferred", candidates=len(all_dbs))
 
         if session.db != dbname:
             if session.db:
@@ -174,6 +177,9 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         if source is not None:
             self._params_source = None
             self._params = source()
+            _debug.lifecycle(
+                "http.request.params_materialized", params=len(self._params)
+            )
         return self._params
 
     @params.setter
@@ -270,12 +276,16 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             ):
                 self.session["profile_session"] = None
                 _logger.warning("Profiling expiration reached, disabling profiling")
+                _debug.logic("http.profiler.skipped", reason="expired")
             elif "set_profiling" in self.httprequest.path:
                 _logger.debug("Profiling disabled on set_profiling route")
+                _debug.logic("http.profiler.skipped", reason="set_profiling_route")
             elif self.httprequest.path.startswith("/websocket"):
                 _logger.debug("Profiling disabled for websocket")
+                _debug.logic("http.profiler.skipped", reason="websocket")
             elif odoo.evented:
                 _logger.debug("Profiling disabled for evented server")
+                _debug.logic("http.profiler.skipped", reason="evented")
             else:
                 try:
                     _debug.logic(
@@ -293,6 +303,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
                 except Exception:
                     _logger.exception("Failure during Profiler creation")
                     self.session["profile_session"] = None
+                    _debug.logic("http.profiler.skipped", reason="creation_failed")
 
         return contextlib.nullcontext()
 
@@ -439,14 +450,17 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
 
         can_rotate = not sess.uid or (env is not None and not env.cr.closed)
 
+        strategy = "none"  # debuglog
         try:
             if sess.should_rotate and can_rotate:
                 root.session_store.rotate(sess, env)
                 written = True
+                strategy = "rotate"  # debuglog
             elif sess.should_rotate:
                 sess["_rotate_pending"] = True
                 root.session_store.save(sess)
                 written = True
+                strategy = "rotate_pending"  # debuglog
             elif (
                 can_rotate
                 and sess.uid
@@ -455,12 +469,15 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
             ):
                 root.session_store.rotate(sess, env, True)
                 written = True
+                strategy = "periodic_rotate"  # debuglog
             elif content_changed:
                 root.session_store.save(sess)
                 written = True
+                strategy = "save"  # debuglog
             elif sess.is_dirty:
                 root.session_store.keep_alive(sess)
                 written = True
+                strategy = "keep_alive"  # debuglog
             else:
                 written = False
         except SessionExpiredException:
@@ -481,6 +498,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         cookie_sid = self.httprequest.session_id
         _debug.logic(
             "http.session.saved",
+            strategy=strategy,
             written=written,
             modified=modified,
             content_changed=content_changed,

@@ -209,7 +209,17 @@ def coerce_params(
                 _debug.logic("http.params.missing_required", param=name)
                 raise BadRequest(f"missing required parameter {name!r}")
             continue
-        coerced[name] = _coerce_value(name, params[name], spec)
+        try:
+            coerced[name] = _coerce_value(name, params[name], spec)
+        except BadRequest:
+            _debug.logic(
+                "http.params.rejected",
+                param=name,
+                target=spec.target.__name__,
+                item=None if spec.item is None else spec.item.__name__,
+                got=type(params[name]).__name__,
+            )
+            raise
     _debug.pipeline(
         "http.params.coerced",
         specs=len(specs),

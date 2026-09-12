@@ -161,6 +161,12 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
     with borrow_request():
         thread.uid = None
         thread.dbname = None
+        _debug.pipeline(
+            "http.dispatch_rpc.begin",
+            service=service_name,
+            method=method,
+            params=len(params),
+        )
         try:
             dispatch = _get_rpc_dispatcher(service_name)
             with _debug.perf("http.dispatch_rpc", service=service_name, method=method):
@@ -172,6 +178,10 @@ def dispatch_rpc(service_name: str, method: str, params: Mapping[str, Any]) -> A
 
 def get_session_max_inactivity(env: Any) -> int:
     if env is None or env.cr.closed:
+        _debug.logic(
+            "http.session.max_inactivity",
+            source="no_env" if env is None else "cursor_closed",
+        )
         return SESSION_LIFETIME
 
     ICP = env["ir.config_parameter"].sudo()
@@ -281,6 +291,7 @@ def serialize_exception(
         name=name,
         opaque=opaque,
         arguments=len(arguments),
+        traceback_hidden=_is_exception_detail_hidden(),
     )
     return {
         "name": f"{module}.{name}" if module else name,

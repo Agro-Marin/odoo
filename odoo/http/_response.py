@@ -58,6 +58,7 @@ class _RequestResponseMixin(RequestState):
         return NotFound(description)
 
     def redirect(self, location: str, code: int = 303, local: bool = True) -> Response:
+        requested = location  # debuglog
         if local:
             try:
                 stripped = urlsplit(location)._replace(scheme="", netloc="")
@@ -70,6 +71,7 @@ class _RequestResponseMixin(RequestState):
             location=location,
             code=code,
             local=local,
+            sanitized=location != requested,
             via="ir.http" if self.db and self.env is not None else "werkzeug",
         )
         if self.db and self.env is not None:
@@ -93,6 +95,11 @@ class _RequestResponseMixin(RequestState):
             separator = "&" if "?" in pre else "?"
             pre += separator + urlencode(pairs)
             location = pre + hash_ + fragment
+            _debug.logic(
+                "http.redirect.query_appended",
+                params=len(pairs),
+                fragment=bool(fragment),
+            )
         return self.redirect(location, code=code, local=local)
 
     def render(

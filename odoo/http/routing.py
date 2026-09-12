@@ -186,6 +186,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 stacklevel=2,
             )
             routing["type"] = "jsonrpc"
+            _debug.logic("http.route.deprecated_type", endpoint=fname, declared="json")
         route_type = routing.get("type", "http")
         if route_type not in _dispatchers:
             raise ValueError(
@@ -200,6 +201,7 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 fname,
             )
             routing["methods"] = wrong
+            _debug.logic("http.route.parameter_typo", endpoint=fname, given="method")
         methods = routing.get("methods")
         if methods is not None:
             if isinstance(methods, str):
@@ -218,6 +220,11 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 "odoo.http.register_routing_parameters() — possible typo.",
                 fname,
                 sorted(unknown),
+            )
+            _debug.logic(
+                "http.route.unknown_parameters",
+                endpoint=fname,
+                unknown=",".join(sorted(unknown)),
             )
 
         accepts_var_keyword, accepted_params, bound_self_name = (
@@ -242,6 +249,11 @@ def route(route: str | Iterable[str] | None = None, **routing: Any) -> Callable:
                 params_ko = params.keys() - accepted_params
             if params_ko:
                 _logger.warning("%s called ignoring args %s", fname, params_ko)
+                _debug.logic(
+                    "http.route.params_ignored",
+                    endpoint=fname,
+                    ignored=",".join(sorted(params_ko)),
+                )
 
             result = endpoint(controller_self, *args, **params_ok)
             if _get_route_type_effective(routing) == "http":
@@ -385,6 +397,11 @@ def _merge_routing(ctrl: Controller, method_name: str) -> dict[str, Any] | None:
             _logger.warning(
                 "The endpoint %s is overridden without @route(); skipping this override.",
                 f"{cls.__module__}.{cls.__name__}.{method_name}",
+            )
+            _debug.logic(
+                "http.route.override_unrouted",
+                controller=cls.__qualname__,
+                method=method_name,
             )
             continue
 

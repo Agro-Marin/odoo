@@ -257,6 +257,7 @@ class _RequestServeMixin(RequestState):
             type=rule.endpoint.routing["type"],
             auth=rule.endpoint.routing.get("auth"),
             readonly=bool(readonly),
+            readonly_resolver=callable(rule.endpoint.routing["readonly"]),
         )
         return functools.partial(self._serve_ir_http, rule, args), bool(readonly)
 
@@ -461,6 +462,11 @@ class _RequestServeMixin(RequestState):
 
     def _update_served_exception(self, exc: Exception) -> None:
         if isinstance(exc, HTTPException) and exc.code is None:
+            _debug.logic(
+                "http.serve.error_passthrough",
+                error=type(exc).__name__,
+                explicit_response=exc.response is not None,
+            )
             return
         if (
             "werkzeug" in current_settings().dev_mode
@@ -501,8 +507,19 @@ class _RequestServeMixin(RequestState):
         get_ir_http(registry)._apply_max_upload_size()
         self._check_body_size()
         self._params_source = self.get_http_params
-        get_ir_http(registry)._authenticate_explicit("public")
-        response = get_ir_http(registry)._serve_fallback()
+        with _debug.perf(
+            "http.serve.authenticate",
+            cr=getattr(getattr(self, "env", None), "cr", None),
+            auth="public",
+        ):
+            get_ir_http(registry)._authenticate_explicit("public")
+        with _debug.perf(
+            "http.serve.fallback_lookup",
+            cr=getattr(getattr(self, "env", None), "cr", None),
+            path=getattr(self.httprequest, "path", None),
+        ) as span:
+            response = get_ir_http(registry)._serve_fallback()
+            span.set(served=bool(response))
         _debug.pipeline(
             "http.serve.fallback",
             path=getattr(self.httprequest, "path", None),
@@ -510,7 +527,11 @@ class _RequestServeMixin(RequestState):
             status=getattr(response, "status_code", None),
         )
         if response:
-            get_ir_http(registry)._post_dispatch(response)
+            with _debug.perf(
+                "http.serve.post_dispatch",
+                cr=getattr(getattr(self, "env", None), "cr", None),
+            ):
+                get_ir_http(registry)._post_dispatch(response)
             return response
 
         no_fallback = NotFound()
@@ -524,7 +545,7 @@ class _RequestServeMixin(RequestState):
         registry = self._get_bound_registry()
         with _debug.perf(
             "http.serve.authenticate",
-            cr=getattr(self.env, "cr", None),
+            cr=getattr(getattr(self, "env", None), "cr", None),
             auth=rule.endpoint.routing.get("auth"),
         ):
             get_ir_http(registry)._authenticate(rule.endpoint)
@@ -533,10 +554,15 @@ class _RequestServeMixin(RequestState):
             endpoint=getattr(rule.endpoint, "__qualname__", None),
             uid=None if self.env is None else self.env.uid,
         )
-        get_ir_http(registry)._pre_dispatch(rule, args)
+        with _debug.perf(
+            "http.serve.pre_dispatch",
+            cr=getattr(getattr(self, "env", None), "cr", None),
+            endpoint=getattr(rule.endpoint, "__qualname__", None),
+        ):
+            get_ir_http(registry)._pre_dispatch(rule, args)
         with _debug.perf(
             "http.serve.handler",
-            cr=getattr(self.env, "cr", None),
+            cr=getattr(getattr(self, "env", None), "cr", None),
             db=registry.db_name,
             endpoint=getattr(rule.endpoint, "__qualname__", None),
         ) as span:
@@ -547,5 +573,10 @@ class _RequestServeMixin(RequestState):
             endpoint=getattr(rule.endpoint, "__qualname__", None),
             status=getattr(response, "status_code", None),
         )
-        get_ir_http(registry)._post_dispatch(response)
+        with _debug.perf(
+            "http.serve.post_dispatch",
+            cr=getattr(getattr(self, "env", None), "cr", None),
+            status=getattr(response, "status_code", None),
+        ):
+            get_ir_http(registry)._post_dispatch(response)
         return response

@@ -3559,18 +3559,17 @@ class TestRecoverableErrorLogLevel(BaseCase):
         )
 
     def test_lock_not_available_logged_as_warning_not_error(self):
+        # An advisory lock, not a row of res_users: under ``-u`` the loading
+        # transaction holds the admin row until it commits, so a plain
+        # ``FOR UPDATE`` on it waits forever. ``lock_timeout`` raises the same
+        # 55P03 ``LockNotAvailable`` that ``NOWAIT`` does.
         with registry().cursor() as cr_lock:
-            cr_lock.execute(
-                "SELECT id FROM res_users WHERE id = %s FOR UPDATE",
-                (ADMIN_USER_ID,),
-            )
+            cr_lock.execute("SELECT pg_advisory_xact_lock(%s)", (0x0D00,))
             with self.assertLogs("odoo.db.cursor", level="WARNING") as cm:
                 with self.assertRaises(psycopg.errors.LockNotAvailable):
                     with registry().cursor() as cr_nowait:
-                        cr_nowait.execute(
-                            "SELECT id FROM res_users WHERE id = %s FOR UPDATE NOWAIT",
-                            (ADMIN_USER_ID,),
-                        )
+                        cr_nowait.execute("SET LOCAL lock_timeout = '50ms'")
+                        cr_nowait.execute("SELECT pg_advisory_xact_lock(%s)", (0x0D00,))
         levels = {r.levelname for r in cm.records}
         self.assertIn("WARNING", levels)
         self.assertNotIn(

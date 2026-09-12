@@ -69,6 +69,9 @@ class Stream:
         cls, path: str, filter_ext: tuple[str, ...] = ("",), public: bool = False
     ) -> Stream:
         path = file_path(path, filter_ext)
+        _debug.logic(
+            "http.stream.path_checked", path=path, filters=",".join(filter_ext) or None
+        )
         return cls._from_trusted_path(path, public=public)
 
     @classmethod
@@ -106,16 +109,19 @@ class Stream:
         if isinstance(data, str):
             data = data.encode()
 
+        decoded = False  # debuglog
         with contextlib.suppress(ValueError):
             data = base64.b64decode(
                 data.replace(b"\r", b"").replace(b"\n", b""),
                 validate=True,
             )
+            decoded = True  # debuglog
         _debug.lifecycle(
             "http.stream.from_field",
             model=getattr(record, "_name", None),
             field=field_name,
             size=len(data),
+            base64=decoded,
         )
         return cls(
             type="data",

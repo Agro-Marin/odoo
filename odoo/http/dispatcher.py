@@ -270,8 +270,19 @@ class Dispatcher(ABC):
         if self.request.db:
             registry = self.request.registry
             assert registry is not None, "a database-bound request has a registry"
-            return get_ir_http(registry)._dispatch(endpoint)
-        return endpoint(**self.request.params)
+            with _debug.perf(
+                "http.dispatch.endpoint",
+                cr=getattr(getattr(self.request, "env", None), "cr", None),
+                endpoint=getattr(endpoint, "__qualname__", None),
+                via="ir.http",
+            ):
+                return get_ir_http(registry)._dispatch(endpoint)
+        with _debug.perf(
+            "http.dispatch.endpoint",
+            endpoint=getattr(endpoint, "__qualname__", None),
+            via="direct",
+        ):
+            return endpoint(**self.request.params)
 
     @abstractmethod
     def prepare_error_response(self, exc: Exception) -> Response | HTTPException:
@@ -312,6 +323,17 @@ class HttpDispatcher(Dispatcher):
                     )
 
         if (
+            _debug.logic.enabled
+            and self.request.httprequest.method not in SAFE_HTTP_METHODS
+            and not endpoint.routing.get("csrf", True)
+        ):
+            _debug.logic(
+                "http.csrf.skipped",
+                reason="route_exempt",
+                method=self.request.httprequest.method,
+                path=getattr(self.request.httprequest, "path", None),
+            )
+        if (
             self.request.httprequest.method not in SAFE_HTTP_METHODS
             and endpoint.routing.get("csrf", True)
         ):
@@ -338,6 +360,10 @@ class HttpDispatcher(Dispatcher):
                     _logger.warning(MISSING_CSRF_WARNING, self.request.httprequest.path)
                 msg = "Session expired (invalid CSRF token)"
                 raise werkzeug.exceptions.BadRequest(msg)
+            _debug.logic(
+                "http.csrf.accepted",
+                path=getattr(self.request.httprequest, "path", None),
+            )
 
         return self._call_endpoint(endpoint)
 
@@ -354,6 +380,12 @@ class HttpDispatcher(Dispatcher):
             )
 
         if isinstance(exc, HTTPException):
+            _debug.logic(
+                "http.error.http_exception",
+                error=type(exc).__name__,
+                status=exc.code,
+                explicit_response=exc.response is not None,
+            )
             return exc
 
         if isinstance(exc, UserError):
@@ -462,6 +494,12 @@ class JsonRPCDispatcher(Dispatcher):
             if version is not None:
                 response["version"] = version
 
+        _debug.pipeline(
+            "http.jsonrpc.response",
+            id=self.request_id,
+            error=error is not None,
+            versioned="version" in response,
+        )
         return self.request.prepare_json_response(response)
 
 
@@ -506,6 +544,11 @@ class Json2Dispatcher(Dispatcher):
                 e = f"could not parse the body as json: {exc.args[0]}"
                 raise werkzeug.exceptions.BadRequest(e) from exc
             if self.jsonrequest is not None and not isinstance(self.jsonrequest, dict):
+                _debug.logic(
+                    "http.json2.invalid",
+                    reason="not_object",
+                    got=type(self.jsonrequest).__name__,
+                )
                 e = (
                     "JSON request body must be an object (got "
                     f"{type(self.jsonrequest).__name__!r})."
@@ -535,12 +578,20 @@ class Json2Dispatcher(Dispatcher):
 
     def prepare_error_response(self, exc: Exception) -> Response:
         if isinstance(exc, HTTPException) and exc.response:
+            _debug.logic(
+                "http.json2.error",
+                status=getattr(exc.response, "status_code", None),
+                error=type(exc).__name__,
+                kind="explicit_response",
+            )
             return Response(exc.response)
 
         headers = None
+        kind = "internal"  # debuglog
         if isinstance(exc, (UserError, SessionExpiredException)):
             status = exc.http_status
             body = serialize_exception(exc)
+            kind = "user_error"  # debuglog
         elif isinstance(exc, HTTPException):
             status = exc.code or HTTPStatus.INTERNAL_SERVER_ERROR
             body = serialize_exception(
@@ -549,9 +600,12 @@ class Json2Dispatcher(Dispatcher):
                 arguments=(exc.description, status),
             )
             headers = [(k, v) for k, v in exc.get_headers() if k != "Content-Type"]
+            kind = "http_exception"  # debuglog
         else:
             status = HTTPStatus.INTERNAL_SERVER_ERROR
             body = serialize_exception(exc)
 
-        _debug.logic("http.json2.error", status=int(status), error=type(exc).__name__)
+        _debug.logic(
+            "http.json2.error", status=int(status), error=type(exc).__name__, kind=kind
+        )
         return self.request.prepare_json_response(body, headers=headers, status=status)

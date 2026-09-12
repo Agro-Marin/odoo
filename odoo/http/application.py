@@ -81,7 +81,11 @@ _UNSET = object()
 def _get_static_resource_path(static_path: str, resource: str) -> str:
     resolved = file_path(f"{static_path}/{resource}")
     if not Path(resolved).resolve().is_relative_to(Path(static_path).resolve()):
+        _debug.logic(
+            "http.static.rejected", reason="escapes_static_dir", resource=resource
+        )
         raise FileNotFoundError(resolved)
+    _debug.lifecycle("http.static.resolved", resource=resource)
     return resolved
 
 
@@ -333,6 +337,12 @@ class Application:
         raise MethodNotAllowed(valid_methods=allow.split(", "))
 
     def _log_request_exception(self, exc: Exception) -> None:
+        _debug.logic(
+            "http.request.exception_logged",
+            error=type(exc).__name__,
+            custom_level=hasattr(exc, "loglevel"),
+            http_status=getattr(exc, "code", None),
+        )
         if hasattr(exc, "loglevel"):
             _logger.log(
                 exc.loglevel,
@@ -436,11 +446,15 @@ class Application:
                 )
 
                 if httprequest.method in REJECTED_HTTP_METHODS:
+                    _debug.logic(
+                        "http.request.method_rejected", method=httprequest.method
+                    )
                     raise MethodNotAllowed(
                         valid_methods=prepare_allow_header().split(", ")
                     )
 
                 if "\x00" in httprequest.path:
+                    _debug.logic("http.request.path_rejected", reason="nul_byte")
                     raise NotFound
 
                 static_file = self.get_static_file_path(httprequest.path)
@@ -479,6 +493,9 @@ class Application:
                     status=getattr(exc, "code", None),
                 )
                 if _is_debugger_handover_required(request):
+                    _debug.logic(
+                        "http.request.debugger_handover", error=type(exc).__name__
+                    )
                     raise
                 error_response = self._finalize_error_response(
                     exc, request, self._get_or_create_error_response(exc, request)

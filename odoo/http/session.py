@@ -92,7 +92,8 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
         # threads of this process, or a forked child, into the same section.
         lock_fd = self._open_lock_file(stripe)
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            with _debug.perf("http.session.lock_wait", stripe=stripe):
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
             held.add(stripe)
             _debug.lifecycle("http.session.lock_acquired", stripe=stripe)
             try:
@@ -146,6 +147,9 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 session.sid,
                 str(filename),
                 exc_info=True,
+            )
+            _debug.logic(
+                "http.session.write_failed", sid=session.sid[:8], durable=durable
             )
             with contextlib.suppress(OSError):
                 Path(tmp).unlink()
@@ -215,7 +219,10 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             with contextlib.suppress(OSError):
                 dirname.mkdir(mode=0o0700)
         with _debug.perf(
-            "http.session.write", sid=session.sid[:8], was_new=session.is_new
+            "http.session.write",
+            sid=session.sid[:8],
+            was_new=session.is_new,
+            durable=getattr(self._durability, "enabled", False),
         ):
             self._write(session)
         session.is_new = False
@@ -232,7 +239,9 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             _debug.logic("http.session.get", sid=sid[:8], found=False, invalid_key=True)
             return self.new()
         with self._locked_sid(sid):
-            session = super().get(sid)
+            with _debug.perf("http.session.read", sid=sid[:8]) as span:
+                session = super().get(sid)
+                span.set(found=not session.is_new)
         session.store = self
         session.mark_clean()
         if not session.is_new:
@@ -314,6 +323,13 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             session["gc_previous_sessions"] = True
         session.pop("next_sid", None)
         session.pop("deletion_time", None)
+        _debug.lifecycle(
+            "http.session.rotation_prepared",
+            soft=soft,
+            sid=next_sid[:8],
+            token=new_token is not None,
+            uid=session.uid,
+        )
 
     def rotate(self, session: Session, env: Any, soft: bool = False) -> None:
         if soft and session.rotation is None:
@@ -322,6 +338,7 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                 if "next_sid" in recent:
                     peer = self._get_live_session(recent)
                     original = session.snapshot()
+                    _debug.logic("http.session.rotate", strategy="adopt_before_stage")
                     try:
                         self._adopt_rotation(session, peer)
                         self.save(session)
@@ -336,18 +353,28 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
             with self._locked_sid(original.sid):
                 current = self.get(original.sid)
                 if not original.is_new and current.is_new:
+                    _debug.logic("http.session.rotation_refused", reason="revoked")
                     raise SessionExpiredException("Session was revoked")
                 if soft and "next_sid" in current:
                     peer = self._get_live_session(current)
+                    _debug.logic("http.session.rotate", strategy="adopt_in_lock")
                     self._adopt_rotation(session, peer)
                     self.save(session)
                     return
+                _debug.logic(
+                    "http.session.rotate",
+                    strategy="soft" if soft else "hard",
+                    original_new=original.is_new,
+                )
                 # Write the successor first: an interrupted write must not
                 # leave the old cookie pointing at a nonexistent session.
                 if soft and not original.is_new:
                     uid = session.uid
                     session.merge_changes(current)
                     if session.db != original.db:
+                        _debug.logic(
+                            "http.session.rotation_refused", reason="db_changed"
+                        )
                         raise SessionExpiredException("Session database changed")
                     if session.uid != uid:
                         session.session_token = (
@@ -356,6 +383,11 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                             ._get_session_token(session.sid)
                             if session.uid
                             else None
+                        )
+                        _debug.lifecycle(
+                            "http.session.token_regenerated",
+                            merged_uid=session.uid,
+                            staged_uid=uid,
                         )
                 self.save(session)
                 if soft:
@@ -567,8 +599,12 @@ class Session(collections.abc.MutableMapping):
         )
         if self.__baseline is None:
             return
+        before = len(self.__data)  # debuglog
         self.__data = _merge_session_data(
             _loads(self.__baseline), self.__data, dict(current)
+        )
+        _debug.lifecycle(
+            "http.session.merged", keys_before=before, keys_after=len(self.__data)
         )
 
     def __getitem__(self, item: str) -> Any:
@@ -650,7 +686,13 @@ class Session(collections.abc.MutableMapping):
             "REMOTE_ADDR": request.httprequest.environ.get("REMOTE_ADDR", ""),
         }
         env = env(user=None, su=False)
-        auth_info = env["res.users"].authenticate(credential, wsgienv)
+        with _debug.perf(
+            "http.session.authenticate",
+            cr=getattr(env, "cr", None),
+            auth_type=credential.get("type"),
+        ) as span:
+            auth_info = env["res.users"].authenticate(credential, wsgienv)
+            span.set(uid=auth_info["uid"])
         pre_uid = auth_info["uid"]
 
         self.uid = None
@@ -681,18 +723,21 @@ class Session(collections.abc.MutableMapping):
         uid = self.pop("pre_uid")
 
         env = env(user=uid)
-        user_context = dict(env["res.users"].context_get())
+        with _debug.perf(
+            "http.session.finalize_login", cr=getattr(env, "cr", None), uid=uid
+        ):
+            user_context = dict(env["res.users"].context_get())
 
-        self._require_hard_rotation()
-        self.update(
-            {
-                "db": env.registry.db_name,
-                "login": login,
-                "uid": uid,
-                "context": user_context,
-                "session_token": env.user._get_session_token(self.sid),
-            }
-        )
+            self._require_hard_rotation()
+            self.update(
+                {
+                    "db": env.registry.db_name,
+                    "login": login,
+                    "uid": uid,
+                    "context": user_context,
+                    "session_token": env.user._get_session_token(self.sid),
+                }
+            )
         _debug.lifecycle(
             "http.session.login_finalized",
             db=env.registry.db_name,
@@ -712,6 +757,7 @@ class Session(collections.abc.MutableMapping):
         self._require_hard_rotation()
 
         if request and request.env is not None:
+            _debug.lifecycle("http.session.post_logout_hook", db=request.db)
             get_ir_http(request.env)._post_logout()
 
     def _require_hard_rotation(self) -> None:

@@ -76,7 +76,9 @@ class RouteInfo(NamedTuple):
 
 def _get_route_param_specs(route: RouteInfo) -> dict[str, ParamSpec]:
     if route.param_specs is not None:
+        _debug.logic("http.openapi.param_specs", rule=route.rule, source="endpoint")
         return route.param_specs
+    _debug.logic("http.openapi.param_specs", rule=route.rule, source="introspected")
     return get_param_specs(route.handler)
 
 
@@ -200,6 +202,16 @@ def prepare_openapi_operation(
     elif auth in ("public", "none"):
         operation["security"] = []
 
+    _debug.pipeline(
+        "http.openapi.operation",
+        id=operation["operationId"],
+        method=method,
+        type=route_type,
+        typed=bool(route.routing.get("typed")),
+        parameters=len(parameters),
+        body="requestBody" in operation,
+        auth=auth,
+    )
     return operation
 
 
