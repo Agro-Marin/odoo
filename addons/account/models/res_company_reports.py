@@ -12,41 +12,49 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     totals_below_sections = fields.Boolean(
+        string="Add totals below sections",
         compute="_compute_totals_below_sections",
         store=True,
-        string="Add totals below sections",
-        help="When ticked, totals and subtotals appear below the sections of the report.",
         readonly=False,
+        help="When ticked, totals and subtotals appear below the sections of the report.",
     )
 
     account_return_periodicity = fields.Selection(
         selection=PERIODS,
         string="Delay units",
-        help="Periodicity",
         required=True,
         default="monthly",
+        help="Periodicity",
     )
     account_return_reminder_day = fields.Integer(
-        string="Start from", default=7, required=True
+        string="Start from",
+        default=7,
+        required=True,
     )
     account_tax_return_journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="Journal",
+        check_company=True,
+        domain=[("type", "=", "general")],
+    )
+    account_revaluation_journal_id = fields.Many2one(
+        "account.journal",
         domain=[("type", "=", "general")],
         check_company=True,
     )
-    account_revaluation_journal_id = fields.Many2one(
-        "account.journal", domain=[("type", "=", "general")], check_company=True
-    )
     account_revaluation_expense_provision_account_id = fields.Many2one(
-        "account.account", string="Expense Provision Account", check_company=True
+        "account.account",
+        string="Expense Provision Account",
+        check_company=True,
     )
     account_revaluation_income_provision_account_id = fields.Many2one(
-        "account.account", string="Income Provision Account", check_company=True
+        "account.account",
+        string="Income Provision Account",
+        check_company=True,
     )
     account_tax_unit_ids = fields.Many2many(
-        string="Tax Units",
         comodel_name="account.tax.unit",
+        string="Tax Units",
         help="The tax units this company belongs to.",
     )
     account_representative_id = fields.Many2one(
@@ -74,8 +82,6 @@ class ResCompany(models.Model):
             company.totals_below_sections = company.anglo_saxon_accounting
 
     def _get_countries_allowing_tax_representative(self):
-        """Returns the codes of the countries allowing a representative to submit the tax report."""
-        # Hook: to be overridden in localisation modules.
         return set()
 
     @dbg.timed
@@ -104,7 +110,6 @@ class ResCompany(models.Model):
                     )
                 )
             if not closing_journal:
-                # Try reloading the chart template data to create the tax return journal with translations.
                 ChartTemplate = self.env["account.chart.template"].with_company(self)
                 ChartTemplate._load_data(
                     {
@@ -132,16 +137,7 @@ class ResCompany(models.Model):
         companies = super().create(vals_list)
         companies._initiate_account_onboardings()
 
-        # Set default values on every return type for these new companies.
-        # No pre-filter here: deadline_periodicity and deadline_start_date are
-        # company_dependent, so a domain on them resolves against the creating
-        # user's company, not the one being created -- and once a type is
-        # configured for the active company it was excluded, leaving the new
-        # company with no deadline configuration at all. _set_default_values is
-        # already idempotent (each assignment is `value or default`), so the
-        # filter only ever cost correctness.
         self.env["account.return.type"].sudo().search([])._set_default_values(companies)
-
         self.env["account.return.type"]._sync_all_returns(companies.root_id)
         return companies
 
@@ -175,11 +171,6 @@ class ResCompany(models.Model):
         return res
 
     def _get_available_tax_units(self, report, limit=None):
-        """Returns the tax units available for this report and this company.
-
-        :return: account.tax.unit recordset
-        :rtype: recordset
-        """
         self.check_singleton()
         return self.env["account.tax.unit"].search(
             [
@@ -189,17 +180,7 @@ class ResCompany(models.Model):
             limit=limit,
         )
 
-    @dbg.timed
     def _get_branches_with_same_vat(self, accessible_only=False):
-        """Returns all companies among self and its branch hierarchy (children and parents) sharing self's VAT number.
-
-        An empty VAT number is considered as being the same as the one of the closest parent with a VAT number.
-        self is always the first element of the resulting recordset, so it can safely be used to restore the active company.
-
-        :param bool accessible_only: exclude companies that are not in self.env.companies
-        :return: res.company recordset, self first
-        :rtype: recordset
-        """
         self.check_singleton()
 
         current = self.sudo()
@@ -220,8 +201,6 @@ class ResCompany(models.Model):
                 filter(None, (branch.parent_ids - current_strict_parents).mapped("vat"))
             )
             if parents_vat_set == current_vat_check_set:
-                # If all the branches between the active company and branch (both included) share the same VAT number as the active company,
-                # we want to add the branch to the selection.
                 same_vat_branch_ids.append(branch.id)
 
         return self.browse(same_vat_branch_ids)
