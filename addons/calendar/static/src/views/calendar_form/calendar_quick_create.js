@@ -17,8 +17,10 @@ export const QUICK_CREATE_CALENDAR_EVENT_FIELDS = {
     // force_save'd field; without it the full form reopens on the drag's
     duration: { type: "float" },
     partner_ids: { type: "many2many" },
+    privacy: { type: "selection" },
+    location: { type: "string" },
     videocall_location: { type: "string" },
-    description: { type: "string" },
+    notes: { type: "string" },
 };
 
 function getDefaultValuesFromRecord(data) {

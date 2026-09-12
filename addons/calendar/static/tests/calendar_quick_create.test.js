@@ -7,7 +7,7 @@ import { luxon } from "@web/core/l10n/luxon";
 
 defineCalendarModels();
 
-test("More Options forwards the duration the quick create recomputed", async () => {
+test("More Options forwards the quick create's duration, privacy, location and notes", async () => {
     mockDate("2016-12-12 08:00:00", 0);
     let controller;
     patchWithCleanup(CalendarQuickCreateFormController.prototype, {
@@ -25,6 +25,9 @@ test("More Options forwards the duration the quick create recomputed", async () 
                 <field name="start"/>
                 <field name="stop"/>
                 <field name="duration" invisible="1" force_save="1"/>
+                <field name="privacy"/>
+                <field name="location"/>
+                <field name="notes"/>
             </form>`,
         context: { default_duration: 2 },
     });
@@ -38,6 +41,9 @@ test("More Options forwards the duration the quick create recomputed", async () 
         start: luxon.DateTime.fromISO("2016-12-12T10:00:00"),
         stop: luxon.DateTime.fromISO("2016-12-12T14:00:00"),
         duration: 4,
+        privacy: "private",
+        location: "Room 2",
+        notes: "<p>bring the deck</p>",
     });
     await controller.goToFullEvent();
     expect(actions).toHaveLength(1);
@@ -45,4 +51,12 @@ test("More Options forwards the duration the quick create recomputed", async () 
     expect(actions[0].options.additionalContext.default_stop).toBe(
         "2016-12-12 14:00:00",
     );
+    // the popover's own fields travel too, not only the drag extent
+    const { default_privacy, default_location, default_notes } =
+        actions[0].options.additionalContext;
+    expect([default_privacy, default_location, String(default_notes)]).toEqual([
+        "private",
+        "Room 2",
+        "<p>bring the deck</p>",
+    ]);
 });
