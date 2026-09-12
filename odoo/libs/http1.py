@@ -34,6 +34,7 @@ LAST_CHUNK = b"0\r\n\r\n"
 
 _TOKEN = re.compile(rb"[!#$%&'*+\-.^_`|~0-9A-Za-z]+\Z")
 _HEAD_END = re.compile(rb"\r?\n\r?\n")
+_MAX_LEADING_EMPTY_BYTES = 8
 _VERSION = re.compile(rb"HTTP/([0-9])\.([0-9])\Z")
 _FORBIDDEN_IN_VALUE = re.compile(rb"[\x00-\x08\x0a-\x1f\x7f]")
 _FORBIDDEN_IN_TARGET = re.compile(rb"[\x00-\x20\x7f]")
@@ -90,12 +91,23 @@ class RequestHead:
         return self.chunked or bool(self.content_length)
 
 
-def find_head(buffer: bytes | bytearray, limits: HeadLimits) -> tuple[int, int] | None:
+def find_head(
+    buffer: bytes | bytearray, limits: HeadLimits, scanned: int = 0
+) -> tuple[int, int] | None:
+    # RFC 9112 2.2 asks only that a stray CRLF before the request line be ignored.
+    # Skipping them without bound let one connection stream blank lines that never
+    # counted against the head limit and were rescanned on every read.
     start = 0
     size = len(buffer)
-    while start < size and buffer[start] in b"\r\n":
+    while (
+        start < size and start <= _MAX_LEADING_EMPTY_BYTES and buffer[start] in b"\r\n"
+    ):
         start += 1
-    match = _HEAD_END.search(buffer, start)
+    if start > _MAX_LEADING_EMPTY_BYTES:
+        raise _bad("too many empty lines before the request line")
+    # A blank line is at most four bytes, so one completed by new data starts at
+    # most three bytes before what the previous call had already scanned.
+    match = _HEAD_END.search(buffer, max(start, scanned - 3))
     if match is None:
         if size - start > limits.max_head_bytes:
             raise ProtocolError(

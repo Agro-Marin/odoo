@@ -1,3 +1,4 @@
+import random
 from http import HTTPStatus
 
 import pytest
@@ -195,6 +196,41 @@ def test_find_head_waits_for_the_blank_line():
     assert find_head(b"GET / HTTP/1.1\r\nHost: x\r\n", LIMITS) is None
     raw = b"GET / HTTP/1.1\r\nHost: x\r\n\r\nNEXT"
     assert find_head(raw, LIMITS) == (0, len(raw) - 4)
+
+
+def test_a_few_empty_lines_before_the_request_line_are_ignored_and_more_refused():
+    assert parse(b"\r\n" * 4 + b"GET / HTTP/1.1\r\nHost: x\r\n\r\n").method == "GET"
+    with pytest.raises(ProtocolError) as info:
+        find_head(b"\r\n" * 5 + b"GET / HTTP/1.1\r\nHost: x\r\n\r\n", LIMITS)
+    assert info.value.status == HTTPStatus.BAD_REQUEST
+
+
+def test_a_stream_of_empty_lines_is_refused_before_it_can_grow():
+    with pytest.raises(ProtocolError) as info:
+        find_head(bytearray(b"\r\n" * 100_000), LIMITS)
+    assert info.value.status == HTTPStatus.BAD_REQUEST
+    assert find_head(b"\r\n\r\n", LIMITS) is None
+
+
+def test_scanning_only_new_bytes_finds_what_a_full_scan_finds():
+    rng = random.Random(9112)
+    alphabet = [b"\r", b"\n", b"\r\n", b"a", b": ", b"GET / HTTP/1.1"]
+    for _ in range(2000):
+        stream = b"GET / HTTP/1.1" + b"".join(
+            rng.choice(alphabet) for _ in range(rng.randint(0, 40))
+        )
+        buffer = bytearray()
+        scanned = 0
+        position = 0
+        while position < len(stream):
+            step = rng.randint(1, 5)
+            scanned = len(buffer)
+            buffer += stream[position : position + step]
+            position += step
+            incremental = find_head(buffer, LIMITS, scanned)
+            assert incremental == find_head(buffer, LIMITS), stream
+            if incremental is not None:
+                break
 
 
 def test_head_size_and_count_limits():

@@ -1,3 +1,5 @@
+import contextlib
+import errno
 import json
 import logging
 import os
@@ -303,6 +305,123 @@ def test_a_partial_head_times_out_with_408_without_a_worker():
         assert buf.startswith(b"HTTP/1.1 408")
         assert time.monotonic() - started < 2
         assert srv.busy_workers == 0
+
+
+def test_a_stream_of_empty_lines_is_answered_400_and_closed(server):
+    sock = socket.create_connection(("127.0.0.1", server.server_port))
+    sock.settimeout(3)
+    started = time.monotonic()
+    response = b""
+    try:
+        for _ in range(256):
+            sock.sendall(b"\r\n" * 32768)
+    except OSError:
+        pass
+    with contextlib.suppress(OSError):
+        while chunk := sock.recv(65536):
+            response += chunk
+    sock.close()
+    assert response.startswith(b"HTTP/1.1 400")
+    assert time.monotonic() - started < 3
+    after = _talk(
+        server.server_port,
+        b"GET /after HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n",
+    )
+    assert _json_body(after)["path"] == "/after"
+
+
+class _StarvedListener:
+    def __init__(self, sock):
+        self.sock = sock
+        self.accepts = 0
+
+    def accept(self):
+        self.accepts += 1
+        raise OSError(errno.EMFILE, "Too many open files")
+
+    def __getattr__(self, name):
+        return getattr(self.sock, name)
+
+
+@contextmanager
+def _starved_server():
+    with (
+        patch.dict(os.environ, {"ODOO_MAX_HTTP_THREADS": "4"}),
+        server_settings.override(
+            db_maxconn=64, max_cron_threads=0, job_workers=0, test_enable=False
+        ),
+    ):
+        srv = httpd.ThreadedHTTPServer("127.0.0.1", 0, _app)
+    real = srv.socket
+    srv.socket = _StarvedListener(real)
+    thread = threading.Thread(target=srv.serve_forever, daemon=True)
+    try:
+        yield srv, thread
+    finally:
+        srv.shutdown()
+        if thread.ident is not None:
+            thread.join(5)
+        srv.socket = real
+        srv.server_close()
+
+
+def _parked(srv, *, requests, head_started, name):
+    left, right = socket.socketpair()
+    conn = httpd.Connection(left, (name, 0))
+    conn.requests = requests
+    if head_started:
+        conn.source.buffer += b"GET / HTTP/1.1\r\n"
+    srv._park(conn, time.monotonic())
+    return conn, right
+
+
+def test_idle_eviction_takes_a_kept_alive_connection_before_older_silent_ones():
+    with _starved_server() as (srv, _):
+        pairs = [
+            _parked(srv, requests=0, head_started=True, name="partial"),
+            _parked(srv, requests=0, head_started=False, name="fresh"),
+            _parked(srv, requests=3, head_started=False, name="kept-alive"),
+        ]
+        try:
+            order = []
+            while srv._evict_oldest_idle():
+                closed = {c.addr[0] for c, _ in pairs if c.sock.fileno() == -1}
+                order.extend(sorted(closed - set(order)))
+            assert order == ["kept-alive", "partial", "fresh"]
+        finally:
+            for conn, peer in pairs:
+                conn.sock.close()
+                peer.close()
+
+
+def test_running_out_of_descriptors_closes_an_idle_connection_to_make_room(caplog):
+    with _starved_server() as (srv, thread):
+        _conn, peer = _parked(srv, requests=1, head_started=False, name="kept-alive")
+        client = socket.create_connection(srv.server_address)
+        try:
+            with caplog.at_level(logging.WARNING, logger="odoo.service.server"):
+                thread.start()
+                peer.settimeout(2)
+                assert peer.recv(1) == b""
+            assert "cannot accept HTTP connections" in caplog.text
+        finally:
+            client.close()
+            peer.close()
+
+
+def test_running_out_of_descriptors_with_nothing_to_close_does_not_spin():
+    with _starved_server() as (srv, thread):
+        client = socket.create_connection(srv.server_address)
+        try:
+            started = time.process_time()
+            thread.start()
+            time.sleep(0.5)
+            cpu = time.process_time() - started
+            accepts = srv.socket.accepts
+        finally:
+            client.close()
+    assert 1 <= accepts <= 15
+    assert cpu < 0.25
 
 
 def test_the_access_log_line_keeps_its_shape(server, caplog):

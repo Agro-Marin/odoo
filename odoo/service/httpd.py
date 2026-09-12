@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import logging
 import os
 import selectors
@@ -50,6 +51,9 @@ REQUEST_THREAD_PREFIX = "odoo.service.http.request."
 IDLE_THREAD_PREFIX = "odoo.service.http.idle."
 _SEND_SLICE = 65536
 _MAX_PIPELINED = 16
+_ACCEPT_BACKOFF = 0.1
+_RESOURCE_WARNING_INTERVAL = 60.0
+_RESOURCE_ERRNOS = frozenset({errno.EMFILE, errno.ENFILE, errno.ENOBUFS, errno.ENOMEM})
 _PEER_GONE = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)
 _CONTROL_CHARS = str.maketrans(
     {c: rf"\x{c:02x}" for c in [*range(0x20), *range(0x7F, 0xA0)]} | {ord("\\"): r"\\"}
@@ -408,7 +412,9 @@ def _error_response(conn: Connection, status: HTTPStatus, detail: str) -> int:
 
 def _read_head(conn: Connection, limits: TransportLimits) -> tuple[int, int] | None:
     deadline = time.monotonic() + limits.head_timeout
-    while (span := find_head(conn.source.buffer, limits.head)) is None:
+    scanned = 0
+    while (span := find_head(conn.source.buffer, limits.head, scanned)) is None:
+        scanned = len(conn.source.buffer)
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ProtocolError(
@@ -790,6 +796,8 @@ class ThreadedHTTPServer:
         self._stopped = threading.Event()
         self._stopped.set()
         self._listening = False
+        self._accept_paused_until = 0.0
+        self._resource_warned_at = -_RESOURCE_WARNING_INTERVAL
         _debug.lifecycle(
             "httpd.server_created",
             host=host,
@@ -887,14 +895,22 @@ class ThreadedHTTPServer:
         if len(self._idle) > self.limits.max_idle_connections:
             self._evict_oldest_idle()
 
-    def _evict_oldest_idle(self) -> None:
-        victim = min(
-            (c for c in self._idle.values() if not c.head_started),
-            key=lambda c: c.idle_since,
-            default=None,
+    def _evict_oldest_idle(self) -> bool:
+        # _idle is keyed in parking order, so the first entries are the oldest. A
+        # connection idle between requests goes first because its client reconnects
+        # without losing anything; after that the oldest goes, whether it never sent
+        # a byte or is part way through a head, or a slowloris client could hold
+        # every slot while each newcomer is closed before it can speak.
+        victim = next(
+            (c for c in self._idle.values() if c.requests and not c.head_started),
+            None,
         )
-        if victim is not None:
-            self._drop(victim)
+        if victim is None:
+            victim = next(iter(self._idle.values()), None)
+        if victim is None:
+            return False
+        self._drop(victim)
+        return True
 
     def _drop(self, conn: Connection) -> None:
         with contextlib.suppress(KeyError, ValueError):
@@ -910,9 +926,26 @@ class ThreadedHTTPServer:
                 return
             except OSError as exc:
                 _debug.logic("httpd.accept_failed", error=type(exc).__name__)
+                if exc.errno in _RESOURCE_ERRNOS:
+                    self._accept_starved(exc, now)
                 return
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             self._park(Connection(sock, addr), now)
+
+    def _accept_starved(self, exc: OSError, now: float) -> None:
+        if now - self._resource_warned_at >= _RESOURCE_WARNING_INTERVAL:
+            self._resource_warned_at = now
+            _logger.warning(
+                "cannot accept HTTP connections (%s) with %d idle and %d busy;"
+                " closing idle connections to make room",
+                exc.strerror or exc,
+                len(self._idle),
+                self._pool.busy,
+            )
+        # The listener stays readable while accept fails, so without freeing a
+        # descriptor or leaving the selector the loop would spin on it.
+        if not self._evict_oldest_idle():
+            self._accept_paused_until = now + _ACCEPT_BACKOFF
 
     def _readable(self, conn: Connection, now: float) -> None:
         try:
@@ -925,12 +958,15 @@ class ThreadedHTTPServer:
         if not data:
             self._drop(conn)
             return
+        scanned = len(conn.source.buffer)
         conn.source.buffer += data
         if not conn.head_started and conn.source.buffer.strip(b"\r\n"):
             conn.head_started = True
             conn.deadline = now + self.limits.head_timeout
         try:
-            complete = find_head(conn.source.buffer, self.limits.head) is not None
+            complete = (
+                find_head(conn.source.buffer, self.limits.head, scanned) is not None
+            )
         except ProtocolError:
             complete = True
         if complete:
@@ -959,7 +995,11 @@ class ThreadedHTTPServer:
                 self._park(conn, now)
 
     def _update_listening(self) -> None:
-        want = not self._pool.saturated and not self._shutdown.is_set()
+        want = (
+            not self._pool.saturated
+            and not self._shutdown.is_set()
+            and time.monotonic() >= self._accept_paused_until
+        )
         if want and not self._listening:
             self._selector.register(self.socket, selectors.EVENT_READ, None)
             self._listening = True
@@ -974,7 +1014,12 @@ class ThreadedHTTPServer:
         try:
             while not self._shutdown.is_set():
                 self._update_listening()
-                for key, _ in self._selector.select(timeout=0.5):
+                timeout = 0.5
+                if not self._listening and self._accept_paused_until:
+                    timeout = max(
+                        0.0, min(timeout, self._accept_paused_until - time.monotonic())
+                    )
+                for key, _ in self._selector.select(timeout=timeout):
                     now = time.monotonic()
                     if key.data is None:
                         self._accept(now)
