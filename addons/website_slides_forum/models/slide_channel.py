@@ -5,10 +5,14 @@ class SlideChannel(models.Model):
     _inherit = "slide.channel"
 
     forum_id = fields.Many2one(
-        "forum.forum", "Course Forum", copy=False, index="btree_not_null"
+        "forum.forum",
+        "Course Forum",
+        copy=False,
+        index="btree_not_null",
     )
     forum_total_posts = fields.Integer(
-        "Number of active forum posts", related="forum_id.total_posts"
+        "Number of active forum posts",
+        related="forum_id.total_posts",
     )
 
     _forum_uniq = models.Constraint(

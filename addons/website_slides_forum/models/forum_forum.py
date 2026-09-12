@@ -11,14 +11,20 @@ class ForumForum(models.Model):
         help="Edit the course linked to this forum on the course form.",
     )
     slide_channel_id = fields.Many2one(
-        "slide.channel", "Course", compute="_compute_slide_channel_id", store=True
+        "slide.channel",
+        "Course",
+        compute="_compute_slide_channel_id",
+        store=True,
     )
     visibility = fields.Selection(
         related="slide_channel_id.visibility",
         help="Forum linked to a Course, the visibility is the one applied on the course.",
     )
     image_1920 = fields.Image(
-        "Image", compute="_compute_image_1920", store=True, readonly=False
+        "Image",
+        compute="_compute_image_1920",
+        store=True,
+        readonly=False,
     )
 
     @api.depends("slide_channel_ids")
