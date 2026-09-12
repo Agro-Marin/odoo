@@ -815,6 +815,7 @@ export class Message extends Record {
         };
     }
 
+    /** @this {import("models").Message} */
     async setDone() {
         const wasNeedaction = this.needaction;
         const inbox = this.store.inbox;
@@ -831,11 +832,7 @@ export class Message extends Record {
         if (wasNeedaction) {
             this.needaction = false;
             if (inbox) {
-                inbox.messages.delete(
-                    /** @type {import("models").Message} */ (
-                        /** @type {unknown} */ (this)
-                    ),
-                );
+                inbox.messages.delete(this);
                 inboxApplied = applyCounterDelta(inbox, "counter", -1);
             }
             if (this.thread) {
@@ -857,11 +854,7 @@ export class Message extends Record {
             if (wasNeedaction) {
                 this.needaction = true;
                 if (inbox) {
-                    inbox.messages.add(
-                        /** @type {import("models").Message} */ (
-                            /** @type {unknown} */ (this)
-                        ),
-                    );
+                    inbox.messages.add(this);
                     inboxSnapshot.restoreDelta(-inboxApplied);
                 }
                 threadSnapshot?.restoreDelta(-threadApplied);
@@ -881,6 +874,7 @@ export class Message extends Record {
         );
     }
 
+    /** @this {import("models").Message} */
     async unfollow() {
         log.logic("unfollow", () => ({
             id: this.id,

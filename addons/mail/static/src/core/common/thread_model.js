@@ -1008,6 +1008,7 @@ export class Thread extends Record {
     }
 
     /**
+     * @this {import("models").Thread}
      * @param {string | ReturnType<import("@odoo/owl").markup>} body
      * @param {Object} [postData={}]
      * @param {Object} [extraData={}]
@@ -1024,9 +1025,7 @@ export class Thread extends Record {
         const params = await getMessagePostParams(this.store, {
             body,
             postData,
-            thread: /** @type {import("models").Thread} */ (
-                /** @type {unknown} */ (this)
-            ),
+            thread: this,
         });
         Object.assign(params, extraData);
         const tmpId = this.store.getNextTemporaryId();

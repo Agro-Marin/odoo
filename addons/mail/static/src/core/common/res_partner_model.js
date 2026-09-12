@@ -58,13 +58,10 @@ export class ResPartner extends PresenceMixin(Record) {
         return this._computeDisplayName();
     }
 
+    /** @this {import("models").ResPartner} */
     searchChat() {
         return Object.values(this.store.Thread.records).find((thread) =>
-            thread.isChatWith(
-                /** @type {import("models").ResPartner} */ (
-                    /** @type {unknown} */ (this)
-                ),
-            ),
+            thread.isChatWith(this),
         );
     }
 }
