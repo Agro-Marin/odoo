@@ -2,10 +2,12 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
-class BaseModuleInstallRequest(models.TransientModel):
+class BaseModuleInstallRequest(models.Model):
     _name = "base.module.install.request"
+    _inherit = ["mixin.mail.thread", "mixin.approval"]
     _description = "Module Activation Request"
     _rec_name = "module_id"
+    _order = "create_date desc, id desc"
 
     module_id = fields.Many2one(
         "ir.module.module",
@@ -19,6 +21,7 @@ class BaseModuleInstallRequest(models.TransientModel):
         "res.users",
         default=lambda self: self.env.user,
         required=True,
+        readonly=True,
     )
     user_ids = fields.Many2many(
         "res.users",
@@ -33,19 +36,15 @@ class BaseModuleInstallRequest(models.TransientModel):
         self.user_ids = [(6, 0, users.ids)]
 
     def action_send_request(self):
-        mail_template = self.env.ref(
-            "base_install_request.mail_template_base_install_request"
-        )
-        menu_id = self.env.ref("base.menu_apps").id
-        for user in self.user_ids:
-            render_ctx = dict(
-                self.env.context, partner=user.partner_id, menu_id=menu_id
-            )
-            mail_template.with_context(render_ctx).send_mail(
-                self.id,
-                force_send=True,
-                email_layout_xmlid="mail.mail_notification_light",
-            )
+        """Ask the system administrators through an approval request.
+
+        This used to render a mail template to each of them and keep nothing:
+        not who asked, not whether anybody answered, not what they said. The
+        request is now the record of all three, and the engine's activities are
+        what reach the administrators.
+        """
+        self.check_singleton()
+        self.action_create_approval_request()
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
@@ -55,6 +54,54 @@ class BaseModuleInstallRequest(models.TransientModel):
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }
+
+    def action_open_install_review(self):
+        """Open the dependency review that ends in the install.
+
+        Installing is not done from the approval decision itself: it commits and
+        replaces the registry, which would pull the rest of the decision out from
+        under the request that is still being written. It stays one explicit
+        click, as it was when the administrator followed the e-mail's link.
+        """
+        self.check_singleton()
+        if self.approval_state != "approved":
+            raise UserError(_("This activation request has not been approved."))
+        return {
+            **self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+                "base_install_request.action_base_module_install_review"
+            ),
+            "context": {"default_module_id": self.module_id.id},
+        }
+
+    def _get_domain_approval_category(self):
+        category = self.env.ref(
+            "base_install_request.approval_category_module_activation",
+            raise_if_not_found=False,
+        )
+        return [("id", "=", category.id)] if category else []
+
+    def _get_approval_request_name(self):
+        return _('Activation of "%s"', self.module_id.shortdesc)
+
+    def _get_approval_reason_html(self):
+        return self.body_html or ""
+
+    def _filter_approval_step_user_ids(self, step, user_ids):
+        user_ids = super()._filter_approval_step_user_ids(step, user_ids)
+        return user_ids - {self.user_id.id}
+
+    def _on_approval_approved(self):
+        super()._on_approval_approved()
+        for request in self:
+            request.message_post(
+                body=_(
+                    "Activation of %(module)s was approved. An administrator "
+                    "installs it from this request.",
+                    module=request.module_id.shortdesc,
+                ),
+                partner_ids=request.user_id.partner_id.ids,
+                message_type="notification",
+            )
 
 
 class BaseModuleInstallReview(models.TransientModel):

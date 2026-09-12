@@ -1,9 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="base_module_install_request_view_form_record" model="ir.ui.view">
+        <field name="name">base.module.install.request.view.form.record</field>
+        <field name="model">base.module.install.request</field>
+        <field name="arch" type="xml">
+            <form string="Activation Request" create="0">
+                <header>
+                    <button
+                        name="action_open_install_review"
+                        string="Install App"
+                        type="object"
+                        class="btn-primary"
+                        groups="base.group_system"
+                        invisible="approval_state != 'approved'" />
+                    <button
+                        name="action_view_approval_request"
+                        string="Approval Request"
+                        type="object"
+                        invisible="not approval_request_id" />
+                    <field name="approval_state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="module_id" />
+                            <field name="user_id" />
+                        </group>
+                        <group>
+                            <field name="approval_request_id" readonly="1" />
+                            <field
+                                name="pending_approver_ids"
+                                widget="many2many_tags"
+                                invisible="approval_state not in ['new', 'pending']" />
+                        </group>
+                    </group>
+                    <group string="Why is this module needed?">
+                        <field colspan="2" name="body_html" nolabel="1" readonly="1" />
+                    </group>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
     <record id="base_module_install_request_view_form" model="ir.ui.view">
         <field name="name">base.module.install.request.view.form</field>
         <field name="model">base.module.install.request</field>
+        <field name="priority">20</field>
         <field name="arch" type="xml">
             <form>
                 <field name="module_id" invisible="1" />

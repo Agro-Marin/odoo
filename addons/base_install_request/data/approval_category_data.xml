@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="approval_category_module_activation" model="approval.category">
+        <field name="name">Module Activation</field>
+        <field
+            name="description">A user asking the administrators to activate an application.</field>
+        <field name="sequence_code">MODACT</field>
+        <field name="company_id" eval="False" />
+        <field name="approval_minimum">1</field>
+        <field name="has_date">no</field>
+        <field name="has_date_range">no</field>
+        <field name="has_date_deadline">no</field>
+        <field name="has_date_planned">no</field>
+        <field name="has_quantity">no</field>
+        <field name="has_amount">no</field>
+        <field name="has_reference">no</field>
+        <field name="has_partner">no</field>
+        <field name="has_location">no</field>
+        <field name="has_document">optional</field>
+        <field name="privacy_visibility">private</field>
+    </record>
+
+    <record
+        id="approval_category_step_module_activation"
+        model="approval.category.step">
+        <field name="name">Administrator</field>
+        <field name="category_id" ref="approval_category_module_activation" />
+        <field name="group_id" ref="base.group_system" />
+        <field name="minimum" eval="1" />
+        <field name="sequence" eval="10" />
+    </record>
+
+</odoo>
