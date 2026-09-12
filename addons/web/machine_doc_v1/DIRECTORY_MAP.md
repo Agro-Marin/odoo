@@ -178,7 +178,7 @@
 | `search/search_panel/` | widgets | 3 | Sidebar filter panel with category trees and grouped checkbox filters |
 | `search/utils/` | widgets | 3 | Search option definitions and domain generators: date periods, group-by descriptors, misc |
 | `search/with_search/` | widgets | 1 | Wrapper creating a `SearchModel` and injecting it into the sub-environment |
-| `ui/` | shared | 13 | Overlay-layer root: the `ui` service (active element, block UI), viewport tracking, the activation stack, `MainComponentsContainer`, the `form_dialog_stack` and `scss_error_display` services, plus the `commands` / `dialog` / `notification` / `popover` / `tooltip` faces |
+| `ui/` | shared | 13 | Overlay-layer root: the `ui` service (active element, block UI), viewport tracking, the activation stack, `MainComponentsContainer`, the `scss_error_display` service, `describeNode` for the loggers, plus the `commands` / `dialog` / `notification` / `popover` / `tooltip` faces |
 | `ui/alert/` | shared | 1 | `dismiss_alert` service: one delegated click listener dismissing arch-declared alerts |
 | `ui/block/` | shared | 1 | Full-screen overlay blocking the UI during long operations |
 | `ui/bottom_sheet/` | shared | 2 | Mobile slide-up panel with drag-to-dismiss and snap points, and its service |
@@ -202,7 +202,7 @@
 | `views/calendar/hooks/` | widgets | 3 | Calendar hooks: popover management, responsive behaviour, scale wiring |
 | `views/calendar/mobile_filter_panel/` | widgets | 1 | Compact mobile filter panel with sidebar toggle |
 | `views/calendar/quick_create/` | widgets | 1 | Lightweight dialog for creating an event with just a title |
-| `views/form/` | widgets | 9 | Form view: arch parser, compiler, controller, renderer, label, `FormSaveCoordinator`, dirty-field hook, utilities |
+| `views/form/` | widgets | 10 | Form view: arch parser, compiler, controller, renderer, label, `FormSaveCoordinator`, dirty-field hook, the `form_dialog_stack` service, utilities |
 | `views/form/button_box/` | widgets | 1 | Responsive stat-button container with overflow dropdown |
 | `views/form/form_cog_menu/` | widgets | 1 | Form-view cog menu with save-before-action behaviour |
 | `views/form/form_error_dialog/` | widgets | 1 | Save-failure dialog offering discard / redirect / stay |

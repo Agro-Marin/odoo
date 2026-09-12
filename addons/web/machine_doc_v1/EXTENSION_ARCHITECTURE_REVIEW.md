@@ -6,6 +6,13 @@ corrected every headline number and retracted one finding outright.**
 Scope: `addons/web/static/src`, measured against its consumers in `odoo/addons`,
 `enterprise`, `agromarin`, `design-themes`.
 
+**Provenance note, 2026-09-12.** Every gate, ratchet floor and typecheck lock
+this review names (js_public_surface, js_extension_surface, js_private_access,
+scope_gate, doc_measured, the jsprivate floor, the tsconfig-paths guard) lived
+under the `tooling/` tree deleted in `7b0f58cb517f` on 2026-09-11. The findings
+and the measurements stand as taken; the mechanisms are history, named in plain
+text below so that a reader can find them in git rather than on disk.
+
 > This document does not restate `ARCHITECTURE.md`, `STATE_MANAGEMENT.md`,
 > `ESM_BUNDLING.md` or `DIRECTORY_MAP.md`. It covers one question those don't:
 > **how other modules extend `web`, and what that costs.**
@@ -645,7 +652,7 @@ most". In this repo's terms that means adding a module to
 the typecheck scope gate's `SCOPED_MODULES` (tooling tree, since deleted), which locks every file of
 that module at zero errors except those named in a generated exception list.
 
-`scope_gate.py --candidates` (added in `714bd73a68a`) now derives what that
+The scope gate's candidates mode (added in `714bd73a68a`) derived what that
 would cost, from the log the gate already needs. Ungated modules with ≥ 20
 compiled files, by the share that would lock:
 
@@ -687,4 +694,6 @@ sed -i 's/beforeExecuteActionButton/beforeRunActionButton/g' B/addons/web/static
 ```
 
 Run the arms **sequentially and identically configured**. The first attempt at
-this comparison was invalid because only one arm had `node_modules`.
+this comparison was invalid because only one arm had `node_modules`. The
+`pytest tooling/architecture` step no longer exists to run (the tree went on
+2026-09-11); the recipe is kept as the record of how the numbers above were taken.

@@ -11,7 +11,8 @@ of every OWL function and of all application code. Nothing in
 `machine_doc_v1` explained it, so it looked like the most promising unexplored
 lead in the render path.
 
-Measured with `tooling/bench/render_bench --attribute` and with a CPU profile
+Measured with the render bench's attribute mode (tooling/bench/render_bench,
+deleted with `tooling/` on 2026-09-11) and with a CPU profile
 taken over six repeated navigations to an 80-row `res.partner` list.
 
 ## What `remove` actually is
@@ -83,5 +84,5 @@ only ~6 ms.
   one machine, headless Chromium, and one 80×8 list.
 
 Key files: `webclient/actions/action_service.js` (controller swap) ·
-`static/lib/owl/owl.es.js` (blockdom `remove`, vendored) ·
-`tooling/bench/render_bench` (`--attribute`).
+`static/lib/owl/owl.es.js` (blockdom `remove`, vendored) · the render bench
+(gone with `tooling/`).

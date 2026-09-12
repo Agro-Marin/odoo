@@ -98,7 +98,7 @@ Layered organization under `static/src/`:
 | **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 111 JS |
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
-| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 179 JS |
+| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 180 JS |
 | **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 97 JS |
 | **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 38 JS |
 | **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 51 JS |
@@ -306,7 +306,7 @@ Promise.
 | `color_scheme` | `webclient/color_scheme/color_scheme_service.js` | Resolves the active light/dark scheme from the user's `res.users.settings` preference and the `(prefers-color-scheme:dark)` media query; drives the `dark_mode_toggle` systray item |
 | `lazy_session` | `webclient/session_service.js` | Lazy-loaded session info (profile_session, profile_collectors, etc.). Consumed by `profiling` service — refactoring this breaks profiling startup. |
 | `multi_company_recovery` | `core/multi_company_recovery_service.js` | Recovers from `AccessError` when the server context carries `suggested_company`. `recoverFromLifecycleError` reloads after activating; `recoverFromSaveError` mutates the model context and activates with `reload:false` to preserve input. Used by FormController's onError paths. |
-| `form_dialog_stack` | `ui/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog`; exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
+| `form_dialog_stack` | `views/form/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog`; exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
 | `result_set_cache_invalidator` | `core/network/result_set_cache_invalidator_service.js` | Emits `CLEAR-CACHES` on `unlink`/`action_archive`/`action_unarchive` and on `action_install_lang` (see `STATE_MANAGEMENT.md`) |
 | `web_vitals` | `core/network/web_vitals/web_vitals_service.js` | Core Web Vitals RUM collection; beacons to `/web/observability/cwv` on pagehide |
 | `connection_recovery` | `core/network/connection_recovery_service.js` | Owns the reconnect notification/poll driven by `lostConnectionHandler`, which lives in `components/errors/error_handlers.js` and only consumes it |
