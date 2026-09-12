@@ -226,10 +226,8 @@ class CredentialCredential(models.Model):
     is_expired = fields.Boolean(
         string="Expired",
         compute="_compute_is_expired",
-        store=True,
-        help="Whether the credential has expired. Note: This is stored for indexing "
-        "but only recomputes when date_expiration changes. For time-critical queries, "
-        "filter directly on date_expiration < now().",
+        search="_search_is_expired",
+        help="Whether the expiration date has passed, read against the current time",
     )
     days_until_expiry = fields.Integer(
         compute="_compute_days_until_expiry",
@@ -647,6 +645,14 @@ class CredentialCredential(models.Model):
             record.is_expired = bool(
                 record.date_expiration and record.date_expiration < now
             )
+
+    def _search_is_expired(self, operator: str, value: Any):
+        if operator not in ("=", "!=") or not isinstance(value, bool):
+            return NotImplemented
+        expired = [("date_expiration", "<", fields.Datetime.now())]
+        if (operator == "=") == value:
+            return expired
+        return ["!", *expired]
 
     @api.depends("date_expiration")
     def _compute_days_until_expiry(self):
