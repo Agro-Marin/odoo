@@ -1,6 +1,9 @@
 from typing import Any
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class WizardIrModelMenuCreate(models.TransientModel):
@@ -30,5 +33,11 @@ class WizardIrModelMenuCreate(models.TransientModel):
                     "parent_id": menu.menu_id.id,
                     "action": f"ir.actions.act_window,{action.id}",
                 }
+            )
+            _debug.lifecycle(
+                "wizard_menu_created",
+                model=model.model,
+                action=action.id,
+                parent_menu=menu.menu_id.id,
             )
         return {"type": "ir.actions.act_window_close"}

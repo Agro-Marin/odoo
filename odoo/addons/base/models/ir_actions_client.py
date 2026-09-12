@@ -2,7 +2,10 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.safe_eval import safe_eval
+
+_debug = DebugLog(__name__)
 
 
 class IrActionsClient(models.Model):
@@ -64,7 +67,10 @@ class IrActionsClient(models.Model):
                 stored = stored.decode()
             try:
                 record.params = safe_eval(stored, {"uid": self.env.uid})
-            except Exception:
+            except Exception as exc:
+                _debug.logic(
+                    "params_unparsable", action=record.id, error=type(exc).__name__
+                )
                 record.params = False
 
     def _inverse_params(self) -> None:

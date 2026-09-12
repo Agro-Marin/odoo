@@ -2,6 +2,9 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ResPartnerIdentifier(models.Model):
@@ -108,6 +111,11 @@ class ResPartnerIdentifier(models.Model):
             ]
         ):
             holders[(other.type_id.id, other.normalized_value)] |= other
+        _debug.logic(
+            "identifier_uniqueness",
+            candidates=len(candidates),
+            holders=sum(len(v) for v in holders.values()),
+        )
         for identifier in candidates:
             commercial = identifier.partner_id.commercial_partner_id
             taken = holders[

@@ -4,6 +4,7 @@ from datetime import UTC
 
 from odoo import api, fields, models
 from odoo.libs.colors import get_hsl_from_seed
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import file_open, html_escape
 from odoo.tools.misc import limited_field_access_token
 
@@ -14,6 +15,9 @@ _FieldName = str
 def _get_placeholder_image(path: str) -> bytes:
     with file_open(path, "rb") as file:
         return file.read()
+
+
+_debug = DebugLog(__name__)
 
 
 class MixinAvatar(models.AbstractModel):
@@ -53,7 +57,15 @@ class MixinAvatar(models.AbstractModel):
             avatar = record[image_field]
             if not avatar:
                 name = record[record._avatar_name_field]
-                if record.id and name and name.strip():
+                generated = bool(record.id and name and name.strip())
+                _debug.logic(
+                    "avatar_fallback",
+                    model=record._name,
+                    record=record.id,
+                    field=avatar_field,
+                    source="initials" if generated else "placeholder",
+                )
+                if generated:
                     avatar = record._prepare_avatar_svg()
                 else:
                     avatar = b64encode(record._get_avatar_placeholder())

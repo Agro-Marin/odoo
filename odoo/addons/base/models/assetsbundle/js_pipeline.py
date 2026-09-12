@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from odoo.libs.asset_log import log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.profiling import SourceMapGenerator
 from odoo.tools import config
 from odoo.tools.assets.esm_graph import (
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
     from .bundle import AssetsBundle
 from .assets import JavascriptAsset
 from .common import _bundle_log
+
+_debug = DebugLog(__name__)
 
 
 class ModuleSyntaxInLegacyBundleError(RuntimeError):
@@ -54,10 +57,16 @@ class JsPipeline:
         return f"console.error({json.dumps(msg)});"
 
     def minified_bundle(self, template_bundle: str) -> str:
-        content_bundle = ";\n".join(
-            self._module_syntax_error_stub(asset) or asset.minify()
-            for asset in self._bundle.javascripts
-        )
+        with _debug.perf(
+            "js_minify",
+            bundle=self._bundle.name,
+            assets=len(self._bundle.javascripts),
+            templates=bool(template_bundle),
+        ):
+            content_bundle = ";\n".join(
+                self._module_syntax_error_stub(asset) or asset.minify()
+                for asset in self._bundle.javascripts
+            )
         if template_bundle:
             content_bundle += ";" + template_bundle
         return content_bundle

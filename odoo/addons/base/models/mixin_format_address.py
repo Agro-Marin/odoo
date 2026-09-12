@@ -4,6 +4,9 @@ from typing import Any
 from lxml import etree
 
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 ADDRESS_FIELDS = ("street", "street2", "zip", "city", "state_id", "country_id")
 
@@ -31,6 +34,12 @@ class MixinFormatAddress(models.AbstractModel):
             and (not address_view_id.model or address_view_id.model == self._name)
         ):
             address_nodes = arch.xpath("//div[hasclass('o_address_format')]")
+            _debug.logic(
+                "address_view",
+                model=self._name,
+                view=address_view_id.id,
+                nodes=len(address_nodes),
+            )
             if address_nodes:
                 Partner = self.env["res.partner"].with_context(no_address_format=True)
                 sub_arch, _sub_view = Partner._get_view(address_view_id.id, "form")
@@ -40,6 +49,7 @@ class MixinFormatAddress(models.AbstractModel):
                             sub_arch, model=self._name
                         )
                     except ValueError:
+                        _debug.logic("address_view_rejected", model=self._name)
                         return arch
                 for address_node in address_nodes:
                     node_arch = copy.deepcopy(sub_arch)

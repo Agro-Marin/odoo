@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from lxml import etree
 from rjsmin import jsmin as rjsmin
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import profiler
 from odoo.tools.assets.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools.assets.esbuild import (
@@ -37,6 +38,8 @@ from .common import (
     _rewrite_css_outside_strings,
     _run_cli_pipe,
 )
+
+_debug = DebugLog(__name__)
 
 
 class WebAsset:
@@ -126,6 +129,7 @@ class WebAsset:
         except UnicodeDecodeError:
             raise AssetError(f"{self.name} is not utf-8 encoded.") from None
         except OSError:
+            _debug.logic("asset_missing", name=self.name, url=self.url)
             raise AssetNotFoundError(f"File {self.name} does not exist.") from None
         except AssetError:
             raise
@@ -387,25 +391,30 @@ class ScssStylesheetAsset(PreprocessedCSS):
 
             compiler = get_sass_compiler()
             profiler.force_hook()
-            return compiler.compile_string(
-                source,
-                syntax=self._sass_syntax,
-                importers=[OdooSassImporter(self.bootstrap_path)],
-                load_paths=[self.bootstrap_path, *odoo.addons.__path__],
-                style=self.output_style,
-                quiet_deps=True,
-            )
+            with _debug.perf(
+                "sass_embedded", chars=len(source), style=self.output_style
+            ):
+                return compiler.compile_string(
+                    source,
+                    syntax=self._sass_syntax,
+                    importers=[OdooSassImporter(self.bootstrap_path)],
+                    load_paths=[self.bootstrap_path, *odoo.addons.__path__],
+                    style=self.output_style,
+                    quiet_deps=True,
+                )
         except SassCompileError:
             raise
         except SassNotFoundError:
             raise
         except Exception as exc:
             self._warn_embedded_fallback(exc)
+            _debug.logic("sass_fallback_cli", error=type(exc).__name__)
             from odoo.tools.sass_embedded import close_sass_compiler
 
             close_sass_compiler()
 
-        return super().compile(source)
+        with _debug.perf("sass_cli", chars=len(source), style=self.output_style):
+            return super().compile(source)
 
     def get_command(self) -> list[str]:
         import odoo.addons

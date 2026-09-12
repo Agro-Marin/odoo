@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 from odoo.tools.json import scriptsafe as json
 
@@ -11,6 +12,8 @@ if TYPE_CHECKING:
     from .bundle import AssetsBundle
     from .common import XMLBlock
 from .common import XMLAssetError
+
+_debug = DebugLog(__name__)
 
 
 class XmlTemplatePipeline:
@@ -110,6 +113,16 @@ class XmlTemplatePipeline:
                         )
 
         missing_names_for_primary = primary_parents - names
+        _debug.pipeline(
+            "xml_bundle",
+            bundle=self._bundle.name,
+            blocks=len(blocks),
+            templates=len(names),
+            primary_parents=len(primary_parents),
+            extension_parents=len(extension_parents),
+            missing_primary=len(missing_names_for_primary),
+            missing_extension=len(extension_parents - names),
+        )
         if missing_names_for_primary:
             content.append(
                 f"checkPrimaryTemplateParents({json.dumps(list(missing_names_for_primary))});"
