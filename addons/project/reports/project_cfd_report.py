@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
 from odoo.addons.resource.models.utils import filter_domain_leaf
 
 
@@ -67,6 +68,7 @@ class ProjectCFDReport(models.AbstractModel):
             "user_ids",
         ]
 
+    @dbg.timed
     @api.model
     def _search(
         self,
@@ -90,6 +92,11 @@ class ProjectCFDReport(models.AbstractModel):
         project_task_query = self.env["project.task"]._search(
             task_specific_domain, **kwargs
         )
+        dbg.pipeline.debug(
+            "[report:project_cfd_report] _search: report domain=%s task domain=%s",
+            cfd_specific_domain,
+            task_specific_domain,
+        )
         self.env.flush_query(project_task_query.subselect())
 
         field_id = (
@@ -107,6 +114,12 @@ class ProjectCFDReport(models.AbstractModel):
 
         interval = date_groupby.split(":")[1] if ":" in date_groupby else "month"
         sql_interval = "1 %s" % interval if interval != "quarter" else "3 month"
+        dbg.logic.debug(
+            "[report:project_cfd_report] groupby=%s -> interval %r (series step %r)",
+            groupby,
+            interval,
+            sql_interval,
+        )
 
         simple_date_groupby_sql = self._read_group_groupby(
             "project_cfd_report",
@@ -252,6 +265,7 @@ class ProjectCFDReport(models.AbstractModel):
             return SQL("SUM(%s)", SQL.identifier(self._table, "task_count"))
         return super()._read_group_select(aggregate_spec, query)
 
+    @dbg.timed
     def _read_group(
         self,
         domain: list,
@@ -263,6 +277,12 @@ class ProjectCFDReport(models.AbstractModel):
         order: str | None = None,
     ) -> list:
         self._check_group_by(groupby)
+        dbg.pipeline.debug(
+            "[report:project_cfd_report] _read_group: domain=%s groupby=%s aggregates=%s",
+            domain,
+            list(groupby),
+            list(aggregates),
+        )
         self = self.with_context(project_cfd_report_groupby=groupby)
 
         return super()._read_group(

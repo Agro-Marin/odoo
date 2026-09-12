@@ -8,6 +8,8 @@ from odoo.api import ValuesType
 from odoo.fields import Domain
 from odoo.tools import format_amount, formatLang
 
+from ..tools import debug_log as dbg
+
 STATUS_COLOR = {
     "on_track": 20,
     "at_risk": 22,
@@ -25,6 +27,7 @@ class ProjectUpdate(models.Model):
     _order = "id desc"
     _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity"]
 
+    @dbg.timed
     @api.model
     def default_get(self, fields: list[str]) -> dict:
         result = super().default_get(fields)
@@ -32,6 +35,12 @@ class ProjectUpdate(models.Model):
             result["project_id"] = self.env.context.get("active_id")
         if result.get("project_id"):
             project = self.env["project.project"].browse(result["project_id"])
+            dbg.logic.debug(
+                "project.update.default_get [project:%s]: last status=%s progress=%s",
+                project.id,
+                project.last_update_status,
+                project.last_update_id.progress,
+            )
             if "progress" in fields and not result.get("progress"):
                 result["progress"] = project.last_update_id.progress
             if "description" in fields and not result.get("description"):
@@ -118,8 +127,14 @@ class ProjectUpdate(models.Model):
                 update.closed_task_count * 100 / update.task_count
             )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        dbg.lifecycle.debug(
+            "project.update.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         updates = super().create(vals_list)
         per_snapshot = defaultdict(self.browse)
         for update in updates:
@@ -129,13 +144,23 @@ class ProjectUpdate(models.Model):
                 (project.task_count, project.task_count - project.open_task_count)
             ] |= update
         for (task_count, closed_task_count), group in per_snapshot.items():
+            dbg.pipeline.debug(
+                "[update:%s] create -> snapshot tasks=%d closed=%d",
+                dbg.rec(group),
+                task_count,
+                closed_task_count,
+            )
             group.write(
                 {"task_count": task_count, "closed_task_count": closed_task_count}
             )
         return updates
 
+    @dbg.timed
     def unlink(self) -> bool:
         projects = self.project_id
+        dbg.lifecycle.debug(
+            "project.update.unlink %s on projects %s", dbg.rec(self), dbg.rec(projects)
+        )
         res = super().unlink()
         if not projects:
             return res
@@ -145,7 +170,13 @@ class ProjectUpdate(models.Model):
         ):
             latest_per_project.setdefault(update.project_id.id, update)
         for project in projects:
-            project.last_update_id = latest_per_project.get(project.id, False)
+            latest = latest_per_project.get(project.id, False)
+            dbg.logic.debug(
+                "project.update.unlink [project:%s]: last_update_id -> %s",
+                project.id,
+                latest and latest.id,
+            )
+            project.last_update_id = latest
         return res
 
     @api.model
@@ -155,10 +186,18 @@ class ProjectUpdate(models.Model):
             self._get_template_values(project),
         )
 
+    @dbg.timed
     @api.model
     def _get_template_values(self, project: Any) -> dict:
         milestones = self._get_milestone_values(project)
         profitability_values, show_profitability = project._get_profitability_values()
+        dbg.logic.debug(
+            "project.update._get_template_values [project:%s]: milestones=%s "
+            "profitability=%s",
+            project.id,
+            milestones["show_section"],
+            show_profitability,
+        )
         return {
             "user": self.env.user,
             "project": project,
@@ -213,6 +252,7 @@ class ProjectUpdate(models.Model):
             "created": created_milestones,
         }
 
+    @dbg.timed
     @api.model
     def _get_last_updated_milestone(self, project: Any) -> list[dict]:
         query = """

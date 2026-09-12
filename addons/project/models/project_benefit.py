@@ -2,6 +2,8 @@ import logging
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -71,6 +73,7 @@ class ProjectBenefit(models.Model):
     )
     notes = fields.Html("Review Notes")
 
+    @dbg.timed
     @api.model
     def _cron_check_review_dates(self) -> None:
         today = fields.Date.context_today(self)
@@ -81,7 +84,13 @@ class ProjectBenefit(models.Model):
                 ("accountable_id", "!=", False),
             ]
         )
+        due = len(benefits)
         benefits = benefits.filtered(lambda b: b.date_review_reminder != b.date_review)
+        dbg.lifecycle.debug(
+            "project.benefit._cron_check_review_dates: %d due, %d not yet reminded",
+            due,
+            len(benefits),
+        )
         if not benefits:
             return
 

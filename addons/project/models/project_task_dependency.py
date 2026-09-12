@@ -5,6 +5,8 @@ from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTaskDependency(models.Model):
     _name = "project.task.dependency"
@@ -75,6 +77,7 @@ class ProjectTaskDependency(models.Model):
                 f"({type_labels.get(dep.dependency_type, 'FS')})"
             )
 
+    @dbg.timed
     @api.constrains("task_id", "depends_on_id")
     def _check_no_cyclic_dependencies(self) -> None:
         self.flush_model(["task_id", "depends_on_id"])
@@ -107,20 +110,44 @@ class ProjectTaskDependency(models.Model):
                 _("Adding this dependency would create a circular reference.")
             )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectTaskDependency:
+        dbg.lifecycle.debug(
+            "project.task.dependency.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         records = super().create(vals_list)
+        dbg.pipeline.debug(
+            "[dependency:%s] create -> sync to predecessor_ids", dbg.rec(records)
+        )
         records._sync_to_m2m()
         return records
 
+    @dbg.timed
     def write(self, vals: dict) -> bool:
         remap = "task_id" in vals or "depends_on_id" in vals
+        dbg.lifecycle.debug(
+            "project.task.dependency.write on %s: keys=%s remap=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            remap,
+        )
         old_pairs = [(dep.task_id, dep.depends_on_id) for dep in self] if remap else []
         res = super().write(vals)
         if remap:
             for (old_task, old_pred), dep in zip(old_pairs, self, strict=True):
                 if dep.task_id == old_task and dep.depends_on_id == old_pred:
                     continue
+                dbg.logic.debug(
+                    "project.task.dependency.write %s: (%s <- %s) -> (%s <- %s)",
+                    dbg.rec(dep),
+                    old_task.id,
+                    old_pred.id,
+                    dep.task_id.id,
+                    dep.depends_on_id.id,
+                )
                 if old_pred in old_task.predecessor_ids:
                     old_task.with_context(skip_dependency_sync=True).write(
                         {"predecessor_ids": [fields.Command.unlink(old_pred.id)]}
@@ -128,10 +155,16 @@ class ProjectTaskDependency(models.Model):
                 dep._sync_to_m2m()
         return res
 
+    @dbg.timed
     def unlink(self) -> bool:
         preds_by_task = defaultdict(lambda: self.env["project.task"])
         for dep in self:
             preds_by_task[dep.task_id] |= dep.depends_on_id
+        dbg.lifecycle.debug(
+            "project.task.dependency.unlink %s: unlinking predecessors on %d tasks",
+            dbg.rec(self),
+            len(preds_by_task),
+        )
         for task, preds in preds_by_task.items():
             task.with_context(skip_dependency_sync=True).write(
                 {"predecessor_ids": [fields.Command.unlink(p.id) for p in preds]}
@@ -143,6 +176,11 @@ class ProjectTaskDependency(models.Model):
         for dep in self:
             if dep.depends_on_id not in dep.task_id.predecessor_ids:
                 new_pairs.add((dep.task_id.id, dep.depends_on_id.id))
+        dbg.logic.debug(
+            "project.task.dependency._sync_to_m2m %s: %d pairs missing from m2m",
+            dbg.rec(self),
+            len(new_pairs),
+        )
         if not new_pairs:
             return
 

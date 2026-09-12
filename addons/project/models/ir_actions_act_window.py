@@ -1,5 +1,7 @@
 from odoo import api, models
 
+from ..tools import debug_log as dbg
+
 TASK_ACTIONS_WITH_ALL_VIEWS = (
     "project.action_view_task",
     "project.action_view_my_task",
@@ -31,6 +33,12 @@ class IrActionsAct_Window(models.Model):
                 continue
             index = modes.index(before) if before in modes else len(modes)
             modes.insert(max(index, 1), view_type)
+            dbg.lifecycle.debug(
+                "ir.actions.act_window._add_view_mode %s: %s -> %s",
+                xmlid,
+                action.view_mode,
+                ",".join(modes),
+            )
             action.view_mode = ",".join(modes)
 
     @api.model
@@ -49,4 +57,10 @@ class IrActionsAct_Window(models.Model):
                 continue
             modes = [mode for mode in action.view_mode.split(",") if mode != view_type]
             if modes and len(modes) != len(action.view_mode.split(",")):
+                dbg.lifecycle.debug(
+                    "ir.actions.act_window._remove_view_mode %s: %s -> %s",
+                    xmlid,
+                    action.view_mode,
+                    ",".join(modes),
+                )
                 action.view_mode = ",".join(modes)

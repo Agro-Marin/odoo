@@ -11,6 +11,7 @@ from odoo.fields import Domain
 from odoo.http import Response, request
 from odoo.tools import groupby as groupbyelem
 
+from ..tools import debug_log as dbg
 from odoo.addons.portal.controllers.portal import CustomerPortal, _parse_record_id
 from odoo.addons.portal.controllers.portal import pager as portal_pager
 
@@ -18,6 +19,9 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 class ProjectCustomerPortal(CustomerPortal):
     def _prepare_home_portal_values(self, counters: list[str]) -> dict[str, Any]:
         values = super()._prepare_home_portal_values(counters)
+        dbg.pipeline.debug(
+            "[portal:home] uid=%s counters=%s", request.env.uid, list(counters)
+        )
         if "project_count" in counters:
             values["project_count"] = (
                 request.env["project.project"].search_count(self._get_domain_project())
@@ -48,6 +52,16 @@ class ProjectCustomerPortal(CustomerPortal):
     ) -> dict[str, Any]:
         domain = [("project_id", "=", project.id)]
         url = "/my/projects/%s" % project.id
+        dbg.pipeline.debug(
+            "[portal:project:%s] page values: page=%s sortby=%s groupby=%s "
+            "search_in=%s token=%s",
+            project.id,
+            page,
+            sortby,
+            groupby,
+            search_in,
+            bool(access_token),
+        )
         values = self._prepare_tasks_values(
             page,
             date_begin,
@@ -118,6 +132,9 @@ class ProjectCustomerPortal(CustomerPortal):
         values = self._prepare_portal_layout_values()
         Project = request.env["project.project"]
         domain = self._get_domain_project()
+        dbg.pipeline.debug(
+            "[portal:projects] uid=%s page=%s sortby=%s", request.env.uid, page, sortby
+        )
 
         searchbar_sortings = self._prepare_searchbar_sortings()
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "name")
@@ -192,8 +209,17 @@ class ProjectCustomerPortal(CustomerPortal):
                 "project.project", project_id, access_token
             )
             if project_sudo.is_template:
+                dbg.logic.debug(
+                    "[portal:project:%s] is a template -> redirect /my", project_id
+                )
                 return request.redirect("/my")
         except AccessError, MissingError:
+            dbg.logic.debug(
+                "[portal:project:%s] access denied for uid=%s token=%s -> /my",
+                project_id,
+                request.env.uid,
+                bool(access_token),
+            )
             return request.redirect("/my")
         if (
             project_sudo.collaborator_count
@@ -201,25 +227,32 @@ class ProjectCustomerPortal(CustomerPortal):
                 request.env.user
             )._is_project_sharing_accessible()
         ):
+            dbg.logic.debug(
+                "[portal:project:%s] uid=%s is a collaborator -> project sharing",
+                project_id,
+                request.env.uid,
+            )
             return request.redirect(f"/my/projects/{project_id}/project_sharing")
         project_sudo = (
             project_sudo if access_token else project_sudo.with_user(request.env.user)
         )
         if not groupby:
             groupby = "step_id"
-        values = self._project_get_page_view_values(
-            project_sudo,
-            access_token,
-            page,
-            date_begin,
-            date_end,
-            sortby,
-            search,
-            search_in,
-            groupby,
-            **kw,
-        )
-        return request.render("project.portal_my_project", values)
+        with dbg.timer(request.env, "[portal:project:%s] page view values", project_id):
+            values = self._project_get_page_view_values(
+                project_sudo,
+                access_token,
+                page,
+                date_begin,
+                date_end,
+                sortby,
+                search,
+                search_in,
+                groupby,
+                **kw,
+            )
+        with dbg.timer(request.env, "[portal:project:%s] render", project_id):
+            return request.render("project.portal_my_project", values)
 
     def _get_project_sharing_company(self, project: Any) -> Any:
         return project.company_id or request.env.user.company_id
@@ -275,10 +308,24 @@ class ProjectCustomerPortal(CustomerPortal):
             project.exists()
             and project.with_user(request.env.user)._is_project_sharing_accessible()
         ):
+            dbg.logic.debug(
+                "[portal:sharing:%s] uid=%s not accessible (exists=%s) -> 404",
+                project_id,
+                request.env.uid,
+                bool(project.exists()),
+            )
             return request.prepare_not_found_error()
+        dbg.pipeline.debug(
+            "[portal:sharing:%s] uid=%s subpath=%r -> backend view",
+            project_id,
+            request.env.uid,
+            subpath,
+        )
+        with dbg.timer(request.env, "[portal:sharing:%s] session info", project_id):
+            session_info = self._prepare_project_sharing_session_info(project)
         return request.render(
             "project.project_sharing_portal",
-            {"session_info": self._prepare_project_sharing_session_info(project)},
+            {"session_info": session_info},
         )
 
     @http.route(
@@ -307,7 +354,20 @@ class ProjectCustomerPortal(CustomerPortal):
             [("project_id", "=", project_id), ("id", "=", task_id)], limit=1
         ).sudo()
         if not task_sudo:
+            dbg.logic.debug(
+                "[portal:project:%s] task %s not visible to uid=%s -> /my",
+                project_id,
+                task_id,
+                request.env.uid,
+            )
             return request.redirect("/my")
+        dbg.pipeline.debug(
+            "[portal:task:%s] project %s uid=%s token=%s -> task page",
+            task_id,
+            project_id,
+            request.env.uid,
+            bool(access_token),
+        )
         task_sudo.attachment_ids.generate_access_token()
         values = self._task_get_page_view_values(
             task_sudo, access_token, project=project_sudo, **kw
@@ -368,6 +428,12 @@ class ProjectCustomerPortal(CustomerPortal):
                 domain=task_domain & domain,
             )
             values["page_name"] = "project_subtasks"
+            dbg.pipeline.debug(
+                "[portal:task:%s] subtasks page: filterby=%s total=%s",
+                task_id,
+                filterby,
+                values["pager"]["total"],
+            )
 
             pager_vals = values["pager"]
             pager_vals["url_args"].update(filterby=filterby)
@@ -442,6 +508,14 @@ class ProjectCustomerPortal(CustomerPortal):
                 domain=task_domain & domain,
             )
             values["page_name"] = "project_recurrent_tasks"
+            dbg.pipeline.debug(
+                "[portal:task:%s] recurrent tasks page: recurrence=%s filterby=%s "
+                "total=%s",
+                task_id,
+                task_sudo.recurrence_id.id,
+                filterby,
+                values["pager"]["total"],
+            )
             pager = portal_pager(**values["pager"])
 
             values.update(
@@ -715,7 +789,8 @@ class ProjectCustomerPortal(CustomerPortal):
             & Domain("allow_milestones", "=", True)
             & Domain("milestone_id", "!=", False)
         )
-        milestones_allowed = Task_sudo.search_count(milestone_domain, limit=1) == 1
+        with dbg.timer(request.env, "[portal:tasks] milestones_allowed probe"):
+            milestones_allowed = Task_sudo.search_count(milestone_domain, limit=1) == 1
         searchbar_sortings = dict(
             sorted(
                 self._task_get_searchbar_sortings(milestones_allowed, project).items(),
@@ -768,14 +843,28 @@ class ProjectCustomerPortal(CustomerPortal):
         else:
             group_field = groupby
         order = "%s, %s" % (group_field, sortby) if group_field else sortby
+        dbg.logic.debug(
+            "[portal:tasks] url=%s su=%s milestones=%s sortby=%s groupby=%s "
+            "search_in=%s order=%r",
+            url,
+            su,
+            milestones_allowed,
+            sortby,
+            groupby,
+            search_in,
+            order,
+        )
 
         def get_grouped_tasks(pager_offset) -> list:
-            tasks = Task_sudo.search(
-                domain,
-                order=order,
-                limit=self._items_per_page,
-                offset=pager_offset,
-            )
+            with dbg.timer(
+                request.env, "[portal:tasks] search offset=%s", pager_offset
+            ):
+                tasks = Task_sudo.search(
+                    domain,
+                    order=order,
+                    limit=self._items_per_page,
+                    offset=pager_offset,
+                )
             request.session[
                 (
                     "my_project_tasks_history"
@@ -827,6 +916,12 @@ class ProjectCustomerPortal(CustomerPortal):
                     grouped_tasks.sort(
                         key=lambda tasks: task_states.get(tasks[0].state)
                     )
+            dbg.logic.debug(
+                "[portal:tasks] %d tasks -> %d groups by %s",
+                len(tasks),
+                len(grouped_tasks),
+                groupby,
+            )
             return grouped_tasks
 
         values.update(
@@ -941,6 +1036,15 @@ class ProjectCustomerPortal(CustomerPortal):
         if not filterby:
             filterby = "all"
         domain = searchbar_filters.get(filterby, searchbar_filters.get("all"))["domain"]
+        dbg.pipeline.debug(
+            "[portal:tasks] uid=%s page=%s filterby=%s sortby=%s groupby=%s search=%r",
+            request.env.uid,
+            page,
+            filterby,
+            sortby,
+            groupby,
+            search,
+        )
 
         values = self._prepare_tasks_values(
             page,
@@ -988,8 +1092,21 @@ class ProjectCustomerPortal(CustomerPortal):
                 "project.task", task_id, access_token
             )
         except AccessError, MissingError:
+            dbg.logic.debug(
+                "[portal:task:%s] access denied for uid=%s token=%s -> /my",
+                task_id,
+                request.env.uid,
+                bool(access_token),
+            )
             return request.redirect("/my")
 
+        dbg.pipeline.debug(
+            "[portal:task:%s] uid=%s report_type=%s project_sharing=%s",
+            task_id,
+            request.env.uid,
+            report_type,
+            project_sharing,
+        )
         if report_type in ("pdf", "html", "text"):
             return self._show_task_report(
                 task_sudo, report_type, download=kw.get("download")
@@ -1017,6 +1134,13 @@ class ProjectCustomerPortal(CustomerPortal):
         **kwargs: Any,
     ) -> Response:
         task_id = _parse_record_id(res_id)
+        dbg.pipeline.debug(
+            "[portal:task:%s] add_image %r uid=%s token=%s",
+            task_id,
+            name,
+            request.env.uid,
+            bool(access_token),
+        )
         try:
             task_sudo = self._document_check_access(
                 "project.task", task_id, access_token=access_token
@@ -1024,6 +1148,10 @@ class ProjectCustomerPortal(CustomerPortal):
             if not task_sudo.with_user(
                 request.env.uid
             ).project_id._is_project_sharing_accessible():
+                dbg.logic.debug(
+                    "[portal:task:%s] add_image: project not sharing-accessible -> 404",
+                    task_id,
+                )
                 return request.prepare_not_found_error()
         except AccessError, MissingError:
             raise UserError(
@@ -1055,6 +1183,11 @@ class ProjectCustomerPortal(CustomerPortal):
         ]
 
         if values.get("mimetype", False) not in valid_image_mime_types:
+            dbg.logic.debug(
+                "[portal:task:%s] add_image: rejected mimetype %s",
+                task_id,
+                values.get("mimetype"),
+            )
             return request.prepare_response(
                 data=json.dumps(
                     {
@@ -1068,6 +1201,12 @@ class ProjectCustomerPortal(CustomerPortal):
             )
 
         attachment = IrAttachment.with_context(image_no_postprocess=True).create(values)
+        dbg.lifecycle.debug(
+            "[portal:task:%s] add_image: attachment %s created (%s)",
+            task_id,
+            attachment.id,
+            values.get("mimetype"),
+        )
         return request.prepare_response(
             data=json.dumps(
                 attachment.read(

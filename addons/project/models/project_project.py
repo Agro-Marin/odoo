@@ -14,6 +14,7 @@ from odoo.tools.date_utils import localized
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 from .project_update import STATUS_COLOR
 from odoo.addons.mail.tools.discuss import Store
@@ -38,6 +39,7 @@ class ProjectProject(models.Model):
     _rating_satisfaction_days = 30
     _track_duration_field = "phase_id"
 
+    @dbg.timed
     def _compute_task_counts(self) -> None:
         closed_states = set(CLOSED_STATES)
         counts: dict[int, list[int]] = {}
@@ -633,8 +635,10 @@ class ProjectProject(models.Model):
 
     def action_archive_to_history(self) -> None:
         self.check_singleton()
+        dbg.lifecycle.debug("project.project.action_archive_to_history %s", self.id)
         self.env["project.history"].create_from_project(self)
 
+    @dbg.timed
     def action_compute_critical_path(self) -> None:
         self.check_singleton()
         tasks = self.env["project.task"].search(
@@ -644,6 +648,9 @@ class ProjectProject(models.Model):
                 ("state", "not in", list(CLOSED_STATES)),
             ]
         )
+        dbg.pipeline.debug(
+            "[project:%s] critical path: %d open tasks", self.id, len(tasks)
+        )
         if not tasks:
             return
 
@@ -652,11 +659,26 @@ class ProjectProject(models.Model):
             tasks, task_set
         )
         duration = {t.id: t._get_cpm_duration_hours() for t in tasks}
+        dbg.pipeline.debug(
+            "[project:%s] critical path: %d edges, total duration %.2f h",
+            self.id,
+            dbg.lazy(lambda: sum(len(preds) for preds in deps_on.values())),
+            dbg.lazy(lambda: sum(duration.values())),
+        )
         self._check_no_cyclic_dependencies(task_set, deps_on)
         topo = self._get_cpm_topological_order(task_set, deps_on, successors_of)
         es, ef = self._get_cpm_earliest_start_and_finish(topo, deps_on, duration)
+        project_end = max(ef.values()) if ef else 0.0
         ls_map = self._get_cpm_latest_start(
-            topo, deps_on, successors_of, duration, max(ef.values()) if ef else 0.0
+            topo, deps_on, successors_of, duration, project_end
+        )
+        dbg.logic.debug(
+            "[project:%s] critical path: end=%.2f h, critical tasks %s",
+            self.id,
+            project_end,
+            dbg.lazy(
+                lambda: [tid for tid in topo if abs(ls_map[tid] - es[tid]) < 0.01]
+            ),
         )
         self._update_cpm_schedule(tasks, es, ef, ls_map)
 
@@ -836,6 +858,12 @@ class ProjectProject(models.Model):
             key = repr(sorted(vals.items()))
             tasks_by_vals[key] |= task
             vals_by_key[key] = vals
+        dbg.performance.debug(
+            "_update_cpm_schedule [project:%s]: %d tasks in %d write groups",
+            self.id,
+            len(tasks),
+            len(tasks_by_vals),
+        )
         for key, group in tasks_by_vals.items():
             group.write(vals_by_key[key])
 
@@ -869,8 +897,10 @@ class ProjectProject(models.Model):
             return {}
         return {day: hours * capacity / total for day, capacity in days.items()}
 
+    @dbg.timed
     def action_level_resources(self) -> None:
         self.check_singleton()
+        dbg.pipeline.debug("[project:%s] level resources -> critical path", self.id)
         self.action_compute_critical_path()
 
         calendar = self.resource_calendar_id
@@ -889,6 +919,12 @@ class ProjectProject(models.Model):
         leveling_order = sorted(
             tasks.filtered(lambda t: not t.is_critical_path),
             key=lambda t: -(t.total_float or 0.0),
+        )
+        dbg.logic.debug(
+            "[project:%s] level resources: %d tasks, %d non-critical to level",
+            self.id,
+            len(tasks),
+            len(leveling_order),
         )
 
         def get_load_per_assignee(task) -> float:
@@ -978,6 +1014,15 @@ class ProjectProject(models.Model):
                     if calendar and new_start > task.cpm_date_start
                     else (new_start - task.cpm_date_start).total_seconds() / 3600
                 )
+                dbg.logic.debug(
+                    "level resources %s: user %s overloaded, shift %.2f h "
+                    "(float %.2f h) -> %s",
+                    dbg.rec(task),
+                    user.id,
+                    shift_hours,
+                    max_shift_hours,
+                    "shift" if 0 < shift_hours <= max_shift_hours else "keep",
+                )
                 if 0 < shift_hours <= max_shift_hours:
                     new_end = (
                         calendar.plan_hours(task._get_cpm_duration_hours(), new_start)
@@ -1005,6 +1050,7 @@ class ProjectProject(models.Model):
         for project in self:
             project.retrospective_count = counts.get(project.id, 0)
 
+    @dbg.timed
     def _compute_health_indicators(self) -> None:
         if not self.ids:
             self.health_score = 100
@@ -1125,6 +1171,16 @@ class ProjectProject(models.Model):
             risk_health = max(0.0, 100.0 - total_risk * 2)
 
             score = int((schedule + staleness + milestone + risk_health) / 4)
+            dbg.logic.debug(
+                "health [project:%s]: schedule=%.1f staleness=%.1f milestone=%.1f "
+                "risk=%.1f -> %d",
+                project.id,
+                schedule,
+                staleness,
+                milestone,
+                risk_health,
+                score,
+            )
             project.health_score = max(0, min(100, score))
             if score >= 80:
                 project.health_status = "healthy"
@@ -1137,6 +1193,7 @@ class ProjectProject(models.Model):
 
     _LIVE_RISK_STATE_EXCLUDED = "resolved"
 
+    @dbg.timed
     @api.depends("risk_ids", "risk_ids.risk_level", "risk_ids.active", "risk_ids.state")
     def _compute_risk_counts(self) -> None:
         if not self.ids:
@@ -1164,6 +1221,7 @@ class ProjectProject(models.Model):
             project.risk_count = total
             project.high_risk_count = high
 
+    @dbg.timed
     def _compute_flow_metrics(self) -> None:
         if not self.ids:
             self.wip_count = 0
@@ -1254,6 +1312,16 @@ class ProjectProject(models.Model):
             wip, avg_lt, avg_ct, tp, dcp = results.get(
                 project.id, (0, 0.0, 0.0, 0.0, 0.0)
             )
+            dbg.logic.debug(
+                "flow [project:%s]: wip=%s lead=%s cycle=%s throughput=%s "
+                "deadline_pct=%s",
+                project.id,
+                wip,
+                avg_lt,
+                avg_ct,
+                tp,
+                dcp,
+            )
             project.wip_count = wip or 0
             project.avg_lead_time = avg_lt or 0.0
             project.avg_cycle_time = avg_ct or 0.0
@@ -1270,14 +1338,21 @@ class ProjectProject(models.Model):
         "deadline_compliance_pct",
     )
 
+    @dbg.timed
     def _reset_metrics(self) -> None:
+        dbg.lifecycle.debug("project.project._reset_metrics %s", dbg.rec(self))
         for fname in self._SNAPSHOT_METRIC_FIELDS:
             self.env.add_to_compute(self._fields[fname], self)
         self.env.flush_all()
 
     @api.model
     def _cron_reset_metrics(self) -> None:
-        self.search([])._reset_metrics()
+        projects = self.search([])
+        dbg.lifecycle.debug(
+            "project.project._cron_reset_metrics: %d projects", len(projects)
+        )
+        projects._reset_metrics()
+        dbg.lifecycle.debug("project.project._cron_reset_metrics: done")
 
     def action_reset_metrics(self) -> bool:
         self._reset_metrics()
@@ -1321,6 +1396,16 @@ class ProjectProject(models.Model):
                 )
             if not account or not account.company_id:
                 continue
+            dbg.logic.debug(
+                "_inverse_company_id [project:%s]: company %s -> %s, account %s "
+                "(projects=%s, has lines=%s)",
+                project.id,
+                account.company_id.id,
+                project.company_id.id,
+                account.id,
+                account.project_count,
+                bool(account.line_ids),
+            )
             if (
                 account.project_count > 1 or account.line_ids
             ) and project.company_id != account.company_id:
@@ -1500,6 +1585,7 @@ class ProjectProject(models.Model):
         for project in self:
             project.show_ratings = project in projects_with_rating_active
 
+    @dbg.timed
     def _inverse_allow_dependencies(self) -> None:
         project_with_task_dependencies_feature = self.filtered("allow_dependencies")
         projects_without_task_dependencies_feature = (
@@ -1519,6 +1605,10 @@ class ProjectProject(models.Model):
                 ]
             )
         ):
+            dbg.logic.debug(
+                "_inverse_allow_dependencies: blocking %s",
+                dbg.rec(open_tasks_with_dependencies),
+            )
             open_tasks_with_dependencies.state = "blocked"
         if projects_without_task_dependencies_feature and (
             waiting_tasks := ProjectTask.search(
@@ -1532,6 +1622,9 @@ class ProjectProject(models.Model):
                 ]
             )
         ):
+            dbg.logic.debug(
+                "_inverse_allow_dependencies: unblocking %s", dbg.rec(waiting_tasks)
+            )
             waiting_tasks.state = "in_progress"
         res = self._sync_feature_group_to_usage(
             "allow_dependencies", "project.group_project_task_dependencies"
@@ -1558,6 +1651,7 @@ class ProjectProject(models.Model):
             "project_id": project.id,
         }
 
+    @dbg.timed
     def map_tasks(self, new_project_id: int) -> bool:
         project = self.browse(new_project_id)
         tasks = (
@@ -1565,20 +1659,38 @@ class ProjectProject(models.Model):
             .with_context(active_test=False)
             .search([("project_id", "=", self.id), ("parent_id", "=", False)])
         )
+        dbg.pipeline.debug(
+            "[project:%s] map_tasks -> %s: %d root tasks",
+            self.id,
+            project.id,
+            len(tasks),
+        )
         if self.allow_dependencies and "task_mapping" not in self.env.context:
             self = self.with_context(task_mapping={})
         defaults = self._prepare_map_tasks_defaults(project)
         new_tasks = tasks.with_context(copy_project=True).copy(defaults)
         all_subtasks = new_tasks._get_all_subtasks()
-        all_subtasks.filtered(lambda child: child.project_id == self).write(
-            {"project_id": project.id}
+        relinked = all_subtasks.filtered(lambda child: child.project_id == self)
+        dbg.pipeline.debug(
+            "[project:%s] map_tasks: copied %s, relinking %d of %d subtasks",
+            self.id,
+            dbg.rec(new_tasks),
+            len(relinked),
+            len(all_subtasks),
         )
+        relinked.write({"project_id": project.id})
         return True
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         copy_from_template = self.env.context.get("copy_from_template")
+        dbg.lifecycle.debug(
+            "project.project.copy_data %s: default=%s copy_from_template=%s",
+            dbg.rec(self),
+            dbg.keys(default),
+            copy_from_template,
+        )
         has_project_stage_feature = False
         if copy_from_template and "phase_id" not in default:
             has_project_stage_feature = self.env.user.has_group(
@@ -1609,6 +1721,7 @@ class ProjectProject(models.Model):
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
+    @dbg.timed
     def copy(self, default: ValuesType | None = None) -> Self:
         default = dict(default or {})
         default["milestone_ids"] = False
@@ -1621,9 +1734,20 @@ class ProjectProject(models.Model):
         new_projects = super(ProjectProject, self.with_context(copy_context)).copy(
             default=default
         )
+        dbg.lifecycle.debug(
+            "project.project.copy %s -> %s", dbg.rec(self), dbg.rec(new_projects)
+        )
         if "milestone_mapping" not in self.env.context:
             self = self.with_context(milestone_mapping={})
         for old_project, new_project in zip(self, new_projects, strict=True):
+            dbg.pipeline.debug(
+                "[project:%s] copy -> %s: followers=%d milestones=%s tasks=%s",
+                old_project.id,
+                new_project.id,
+                len(old_project.message_follower_ids),
+                old_project.allow_milestones,
+                "task_ids" not in default,
+            )
             for follower in old_project.message_follower_ids:
                 new_project.message_subscribe(
                     partner_ids=follower.partner_id.ids,
@@ -1643,6 +1767,7 @@ class ProjectProject(models.Model):
         )
         return new_projects
 
+    @dbg.timed
     def _copy_shared_embedded_actions(self, new_projects: Self) -> dict[int, int]:
         shared_embedded_actions_per_record = dict(
             self.env["ir.embedded.actions"]
@@ -1675,8 +1800,14 @@ class ProjectProject(models.Model):
                     copied_action.filter_ids = original_action.filter_ids.copy(
                         {"embedded_parent_res_id": new_project.id}
                     )
+        dbg.logic.debug(
+            "_copy_shared_embedded_actions %s: %d actions copied",
+            dbg.rec(self),
+            len(shared_embedded_actions_mapping),
+        )
         return shared_embedded_actions_mapping
 
+    @dbg.timed
     def _copy_embedded_actions_config(
         self,
         new_projects: Self,
@@ -1734,6 +1865,11 @@ class ProjectProject(models.Model):
                         for action_id in embedded_actions_order
                     )
                 new_embedded_actions_config_vals_list.append(config_vals)
+        dbg.logic.debug(
+            "_copy_embedded_actions_config %s: %d user configs copied",
+            dbg.rec(self),
+            len(new_embedded_actions_config_vals_list),
+        )
         self.env["res.users.settings.embedded.action"].sudo().create(
             new_embedded_actions_config_vals_list
         )
@@ -1752,6 +1888,9 @@ class ProjectProject(models.Model):
         stepless = self.filtered(lambda project: not project.workflow_step_ids)
         if not stepless:
             return
+        dbg.lifecycle.debug(
+            "_create_default_workflow_steps: 'New' step for %s", dbg.rec(stepless)
+        )
         self.env["project.workflow.step"].sudo().create(
             [
                 {"name": _("New"), "project_ids": [Command.link(project.id)]}
@@ -1759,8 +1898,15 @@ class ProjectProject(models.Model):
             ]
         )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        dbg.lifecycle.debug(
+            "project.project.create: %d vals, keys=%s, uid=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+            self.env.uid,
+        )
         self = self.with_context(mail_create_nosubscribe=True)
         if any("label_tasks" in vals and not vals["label_tasks"] for vals in vals_list):
             task_label = _("Tasks")
@@ -1796,21 +1942,44 @@ class ProjectProject(models.Model):
                         lambda s, d=stage_domain: s.company_id.id in d
                     )[:1]
                     vals["phase_id"] = stage.id
+                    dbg.logic.debug(
+                        "project.project.create: default phase %s for company %s",
+                        stage.id,
+                        vals.get("company_id"),
+                    )
 
         for vals in vals_list:
             self._check_date_pair(
                 vals.get("date_start"),
                 vals.get("date_end", vals.get("date")),
             )
-        projects = super().create(vals_list)
+        with dbg.timer(self.env, "project.project.create: super().create"):
+            projects = super().create(vals_list)
+        dbg.lifecycle.debug("project.project.create: created %s", dbg.rec(projects))
+        dbg.pipeline.debug(
+            "[project:%s] create -> default workflow steps", dbg.rec(projects)
+        )
         projects._create_default_workflow_steps()
+        dbg.pipeline.debug("[project:%s] create -> reset metrics", dbg.rec(projects))
         projects._reset_metrics()
         return projects
 
+    @dbg.timed
     def write(self, vals: dict[str, Any]) -> bool:
+        dbg.lifecycle.debug(
+            "project.project.write on %s: keys=%s uid=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            self.env.uid,
+        )
         if vals.get("access_token"):
             self.check_singleton()
             if self.privacy_visibility not in ["invited_users", "portal"]:
+                dbg.logic.debug(
+                    "project.project.write %s: visibility %s, access_token cleared",
+                    dbg.rec(self),
+                    self.privacy_visibility,
+                )
                 vals["access_token"] = ""
 
         company_id = vals.get("company_id")
@@ -1819,6 +1988,12 @@ class ProjectProject(models.Model):
                 lambda p: p.company_id.id == company_id
             )
             if projects_already_with_company:
+                dbg.logic.debug(
+                    "project.project.write: %s already in company %s, "
+                    "writing without company_id",
+                    dbg.rec(projects_already_with_company),
+                    company_id,
+                )
                 projects_already_with_company.write(
                     {key: value for key, value in vals.items() if key != "company_id"}
                 )
@@ -1833,8 +2008,19 @@ class ProjectProject(models.Model):
                     order=f"sequence asc, {ProjectStage._order}",
                     limit=1,
                 ).id
+                dbg.logic.debug(
+                    "project.project.write %s: company -> %s, phase reset to %s",
+                    dbg.rec(self),
+                    company_id,
+                    vals["phase_id"],
+                )
 
         if "last_update_status" in vals and vals["last_update_status"] != "to_define":
+            dbg.pipeline.debug(
+                "[project:%s] write -> project.update %s",
+                dbg.rec(self),
+                vals["last_update_status"],
+            )
             for project in self:
                 self.env["project.update"].with_context(
                     default_project_id=project.id
@@ -1851,6 +2037,11 @@ class ProjectProject(models.Model):
                 )
             vals.pop("last_update_status")
         if vals.get("privacy_visibility"):
+            dbg.pipeline.debug(
+                "[project:%s] write -> sync access to visibility %s",
+                dbg.rec(self),
+                vals["privacy_visibility"],
+            )
             self._sync_access_to_privacy_visibility(vals["privacy_visibility"])
 
         if {"date_start", "date_end", "date"} & vals.keys():
@@ -1860,25 +2051,43 @@ class ProjectProject(models.Model):
                     vals.get("date_end", vals.get("date", project.date_end)),
                 )
 
-        res = super().write(vals) if vals else True
+        with dbg.timer(self.env, "project.project.write: super().write"):
+            res = super().write(vals) if vals else True
 
         if "allow_dependencies" in vals and not vals.get("allow_dependencies"):
-            self.env["project.task"].search(
+            blocked = self.env["project.task"].search(
                 [
                     ("project_id", "in", self.ids),
                     ("state", "=", "blocked"),
                 ]
-            ).write({"state": "in_progress"})
+            )
+            dbg.pipeline.debug(
+                "[project:%s] write -> dependencies off, unblocking %s",
+                dbg.rec(self),
+                dbg.rec(blocked),
+            )
+            blocked.write({"state": "in_progress"})
 
         if "allow_recurring_tasks" in vals and not vals["allow_recurring_tasks"]:
-            self.env["project.task"].search(
+            recurring = self.env["project.task"].search(
                 [("project_id", "in", self.ids), ("recurring_task", "=", True)]
-            ).write({"recurring_task": False})
+            )
+            dbg.pipeline.debug(
+                "[project:%s] write -> recurrence off, clearing %s",
+                dbg.rec(self),
+                dbg.rec(recurring),
+            )
+            recurring.write({"recurring_task": False})
 
         if "active" in vals:
-            self.with_context(active_test=False).task_ids.write(
-                {"active": vals["active"]}
+            tasks = self.with_context(active_test=False).task_ids
+            dbg.pipeline.debug(
+                "[project:%s] write -> active=%s on %s",
+                dbg.rec(self),
+                vals["active"],
+                dbg.rec(tasks),
             )
+            tasks.write({"active": vals["active"]})
         if "name" in vals and self.account_id:
             projects_read_group = self.env["project.project"]._read_group(
                 [("account_id", "in", self.account_id.ids)],
@@ -1888,10 +2097,17 @@ class ProjectProject(models.Model):
             analytic_account_to_update = self.env["account.analytic.account"].browse(
                 [analytic_account.id for [analytic_account] in projects_read_group]
             )
+            dbg.pipeline.debug(
+                "[project:%s] write -> rename analytic accounts %s",
+                dbg.rec(self),
+                dbg.rec(analytic_account_to_update),
+            )
             analytic_account_to_update.write({"name": vals["name"]})
         return res
 
+    @dbg.timed
     def unlink(self) -> bool:
+        dbg.lifecycle.debug("project.project.unlink %s", dbg.rec(self))
         self.env["res.users.settings.embedded.action"].sudo().search(
             domain=[("res_id", "in", self.ids), ("res_model", "=", self._name)],
         ).unlink()
@@ -1903,7 +2119,14 @@ class ProjectProject(models.Model):
         for account, deleted_count in deleted_per_account.items():
             if not account.line_ids and account.project_count <= deleted_count:
                 analytic_accounts_to_delete |= account
-        self.with_context(active_test=False).task_ids.unlink()
+        tasks = self.with_context(active_test=False).task_ids
+        dbg.pipeline.debug(
+            "[project:%s] unlink -> tasks %s, then analytic accounts %s",
+            dbg.rec(self),
+            dbg.rec(tasks),
+            dbg.rec(analytic_accounts_to_delete),
+        )
+        tasks.unlink()
         result = super().unlink()
         analytic_accounts_to_delete.unlink()
         return result
@@ -1941,6 +2164,12 @@ class ProjectProject(models.Model):
                     partners = frozenset(task.message_partner_ids.ids) & partner_set
                     if partners:
                         tasks_by_partners[partners] |= task
+                dbg.pipeline.debug(
+                    "[project:%s] message_subscribe -> %d task groups, subtypes %s",
+                    dbg.rec(self),
+                    len(tasks_by_partners),
+                    task_subtypes,
+                )
                 for partners, tasks in tasks_by_partners.items():
                     tasks.message_subscribe(
                         partner_ids=list(partners),
@@ -1952,6 +2181,11 @@ class ProjectProject(models.Model):
         return res
 
     def message_unsubscribe(self, partner_ids: list[int] | None = None) -> None:
+        dbg.pipeline.debug(
+            "[project:%s] message_unsubscribe %s -> tasks and collaborators",
+            dbg.rec(self),
+            partner_ids,
+        )
         self.task_ids.message_unsubscribe(partner_ids=partner_ids)
         super().message_unsubscribe(partner_ids=partner_ids)
         if partner_ids:
@@ -2024,6 +2258,14 @@ class ProjectProject(models.Model):
             base_group_user.sudo().write({"implied_ids": [Command.unlink(group.id)]})
             group.sudo().write({"user_ids": [Command.clear()]})
             res = False
+        dbg.logic.debug(
+            "_sync_feature_group_to_usage %s/%s: has_group=%s in_use=%s -> %s",
+            field_name,
+            group_name,
+            has_user_group,
+            has_project_field_set,
+            {True: "implied", False: "removed", None: "unchanged"}[res],
+        )
         return res
 
     def _get_project_features_mapping(self) -> dict:
@@ -2304,12 +2546,19 @@ class ProjectProject(models.Model):
             "color": self.last_update_color,
         }
 
+    @dbg.timed
     def get_panel_data(self) -> dict:
         self.check_singleton()
         if not self.env.user.has_group("project.group_project_user"):
             return {}
         self._reset_metrics()
         show_profitability = self._is_profitability_shown()
+        dbg.logic.debug(
+            "get_panel_data [project:%s]: profitability=%s milestones=%s",
+            self.id,
+            show_profitability,
+            self.allow_milestones,
+        )
         panel_data = {
             "user": self._get_user_values(),
             "buttons": sorted(self._get_stat_buttons(), key=lambda k: k["sequence"]),
@@ -2459,6 +2708,7 @@ class ProjectProject(models.Model):
             )
         return buttons
 
+    @dbg.timed
     def _get_profitability_values(self) -> tuple[dict, bool]:
         if not self.env.user.has_group("project.group_project_manager"):
             return {}, False
@@ -2565,12 +2815,18 @@ class ProjectProject(models.Model):
             for project_vals in project_vals_list
         ]
 
+    @dbg.timed
     def _create_analytic_account(self) -> None:
         analytic_accounts_values = self._prepare_analytic_account_vals_list(
             self._read_format(["name", "company_id", "partner_id"], None)
         )
         analytic_accounts = self.env["account.analytic.account"].create(
             analytic_accounts_values
+        )
+        dbg.lifecycle.debug(
+            "_create_analytic_account %s -> %s",
+            dbg.rec(self),
+            dbg.rec(analytic_accounts),
         )
         for project, analytic_account in zip(self, analytic_accounts, strict=True):
             project.account_id = analytic_account
@@ -2600,16 +2856,29 @@ class ProjectProject(models.Model):
             "default_company_id": unquote("company_id"),
         }
 
+    @dbg.timed
     def _sync_access_to_privacy_visibility(self, new_visibility: str) -> None:
         for project in self:
             if project.privacy_visibility == new_visibility:
                 continue
+            dbg.logic.debug(
+                "_sync_access_to_privacy_visibility [project:%s]: %s -> %s",
+                project.id,
+                project.privacy_visibility,
+                new_visibility,
+            )
             if new_visibility in ["invited_users", "portal"]:
                 project.message_subscribe(partner_ids=project.partner_id.ids)
                 for task in project.task_ids.filtered("partner_id"):
                     task.message_subscribe(partner_ids=task.partner_id.ids)
             elif project.privacy_visibility in ["invited_users", "portal"]:
                 portal_users = project.message_partner_ids.user_ids.filtered("share")
+                dbg.pipeline.debug(
+                    "[project:%s] visibility closed -> unsubscribing portal users %s, "
+                    "clearing tokens",
+                    project.id,
+                    dbg.rec(portal_users),
+                )
                 project.message_unsubscribe(partner_ids=portal_users.partner_id.ids)
                 project.task_ids._unsubscribe_portal_users()
                 project.task_ids.access_token = ""
@@ -2618,9 +2887,14 @@ class ProjectProject(models.Model):
     def _is_project_sharing_accessible(self) -> bool:
         self.check_singleton()
         if self.privacy_visibility not in ["invited_users", "portal"]:
+            dbg.logic.debug(
+                "_is_project_sharing_accessible [project:%s]: visibility %s -> no",
+                self.id,
+                self.privacy_visibility,
+            )
             return False
         if self.env.user._is_portal():
-            return bool(
+            accessible = bool(
                 self.env["project.collaborator"].search_count(
                     [
                         ("project_id", "=", self.sudo().id),
@@ -2629,11 +2903,26 @@ class ProjectProject(models.Model):
                     limit=1,
                 )
             )
+            dbg.logic.debug(
+                "_is_project_sharing_accessible [project:%s]: portal user %s "
+                "collaborator=%s",
+                self.id,
+                self.env.uid,
+                accessible,
+            )
+            return accessible
         return self.env.user._is_internal()
 
     def _add_collaborators(self, partners: Any, limited_access: bool = False) -> None:
         self.check_singleton()
         new_collaborators = self._get_new_collaborators(partners)
+        dbg.lifecycle.debug(
+            "_add_collaborators [project:%s]: %s -> new %s (limited=%s)",
+            self.id,
+            dbg.rec(partners),
+            dbg.rec(new_collaborators),
+            limited_access,
+        )
         if not new_collaborators:
             return
         self.write(
@@ -2680,6 +2969,12 @@ class ProjectProject(models.Model):
                     dict_partner_ids_to_subscribe_per_partner[task.partner_id] = (
                         partner_ids_to_subscribe
                     )
+        dbg.pipeline.debug(
+            "[project:%s] _add_followers %s -> %d task partner groups",
+            self.id,
+            dbg.rec(partners),
+            len(dict_tasks_per_partner),
+        )
         for partner, tasks in dict_tasks_per_partner.items():
             tasks.message_subscribe(dict_partner_ids_to_subscribe_per_partner[partner])
 
@@ -2769,6 +3064,11 @@ class ProjectProject(models.Model):
     def action_create_template_from_project(self) -> dict:
         self.check_singleton()
         template = self.copy(default={"is_template": True, "partner_id": False})
+        dbg.lifecycle.debug(
+            "project.project.action_create_template_from_project %s -> template %s",
+            self.id,
+            template.id,
+        )
         template._update_template_mode(True)
         template.message_post(body=self.env._("Template created from %s.", self.name))
         config = {
@@ -2819,6 +3119,11 @@ class ProjectProject(models.Model):
 
     def _update_template_mode(self, is_template: bool) -> None:
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "project.project._update_template_mode [project:%s]: is_template=%s",
+            self.id,
+            is_template,
+        )
         self.is_template = is_template
         if not is_template:
             self.task_ids.role_ids = False
@@ -2835,11 +3140,17 @@ class ProjectProject(models.Model):
             "partner_id",
         ]
 
+    @dbg.timed
     def action_create_from_template(
         self, values: dict | None = None, role_to_users_mapping: Any = None
     ) -> Self:
         self.check_singleton()
         values = values or {}
+        dbg.lifecycle.debug(
+            "project.project.action_create_from_template [project:%s]: values=%s",
+            self.id,
+            dbg.keys(values),
+        )
 
         if self.date_start and self.date:
             if not values.get("date_start"):
@@ -2857,6 +3168,12 @@ class ProjectProject(models.Model):
         project = self.with_context(
             copy_from_template=True, copy_from_project_template=True
         ).copy(default=default)
+        dbg.pipeline.debug(
+            "[project:%s] create_from_template -> project %s (%d tasks)",
+            self.id,
+            project.id,
+            len(project.task_ids),
+        )
         project.message_post(
             body=self.env._("Project created from template %(name)s.", name=self.name)
         )
@@ -2893,6 +3210,14 @@ class ProjectProject(models.Model):
             for original_task, copied_task in self._get_template_task_pairs(project):
                 if original_task.date_start:
                     tasks_to_schedule += copied_task
+        dbg.pipeline.debug(
+            "[project:%s] create_from_template -> schedule %s in %s..%s (%d pinned)",
+            project.id,
+            dbg.rec(tasks_to_schedule),
+            project_start_datetime,
+            project_end_datetime,
+            len(first_possible_date_per_task),
+        )
         tasks_to_schedule._schedule_tasks(
             {
                 "date_start": datetime.strftime(

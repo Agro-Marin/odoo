@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools.translate import _
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
 
 
@@ -120,6 +121,7 @@ class ProjectSprint(models.Model):
         "carried_over_hours",
         "carried_over_story_points",
     )
+    @dbg.timed
     def _compute_task_metrics(self) -> None:
         for sprint in self:
             tasks = sprint.task_ids
@@ -138,9 +140,25 @@ class ProjectSprint(models.Model):
                 sum(tasks.mapped("story_points")) + sprint.carried_over_story_points
             )
             sprint.story_points_completed = sum(closed.mapped("story_points"))
+            dbg.logic.debug(
+                "sprint metrics [sprint:%s]: tasks=%d closed=%d carried=%d "
+                "committed=%.1f velocity=%.1f",
+                sprint.id,
+                sprint.task_count,
+                sprint.completed_count,
+                carried,
+                sprint.committed_hours,
+                sprint.velocity,
+            )
 
     def action_start(self) -> None:
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "project.sprint.action_start [sprint:%s] project %s: %s -> active",
+            self.id,
+            self.project_id.id,
+            self.state,
+        )
         active_sprints = self.search(
             [
                 ("project_id", "=", self.project_id.id),
@@ -161,6 +179,12 @@ class ProjectSprint(models.Model):
     def action_close(self) -> None:
         self.check_singleton()
         incomplete = self.task_ids.filtered(lambda t: t.state not in CLOSED_STATES)
+        dbg.lifecycle.debug(
+            "project.sprint.action_close [sprint:%s]: %s -> closed, carrying over %s",
+            self.id,
+            self.state,
+            dbg.rec(incomplete),
+        )
         self.write(
             {
                 "carried_over_count": len(incomplete),

@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectRisk(models.Model):
     _name = "project.risk"
@@ -134,3 +136,11 @@ class ProjectRisk(models.Model):
                 risk.risk_level = "medium"
             else:
                 risk.risk_level = "low"
+            dbg.logic.debug(
+                "project.risk score %s: p=%s x i=%s = %d -> %s",
+                dbg.rec(risk),
+                risk.probability,
+                risk.impact,
+                score,
+                risk.risk_level,
+            )

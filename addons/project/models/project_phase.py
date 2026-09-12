@@ -3,6 +3,8 @@ from typing import Any
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectPhase(models.Model):
     _name = "project.phase"
@@ -45,6 +47,11 @@ class ProjectPhase(models.Model):
                 )
 
     def action_open_delete_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+        dbg.lifecycle.debug(
+            "project.phase.action_open_delete_wizard %s (stage_view=%s)",
+            dbg.rec(self),
+            stage_view,
+        )
         wizard = self.env["project.phase.delete.wizard"].create({"phase_ids": self.ids})
         context = dict(self.env.context, stage_view=stage_view)
         return {
@@ -63,7 +70,11 @@ class ProjectPhase(models.Model):
             "context": context,
         }
 
+    @dbg.timed
     def write(self, vals: dict) -> bool:
+        dbg.lifecycle.debug(
+            "project.phase.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if vals.get("company_id"):
             project = self.env["project.project"].search(
                 [
@@ -84,7 +95,13 @@ class ProjectPhase(models.Model):
                     )
                 )
         if "active" in vals and not vals["active"]:
-            self.env["project.project"].search([("phase_id", "in", self.ids)]).write(
-                {"active": False}
+            projects = self.env["project.project"].search(
+                [("phase_id", "in", self.ids)]
             )
+            dbg.pipeline.debug(
+                "[phase:%s] archive -> archiving projects %s",
+                dbg.rec(self),
+                dbg.rec(projects),
+            )
+            projects.write({"active": False})
         return super().write(vals)

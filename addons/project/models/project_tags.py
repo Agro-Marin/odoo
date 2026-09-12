@@ -3,6 +3,8 @@ from odoo.api import DomainType, ValuesType
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTags(models.Model):
     _name = "project.tags"
@@ -78,6 +80,7 @@ class ProjectTags(models.Model):
         tags_by_id = {tag["id"]: tag for tag in tag_list}
         return [tags_by_id[id] for id in id_order if id in tags_by_id]
 
+    @dbg.timed
     @api.model
     def name_search(
         self,
@@ -113,17 +116,31 @@ class ProjectTags(models.Model):
                 ["display_name"],
                 limit=limit,
             )
+        project_tag_count = len(tags)
         if len(tags) < limit:
             tags += self.search_fetch(
                 Domain("id", "not in", tags.ids) & domain,
                 ["display_name"],
                 limit=limit - len(tags),
             )
+        dbg.logic.debug(
+            "project.tags.name_search %r project=%s: %d project tags first, %d total",
+            name,
+            self.env.context.get("project_id"),
+            project_tag_count,
+            len(tags),
+        )
         return [(tag.id, tag.display_name) for tag in tags.sudo()]
 
     @api.model
     def name_create(self, name: str) -> tuple[int, str]:
         existing_tag = self.search([("name", "=ilike", name.strip())], limit=1)
         if existing_tag:
+            dbg.logic.debug(
+                "project.tags.name_create %r: reusing existing tag %s",
+                name,
+                existing_tag.id,
+            )
             return existing_tag.id, existing_tag.display_name
+        dbg.lifecycle.debug("project.tags.name_create %r: creating", name)
         return super().name_create(name)

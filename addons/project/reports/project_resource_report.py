@@ -1,6 +1,7 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 
+from ..tools import debug_log as dbg
 from odoo.addons.project.models.project_task import CLOSED_STATES
 
 
@@ -39,7 +40,9 @@ class ProjectResourceReport(models.Model):
         ),
     )
 
+    @dbg.timed
     def init(self) -> None:
+        dbg.lifecycle.debug("project.resource.report: rebuilding view %s", self._table)
         drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             f"""

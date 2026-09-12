@@ -3,6 +3,8 @@ from typing import Self
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTaskRecurrence(models.Model):
     _name = "project.task.recurrence"
@@ -54,9 +56,11 @@ class ProjectTaskRecurrence(models.Model):
             }
         )
 
+    @dbg.timed
     @api.model
     def _create_next_occurrences(self, occurrences_from: Self) -> Self:
         tasks_copy = self.env["project.task"]
+        requested = occurrences_from
 
         def is_occurrence_allowed(task) -> bool:
             rec = task.recurrence_id.sudo()
@@ -73,6 +77,12 @@ class ProjectTaskRecurrence(models.Model):
             )
 
         occurrences_from = occurrences_from.filtered(is_occurrence_allowed)
+        dbg.logic.debug(
+            "recurrence._create_next_occurrences: %s allowed of %s "
+            "(repeat_until reached on the rest)",
+            dbg.rec(occurrences_from),
+            dbg.rec(requested),
+        )
 
         if occurrences_from:
             recurrence_by_task = {
@@ -83,6 +93,17 @@ class ProjectTaskRecurrence(models.Model):
                 .sudo()
                 .create(self._prepare_next_occurrence_vals_list(recurrence_by_task))
                 .sudo(False)
+            )
+            dbg.lifecycle.debug(
+                "recurrence._create_next_occurrences: %s -> %s",
+                dbg.rec(occurrences_from),
+                dbg.rec(tasks_copy),
+            )
+            dbg.pipeline.debug(
+                "[recurrence:%s] next occurrences -> copy dependencies",
+                dbg.lazy(
+                    lambda: sorted({rec.id for rec in recurrence_by_task.values()})
+                ),
             )
             occurrences_from._update_copied_dependencies(tasks_copy)
         return tasks_copy
@@ -138,6 +159,18 @@ class ProjectTaskRecurrence(models.Model):
                     field: value and value + recurrence._get_recurrence_delta()
                     for field, value in fields_to_postpone.items()
                 }
+            )
+            dbg.logic.debug(
+                "_prepare_next_occurrence_vals_list %s: step=%s postponed=%s "
+                "children=%d",
+                dbg.rec(task),
+                create_values["step_id"],
+                dbg.lazy(
+                    lambda vals=create_values, postponed=fields_to_postpone: {
+                        field: vals[field] for field in postponed if field in vals
+                    }
+                ),
+                len(create_values["child_ids"]),
             )
             copy_data.update(create_values)
             list_create_values.append(copy_data)

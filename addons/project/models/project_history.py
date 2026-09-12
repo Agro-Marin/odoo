@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 
 
@@ -94,6 +95,7 @@ class ProjectHistory(models.Model):
             else:
                 rec.hours_variance_pct = 0.0
 
+    @dbg.timed
     @api.model
     def create_from_project(self, project) -> ProjectHistory:
         task_domain = [
@@ -147,6 +149,22 @@ class ProjectHistory(models.Model):
             )
             dl_pct = len(met) / len(dl_tasks) * 100
 
+        dbg.logic.debug(
+            "project.history.create_from_project [project:%s]: tasks=%d closed=%d "
+            "delivered=%d planned_days=%s actual_days=%s planned_h=%.1f "
+            "actual_h=%.1f lead=%.1f cycle=%.1f deadline_pct=%.1f",
+            project.id,
+            len(tasks),
+            len(closed_tasks),
+            len(delivered_tasks),
+            planned_days,
+            actual_days,
+            planned_hours,
+            actual_hours,
+            avg_lt,
+            avg_ct,
+            dl_pct,
+        )
         return self.create(
             {
                 "project_id": project.id,

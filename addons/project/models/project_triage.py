@@ -3,6 +3,8 @@ from collections import defaultdict
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTriage(models.Model):
     _name = "project.triage"
@@ -24,8 +26,12 @@ class ProjectTriage(models.Model):
         default=lambda self: self.env.user,
     )
 
+    @dbg.timed
     @api.ondelete(at_uninstall=False)
     def _unlink_if_remaining_triage_buckets(self) -> None:
+        dbg.lifecycle.debug(
+            "project.triage unlink %s for users %s", dbg.rec(self), self.user_id.ids
+        )
         remaining_all = self.env["project.triage"]._read_group(
             [
                 ("user_id", "in", self.user_id.ids),
@@ -45,9 +51,19 @@ class ProjectTriage(models.Model):
         )
         for user in self.user_id:
             if not user.active or user.share:
+                dbg.logic.debug(
+                    "project.triage unlink: user %s inactive/share, no replacement",
+                    user.id,
+                )
                 continue
             user_buckets_to_unlink = self.filtered(lambda b, u=user: b.user_id == u)
             user_remaining = remaining_by_user[user]
+            dbg.logic.debug(
+                "project.triage unlink: user %s deleting %s, %d remaining buckets",
+                user.id,
+                dbg.rec(user_buckets_to_unlink),
+                len(user_remaining),
+            )
             if not user_remaining:
                 raise UserError(
                     _(
@@ -77,4 +93,10 @@ class ProjectTriage(models.Model):
                 replacement_id = next_replacement["id"]
                 next_replacement = remaining_buckets and remaining_buckets.pop()
             if bucket["id"] in triage_by_bucket:
+                dbg.pipeline.debug(
+                    "[triage:%s] -> moving %d task triages to bucket %s",
+                    bucket["id"],
+                    len(triage_by_bucket[bucket["id"]]),
+                    replacement_id,
+                )
                 triage_by_bucket[bucket["id"]].triage_id = replacement_id

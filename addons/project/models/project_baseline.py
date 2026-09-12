@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectBaseline(models.Model):
     _name = "project.baseline"
@@ -53,9 +55,17 @@ class ProjectBaseline(models.Model):
 
     def action_set_current(self) -> None:
         self.check_singleton()
-        self.project_id.baseline_ids.filtered("is_current").write({"is_current": False})
+        previous = self.project_id.baseline_ids.filtered("is_current")
+        dbg.lifecycle.debug(
+            "project.baseline.action_set_current %s [project:%s]: replacing %s",
+            dbg.rec(self),
+            self.project_id.id,
+            dbg.rec(previous),
+        )
+        previous.write({"is_current": False})
         self.is_current = True
 
+    @dbg.timed
     def action_capture_snapshot(self) -> None:
         self.check_singleton()
         if self.line_ids:
@@ -70,6 +80,12 @@ class ProjectBaseline(models.Model):
                 ("project_id", "=", self.project_id.id),
                 ("is_template", "=", False),
             ]
+        )
+        dbg.lifecycle.debug(
+            "project.baseline.action_capture_snapshot %s [project:%s]: %d tasks",
+            dbg.rec(self),
+            self.project_id.id,
+            len(tasks),
         )
         lines = [
             {

@@ -2,6 +2,8 @@ from typing import Any
 
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectPhaseDeleteWizard(models.TransientModel):
     _name = "project.phase.delete.wizard"
@@ -50,6 +52,11 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
             .env["project.project"]
             .search([("phase_id", "in", self.phase_ids.ids)])
         )
+        dbg.lifecycle.debug(
+            "project.phase.delete.wizard.action_archive: phases %s, projects %s",
+            dbg.rec(self.phase_ids),
+            dbg.rec(projects),
+        )
         projects.write({"active": False})
         self.phase_ids.write({"active": False})
         return self._prepare_action_redirect()
@@ -60,9 +67,16 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
             .with_context(active_test=False)
             .search([("active", "=", False), ("phase_id", "in", self.phase_ids.ids)])
         )
+        dbg.lifecycle.debug(
+            "project.phase.delete.wizard.action_unarchive_project: %s",
+            dbg.rec(inactive_projects),
+        )
         inactive_projects.action_unarchive()
 
     def action_unlink(self) -> dict[str, Any]:
+        dbg.lifecycle.debug(
+            "project.phase.delete.wizard.action_unlink: %s", dbg.rec(self.phase_ids)
+        )
         self.phase_ids.unlink()
         return self._prepare_action_redirect()
 

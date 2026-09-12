@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTaskLostReason(models.Model):
     _name = "project.task.lost.reason"
@@ -14,6 +16,7 @@ class ProjectTaskLostReason(models.Model):
         compute="_compute_task_count",
     )
 
+    @dbg.timed
     def _compute_task_count(self) -> None:
         task_data = (
             self.env["project.task"]

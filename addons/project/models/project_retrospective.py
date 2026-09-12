@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectRetrospective(models.Model):
     _name = "project.retrospective"
@@ -73,13 +75,26 @@ class ProjectRetrospective(models.Model):
                 )
             )
 
+    @dbg.timed
     def action_carry_forward(self) -> None:
         self.check_singleton()
         if not self.previous_id:
+            dbg.logic.debug(
+                "project.retrospective.action_carry_forward %s: no previous_id",
+                dbg.rec(self),
+            )
             return
         already_carried = set(self.action_ids.mapped("carried_from_id").ids)
         open_actions = self.previous_id.action_ids.filtered(
             lambda a: a.state in ("open", "in_progress") and a.id not in already_carried
+        )
+        dbg.lifecycle.debug(
+            "project.retrospective.action_carry_forward %s: from %s, %d already "
+            "carried, carrying %s",
+            dbg.rec(self),
+            self.previous_id.id,
+            len(already_carried),
+            dbg.rec(open_actions),
         )
         vals_list = [
             {

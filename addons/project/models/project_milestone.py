@@ -5,6 +5,7 @@ from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.tools import format_date
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
 
 
@@ -101,6 +102,7 @@ class ProjectMilestone(models.Model):
                 ms.date_deadline and ms.date_deadline > fields.Date.context_today(self)
             )
 
+    @dbg.timed
     @api.depends("task_ids.milestone_id")
     def _compute_task_counts(self) -> None:
         all_and_done_task_count_per_milestone = {
@@ -122,6 +124,7 @@ class ProjectMilestone(models.Model):
                 all_and_done_task_count_per_milestone.get(milestone.id, (0, 0))
             )
 
+    @dbg.timed
     @api.depends("is_reached", "task_ids.state", "task_ids.is_closed")
     def _compute_can_be_marked_as_done(self) -> None:
         if not any(self._ids):
@@ -180,6 +183,12 @@ class ProjectMilestone(models.Model):
 
     def update_is_reached(self, is_reached: bool) -> dict:
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "project.milestone.update_is_reached %s: %s -> %s",
+            dbg.rec(self),
+            self.is_reached,
+            is_reached,
+        )
         self.update({"is_reached": is_reached})
         return self._get_export_values()
 
@@ -231,6 +240,12 @@ class ProjectMilestone(models.Model):
         for old_milestone, new_milestone in zip(self, new_milestones, strict=True):
             if old_milestone.project_id.allow_milestones:
                 milestone_mapping[old_milestone.id] = new_milestone.id
+        dbg.lifecycle.debug(
+            "project.milestone.copy %s -> %s (mapping now %d entries)",
+            dbg.rec(self),
+            dbg.rec(new_milestones),
+            len(milestone_mapping),
+        )
         return new_milestones
 
     @api.depends_context("lang", "display_milestone_deadline")

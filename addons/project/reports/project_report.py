@@ -1,6 +1,7 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 
+from ..tools import debug_log as dbg
 from odoo.addons.project.models.project_task import CLOSED_STATES
 from odoo.addons.rating.models.rating_data import RATING_LIMIT_MIN
 
@@ -197,7 +198,9 @@ class ReportProjectTaskUser(models.Model):
                 t.project_id IS NOT NULL
         """
 
+    @dbg.timed
     def init(self) -> None:
+        dbg.lifecycle.debug("report.project.task.user: rebuilding view %s", self._table)
         drop_view_if_exists(self.env.cr, self._table)
         self.env.cr.execute(
             """

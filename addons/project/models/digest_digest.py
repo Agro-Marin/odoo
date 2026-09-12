@@ -3,6 +3,7 @@ from typing import Any
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
 
 
@@ -15,9 +16,14 @@ class DigestDigest(models.Model):
         export_string_translation=False,
     )
 
+    @dbg.timed
     @api.depends_context("uid")
     def _compute_kpi_project_task_opened_value(self) -> None:
         if not self.env.user.has_group("project.group_project_user"):
+            dbg.logic.debug(
+                "digest kpi_project_task_opened: user %s not a project user",
+                self.env.uid,
+            )
             raise AccessError(
                 _("Do not have access, skip this data for user's digest email")
             )

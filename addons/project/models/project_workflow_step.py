@@ -5,6 +5,7 @@ from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
 
 
@@ -118,19 +119,42 @@ class ProjectWorkflowStep(models.Model):
         required=True,
     )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectWorkflowStep:
+        dbg.lifecycle.debug(
+            "project.workflow.step.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         records = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "project.workflow.step.create: created %s", dbg.rec(records)
+        )
         records._update_missing_rating_deadlines()
         return records
 
+    @dbg.timed
     def write(self, vals: dict) -> bool:
+        dbg.lifecycle.debug(
+            "project.workflow.step.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         res = super().write(vals)
         if {"rating_active", "rating_status", "rating_status_period"} & vals.keys():
+            dbg.pipeline.debug(
+                "[step:%s] write -> rating deadlines refresh", dbg.rec(self)
+            )
             self._update_missing_rating_deadlines()
         return res
 
     def action_open_delete_wizard(self, stage_view: bool = False) -> dict[str, Any]:
+        dbg.lifecycle.debug(
+            "project.workflow.step.action_open_delete_wizard %s (projects %s, "
+            "stage_view=%s)",
+            dbg.rec(self),
+            self.project_ids.ids,
+            stage_view,
+        )
         wizard = self.env["project.workflow.step.delete.wizard"].create(
             {
                 "project_ids": self.project_ids.ids,
@@ -177,7 +201,14 @@ class ProjectWorkflowStep(models.Model):
                 and not step.date_rating_request
             ):
                 step.date_rating_request = step._get_next_rating_deadline()
+                dbg.logic.debug(
+                    "_update_missing_rating_deadlines %s: seeded %s (%s)",
+                    dbg.rec(step),
+                    step.date_rating_request,
+                    step.rating_status_period,
+                )
 
+    @dbg.timed
     @api.model
     def _send_rating_all(self) -> None:
         steps = self.search(
@@ -187,10 +218,19 @@ class ProjectWorkflowStep(models.Model):
                 ("date_rating_request", "<=", fields.Datetime.now()),
             ]
         )
+        dbg.lifecycle.debug(
+            "project.workflow.step._send_rating_all: cron start, %d steps due",
+            len(steps),
+        )
         for step in steps:
-            step._get_rating_tasks()._send_task_rating_mail()
+            tasks = step._get_rating_tasks()
+            dbg.pipeline.debug(
+                "[step:%s] periodic rating -> %s", step.id, dbg.rec(tasks)
+            )
+            tasks._send_task_rating_mail()
             step.date_rating_request = step._get_next_rating_deadline()
             self.env.cr.commit()
+        dbg.lifecycle.debug("project.workflow.step._send_rating_all: cron end")
 
     def _get_rating_tasks(self):
         self.check_singleton()

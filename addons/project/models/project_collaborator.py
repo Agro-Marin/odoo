@@ -3,6 +3,8 @@ from typing import Self
 from odoo import api, fields, models
 from odoo.api import ValuesType
 
+from ..tools import debug_log as dbg
+
 
 class ProjectCollaborator(models.Model):
     _name = "project.collaborator"
@@ -43,18 +45,34 @@ class ProjectCollaborator(models.Model):
         for collaborator in self:
             collaborator.display_name = f"{collaborator.project_id.display_name} - {collaborator.partner_id.display_name}"
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        dbg.lifecycle.debug(
+            "project.collaborator.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         collaborator = self.env["project.collaborator"].search([], limit=1)
         project_collaborators = super().create(vals_list)
         if not collaborator:
+            dbg.pipeline.debug(
+                "[collaborator:%s] first collaborator -> enable portal sharing rules",
+                dbg.rec(project_collaborators),
+            )
             self._update_project_sharing_portal_rules(True)
         return project_collaborators
 
+    @dbg.timed
     def unlink(self) -> bool:
+        dbg.lifecycle.debug("project.collaborator.unlink %s", dbg.rec(self))
         res = super().unlink()
         collaborator = self.env["project.collaborator"].search([], limit=1)
         if not collaborator:
+            dbg.pipeline.debug(
+                "[collaborator] last collaborator removed -> disable portal "
+                "sharing rules"
+            )
             self._update_project_sharing_portal_rules(False)
         return res
 
@@ -63,6 +81,11 @@ class ProjectCollaborator(models.Model):
         access_project_sharing_portal = self.env.ref(
             "project.access_project_sharing_task_portal"
         ).sudo()
+        dbg.logic.debug(
+            "_update_project_sharing_portal_rules(active=%s): access rule was %s",
+            active,
+            access_project_sharing_portal.active,
+        )
         if access_project_sharing_portal.active != active:
             access_project_sharing_portal.write({"active": active})
 

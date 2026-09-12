@@ -3,6 +3,8 @@ from typing import Any
 
 from odoo import Command, _, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectShareWizard(models.TransientModel):
     _name = "project.share.wizard"
@@ -43,6 +45,13 @@ class ProjectShareWizard(models.TransientModel):
                 }
                 for follower in project.message_partner_ids
                 if follower.partner_share and follower.id not in collaborator_ids
+            )
+            dbg.logic.debug(
+                "project.share.wizard.default_get [project:%s]: %d collaborators, "
+                "%d prefilled rows",
+                project.id,
+                len(collaborator_ids),
+                len(collaborator_vals_list),
             )
             if collaborator_vals_list:
                 collaborator_vals_list.sort(key=operator.itemgetter("partner_name"))
@@ -94,6 +103,7 @@ class ProjectShareWizard(models.TransientModel):
         for wizard in self:
             wizard.existing_partner_ids = wizard.collaborator_ids.partner_id
 
+    @dbg.timed
     def _sync_collaborators(self) -> None:
         for wizard in self:
             collaborator_ids_to_add = []
@@ -165,6 +175,17 @@ class ProjectShareWizard(models.TransientModel):
                     Command.delete(collaborator_id)
                     for collaborator_id in project_collaborator_ids_to_remove
                 )
+            dbg.pipeline.debug(
+                "[project:%s] share wizard sync: add=%s add_limited=%s remove=%s "
+                "commands=%d followers +%d/-%d",
+                project.id,
+                collaborator_ids_to_add,
+                collaborator_ids_to_add_with_limited_access,
+                project_collaborator_ids_to_remove,
+                len(collaborator_ids_vals_list),
+                len(project_followers_to_add),
+                len(project_followers_to_remove),
+            )
             project_vals = {}
             if collaborator_ids_vals_list:
                 project_vals["collaborator_ids"] = collaborator_ids_vals_list
@@ -186,6 +207,12 @@ class ProjectShareWizard(models.TransientModel):
             )
             and on_invite
         )
+        dbg.logic.debug(
+            "project.share.wizard.action_share_record %s: b2b=%s new_portal_user=%s",
+            dbg.rec(self),
+            on_invite,
+            bool(new_portal_user),
+        )
         if not new_portal_user:
             return self.action_send_mail()
         return {
@@ -204,7 +231,11 @@ class ProjectShareWizard(models.TransientModel):
             "context": self.env.context,
         }
 
+    @dbg.timed
     def action_send_mail(self) -> dict[str, Any]:
+        dbg.pipeline.debug(
+            "[share:%s] action_send_mail -> sync collaborators", dbg.rec(self)
+        )
         self._sync_collaborators()
         result = {
             "type": "ir.actions.client",
@@ -224,9 +255,21 @@ class ProjectShareWizard(models.TransientModel):
                 partner_ids_in_readonly_mode.append(collaborator.partner_id.id)
             else:
                 partner_ids_in_edit_mode.append(collaborator.partner_id.id)
+        dbg.logic.debug(
+            "project.share.wizard.action_send_mail %s: invite read=%s edit=%s",
+            dbg.rec(self),
+            partner_ids_in_readonly_mode,
+            partner_ids_in_edit_mode,
+        )
         if partner_ids_in_edit_mode:
             new_collaborators = self.env["res.partner"].browse(partner_ids_in_edit_mode)
             portal_partners = new_collaborators.filtered("user_ids")
+            dbg.pipeline.debug(
+                "[share:%s] public link -> %s, signup link -> %s",
+                dbg.rec(self),
+                dbg.rec(portal_partners),
+                dbg.rec(new_collaborators - portal_partners),
+            )
             self._send_public_link(portal_partners)
             self._send_signup_link(
                 partners=new_collaborators.with_context({"signup_valid": True})

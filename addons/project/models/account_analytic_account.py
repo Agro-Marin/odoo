@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
@@ -18,6 +20,7 @@ class AccountAnalyticAccount(models.Model):
         export_string_translation=False,
     )
 
+    @dbg.timed
     @api.depends("project_ids")
     def _compute_project_count(self) -> None:
         project_data = self.env["project.project"]._read_group(
@@ -34,6 +37,11 @@ class AccountAnalyticAccount(models.Model):
         has_tasks = self.env["project.task"].search_count(
             [("project_id.account_id", "in", self.ids)],
             limit=1,
+        )
+        dbg.logic.debug(
+            "account.analytic.account._unlink_except_existing_tasks %s: has_tasks=%s",
+            dbg.rec(self),
+            bool(has_tasks),
         )
         if has_tasks:
             raise UserError(

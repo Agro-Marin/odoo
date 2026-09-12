@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class ProjectGate(models.Model):
     _name = "project.gate"
@@ -63,6 +65,13 @@ class ProjectGate(models.Model):
     def _compute_criteria_met_count(self) -> None:
         for gate in self:
             gate.criteria_met_count = len(gate.criterion_ids.filtered("is_met"))
+            dbg.logic.debug(
+                "project.gate criteria %s: %d met of %d (state=%s)",
+                dbg.rec(gate),
+                gate.criteria_met_count,
+                len(gate.criterion_ids),
+                gate.state,
+            )
 
     @api.constrains("milestone_id", "project_id")
     def _check_milestone_project(self) -> None:

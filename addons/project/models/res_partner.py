@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
@@ -51,6 +53,7 @@ class ResPartner(models.Model):
                     )
                 )
 
+    @dbg.timed
     def _compute_task_count(self) -> None:
         all_partners = self.with_context(active_test=False).search_fetch(
             [("id", "child_of", self.ids)],
@@ -85,6 +88,13 @@ class ResPartner(models.Model):
             [("id", "child_of", self.ids)]
         )
         search_domain = [("partner_id", "in", (self | all_child).ids)]
+        dbg.logic.debug(
+            "res.partner.action_view_tasks %s: %d children, task_count=%d -> %s",
+            dbg.rec(self),
+            len(all_child),
+            self.task_count,
+            "form" if self.task_count <= 1 else "list",
+        )
         if self.task_count <= 1:
             task_id = self.env["project.task"].search(search_domain, limit=1)
             action["res_id"] = task_id.id

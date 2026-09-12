@@ -2,6 +2,8 @@ from typing import Any, Self
 
 from odoo import Command, api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectTemplateCreateWizard(models.TransientModel):
     _name = "project.template.create.wizard"
@@ -45,12 +47,20 @@ class ProjectTemplateCreateWizard(models.TransientModel):
     def _get_fields_template_whitelist(self) -> list[str]:
         return ["name", "date_start", "date", "alias_name", "alias_domain_id"]
 
+    @dbg.timed
     def _create_project_from_template(self) -> Self:
         field_values = self._convert_to_write(
             {
                 fname: self[fname]
                 for fname in self._fields.keys() & self._get_fields_template_whitelist()
             }
+        )
+        dbg.pipeline.debug(
+            "[template:%s] create wizard -> action_create_from_template values=%s "
+            "role mappings=%d",
+            self.template_id.id,
+            dbg.keys(field_values),
+            len(self.role_to_users_ids),
         )
         return self.template_id.action_create_from_template(
             values=field_values, role_to_users_mapping=self.role_to_users_ids

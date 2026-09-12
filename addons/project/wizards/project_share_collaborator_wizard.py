@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class ProjectShareCollaboratorWizard(models.TransientModel):
     _name = "project.share.collaborator.wizard"
@@ -42,4 +44,11 @@ class ProjectShareCollaboratorWizard(models.TransientModel):
                 collaborator.access_mode != "read"
                 and collaborator.partner_id not in project.collaborator_ids.partner_id
             ):
+                dbg.logic.debug(
+                    "share collaborator: partner %s mode=%s is new to project %s -> "
+                    "send_invitation",
+                    collaborator.partner_id.id,
+                    collaborator.access_mode,
+                    project.id,
+                )
                 collaborator.send_invitation = True
