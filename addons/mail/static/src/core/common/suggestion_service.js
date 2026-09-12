@@ -100,22 +100,17 @@ export class SuggestionService {
      * @returns {Promise<any>}
      */
     makeOrmCall(model, method, args, kwargs, { abortSignal } = {}) {
-        return new Promise((res, rej) => {
-            /** @type {Promise<any> & {abort?: () => void}} */
-            const req = this.orm.silent.call(model, method, args, kwargs);
-            const onAbort = () => {
-                log.logic("makeOrmCall aborted", () => ({ model, method }));
-                try {
-                    req.abort();
-                } catch (e) {
-                    rej(e);
-                }
-            };
-            abortSignal?.addEventListener("abort", onAbort);
-            req.then(res)
-                .catch(rej)
-                .finally(() => abortSignal?.removeEventListener("abort", onAbort));
-        });
+        /** @type {Promise<any> & {abort?: () => void}} */
+        const req = this.orm.silent.call(model, method, args, kwargs);
+        if (!abortSignal) {
+            return req;
+        }
+        const onAbort = () => {
+            log.logic("makeOrmCall aborted", () => ({ model, method }));
+            req.abort?.();
+        };
+        abortSignal.addEventListener("abort", onAbort, { once: true });
+        return req.finally(() => abortSignal.removeEventListener("abort", onAbort));
     }
     /**
      * @param {string} term

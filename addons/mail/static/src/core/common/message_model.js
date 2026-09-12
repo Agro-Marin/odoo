@@ -525,7 +525,6 @@ export class Message extends Record {
                     return _t("%(file1)s and %(file2)s", {
                         file1: attachments[0].previewName,
                         file2: attachments[1].previewName,
-                        count: attachments.length - 1,
                     });
                 default:
                     return _t("%(file1)s and %(count)s other attachments", {

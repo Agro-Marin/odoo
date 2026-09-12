@@ -242,8 +242,8 @@ export class Record {
             }
             Model._rawStore.recordByLocalId.set(record.localId, recordProxy);
             for (const fieldName of record.Model._.fields.keys()) {
-                record._.requestCompute?.(record, fieldName);
-                record._.requestSort?.(record, fieldName);
+                record._.requestCompute(record, fieldName);
+                record._.requestSort(record, fieldName);
             }
             return /** @type {InstanceType<T>} */ (recordProxy);
         });

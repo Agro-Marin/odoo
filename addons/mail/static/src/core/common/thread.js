@@ -38,8 +38,11 @@ const log = makeLogger("mail.thread.ui");
  * @property {number} [jumpToNewMessage=0]
  * @property {"asc"|"desc"} [order="asc"]
  * @property {import("models").Thread} thread
- * @property {string} [searchTerm]
  * @property {import("@web/core/utils/hooks").Ref} [scrollRef]
+ * @property {boolean} [showDates=true]
+ * @property {boolean} [showEmptyMessage=true]
+ * @property {boolean} [showJumpPresent=true]
+ * @property {boolean} [messageActions=true]
  * @extends {Component<Props, import("@web/env").OdooEnv>}
  */
 export class Thread extends Component {
