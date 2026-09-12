@@ -17,12 +17,12 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | `discuss/` | 146 | The Discuss app feature layers (channels, calls, typing, voice, gifs, pinning) |
 | `chatter/` | 13 | Form/portal document chatter |
 | `views/` | 61 | Backend view integrations (activity view, mail field widgets, rotting widgets) |
-| `utils/` | 10 | Shared date/format/DOM helpers |
+| `utils/` | 11 | Shared date/format/DOM helpers |
 | `webclient/` | 1 | Webclient-level wiring |
 | `worklets/` | 1 | `audio_processor.js` — the RTC audio worklet, served raw by `/mail/rtc/audio_worklet_processor_v2` (not bundled) |
 | `(root)` | 2 | `service_worker.js` + `service_worker_utils.js` |
 
-The rows above sum to **401**, the module's full `static/src` JS count. (`audio/`, `img/`
+The rows above sum to **402**, the module's full `static/src` JS count. (`audio/`, `img/`
 and `scss/` carry no JS.)
 
 > **`js/` no longer exists.** It was the last unlayered directory in the module — outside the

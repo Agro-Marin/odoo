@@ -625,13 +625,14 @@ assert_eq "TEST_TAGS.md no stale ~52 cite" \
 
 # JS test directory table. core/ was cited as 15 (really 16) and widgets/ as 2 (really 1);
 # the two errors cancelled, so the table summed correctly while both rows were wrong.
-assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "28"
+assert_eq "static/tests/core/ test files"    "$(find "$MAIL/static/tests/core"    -name '*.test.js' | wc -l)" "29"
 assert_eq "static/tests/widgets/ test files" "$(find "$MAIL/static/tests/widgets" -name '*.test.js' | wc -l)" "1"
 assert_doc_cites "TEST_TAGS.md cites the discuss/ test-file count" \
     "$(find "$MAIL/static/tests/discuss" -name '*.test.js' | wc -l)" \
     '\| `discuss/` \| %s \|' TEST_TAGS.md
-assert_eq "TEST_TAGS.md cites core/ 23" \
-    "$(grep -c '| `core/` | 23 |' "$DOC/TEST_TAGS.md")" "1"
+assert_doc_cites "TEST_TAGS.md cites the core/ test-file count" \
+    "$(find "$MAIL/static/tests/core" -name '*.test.js' | wc -l)" \
+    '\| `core/` \| %s \|' TEST_TAGS.md
 assert_eq "TEST_TAGS.md moved widgets/ to the '1 each' row" \
     "$(grep -c 'translation/`, `widgets/`' "$DOC/TEST_TAGS.md")" "1"
 
@@ -807,7 +808,7 @@ assert_eq "ASSET_LAYERS.md cites the core/ formatters path" \
 assert_doc_cites "DIRECTORY_MAP.md cites the core/ JS count" \
     "$(find "$MAIL/static/src/core" -name '*.js' | wc -l)" '\| `core/` \| %s \|' DIRECTORY_MAP.md
 assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "146"
-assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "10"
+assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "11"
 assert_eq "chatter/ recursive JS count" "$(find "$MAIL/static/src/chatter" -name '*.js' | wc -l)" "13"
 assert_eq "DIRECTORY_MAP.md cites discuss 146" "$(grep -c '| `discuss/` | 146 |' "$DOC/DIRECTORY_MAP.md")" "1"
 

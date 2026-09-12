@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 68 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 153 `*.test.js`).
+(`tests/`, 68 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 154 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -311,17 +311,17 @@ is the last one under `/addons/`, since everything below it is ORM.
 
 ## JavaScript — HOOT suites (`static/tests/`)
 
-153 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
+154 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
 interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
-Rows below sum to 153.
+Rows below sum to 154.
 
 | Directory | Files | Scope |
 |-----------|------:|-------|
 | `discuss/` | 46 | Discuss app: channels, members, calls, sidebar, sub-channels |
-| `core/` | 23 | Store/Record framework, personas, notifications, settings, presence |
+| `core/` | 29 | Store/Record framework, personas, notifications, settings, presence, the localStorage mirror |
 | `web/` | 9 | Backend-web integration (systray, form chatter wiring) |
 | `chatter/` | 10 | Form-view chatter |
 | `discuss_app/` | 6 | Discuss client-action shell |
