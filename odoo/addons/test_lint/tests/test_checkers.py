@@ -8,6 +8,7 @@ from odoo.tests.common import BaseCase, no_retry
 from . import (
     _checker_batch,
     _checker_config_patch,
+    _checker_credential_storage,
     _checker_egress,
     _checker_gettext,
     _checker_http_json,
@@ -1851,4 +1852,62 @@ class TestSecretInEnvironLint(BaseCase):
             subprocess.run(cmd, env=env)
             """),
             0,
+        )
+
+
+@no_retry
+class TestCredentialStorageLint(BaseCase):
+    def _fields(self, snippet, path="/w/odoo/addons/payment_x/models/provider.py"):
+        tree = ast.parse(dedent(snippet).strip())
+        return [
+            v.message.split(" ")[0]
+            for v in _checker_credential_storage.check(tree, path)
+        ]
+
+    def test_a_stored_secret_column_is_flagged(self):
+        self.assertEqual(
+            self._fields("""
+            class Provider(models.Model):
+                x_secret_key = fields.Char(groups="base.group_system")
+                x_webhook_token = fields.Text()
+            """),
+            ["payment_x.x_secret_key", "payment_x.x_webhook_token"],
+        )
+
+    def test_computed_share_public_derived_and_hashed_fields_are_not_secrets(self):
+        self.assertEqual(
+            self._fields("""
+            class Provider(models.Model):
+                x_api_key = fields.Char(compute="_compute_x_api_key")
+                share_token = fields.Char()
+                x_publishable_key = fields.Char()
+                x_token_hash = fields.Char()
+                x_password = fields.Char()
+
+                def _set(self, value):
+                    self.x_password = crypt_context.hash(value)
+            """),
+            [],
+        )
+
+    def test_a_settings_secret_kept_in_config_parameters_is_flagged(self):
+        self.assertEqual(
+            self._fields("""
+            class Settings(models.TransientModel):
+                x_client_secret = fields.Char(config_parameter="x.client_secret")
+                x_wizard_password = fields.Char()
+            """),
+            ["payment_x.x_client_secret"],
+        )
+
+    def test_the_vault_itself_is_out_of_scope(self):
+        self.assertEqual(
+            self._fields(
+                """
+                class Credential(models.Model):
+                    api_secret = fields.Char()
+                """,
+                path="/w/odoo/addons/credential/models/credential_credential.py",
+            ),
+            [],
         )

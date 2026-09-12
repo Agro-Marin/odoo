@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from . import (
     _checker_batch,
     _checker_config_patch,
+    _checker_credential_storage,
     _checker_egress,
     _checker_gettext,
     _checker_http_json,
@@ -243,6 +244,14 @@ RULES: tuple[Rule, ...] = (
         "every other company's work inherits it",
     ),
     Rule(
+        "credential-storage",
+        "E8520",
+        "keep the secret in credential.credential and hold a Many2one to it, "
+        "with a computed field of the old name reading it through the vault's use "
+        "path; a plain column or an ir.config_parameter is in every backup in "
+        "clear",
+    ),
+    Rule(
         "noqa-rationale",
         "",
         "write the reason after the codes: `# noqa: F401  re-exported by __init__`",
@@ -328,6 +337,10 @@ def _in_an_addon_outside_tests_and_the_transport(unit: Unit) -> bool:
     )
 
 
+def _credential_storage(unit: Unit) -> Iterable[object]:
+    return _checker_credential_storage.check(unit.tree, unit.path)
+
+
 def _anywhere(unit: Unit) -> bool:
     return True
 
@@ -390,6 +403,11 @@ CHECKERS: tuple[Checker, ...] = (
         frozenset({"raw-egress"}),
     ),
     Checker(_secret_in_environ, _outside_tests, frozenset({"secret-in-environ"})),
+    Checker(
+        _credential_storage,
+        _in_an_addon_outside_tests,
+        frozenset({"credential-storage"}),
+    ),
 )
 
 CROSS_UNIT_RULES = frozenset(

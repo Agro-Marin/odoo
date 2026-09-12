@@ -50,6 +50,7 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_tax_company.py` | `tax-company-singular` |
 | `_checker_http_json.py` | `http-json-string` |
 | `_checker_egress.py` | `raw-egress`, `secret-in-environ` |
+| `_checker_credential_storage.py` | `credential-storage` |
 | `_checker_row_counter.py` | `row-counter-in-test` |
 
 `tax-company-singular` (E8514) catches `.tax_ids.filtered(lambda t: t.company_id)`
@@ -76,6 +77,14 @@ and the transport module itself. Its floor is a migration ledger: moving a call 
 `get_api_client` lowers it, a new raw call fails it. `secret-in-environ` (E8519) is
 held at zero: a secret-named key written into `os.environ`, which every later
 subprocess of the worker inherits, instead of into the child's own `env=`.
+
+`credential-storage` (E8520) is the credential_storage gate that went with
+`tooling/`, ported: a stored `Char`/`Text` field whose name reads as a third-party
+secret, outside `credential`, with the old per-field judgements for share tokens,
+published keys, identifiers, hashes and cursors kept. It adds what the old gate
+never saw: a settings field with `config_parameter=`, which keeps its value in
+clear in `ir.config_parameter`. The floor is the backlog of fields still to move
+into the vault.
 
 `http-json-string` (E8515) catches `return json.dumps(...)` inside a route whose
 `type` is `"http"` or absent. The string goes out as `text/html`, and the client's
