@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from dateutil.relativedelta import relativedelta
 
-from odoo.libs.datetime.recurrence import (
+from odoo.libs.datetime.date_utils import (
     Anchor,
     next_after,
     next_anchor,

@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from odoo.libs.datetime import (
     TIME_UNIT_SELECTION,
     WEEKDAY_NUMBER,
+    Anchor,
     TimeUnit,
     add,
     date_range,
@@ -20,7 +21,10 @@ from odoo.libs.datetime import (
     get_quarter_number,
     get_timedelta,
     localized,
+    next_after,
+    next_anchor,
     parse_iso_date,
+    previous_anchor,
     start_of,
     subtract,
     time_to_float,
@@ -30,12 +34,6 @@ from odoo.libs.datetime import (
     weekend,
     weeknumber,
     weekstart,
-)
-from odoo.libs.datetime.recurrence import (
-    Anchor,
-    next_after,
-    next_anchor,
-    previous_anchor,
 )
 
 
