@@ -43,25 +43,35 @@ def _extract_members_bounded(
 ) -> int:
     dest_path = Path(dest)
     written = 0
-    for member in members:
-        info = z.getinfo(member)
-        target = dest_path / member
-        if info.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with z.open(info) as src, target.open("wb") as out:
-            while chunk := src.read(_EXTRACT_CHUNK_BYTES):
-                written += len(chunk)
-                if written > budget:
-                    raise RuntimeError(
-                        f"Refusing to restore: the archive expands to more than "
-                        f"{budget} bytes, over {_RESTORE_MAX_EXPANSION_RATIO}x its "
-                        f"compressed size. Raise "
-                        f"ODOO_RESTORE_MAX_EXPANSION_RATIO if this backup is "
-                        f"genuinely that compressible."
-                    )
-                out.write(chunk)
+    with _debug.perf(
+        "database.restore.extracted", members=len(members), budget=budget
+    ) as span:
+        for member in members:
+            info = z.getinfo(member)
+            target = dest_path / member
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with z.open(info) as src, target.open("wb") as out:
+                while chunk := src.read(_EXTRACT_CHUNK_BYTES):
+                    written += len(chunk)
+                    if written > budget:
+                        _debug.logic(
+                            "database.restore.expansion_refused",
+                            member=member,
+                            written=written,
+                            budget=budget,
+                        )
+                        raise RuntimeError(
+                            f"Refusing to restore: the archive expands to more than "
+                            f"{budget} bytes, over {_RESTORE_MAX_EXPANSION_RATIO}x its "
+                            f"compressed size. Raise "
+                            f"ODOO_RESTORE_MAX_EXPANSION_RATIO if this backup is "
+                            f"genuinely that compressible."
+                        )
+                    out.write(chunk)
+        span.set(written=written)
     return written
 
 
@@ -83,7 +93,9 @@ def _unpack_budget(dump_file: str | os.PathLike | IO[bytes]) -> int:
         minimum=1,
         logger=_logger,
     )
-    return max(_get_source_size(dump_file) * ratio, _RESTORE_MIN_UNPACKED_BYTES)
+    budget: int = max(_get_source_size(dump_file) * ratio, _RESTORE_MIN_UNPACKED_BYTES)
+    _debug.logic("database.restore.budget", ratio=ratio, budget=budget)
+    return budget
 
 
 def _get_pg_restore_total_timeout() -> float:
@@ -97,15 +109,19 @@ def exp_restore(db_name: str, data: str, copy: bool = False) -> Literal[True]:
 
     data_file = tempfile.NamedTemporaryFile(delete=False)  # noqa: SIM115  delete=False: the path outlives this scope
     try:
-        accum = ""
-        for i in range(0, len(data), CHUNK):
-            accum += data[i : i + CHUNK].translate(_STRIP_WS)
-            n_complete = (len(accum) // 4) * 4
-            if n_complete:
-                data_file.write(base64.b64decode(accum[:n_complete]))
-                accum = accum[n_complete:]
-        if accum:
-            data_file.write(base64.b64decode(accum))
+        with _debug.perf(
+            "database.restore.decoded", db=db_name, chars=len(data)
+        ) as span:
+            accum = ""
+            for i in range(0, len(data), CHUNK):
+                accum += data[i : i + CHUNK].translate(_STRIP_WS)
+                n_complete = (len(accum) // 4) * 4
+                if n_complete:
+                    data_file.write(base64.b64decode(accum[:n_complete]))
+                    accum = accum[n_complete:]
+            if accum:
+                data_file.write(base64.b64decode(accum))
+            span.set(bytes=data_file.tell())
         data_file.close()
         restore_db(db_name, data_file.name, copy=copy)
     finally:
@@ -122,12 +138,14 @@ def _extract_zip_dump(
         for member in z.namelist():
             target = (dump_dir_resolved / member).resolve()
             if not target.is_relative_to(dump_dir_resolved):
+                _debug.logic("database.restore.member_escapes", member=member)
                 raise RuntimeError(
                     f"Refusing to restore: archive member {member!r} "
                     f"escapes the extraction directory"
                 )
 
         if "dump.sql" not in z.namelist():
+            _debug.logic("database.restore.no_dump_sql", members=len(z.namelist()))
             raise RuntimeError(
                 "Refusing to restore: the archive contains no "
                 "'dump.sql' member, so it is not an Odoo database "
@@ -135,6 +153,11 @@ def _extract_zip_dump(
             )
 
         filestore = [m for m in z.namelist() if m.startswith("filestore/")]
+        _debug.pipeline(
+            "database.restore.archive_listed",
+            members=len(z.namelist()),
+            filestore=len(filestore),
+        )
         _extract_members_bounded(
             z,
             ["dump.sql"] + filestore,
@@ -153,12 +176,18 @@ def _get_restore_command(
         dump_sql_path = str(Path(dump_dir, "dump.sql"))
         _check_dump_sql_safe(dump_sql_path)
         pg_args = ["-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", dump_sql_path]
+        _debug.logic(
+            "database.restore.command",
+            tool="psql",
+            filestore=filestore_path is not None,
+        )
         return "psql", pg_args, filestore_path
 
     if not isinstance(dump_file, (str, os.PathLike)):
         raise TypeError(
             "a raw (non-zip) restore needs a file path, not an open file object"
         )
+    _debug.logic("database.restore.command", tool="pg_restore", filestore=False)
     return (
         "pg_restore",
         ["--no-owner", "--exit-on-error", os.fspath(dump_file)],
@@ -182,6 +211,7 @@ def _run_pg_restore(db: str, pg_cmd: str, pg_args: list[str]) -> None:
                 timeout=timeout,
             )
     except subprocess.TimeoutExpired as e:
+        _debug.logic("database.restore.timed_out", db=db, tool=pg_cmd, timeout=timeout)
         raise RuntimeError(
             f"Restore of {db!r} exceeded {timeout:.0f}s wall-clock "
             f"timeout and was terminated.  Set "
@@ -189,19 +219,30 @@ def _run_pg_restore(db: str, pg_cmd: str, pg_args: list[str]) -> None:
         ) from e
     if r.returncode != 0:
         _logger.error("RESTORE DB %r failed:\n%s", db, r.stderr)
+        _debug.logic(
+            "database.restore.tool_failed", db=db, tool=pg_cmd, returncode=r.returncode
+        )
         raise RuntimeError(f"Couldn't restore database {db!r}:\n{r.stderr.strip()}")
 
 
 def _finalize_restored_db(
     db: str, copy: bool, neutralize_database: bool, filestore_path: str | None
 ) -> None:
-    registry = odoo.modules.registry.Registry.new(db, run_tests=False)
+    with _debug.perf("database.restore.registry_loaded", db=db):
+        registry = odoo.modules.registry.Registry.new(db, run_tests=False)
     with registry.cursor() as cr:
         env = odoo.api.Environment(cr, odoo.api.SUPERUSER_ID, {})
         if copy:
             env["ir.config_parameter"].init(force=True)  # type: ignore[call-arg]
         if neutralize_database:
             odoo.modules.neutralize.neutralize_database(cr)
+        _debug.pipeline(
+            "database.restore.finalized",
+            db=db,
+            copy=copy,
+            neutralized=neutralize_database,
+            filestore=filestore_path is not None,
+        )
 
         if filestore_path:
             filestore_dest = env["ir.attachment"]._get_filestore()
@@ -210,7 +251,8 @@ def _finalize_restored_db(
                     f"Filestore {filestore_dest!r} appeared between "
                     f"pre-flight and move (race)."
                 )
-            shutil.move(filestore_path, filestore_dest)
+            with _debug.perf("database.restore.filestore_moved", db=db):
+                shutil.move(filestore_path, filestore_dest)
 
 
 @check_db_management_enabled
@@ -225,6 +267,7 @@ def restore_db(
     check_db_name(db)
     if exp_db_exist(db):
         _logger.warning("RESTORE DB: %s already exists", db)
+        _debug.logic("database.restore.refused", db=db, reason="exists")
         raise RuntimeError(f"Database {db!r} already exists")
 
     fs_dest = odoo.tools.config.filestore(db)
@@ -250,5 +293,6 @@ def restore_db(
             filestore=filestore_path is not None,
         )
     except Exception:
+        _debug.logic("database.restore.failed", db=db)
         _rollback_new_database(db, "RESTORE DB")
         raise

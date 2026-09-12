@@ -43,15 +43,17 @@ def get_database_identifier(cr: BaseCursor, name: str) -> SQL:
 
 def _terminate_backends(cr: BaseCursor, db_name: str) -> None:
     try:
-        cr.execute(
-            """SELECT pg_terminate_backend(pid)
-                      FROM pg_stat_activity
-                      WHERE datname = %s AND
-                            pid != pg_backend_pid()""",
-            (db_name,),
-        )
+        with _debug.perf("database.backends_terminated", db=db_name):
+            cr.execute(
+                """SELECT pg_terminate_backend(pid)
+                          FROM pg_stat_activity
+                          WHERE datname = %s AND
+                                pid != pg_backend_pid()""",
+                (db_name,),
+            )
     except Exception:
         _logger.debug("pg_terminate_backend failed for %r", db_name, exc_info=True)
+        _debug.logic("database.backends_terminate_failed", db=db_name)
 
 
 def _create_faketime_now_function(db_name: str) -> None:
@@ -63,9 +65,11 @@ def _create_faketime_now_function(db_name: str) -> None:
             "Refusing to install faketime now() into %r.",
             db_name,
         )
+        _debug.logic("database.faketime_refused", db=db_name, reason="no_test_enable")
         return
     configured_dbs = odoo.tools.config["db_name"] or ()
     if db_name not in configured_dbs:
+        _debug.logic("database.faketime_refused", db=db_name, reason="not_configured")
         return
     try:
         db = odoo.db.db_connect(db_name)
@@ -90,14 +94,19 @@ def _create_faketime_now_function(db_name: str) -> None:
             new_now = new_now_row[0] if new_now_row else None
             _logger.info("Faketime mode, new cursor now is %s", new_now)
             cursor.commit()
+            _debug.lifecycle(
+                "database.faketime_installed", db=db_name, offset_s=int(time_offset)
+            )
     except psycopg.Error as e:
         _logger.warning("Unable to set faketime NOW(): %s", e)
+        _debug.logic("database.faketime_failed", db=db_name, error=type(e).__name__)
 
 
 def _warn_on_non_c_template(cr, template: str) -> None:
     cr.execute("SELECT datcollate FROM pg_database WHERE datname = %s", (template,))
     row = cr.fetchone()
     if row is not None and row[0] != "C":
+        _debug.logic("database.template_non_c", template=template, collate=row[0])
         _logger.warning(
             "db_template %r has LC_COLLATE=%r, not 'C'; databases created from "
             "it inherit that collation, so SQL ORDER BY and in-memory "
@@ -145,9 +154,10 @@ def _create_empty_database(
             except psycopg.errors.DuplicateDatabase, psycopg.errors.UniqueViolation:
                 already_exists = True
 
-        _retry_on_object_in_use(
-            f"CREATE DB: {name} (template {chosen_template})", _create
-        )
+        with _debug.perf("database.create_ddl", db=name, template=chosen_template):
+            _retry_on_object_in_use(
+                f"CREATE DB: {name} (template {chosen_template})", _create
+            )
 
     _debug.lifecycle(
         "database.created",
@@ -172,6 +182,7 @@ def _create_empty_database(
                         log_exceptions=False,
                     )
     except psycopg.Error as e:
+        _debug.logic("database.extensions_failed", db=name, error=type(e).__name__)
         _logger.error(
             "Unable to create PostgreSQL extensions in %r: %s. "
             "Check that postgresql-contrib is installed and the DB role has "
@@ -197,6 +208,7 @@ def _create_empty_database(
 
 def _rollback_new_database(db_name: str, what: str) -> None:
     _logger.info("%s: rolling back database %r after failure", what, db_name)
+    _debug.lifecycle("database.rollback", db=db_name, what=what)
     try:
         _drop_database(db_name)
     except Exception:
@@ -205,10 +217,12 @@ def _rollback_new_database(db_name: str, what: str) -> None:
             what,
             db_name,
         )
+        _debug.logic("database.rollback_failed", db=db_name, what=what)
 
 
 def _check_filestore_dest_free(dest: str, problem: str) -> None:
     if Path(dest).exists():
+        _debug.logic("database.filestore_dest_taken", dest=dest)
         raise RuntimeError(
             f"{problem}: destination filestore {dest!r} already exists.  "
             f"Move or delete the stale directory before retrying."
@@ -232,9 +246,16 @@ def exp_create_database(
     _logger.info("Create database `%s`.", db_name)
     _create_empty_database(db_name, setup_if_exists=False)
     try:
-        odoo.modules.db.initialize_db(
-            db_name, demo, lang, user_password, login, country_code, phone
-        )
+        with _debug.perf(
+            "database.initialized",
+            db=db_name,
+            demo=demo,
+            lang=lang,
+            country=country_code,
+        ):
+            odoo.modules.db.initialize_db(
+                db_name, demo, lang, user_password, login, country_code, phone
+            )
     except Exception:
         _rollback_new_database(db_name, "CREATE DB")
         raise
@@ -282,12 +303,13 @@ def _duplicate_database(
             ) as exc:
                 raise DatabaseExists(f"database {db_name!r} already exists!") from exc
 
-        _retry_terminate_then_ddl(
-            cr,
-            db_original_name,
-            f"DUPLICATE DB: {db_original_name} -> {db_name}",
-            _create_from_template,
-        )
+        with _debug.perf("database.duplicate_ddl", source=db_original_name, db=db_name):
+            _retry_terminate_then_ddl(
+                cr,
+                db_original_name,
+                f"DUPLICATE DB: {db_original_name} -> {db_name}",
+                _create_from_template,
+            )
 
     try:
         registry = odoo.modules.registry.Registry.new(db_name, run_tests=False)
@@ -356,6 +378,11 @@ def _retry_on_object_in_use(
                 time.sleep(_DROP_DATABASE_BACKOFF_BASE * (2 ** (attempt - 1)))
         else:
             return
+    _debug.logic(
+        "database.ddl.retries_exhausted",
+        operation=op_label,
+        attempts=_DROP_DATABASE_MAX_RETRIES,
+    )
     raise RuntimeError(
         f"{op_label}: still in use after {_DROP_DATABASE_MAX_RETRIES} "
         f"attempts: {last_error}"
@@ -385,6 +412,7 @@ def _drop_database(db_name: str) -> bool:
             owner_row = cr.fetchone()
     except Exception:
         _logger.debug("DROP DB %r: existence probe failed", db_name, exc_info=True)
+        _debug.logic("database.drop.probe_failed", db=db_name)
         owner_row = ()
 
     if owner_row is None:
@@ -409,14 +437,16 @@ def _drop_database(db_name: str) -> bool:
                 raise RuntimeError(f"Couldn't drop database {db_name}: {e}") from e
             _logger.info("DROP DB: %s", db_name)
 
-        _retry_terminate_then_ddl(cr, db_name, f"DROP DB: {db_name}", _drop)
+        with _debug.perf("database.drop_ddl", db=db_name):
+            _retry_terminate_then_ddl(cr, db_name, f"DROP DB: {db_name}", _drop)
 
     odoo.db.close_db(db_name)
 
     fs = odoo.tools.config.filestore(db_name)
     _debug.lifecycle("database.dropped", db=db_name, filestore=Path(fs).exists())
     if Path(fs).exists():
-        shutil.rmtree(fs)
+        with _debug.perf("database.filestore_removed", db=db_name):
+            shutil.rmtree(fs)
     invalidate_catalog_caches()
     return True
 
@@ -472,9 +502,10 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                 ) from e
             _logger.info("RENAME DB: %s -> %s", old_name, new_name)
 
-        _retry_terminate_then_ddl(
-            cr, old_name, f"RENAME DB: {old_name} -> {new_name}", _rename
-        )
+        with _debug.perf("database.rename_ddl", source=old_name, db=new_name):
+            _retry_terminate_then_ddl(
+                cr, old_name, f"RENAME DB: {old_name} -> {new_name}", _rename
+            )
 
         if Path(old_fs).exists():
             if Path(new_fs).exists():
@@ -493,6 +524,12 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     new_fs,
                     fs_err,
                 )
+                _debug.logic(
+                    "database.rename.filestore_move_failed",
+                    source=old_name,
+                    db=new_name,
+                    error=type(fs_err).__name__,
+                )
                 try:
                     _rollback_db_rename(cr, old_name, new_name)
                 except Exception as revert_err:
@@ -507,11 +544,18 @@ def _rename_database(old_name: str, new_name: str) -> Literal[True]:
                     f"Couldn't rename filestore {old_fs!r} -> {new_fs!r}: "
                     f"{fs_err}. Database rename rolled back."
                 ) from fs_err
+    _debug.lifecycle(
+        "database.renamed",
+        source=old_name,
+        db=new_name,
+        filestore=Path(new_fs).exists(),
+    )
     invalidate_catalog_caches()
     return True
 
 
 def _rollback_db_rename(cr: BaseCursor, old_name: str, new_name: str) -> None:
+    _debug.lifecycle("database.rename.rolled_back", source=old_name, db=new_name)
     cr.execute(
         SQL(
             "ALTER DATABASE %s RENAME TO %s",

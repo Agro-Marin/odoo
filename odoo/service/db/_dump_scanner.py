@@ -395,23 +395,30 @@ def _check_dump_sql_safe(sql_path: str) -> None:
     )
     scanner = _PsqlSqlScanner()
     hit = None
-    with Path(sql_path).open(encoding="latin-1") as fh:
-        while chunk := fh.readline(max_line + 1):
-            if len(chunk) > max_line and not chunk.endswith("\n"):
-                if scanner.in_copy_data:
-                    _drain_physical_line(fh, max_line + 1)
-                    scanner.lineno += 1
-                    continue
-                raise RuntimeError(
-                    f"Refusing to restore: the dump's SQL has a line longer than "
-                    f"{max_line} characters (at line {scanner.lineno}), which "
-                    f"cannot be scanned within a bounded amount of memory. A "
-                    f"backup produced by Odoo's own dump has no such line; raise "
-                    f"ODOO_DUMP_SCAN_MAX_LINE if this dump is genuinely legitimate."
-                )
-            hit = scanner.feed(chunk)
-            if hit is not None:
-                break
+    with _debug.perf("database.restore.dump_scan", path=sql_path) as span:
+        with Path(sql_path).open(encoding="latin-1") as fh:
+            while chunk := fh.readline(max_line + 1):
+                if len(chunk) > max_line and not chunk.endswith("\n"):
+                    if scanner.in_copy_data:
+                        _drain_physical_line(fh, max_line + 1)
+                        scanner.lineno += 1
+                        continue
+                    _debug.logic(
+                        "database.restore.dump_line_too_long",
+                        lineno=scanner.lineno,
+                        max_line=max_line,
+                    )
+                    raise RuntimeError(
+                        f"Refusing to restore: the dump's SQL has a line longer than "
+                        f"{max_line} characters (at line {scanner.lineno}), which "
+                        f"cannot be scanned within a bounded amount of memory. A "
+                        f"backup produced by Odoo's own dump has no such line; raise "
+                        f"ODOO_DUMP_SCAN_MAX_LINE if this dump is genuinely legitimate."
+                    )
+                hit = scanner.feed(chunk)
+                if hit is not None:
+                    break
+        span.set(lines=scanner.lineno, refused=hit is not None)
     _debug.logic(
         "database.restore.dump_scanned",
         path=sql_path,

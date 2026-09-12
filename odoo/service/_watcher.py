@@ -105,6 +105,7 @@ class FSWatcherBase:
     def get_watch_paths() -> list[str]:
         roots = list(odoo.addons.__path__)
         if "reload" in current().dev_mode:
+            _debug.pipeline("watcher.paths_resolved", mode="reload", paths=len(roots))
             return roots
         paths = []
         for root in roots:
@@ -115,6 +116,9 @@ class FSWatcherBase:
                 tree = addon / "static"
                 if tree.is_dir():
                     paths.append(str(tree))
+        _debug.pipeline(
+            "watcher.paths_resolved", mode="assets", roots=len(roots), paths=len(paths)
+        )
         return paths
 
     def _signal_asset_change(self, path: str) -> None:
@@ -136,6 +140,7 @@ class FSWatcherBase:
                     path,
                     exc_info=True,
                 )
+                _debug.logic("watcher.invalidate_failed", db=db_name, path=path)
 
     def on_asset_file_changed(self, path: str) -> None:
         with self._burst_lock:
@@ -144,6 +149,7 @@ class FSWatcherBase:
             if leading:
                 self._burst_active = True
         if leading:
+            _debug.logic("watcher.burst_started", path=path)
             self._flush_asset_invalidation()
         self._arm_burst_flush()
 
@@ -188,6 +194,7 @@ class FSWatcherBase:
                 self.on_asset_file_changed(path)
             return None
         if self._reload_triggered:
+            _debug.logic("watcher.change_ignored", path=path, reason="reload_pending")
             return None
         if "reload" not in current().dev_mode:
             return None
@@ -200,16 +207,23 @@ class FSWatcherBase:
                     "autoreload: python code change detected, IOError for %s",
                     path,
                 )
+                _debug.logic("watcher.python_unreadable", path=path)
             except SyntaxError:
                 _logger.error(
                     "autoreload: python code change detected, SyntaxError in %s",
                     path,
                 )
+                _debug.logic("watcher.python_syntax_error", path=path)
             else:
                 if self._reload_in_place or not _process_state.server_phoenix:
                     self._reload_triggered = not self._reload_in_place
                     _logger.info(
                         "autoreload: python code updated, autoreload activated"
+                    )
+                    _debug.lifecycle(
+                        "watcher.reload_triggered",
+                        path=path,
+                        in_place=self._reload_in_place,
                     )
                     restart()
                     return not self._reload_in_place
@@ -224,6 +238,7 @@ class FSWatcherWatchdog(FSWatcherBase):
         _logger.info("Watching %d folder(s) for changes", len(paths))
         for path in paths:
             self.observer.schedule(self, path, recursive=True)
+        _debug.lifecycle("watcher.scheduled", backend="watchdog", paths=len(paths))
 
     def dispatch(self, event) -> None:
         if isinstance(event, (FileCreatedEvent, FileModifiedEvent, FileMovedEvent)):
@@ -234,6 +249,7 @@ class FSWatcherWatchdog(FSWatcherBase):
     def start(self) -> None:
         self.observer.start()
         _logger.info("AutoReload watcher running with watchdog")
+        _debug.lifecycle("watcher.started", backend="watchdog")
 
     def stop(self) -> None:
         self._end_burst()
@@ -246,6 +262,9 @@ class FSWatcherWatchdog(FSWatcherBase):
                 "continuing shutdown without it",
                 _OBSERVER_JOIN_TIMEOUT_S,
             )
+        _debug.lifecycle(
+            "watcher.stopped", backend="watchdog", joined=not self.observer.is_alive()
+        )
 
 
 if inotify:
@@ -354,12 +373,21 @@ class FSWatcherInotify(FSWatcherBase):
             )
         except Exception as exc:
             diagnosis = get_inotify_limit_diagnosis(exc)
+            _debug.logic(
+                "watcher.inotify_arm_failed",
+                roots=len(paths),
+                enospc=bool(diagnosis),
+                error=type(exc).__name__,
+            )
             if not diagnosis:
                 raise
             raise OSError(errno.ENOSPC, diagnosis) from exc
         self.internals = _InotifyInternals(self.watcher)
         self.internals.set_cloexec()
         self.internals.register_path(OVERFLOW_WD, OVERFLOW_PATH)
+        _debug.lifecycle(
+            "watcher.inotify_armed", roots=len(paths), block_s=block_duration_s
+        )
 
     def _sync_watches_after_overflow(self) -> None:
         _logger.warning(
@@ -373,6 +401,7 @@ class FSWatcherInotify(FSWatcherBase):
             self._watch_directory(root_path)
             for directory, _, _ in root_path.walk():
                 self._watch_directory(directory)
+        _debug.pipeline("watcher.overflow_resynced", roots=len(self.roots))
         self.on_asset_file_changed(OVERFLOW_PATH)
 
     def _watch_directory(self, directory: Path) -> None:
@@ -387,6 +416,7 @@ class FSWatcherInotify(FSWatcherBase):
                 internals.remove_watch_superficially(path)
             except Exception:
                 _logger.debug("autoreload: stale watch purge for %s", path)
+            _debug.logic("watcher.watch_readded", path=path)
             internals.add_watch(path)
         except Exception as exc:
             _logger.warning(
@@ -395,6 +425,7 @@ class FSWatcherInotify(FSWatcherBase):
                 get_inotify_limit_diagnosis(exc) or "See the traceback for the cause.",
                 exc_info=True,
             )
+            _debug.logic("watcher.watch_failed", path=path, error=type(exc).__name__)
 
     def run(self) -> None:
         try:
@@ -405,6 +436,7 @@ class FSWatcherInotify(FSWatcherBase):
 
     def _run(self) -> None:
         _logger.info("AutoReload watcher running with inotify")
+        _debug.lifecycle("watcher.started", backend="inotify")
         watcher = self.watcher
         if watcher is None:
             return
@@ -420,6 +452,9 @@ class FSWatcherInotify(FSWatcherBase):
                                 return
                     elif dir_creation_events.intersection(type_names):
                         created_dir = Path(path, filename)
+                        _debug.pipeline(
+                            "watcher.directory_created", path=str(created_dir)
+                        )
                         for root, _, files in created_dir.walk():
                             self._watch_directory(root)
                             for file in files:
@@ -428,6 +463,7 @@ class FSWatcherInotify(FSWatcherBase):
             except TerminalEventException as exc:
                 if str(exc) != "IN_Q_OVERFLOW":
                     raise
+                _debug.logic("watcher.queue_overflow")
                 self._sync_watches_after_overflow()
             self._end_burst()
 
@@ -440,6 +476,7 @@ class FSWatcherInotify(FSWatcherBase):
         try:
             self.thread.start()
         except BaseException:
+            _debug.logic("watcher.thread_start_failed")
             self.started = False
             self.thread = None
             self._release_watcher()
@@ -456,10 +493,12 @@ class FSWatcherInotify(FSWatcherBase):
                     "continuing shutdown without it",
                     _WATCHER_JOIN_TIMEOUT_S,
                 )
+                _debug.lifecycle("watcher.stopped", backend="inotify", joined=False)
                 self.thread = None
                 return
             self.thread = None
         self._release_watcher()
+        _debug.lifecycle("watcher.stopped", backend="inotify", joined=True)
 
     def _release_watcher(self) -> None:
         watcher = getattr(self, "watcher", None)
@@ -467,3 +506,4 @@ class FSWatcherInotify(FSWatcherBase):
         self.watcher = None
         if watcher is not None:
             watcher.close()
+            _debug.lifecycle("watcher.released", backend="inotify")

@@ -30,10 +30,20 @@ _catalog_listeners: list[Callable[[], None]] = []
 
 def register_catalog_listener(callback: Callable[[], None]) -> None:
     _catalog_listeners.append(callback)
+    _debug.lifecycle(
+        "database.catalog_listener_registered",
+        listener=getattr(callback, "__qualname__", None),
+        listeners=len(_catalog_listeners),
+    )
 
 
 def invalidate_catalog_caches() -> None:
     _invalidate_catalog_cache()
+    _debug.lifecycle(
+        "database.catalog_invalidated",
+        generation=_catalog_generation,
+        listeners=len(_catalog_listeners),
+    )
     for callback in _catalog_listeners:
         try:
             callback()
@@ -43,6 +53,10 @@ def invalidate_catalog_caches() -> None:
                 "may stay stale until its TTL expires.",
                 exc_info=True,
             )
+            _debug.logic(
+                "database.catalog_listener_failed",
+                listener=getattr(callback, "__qualname__", None),
+            )
 
 
 def check_db_exposed(db_name: str) -> None:
@@ -51,6 +65,7 @@ def check_db_exposed(db_name: str) -> None:
             "DB management op on %s rejected, not in the list of exposed databases",
             db_name,
         )
+        _debug.logic("database.not_exposed", db=db_name)
         raise odoo.exceptions.AccessDenied
 
 
@@ -62,6 +77,7 @@ def exp_db_exist(db_name: str) -> bool:
             return True
     except psycopg.errors.InvalidCatalogName:
         _logger.debug("exp_db_exist(%r): database does not exist", db_name)
+        _debug.logic("database.exist_probe", db=db_name, exists=False, reason="missing")
         return False
     except Exception:
         _logger.info(
@@ -70,19 +86,24 @@ def exp_db_exist(db_name: str) -> bool:
             db_name,
             exc_info=True,
         )
+        _debug.logic("database.exist_probe", db=db_name, exists=False, reason="error")
         return False
 
 
 def _rpc_db_exist(db_name: str) -> bool:
     if not odoo.tools.config["list_db"]:
+        _debug.logic("database.exist_rpc_refused", reason="list_db_disabled")
         return False
     try:
         check_db_name(db_name)
     except TypeError, ValueError:
+        _debug.logic("database.exist_rpc_refused", reason="invalid_name")
         return False
     if is_maintenance_db(db_name):
+        _debug.logic("database.exist_rpc_refused", db=db_name, reason="maintenance")
         return False
     if db_name not in list_dbs(True):
+        _debug.logic("database.exist_rpc_refused", db=db_name, reason="not_listed")
         return False
     if _is_db_list_configured():
         return exp_db_exist(db_name)
@@ -145,6 +166,7 @@ def _get_catalog_uncached() -> list[str] | None:
             return [name for (name,) in cr.fetchall()]
         except Exception:
             _logger.exception("Listing databases failed:")
+            _debug.logic("database.catalog_query_failed")
             return None
 
 
@@ -153,6 +175,7 @@ def _get_catalog_cached() -> list[str]:
 
     ttl = _get_catalog_ttl()
     if ttl <= 0:
+        _debug.logic("database.catalog_uncached", ttl=ttl)
         return _get_catalog_uncached() or []
     now = time.monotonic()
     with _catalog_lock:
@@ -166,6 +189,12 @@ def _get_catalog_cached() -> list[str]:
     if names is None:
         return []
     with _catalog_lock:
+        if _debug.logic.enabled and _catalog_generation != generation:
+            _debug.logic(
+                "database.catalog_result_outrun",
+                generation=generation,
+                current=_catalog_generation,
+            )
         if _catalog_generation == generation:
             _catalog_cache = (now, names)
     return list(names)
@@ -177,9 +206,11 @@ def _is_db_list_configured() -> bool:
 
 def list_dbs(force: bool = False) -> list[str]:
     if not odoo.tools.config["list_db"] and not force:
+        _debug.logic("database.list_refused", reason="list_db_disabled")
         raise odoo.exceptions.AccessDenied
 
     if _is_db_list_configured():
+        _debug.logic("database.list_source", source="db_name")
         return sorted(odoo.tools.config["db_name"])
 
     return _get_catalog_cached()
@@ -199,12 +230,27 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
                     )
                     base_version = cr.fetchone()
                     if not base_version or not base_version[0]:
+                        _debug.logic(
+                            "database.incompatible",
+                            db=database_name,
+                            reason="no_version",
+                        )
                         incompatible_databases.append(database_name)
                     else:
                         local_version = ".".join(base_version[0].split(".")[:2])
                         if local_version != server_version:
+                            _debug.logic(
+                                "database.incompatible",
+                                db=database_name,
+                                reason="version",
+                                local=local_version,
+                                server=server_version,
+                            )
                             incompatible_databases.append(database_name)
                 else:
+                    _debug.logic(
+                        "database.incompatible", db=database_name, reason="no_table"
+                    )
                     incompatible_databases.append(database_name)
         except Exception:
             _logger.warning(
@@ -213,10 +259,17 @@ def list_db_incompatible(databases: list[str]) -> list[str]:
                 database_name,
                 exc_info=True,
             )
+            _debug.logic("database.incompatible", db=database_name, reason="error")
             incompatible_databases.append(database_name)
     for database_name in databases:
         if database_name in incompatible_databases or database_name not in preexisting:
             odoo.db.close_db(database_name)
+    _debug.pipeline(
+        "database.compatibility_checked",
+        databases=len(databases),
+        incompatible=len(incompatible_databases),
+        server_version=server_version,
+    )
     return incompatible_databases
 
 
@@ -230,16 +283,18 @@ def exp_list_lang() -> list:
 
 @functools.cache
 def _read_countries() -> tuple[tuple[str, str], ...]:
-    root = ET.parse(  # noqa: S314  parses Odoo's own res_country_data.xml from root_path
-        Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
-    ).getroot()
-    countries: list[tuple[str, str]] = []
-    for country in root.findall('.//record[@model="res.country"]'):
-        name = country.findtext('field[@name="name"]')
-        code = country.findtext('field[@name="code"]')
-        if code is None or name is None:
-            continue
-        countries.append((code, name))
+    with _debug.perf("database.countries_read") as span:
+        root = ET.parse(  # noqa: S314  parses Odoo's own res_country_data.xml from root_path
+            Path(odoo.tools.config.root_path, "addons/base/data/res_country_data.xml")
+        ).getroot()
+        countries: list[tuple[str, str]] = []
+        for country in root.findall('.//record[@model="res.country"]'):
+            name = country.findtext('field[@name="name"]')
+            code = country.findtext('field[@name="code"]')
+            if code is None or name is None:
+                continue
+            countries.append((code, name))
+        span.set(countries=len(countries))
     return tuple(sorted(countries, key=lambda c: c[1]))
 
 

@@ -43,11 +43,13 @@ def exp_dump(db_name: str, backup_format: str) -> str:
     check_db_exposed(db_name)
     CHUNK_SIZE = 3 * 1024 * 1024
     encoded = bytearray()
-    with tempfile.TemporaryFile(mode="w+b") as t:
-        dump_db(db_name, t, backup_format)
-        t.seek(0)
-        while chunk := t.read(CHUNK_SIZE):
-            encoded.extend(base64.b64encode(chunk))
+    with _debug.perf("database.dump.encoded", db=db_name, format=backup_format) as span:
+        with tempfile.TemporaryFile(mode="w+b") as t:
+            dump_db(db_name, t, backup_format)
+            t.seek(0)
+            while chunk := t.read(CHUNK_SIZE):
+                encoded.extend(base64.b64encode(chunk))
+        span.set(bytes=len(encoded))
     return encoded.decode("ascii")
 
 
@@ -58,6 +60,12 @@ def dump_db_manifest(cr: BaseCursor) -> dict[str, Any]:
         "SELECT name, db_version FROM ir_module_module WHERE state = 'installed'"
     )
     modules = dict(cr.fetchall())
+    _debug.perf.count(
+        "database.dump.manifest",
+        db=getattr(cr, "dbname", None),
+        modules=len(modules),
+        pg_version=pg_version,
+    )
     return {
         "odoo_dump": "1",
         "db_name": cr.dbname,
@@ -85,18 +93,21 @@ def _prepare_pg_dump_failed_error(returncode: int, stderr: bytes) -> RuntimeErro
 def _run_pg_dump_blocking(cmd: list[str], env: dict, *, stdout: Any) -> None:
     timeout = _get_pg_dump_total_timeout()
     try:
-        result = subprocess.run(
-            cmd,
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=subprocess.PIPE,
-            check=False,
-            timeout=timeout,
-        )
+        with _debug.perf("database.dump.pg_dump", mode="blocking", timeout=timeout):
+            result = subprocess.run(
+                cmd,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=timeout,
+            )
     except subprocess.TimeoutExpired as e:
+        _debug.logic("database.dump.timed_out", mode="blocking", timeout=timeout)
         raise _prepare_timeout_error(timeout) from e
     if result.returncode != 0:
+        _debug.logic("database.dump.failed", returncode=result.returncode)
         raise _prepare_pg_dump_failed_error(result.returncode, result.stderr)
 
 
@@ -122,6 +133,9 @@ def _kill_pg_dump_on_stall(
         "pg_dump exceeded total wall-clock timeout (%.0fs); sending SIGTERM",
         total_timeout,
     )
+    _debug.logic(
+        "database.dump.stalled", pid=getattr(proc, "pid", None), timeout=total_timeout
+    )
     with suppress(ProcessLookupError):
         proc.terminate()
     try:
@@ -130,6 +144,9 @@ def _kill_pg_dump_on_stall(
         _logger.error(
             "pg_dump ignored SIGTERM %.0fs after stall; sending SIGKILL",
             _STALL_SIGKILL_GRACE_S,
+        )
+        _debug.logic(
+            "database.dump.sigkill", pid=getattr(proc, "pid", None), after="stall"
         )
         with suppress(ProcessLookupError):
             proc.kill()
@@ -143,6 +160,11 @@ def _reap_pg_dump(proc: subprocess.Popen) -> None:
         _logger.error(
             "pg_dump did not exit within %.0fs after stdout EOF; sending SIGTERM",
             wait_timeout,
+        )
+        _debug.logic(
+            "database.dump.reap_timed_out",
+            pid=getattr(proc, "pid", None),
+            timeout=wait_timeout,
         )
         proc.terminate()
         try:
@@ -182,7 +204,13 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
     stall_timer.daemon = True
     stall_timer.start()
     try:
-        shutil.copyfileobj(stdout, stream)
+        with _debug.perf(
+            "database.dump.pg_dump",
+            mode="streaming",
+            pid=getattr(proc, "pid", None),
+            timeout=total_timeout,
+        ):
+            shutil.copyfileobj(stdout, stream)
     finally:
         stall_timer.cancel()
         stdout.close()
@@ -196,6 +224,13 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
         else:
             stderr.close()
         _reap_pg_dump(proc)
+        _debug.lifecycle(
+            "database.dump.reaped",
+            pid=getattr(proc, "pid", None),
+            returncode=proc.returncode,
+            stall_killed=stall_killed[0],
+            stderr_chunks=len(stderr_chunks),
+        )
     if stall_killed[0] and proc.returncode != 0:
         raise _prepare_timeout_error(total_timeout)
     if proc.returncode != 0:
@@ -205,23 +240,31 @@ def _run_pg_dump_streaming(cmd: list[str], env: dict, stream: IO[bytes]) -> None
 def _add_filestore_to_zip(zipf: zipfile.ZipFile, filestore: str) -> None:
     root = Path(filestore)
     if not root.is_dir():
+        _debug.logic("database.dump.filestore_absent", filestore=filestore)
         return
     root_real = os.path.realpath(root)
-    for dirpath, _dirnames, filenames in os.walk(root):
-        for fname in sorted(filenames):
-            fpath = Path(dirpath, fname)
-            real = os.path.realpath(fpath)
-            if not Path(real).is_file():
-                continue
-            if os.path.commonpath([root_real, real]) != root_real:
-                _logger.warning(
-                    "DUMP DB: skipping filestore entry %r, it resolves outside "
-                    "the filestore (%r)",
-                    str(fpath),
-                    real,
-                )
-                continue
-            zipf.write(fpath, str(Path("filestore", fpath.relative_to(root))))
+    with _debug.perf("database.dump.filestore_added", filestore=filestore) as span:
+        files = 0  # debuglog
+        for dirpath, _dirnames, filenames in os.walk(root):
+            for fname in sorted(filenames):
+                fpath = Path(dirpath, fname)
+                real = os.path.realpath(fpath)
+                if not Path(real).is_file():
+                    continue
+                if os.path.commonpath([root_real, real]) != root_real:
+                    _logger.warning(
+                        "DUMP DB: skipping filestore entry %r, it resolves outside "
+                        "the filestore (%r)",
+                        str(fpath),
+                        real,
+                    )
+                    _debug.logic(
+                        "database.dump.filestore_entry_skipped", path=str(fpath)
+                    )
+                    continue
+                zipf.write(fpath, str(Path("filestore", fpath.relative_to(root))))
+                files += 1  # debuglog
+        span.set(files=files)
 
 
 def _write_zip_dump(
@@ -238,8 +281,12 @@ def _write_zip_dump(
         with db.cursor() as cr:
             manifest = dump_db_manifest(cr)
         zipf.writestr("manifest.json", json.dumps(manifest, indent=4))
+        _debug.pipeline("database.dump.zip.manifest_written", db=db_name)
         with zipf.open("dump.sql", "w", force_zip64=True) as sql_member:
             _run_pg_dump_streaming(cmd, env, sql_member)
+        _debug.pipeline(
+            "database.dump.zip.sql_written", db=db_name, filestore=with_filestore
+        )
         if with_filestore:
             _add_filestore_to_zip(zipf, odoo.tools.config.filestore(db_name))
 
@@ -253,6 +300,7 @@ def dump_db(
 ) -> IO[bytes] | None:
     check_db_name(db_name)
     if backup_format not in BACKUP_FORMATS:
+        _debug.logic("database.dump.invalid_format", db=db_name, format=backup_format)
         raise ValueError(
             f"Invalid backup format {backup_format!r}: expected one of "
             f"{', '.join(sorted(BACKUP_FORMATS))}."

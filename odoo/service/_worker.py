@@ -84,6 +84,12 @@ class Worker:
         self.request_max = multi.limit_request
         self.request_count = 0
         self.logger = _logger.getChild(self.__class__.__name__)
+        _debug.lifecycle(
+            "worker.created",
+            kind=self.__class__.__name__,
+            watchdog_timeout=self.watchdog_timeout,
+            request_max=self.request_max,
+        )
 
     def setproctitle(self, title: str = "") -> None:
         setproctitle(f"odoo: {self.__class__.__name__} {self.pid} {title}")
@@ -114,6 +120,12 @@ class Worker:
         Registry._evict_idle_registries()
         if self.ppid != os.getppid():
             self.logger.info("Parent changed")
+            _debug.lifecycle(
+                "worker.recycle",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                reason="parent_changed",
+            )
             self.alive = False
         if self.request_max > 0 and self.request_count >= self.request_max:
             self.logger.info("Max request (%s) reached.", self.request_count)
@@ -148,6 +160,14 @@ class Worker:
             if hard != resource.RLIM_INFINITY and soft > hard:
                 soft = hard
             resource.setrlimit(resource.RLIMIT_CPU, (soft, hard))
+            _debug.perf.count(
+                "worker.cpu_sampled",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                cpu_s=cpu_time,
+                soft_limit=soft,
+                requests=self.request_count,
+            )
 
     def process_work(self) -> None:
         pass
@@ -210,6 +230,13 @@ class Worker:
                 "CPU time limit (%ss) exceeded; recycling worker.",
                 current().limit_time_cpu,
             )
+            _debug.lifecycle(
+                "worker.recycle",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                reason="cpu_limit",
+                limit_s=current().limit_time_cpu,
+            )
             self.alive = False
             t.join(timeout=self._CPU_LIMIT_JOIN_GRACE_S)
             if t.is_alive():
@@ -243,6 +270,7 @@ class Worker:
             # Readiness means the work thread actually started. A heartbeat
             # during listener reconnect or main-thread setup cannot prove it.
             os.write(self.watchdog_pipe[1], b"R")
+            _debug.lifecycle("worker.ready", kind=self.__class__.__name__, pid=self.pid)
             while self.alive:
                 self.check_limits()
                 self.multi.ping_pipe(self.watchdog_pipe)
@@ -252,6 +280,12 @@ class Worker:
                 self.process_work()
         except BaseException as exc:
             self.logger.exception("Exception occurred, exiting...")
+            _debug.logic(
+                "worker.loop_failed",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                error=type(exc).__name__,
+            )
             self._runloop_exc = exc
 
 
@@ -290,6 +324,12 @@ class WorkerHTTP(Worker):
         if self.multi.socket is not None:
             self._selector.register(self.multi.socket, selectors.EVENT_READ)
         self.server = BaseWSGIServerNoBind(self.multi.app)
+        _debug.lifecycle(
+            "worker.http.serving",
+            pid=self.pid,
+            socket=self.multi.socket is not None,
+            sock_timeout=self.sock_timeout,
+        )
 
 
 class WorkerCron(Worker):
@@ -344,6 +384,13 @@ class WorkerCron(Worker):
         max_age = self.get_max_age()
         if max_age > 0 and (time.monotonic() - self.alive_time) > max_age:
             self.logger.info("Max age (%ss) reached.", max_age)
+            _debug.lifecycle(
+                "worker.recycle",
+                kind=self.__class__.__name__,
+                pid=self.pid,
+                reason="max_age",
+                max_age_s=max_age,
+            )
             self.alive = False
 
     def process_work(self) -> None:
@@ -351,6 +398,7 @@ class WorkerCron(Worker):
 
         if not self.db_queue:
             if not self.listener.connected:
+                _debug.logic("worker.cron.reconnecting", reason="disconnected")
                 self.listener.reconnect_after_failure(
                     "Reconnect to postgres", self._sleep_with_watchdog
                 )
@@ -359,6 +407,7 @@ class WorkerCron(Worker):
                 notified = self.listener.drain()
             except psycopg.OperationalError, PoolError:
                 self.logger.warning("Lost postgres connection, reconnecting...")
+                _debug.logic("worker.cron.reconnecting", reason="connection_lost")
                 self.listener.reconnect_after_failure(
                     "Reconnect to postgres", self._sleep_with_watchdog
                 )
@@ -370,15 +419,26 @@ class WorkerCron(Worker):
 
         db_name = self.db_queue.popleft()
         self.setproctitle(db_name)
+        _debug.pipeline(
+            "worker.cron.sweep",
+            kind=self.__class__.__name__,
+            db=db_name,
+            queued=len(self.db_queue),
+            db_count=self.db_count,
+        )
 
         try:
-            self._run_jobs_for_database(db_name)
+            with _debug.perf(
+                "worker.cron.process_jobs", kind=self.__class__.__name__, db=db_name
+            ):
+                self._run_jobs_for_database(db_name)
         except Exception:
             self.logger.warning(
                 "Uncaught error while processing jobs for database %s",
                 db_name,
                 exc_info=True,
             )
+            _debug.logic("worker.cron.jobs_failed", db=db_name)
 
         if self.db_count > 1:
             drain_swept_database(db_name)
@@ -407,11 +467,18 @@ class WorkerCron(Worker):
         )
         if registries_size > 0:
             Registry.registries.count = registries_size
+            _debug.lifecycle("worker.cron.registry_lru", size=registries_size)
 
         while self.alive:
             if self.listener.reconnect_after_failure(
                 "WorkerCron initial PG connect", self._sleep_with_watchdog
             ):
+                _debug.lifecycle(
+                    "worker.cron.connected",
+                    kind=self.__class__.__name__,
+                    pid=self.pid,
+                    channel=self.listen_channel,
+                )
                 break
 
     def stop(self) -> None:

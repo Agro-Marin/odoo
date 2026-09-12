@@ -31,16 +31,25 @@ _debug = DebugLog(__name__)
 
 def load_server_wide_modules() -> None:
     with gc.disabling_gc():
-        for m in current().server_wide_modules:
-            try:
-                load_odoo_module(m)
-            except Exception:
-                msg = ""
-                if m == "web":
-                    msg = """
+        with _debug.perf(
+            "service.server_wide_modules_loaded",
+            modules=len(current().server_wide_modules),
+        ):
+            _load_server_wide_modules()
+
+
+def _load_server_wide_modules() -> None:
+    for m in current().server_wide_modules:
+        try:
+            load_odoo_module(m)
+        except Exception:
+            _debug.logic("service.server_wide_module_failed", module=m)
+            msg = ""
+            if m == "web":
+                msg = """
     The `web` module is provided by the addons found in the `odoo-web` project.
     Maybe you forgot to add those addons in your addons_path configuration."""
-                _logger.exception("Failed to load server-wide module `%s`.%s", m, msg)
+            _logger.exception("Failed to load server-wide module `%s`.%s", m, msg)
 
 
 def _reexec_server(updated_modules: list[str] | None = None) -> None:
@@ -56,12 +65,19 @@ def _reexec_server(updated_modules: list[str] | None = None) -> None:
             "falling back to an in-place re-exec",
             rc,
         )
+        _debug.logic("service.nt_service_restart_failed", rc=rc)
     exe = Path(sys.executable).name
     args = stripped_sys_argv()
     if updated_modules:
         args += ["-u", ",".join(updated_modules)]
     if not args or args[0] not in (sys.executable, exe):
         args.insert(0, sys.executable)
+    _debug.lifecycle(
+        "service.reexec",
+        pid=os.getpid(),
+        argv=len(args),
+        updated_modules=len(updated_modules or ()),
+    )
     os.execve(sys.executable, args, os.environ)  # noqa: S606  re-exec of ourselves IS the restart
 
 
@@ -78,6 +94,9 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
         _logger.warning(
             "Planner-stats update failed; tests may run slower", exc_info=True
         )
+        _debug.logic(
+            "service.planner_stats_failed", db=getattr(registry, "db_name", None)
+        )
 
     t0 = time.time()
     t0_sql = db.sql_counter
@@ -88,10 +107,17 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
     tests_before = registry._assertion_report.testsRun
     post_install_suite = loader.prepare_suite(module_names, "post_install")
     prepared = post_install_suite.countTestCases()
+    _debug.pipeline(
+        "service.post_install_tests.prepared",
+        modules=len(module_names),
+        tests=prepared,
+        update_module=update_module,
+    )
     if post_install_suite.has_http_case():
-        with registry.cursor() as cr:
-            env = api.Environment(cr, api.SUPERUSER_ID, {})
-            env["ir.qweb"]._pregenerate_assets_bundles()  # type: ignore[attr-defined]
+        with _debug.perf("service.post_install_tests.assets_pregenerated"):
+            with registry.cursor() as cr:
+                env = api.Environment(cr, api.SUPERUSER_ID, {})
+                env["ir.qweb"]._pregenerate_assets_bundles()  # type: ignore[attr-defined]
 
     result = loader.run_suite(
         post_install_suite,
@@ -103,6 +129,12 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
         registry._assertion_report.testsRun - tests_before,
         time.time() - t0,
         db.sql_counter - t0_sql,
+    )
+    _debug.pipeline(
+        "service.post_install_tests.ran",
+        tests=registry._assertion_report.testsRun - tests_before,
+        seconds=time.time() - t0,
+        queries=db.sql_counter - t0_sql,
     )
     registry._assertion_report.log_stats()
     return prepared if prepared and not result.testsRun else 0
@@ -140,6 +172,12 @@ def _limit_resident_registries(dbnames: list[str]) -> None:
     if idle_timeout > 0:
         Registry.idle_timeout = idle_timeout
         _logger.info("Idle registries are dropped after %ds", idle_timeout)
+    _debug.logic(
+        "service.registry_limits",
+        lru_size=Registry.registries.count,
+        idle_timeout=getattr(Registry, "idle_timeout", None),
+        databases=len(dbnames),
+    )
 
 
 def preload_registries(dbnames: list[str] | None) -> int:
@@ -161,6 +199,12 @@ def preload_registries(dbnames: list[str] | None) -> int:
             if os.environ.get("ODOO_PROFILE_PRELOAD_SQL"):
                 collectors.append("sql")
             preload_profiler = profiler.Profiler(db=dbname, collectors=collectors)
+            _debug.logic(
+                "service.preload_profiled",
+                db=dbname,
+                interval=interval,
+                collectors=len(collectors),
+            )
         try:
             with preload_profiler:
                 current_worker_thread().dbname = dbname
@@ -189,6 +233,13 @@ def preload_registries(dbnames: list[str] | None) -> int:
                         unrun = _run_post_install_tests(registry, update_module)
                         span.set(unrun=unrun)
                 report = registry._assertion_report
+                _debug.pipeline(
+                    "service.preload_reported",
+                    db=dbname,
+                    tests_run=getattr(report, "testsRun", None),
+                    unrun=unrun,
+                    successful=report is None or report.wasSuccessful(),
+                )
                 if report and not report.wasSuccessful():
                     rc += 1
                 elif unrun:
@@ -216,6 +267,7 @@ def preload_registries(dbnames: list[str] | None) -> int:
             _logger.critical(
                 "Failed to initialize database `%s`.", dbname, exc_info=True
             )
+            _debug.logic("service.preload_failed", db=dbname)
             return -1
     return rc
 
@@ -236,6 +288,7 @@ def _limit_malloc_arenas() -> None:
         ok = libc.mallopt(ctypes.c_int(M_ARENA_MAX), ctypes.c_int(2)) == 1
     except Exception:
         ok = False
+    _debug.logic("service.malloc_arenas_limited", ok=ok)
     if not ok:
         _logger.warning("Could not set ARENA_MAX through mallopt()")
 
@@ -271,8 +324,18 @@ def _warn_on_connection_budget() -> None:
             server_port = cr.fetchscalar()
     except Exception:
         _logger.debug("Could not check the connection budget", exc_info=True)
+        _debug.logic("service.connection_budget_unchecked")
         return
 
+    _debug.logic(
+        "service.connection_budget",
+        processes=processes,
+        demand=demand,
+        server_max=server_max,
+        reserved=reserved,
+        configured_port=configured_port,
+        server_port=server_port,
+    )
     if server_port and configured_port and int(configured_port) != int(server_port):
         _logger.info(
             "Connection budget not checked: connected to port %s but the server "
@@ -319,6 +382,7 @@ def restart() -> None:
             "restart() called before server.start() assigned the server; ignoring"
         )
         return
+    _debug.lifecycle("service.restart_requested", pid=server.pid, windows=_IS_WINDOWS)
     if _IS_WINDOWS:
         threading.Thread(target=_reexec_server).start()
     else:

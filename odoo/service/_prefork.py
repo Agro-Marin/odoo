@@ -109,8 +109,14 @@ class PreforkServer(CommonServer):
                 with contextlib.suppress(OSError):
                     tmp.unlink()
                 raise
+            _debug.pipeline(
+                "prefork.census_published",
+                workers=len(self.workers),
+                generation=self.generation,
+            )
         except Exception:
             self.logger.debug("Could not publish the worker census", exc_info=True)
+            _debug.logic("prefork.census_unpublishable")
 
     def _read_census(self) -> dict[str, Any]:
         path = self._get_census_path()
@@ -118,9 +124,11 @@ class PreforkServer(CommonServer):
             return {}
         try:
             if time.time() - path.stat().st_mtime > CENSUS_MAX_AGE_S:
+                _debug.logic("prefork.census_stale", max_age_s=CENSUS_MAX_AGE_S)
                 return {}
             payload = json.loads(path.read_text())
         except Exception:
+            _debug.logic("prefork.census_unreadable", path=str(path))
             return {}
         return payload if isinstance(payload, dict) else {}
 
@@ -140,6 +148,7 @@ class PreforkServer(CommonServer):
                 if stale != path and stale.stat().st_mtime < cutoff:
                     with contextlib.suppress(OSError):
                         stale.unlink()
+                        _debug.lifecycle("prefork.census_removed", path=str(stale))
         except Exception:
             self.logger.debug("Could not remove stale censuses", exc_info=True)
 
@@ -176,6 +185,16 @@ class PreforkServer(CommonServer):
         self._reload_supervisor = int(os.environ.pop("ODOO_RELOAD_SUPERVISOR_PID", "0"))
         self.is_reload_watcher_owner = not self._reload_supervisor
         self._ready_fd = os.environ.pop("ODOO_RELOAD_READY_FD", None)
+        _debug.lifecycle(
+            "prefork.created",
+            population=self.population,
+            timeout=self.timeout,
+            cron_timeout=self.cron_timeout,
+            job_timeout=self.job_timeout,
+            limit_request=self.limit_request,
+            reload_supervisor=self._reload_supervisor,
+            reload_ready_fd=self._ready_fd is not None,
+        )
 
     def open_pipe(self) -> tuple[int, int]:
         return os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
@@ -243,6 +262,11 @@ class PreforkServer(CommonServer):
             self._consecutive_fast_deaths,
             delay,
         )
+        _debug.logic(
+            "prefork.spawn_failed",
+            attempt=self._consecutive_fast_deaths,
+            backoff_s=delay,
+        )
 
     def _get_respawn_delay(self) -> float:
         return backoff.get_bound(
@@ -300,7 +324,19 @@ class PreforkServer(CommonServer):
                     os.getpid(),
                     exc_info=exc,
                 )
+                _debug.logic(
+                    "prefork.child_uncaught",
+                    kind=worker.__class__.__name__,
+                    pid=os.getpid(),
+                    error=type(exc).__name__,
+                )
                 exit_code = 1
+            _debug.lifecycle(
+                "prefork.child_exiting",
+                kind=worker.__class__.__name__,
+                pid=os.getpid(),
+                exit_code=exit_code,
+            )
             os._exit(exit_code)
 
     def spawn_long_polling_process(self) -> None:
@@ -313,11 +349,13 @@ class PreforkServer(CommonServer):
                 "long-polling subprocess spawn failed; will retry",
                 exc_info=True,
             )
+            _debug.logic("prefork.long_polling_spawn_failed")
             self._record_spawn_failure()
             return
         self.long_polling_pid = popen.pid
         self.long_polling_popen = popen
         self.long_polling_spawn_time = time.monotonic()
+        _debug.lifecycle("prefork.long_polling_spawned", pid=popen.pid)
 
     def _reconcile_long_polling_popen(self, returncode: int | None) -> None:
         popen = self.long_polling_popen
@@ -331,6 +369,12 @@ class PreforkServer(CommonServer):
             self.long_polling_pid = None
         if pid in self.workers:
             self.logger.debug("worker (%s) unregistered", pid)
+            _debug.lifecycle(
+                "prefork.worker_unregistered",
+                kind=self.workers[pid].__class__.__name__,
+                pid=pid,
+                workers=len(self.workers) - 1,
+            )
             self.workers_http.pop(pid, None)
             self.workers_cron.pop(pid, None)
             self.workers_job.pop(pid, None)
@@ -342,6 +386,7 @@ class PreforkServer(CommonServer):
             self._killed_workers[pid] = worker
 
     def kill_worker(self, pid: int, sig: int) -> None:
+        _debug.lifecycle("prefork.worker_signalled", pid=pid, sig=sig)
         try:
             os.kill(pid, sig)
             if sig == signal.SIGKILL:
@@ -349,6 +394,7 @@ class PreforkServer(CommonServer):
                 self.remove_worker(pid)
         except OSError as e:
             if e.errno == errno.ESRCH:
+                _debug.logic("prefork.worker_vanished", pid=pid, sig=sig)
                 self._record_killed_worker(pid)
                 self.remove_worker(pid)
 
@@ -360,10 +406,17 @@ class PreforkServer(CommonServer):
                 if sig in (signal.SIGINT, signal.SIGTERM):
                     self.queue.remove(sig)
                     self.queue.appendleft(sig)
+                    _debug.logic("prefork.shutdown_during_drain", sig=sig)
                     raise KeyboardInterrupt
             return
         while self.queue:
             sig = self.queue.popleft()
+            _debug.pipeline(
+                "prefork.signal_applied",
+                sig=sig,
+                queued=len(self.queue),
+                population=self.population,
+            )
             if sig in [signal.SIGINT, signal.SIGTERM]:
                 raise KeyboardInterrupt
             if sig == signal.SIGHUP:
@@ -376,8 +429,14 @@ class PreforkServer(CommonServer):
                 self._replacement.send_signal(sig)
             if sig == signal.SIGTTIN:
                 self.population += 1
+                _debug.lifecycle(
+                    "prefork.population_changed", population=self.population
+                )
             elif sig == signal.SIGTTOU:
                 self.population = max(self.population - 1, 0)
+                _debug.lifecycle(
+                    "prefork.population_changed", population=self.population
+                )
 
     def reap_exited_workers(self) -> None:
         while True:
@@ -396,6 +455,12 @@ class PreforkServer(CommonServer):
         for process in (self._candidate, self._replacement):
             if process is not None and process.pid == pid:
                 process.returncode = os.waitstatus_to_exitcode(status)
+                _debug.lifecycle(
+                    "prefork.generation_exited",
+                    pid=pid,
+                    returncode=process.returncode,
+                    candidate=process is self._candidate,
+                )
                 return
         if pid == self.long_polling_pid:
             name = "Long-polling (evented) subprocess"
@@ -460,11 +525,23 @@ class PreforkServer(CommonServer):
                     pid,
                     worker.watchdog_timeout,
                 )
+                _debug.lifecycle(
+                    "prefork.worker_timed_out",
+                    kind=worker.__class__.__name__,
+                    pid=pid,
+                    timeout=worker.watchdog_timeout,
+                    silent_s=now - worker.watchdog_time,
+                )
                 self.kill_worker(pid, signal.SIGKILL)
 
     def spawn_missing_workers(self) -> None:
         self._retire_excess_workers()
         if time.monotonic() < self._respawn_not_before:
+            _debug.logic(
+                "prefork.respawn_held",
+                remaining_s=self._respawn_not_before - time.monotonic(),
+                fast_deaths=self._consecutive_fast_deaths,
+            )
             return
         registries = Registry.registries.snapshot
         checked = False
@@ -475,6 +552,7 @@ class PreforkServer(CommonServer):
                 return
 
             checked = True
+            _debug.pipeline("prefork.registries_checked", databases=len(registries))
             for db_name, registry in registries.items():
                 try:
                     with registry.cursor() as cr:
@@ -486,6 +564,7 @@ class PreforkServer(CommonServer):
                         db_name,
                         exc_info=True,
                     )
+                    _debug.logic("prefork.signaling_check_failed", db=db_name)
             db.close_all()
 
         if self.settings.http_enable:
@@ -512,6 +591,12 @@ class PreforkServer(CommonServer):
         active = [pid for pid in self.workers_http if pid not in self._retiring_workers]
         for pid in active[: max(0, len(active) - self.population)]:
             self._retiring_workers.add(pid)
+            _debug.lifecycle(
+                "prefork.worker_retiring",
+                pid=pid,
+                active=len(active),
+                population=self.population,
+            )
             self.kill_worker(pid, signal.SIGINT)
 
     def _close_watchdog_selector(self) -> None:
@@ -558,6 +643,7 @@ class PreforkServer(CommonServer):
                     while data := os.read(fd, 4096):
                         if b"R" in data:
                             fds[fd].ready = True
+                            _debug.lifecycle("prefork.worker_ready", pid=fds[fd].pid)
             else:
                 empty_pipe(fd)
 
@@ -579,6 +665,9 @@ class PreforkServer(CommonServer):
             if inherited_fd:
                 self.socket = socket.socket(fileno=int(inherited_fd))
                 self._set_socket_cloexec()
+                _debug.lifecycle(
+                    "prefork.socket_bound", source="inherited", fd=int(inherited_fd)
+                )
                 self.logger.info(
                     "HTTP service (werkzeug) serving %s:%s on the listening "
                     "socket inherited from the server this one replaced; the "
@@ -590,6 +679,7 @@ class PreforkServer(CommonServer):
                 SD_LISTEN_FDS_START = 3
                 self.socket = socket.socket(fileno=SD_LISTEN_FDS_START)
                 self._set_socket_cloexec()
+                _debug.lifecycle("prefork.socket_bound", source="socket_activation")
                 self.logger.info(
                     "HTTP service (werkzeug) running through socket activation"
                 )
@@ -602,6 +692,13 @@ class PreforkServer(CommonServer):
                 self.socket.setblocking(False)
                 self.socket.bind((self.interface, self.port))
                 self.socket.listen(8 * self.population)
+                _debug.lifecycle(
+                    "prefork.socket_bound",
+                    source="bind",
+                    interface=self.interface,
+                    port=self.port,
+                    backlog=8 * self.population,
+                )
                 self.logger.info(
                     "HTTP service (werkzeug) running on %s:%s",
                     self.interface,
@@ -637,6 +734,11 @@ class PreforkServer(CommonServer):
             timeout = get_env_float(
                 "ODOO_RELOAD_TIMEOUT", 60.0, minimum=1.0, logger=self.logger
             )
+            _debug.pipeline(
+                "prefork.reload.candidate_spawned",
+                pid=self._candidate.pid,
+                timeout=timeout,
+            )
             deadline = time.monotonic() + timeout
             with selectors.DefaultSelector() as selector:
                 self._reload_reader = (read_fd, selector)
@@ -665,8 +767,18 @@ class PreforkServer(CommonServer):
                 self.logger.error(
                     "Reload aborted: replacement not ready; keeping current workers"
                 )
+                _debug.logic(
+                    "prefork.reload.aborted",
+                    promoted=promoted,
+                    returncode=self._candidate.returncode,
+                )
                 return False
             self.logger.info("New server has started")
+            _debug.lifecycle(
+                "prefork.reload.promoted",
+                pid=self._candidate.pid,
+                replaced_previous=self._replacement is not None,
+            )
             if self._replacement is not None:
                 self._stop_generation(self._replacement)
             else:
@@ -694,6 +806,9 @@ class PreforkServer(CommonServer):
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.wait()
+            _debug.lifecycle(
+                "prefork.generation_stopped", pid=process.pid, graceful=False
+            )
             return
         with contextlib.suppress(ProcessLookupError):
             process.terminate()
@@ -703,6 +818,7 @@ class PreforkServer(CommonServer):
             self.logger.warning(
                 "Generation %s did not stop; killing its process group", process.pid
             )
+            _debug.logic("prefork.generation_kill_escalated", pid=process.pid)
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.wait()
@@ -710,6 +826,12 @@ class PreforkServer(CommonServer):
             # A crashed master can exit before stopping its descendants.
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
+            _debug.lifecycle(
+                "prefork.generation_stopped",
+                pid=process.pid,
+                graceful=True,
+                returncode=process.returncode,
+            )
 
     def _notify_reload_ready(self) -> None:
         if self._ready_fd is None:
@@ -727,6 +849,11 @@ class PreforkServer(CommonServer):
             os.write(fd, b"1")
         finally:
             os.close(fd)
+        _debug.lifecycle(
+            "prefork.reload_ready_signalled",
+            supervisor=self._reload_supervisor,
+            workers=len(self.workers),
+        )
 
     def _stop_long_polling(self) -> None:
         pid = self.long_polling_pid
@@ -762,6 +889,7 @@ class PreforkServer(CommonServer):
                 code = proc.wait(timeout=5)
         finally:
             self._reconcile_long_polling_popen(code)
+            _debug.lifecycle("prefork.long_polling_stopped", pid=pid, returncode=code)
 
     def stop_workers_gracefully(self) -> None:
         self.logger.info("Stopping workers gracefully")
@@ -776,6 +904,12 @@ class PreforkServer(CommonServer):
         stop_timeout = _get_graceful_stop_timeout(self.logger)
         deadline = time.monotonic() + stop_timeout
         escalated = False
+        _debug.pipeline(
+            "prefork.stop.workers_signalled",
+            workers=len(self.workers),
+            timeout=stop_timeout,
+            phoenix=phoenix_decided,
+        )
         while self.workers:
             try:
                 # Reload also drains workers here. Its outer supervisor loop
@@ -794,6 +928,7 @@ class PreforkServer(CommonServer):
                     stop_timeout,
                     list(self.workers),
                 )
+                _debug.logic("prefork.stop.escalated", workers=len(self.workers))
                 for pid in list(self.workers):
                     with contextlib.suppress(ProcessLookupError):
                         os.kill(pid, signal.SIGKILL)
@@ -801,9 +936,21 @@ class PreforkServer(CommonServer):
             self.sleep()
             self.kill_timed_out_workers()
 
+        _debug.pipeline(
+            "prefork.stop.workers_drained",
+            workers=len(self.workers),
+            escalated=escalated,
+            seconds=time.monotonic() - (deadline - stop_timeout),
+        )
         _process_state.set_phoenix(phoenix_decided)
 
     def stop(self, graceful: bool = True) -> None:
+        _debug.lifecycle(
+            "prefork.stop",
+            graceful=graceful,
+            workers=len(self.workers),
+            replacement=self._replacement is not None,
+        )
         if self._replacement is not None:
             self._stop_generation(self._replacement)
             self._replacement = None
@@ -839,6 +986,9 @@ class PreforkServer(CommonServer):
             self.stop(False)
             raise
 
+        _debug.pipeline(
+            "prefork.preloaded", rc=rc, stop=stop, databases=len(preload or ())
+        )
         if stop or rc:
             self.stop()
             return rc
@@ -853,6 +1003,7 @@ class PreforkServer(CommonServer):
                 if self._replacement is not None:
                     code = self._replacement.poll()
                     if code is not None:
+                        _debug.logic("prefork.replacement_exited", returncode=code)
                         self.stop()
                         return code
                     time.sleep(self.beat)
@@ -865,6 +1016,9 @@ class PreforkServer(CommonServer):
             except KeyboardInterrupt:
                 if _process_state.server_phoenix:
                     _process_state.set_phoenix(False)
+                    _debug.lifecycle(
+                        "prefork.reload_requested", supervisor=self._reload_supervisor
+                    )
                     if self._reload_supervisor:
                         os.kill(self._reload_supervisor, signal.SIGHUP)
                     else:
@@ -884,6 +1038,7 @@ class PreforkServer(CommonServer):
                 self.logger.critical(
                     "Uncaught error in main loop, exiting...", exc_info=exc
                 )
+                _debug.logic("prefork.main_loop_failed", error=type(exc).__name__)
                 self.stop(False)
                 return -1
         return None

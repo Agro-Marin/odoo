@@ -4,7 +4,10 @@ import os
 from dataclasses import dataclass
 from typing import Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.settings import OptionSource, SettingsSlot
+
+_debug = DebugLog(__name__)
 
 __all__ = [
     "INHERIT_FROM_CRON",
@@ -75,6 +78,23 @@ class ServerSettings:
 
     @classmethod
     def from_config(cls, config: OptionSource) -> Self:
+        _debug.lifecycle(
+            "settings.loaded",
+            workers=config["workers"],
+            http_enable=config["http_enable"],
+            http_port=config["http_port"],
+            max_cron_threads=config["max_cron_threads"],
+            job_workers=config["job_workers"],
+            limit_time_real=config["limit_time_real"],
+            limit_memory_soft=config["limit_memory_soft"],
+            db_maxconn=config["db_maxconn"],
+            dev_mode=len(config["dev_mode"] or ()),
+            test_enable=config["test_enable"],
+            db_name=len(config["db_name"] or ()),
+            init=len(config["init"] or ()),
+            update=len(config["update"] or ()),
+            socket_activation=_is_socket_activated(config),
+        )
         return cls(
             workers=int(config["workers"] or 0),
             http_enable=bool(config["http_enable"]),

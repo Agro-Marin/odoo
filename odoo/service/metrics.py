@@ -4,10 +4,13 @@ import math
 import os
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 
 from . import _process_state
 from ._env import get_env_str
+
+_debug = DebugLog(__name__)
 
 CONTENT_TYPE = "text/plain; version=0.0.4; charset=utf-8"
 
@@ -160,6 +163,7 @@ def get_service_metrics() -> dict[str, Any]:
         "registries": len(Registry.registries),
     }
     if server is None:
+        _debug.logic("metrics.no_server", registries=out["registries"])
         return out
     out["flavor"] = server.flavor
     out.update(server.get_metrics())
@@ -312,6 +316,7 @@ def render_prometheus_exposition() -> str:
     try:
         svc = get_service_metrics()
     except Exception:
+        _debug.logic("metrics.service_metrics_unavailable")
         svc = {}
     if svc:
         exp.add(
@@ -372,12 +377,16 @@ def render_prometheus_exposition() -> str:
     try:
         pools = db.get_pool_health()
     except Exception:
+        _debug.logic("metrics.pool_health_unavailable")
         pools = {}
     for mode, health in (pools or {}).items():
         if health:
             _add_pool_family(exp, mode, health)
 
-    return exp.render()
+    with _debug.perf("metrics.rendered", families=len(exp._families)) as span:
+        text: str = exp.render()
+        span.set(bytes=len(text))
+    return text
 
 
 __all__ = (

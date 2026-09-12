@@ -102,12 +102,16 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
             if self._sent_date_header is None:
                 self._sent_date_header = value
             elif self._sent_date_header == value:
+                _debug.logic("wsgi.duplicate_header_dropped", header="date")
                 return
             else:
                 sent_datetime = _parse_http_date(self._sent_date_header)
                 new_datetime = _parse_http_date(value)
                 if sent_datetime is not None and new_datetime is not None:
                     if abs((sent_datetime - new_datetime).total_seconds()) <= 1:
+                        _debug.logic(
+                            "wsgi.duplicate_header_dropped", header="date", skew=True
+                        )
                         return
                     _logger.warning(
                         "sending two different Date response headers: %r vs %r",
@@ -126,6 +130,7 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
             if self._sent_server_header is None:
                 self._sent_server_header = value
             elif self._sent_server_header == value:
+                _debug.logic("wsgi.duplicate_header_dropped", header="server")
                 return
             else:
                 _logger.warning(
@@ -197,6 +202,9 @@ class RequestHandler(CommonRequestHandler):
         environ["socket"] = self.connection
         if self.headers.get("Upgrade") == "websocket":
             self.protocol_version = "HTTP/1.1"
+            _debug.logic(
+                "wsgi.websocket_upgrade_requested", path=getattr(self, "path", "")
+            )
         return environ
 
     def _is_websocket_upgrade(self) -> bool:
@@ -234,6 +242,11 @@ class RequestHandler(CommonRequestHandler):
             release = getattr(self.server, "release_upgraded_request_slot", None)
             if release is not None:
                 release(self.request)
+            _debug.lifecycle(
+                "wsgi.protocol_switched",
+                path=getattr(self, "path", ""),
+                slot_released=release is not None,
+            )
 
 
 class _NonblockingRequestServer(Protocol):
@@ -258,6 +271,13 @@ class ThreadedWSGIServerReloadable(
             "ODOO_MAX_HTTP_THREADS", auto_limit, minimum=0, logger=_logger
         )
         self._announce_thread_budget(auto_limit)
+        _debug.lifecycle(
+            "wsgi.server_created",
+            host=host,
+            port=port,
+            max_http_threads=self.max_http_threads,
+            auto_limit=auto_limit,
+        )
         if self.max_http_threads:
             self.http_threads_sem = threading.Semaphore(self.max_http_threads)
             self._sem_released_requests: weakref.WeakSet = weakref.WeakSet()
@@ -300,6 +320,7 @@ class ThreadedWSGIServerReloadable(
             self.reload_socket = True
             self.socket = socket.socket(fileno=SD_LISTEN_FDS_START)
             _logger.info("HTTP service (werkzeug) running through socket activation")
+            _debug.lifecycle("wsgi.socket_bound", source="socket_activation")
         else:
             self.reload_socket = False
             super().server_bind()
@@ -307,6 +328,12 @@ class ThreadedWSGIServerReloadable(
                 "HTTP service (werkzeug) running on %s:%s",
                 self.server_name,
                 self.server_port,
+            )
+            _debug.lifecycle(
+                "wsgi.socket_bound",
+                source="bind",
+                name=self.server_name,
+                port=self.server_port,
             )
 
     def server_activate(self) -> None:
@@ -338,6 +365,11 @@ class ThreadedWSGIServerReloadable(
                 threading.active_count(),
                 client_address,
             )
+            _debug.logic(
+                "wsgi.request_thread.spawn_failed",
+                client=client_address,
+                active_threads=threading.active_count(),
+            )
             with suppress(OSError):
                 request.sendall(_THREAD_EXHAUSTION_RESPONSE)
             self.shutdown_request(request)
@@ -354,6 +386,9 @@ class ThreadedWSGIServerReloadable(
         try:
             return super().get_request()
         except OSError:
+            _debug.logic(
+                "wsgi.accept_failed", slot_released=bool(self.max_http_threads)
+            )
             if self.max_http_threads:
                 self.http_threads_sem.release()
             raise

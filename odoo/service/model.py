@@ -66,6 +66,9 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
             f"The method {name!r} does not exist on model '{model._name}'"
         )
     if name.startswith("_") or name in _UNSAFE_ATTRIBUTES:
+        _debug.logic(
+            "rpc.method_refused", model=model._name, method=name, reason="private"
+        )
         raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
             f"Private methods (such as '{model._name}.{name}') "
             f"cannot be called remotely."
@@ -84,6 +87,13 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
         if descriptor is None:
             descriptor = cla_method
         if getattr(cla_method, "_api_private", False):
+            _debug.logic(
+                "rpc.method_refused",
+                model=model._name,
+                method=name,
+                reason="api_private",
+                declared_in=mro_cls.__name__,
+            )
             raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
                 f"Private methods (such as '{model._name}.{name}') "
                 f"cannot be called remotely."
@@ -98,16 +108,21 @@ def get_public_method(model: BaseModel, name: str) -> Callable:
             return cached[0]
 
     if not callable(method):
+        _debug.logic("rpc.method_missing", model=model._name, method=name)
         error = AttributeError(f"The method '{model._name}.{name}' does not exist")
         error.loglevel = logging.WARNING  # type: ignore[attr-defined]
         raise error
 
     if method == getattr(model, name, None):
+        _debug.logic(
+            "rpc.method_refused", model=model._name, method=name, reason="not_bound"
+        )
         raise AccessError(  # noqa: E8505  rejection reply to a bad RPC call
             f"The method '{model._name}.{name}' cannot be called remotely."
         )
 
     per_class[name] = (method, descriptor)
+    _debug.perf.count("rpc.public_method_validated", model=model._name, method=name)
     return method
 
 
@@ -119,11 +134,15 @@ def call_kw(model: BaseModel, name: str, args: Sequence, kwargs: Mapping) -> typ
 
     if name == "create":
         if not args:
+            _debug.logic("rpc.call_kw.rejected", model=model._name, reason="no_vals")
             raise AccessError(  # noqa: E8505  names the caller's own protocol error
                 f"Method '{model._name}.create' requires a vals dict or list "
                 f"of vals dicts as its first positional argument."
             )
         if not api_model:
+            _debug.logic(
+                "rpc.call_kw.rejected", model=model._name, reason="create_not_model"
+            )
             raise AccessError(  # noqa: E8505  addresses whoever wrote the override
                 f"Method '{model._name}.create' is not declared with "
                 f"@api.model_create_multi (or @api.model). An override that "
@@ -136,6 +155,9 @@ def call_kw(model: BaseModel, name: str, args: Sequence, kwargs: Mapping) -> typ
         recs = model
     else:
         if not args:
+            _debug.logic(
+                "rpc.call_kw.rejected", model=model._name, method=name, reason="no_ids"
+            )
             raise AccessError(  # noqa: E8505  names the caller's own protocol error
                 f"Method '{model._name}.{name}' requires record ids as its "
                 f"first positional argument."
@@ -186,6 +208,7 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
             dispatch_method,
             db,
         )
+        _debug.logic("rpc.dispatch.refused", db=db, reason="db_not_exposed")
         raise AccessDenied
 
     thread = current_worker_thread()
@@ -203,6 +226,7 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
         registry = Registry(db).check_signaling()
     except psycopg.errors.InvalidCatalogName as exc:
         _logger.debug("RPC %s: database %r does not exist", dispatch_method, db)
+        _debug.logic("rpc.dispatch.refused", db=db, reason="db_missing")
         raise AccessDenied from exc
     try:
         if dispatch_method == "execute":
@@ -224,6 +248,7 @@ def dispatch(dispatch_method: str, params: Sequence) -> typing.Any:
             )
             res = execute_cr(cr, uid, model, model_method, args, kw)
     except Exception:
+        _debug.logic("rpc.dispatch.failed", db=db, model=model, method=model_method)
         with suppress(Exception):
             registry.reset_changes()
         raise
@@ -249,6 +274,7 @@ def execute_cr(
         )
     thread = current_worker_thread()
     thread.rpc_model_method = f"{obj}.{method}"
+    _debug.pipeline("rpc.execute_cr", model=obj, method=method, uid=uid)
 
     def invoke():
         # Deferred model work belongs to the attempt, before flush and commit.
@@ -257,6 +283,7 @@ def execute_cr(
     result = retrying(invoke, env, participant)
     if result is None:
         _logger.debug("The method %s of the object %s returned `None`.", method, obj)
+        _debug.logic("rpc.result_none", model=obj, method=method)
     return result
 
 

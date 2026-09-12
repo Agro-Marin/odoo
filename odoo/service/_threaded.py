@@ -146,6 +146,13 @@ class ThreadedServer(CommonServer):
                             thread_execution_time,
                             thread_limit_time_real,
                         )
+                        _debug.logic(
+                            "server.thread_over_limit",
+                            thread=thread.name,
+                            type=thread_type,
+                            elapsed_s=thread_execution_time,
+                            limit_s=thread_limit_time_real,
+                        )
                         self.limits_reached_threads.add(thread)
         # An observed overrun requests process recycling, even if that cron/job
         # finishes before the monitor's next pass. Only thread exit clears it.
@@ -206,6 +213,7 @@ class ThreadedServer(CommonServer):
                 cron_logger.warning(
                     "Uncaught error for database %s", db_name, exc_info=True
                 )
+                _debug.logic("server.jobs_failed", db=db_name)
             finally:
                 thread.start_time = None
                 if release:
@@ -230,6 +238,7 @@ class ThreadedServer(CommonServer):
                 notified = listener.drain()
             except Exception:
                 if listener.connection_lost:
+                    _debug.logic("server.cron.connection_lost", number=number)
                     return _RECYCLE_CONN_LOST
                 raise
 
@@ -267,6 +276,13 @@ class ThreadedServer(CommonServer):
                     listener, number, process_jobs, cron_logger, max_age
                 )
                 backoff.reset()
+                _debug.lifecycle(
+                    "server.cron.listener_recycled",
+                    label=label,
+                    number=number,
+                    reason=reason,
+                    max_age=max_age,
+                )
                 if reason == _RECYCLE_CONN_LOST:
                     cron_logger.warning("Postgres connection lost, reconnecting...")
                 else:
@@ -277,9 +293,23 @@ class ThreadedServer(CommonServer):
             except SystemExit:
                 raise
             except (psycopg.OperationalError, PoolError) as exc:
+                _debug.logic(
+                    "server.cron.listener_failed",
+                    label=label,
+                    number=number,
+                    error=type(exc).__name__,
+                    kind="pg_unavailable",
+                )
                 backoff.wait_after_failure("Postgres unavailable", exc)
             except Exception as exc:
                 cron_logger.critical("Uncaught error in cron main loop", exc_info=True)
+                _debug.logic(
+                    "server.cron.listener_failed",
+                    label=label,
+                    number=number,
+                    error=type(exc).__name__,
+                    kind="uncaught",
+                )
                 backoff.wait_after_failure("Cron main loop", exc)
             finally:
                 listener.close()
@@ -294,6 +324,9 @@ class ThreadedServer(CommonServer):
             )
             as_worker_thread(t).type = "cron"
             t.start()
+        _debug.lifecycle(
+            "server.threads_spawned", kind="cron", count=self.settings.max_cron_threads
+        )
 
     def spawn_job_threads(self) -> None:
         for i in range(self.settings.job_workers):
@@ -305,6 +338,9 @@ class ThreadedServer(CommonServer):
             )
             as_worker_thread(t).type = "job"
             t.start()
+        _debug.lifecycle(
+            "server.threads_spawned", kind="job", count=self.settings.job_workers
+        )
 
     def spawn_http_server(self) -> None:
         try:
@@ -319,12 +355,21 @@ class ThreadedServer(CommonServer):
                 self.interface,
                 self.port,
             )
+            _debug.logic(
+                "server.httpd_bind_failed", interface=self.interface, port=self.port
+            )
             raise
         threading.Thread(
             target=self.httpd.serve_forever,
             name="odoo.service.httpd",
             daemon=True,
         ).start()
+        _debug.lifecycle(
+            "server.httpd_spawned",
+            interface=self.interface,
+            port=self.port,
+            max_http_threads=getattr(self.httpd, "max_http_threads", None),
+        )
 
     def start(self, stop: bool = False) -> None:
         self.logger.debug("Setting signal handlers")
@@ -397,11 +442,18 @@ class ThreadedServer(CommonServer):
                     self.logger.debug("join and sleep")
                     thread.join(0.05)
                     time.sleep(0.05)
+        _debug.pipeline(
+            "server.threaded.threads_joined",
+            seconds=time.monotonic() - stop_time,
+            active=threading.active_count(),
+        )
 
         db.close_all()
 
         current_process = psutil.Process()
         children = current_process.children(recursive=False)
+        if _debug.logic.enabled and children:
+            _debug.logic("server.threaded.children_alive", children=len(children))
         for child in children:
             self.logger.info(
                 "A child process was found, pid is %s, process may hang", child
@@ -416,6 +468,12 @@ class ThreadedServer(CommonServer):
         try:
             self.start(stop=stop)
             rc = preload_registries(preload)
+            _debug.pipeline(
+                "server.threaded.preloaded",
+                rc=rc,
+                stop=stop,
+                databases=len(preload or ()),
+            )
 
             if stop:
                 if self.settings.test_enable:
@@ -454,6 +512,12 @@ class ThreadedServer(CommonServer):
                         self.logger.info(
                             "Dumping stacktrace of limit exceeding threads before reloading"
                         )
+                        _debug.logic(
+                            "server.threaded.reload_for_limits",
+                            other_requests=has_other_valid_requests,
+                            since_s=time.monotonic() - self.limit_reached_time,
+                            threads=len(self.limits_reached_threads),
+                        )
                         dumpstacks(
                             thread_idents={
                                 thread.ident
@@ -480,6 +544,7 @@ class ThreadedServer(CommonServer):
         )
 
     def reload(self) -> None:
+        _debug.lifecycle("server.threaded.reload", pid=self.pid)
         restart()
 
 
@@ -505,6 +570,11 @@ class EventServer(CommonServer):
         if self.get_memory_over_soft_limit() is not None:
             should_restart = True
         if should_restart:
+            _debug.lifecycle(
+                "server.evented.restart_requested",
+                pid=self.pid,
+                parent_changed=self.ppid != new_ppid,
+            )
             os.kill(self.pid, signal.SIGTERM)
 
     def run_watchdog(self, beat: int = 4) -> None:
@@ -549,6 +619,9 @@ class EventServer(CommonServer):
                 self.interface,
                 self.port,
             )
+            _debug.lifecycle(
+                "server.evented.start", interface=self.interface, port=self.port
+            )
             self.httpd.serve_forever()
         except SystemExit:
             raise
@@ -560,6 +633,7 @@ class EventServer(CommonServer):
         self.logger.info("Evented/WebSocket service stopped")
 
     def stop(self) -> None:
+        _debug.lifecycle("server.evented.stop", httpd=self.httpd is not None)
         if self.httpd:
             self.httpd.server_close()
         super().stop()

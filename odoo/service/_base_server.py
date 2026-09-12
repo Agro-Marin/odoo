@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 import psutil
 
+from odoo.libs.debug_log import DebugLog
+
 from ._limits import get_memory_over_soft_limit
 from .settings import ServerSettings, current
 
@@ -16,6 +18,7 @@ if TYPE_CHECKING:
 _SIGHUP_AVAILABLE = hasattr(signal, "SIGHUP")
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 
 _on_stop_hooks: list[Callable] = []
@@ -40,9 +43,15 @@ watches this list.
 def register_on_stop_hook(func: Callable) -> None:
     if func not in _on_stop_hooks:
         _on_stop_hooks.append(func)
+        _debug.lifecycle(
+            "server.stop_hook.registered",
+            hook=getattr(func, "__qualname__", None),
+            hooks=len(_on_stop_hooks),
+        )
 
 
 def run_on_stop_hooks(logger: logging.Logger) -> None:
+    _debug.pipeline("server.stop_hooks.run", hooks=len(_on_stop_hooks))
     for func in _on_stop_hooks:
         try:
             logger.debug("on_close call %s", func)
@@ -50,6 +59,7 @@ def run_on_stop_hooks(logger: logging.Logger) -> None:
         except Exception:
             name = getattr(func, "__name__", repr(func))
             logger.warning("Exception in %s", name, exc_info=True)
+            _debug.logic("server.stop_hook.failed", hook=name)
 
 
 class CommonServer:
@@ -70,6 +80,13 @@ class CommonServer:
         self.pid: int = os.getpid()
         self.logger = _logger.getChild(self.__class__.__name__)
         self._process_handle = psutil.Process(self.pid)
+        _debug.lifecycle(
+            "server.created",
+            flavor=self.flavor,
+            interface=self.interface,
+            port=self.port,
+            pid=self.pid,
+        )
 
     @property
     def settings(self) -> ServerSettings:
@@ -90,6 +107,12 @@ class CommonServer:
         )
         if memory is not None:
             self.logger.warning("RSS memory soft-limit reached: %s bytes.", memory)
+            _debug.logic(
+                "server.memory_soft_limit_exceeded",
+                flavor=self.flavor,
+                rss=memory,
+                limit=self.get_memory_soft_limit(),
+            )
         return memory
 
     def get_memory_soft_limit(self) -> int:

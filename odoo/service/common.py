@@ -66,6 +66,12 @@ def exp_authenticate(
     try:
         registry = Registry(db)
     except (psycopg.Error, PoolError) as exc:
+        _debug.logic(
+            "rpc.authenticate.registry_unavailable",
+            db=db,
+            error=type(exc).__name__,
+            expected=isinstance(exc, _EXPECTED_CONNECT_FAILURES),
+        )
         if isinstance(exc, _EXPECTED_CONNECT_FAILURES):
             _logger.debug(
                 "exp_authenticate: registry unavailable for %r", db, exc_info=True
@@ -80,6 +86,7 @@ def exp_authenticate(
         return False
     if "res.users" not in registry.models:
         _logger.debug("exp_authenticate: %r is reachable but not an Odoo database", db)
+        _debug.logic("rpc.authenticate.not_odoo_db", db=db)
         return False
     with registry.cursor() as cr:
         env = odoo.api.Environment(cr, None, {})  # type: ignore[arg-type]
@@ -91,9 +98,12 @@ def exp_authenticate(
                 "type": "password",
             }
             _debug.lifecycle("rpc.authenticate", db=db, login=login)
-            return env["res.users"].authenticate(
-                credential, {**user_agent_env, "interactive": False}
-            )["uid"]
+            with _debug.perf("rpc.authenticate.checked", cr=cr, db=db) as span:
+                uid: int | bool = env["res.users"].authenticate(
+                    credential, {**user_agent_env, "interactive": False}
+                )["uid"]
+                span.set(uid=uid)
+            return uid
         except AccessDenied:
             _debug.logic("rpc.authenticate.denied", db=db, login=login)
             return False
@@ -104,6 +114,7 @@ def exp_version() -> dict[str, Any]:
 
 
 def dispatch(method: str, params: list | tuple) -> Any:
+    _debug.pipeline("rpc.common.dispatch", method=method)
     return dispatch_through_table(method, params, _DISPATCH)
 
 

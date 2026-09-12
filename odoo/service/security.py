@@ -2,6 +2,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import consteq
 
 if TYPE_CHECKING:
@@ -9,6 +10,7 @@ if TYPE_CHECKING:
     from odoo.http import Request, Session
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def get_session_token(session: Session, env: Environment) -> str | bool:
@@ -23,20 +25,25 @@ def is_session_valid(
 ) -> bool:
     session._remove_old_sessions()
     if "deletion_time" in session and session["deletion_time"] <= time.time():
+        _debug.logic("session.invalid", reason="deleted", uid=session.uid)
         return False
     expected = get_session_token(session, env)
     actual = session.session_token
     if not isinstance(expected, str) or not expected:
+        _debug.logic("session.invalid", reason="no_expected_token", uid=session.uid)
         return False
     if not isinstance(actual, str) or not consteq(expected, actual):
+        _debug.logic("session.invalid", reason="token_mismatch", uid=session.uid)
         return False
     if request:
         try:
-            env["res.device.log"]._update_device(request)  # type: ignore[attr-defined]
+            with _debug.perf("session.device_log_updated", cr=env.cr, uid=session.uid):
+                env["res.device.log"]._update_device(request)  # type: ignore[attr-defined]
         except Exception:
             _logger.warning(
                 "Device-log update failed for a valid session; keeping the "
                 "session authenticated",
                 exc_info=True,
             )
+            _debug.logic("session.device_log_failed", uid=session.uid)
     return True

@@ -4,9 +4,12 @@ import logging
 import os
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
 from .settings import INHERIT_FROM_CRON, current
 
 _logger = logging.getLogger("odoo.service.server")
+_debug = DebugLog(__name__)
 
 BACKOFF_CEILING_S = 60
 """Longest a reconnect back-off will wait.
@@ -49,6 +52,12 @@ def get_memory_over_soft_limit(process: Any, soft_limit: int) -> int | None:
     if not soft_limit:
         return None
     memory = get_memory_rss(process)
+    _debug.perf.count(
+        "limits.memory_sampled",
+        rss=memory,
+        soft_limit=soft_limit,
+        over=memory > soft_limit,
+    )
     return memory if memory > soft_limit else None
 
 

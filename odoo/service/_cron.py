@@ -64,10 +64,16 @@ def arm_cron_listen(
     recovery = cr.fetchone()
     if recovery and recovery[0]:
         logger.warning("PG cluster in recovery mode, %s trigger not activated", channel)
+        _debug.logic("cron.listen.in_recovery", channel=channel)
         return False
     if disable_idle_timeout:
         cr.execute("SET idle_session_timeout = 0")
     cr.execute(SQL("LISTEN %s", SQL.identifier(channel)))
+    _debug.lifecycle(
+        "cron.listen_armed",
+        channel=channel,
+        idle_timeout_disabled=disable_idle_timeout,
+    )
     return True
 
 
@@ -112,6 +118,7 @@ def _resolve_static_dbfilter() -> re.Pattern[str] | None:
     if not pattern:
         return None
     if _HOST_PLACEHOLDER_RE.search(pattern):
+        _debug.logic("cron.dbfilter_unusable", reason="host_placeholder")
         if not _dbfilter_warned:
             _dbfilter_warned = True
             _logger.warning(
@@ -132,15 +139,23 @@ def _resolve_static_dbfilter() -> re.Pattern[str] | None:
             pattern,
             exc_info=True,
         )
+        _debug.logic("cron.dbfilter_unusable", reason="invalid_regex")
         return None
 
 
 def get_cron_databases() -> list[str]:
     configured = current().db_name
     if configured:
+        _debug.logic("cron.databases", source="db_name", databases=len(configured))
         return list(configured)
     names = [name for name in list_dbs(True) if not is_maintenance_db(name)]
     dbfilter = _resolve_static_dbfilter()
+    _debug.logic(
+        "cron.databases",
+        source="catalog",
+        databases=len(names),
+        filtered=dbfilter is not None,
+    )
     if dbfilter is None:
         return names
     return [name for name in names if dbfilter.match(name)]
@@ -165,8 +180,10 @@ def open_cron_listener(channel: str, logger: logging.Logger) -> BaseCursor:
         arm_cron_listen(cursor, logger, channel=channel, disable_idle_timeout=True)
         cursor.commit()
     except BaseException:
+        _debug.logic("cron.listener.open_failed", channel=channel)
         close_cron_cursor(cursor)
         raise
+    _debug.lifecycle("cron.listener.cursor_opened", channel=channel)
     return cursor
 
 
@@ -184,6 +201,8 @@ class ReconnectBackoff:
         self.attempts = 0
 
     def reset(self) -> None:
+        if _debug.lifecycle.enabled and self.attempts:
+            _debug.lifecycle("cron.backoff_reset", attempts=self.attempts)
         self.attempts = 0
 
     def wait_after_failure(
@@ -194,6 +213,13 @@ class ReconnectBackoff:
     ) -> None:
         self.attempts += 1
         delay = backoff.get_bound(self.attempts, base=BACKOFF_BASE_S, cap=self._ceiling)
+        _debug.logic(
+            "cron.backoff",
+            what=what,
+            attempt=self.attempts,
+            delay_s=delay,
+            error=type(exc).__name__,
+        )
         self._logger.warning(
             "%s failed (attempt %d): %s; retrying in %ds",
             what,
@@ -288,6 +314,7 @@ class CronListener:
         cursor, self._cursor = self._cursor, None
         if cursor is not None:
             close_cron_cursor(cursor)
+            _debug.lifecycle("cron.listener.closed", channel=self._channel)
 
 
 class CronSchedule:

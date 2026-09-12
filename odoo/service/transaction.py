@@ -47,6 +47,12 @@ def _integrity_error_to_validation_error(
     table_name = exc.diag.table_name
     rclass = env.registry.models_by_table.get(table_name) if table_name else None
     model = env[rclass._name] if rclass is not None else env["base"]
+    _debug.logic(
+        "retrying.integrity_error.model_resolved",
+        table=table_name,
+        model=getattr(model, "_name", None),
+        constraint=exc.diag.constraint_name,
+    )
     message = env._(
         "The operation cannot be completed: %s",
         model._sql_error_to_message(exc),
@@ -65,6 +71,7 @@ class RetryParticipant(typing.Protocol):
 def _reset_env_state(env: Environment) -> None:
     if env.cr.closed:
         return
+    _debug.lifecycle("retrying.env_reset")
     with suppress(Exception):
         env.transaction.reset()
     with suppress(Exception):
@@ -74,7 +81,15 @@ def _reset_env_state(env: Environment) -> None:
 def _warn_cursor_closed_before_commit(
     func: Callable[..., object], participant: RetryParticipant | None
 ) -> None:
-    if participant is not None and participant.is_uncommitted_warning_suppressed():
+    suppressed = (
+        participant is not None and participant.is_uncommitted_warning_suppressed()
+    )
+    _debug.logic(
+        "retrying.cursor_closed_before_commit",
+        func=getattr(func, "__qualname__", None),
+        warning_suppressed=suppressed,
+    )
+    if suppressed:
         return
     _logger.warning(
         "retrying(): the cursor was closed before commit; %s's work was "
@@ -89,10 +104,19 @@ def _commit_and_signal_changes(env: Environment) -> None:
     try:
         env.cr.commit()
     except Exception:
+        _debug.logic(
+            "retrying.commit_failed",
+            committed=env.cr.commit_count > commits_before,
+        )
         if env.cr.commit_count > commits_before:
             with suppress(Exception):
                 env.registry.signal_changes()
         raise
+    _debug.pipeline(
+        "retrying.signalling",
+        cursor_closed=env.cr.closed,
+        commits=env.cr.commit_count - commits_before,
+    )
     if not env.cr.closed:
         env.registry.signal_changes()
     elif env.cr.commit_count > commits_before:
@@ -109,6 +133,7 @@ def _rollback_transaction(env: Environment, exc: Exception) -> None:
     try:
         env.cr.rollback()
     except Exception as rollback_error:
+        _debug.logic("retrying.rollback_failed", error=type(rollback_error).__name__)
         raise exc from rollback_error
     if env.cr.closed:
         raise exc
@@ -123,6 +148,11 @@ def _resolve_retry_error_name(exc: Exception) -> str | None:
         return repr(exc)
     if is_stale_cached_plan(exc):
         return "StaleCachedPlan"
+    _debug.logic(
+        "retrying.not_retryable",
+        error=type(exc).__name__,
+        sqlstate=getattr(exc, "sqlstate", None),
+    )
     return None
 
 
@@ -150,6 +180,7 @@ def retrying[T](
                 break
             except _RECOVERY_EXCEPTIONS as exc:
                 if env.cr.closed or env.cr.commit_count > commits_before:
+                    _debug.logic("retrying.unrecoverable", cursor_closed=env.cr.closed)
                     raise
                 _rollback_transaction(env, exc)
                 if participant is not None:
@@ -180,6 +211,7 @@ def retrying[T](
                     raise
                 if not tryleft:
                     _logger.info("%s, maximum number of tries reached!", error)
+                    _debug.logic("retrying.exhausted", error=error, attempts=tryno)
                     raise
 
                 if participant is not None:

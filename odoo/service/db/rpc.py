@@ -33,6 +33,11 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
         )
     min_length = get_env_int("ODOO_ADMIN_PASSWORD_MIN_LENGTH", 8, minimum=8)
     if len(new_password) < min_length:
+        _debug.logic(
+            "database.admin_password_rejected",
+            reason="too_short",
+            min_length=min_length,
+        )
         raise ValueError(
             f"Master admin password must be at least {min_length} characters long."
         )
@@ -48,6 +53,7 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
         _logger.exception(
             "Failed to persist admin password change; reverted in-memory hash"
         )
+        _debug.logic("database.admin_password_persist_failed")
         raise
     _logger.info("Master admin password updated")
     _debug.lifecycle(
@@ -60,6 +66,7 @@ def exp_change_admin_password(new_password: str) -> Literal[True]:
 def exp_migrate_databases(databases: list[str]) -> Literal[True]:
     for db in databases:
         check_db_exposed(db)
+    _debug.pipeline("database.migrate_requested", databases=len(databases))
     for db in databases:
         _logger.info("migrate database %s", db)
         with _debug.perf("database.migrated", db=db):
