@@ -490,7 +490,7 @@ resolved by `_get_escalation_rules()`:
 | `_check_business_rules_create/unlink()` | Business rules layer: DRAFT only since 19.0.1.0.13 (relaxed only by `env.su` + `approver_ids_computation` sync context) — rows on decided requests are state-transition vehicles and are re-cycled via reset-to-draft |
 | `_check_delegation_dates` (constraint) | Delegation requires both dates, end >= start |
 | `_check_delegate_identity` (constraint) | Delegate must not be the approver themselves, the request owner, or a co-approver on the same request |
-| `_get_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones. Only a row whose user is listed for one of its steps is asked, and, when the category requests its steps in order, once a step they are listed for opens, not one they may decide through its group. A listed approver is asked only while one of their steps is still short of its quorum; after a decision or a withdrawal, `_retire_unasked_approval_activities` unlinks the approval activities of rows this stops asking |
+| `_filtered_notifiable()` | The rows whose approver should be asked now. Every activity goes through `_create_activity`, which applies this first, so it orders the asking for all six callers: a row on a `notify_sequentially` category is asked only once one of its steps is among the lowest unmet ones. Only a row whose user is listed for one of its steps is asked, and, when the category requests its steps in order, once a step they are listed for opens, not one they may decide through its group. A listed approver is asked only while one of their steps is still short of its quorum; after a decision or a withdrawal, `_retire_unasked_approval_activities` unlinks the approval activities of rows this stops asking |
 | `_approve_for_every_step()` | Approves rows nobody decided -- consent approval, an auto-approve rule -- for all their steps, so they count as those paths always counted |
 
 ---
@@ -630,7 +630,7 @@ pattern, a document the engine moves through `_on_approval_approved` and friends
 | `_check_approval_sync_policy(kind)` | The document's own authority, run as the acting user before a request-side decision is applied. Raises to veto |
 | `_apply_approval_sync_outcome(kind)` | Moves the document for a kind, through the document's overridable methods. Required |
 | `_get_approval_category_xmlid()` | Optional: the category the document's requests belong to |
-| `_needs_approval_request()` | Whether a pending document raises a request: its state is `pending` and `_can_raise_approval_request()` holds |
+| `_is_approval_request_required()` | Whether a pending document raises a request: its state is `pending` and `_can_raise_approval_request()` holds |
 | `_can_raise_approval_request()` | Whether the document may hold a request at all, whatever its state: none yet, and a category applies. Adopters add their own exclusions here, so they reach a backfilled document in progress too |
 | `_get_legacy_approval_activity_xmlids()` | The review activities the document scheduled itself before adopting the engine, which a backfilled request replaces. Default none |
 | `_get_approval_backfill_decider()` | Who decided the first step of a document in progress before its request existed. Default nobody |

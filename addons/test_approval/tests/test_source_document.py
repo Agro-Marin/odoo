@@ -172,3 +172,21 @@ class TestSourceDocumentIsNotified(ApprovalCommon):
             self.env.ref("approval.refusal_reason_parent_cancelled"),
         )
         self.assertTrue(request.refusal_note)
+
+    def test_granting_without_a_decision_notifies_source_document_once(self):
+        category = self._make_category(
+            name=f"Grant Notify Cat {self.id()}", approvers=[self.approver_1]
+        )
+        doc = self.env["approval.test.document"].create(
+            {
+                "name": "Doc approved without a decision",
+                "partner_id": self.partner.id,
+                "test_category_id": category.id,
+            },
+        )
+        doc.action_create_approval_request()
+
+        doc.approval_request_id._approve_without_decision("Validated by the system")
+
+        self.assertEqual(doc.last_approval_state, "approved")
+        self.assertEqual(doc.hook_call_count, 1)

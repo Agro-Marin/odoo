@@ -1089,7 +1089,7 @@ class AppointmentController(http.Controller):
             )
             if staff_user not in appointment_type.staff_user_ids:
                 raise NotFound
-            staff_user._ensure_calendar_event_resource()
+            staff_user._get_or_create_calendar_event_resource()
             users_remaining_capacity = appointment_type._get_users_remaining_capacity(
                 staff_user, date_start, date_end
             )

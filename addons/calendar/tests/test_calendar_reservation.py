@@ -363,9 +363,9 @@ class TestCalendarReservation(TransactionCase):
         )
         event = self._make_event(partner_ids=[(6, 0, user.partner_id.ids)])
         self.assertFalse(self._reservations(event))
-        resource = user._ensure_calendar_event_resource()
+        resource = user._get_or_create_calendar_event_resource()
         self.assertEqual(self._reservations(event).resource_id, resource)
-        self.assertEqual(user._ensure_calendar_event_resource(), resource)
+        self.assertEqual(user._get_or_create_calendar_event_resource(), resource)
 
     def test_clearing_then_restoring_attendees_has_no_duplicates(self):
         event = self._make_event()

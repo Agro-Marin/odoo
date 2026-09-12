@@ -90,7 +90,7 @@ class MixinApprovalStateSync(models.AbstractModel):
             )
         return super().unlink()
 
-    def _needs_approval_request(self) -> bool:
+    def _is_approval_request_required(self) -> bool:
         self.check_singleton()
         return (
             self._get_approval_sync_kind() == "pending"
@@ -168,7 +168,7 @@ class MixinApprovalStateSync(models.AbstractModel):
         if self.env.uid == SUPERUSER_ID or self.env.context.get("import_file"):
             return
         for record in self.sudo():
-            if record._needs_approval_request():
+            if record._is_approval_request_required():
                 record.action_create_approval_request()
 
     def _get_synced_approval_request(self):

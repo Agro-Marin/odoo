@@ -357,7 +357,7 @@ class ApprovalApprover(models.Model):
             return
         if self.env.context.get("mail_activity_automation_skip"):
             return
-        self = self._get_notifiable()
+        self = self._filtered_notifiable()
         if not self:
             return
         default_type = self.env.ref("approval.mail_activity_data_approval")
@@ -432,7 +432,7 @@ class ApprovalApprover(models.Model):
             return document.sudo()._get_approval_activity_type(self, step_type)
         return step_type
 
-    def _get_notifiable(self):
+    def _filtered_notifiable(self):
         """The rows whose approver should be asked now.
 
         Every activity is created through `_create_activity`, so this one filter

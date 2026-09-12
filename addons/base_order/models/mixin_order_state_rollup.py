@@ -17,7 +17,7 @@ class MixinOrderStateRollup(models.AbstractModel):
             ("display_type", "=", False),
         ]
 
-    def _get_rollup_pending_lines_domain(self, state_field):
+    def _get_domain_rollup_pending_lines(self, state_field):
         return []
 
     def _rollup_line_states(self, state_field, nothing_may_be_pending=False):
@@ -43,7 +43,7 @@ class MixinOrderStateRollup(models.AbstractModel):
                 order.id
                 for (order,) in lines._read_group(
                     lines_domain
-                    + self._get_rollup_pending_lines_domain(state_field)
+                    + self._get_domain_rollup_pending_lines(state_field)
                     + [
                         ("order_id", "in", ambiguous_ids),
                         (state_field, "=", STATE_NOTHING),

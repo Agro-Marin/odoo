@@ -147,9 +147,6 @@ class HttpExtension(Protocol):
     def _post_logout(self) -> None:
         pass
 
-    def _auth_method_public(self) -> None:
-        pass
-
     def _apply_max_upload_size(self) -> None:
         pass
 

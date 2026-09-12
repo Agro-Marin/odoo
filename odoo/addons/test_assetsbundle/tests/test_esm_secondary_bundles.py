@@ -314,12 +314,12 @@ class TestSecondarySingletonSurface(TransactionCase):
             self.skipTest("every direct import is provided by the page")
         reachable = discover_transitive_import_specifiers(
             inlined,
-            known_specifiers=own_specs,
+            known_specifiers=own_specs | shared,
             ext_libs=IrQweb._external_libs(),
             bundle_name=self.BUNDLE,
         )
         self.assertEqual(
-            (reachable & provider_specs) - shared,
+            reachable & provider_specs,
             set(),
             "a module the page already carries is reachable through an inlined "
             "import, so esbuild inlines a second instance of it",

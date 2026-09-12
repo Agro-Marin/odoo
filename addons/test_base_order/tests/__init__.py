@@ -19,3 +19,13 @@ from . import test_partner_count
 from . import test_price_history
 from . import test_smoke
 from . import test_write_validation
+from . import test_order_amount
+from . import test_order_document_match_guard
+from . import test_order_edi_report
+from . import test_order_invoice_refund_chain
+from . import test_order_line_amount
+from . import test_order_merge
+from . import test_order_partner_domain
+from . import test_order_portal
+from . import test_order_report
+from . import test_order_shared_features

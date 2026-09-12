@@ -48,7 +48,7 @@ class ResUsers(models.Model):
             for user in self
         }
 
-    def _ensure_calendar_event_resource(self):
+    def _get_or_create_calendar_event_resource(self):
         self.check_singleton()
         self.env.cr.execute(
             SQL(

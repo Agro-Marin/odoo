@@ -1312,9 +1312,9 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   330
 §2.4.2   … of those, spelled ``_check_<field>``                        146
 §2.4.2   Multi-field constraints named for one trigger                  62
-§2.4.3   Non-test methods declared on a model class                 27,489
+§2.4.3   Non-test methods declared on a model class                 27,491
 §2.4.3   Stems spelled with two or more verbs of one family              1
-§2.4.3   Groups of methods sharing a byte-identical body               105
+§2.4.3   Groups of methods sharing a byte-identical body               106
 §2.4.4   Model methods with an abolished verb behind a noun            171
 §2.4.4   Canonical verb behind a first token carrying no rule          681
 §2.4.4   Model methods opening with ``auto`` fused to a verb            13
@@ -1326,7 +1326,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   197
 §2.4.5   ``X_to_Y`` converter definitions                              103
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      6,551
+§2.4.7   ``_get_*`` definitions                                      6,553
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   122
 §2.4.7   ``_calculate_*`` model methods                                  0
@@ -1334,7 +1334,7 @@ Section  Population                                                  Count
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            37
 §2.4.8   ``_check_*`` definitions                                    1,282
 §2.4.8   ``_validate_*`` definitions                                     0
-§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
+§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     184
 §2.4.10  ``_raise_*`` model methods                                     21
 §2.4.10  … raising unconditionally                                      12
@@ -1342,7 +1342,7 @@ Section  Population                                                  Count
 §2.4.11  … performing an ORM read                                        1
 §2.4.11  … doing something else entirely                                15
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   33
+§2.4.11  ``_get_or_create_*`` methods                                   34
 §2.4.11  ``_resolve_*`` definitions                                     29
 §2.4.12  ``_set_*`` definitions                                        126
 §2.4.12  ``_update_*`` definitions                                     425
@@ -1351,9 +1351,9 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        93
 §2.4.12  ``_synchronize_*`` definitions                                  0
 §2.4.12  ``_post_*`` definitions                                       144
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      376
-§2.4.13  Methods on plain classes in model files                       429
-§2.4.13  … such classes                                                171
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      365
+§2.4.13  Methods on plain classes in model files                       421
+§2.4.13  … such classes                                                169
 §2.4.13  Functions nested inside model methods                         659
 §2.4.14  Private method names reached from stored Python               118
 §2.4.14  … code blocks reaching them                                   128
@@ -2354,8 +2354,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **337** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **311**
+**A ``bool`` return does not make a predicate** ``[review]``. **336** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **313**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
