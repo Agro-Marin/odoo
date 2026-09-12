@@ -176,7 +176,7 @@ running twice on the same record within one transaction.
 `_get_cron_interval()` computes the optimal cron frequency:
 
 ```
-delays = [trg_date_range * DATE_RANGE_FACTOR[type] for each time automation]
+delays = [trg_date_range * MINUTES_PER_DELAY_UNIT[type] for each time automation]
 tolerance_interval = min(delays) * 0.10    # 10% of shortest delay
 interval = clamp(tolerance_interval, MIN=1, MAX=240)   # minutes
 ```

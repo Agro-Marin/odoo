@@ -13,7 +13,7 @@ from odoo.exceptions import LockError, MissingError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools import safe_eval
-from odoo.tools.date_utils import get_timedelta
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 
 from ._canvas import (
     NODE_HEADER_HEIGHT,
@@ -71,20 +71,13 @@ def _domain_fields_differences(automation, domain1, domain2):
     return in_d1_only_fields, in_d2_only_fields
 
 
-DATE_RANGE = {
-    "minutes": relativedelta(minutes=1),
-    "hour": relativedelta(hours=1),
-    "day": relativedelta(days=1),
-    "month": relativedelta(months=1),
-    False: relativedelta(0),
-}
-
-DATE_RANGE_FACTOR = {
-    "minutes": 1,
+# Minutes per delay unit, only to size the scheduler's polling interval: a month
+# is approximated because the interval is a fixed number of minutes.
+MINUTES_PER_DELAY_UNIT = {
+    "minute": 1,
     "hour": 60,
     "day": 24 * 60,
     "month": MONTH_APPROXIMATION_DAYS * 24 * 60,
-    False: 0,
 }
 
 CREATE_TRIGGERS = [
@@ -367,12 +360,7 @@ class AutomationRule(models.Model):
         tracking=True,
     )
     trg_date_range_type = fields.Selection(
-        selection=[
-            ("minutes", "Minutes"),
-            ("hour", "Hours"),
-            ("day", "Days"),
-            ("month", "Months"),
-        ],
+        selection=time_unit_selection("minute", "hour", "day", "month"),
         string="Delay unit",
         compute="_compute_trg_date_range_data",
         store=True,
@@ -1314,7 +1302,9 @@ class AutomationRule(models.Model):
 
     def _get_cron_interval(self, automations=None):
         def get_delay(rec):
-            return abs(rec.trg_date_range) * DATE_RANGE_FACTOR[rec.trg_date_range_type]
+            return abs(rec.trg_date_range) * MINUTES_PER_DELAY_UNIT.get(
+                rec.trg_date_range_type, 0
+            )
 
         if automations is None:
             automations = self.with_context(active_test=True).search(
@@ -1818,7 +1808,11 @@ class AutomationRule(models.Model):
 
             return records.filtered(calendar_filter)
 
-        relative_offset = DATE_RANGE[automation.trg_date_range_type] * date_range
+        relative_offset = (
+            get_timedelta(date_range, automation.trg_date_range_type)
+            if automation.trg_date_range_type
+            else relativedelta()
+        )
         relative_until = until + relative_offset
         relative_last_run = last_run + relative_offset
         if date_field.type == "date":

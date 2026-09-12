@@ -1,8 +1,8 @@
-import datetime
 import logging
 
 from odoo import _, api, exceptions, fields, models
 from odoo.fields import Domain
+from odoo.tools.date_utils import get_timedelta, time_unit_selection
 from odoo.tools.json import scriptsafe as json_scriptsafe
 
 from ._canvas import NODE_SIZE_MAX, NODE_SIZE_MIN
@@ -58,12 +58,8 @@ class IrActionsServer(models.Model):
         help="How long a Wait step pauses the run before its successors advance",
     )
     wait_unit = fields.Selection(
-        selection=[
-            ("minutes", "Minutes"),
-            ("hours", "Hours"),
-            ("days", "Days"),
-        ],
-        default="hours",
+        selection=time_unit_selection("minute", "hour", "day"),
+        default="hour",
         required=True,
     )
 
@@ -181,7 +177,7 @@ class IrActionsServer(models.Model):
 
     def _get_wait_delta(self):
         self.check_singleton()
-        return datetime.timedelta(**{self.wait_unit: self.wait_delay})
+        return get_timedelta(self.wait_delay, self.wait_unit)
 
     def _get_predecessors(self):
         return self.edge_in_ids.source_node_id

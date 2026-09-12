@@ -1046,7 +1046,7 @@ class TestWaitNode(TransactionCase):
 
     def test_a_wait_pauses_the_run_instead_of_finishing_it(self):
         first = self._action("first", "record.write({'comment': 'first'})")
-        pause = self._action("pause", node_type="wait", wait_delay=2, wait_unit="hours")
+        pause = self._action("pause", node_type="wait", wait_delay=2, wait_unit="hour")
         after = self._action("after", "record.write({'ref': 'after'})")
         link(self.env, first, pause)
         link(self.env, pause, after)
@@ -1060,7 +1060,7 @@ class TestWaitNode(TransactionCase):
         self.assertNotEqual(self.partner.ref, "after")
 
     def test_a_wait_records_when_it_resumes(self):
-        pause = self._action("pause", node_type="wait", wait_delay=3, wait_unit="days")
+        pause = self._action("pause", node_type="wait", wait_delay=3, wait_unit="day")
 
         runtime = self._run()
 
@@ -1069,7 +1069,7 @@ class TestWaitNode(TransactionCase):
         self.assertGreater(line.date_resume, self.env.cr.now())
 
     def test_the_cron_leaves_a_wait_that_is_not_due(self):
-        pause = self._action("pause", node_type="wait", wait_delay=6, wait_unit="hours")
+        pause = self._action("pause", node_type="wait", wait_delay=6, wait_unit="hour")
         after = self._action("after")
         link(self.env, pause, after)
         runtime = self._run()
@@ -1080,7 +1080,7 @@ class TestWaitNode(TransactionCase):
         self.assertEqual(self._line(runtime, pause).state, "paused")
 
     def test_the_cron_resumes_a_wait_that_is_due(self):
-        pause = self._action("pause", node_type="wait", wait_delay=1, wait_unit="hours")
+        pause = self._action("pause", node_type="wait", wait_delay=1, wait_unit="hour")
         after = self._action("after", "record.write({'ref': 'resumed'})")
         link(self.env, pause, after)
         runtime = self._run()
@@ -1322,7 +1322,7 @@ class TestSubflowNode(TransactionCase):
 
     def test_a_parent_waits_while_its_child_waits(self):
         self._action(
-            self.child, "child pause", node_type="wait", wait_delay=4, wait_unit="hours"
+            self.child, "child pause", node_type="wait", wait_delay=4, wait_unit="hour"
         )
         gate = self._action(
             self.parent,

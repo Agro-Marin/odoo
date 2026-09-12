@@ -18,7 +18,7 @@ and the set of `ir.actions.server` nodes that form the DAG.
 | `on_change_field_ids` | Many2many `ir.model.fields` | Onchange field watch list |
 | `trg_date_id` | Many2one `ir.model.fields` | Date field for time triggers |
 | `trg_date_range` | Integer | Delay amount (always positive) |
-| `trg_date_range_type` | Selection | minutes / hour / day / month |
+| `trg_date_range_type` | Selection | minute / hour / day / month, the shared `time_unit_selection` units |
 | `trg_date_range_mode` | Selection | before / after the trigger date |
 | `trg_date_calendar_id` | Many2one `resource.calendar` | Working-day calendar |
 | `webhook_uuid` | Char | UUID for webhook URL (rotatable) |

@@ -57,9 +57,9 @@ export function conditionLabel(condition) {
 
 export function waitUnitLabel(unit) {
     return {
-        minutes: _t("minutes"),
-        hours: _t("hours"),
-        days: _t("days"),
+        minute: _t("minutes"),
+        hour: _t("hours"),
+        day: _t("days"),
     }[unit];
 }
 

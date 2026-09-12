@@ -1117,7 +1117,7 @@ action = {
                     lambda f: f.name == "date_automation_last"
                 ).id,
                 "trg_date_range": 2,
-                "trg_date_range_type": "minutes",
+                "trg_date_range_type": "minute",
                 "trg_date_range_mode": "after",
             }
         )

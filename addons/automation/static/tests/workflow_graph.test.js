@@ -229,10 +229,10 @@ describe("workflow canvas edge label", () => {
 describe("workflow canvas step detail", () => {
     test("a wait step states how long it waits", () => {
         expect(
-            stepDetail({ node_type: "wait", wait_delay: 36, wait_unit: "hours" }),
+            stepDetail({ node_type: "wait", wait_delay: 36, wait_unit: "hour" }),
         ).toBe("36 hours");
         expect(
-            stepDetail({ node_type: "wait", wait_delay: 5, wait_unit: "minutes" }),
+            stepDetail({ node_type: "wait", wait_delay: 5, wait_unit: "minute" }),
         ).toBe("5 minutes");
     });
 
