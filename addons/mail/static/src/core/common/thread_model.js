@@ -654,9 +654,7 @@ export class Thread extends Record {
             }
         }
         this._enrichMessagesWithTransient();
-        this.pendingNewMessages = /** @type {typeof this.pendingNewMessages} */ (
-            /** @type {unknown} */ ([])
-        );
+        this.pendingNewMessages.clear();
     }
 
     /** @returns {import("models").ResPartner|import("models").MailGuest} */
@@ -796,9 +794,7 @@ export class Thread extends Record {
             this.isLoaded = true;
             return;
         } finally {
-            this.phantomMessages = /** @type {typeof this.phantomMessages} */ (
-                /** @type {unknown} */ ([])
-            );
+            this.phantomMessages.clear();
         }
         this.isLoaded = true;
         this.loadNewer = messageId !== undefined ? true : false;

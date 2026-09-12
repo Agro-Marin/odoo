@@ -119,10 +119,7 @@ export class UseSuggestion {
         this.composer.mentionedRoles.length = 0;
     }
     clearCannedResponses() {
-        this.composer.cannedResponses =
-            /** @type {typeof this.composer.cannedResponses} */ (
-                /** @type {unknown} */ ([])
-            );
+        this.composer.cannedResponses.clear();
     }
     clearSearch() {
         Object.assign(this.search, {

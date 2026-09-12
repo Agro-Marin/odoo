@@ -189,9 +189,7 @@ const StorePatch = {
             message.starred = false;
         }
         starredBox.counter = 0;
-        starredBox.messages = /** @type {typeof starredBox.messages} */ (
-            /** @type {unknown} */ ([])
-        );
+        starredBox.messages.clear();
         try {
             await this.env.services.orm.call("mail.message", "unstar_all");
         } catch (error) {
