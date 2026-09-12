@@ -128,7 +128,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
             value = date_utils.start_of(value, granularity)
         return value - datetime.timedelta(days=days_offset)
 
-    def _read_group_fill_temporal_bounds(
+    def _get_read_group_temporal_bounds(
         self,
         field,
         granularity: str,
@@ -188,7 +188,7 @@ class _ReadGroupFillMixin(_ReadGroupEmptyMixin):
 
         existing = sorted(d[first_group] for d in data if d[first_group]) or [None]
 
-        bound_from, bound_to = self._read_group_fill_temporal_bounds(
+        bound_from, bound_to = self._get_read_group_temporal_bounds(
             field, granularity, days_offset, existing, fill_from, fill_to
         )
         if not bound_from and not bound_to:
