@@ -42,6 +42,7 @@ Main Features
         "data/mail_message_subtype_data.xml",
         "data/mail_activity_type_data.xml",
         "wizards/fleet_vehicle_send_mail_views.xml",
+        "views/fleet_menus.xml",
     ],
     "demo": [
         "demo/fleet_demo.xml",

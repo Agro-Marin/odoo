@@ -75,12 +75,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_documents_access_log"
-        name="Access Log"
-        parent="document.Config"
-        action="documents_access_log_action"
-        sequence="60"
-        groups="document.group_documents_manager" />
-
 </odoo>

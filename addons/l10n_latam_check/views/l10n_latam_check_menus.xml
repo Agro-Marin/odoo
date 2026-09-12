@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_own_check"
+        parent="account.menu_finance_payables"
+        action="action_own_check"
+        sequence="50" />
+
+    <menuitem
+        id="menu_third_party_check"
+        parent="account.menu_finance_receivables"
+        action="action_third_party_check"
+        sequence="40" />
+
+</odoo>

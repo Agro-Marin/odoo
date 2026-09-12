@@ -50,5 +50,6 @@ lead scoring (``crm.lead.scoring.frequency``).
         "views/partner_profile_views.xml",
         "views/partner_score_line_views.xml",
         "views/res_partner_views.xml",
+        "views/partner_scoring_menus.xml",
     ],
 }

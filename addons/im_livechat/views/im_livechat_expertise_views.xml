@@ -39,12 +39,6 @@
             <field name="res_model">im_livechat.expertise</field>
             <field name="view_mode">list,form</field>
         </record>
-        <menuitem
-            id="expertise_menu"
-            name="Expertise"
-            parent="livechat_config"
-            action="im_livechat.expertise_action"
-            sequence="25" />
     </data>
 
 </odoo>

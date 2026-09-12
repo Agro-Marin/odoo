@@ -42,12 +42,6 @@
             name="context">{'search_default_current': 1, 'search_default_customer': 1, 'search_default_with_document': 1, 'search_default_company': 1, 'search_default_groupby_l10n_ar_state_id': 2, 'search_default_groupby_account_id': 3, 'search_default_filter_accounting_date_this_year': 1}</field>
     </record>
 
-    <menuitem
-        id="menu_iibb_sales_by_state_and_account"
-        parent="l10n_ar.account_reports_ar_statements_menu"
-        action="action_iibb_sales_by_state_and_account_pivot"
-        sequence="30" />
-
     <record
         id="action_iibb_purchases_by_state_and_account_pivot"
         model="ir.actions.act_window">
@@ -57,11 +51,5 @@
         <field
             name="context">{'search_default_current': 1, 'search_default_supplier': 1, 'search_default_with_document': 1, 'search_default_company': 1, 'search_default_groupby_l10n_ar_state_id': 2, 'search_default_groupby_account_id': 3, 'search_default_filter_accounting_date_this_year': 1}</field>
     </record>
-
-    <menuitem
-        id="menu_iibb_purchases_by_state_and_account"
-        parent="l10n_ar.account_reports_ar_statements_menu"
-        action="action_iibb_purchases_by_state_and_account_pivot"
-        sequence="40" />
 
 </odoo>

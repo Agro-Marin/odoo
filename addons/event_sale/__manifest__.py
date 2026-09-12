@@ -35,6 +35,7 @@ this event.
         "security/event_security.xml",
         "wizards/event_edit_registration.xml",
         "wizards/event_configurator_views.xml",
+        "views/event_sale_menus.xml",
     ],
     "demo": [
         "demo/event_sale_demo.xml",

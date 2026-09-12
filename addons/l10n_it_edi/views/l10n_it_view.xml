@@ -264,12 +264,4 @@
         <field name="view_id" ref="l10n_it_ddt_list_view" />
     </record>
 
-    <menuitem
-        id="menu_action_ddt_account"
-        name="DDT"
-        parent="account.menu_account_accounting"
-        action="action_ddt_account"
-        sequence="15"
-        groups="base.group_no_one" />
-
 </odoo>

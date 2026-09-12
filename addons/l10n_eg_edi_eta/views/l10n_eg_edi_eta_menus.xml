@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="account_eta_menu"
+        name="ETA"
+        parent="account.menu_finance_configuration"
+        sequence="99"
+        groups="account.group_account_manager">
+        <menuitem
+            id="menu_action_eta_thumb_drive_tree"
+            action="action_eta_thumb_drive_tree"
+            sequence="1" />
+    </menuitem>
+
+</odoo>

@@ -63,12 +63,12 @@ Master Data:
         "data/res_partner_data.xml",
         "data/l10n_latam.document.type.csv",
         "data/l10n_ec.sri.payment.csv",
-        "views/root_sri_menu.xml",
         "views/account_tax_view.xml",
         "views/l10n_latam_document_type_view.xml",
         "views/l10n_ec_sri_payment.xml",
         "views/account_journal_view.xml",
         "views/res_partner_view.xml",
+        "views/root_sri_menu.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

@@ -178,11 +178,4 @@
             eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('view_blog_post_list')}), Command.create({'view_mode': 'kanban', 'view_id': ref('blog_post_view_kanban')})]" />
     </record>
 
-    <menuitem
-        id="menu_blog_post_pages"
-        name="Blog Posts"
-        parent="website.menu_content"
-        action="action_blog_post"
-        sequence="20" />
-
 </odoo>

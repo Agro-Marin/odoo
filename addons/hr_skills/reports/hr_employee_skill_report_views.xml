@@ -112,11 +112,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="hr_employee_skill_inventory_report_menu"
-        name="Skills Inventory"
-        parent="hr_skills.hr_employee_skill_report_menu"
-        action="hr_employee_skill_report_action"
-        sequence="15" />
-
 </odoo>

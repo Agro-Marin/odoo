@@ -15,6 +15,7 @@
         "security/ir.model.access.csv",
         "security/hr_timesheet_attendance_report_security.xml",
         "reports/hr_timesheet_attendance_report_view.xml",
+        "views/hr_timesheet_attendance_menus.xml",
     ],
     "auto_install": True,
 }

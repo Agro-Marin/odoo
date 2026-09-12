@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="digest_menu"
+        parent="base.menu_email"
+        action="digest_digest_action"
+        sequence="80"
+        groups="base.group_erp_manager" />
+
+    <menuitem
+        id="digest_tip_menu"
+        parent="base.menu_email"
+        action="digest_tip_action"
+        sequence="81"
+        groups="base.group_erp_manager" />
+
+</odoo>

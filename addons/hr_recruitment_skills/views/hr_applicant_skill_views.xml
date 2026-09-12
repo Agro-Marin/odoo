@@ -52,11 +52,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="hr_recruitment_skill_type_menu"
-        name="Skill Types"
-        parent="hr_recruitment.menu_hr_recruitment_config_employees"
-        action="hr_skills.hr_skill_type_action"
-        sequence="35" />
-
 </odoo>

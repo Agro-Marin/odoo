@@ -72,10 +72,4 @@
         <field name="domain">[('state', '!=', 'draft')]</field>
     </record>
 
-    <menuitem
-        id="menu_snailmail_letters"
-        parent="base.menu_email"
-        action="action_mail_letters"
-        sequence="50" />
-
 </odoo>

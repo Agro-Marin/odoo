@@ -17,6 +17,7 @@ Allow users to login through OAuth2 Provider.
         "views/res_config_settings_views.xml",
         "views/auth_oauth_templates.xml",
         "security/ir.model.access.csv",
+        "views/auth_oauth_menus.xml",
     ],
     "assets": {
         "web.assets_frontend": [

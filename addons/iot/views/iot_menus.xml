@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Menus -->
+    <menuitem
+        id="iot_menu_root"
+        name="IoT"
+        sequence="265"
+        groups="iot.group_iot_user"
+        web_icon="iot,static/description/icon.png" />
+
+    <menuitem
+        id="iot_box_menu_action"
+        parent="iot_menu_root"
+        action="iot_box_action"
+        sequence="1" />
+
+    <menuitem
+        id="iot_device_menu_action"
+        parent="iot_menu_root"
+        action="iot_device_action"
+        sequence="2" />
+
+    <menuitem
+        id="view_iot_selected_printer_local_action"
+        name="Configuration"
+        parent="iot_menu_root"
+        sequence="3" />
+
+    <!-- Reporting submenu -->
+    <menuitem
+        id="iot_settings_menu_action"
+        name="Reporting"
+        parent="view_iot_selected_printer_local_action"
+        sequence="4" />
+
+    <menuitem
+        id="iot_clear_selected_devices"
+        name="Reset Linked Printers"
+        parent="iot_settings_menu_action"
+        action="action_iot_delete_linked_devices_menu"
+        sequence="5" />
+
+</odoo>

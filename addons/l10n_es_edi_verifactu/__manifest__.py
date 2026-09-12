@@ -20,6 +20,7 @@
         "views/res_company_views.xml",
         "views/res_config_settings_views.xml",
         "data/ir_cron.xml",
+        "views/l10n_es_edi_verifactu_menus.xml",
     ],
     "demo": [
         "demo/demo_certificate.xml",

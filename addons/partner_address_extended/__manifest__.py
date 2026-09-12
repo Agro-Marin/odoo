@@ -22,5 +22,6 @@ It is primarily used for EDIs that might need a special city code.
         "views/partner_address_extended.xml",
         "views/res_city_view.xml",
         "views/res_country_view.xml",
+        "views/partner_address_extended_menus.xml",
     ],
 }

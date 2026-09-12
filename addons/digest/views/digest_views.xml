@@ -141,13 +141,6 @@
         <field name="context">{'search_default_filter_activated': 1}</field>
     </record>
 
-    <menuitem
-        id="digest_menu"
-        parent="base.menu_email"
-        action="digest_digest_action"
-        sequence="80"
-        groups="base.group_erp_manager" />
-
     <!-- DIGEST.TIP -->
     <record id="digest_tip_view_tree" model="ir.ui.view">
         <field name="name">digest.tip.view.list</field>
@@ -195,12 +188,5 @@
         <field name="res_model">digest.tip</field>
         <field name="search_view_id" ref="digest_tip_view_search" />
     </record>
-
-    <menuitem
-        id="digest_tip_menu"
-        parent="base.menu_email"
-        action="digest_tip_action"
-        sequence="81"
-        groups="base.group_erp_manager" />
 
 </odoo>

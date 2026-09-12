@@ -17,6 +17,7 @@ for customization purpose.
         "security/ir.model.access.csv",
         "views/base_import_module_view.xml",
         "views/ir_module_views.xml",
+        "views/base_import_module_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

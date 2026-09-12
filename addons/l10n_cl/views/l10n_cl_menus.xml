@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_sale_invoices_credit_notes"
+        name="Sale Invoices and Credit Notes (CL)"
+        parent="account.menu_finance_receivables"
+        action="sale_invoices_credit_notes"
+        sequence="3" />
+
+    <menuitem
+        id="menu_vendor_bills_and_refunds"
+        name="Vendor Bills and Refunds (CL)"
+        parent="account.menu_finance_payables"
+        action="vendor_bills_and_refunds"
+        sequence="3" />
+
+</odoo>

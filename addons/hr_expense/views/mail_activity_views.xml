@@ -12,10 +12,4 @@
         <field name="context">{'default_res_model': 'hr.expense'}</field>
     </record>
 
-    <menuitem
-        id="hr_expense_menu_config_activity_type"
-        parent="menu_hr_expense_configuration"
-        action="mail_activity_type_action_config_hr_expense"
-        groups="base.group_no_one" />
-
 </odoo>

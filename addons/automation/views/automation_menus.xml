@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_automation_form"
+        parent="base.menu_automation"
+        action="automation_act"
+        sequence="1" />
+
+    <menuitem
+        id="menu_automation_runtime"
+        name="Workflow Runtimes"
+        parent="base.menu_automation"
+        action="action_automation_runtime"
+        sequence="65" />
+
+</odoo>

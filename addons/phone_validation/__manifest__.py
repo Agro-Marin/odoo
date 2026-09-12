@@ -35,6 +35,7 @@ records numbers. """,
         "views/phone_blacklist_views.xml",
         "views/res_partner_views.xml",
         "wizards/phone_blacklist_remove_view.xml",
+        "views/phone_validation_menus.xml",
     ],
     "auto_install": True,
 }

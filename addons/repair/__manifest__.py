@@ -36,6 +36,7 @@ The following topics are covered by this module:
         "reports/repair_reports.xml",
         "reports/repair_templates_repair_order.xml",
         "data/repair_data.xml",
+        "views/repair_menus.xml",
     ],
     "demo": [
         "demo/repair_demo.xml",

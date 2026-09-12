@@ -25,5 +25,6 @@ and print the report from Print button in header area.
         "reports/accounting_assert_test_reports.xml",
         "data/accounting_assert_test_data.xml",
         "reports/report_account_test_templates.xml",
+        "views/account_test_menus.xml",
     ],
 }

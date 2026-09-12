@@ -162,13 +162,6 @@
                 name="code">if records:
                 action = records.action_send_chat_request()</field>
         </record>
-        <menuitem
-            id="website_livechat_visitor_menu"
-            name="Visitors"
-            parent="im_livechat.menu_livechat_root"
-            action="website.website_visitors_action"
-            sequence="15"
-            groups="im_livechat.im_livechat_group_user" />
     </data>
 
 </odoo>

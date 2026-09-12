@@ -321,12 +321,4 @@
         <field name="act_window_id" ref="rating_rating_action" />
     </record>
 
-    <!-- Add menu entry in Technical/Discuss -->
-    <menuitem
-        id="rating_rating_menu_technical"
-        name="Ratings"
-        parent="mail.menu_mail_discuss_technical"
-        action="rating_rating_action"
-        sequence="30" />
-
 </odoo>

@@ -16,5 +16,6 @@
         "views/mail_plugin_login.xml",
         "views/res_partner_iap_views.xml",
         "security/ir.model.access.csv",
+        "views/mail_plugin_menus.xml",
     ],
 }

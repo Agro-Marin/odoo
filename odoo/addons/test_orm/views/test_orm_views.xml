@@ -1,52 +1,26 @@
 <odoo>
 
     <data>
-        <menuitem
-            id="menu_main"
-            name="Discussions"
-            parent="base.menu_tests"
-            sequence="20" />
-        <menuitem id="menu_sub" name="Discussions" parent="menu_main" sequence="10" />
         <record id="action_discussions" model="ir.actions.act_window">
             <field name="name">Discussions</field>
             <field name="res_model">test_orm.discussion</field>
             <field name="view_mode">list,form</field>
         </record>
-        <menuitem
-            id="menu_discussions"
-            parent="menu_sub"
-            action="action_discussions"
-            sequence="10" />
         <record id="action_messages" model="ir.actions.act_window">
             <field name="name">Messages</field>
             <field name="res_model">test_orm.message</field>
             <field name="view_mode">list,form</field>
         </record>
-        <menuitem
-            id="menu_messages"
-            parent="menu_sub"
-            action="action_messages"
-            sequence="20" />
         <record id="action_multi" model="ir.actions.act_window">
             <field name="name">Multi</field>
             <field name="res_model">test_orm.multi</field>
             <field name="view_mode">list,form</field>
         </record>
-        <menuitem id="menu_multi" parent="menu_sub" action="action_multi" />
-        <menuitem
-            id="menu_config"
-            name="Configuration"
-            parent="menu_main"
-            sequence="20" />
         <record id="action_categories" model="ir.actions.act_window">
             <field name="name">Categories</field>
             <field name="res_model">test_orm.category</field>
             <field name="view_mode">list,form</field>
         </record>
-        <menuitem
-            id="menu_categories"
-            parent="menu_config"
-            action="action_categories" />
         <record id="discussion_form" model="ir.ui.view">
             <field name="name">discussion form view</field>
             <field name="model">test_orm.discussion</field>
@@ -158,11 +132,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list'}), Command.create({'view_mode': 'form', 'view_id': ref('discussion_form_2')})]" />
         </record>
-        <menuitem
-            id="menu_discussions_2"
-            parent="menu_sub"
-            action="action_discussions_2"
-            sequence="10" />
         <record id="discussion_form_3" model="ir.ui.view">
             <field name="name">discussion form view</field>
             <field name="model">test_orm.discussion</field>
@@ -196,11 +165,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list'}), Command.create({'view_mode': 'form', 'view_id': ref('discussion_form_3')})]" />
         </record>
-        <menuitem
-            id="menu_discussions_3"
-            parent="menu_sub"
-            action="action_discussions_3"
-            sequence="11" />
         <record id="message_tree" model="ir.ui.view">
             <field name="name">message list view</field>
             <field name="model">test_orm.message</field>
@@ -479,12 +443,6 @@
             <field name="view_mode">list</field>
             <field name="search_view_id" ref="view_model_model_active_field_search" />
         </record>
-        <menuitem
-            id="menu_active"
-            name="Active Test"
-            parent="menu_main"
-            action="action_tests_active"
-            sequence="12" />
         <record id="view_form_onchange_partial_view" model="ir.ui.view">
             <field name="name">Onchange partial view: missing company_id field</field>
             <field name="model">test_orm.onchange.partial.view</field>

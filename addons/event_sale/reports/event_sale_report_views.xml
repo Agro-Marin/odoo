@@ -201,12 +201,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_action_show_revenues"
-        name="Revenues"
-        parent="event.menu_reporting_events"
-        action="event_sale_report_action"
-        sequence="5"
-        groups="event.group_event_user" />
-
 </odoo>

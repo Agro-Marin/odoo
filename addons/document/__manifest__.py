@@ -41,7 +41,6 @@ the Studio automation upsell.
         "views/mail_activity_views.xml",
         "views/mail_activity_plan_views.xml",
         "views/mail_alias_views.xml",
-        "views/document_menu_views.xml",
         "views/document_type_views.xml",
         "views/document_access_log_views.xml",
         "views/document_templates_portal.xml",
@@ -54,6 +53,7 @@ the Studio automation upsell.
         "wizards/document_operation_views.xml",
         "wizards/document_request_wizard_views.xml",
         "wizards/document_sharing_views.xml",
+        "views/document_menu_views.xml",
     ],
     "demo": [
         "demo/document_document_demo.xml",

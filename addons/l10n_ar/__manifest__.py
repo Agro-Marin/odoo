@@ -88,7 +88,6 @@ Master Data:
         "security/ir.model.access.csv",
         "data/l10n_latam_identification_type_data.xml",
         "data/l10n_ar_afip_responsibility_type_data.xml",
-        "data/account_chart_template_data2.xml",
         "data/uom_uom_data.xml",
         "data/l10n_latam.document.type.csv",
         "data/l10n_latam.document.type.xml",
@@ -99,7 +98,6 @@ Master Data:
         "views/res_partner_view.xml",
         "views/res_company_view.xml",
         "views/res_country_view.xml",
-        "views/afip_menuitem.xml",
         "views/l10n_ar_afip_responsibility_type_view.xml",
         "views/res_currency_view.xml",
         "views/account_fiscal_position_view.xml",
@@ -110,6 +108,7 @@ Master Data:
         "views/report_invoice.xml",
         "views/res_config_settings_view.xml",
         "reports/invoice_report_view.xml",
+        "views/afip_menuitem.xml",
     ],
     "demo": [
         "demo/exento_demo.xml",

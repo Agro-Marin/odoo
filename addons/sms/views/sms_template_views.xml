@@ -112,12 +112,6 @@
             <field name="res_model">sms.template</field>
             <field name="view_mode">list,form</field>
         </record>
-        <menuitem
-            id="sms_template_menu"
-            name="SMS Templates"
-            parent="phone_validation.phone_menu_main"
-            action="sms_template_action"
-            sequence="2" />
     </data>
 
 </odoo>

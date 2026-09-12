@@ -13,6 +13,7 @@
     "data": [
         "data/livechat_ongoing_sessions_actions.xml",
         "data/dashboards.xml",
+        "views/spreadsheet_dashboard_im_livechat_menus.xml",
     ],
     "auto_install": [
         "im_livechat",

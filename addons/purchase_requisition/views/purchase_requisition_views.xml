@@ -364,11 +364,6 @@
                 </p>
             </field>
         </record>
-        <menuitem
-            id="menu_purchase_requisition_pro_mgt"
-            parent="purchase.menu_procurement_management"
-            action="action_purchase_requisition"
-            sequence="10" />
     </data>
 
 </odoo>

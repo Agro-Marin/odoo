@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.42
+:Version: 6.43
 :Date: 2026-09-12
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -6200,9 +6200,12 @@ reporting. ``path`` gives the action a readable URL. In XML domains use lists, n
 tuples, and ``uid`` unquoted for the current user.
 
 Every menuitem in a module goes in ``views/<module>_menus.xml``, not scattered
-across view files ``[ratchet lint_xml_menuitem_placement]`` -- the gate wants
-``menu`` in the file name; ``ir_ui_menu_views.xml`` is where ``base`` keeps the
-views *of* ``ir.ui.menu``:
+across view files ``[fixer _relocate_menus]`` ``[ratchet lint_xml_menuitem_placement]``
+-- the gate wants ``menu`` in the file name; ``ir_ui_menu_views.xml`` is where
+``base`` keeps the views *of* ``ir.ui.menu``. The menus file is listed **last**
+in ``data``, so every action a menu names exists before the menu does; a data
+file that references a menu (an ``ir.actions.client`` ``menu_id``, say) is the
+one case that has to stay ahead of it, and the fixer refuses that module:
 
 .. code-block:: xml
 
@@ -8117,6 +8120,10 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.43
+     - 2026-09-12
+     - §3.7: menus are moved by ``_relocate_menus.py`` and the menus file
+       loads last; the floor holds only the eight modules it refuses.
    * - 6.42
      - 2026-09-12
      - §3.6: ``t-esc`` is fixer-owned (``_modernize_output_directives.py``);

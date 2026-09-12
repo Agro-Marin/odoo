@@ -301,12 +301,6 @@
                 </p>
             </field>
         </record>
-        <menuitem
-            id="menu_stock_landed_cost"
-            name="Landed Costs"
-            parent="stock.menu_stock_adjustments"
-            action="action_stock_landed_cost"
-            sequence="115" />
     </data>
 
 </odoo>

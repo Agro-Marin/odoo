@@ -23,6 +23,7 @@
         "security/ir.model.access.csv",
         "security/security.xml",
         "data/earnings_table_data.xml",
+        "views/l10n_ar_withholding_menus.xml",
     ],
     "post_init_hook": "_l10n_ar_wth_post_init",
 }

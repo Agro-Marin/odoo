@@ -197,11 +197,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_automation_runtime"
-        name="Workflow Runtimes"
-        parent="base.menu_automation"
-        action="action_automation_runtime"
-        sequence="65" />
-
 </odoo>

@@ -101,11 +101,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="hr_employee_certification_report_menu"
-        name="Certifications"
-        parent="hr_skills.hr_employee_skill_report_menu"
-        action="hr_employee_certification_report_action"
-        sequence="25" />
-
 </odoo>

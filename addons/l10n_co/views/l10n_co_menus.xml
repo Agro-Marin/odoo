@@ -2,12 +2,10 @@
 <odoo>
 
     <menuitem
-        id="account_reports_uk_statements_menu"
-        name="United Kingdom"
+        id="account_reports_co_statements_menu"
+        name="Colombia"
         parent="account.menu_finance_reports"
         sequence="6"
         groups="account.group_account_readonly" />
-
-    <!-- Chart template -->
 
 </odoo>

@@ -19,6 +19,7 @@
         "views/hr_recruitment_views.xml",
         "views/hr_job_views.xml",
         "views/website_pages_views.xml",
+        "views/website_hr_recruitment_menus.xml",
     ],
     "demo": [
         "demo/hr_job_demo.xml",

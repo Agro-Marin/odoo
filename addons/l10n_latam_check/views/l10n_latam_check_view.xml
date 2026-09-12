@@ -267,12 +267,6 @@
         <field name="context">{'search_default_checks_on_hand': True}</field>
     </record>
 
-    <menuitem
-        id="menu_own_check"
-        parent="account.menu_finance_payables"
-        action="action_own_check"
-        sequence="50" />
-
     <!-- Third party check Views and menus -->
     <record id="view_account_third_party_check_tree" model="ir.ui.view">
         <field name="name">account.check.list</field>
@@ -311,11 +305,5 @@
             name="domain">[('payment_method_code', '=', 'new_third_party_checks'), ('payment_id.state', '!=', 'draft')]</field>
         <field name="context">{'search_default_checks_on_hand': 1}</field>
     </record>
-
-    <menuitem
-        id="menu_third_party_check"
-        parent="account.menu_finance_receivables"
-        action="action_third_party_check"
-        sequence="40" />
 
 </odoo>

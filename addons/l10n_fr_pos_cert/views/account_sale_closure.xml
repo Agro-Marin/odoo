@@ -70,10 +70,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_account_closing_reporting"
-        parent="l10n_fr_account.account_reports_fr_statements_menu"
-        action="action_list_view_account_sale_closing"
-        sequence="90" />
-
 </odoo>

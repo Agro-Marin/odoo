@@ -52,12 +52,6 @@
             <field name="view_mode">list,form</field>
             <field name="context">{'search_default_group_by_region': 1}</field>
         </record>
-        <menuitem
-            id="menu_l10n_cz_tax_office"
-            parent="account.menu_account_invoicing"
-            action="action_l10n_cz_tax_office_tree"
-            sequence="40"
-            groups="account.group_account_manager" />
     </data>
 
 </odoo>

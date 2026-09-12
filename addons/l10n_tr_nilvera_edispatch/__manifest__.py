@@ -18,6 +18,7 @@
         "views/res_partner_views.xml",
         "views/stock_picking_views.xml",
         "templates/l10n_tr_nilvera_edispatch.xml",
+        "views/l10n_tr_nilvera_edispatch_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

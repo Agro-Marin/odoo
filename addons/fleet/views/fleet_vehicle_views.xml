@@ -599,21 +599,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="fleet_vehicles"
-        name="Fleet"
-        parent="menu_root"
-        sequence="2"
-        groups="fleet_group_user" />
-
-    <menuitem
-        id="fleet_vehicle_menu"
-        name="Fleet"
-        parent="fleet_vehicles"
-        action="fleet_vehicle_action"
-        sequence="0"
-        groups="fleet_group_user" />
-
     <record id="fleet_vehicle_odometer_view_form" model="ir.ui.view">
         <field name="name">fleet.vehicle.odometer.form</field>
         <field name="model">fleet.vehicle.odometer</field>
@@ -698,13 +683,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="fleet_vehicle_odometer_menu"
-        parent="fleet_vehicles"
-        action="fleet_vehicle_odometer_action"
-        sequence="10"
-        groups="fleet_group_user" />
-
     <record id="fleet_vehicle_service_types_view_tree" model="ir.ui.view">
         <field name="name">fleet.service.type.list</field>
         <field name="model">fleet.service.type</field>
@@ -744,21 +722,6 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="fleet_services_configuration"
-        name="Services"
-        parent="fleet_configuration"
-        sequence="20"
-        groups="base.group_no_one" />
-
-    <menuitem
-        id="fleet_vehicle_service_types_menu"
-        name="Types"
-        parent="fleet_services_configuration"
-        action="fleet_vehicle_service_types_action"
-        sequence="1"
-        groups="base.group_no_one" />
 
     <record id="fleet_vehicle_state_view_tree" model="ir.ui.view">
         <field name="name">fleet.vehicle.state.list</field>
@@ -802,20 +765,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="fleet_vehicles_configuration"
-        name="Vehicle"
-        parent="fleet_configuration"
-        sequence="30"
-        groups="base.group_no_one" />
-
-    <menuitem
-        id="fleet_vehicle_state_menu"
-        parent="fleet_vehicles_configuration"
-        action="fleet_vehicle_state_action"
-        sequence="10"
-        groups="base.group_no_one" />
-
     <record id="fleet_vehicle_tag_view_view_form" model="ir.ui.view">
         <field name="name">fleet.vehicle.tag.form</field>
         <field name="model">fleet.vehicle.tag</field>
@@ -850,13 +799,6 @@
             </p>
         </field>
     </record>
-
-    <menuitem
-        id="fleet_vehicle_tag_menu"
-        parent="fleet_vehicles_configuration"
-        action="fleet_vehicle_tag_action"
-        sequence="20"
-        groups="base.group_no_one" />
 
     <record id="fleet_vehicle_assignation_log_view_list" model="ir.ui.view">
         <field name="name">fleet.vehicle.assignation.log.view.list</field>

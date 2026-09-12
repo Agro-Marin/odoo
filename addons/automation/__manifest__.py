@@ -34,6 +34,7 @@ trigger an automatic reminder email.
         "views/automation_runtime_line_views.xml",
         "views/ir_actions_server_views.xml",
         "views/workflow_dag_views.xml",
+        "views/automation_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

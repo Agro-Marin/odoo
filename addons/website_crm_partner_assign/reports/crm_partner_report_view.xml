@@ -62,11 +62,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_report_crm_partner_assign_tree"
-        name="Partnerships"
-        parent="crm.crm_menu_report"
-        action="action_report_crm_partner_assign"
-        sequence="5" />
-
 </odoo>

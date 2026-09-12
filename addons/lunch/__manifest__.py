@@ -35,9 +35,9 @@ If you want to save your employees' time and avoid them to always have coins in 
         "views/lunch_product_views.xml",
         "views/lunch_supplier_views.xml",
         "views/res_config_settings.xml",
-        "views/lunch_views.xml",
         "data/mail_template_data.xml",
         "data/lunch_data.xml",
+        "views/lunch_menus.xml",
     ],
     "demo": [
         "demo/lunch_demo.xml",

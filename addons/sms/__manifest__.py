@@ -35,6 +35,7 @@ The service is provided by the In App Purchase Odoo platform.
         "views/sms_template_views.xml",
         "security/ir.model.access.csv",
         "security/sms_security.xml",
+        "views/sms_menus.xml",
     ],
     "demo": [
         "demo/sms_demo.xml",

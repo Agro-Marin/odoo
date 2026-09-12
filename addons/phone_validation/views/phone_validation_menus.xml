@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Technical Menu -->
+    <menuitem
+        id="phone_menu_main"
+        name="Phone / SMS"
+        parent="base.menu_custom"
+        sequence="5" />
+
+    <menuitem
+        id="phone_blacklist_menu"
+        name="Phone Blacklist"
+        parent="phone_validation.phone_menu_main"
+        action="phone_blacklist_action"
+        sequence="3" />
+
+</odoo>

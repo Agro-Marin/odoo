@@ -31,11 +31,11 @@ Notes:
     ],
     "data": [
         "data/account.account.tag.csv",
-        "data/l10n_lu_chart_data.xml",
         "data/tax_report/section_1.xml",
         "data/tax_report/section_2.xml",
         "data/tax_report/sections_34.xml",
         "data/tax_report/tax_report.xml",
+        "views/l10n_lu_menus.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

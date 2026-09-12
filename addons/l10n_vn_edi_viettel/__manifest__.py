@@ -26,6 +26,7 @@ Using SInvoice by Viettel
         "views/sinvoice_views.xml",
         "wizards/account_move_reversal_view.xml",
         "wizards/l10n_vn_edi_cancellation_request_views.xml",
+        "views/l10n_vn_edi_viettel_menus.xml",
     ],
     "uninstall_hook": "uninstall_hook",
 }

@@ -26,6 +26,7 @@ modules.
         "views/crm_lead_views.xml",
         "views/crm_team_views.xml",
         "wizards/crm_opportunity_to_quotation_views.xml",
+        "views/sale_crm_menus.xml",
     ],
     "auto_install": True,
     "uninstall_hook": "uninstall_hook",

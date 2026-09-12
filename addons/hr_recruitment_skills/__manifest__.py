@@ -16,6 +16,7 @@
         "views/hr_applicant_skill_views.xml",
         "views/hr_job_views.xml",
         "security/ir.model.access.csv",
+        "views/hr_recruitment_skills_menus.xml",
     ],
     "demo": [
         "demo/hr_recruitment_skills_demo.xml",

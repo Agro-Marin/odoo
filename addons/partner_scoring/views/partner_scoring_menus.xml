@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="res_partner_attribute_menu"
+        name="Contact Attributes"
+        parent="partner.res_partner_menu_config"
+        action="res_partner_attribute_action"
+        sequence="20" />
+
+    <menuitem
+        id="partner_profile_menu"
+        name="Commercial Profiles"
+        parent="partner.res_partner_menu_config"
+        action="partner_profile_action"
+        sequence="30"
+        groups="partner_scoring.group_partner_scoring_manager" />
+
+</odoo>

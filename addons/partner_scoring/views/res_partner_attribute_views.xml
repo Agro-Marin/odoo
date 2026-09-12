@@ -91,11 +91,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="res_partner_attribute_menu"
-        name="Contact Attributes"
-        parent="partner.res_partner_menu_config"
-        action="res_partner_attribute_action"
-        sequence="20" />
-
 </odoo>

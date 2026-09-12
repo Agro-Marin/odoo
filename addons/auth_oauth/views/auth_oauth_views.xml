@@ -44,12 +44,4 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem
-        id="menu_oauth_providers"
-        name="OAuth Providers"
-        parent="base.menu_users"
-        action="action_oauth_provider"
-        sequence="30"
-        groups="base.group_no_one" />
-
 </odoo>

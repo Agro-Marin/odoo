@@ -41,6 +41,7 @@ Integrates with the ETA portal to automatically send and sign the Invoices to th
         "views/res_config_settings_view.xml",
         "views/report_invoice.xml",
         "data/res_country_data.xml",
+        "views/l10n_eg_edi_eta_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

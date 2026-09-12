@@ -92,12 +92,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="partner_profile_menu"
-        name="Commercial Profiles"
-        parent="partner.res_partner_menu_config"
-        action="partner_profile_action"
-        sequence="30"
-        groups="partner_scoring.group_partner_scoring_manager" />
-
 </odoo>

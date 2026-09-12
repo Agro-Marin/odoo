@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_action_ddt_account"
+        name="DDT"
+        parent="account.menu_account_accounting"
+        action="action_ddt_account"
+        sequence="15"
+        groups="base.group_no_one" />
+
+</odoo>

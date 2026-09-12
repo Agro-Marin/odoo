@@ -491,18 +491,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_stock_jobs"
-        name="Jobs"
-        parent="stock.menu_stock_warehouse_mgmt"
-        sequence="2" />
-
-    <menuitem
-        id="stock_picking_batch_menu"
-        parent="menu_stock_jobs"
-        action="stock_picking_batch_action"
-        sequence="30" />
-
     <record
         id="view_stock_picking_search_internal_inherit_stock_picking_batch"
         model="ir.ui.view">

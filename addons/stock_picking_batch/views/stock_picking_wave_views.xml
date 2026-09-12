@@ -172,10 +172,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="stock_picking_wave_menu"
-        parent="menu_stock_jobs"
-        action="action_picking_tree_wave"
-        sequence="31" />
-
 </odoo>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_l10n_latam_identification_type"
+        parent="partner.res_partner_menu_config"
+        action="action_l10n_latam_identification_type" />
+
+</odoo>

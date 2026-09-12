@@ -120,12 +120,4 @@
         <field name="context">{'module' : 'hr_attendance', 'bin_size': False}</field>
     </record>
 
-    <menuitem
-        id="menu_hr_attendance_settings"
-        name="Settings"
-        parent="menu_hr_attendance_configuration"
-        action="action_hr_attendance_settings"
-        sequence="10"
-        groups="hr_attendance.group_hr_attendance_manager" />
-
 </odoo>

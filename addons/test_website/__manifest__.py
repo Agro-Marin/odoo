@@ -23,6 +23,7 @@ models which only purpose is to run tests.""",
         "views/test_model_multi_website_views.xml",
         "views/test_model_views.xml",
         "data/test_website_data.xml",
+        "views/test_website_menus.xml",
     ],
     "demo": [
         "demo/test_website_demo.xml",

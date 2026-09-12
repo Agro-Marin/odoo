@@ -18,6 +18,7 @@
         "views/im_livechat_channel_add.xml",
         "security/ir.model.access.csv",
         "data/website_livechat_data.xml",
+        "views/website_livechat_menus.xml",
     ],
     "demo": [
         "demo/website_livechat_chatbot_demo.xml",

@@ -33,6 +33,7 @@ have real delivered quantities in sales orders.
         "reports/report_timesheet_templates.xml",
         "reports/project_report_view.xml",
         "wizards/sale_make_invoice_advance_views.xml",
+        "views/sale_timesheet_menus.xml",
     ],
     "demo": [
         "demo/sale_service_demo.xml",

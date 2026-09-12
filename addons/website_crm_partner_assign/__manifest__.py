@@ -42,8 +42,8 @@ The automatic assignment is figured from the weight of partner levels and the ge
         "views/res_partner_grade_views.xml",
         "views/crm_lead_views.xml",
         "views/website_crm_partner_assign_templates.xml",
-        "views/partner_assign_menus.xml",
         "reports/crm_partner_report_view.xml",
+        "views/partner_assign_menus.xml",
     ],
     "demo": [
         "demo/res_partner_demo.xml",

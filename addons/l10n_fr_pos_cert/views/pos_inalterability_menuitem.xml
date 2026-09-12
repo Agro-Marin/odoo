@@ -1,5 +1,11 @@
 <odoo>
 
+    <menuitem
+        id="menu_account_closing_reporting"
+        parent="l10n_fr_account.account_reports_fr_statements_menu"
+        action="action_list_view_account_sale_closing"
+        sequence="90" />
+
     <record id="action_report_pos_hash_integrity" model="ir.actions.report">
         <field name="name">Hash integrity result PDF</field>
         <field name="model">res.company</field>

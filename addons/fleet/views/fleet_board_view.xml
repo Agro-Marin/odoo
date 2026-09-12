@@ -123,19 +123,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_fleet_reporting"
-        name="Reporting"
-        parent="menu_root"
-        sequence="99"
-        groups="fleet_group_manager" />
-
-    <menuitem
-        id="menu_fleet_reporting_costs"
-        name="Costs"
-        parent="menu_fleet_reporting"
-        action="fleet_costs_reporting_action"
-        sequence="1"
-        groups="fleet_group_manager" />
-
 </odoo>

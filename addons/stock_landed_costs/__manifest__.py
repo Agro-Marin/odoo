@@ -22,5 +22,6 @@ This module allows you to easily add extra costs on pickings and decide the spli
         "views/product_views.xml",
         "views/stock_landed_cost_views.xml",
         "views/res_config_settings_views.xml",
+        "views/stock_landed_costs_menus.xml",
     ],
 }

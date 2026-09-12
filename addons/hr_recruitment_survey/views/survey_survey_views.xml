@@ -81,12 +81,4 @@
             eval="[Command.clear(), Command.create({'view_mode': 'kanban', 'view_id': ref('hr_recruitment_survey.survey_survey_view_kanban')}), Command.create({'view_mode': 'form', 'view_id': ref('hr_recruitment_survey.survey_survey_view_form')})]" />
     </record>
 
-    <menuitem
-        id="menu_hr_recruitment_config_surveys"
-        name="Interviews"
-        parent="hr_recruitment.menu_hr_recruitment_configuration"
-        action="survey_survey_action_recruitment"
-        sequence="60"
-        groups="hr_recruitment.group_hr_recruitment_manager" />
-
 </odoo>

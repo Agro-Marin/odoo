@@ -53,9 +53,4 @@
         <field name="code">action = model._open_code_translations()</field>
     </record>
 
-    <menuitem
-        id="menu_transifex_code_translations"
-        parent="base.menu_translation_app"
-        action="action_code_translations" />
-
 </odoo>

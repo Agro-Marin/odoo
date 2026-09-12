@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_l10n_es_edi_verifactu_root"
+        name="Veri*Factu (Spain)"
+        parent="account.menu_finance_configuration"
+        sequence="110"
+        groups="account.group_account_manager">
+        <menuitem
+            id="menu_l10n_es_edi_verifactu_certificates"
+            name="Certificates"
+            action="l10n_es_edi_verifactu_certificate_action"
+            sequence="100"
+            groups="account.group_account_manager" />
+    </menuitem>
+
+</odoo>

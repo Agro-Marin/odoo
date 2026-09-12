@@ -17,6 +17,7 @@ to support In-App purchases inside Odoo. """,
         "security/ir_rule.xml",
         "views/iap_views.xml",
         "views/res_config_settings.xml",
+        "views/iap_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

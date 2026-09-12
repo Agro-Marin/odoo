@@ -40,11 +40,4 @@
         <field name="context">{'active_test': False}</field>
     </record>
 
-    <menuitem
-        id="menu_action_account_l10n_ec_sri_payment"
-        parent="l10n_ec.sri_menu"
-        action="action_account_l10n_ec_sri_payment_tree"
-        sequence="3"
-        groups="account.group_account_manager" />
-
 </odoo>

@@ -12,11 +12,4 @@
             name="context">{'default_res_model': 'fleet.vehicle.log.contract'}</field>
     </record>
 
-    <menuitem
-        id="fleet_menu_config_activity_type"
-        parent="fleet_configuration"
-        action="mail_activity_type_action_config_fleet"
-        sequence="99"
-        groups="base.group_no_one" />
-
 </odoo>

@@ -56,13 +56,6 @@
             <field name="view_mode">list,form</field>
             <field name="view_id" ref="view_tree_account_edi_proxy_client_user" />
         </record>
-        <menuitem
-            id="menu_account_proxy_client_user"
-            name="EDI Proxy Users"
-            parent="account.menu_finance_configuration"
-            action="action_tree_account_edi_proxy_client_user"
-            sequence="11"
-            groups="base.group_no_one" />
     </data>
 
 </odoo>

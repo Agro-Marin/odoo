@@ -34,11 +34,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="res_partner_iap_menu"
-        name="IAP Partners"
-        parent="iap.iap_root_menu"
-        action="res_partner_iap_action"
-        sequence="50" />
-
 </odoo>

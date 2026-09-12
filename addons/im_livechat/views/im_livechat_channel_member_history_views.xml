@@ -47,12 +47,6 @@
                 ref="im_livechat_channel_member_history_view_search" />
             <field name="context">{"create": False}</field>
         </record>
-        <menuitem
-            id="im_livechat.menu_member_history"
-            name="Member History"
-            parent="im_livechat.livechat_technical"
-            action="im_livechat_channel_member_history_action"
-            sequence="15" />
         <record id="im_livechat_agent_history_view_search" model="ir.ui.view">
             <field name="name">im_livechat.agent.history.search</field>
             <field name="model">im_livechat.channel.member.history</field>
@@ -243,12 +237,6 @@
                 <p>Track and improve live chat performance with insights on session activity, response times, customer ratings, and call interactions.</p>
             </field>
         </record>
-        <menuitem
-            id="menu_reporting_livechat_agent"
-            name="Agents"
-            parent="menu_reporting_livechat"
-            action="im_livechat_agent_history_action"
-            sequence="10" />
     </data>
 
 </odoo>

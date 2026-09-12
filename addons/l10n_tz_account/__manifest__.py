@@ -19,8 +19,8 @@
         "tz",
     ],
     "data": [
-        "data/l10n_tz_chart_data.xml",
         "data/account_tax_report_data.xml",
+        "views/l10n_tz_account_menus.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

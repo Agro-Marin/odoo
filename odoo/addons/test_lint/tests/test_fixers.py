@@ -14,6 +14,7 @@ from . import (
     _modernize_commands,
     _modernize_output_directives,
     _pretty_xml,
+    _relocate_menus,
     _sort_manifests,
     _sort_xml_records,
     _xml_identity,
@@ -658,6 +659,101 @@ class TestModernizeOutputDirectives(BaseCase):
         )
 
 
+@no_retry
+class TestRelocateMenus(BaseCase):
+    maxDiff = None
+
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.module = Path(self._tmp.name) / "thing"
+        (self.module / "views").mkdir(parents=True)
+
+    def _manifest(self, data):
+        (self.module / "__manifest__.py").write_text(
+            '{\n    "name": "Thing",\n    "data": [\n'
+            + "".join(f'        "{item}",\n' for item in data)
+            + "    ],\n}\n"
+        )
+
+    def _data(self):
+        return ast.literal_eval((self.module / "__manifest__.py").read_text())["data"]
+
+    def test_menus_leave_the_view_file_and_the_menus_file_loads_last(self):
+        (self.module / "views" / "thing_views.xml").write_text(
+            "<odoo>\n"
+            '    <record id="action_thing" model="ir.actions.act_window"/>\n'
+            "    <!-- the menu -->\n"
+            '    <menuitem id="menu_root" name="Thing">\n'
+            '        <menuitem id="menu_child" action="action_thing"/>\n'
+            "    </menuitem>\n"
+            "</odoo>\n"
+        )
+        (self.module / "views" / "other_views.xml").write_text(
+            '<odoo><menuitem id="menu_other" name="Other" parent="menu_root"/></odoo>\n'
+        )
+        self._manifest(["views/thing_views.xml", "views/other_views.xml"])
+        self.assertEqual(_relocate_menus.relocate_module(self.module), (True, None))
+        self.assertEqual(
+            self._data(), ["views/thing_views.xml", "views/thing_menus.xml"]
+        )
+        self.assertFalse((self.module / "views" / "other_views.xml").exists())
+        menus = etree.parse(str(self.module / "views" / "thing_menus.xml")).getroot()
+        self.assertEqual(
+            [m.get("id") for m in menus.iter("menuitem")],
+            ["menu_root", "menu_child", "menu_other"],
+        )
+        self.assertIn("the menu", etree.tostring(menus, encoding="unicode"))
+        views = etree.parse(str(self.module / "views" / "thing_views.xml")).getroot()
+        self.assertEqual([c.tag for c in views], ["record"])
+        self.assertEqual(_relocate_menus.relocate_module(self.module), (False, None))
+
+    def test_an_existing_menu_file_keeps_load_order(self):
+        (self.module / "views" / "a_views.xml").write_text(
+            '<odoo><menuitem id="menu_root" name="Root"/></odoo>\n'
+        )
+        (self.module / "views" / "thing_menus.xml").write_text(
+            '<odoo><menuitem id="menu_mid" parent="menu_root"/></odoo>\n'
+        )
+        (self.module / "views" / "b_views.xml").write_text(
+            '<odoo><menuitem id="menu_last" parent="menu_mid"/></odoo>\n'
+        )
+        self._manifest(
+            ["views/a_views.xml", "views/thing_menus.xml", "views/b_views.xml"]
+        )
+        self.assertEqual(_relocate_menus.relocate_module(self.module), (True, None))
+        menus = etree.parse(str(self.module / "views" / "thing_menus.xml")).getroot()
+        self.assertEqual(
+            [m.get("id") for m in menus.iter("menuitem")],
+            ["menu_root", "menu_mid", "menu_last"],
+        )
+        self.assertEqual(self._data(), ["views/thing_menus.xml"])
+
+    def test_a_menu_another_data_file_needs_is_refused(self):
+        (self.module / "views" / "thing_views.xml").write_text(
+            '<odoo><menuitem id="menu_root" name="Root"/>'
+            '<record id="c" model="ir.actions.client">'
+            "<field name=\"params\" eval=\"{'menu_id': ref('menu_root')}\"/>"
+            "</record></odoo>\n"
+        )
+        self._manifest(["views/thing_views.xml"])
+        ok, why = _relocate_menus.relocate_module(self.module)
+        self.assertFalse(ok)
+        self.assertIn("menu_root", why)
+        self.assertEqual(self._data(), ["views/thing_views.xml"], "untouched")
+
+    def test_a_menu_under_noupdate_is_refused(self):
+        (self.module / "views" / "thing_views.xml").write_text(
+            '<odoo><data noupdate="1"><menuitem id="menu_root" name="Root"/></data>'
+            "</odoo>\n"
+        )
+        self._manifest(["views/thing_views.xml"])
+        ok, why = _relocate_menus.relocate_module(self.module)
+        self.assertFalse(ok)
+        self.assertIn("noupdate", why)
+
+
 @tagged("post_install", "-at_install")
 @no_retry
 class TestFieldOrderVocabulary(LintCase):
@@ -997,6 +1093,7 @@ class TestFixerScope(LintCase):
             _sort_manifests,
             _modernize_commands,
             _modernize_output_directives,
+            _relocate_menus,
         ):
             with self.subTest(fixer=module.__name__):
                 defaults = [

@@ -56,6 +56,7 @@ This module is compatible with account_vat module in order to be able to validat
         "views/l10n_latam_identification_type_view.xml",
         "views/portal_address_templates.xml",
         "security/ir.model.access.csv",
+        "views/l10n_latam_base_menus.xml",
     ],
     "assets": {
         "web.assets_frontend": [

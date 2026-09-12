@@ -15,6 +15,7 @@
         "security/test_orm_security.xml",
         "views/test_orm_views.xml",
         "data/test_orm_data.xml",
+        "views/test_orm_menus.xml",
     ],
     "assets": {
         "web.assets_tests": [

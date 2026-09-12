@@ -18,6 +18,7 @@ Publish your customers as business references on your website to attract new pot
         "views/res_partner_views.xml",
         "security/ir.model.access.csv",
         "security/ir_rule.xml",
+        "views/website_customer_menus.xml",
     ],
     "demo": [
         "demo/res_partner_demo.xml",

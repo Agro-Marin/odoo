@@ -68,4 +68,19 @@
         action="mail_activity_plan_action_document"
         sequence="20" />
 
+    <menuitem
+        id="menu_document_type"
+        name="Document Types"
+        parent="document.structure"
+        action="action_document_type"
+        sequence="50" />
+
+    <menuitem
+        id="menu_documents_access_log"
+        name="Access Log"
+        parent="document.Config"
+        action="documents_access_log_action"
+        sequence="60"
+        groups="document.group_documents_manager" />
+
 </odoo>

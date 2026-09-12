@@ -108,4 +108,11 @@
         action="action_slide_tag"
         sequence="3" />
 
+    <menuitem
+        id="menu_slide_channel_pages"
+        name="Courses"
+        parent="website.menu_content"
+        action="action_slide_channel_pages_list"
+        sequence="50" />
+
 </odoo>

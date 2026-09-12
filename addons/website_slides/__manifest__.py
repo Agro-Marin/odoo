@@ -42,7 +42,6 @@ Featuring
         "views/slide_channel_partner_views.xml",
         "views/slide_channel_views.xml",
         "views/slide_channel_tag_views.xml",
-        "views/website_slides_menu_views.xml",
         "views/website_slides_templates_homepage.xml",
         "views/website_slides_templates_course.xml",
         "views/website_slides_templates_lesson.xml",
@@ -61,6 +60,7 @@ Featuring
         "data/approval_category_data.xml",
         "data/website_data.xml",
         "data/slides_tour.xml",
+        "views/website_slides_menu_views.xml",
     ],
     "demo": [
         "demo/res_users_demo.xml",

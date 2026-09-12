@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_human_resources_configuration_resume"
+        name="Resume"
+        parent="hr.menu_human_resources_configuration"
+        sequence="15"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="hr_resume_line_type_menu"
+        name="Sections"
+        parent="hr_skills.menu_human_resources_configuration_resume"
+        action="hr_resume_type_action"
+        sequence="3"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="hr_skill_type_menu"
+        name="Skill Types"
+        parent="hr.menu_config_employee"
+        action="hr_skill_type_action"
+        sequence="9"
+        groups="hr.group_hr_user" />
+
+    <menuitem
+        id="hr_employee_skill_report_menu"
+        name="Skills"
+        parent="hr.hr_menu_hr_reports"
+        sequence="15" />
+
+    <menuitem
+        id="hr_skill_learning_menu"
+        name="Learning"
+        parent="hr.menu_hr_root"
+        sequence="93"
+        groups="hr.group_hr_user" />
+
+    <menuitem
+        id="hr_certification_menu"
+        name="Certifications"
+        parent="hr_skill_learning_menu"
+        action="action_hr_employee_skill_certification"
+        sequence="94" />
+
+    <menuitem
+        id="menu_learnings_training_attendances"
+        name="Training Attendances"
+        parent="hr_skill_learning_menu"
+        action="hr_resume_lines_training_action"
+        sequence="95" />
+
+    <menuitem
+        id="menu_learnings_training_attendances_courses"
+        name="Courses"
+        parent="hr_skill_learning_menu"
+        sequence="96" />
+
+    <menuitem
+        id="hr_employee_certification_report_menu"
+        name="Certifications"
+        parent="hr_skills.hr_employee_skill_report_menu"
+        action="hr_employee_certification_report_action"
+        sequence="25" />
+
+    <menuitem
+        id="hr_employee_skill_inventory_report_menu"
+        name="Skills Inventory"
+        parent="hr_skills.hr_employee_skill_report_menu"
+        action="hr_employee_skill_report_action"
+        sequence="15" />
+
+</odoo>

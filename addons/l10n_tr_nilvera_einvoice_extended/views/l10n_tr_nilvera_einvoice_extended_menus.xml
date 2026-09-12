@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="l10n_tr_menu_account_tax_code"
+        parent="account.menu_account_accounting"
+        action="action_l10n_tr_nilvera_einvoice_extended_account_tax_code_list"
+        sequence="9"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="l10n_tr_menu_state_office_partner"
+        parent="partner.menu_localisation"
+        action="action_l10n_tr_nilvera_einvoice_extended_tax_office_list"
+        sequence="10" />
+
+</odoo>

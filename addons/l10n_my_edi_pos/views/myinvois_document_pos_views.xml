@@ -60,12 +60,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('myinvois_document_pos_list_view')}), Command.create({'view_mode': 'form', 'view_id': ref('myinvois_document_pos_form_view')})]" />
         </record>
-        <menuitem
-            id="l10n_my_edi_pos.menu_consolidated_invoices"
-            name="Consolidated Invoice"
-            parent="point_of_sale.menu_point_of_sale"
-            action="l10n_my_edi_pos.action_consolidated_invoices"
-            sequence="50" />
     </data>
 
 </odoo>

@@ -15,6 +15,7 @@
         "security/ir.model.access.csv",
         "wizards/compliance_letter_view.xml",
         "reports/compliance_letter_report.xml",
+        "views/l10n_mt_pos_menus.xml",
     ],
     "auto_install": True,
 }

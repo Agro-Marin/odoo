@@ -23,6 +23,7 @@ to allow you to define interviews for different jobs.
         "views/res_config_setting_views.xml",
         "views/survey_survey_views.xml",
         "views/survey_templates_statistics.xml",
+        "views/hr_recruitment_survey_menus.xml",
     ],
     "demo": [
         "demo/survey_demo.xml",

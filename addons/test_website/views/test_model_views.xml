@@ -60,14 +60,6 @@
         <field name="type">ir.actions.act_window</field>
     </record>
 
-    <menuitem
-        id="menu_test_website_test_model"
-        name="Test Model"
-        parent="website.menu_website_global_configuration"
-        action="action_test_website_test_model"
-        sequence="100"
-        groups="base.group_no_one" />
-
     <record id="view_test_model_form" model="ir.ui.view">
         <field name="name">test.model.form</field>
         <field name="model">test.model</field>

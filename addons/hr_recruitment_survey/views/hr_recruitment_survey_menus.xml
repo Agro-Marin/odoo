@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_hr_recruitment_config_surveys"
+        name="Interviews"
+        parent="hr_recruitment.menu_hr_recruitment_configuration"
+        action="survey_survey_action_recruitment"
+        sequence="60"
+        groups="hr_recruitment.group_hr_recruitment_manager" />
+
+</odoo>

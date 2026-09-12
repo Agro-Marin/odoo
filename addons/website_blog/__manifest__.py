@@ -29,6 +29,7 @@
         "views/blog_post_add.xml",
         "security/ir.model.access.csv",
         "security/website_blog_security.xml",
+        "views/website_blog_menus.xml",
     ],
     "demo": [
         "demo/website_blog_demo.xml",

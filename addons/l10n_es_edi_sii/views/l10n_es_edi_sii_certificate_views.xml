@@ -44,18 +44,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_l10n_es_edi_sii_root"
-        name="Spain SII"
-        parent="account.menu_finance_configuration"
-        sequence="110"
-        groups="account.group_account_manager">
-        <menuitem
-            id="menu_l10n_es_edi_sii_certificates"
-            name="Certificates"
-            action="l10n_es_edi_sii_certificate_action"
-            sequence="100"
-            groups="account.group_account_manager" />
-    </menuitem>
-
 </odoo>

@@ -135,13 +135,6 @@
             <field name="res_model">event.lead.rule</field>
             <field name="view_mode">form</field>
         </record>
-        <menuitem
-            id="event_lead_rule_menu"
-            name="Lead Generation"
-            parent="event.menu_event_configuration"
-            action="event_lead_rule_action"
-            sequence="10"
-            groups="event.group_event_manager" />
     </data>
 
 </odoo>

@@ -14,5 +14,6 @@
         "data/ir_cron.xml",
         "views/link_tracker_views.xml",
         "views/utm_campaign_views.xml",
+        "views/link_tracker_menus.xml",
     ],
 }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="sale_menu_action_delivery_carrier_form"
+        parent="sale.menu_sales_config"
+        action="action_delivery_carrier_form"
+        sequence="4" />
+
+</odoo>

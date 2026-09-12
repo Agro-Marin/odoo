@@ -13,12 +13,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('im_livechat.discuss_channel_view_tree')}), Command.create({'view_mode': 'form', 'view_id': ref('im_livechat.discuss_channel_view_form')})]" />
         </record>
-        <menuitem
-            id="ongoing_session_all_menu"
-            name="Ongoing Sessions"
-            parent="im_livechat.livechat_technical"
-            action="ongoing_sessions_all_action"
-            groups="im_livechat.im_livechat_group_manager" />
         <record id="ongoing_sessions_escalated_action" model="ir.actions.act_window">
             <field name="name">Sessions</field>
             <field name="res_model">discuss.channel</field>
@@ -31,12 +25,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('im_livechat.discuss_channel_view_tree')}), Command.create({'view_mode': 'form', 'view_id': ref('im_livechat.discuss_channel_view_form')})]" />
         </record>
-        <menuitem
-            id="ongoing_sessions_escalated_menu"
-            name="Escalated Sessions"
-            parent="im_livechat.livechat_technical"
-            action="ongoing_sessions_escalated_action"
-            groups="im_livechat.im_livechat_group_manager" />
         <record
             id="ongoing_sessions_agents_in_call_action"
             model="ir.actions.act_window">
@@ -51,12 +39,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('im_livechat.discuss_channel_view_tree')}), Command.create({'view_mode': 'form', 'view_id': ref('im_livechat.discuss_channel_view_form')})]" />
         </record>
-        <menuitem
-            id="ongoing_sessions_agents_in_call_menu"
-            name="Ongoing Call Sessions"
-            parent="im_livechat.livechat_technical"
-            action="ongoing_sessions_agents_in_call_action"
-            groups="im_livechat.im_livechat_group_manager" />
         <record
             id="ongoing_sessions_handle_by_agent_action"
             model="ir.actions.act_window">
@@ -71,12 +53,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('im_livechat.discuss_channel_view_tree')}), Command.create({'view_mode': 'form', 'view_id': ref('im_livechat.discuss_channel_view_form')})]" />
         </record>
-        <menuitem
-            id="ongoing_sessions_handle_by_agent_menu"
-            name="Sessions Handled by Agent"
-            parent="im_livechat.livechat_technical"
-            action="ongoing_sessions_handle_by_agent_action"
-            groups="im_livechat.im_livechat_group_manager" />
         <record
             id="ongoing_sessions_handle_by_bot_action"
             model="ir.actions.act_window">
@@ -91,12 +67,6 @@
                 name="view_ids"
                 eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('im_livechat.discuss_channel_view_tree')}), Command.create({'view_mode': 'form', 'view_id': ref('im_livechat.discuss_channel_view_form')})]" />
         </record>
-        <menuitem
-            id="ongoing_sessions_handle_by_bot_menu"
-            name="Sessions Handled by Bot"
-            parent="im_livechat.livechat_technical"
-            action="ongoing_sessions_handle_by_bot_action"
-            groups="im_livechat.im_livechat_group_manager" />
     </data>
 
 </odoo>

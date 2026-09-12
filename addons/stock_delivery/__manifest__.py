@@ -29,6 +29,7 @@ When creating invoices from picking, the system is able to add and compute the s
         "views/stock_rule_views.xml",
         "views/stock_move_line_views.xml",
         "reports/product_templates.xml",
+        "views/stock_delivery_menus.xml",
     ],
     "demo": [
         "demo/delivery_demo.xml",

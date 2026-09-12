@@ -72,11 +72,4 @@
             eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('slide_channel_pages_tree_view')}), Command.create({'view_mode': 'kanban', 'view_id': ref('slide_channel_pages_kanban_view')})]" />
     </record>
 
-    <menuitem
-        id="menu_slide_channel_pages"
-        name="Courses"
-        parent="website.menu_content"
-        action="action_slide_channel_pages_list"
-        sequence="50" />
-
 </odoo>

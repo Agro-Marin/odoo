@@ -21,6 +21,7 @@ their own ``iot_*`` modules, so installing one never drags an application in.
         "security/iot_security.xml",
         "security/ir.model.access.csv",
         "views/iot_views.xml",
+        "views/iot_menus.xml",
     ],
     "demo": [
         "demo/iot_demo.xml",

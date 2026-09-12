@@ -442,10 +442,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_automation_form"
-        parent="base.menu_automation"
-        action="automation_act"
-        sequence="1" />
-
 </odoo>

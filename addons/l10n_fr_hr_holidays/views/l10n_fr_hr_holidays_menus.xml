@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="hr_holidays_menu_configuration"
+        name="Settings"
+        parent="hr_holidays.menu_hr_holidays_configuration"
+        action="hr.hr_config_settings_action"
+        sequence="10"
+        groups="base.group_system" />
+
+</odoo>

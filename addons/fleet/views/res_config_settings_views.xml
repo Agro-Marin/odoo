@@ -37,13 +37,6 @@
             <field name="view_mode">form</field>
             <field name="context">{'module' : 'fleet', 'bin_size': False}</field>
         </record>
-        <menuitem
-            id="fleet_config_settings_menu"
-            name="Settings"
-            parent="fleet.fleet_configuration"
-            action="fleet_config_settings_action"
-            sequence="0"
-            groups="base.group_system" />
     </data>
 
 </odoo>

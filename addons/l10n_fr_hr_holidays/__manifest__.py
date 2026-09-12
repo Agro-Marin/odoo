@@ -13,6 +13,7 @@
     ],
     "data": [
         "views/res_config_settings_views.xml",
+        "views/l10n_fr_hr_holidays_menus.xml",
     ],
     "demo": [
         "demo/l10n_fr_hr_holidays_demo.xml",

@@ -47,9 +47,4 @@
         <field name="context">{"search_default_active":1}</field>
     </record>
 
-    <menuitem
-        id="menu_l10n_latam_identification_type"
-        parent="partner.res_partner_menu_config"
-        action="action_l10n_latam_identification_type" />
-
 </odoo>

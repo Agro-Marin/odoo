@@ -208,20 +208,6 @@
         </field>
     </record>
 
-    <menuitem
-        id="menu_root"
-        name="Fleet"
-        sequence="220"
-        groups="fleet_group_user"
-        web_icon="fleet,static/description/icon.png" />
-
-    <menuitem
-        id="fleet_configuration"
-        name="Configuration"
-        parent="menu_root"
-        sequence="100"
-        groups="fleet_group_manager" />
-
     <record id="fleet_vehicle_model_brand_view_tree" model="ir.ui.view">
         <field name="name">fleet.vehicle.model.brand.list</field>
         <field name="model">fleet.vehicle.model.brand</field>
@@ -375,30 +361,5 @@
             </form>
         </field>
     </record>
-
-    <menuitem
-        id="fleet_models_configuration"
-        name="Models"
-        parent="fleet_configuration"
-        sequence="10"
-        groups="fleet_group_manager" />
-
-    <menuitem
-        id="fleet_vehicle_model_brand_menu"
-        parent="fleet_models_configuration"
-        action="fleet_vehicle_model_brand_action"
-        sequence="1" />
-
-    <menuitem
-        id="fleet_vehicle_model_menu"
-        parent="fleet_models_configuration"
-        action="fleet_vehicle_model_action"
-        sequence="5" />
-
-    <menuitem
-        id="fleet_vehicle_model_category_menu"
-        parent="fleet_models_configuration"
-        action="fleet_vehicle_model_category_action"
-        sequence="10" />
 
 </odoo>

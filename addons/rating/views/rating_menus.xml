@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add menu entry in Technical/Discuss -->
+    <menuitem
+        id="rating_rating_menu_technical"
+        name="Ratings"
+        parent="mail.menu_mail_discuss_technical"
+        action="rating_rating_action"
+        sequence="30" />
+
+</odoo>

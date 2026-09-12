@@ -37,5 +37,6 @@ If your localization needs this logic will then need to add this module as depen
         "reports/invoice_report_view.xml",
         "wizards/account_move_reversal_view.xml",
         "security/ir.model.access.csv",
+        "views/l10n_latam_invoice_document_menus.xml",
     ],
 }

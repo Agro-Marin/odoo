@@ -90,12 +90,4 @@ Example:
         </field>
     </record>
 
-    <menuitem
-        id="menu_action_license"
-        name="Accounting Tests"
-        parent="account.menu_finance_reports"
-        action="action_accounting_assert"
-        sequence="50"
-        groups="base.group_no_one" />
-
 </odoo>

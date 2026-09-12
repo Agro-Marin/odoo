@@ -15,6 +15,7 @@ This module allows a customer to give rating.
         "views/rating_templates.xml",
         "views/mail_message_views.xml",
         "security/ir.model.access.csv",
+        "views/rating_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [

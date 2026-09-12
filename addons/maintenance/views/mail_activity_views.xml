@@ -14,11 +14,4 @@
         <field name="context">{'default_res_model': 'maintenance.request'}</field>
     </record>
 
-    <menuitem
-        id="maintenance_menu_config_activity_type"
-        parent="menu_maintenance_configuration"
-        action="mail_activity_type_action_config_maintenance"
-        sequence="20"
-        groups="base.group_no_one" />
-
 </odoo>

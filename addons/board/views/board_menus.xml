@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--My Dashboard Menu-->
+    <menuitem
+        id="menu_board_my_dash"
+        name="My Dashboard"
+        parent="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
+        action="open_board_my_dash_action"
+        sequence="100" />
+
+</odoo>

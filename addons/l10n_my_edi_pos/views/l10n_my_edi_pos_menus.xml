@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="l10n_my_edi_pos.menu_consolidated_invoices"
+        name="Consolidated Invoice"
+        parent="point_of_sale.menu_point_of_sale"
+        action="l10n_my_edi_pos.action_consolidated_invoices"
+        sequence="50" />
+
+</odoo>

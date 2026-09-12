@@ -32,6 +32,7 @@ The system is able to add and compute the shipping line.
         "views/sale_order_views.xml",
         "wizards/res_config_settings_views.xml",
         "wizards/choose_delivery_carrier_views.xml",
+        "views/delivery_menus.xml",
     ],
     "demo": [
         "demo/delivery_demo.xml",

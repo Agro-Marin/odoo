@@ -16,8 +16,8 @@
         "co",
     ],
     "data": [
-        "data/account_chart_template_data.xml",
         "data/l10n_latam.identification.type.csv",
+        "views/l10n_co_menus.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

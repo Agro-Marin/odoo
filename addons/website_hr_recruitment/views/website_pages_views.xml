@@ -54,12 +54,4 @@
             eval="[Command.clear(), Command.create({'view_mode': 'list', 'view_id': ref('job_pages_tree_view')}), Command.create({'view_mode': 'kanban', 'view_id': ref('job_pages_kanban_view')})]" />
     </record>
 
-    <menuitem
-        id="menu_job_pages"
-        name="Jobs"
-        parent="website.menu_content"
-        action="action_job_pages_list"
-        sequence="70"
-        groups="hr_recruitment.group_hr_recruitment_interviewer" />
-
 </odoo>

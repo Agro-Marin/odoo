@@ -54,10 +54,4 @@
         </field>
     </record>
 
-    <menuitem
-        id="l10n_tr_menu_state_office_partner"
-        parent="partner.menu_localisation"
-        action="action_l10n_tr_nilvera_einvoice_extended_tax_office_list"
-        sequence="10" />
-
 </odoo>
