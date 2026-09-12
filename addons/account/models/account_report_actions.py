@@ -1018,7 +1018,7 @@ class AccountReportActions(models.Model):
         try:
             value_to_set = float_round(float(new_value_str), precision_digits=rounding)
         except ValueError:
-            raise UserError(_("%s is not a numeric value", new_value_str))  # noqa: B904
+            raise UserError(_("%s is not a numeric value", new_value_str)) from None
 
         model, account_id = self._get_model_info_from_id(line_id)
         if model != "account.account":

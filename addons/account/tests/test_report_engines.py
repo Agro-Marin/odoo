@@ -291,15 +291,12 @@ class TestReportEngines(TestAccountReportsCommon):
                 test_report_line_values["expression_generators"],
                 strict=False,
             ):
-                for external_values in expression_values.get(
-                    "external_value_generators", []
-                ):
-                    external_values_create_list.append(  # noqa: PERF401
-                        {
-                            **external_values,
-                            "target_report_expression_id": expression.id,
-                        }
+                external_values_create_list.extend(
+                    {**external_values, "target_report_expression_id": expression.id}
+                    for external_values in expression_values.get(
+                        "external_value_generators", []
                     )
+                )
         self.env["account.report.external.value"].create(external_values_create_list)
 
         return report
@@ -1530,7 +1527,9 @@ class TestReportEngines(TestAccountReportsCommon):
             ("test12_1", moves[1].line_ids[:3]),
         ]
         for report_line_name, expected_amls in expected_amls_to_test:
-            report_line = report.line_ids.filtered(lambda x: x.name == report_line_name)  # noqa: B023
+            report_line = report.line_ids.filtered(
+                lambda x, report_line_name=report_line_name: x.name == report_line_name
+            )
             report_line_dict = next(
                 x for x in report_lines if x["name"] == report_line.name
             )
@@ -1685,7 +1684,7 @@ class TestReportEngines(TestAccountReportsCommon):
 
         for report_line_name, expected_amls in expected_amls_to_test:
             report_line = main_report.line_ids.filtered(
-                lambda x: x.name == report_line_name  # noqa: B023
+                lambda x, report_line_name=report_line_name: x.name == report_line_name
             )
             report_line_dict = next(
                 x for x in main_report_lines if x["name"] == report_line.name
@@ -2579,7 +2578,9 @@ class TestReportEngines(TestAccountReportsCommon):
             action_dict = report.action_audit_cell(col_group_options, audit_params)
 
             expected_amls = move.line_ids.filtered(
-                lambda x: x.partner_id == expected_partner  # noqa: B023
+                lambda x, expected_partner=expected_partner: (
+                    x.partner_id == expected_partner
+                )
             )
             audit_result_amls = move.line_ids.filtered_domain(action_dict["domain"])
             self.assertEqual(
@@ -2610,7 +2611,7 @@ class TestReportEngines(TestAccountReportsCommon):
             load_more_limit=2,
         )
 
-        move = self._create_test_account_moves(  # noqa: F841
+        self._create_test_account_moves(
             [
                 self._prepare_test_account_move_line(
                     10, account_code="11", partner_id=partner_a.id

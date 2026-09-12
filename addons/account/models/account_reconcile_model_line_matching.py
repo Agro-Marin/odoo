@@ -164,16 +164,16 @@ class AccountReconcileModelLine(models.Model):
                         extracted_balance = float(f"{int_part}.{dec_part}")
                     return copysign(extracted_balance * sign, residual_amount_currency)
                 except IndexError:
-                    raise RedirectWarning(  # noqa: B904
+                    raise RedirectWarning(
                         self.env._(
                             "The regular expression for capturing the counterpart amount appears to be incorrectly formatted.\n"
                             "Please make sure that the part of the regex capturing the amount is the first (or only) one in parentheses, for example: BRT: ([\\d,.]+)."
                         ),
                         self.model_id._get_records_action(),
                         self.env._("Open reconcile model"),
-                    )
+                    ) from None
                 except AttributeError:
-                    raise RedirectWarning(  # noqa: B904
+                    raise RedirectWarning(
                         self.env._(
                             "The regular expression for capturing the counterpart amount appears to be incorrectly formatted.\n"
                             "Please make sure that the part of the regex capturing the amount (in parentheses) cannot capture an empty value (usually by an incorrect use of ? or *) "
@@ -181,5 +181,5 @@ class AccountReconcileModelLine(models.Model):
                         ),
                         self.model_id._get_records_action(),
                         self.env._("Open reconcile model"),
-                    )
+                    ) from None
         return 0.0

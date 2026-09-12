@@ -83,8 +83,7 @@ class AccountReport(models.AbstractModel):
             accounts = self.env["account.analytic.account"].search(
                 [("plan_id", "child_of", plan.id)]
             )
-            for account in accounts:
-                account_list.append(account.id)  # noqa: PERF401
+            account_list.extend(account.id for account in accounts)
             analytic_headers.append(
                 {
                     "name": plan.name,
@@ -101,16 +100,16 @@ class AccountReport(models.AbstractModel):
         accounts = self.env["account.analytic.account"].browse(
             options.get("analytic_accounts_groupby")
         )
-        for account in accounts:
-            analytic_headers.append(  # noqa: PERF401
-                {
-                    "name": account.name,
-                    "forced_options": {
-                        "analytic_groupby_option": True,
-                        "analytic_accounts_list": (account.id,),
-                    },
-                }
-            )
+        analytic_headers.extend(
+            {
+                "name": account.name,
+                "forced_options": {
+                    "analytic_groupby_option": True,
+                    "analytic_accounts_list": (account.id,),
+                },
+            }
+            for account in accounts
+        )
         if analytic_headers:
             has_selected_budgets = any(
                 budget for budget in options.get("budgets", []) if budget["selected"]

@@ -97,16 +97,16 @@ class TestBudgetReport(TestAccountReportsCommon):
         )
         items = []
         for account_id, amount in amount_per_account_ids.items():
-            for item_date in date_utils.date_range(date_from, date_to):
-                items.append(  # noqa: PERF401
-                    Command.create(
-                        {
-                            "amount": amount,
-                            "account_id": account_id,
-                            "date": date_utils.start_of(item_date, "month"),
-                        }
-                    )
+            items.extend(
+                Command.create(
+                    {
+                        "amount": amount,
+                        "account_id": account_id,
+                        "date": date_utils.start_of(item_date, "month"),
+                    }
                 )
+                for item_date in date_utils.date_range(date_from, date_to)
+            )
 
         return cls.env["account.report.budget"].create(
             {

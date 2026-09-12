@@ -650,8 +650,8 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
                 grouping_key = query_res["grouping_key"]
                 all_res_per_grouping_key.setdefault(grouping_key, []).append(query_res)
 
-            for grouping_key, query_res_lines in all_res_per_grouping_key.items():  # noqa: PLR1704
-                rslt.append((grouping_key, prepare_result_dict(query_res_lines)))
+            for grouping_key, grouped_lines in all_res_per_grouping_key.items():
+                rslt.append((grouping_key, prepare_result_dict(grouped_lines)))
 
             return rslt
 

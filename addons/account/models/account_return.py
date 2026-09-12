@@ -649,8 +649,7 @@ class AccountReturn(models.Model):
             if not allow_multiple_by_types:
                 next_returns_ids.append(recordset[0].id)
             else:
-                for record in recordset:
-                    next_returns_ids.append(record.id)  # noqa: PERF401
+                next_returns_ids.extend(record.id for record in recordset)
 
         return next_returns_ids
 
@@ -1834,9 +1833,9 @@ class AccountReturn(models.Model):
 
             if record._is_check_run_required():
                 check_codes_to_ignore = set(
-                    record.check_ids.filtered(lambda x: x.state != record.state).mapped(  # noqa: B023
-                        "code"
-                    )
+                    record.check_ids.filtered(
+                        lambda x, record=record: x.state != record.state
+                    ).mapped("code")
                 )
                 rslt = record._run_checks(check_codes_to_ignore)
                 rslt += record._execute_template_checks(check_codes_to_ignore)
@@ -1860,7 +1859,9 @@ class AccountReturn(models.Model):
                 )
                 if obsolete_check_codes:
                     to_unlink |= record.check_ids.filtered(
-                        lambda c: c.code in obsolete_check_codes  # noqa: B023
+                        lambda c, obsolete_check_codes=obsolete_check_codes: (
+                            c.code in obsolete_check_codes
+                        )
                     )
         if to_create:
             self.env["account.return.check"].with_user(SUPERUSER_ID).create(to_create)
@@ -1924,7 +1925,7 @@ class AccountReturn(models.Model):
 
             if template.activity_type:
                 current_template_activities = self.activity_ids.filtered(
-                    lambda act: act.summary == template.name  # noqa: B023
+                    lambda act, template=template: act.summary == template.name
                 )
                 activities_to_unlink = current_template_activities.filtered(
                     lambda act: act.state != "done"

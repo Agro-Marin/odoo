@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import datetime
 import io
 import json
@@ -189,12 +190,12 @@ class AccountReportExport(models.Model):
             reports_to_print = self
 
         reports_options = []
-        for report in reports_to_print:
-            reports_options.append(  # noqa: PERF401
-                report.get_options(
-                    previous_options={**print_options, "selected_section_id": report.id}
-                )
+        reports_options.extend(
+            report.get_options(
+                previous_options={**print_options, "selected_section_id": report.id}
             )
+            for report in reports_to_print
+        )
 
         grouped_reports_by_format = groupby(
             zip(reports_to_print, reports_options, strict=False),
@@ -455,19 +456,15 @@ class AccountReportExport(models.Model):
         except KeyError:
             col_width = 8.43
 
-        row_height = sheet.row_sizes.get(row, [8.43])[0]  # noqa: F841
-
         if value is None:
             value = ""
         else:
-            try:  # noqa: SIM105
-                # This is needed, otherwise we could compute width on very long number such as 12.0999999998
-                # which wouldn't show well in the end result as the numbers are rounded.
+            # This is needed, otherwise we could compute width on very long number such as 12.0999999998
+            # which wouldn't show well in the end result as the numbers are rounded.
+            with contextlib.suppress(ValueError, OverflowError):
                 value = float_repr(
                     float(value), self.env.company.currency_id.decimal_places
                 )
-            except ValueError, OverflowError:
-                pass
 
         # Start by computing the width of the cell if we are not using colspans.
         if not has_colspan:
@@ -1423,12 +1420,12 @@ class AccountReportExport(models.Model):
             if len(set(candidate_duplicate_lines.mapped("name"))) <= 1:
                 continue
             seen_balance_chars = []
-            for reported_account_code in reported_account_codes:
-                if (
-                    candidate_duplicate_code.startswith(reported_account_code["prefix"])
-                    and reported_account_code["balance"]
-                ):
-                    seen_balance_chars.append(reported_account_code["balance"])  # noqa: PERF401
+            seen_balance_chars.extend(
+                reported_account_code["balance"]
+                for reported_account_code in reported_account_codes
+                if candidate_duplicate_code.startswith(reported_account_code["prefix"])
+                and reported_account_code["balance"]
+            )
             if (
                 not seen_balance_chars
                 or seen_balance_chars.count("C") > 1

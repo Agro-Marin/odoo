@@ -292,7 +292,9 @@ class AccountReturnType(models.Model):
         )
         for account_return in returns_to_submit:
             for user in self.env.ref("account.group_account_manager").user_ids.filtered(
-                lambda user: set(user.company_ids) & set(account_return.company_ids)  # noqa: B023
+                lambda user, account_return=account_return: (
+                    set(user.company_ids) & set(account_return.company_ids)
+                )
             ):
                 mail_template.with_context(partner=user.partner_id).send_mail(
                     account_return.id
@@ -319,7 +321,9 @@ class AccountReturnType(models.Model):
         for company in root_companies:
             fiscal_country = company.account_fiscal_country_id
             domestic_tax_unit = all_tax_units.filtered(
-                lambda x: x.country_id == fiscal_country and company in x.company_ids  # noqa: B023
+                lambda x, fiscal_country=fiscal_country, company=company: (
+                    x.country_id == fiscal_country and company in x.company_ids
+                )
             )  # At most 1
             self._generate_all_returns(fiscal_country.code, company, domestic_tax_unit)
             all_domestic_tax_units += domestic_tax_unit
@@ -699,7 +703,7 @@ class AccountReturnType(models.Model):
         else:
             return_dict = {}
             installed_langs = self.env["res.lang"].get_installed()
-            for lang_code, lang_name in installed_langs:  # noqa: B007
+            for lang_code, _lang_name in installed_langs:
                 return_dict[lang_code] = self.with_context(lang=lang_code).env._(
                     "%(return_type_name)s %(period_suffix)s %(country_code)s",
                     return_type_name=self.with_context(lang=lang_code).name,

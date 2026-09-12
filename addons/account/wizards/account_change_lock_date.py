@@ -192,7 +192,7 @@ class AccountChangeLockDate(models.TransientModel):
             )
             for field in SOFT_LOCK_DATE_FIELDS:
                 field_exceptions = exceptions.filtered(
-                    lambda e: e.lock_date_field == field  # noqa: B023
+                    lambda e, field=field: e.lock_date_field == field
                 )
                 field_exceptions_for_me = field_exceptions.filtered(
                     lambda e: e.user_id.id == self.env.user.id

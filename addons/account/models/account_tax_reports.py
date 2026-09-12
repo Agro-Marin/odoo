@@ -77,7 +77,9 @@ class AccountTaxUnit(models.Model):
 
         for tax_unit in res:
             generic_tax_report.variant_report_ids.filtered(
-                lambda variant: variant.country_id == tax_unit.country_id  # noqa: B023
+                lambda variant, tax_unit=tax_unit: (
+                    variant.country_id == tax_unit.country_id
+                )
             ).write(
                 {
                     "horizontal_group_ids": [
@@ -115,7 +117,7 @@ class AccountTaxUnit(models.Model):
                 fp = unit._get_tax_unit_fiscal_positions(companies=origin_company)
                 all_partners_with_fp = (
                     all_companies.with_company(origin_company).partner_id.filtered(
-                        lambda p: p.property_account_position_id == fp  # noqa: B023
+                        lambda p, fp=fp: p.property_account_position_id == fp
                     )
                     if fp
                     else self.env["res.partner"]

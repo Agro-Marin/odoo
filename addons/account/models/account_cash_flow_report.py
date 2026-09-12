@@ -43,14 +43,14 @@ class AccountCashFlowReportHandler(models.AbstractModel):
                     else:
                         aml_data_values_without_account_code.append(aml_data)
 
-                for aml_data in (
-                    sorted(
+                lines.extend(
+                    (0, self._get_aml_line(report, options, aml_data))
+                    for aml_data in sorted(
                         aml_data_values_with_account_code,
                         key=lambda x: x["account_code"],
                     )
                     + aml_data_values_without_account_code
-                ):
-                    lines.append((0, self._get_aml_line(report, options, aml_data)))  # noqa: PERF401
+                )
 
         unexplained_difference_line = self._get_unexplained_difference_line(
             report, options, report_data

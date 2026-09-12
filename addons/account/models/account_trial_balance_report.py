@@ -80,10 +80,9 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
 
         last_column = {}
         nb_columns_per_header = len(original_columns) / len(original_headers)
-        col_number_in_block = 0
         fiscal_year = {}
 
-        for column in original_columns:
+        for col_number_in_block, column in enumerate(original_columns, start=1):
             column_group_values = options["column_groups"][column["column_group_key"]]
             fiscal_year = self.env.company.compute_fiscalyear_dates(
                 fields.Date.to_date(
@@ -133,7 +132,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 )
 
             # Handle column headers
-            col_number_in_block += 1  # noqa: SIM113
             if col_number_in_block % nb_columns_per_header == 0:
                 headers.append(original_headers.pop(0))
 

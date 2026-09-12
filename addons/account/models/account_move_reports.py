@@ -93,9 +93,9 @@ class AccountMove(models.Model):
             matching_statuses = account_to_statuses.get(
                 line.account_id, empty_status
             ).filtered(
-                lambda status: (
+                lambda status, line=line: (
                     audit_id_to_dates[status.audit_id.id]["date_from"]
-                    <= line.date  # noqa: B023
+                    <= line.date
                     <= audit_id_to_dates[status.audit_id.id]["date_to"]
                 )
             )

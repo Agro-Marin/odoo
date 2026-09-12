@@ -113,7 +113,7 @@ class AccountReportExpressionEval(models.Model):
                     formula = " + ".join(
                         f"_expression:{child_expr.id}"
                         for child_expr in expression.report_line_id.children_ids.expression_ids.filtered(
-                            lambda e: e.label == expression.label  # noqa: B023
+                            lambda e, expression=expression: e.label == expression.label
                         )
                     )
 
@@ -272,14 +272,14 @@ class AccountReportExpressionEval(models.Model):
                                     (key, safe_eval(result_value_key, result_dict))
                                 )
                             except ValueError, SyntaxError:
-                                raise UserError(subformula_error_format)  # noqa: B904
+                                raise UserError(subformula_error_format) from None
                     else:
                         # For non-groupby lines, we directly set the total value for the line.
                         try:
                             expression_value = safe_eval(result_value_key, result)
                             sublines_info = result.get("has_sublines", False)
                         except ValueError, SyntaxError:
-                            raise UserError(subformula_error_format)  # noqa: B904
+                            raise UserError(subformula_error_format) from None
 
                     if column_group_options.get("integer_rounding_enabled"):
                         in_monetary_column = any(
@@ -660,13 +660,13 @@ class AccountReportExpressionEval(models.Model):
                         if term in aggregations_terms_to_evaluate:
                             # Then, the term is probably an aggregation with bounds that still needs to be computed. We need to keep on looping
                             continue
-                        raise UserError(  # noqa: B904
+                        raise UserError(
                             _(
                                 "Could not expand term %(term)s while evaluating formula %(unexpanded_formula)s",
                                 term=term,
                                 unexpanded_formula=unexpanded_formula,
                             )
-                        )
+                        ) from None
 
                     formula = re.sub(
                         term_replacement_regex % re.escape(term),
@@ -682,13 +682,13 @@ class AccountReportExpressionEval(models.Model):
                 except ZeroDivisionError:
                     for expr in formulas_dict[unexpanded_formula, forced_date_scope]:
                         if expr.subformula != "ignore_zero_division":
-                            raise UserError(  # noqa: B904
+                            raise UserError(
                                 _(
                                     "Division by zero occurred while evaluating Expression: %(line_name)s > %(label)s.",
                                     line_name=expr.report_line_name,
                                     label=expr.label,
                                 )
-                            )
+                            ) from None
                     # Arbitrary choice; for clarity of the report. A 0 division could typically happen when there is no result in the period.
                     formula_result = 0
 
@@ -1149,14 +1149,14 @@ class AccountReportExpressionEval(models.Model):
             try:
                 domain = literal_eval(formula)
             except ValueError, SyntaxError:
-                raise UserError(  # noqa: B904
+                raise UserError(
                     _(
                         'Invalid domain formula in expression "%(expression)s" of line "%(line)s": %(formula)s',
                         expression=expressions[0].label,
                         line=expressions[0].report_line_id.name,
                         formula=formula,
                     )
-                )
+                ) from None
 
             if (
                 offset
@@ -1506,7 +1506,7 @@ class AccountReportExpressionEval(models.Model):
                         accounts, prefix, key=lambda acc: acc["code"]
                     )
                     accs = itertools.takewhile(
-                        lambda acc: acc["code"].startswith(prefix),  # noqa: B023
+                        lambda acc, prefix=prefix: acc["code"].startswith(prefix),
                         itertools.islice(accounts, idx, None),
                     )
 
@@ -1934,7 +1934,7 @@ class AccountReportExpressionEval(models.Model):
     def _currency_table_aml_join(
         self,
         options,
-        aml_alias=SQL("account_move_line"),  # noqa: B008
+        aml_alias=SQL("account_move_line"),  # noqa: B008  SQL is immutable, one shared default is safe
     ) -> SQL:
         """Returns the JOIN condition to the currency table in a query needing to use it to convert aml balances from one currency to another."""
         if options["currency_table"]["type"] == "cta":

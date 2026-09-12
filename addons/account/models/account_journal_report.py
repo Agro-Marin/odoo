@@ -161,8 +161,10 @@ class AccountJournalReportHandler(models.AbstractModel):
         query_lines = self.env.cr.dictfetchall()
         result_lines = []
 
-        for query_line in query_lines:
-            result_lines.append(prepare_result_dict(current_groupby, query_line))  # noqa: PERF401
+        result_lines.extend(
+            prepare_result_dict(current_groupby, query_line)
+            for query_line in query_lines
+        )
 
         return result_lines
 

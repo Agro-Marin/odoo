@@ -674,7 +674,7 @@ class AccountReport(models.Model):
                 target_label = default_expression.label[len("_default_") :]
                 target_external_expression = (
                     default_expression.report_line_id.expression_ids.filtered(
-                        lambda x: x.label == target_label  # noqa: B023
+                        lambda x, target_label=target_label: x.label == target_label
                     )
                 )
                 # If the value has been created before/modified manually, we shouldn't create anything
@@ -1318,7 +1318,7 @@ class AccountReport(models.Model):
             markup, res_model, model_id = self._parse_line_id(line["id"])[-1]
             if res_model == "account.account":
                 account_ids.append(model_id)
-        self.env["account.account"].browse(account_ids).group_id  # noqa: B018
+        self.env["account.account"].browse(account_ids).fetch(["group_id"])
 
         new_lines, total_lines = [], []
 
@@ -1477,8 +1477,8 @@ class AccountReport(models.Model):
             .browse(aml_id_to_report_lines_map.keys())
             .read(["id", "move_id"])
         }
-        for aml_id, lines in aml_id_to_report_lines_map.items():  # noqa: PLR1704
-            for line in lines:
+        for aml_id, aml_lines in aml_id_to_report_lines_map.items():
+            for line in aml_lines:
                 line["chatter"] = {
                     "model": "account.move",
                     "id": aml_id_to_account_move_id[aml_id],
@@ -1702,8 +1702,8 @@ class AccountReportLine(models.Model):
             # Growth comparison column.
             if options.get("column_percent_comparison") == "growth":
                 compared_expression = self.expression_ids.filtered(
-                    lambda expr: (
-                        expr.label == group_line_dict["columns"][0]["expression_label"]  # noqa: B023
+                    lambda expr, group_line_dict=group_line_dict: (
+                        expr.label == group_line_dict["columns"][0]["expression_label"]
                     )
                 )
 
@@ -1749,7 +1749,7 @@ class AccountReportLine(models.Model):
         )
         if groupby_model and not custom_groupby_name_builder:
             browsed_groupby_keys = self.env[groupby_model].browse(
-                list(key for key in group_lines_by_keys if key is not None)  # noqa: C400
+                [key for key in group_lines_by_keys if key is not None]
             )
 
             out_of_sorting_record = None

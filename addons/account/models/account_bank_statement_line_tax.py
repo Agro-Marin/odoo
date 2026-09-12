@@ -148,8 +148,10 @@ class AccountBankStatementLine(models.Model):
         for tax_line_vals in tax_results["tax_lines_to_delete"]:
             lines_to_delete += tax_line_vals["record"]
 
-        for tax_line_vals in tax_results["tax_lines_to_add"]:
-            lines_to_add_or_update.append(self._lines_prepare_tax_line(tax_line_vals))  # noqa: PERF401
+        lines_to_add_or_update.extend(
+            self._lines_prepare_tax_line(tax_line_vals)
+            for tax_line_vals in tax_results["tax_lines_to_add"]
+        )
 
         for tax_line_vals, grouping_key, to_update in tax_results[
             "tax_lines_to_update"

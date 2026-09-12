@@ -254,8 +254,8 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
             }
         )
 
-        for column_group_key, options in options_by_column_group.items():  # noqa: PLR1704
-            query = report._get_report_query(options, "strict_range")
+        for column_group_key, column_group_options in options_by_column_group.items():
+            query = report._get_report_query(column_group_options, "strict_range")
             # make sure account_move is always joined
             if "account_move_line__move_id" not in query._joins:
                 query.join(
@@ -374,7 +374,9 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
             # Fetch the tax amounts.
 
             select_deductible = join_deductible = group_by_deductible = SQL()
-            if options.get("account_journal_report_tax_deductibility_columns"):
+            if column_group_options.get(
+                "account_journal_report_tax_deductibility_columns"
+            ):
                 select_deductible = SQL(""", repartition.use_in_tax_closing AS trl_tax_closing
                                            , SIGN(repartition.factor_percent) AS trl_factor""")
                 join_deductible = SQL("""JOIN account_tax_repartition_line repartition
@@ -440,7 +442,9 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
                     column_group_key
                 ] += row["tax_amount"]
 
-                if options.get("account_journal_report_tax_deductibility_columns"):
+                if column_group_options.get(
+                    "account_journal_report_tax_deductibility_columns"
+                ):
                     tax_detail_label = False
                     if row["trl_factor"] > 0 and tax_type_tax_use == "purchase":
                         tax_detail_label = (
@@ -673,25 +677,23 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
                 if expr_label == "tax" and options.get(
                     "account_journal_report_tax_deductibility_columns"
                 ):
-                    for deduct_type in (
-                        "tax_non_deductible",
-                        "tax_deductible",
-                        "tax_due",
-                    ):
-                        columns.append(  # noqa: PERF401
-                            report._prepare_column_dict(
-                                col_value=sign
-                                * tax_amount_dict[deduct_type][
-                                    column["column_group_key"]
-                                ],
-                                col_data={
-                                    "figure_type": "monetary",
-                                    "column_group_key": column["column_group_key"],
-                                    "expression_label": deduct_type,
-                                },
-                                options=options,
-                            )
+                    columns.extend(
+                        report._prepare_column_dict(
+                            col_value=sign
+                            * tax_amount_dict[deduct_type][column["column_group_key"]],
+                            col_data={
+                                "figure_type": "monetary",
+                                "column_group_key": column["column_group_key"],
+                                "expression_label": deduct_type,
+                            },
+                            options=options,
                         )
+                        for deduct_type in (
+                            "tax_non_deductible",
+                            "tax_deductible",
+                            "tax_due",
+                        )
+                    )
 
             # Prepare line.
             default_vals = {

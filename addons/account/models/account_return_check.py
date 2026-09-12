@@ -209,7 +209,7 @@ class AccountReturnCheck(models.Model):
             if (
                 len(
                     record.return_id.check_ids.filtered(
-                        lambda check: check.code == record.code  # noqa: B023
+                        lambda check, record=record: check.code == record.code
                     )
                 )
                 > 1
@@ -387,8 +387,7 @@ class CheckActionExpressionTransformer(ast.NodeTransformer):
 
     def get_call_args(self, ast_arguments):
         args = []
-        for ast_arg in ast_arguments:
-            args.append(ast.literal_eval(self.visit(ast_arg)))  # noqa: PERF401
+        args.extend(ast.literal_eval(self.visit(ast_arg)) for ast_arg in ast_arguments)
         return args
 
     def visit_Call(self, node):

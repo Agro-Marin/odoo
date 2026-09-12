@@ -31,9 +31,7 @@ class AccountReconcileWizard(models.TransientModel):
             [amls], shadowed_aml_values=shadowed_aml_values
         )
 
-        all_amls.move_id  # noqa: B018
-        all_amls.matched_debit_ids  # noqa: B018
-        all_amls.matched_credit_ids  # noqa: B018
+        all_amls.fetch(["move_id", "matched_debit_ids", "matched_credit_ids"])
 
         aml_values_map = {
             aml: {

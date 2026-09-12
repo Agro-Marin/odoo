@@ -247,21 +247,21 @@ class AccountBankStatementLine(models.Model):
         early_payment_values.pop("exchange_lines")
 
         for vals_list in early_payment_values.values():
-            for vals in vals_list:
-                new_lines.append(  # noqa: PERF401
-                    {
-                        "account_id": vals["account_id"],
-                        "date": self.date,
-                        "name": vals["name"],
-                        "partner_id": vals["partner_id"],
-                        "currency_id": vals["currency_id"],
-                        "amount_currency": vals["amount_currency"],
-                        "balance": vals["balance"],
-                        "analytic_distribution": vals.get("analytic_distribution"),
-                        "tax_ids": vals.get("tax_ids", []),
-                        "tax_tag_ids": vals.get("tax_tag_ids", []),
-                        "tax_repartition_line_id": vals.get("tax_repartition_line_id"),
-                        "group_tax_id": vals.get("group_tax_id"),
-                    }
-                )
+            new_lines.extend(
+                {
+                    "account_id": vals["account_id"],
+                    "date": self.date,
+                    "name": vals["name"],
+                    "partner_id": vals["partner_id"],
+                    "currency_id": vals["currency_id"],
+                    "amount_currency": vals["amount_currency"],
+                    "balance": vals["balance"],
+                    "analytic_distribution": vals.get("analytic_distribution"),
+                    "tax_ids": vals.get("tax_ids", []),
+                    "tax_tag_ids": vals.get("tax_tag_ids", []),
+                    "tax_repartition_line_id": vals.get("tax_repartition_line_id"),
+                    "group_tax_id": vals.get("group_tax_id"),
+                }
+                for vals in vals_list
+            )
         return new_lines

@@ -263,7 +263,9 @@ class AccountReconcileWizard(models.TransientModel):
     def _check_min_max_edit_mode_amount_currency(self):
         for wizard in self:
             if wizard.edit_mode:
-                if wizard.edit_mode_amount_currency == 0.0:  # noqa: RUF069
+                if wizard.edit_mode_reco_currency_id.is_zero(
+                    wizard.edit_mode_amount_currency
+                ):
                     raise UserError(
                         _("The amount of the write-off of a single line cannot be 0.")
                     )

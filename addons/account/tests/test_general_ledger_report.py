@@ -1613,9 +1613,9 @@ class TestGeneralLedgerReport(TestAccountReportsCommon, odoo.tests.HttpCase):
 
         folded_report_lines = self.report._get_lines(options)
         lines_to_unfold = []
-        for line in folded_report_lines:
-            if line.get("unfoldable"):
-                lines_to_unfold.append(line["id"])  # noqa: PERF401
+        lines_to_unfold.extend(
+            line["id"] for line in folded_report_lines if line.get("unfoldable")
+        )
 
         non_batched_options = self._generate_options(
             self.report,

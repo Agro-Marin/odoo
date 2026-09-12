@@ -862,7 +862,6 @@ class AccountReportOptions(models.Model):
             options["display_hierarchy_filter"] = False
 
     def _init_options_prefix_groups_threshold(self, options, previous_options):
-        previous_threshold = previous_options.get("prefix_groups_threshold")  # noqa: F841
         options["prefix_groups_threshold"] = self.prefix_groups_threshold
 
     def _init_options_companies(self, options, previous_options):

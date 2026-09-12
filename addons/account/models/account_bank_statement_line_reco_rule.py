@@ -67,7 +67,9 @@ class AccountBankStatementLine(models.Model):
         for reco_model in existing_reco_models:
             pattern = re.compile(reco_model.match_label_param, re.IGNORECASE)
             previous_statement_lines = previous_statement_lines.filtered(
-                lambda sl: sl.payment_ref and not pattern.search(sl.payment_ref)  # noqa: B023
+                lambda sl, pattern=pattern: (
+                    sl.payment_ref and not pattern.search(sl.payment_ref)
+                )
             )
             if len(previous_statement_lines) <= 1:
                 return None

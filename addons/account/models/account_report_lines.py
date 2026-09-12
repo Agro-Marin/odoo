@@ -71,18 +71,18 @@ class AccountReportLines(models.Model):
                 )
 
             else:
-                for report_column in self.column_ids:
-                    columns.append(  # noqa: PERF401
-                        {
-                            "name": report_column.name,
-                            "column_group_key": column_group_key,
-                            "expression_label": report_column.expression_label,
-                            "sortable": report_column.sortable,
-                            "figure_type": report_column.figure_type,
-                            "blank_if_zero": report_column.blank_if_zero,
-                            "class": f"text-nowrap {'text-end' if report_column.figure_type in NUMBER_FIGURE_TYPES else 'text-center'}",
-                        }
-                    )
+                columns.extend(
+                    {
+                        "name": report_column.name,
+                        "column_group_key": column_group_key,
+                        "expression_label": report_column.expression_label,
+                        "sortable": report_column.sortable,
+                        "figure_type": report_column.figure_type,
+                        "blank_if_zero": report_column.blank_if_zero,
+                        "class": f"text-nowrap {('text-end' if report_column.figure_type in NUMBER_FIGURE_TYPES else 'text-center')}",
+                    }
+                    for report_column in self.column_ids
+                )
 
         return columns, column_groups
 
@@ -190,13 +190,13 @@ class AccountReportLines(models.Model):
                 try:
                     parent_generic_id = line_cache[line.parent_id]["id"]
                 except KeyError as e:
-                    raise UserError(  # noqa: B904
+                    raise UserError(
                         _(
                             "Line '%(child)s' is configured to appear before its parent '%(parent)s'. This is not allowed.",
                             child=line.name,
                             parent=e.args[0].name,
                         )
-                    )
+                    ) from e
 
             line_dict = self._get_static_line_dict(
                 options,
@@ -234,8 +234,8 @@ class AccountReportLines(models.Model):
                 if model == "account.report.line" and line_id:
                     report_line = self.env["account.report.line"].browse(line_id)
                     compared_expression = report_line.expression_ids.filtered(
-                        lambda expr: (
-                            expr.label == line["columns"][0]["expression_label"]  # noqa: B023
+                        lambda expr, line=line: (
+                            expr.label == line["columns"][0]["expression_label"]
                         )
                     )
                     green_on_positive = compared_expression.green_on_positive
@@ -1975,7 +1975,7 @@ class AccountReportLines(models.Model):
             # the date is parsable to a xlsx compatible date
             lg = get_lang(self.env, self.env.user.lang)
             return ("date", datetime.datetime.strptime(cell["name"], lg.date_format))
-        except:  # noqa: E722
+        except ValueError, TypeError:
             # the date is not parsable thus is returned as text
             return ("text", cell["name"])
 

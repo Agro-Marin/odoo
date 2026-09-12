@@ -447,8 +447,8 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
                         line_to_expand["id"], "account.report.line"
                     )
                     expressions_to_evaluate = report.line_ids.expression_ids.filtered(
-                        lambda x: (
-                            x.report_line_id.id == report_line_id  # noqa: B023
+                        lambda x, report_line_id=report_line_id: (
+                            x.report_line_id.id == report_line_id
                             and x.engine == "custom"
                         )
                     )
