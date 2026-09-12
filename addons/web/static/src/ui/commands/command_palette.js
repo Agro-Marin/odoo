@@ -14,6 +14,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { isMacOS, isMobileOS } from "@web/core/browser/feature_detection";
 import { isCtrlOrCmdKey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { CommandPaletteEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
@@ -30,6 +31,8 @@ import { Dialog } from "@web/ui/dialog/dialog";
 
 /** @import { Command } from "./command_service.js" */
 const commandSetupRegistry = registry.category("command_setup");
+
+const log = makeLogger("web.command.palette");
 
 const DEFAULT_PLACEHOLDER = _t("Search...");
 const DEFAULT_EMPTY_MESSAGE = _t("No result found");
@@ -386,7 +389,13 @@ export class CommandPalette extends Component {
         let categoryKeys = ["default"];
         /** @type {Record<string, string>} */
         let categoryNames = {};
-        const proms = this.providersByNamespace[namespace].map(async (provider) =>
+        const providers = this.providersByNamespace[namespace];
+        const endSearch = log.perf("search", {
+            namespace,
+            searchValue: options.searchValue,
+            providers: providers.length,
+        });
+        const proms = providers.map(async (provider) =>
             provider.provide(this.env, options),
         );
         const settled = await this.keepLast.add(Promise.allSettled(proms));
@@ -398,10 +407,9 @@ export class CommandPalette extends Component {
                 );
             }
         }
+        const fulfilled = settled.filter((result) => result.status === "fulfilled");
         let commands = /** @type {CommandItem[]} */ (
-            settled
-                .filter((result) => result.status === "fulfilled")
-                .flatMap((result) => /** @type {any} */ (result).value)
+            fulfilled.flatMap((result) => /** @type {any} */ (result).value)
         );
         const namespaceConfig = /** @type {any} */ (
             this.configByNamespace[namespace] || {}
@@ -457,6 +465,13 @@ export class CommandPalette extends Component {
         );
         this.selectCommand(this.state.commands.length ? 0 : -1);
         this.mouseSelectionActive = false;
+        endSearch({
+            provided: fulfilled.length,
+            failed: settled.length - fulfilled.length,
+            commands: commands.length,
+            shown: this.state.commands.length,
+            hidden: this.state.hiddenCount,
+        });
     }
 
     /**
@@ -529,6 +544,11 @@ export class CommandPalette extends Component {
 
     /** @param {CommandItem} command */
     async executeCommand(command) {
+        log.logic("execute", () => ({
+            name: command.name,
+            category: command.category,
+            namespace: this.state.namespace,
+        }));
         let config;
         try {
             config = await command.action();
@@ -537,6 +557,7 @@ export class CommandPalette extends Component {
             throw error;
         }
         if (config) {
+            log.logic("reconfigure", () => ({ providers: config.providers.length }));
             await this.setCommandPaletteConfig(config);
         } else {
             this.props.close();

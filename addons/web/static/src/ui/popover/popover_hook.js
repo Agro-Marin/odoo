@@ -28,7 +28,7 @@ export function makePopover(addFn, component, options) {
     }
     return {
         open(target, props) {
-            close();
+            close()?.catch(reportUncaught);
             const newOptions = Object.create(options);
             newOptions.onClose = (/** @type {any} */ removeParams) => {
                 removeFn = null;

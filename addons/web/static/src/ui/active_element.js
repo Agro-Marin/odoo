@@ -3,9 +3,13 @@
 
 import { useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useOwnedActiveElement } from "@web/core/utils/active_element_scope";
 import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
+import { describeNode } from "@web/ui/describe_node";
+
+const log = makeLogger("web.ui.focus");
 
 /**
  * @param {HTMLElement} el
@@ -67,18 +71,28 @@ export function useActiveElement(refName) {
 
                 el.addEventListener("keydown", trapFocus);
 
+                let focused = "kept";
                 if (firstTabableEl) {
                     if (!el.contains(document.activeElement)) {
                         firstTabableEl.focus();
+                        focused = "firstTabable";
                     }
                 } else if (isFocusable(el) && el !== document.activeElement) {
                     el.focus();
+                    focused = "self";
                 }
+                log.logic("activate", () => ({
+                    el: describeNode(el),
+                    takesFocus,
+                    focused,
+                    from: describeNode(oldActiveElement),
+                }));
                 return () => {
                     scope.el = null;
                     uiService.deactivateElement(el);
                     el.removeEventListener("keydown", trapFocus);
 
+                    let restored = "none";
                     if (
                         takesFocus &&
                         (el.contains(document.activeElement) ||
@@ -86,13 +100,22 @@ export function useActiveElement(refName) {
                     ) {
                         if (oldActiveElement?.isConnected) {
                             /** @type {HTMLElement} */ (oldActiveElement).focus();
+                            restored = "previous";
                         } else {
                             const [firstTabableEl] = getFirstAndLastTabableElements(
                                 /** @type {HTMLElement} */ (uiService.activeElement),
                             );
                             firstTabableEl?.focus();
+                            restored = firstTabableEl
+                                ? "activeFirstTabable"
+                                : "nothing";
                         }
                     }
+                    log.logic("deactivate", () => ({
+                        el: describeNode(el),
+                        restored,
+                        to: describeNode(document.activeElement),
+                    }));
                 };
             }
         },

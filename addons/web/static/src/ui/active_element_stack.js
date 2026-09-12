@@ -4,6 +4,7 @@
 /**
  * @returns {{
  * current: Document | HTMLElement,
+ * depth: number,
  * activate(el: HTMLElement): void,
  * deactivate(el: HTMLElement): boolean,
  * activeElementOf(node: Node): Document | HTMLElement | undefined,
@@ -18,6 +19,10 @@ export function makeActiveElementStack() {
     return {
         get current() {
             return /** @type {Document | HTMLElement} */ (stack.at(-1));
+        },
+
+        get depth() {
+            return stack.length - 1;
         },
 
         activate(el) {

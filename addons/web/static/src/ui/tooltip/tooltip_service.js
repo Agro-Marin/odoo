@@ -179,6 +179,10 @@ class TooltipService {
         const timeoutDelay = this.isHelpNode(el) ? 0 : delay;
         opening.openTimeout = browser.setTimeout(() => {
             opening.openTimeout = undefined;
+            log.lifecycle("show", () => ({
+                tag: el.tagName,
+                connected: el.isConnected,
+            }));
             if (!el.isConnected) {
                 return;
             }

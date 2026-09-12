@@ -193,3 +193,39 @@ test("escape closes a dropdown menu rendered as a popover", async () => {
     await animationFrame();
     expect(".ditem").toHaveCount(0);
 });
+
+test("a sheet refused for a detached target does not uncount one that is open", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+
+    class MyComp extends Component {
+        static template = xml`<div class="sheet-content"/>`;
+        static props = ["*"];
+    }
+
+    const sheet = getService("bottom_sheet");
+    const closeOpen = sheet.add(getFixture(), MyComp);
+    await animationFrame();
+    expect(document.body).toHaveClass("bottom-sheet-open");
+
+    const detached = document.createElement("div");
+    const closeRefused = sheet.add(
+        detached,
+        MyComp,
+        {},
+        {
+            onClose: () => expect.step("onClose"),
+        },
+    );
+    await animationFrame();
+    expect(".sheet-content").toHaveCount(1);
+    expect.verifySteps(["onClose"]);
+    expect(document.body).toHaveClass("bottom-sheet-open");
+
+    await closeRefused();
+    expect(document.body).toHaveClass("bottom-sheet-open");
+
+    closeOpen();
+    await runAllTimers();
+    await animationFrame();
+    expect(document.body).not.toHaveClass("bottom-sheet-open");
+});

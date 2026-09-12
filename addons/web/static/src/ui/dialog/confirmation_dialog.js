@@ -55,13 +55,7 @@ export class ConfirmationDialog extends Component {
     }
 
     async dismiss() {
-        try {
-            return await this.runButton(this.props.dismiss || this.props.cancel);
-        } catch (e) {
-            // a throwing callback must not leave a dialog nobody can close
-            this.props.close();
-            throw e;
-        }
+        return this.runButtonOrClose(this.props.dismiss || this.props.cancel);
     }
 
     /** @param {boolean} disabled */
@@ -93,16 +87,23 @@ export class ConfirmationDialog extends Component {
         return true;
     }
 
-    /** @param {Function} [callback] */
-    async execButton(callback) {
-        let shouldClose;
+    /**
+     * @param {Function} [callback]
+     * @returns {Promise<boolean>}
+     */
+    async runButtonOrClose(callback) {
         try {
-            shouldClose = await this.runButton(callback);
+            return await this.runButton(callback);
         } catch (e) {
+            // a throwing callback must not leave a dialog nobody can close
             this.props.close();
             throw e;
         }
-        if (shouldClose) {
+    }
+
+    /** @param {Function} [callback] */
+    async execButton(callback) {
+        if (await this.runButtonOrClose(callback)) {
             this.props.close();
         }
     }

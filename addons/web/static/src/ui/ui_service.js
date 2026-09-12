@@ -8,8 +8,9 @@ import { registry } from "@web/core/registry";
 import { publishEnclosingScopeResolver } from "@web/core/utils/active_element_scope";
 import { makeActiveElementStack } from "@web/ui/active_element_stack";
 import { BlockUI } from "@web/ui/block/block_ui";
+import { describeNode } from "@web/ui/describe_node";
 import { mainComponentEntry } from "@web/ui/main_components_container";
-import { getMediaQueryLists, SIZES, utils } from "@web/ui/viewport";
+import { getMediaQueryLists, utils } from "@web/ui/viewport";
 
 export {
     getFirstAndLastTabableElements,
@@ -32,12 +33,13 @@ class UiService {
         /** @type {(() => void) | null} */
         this.withdrawScopeResolver = null;
 
-        const initialSize = this.getSize();
-        this.size = initialSize;
+        this.size = this.getSize();
         /** @type {Document | HTMLElement} */
         this.activeElement = document;
         this.isBlocked = false;
-        this.isSmall = initialSize <= SIZES.SM;
+        // through utils, not SIZES directly: point_of_sale patches utils.isSmall
+        // to widen "small" to tablets, and env.isSmall must follow
+        this.isSmall = utils.isSmall(this);
     }
 
     setup() {
@@ -55,6 +57,9 @@ class UiService {
             configurable: true,
             get: () => this.isSmall,
         });
+        this.withdrawScopeResolver = publishEnclosingScopeResolver((node) =>
+            this.getScopeOf(node),
+        );
     }
 
     /** @returns {number} */
@@ -68,7 +73,7 @@ class UiService {
             return;
         }
         this.size = size;
-        this.isSmall = size <= SIZES.SM;
+        this.isSmall = utils.isSmall(this);
         log.logic("resize", () => ({ size, isSmall: this.isSmall }));
         this.bus.trigger(AppEvent.RESIZE);
     }
@@ -107,6 +112,10 @@ class UiService {
 
     publishActiveElement() {
         this.activeElement = this.activeElements.current;
+        log.logic("activeElement", () => ({
+            current: describeNode(this.activeElement),
+            depth: this.activeElements.depth,
+        }));
         this.bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, this.activeElement);
     }
 
@@ -120,6 +129,12 @@ class UiService {
     deactivateElement(el) {
         if (this.activeElements.deactivate(el)) {
             this.publishActiveElement();
+        } else {
+            log.logic("deactivateElement", () => ({
+                el: describeNode(el),
+                known: false,
+                depth: this.activeElements.depth,
+            }));
         }
     }
 
@@ -162,9 +177,6 @@ export const uiService = {
     start(env) {
         const service = reactive(new UiService(env));
         service.setup();
-        service.withdrawScopeResolver = publishEnclosingScopeResolver((node) =>
-            service.getScopeOf(node),
-        );
         return service;
     },
 };

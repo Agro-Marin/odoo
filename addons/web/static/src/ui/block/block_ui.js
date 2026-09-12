@@ -3,11 +3,14 @@
 
 import { Component, onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 
 const BLOCK_STATES = { UNBLOCKED: 0, BLOCKED: 1, VISIBLY_BLOCKED: 2 };
+
+const log = makeLogger("web.ui");
 
 const MESSAGES_BY_ELAPSED = [
     { after: 0, l1: _t("Loading...") },
@@ -84,6 +87,7 @@ export class BlockUI extends Component {
     block(ev) {
         const showBlockedUI = () => {
             this.state.blockState = this.BLOCK_STATES.VISIBLY_BLOCKED;
+            log.logic("blockUI", () => ({ visible: true, delay: ev.detail?.delay }));
             if (!ev.detail?.message) {
                 this.replaceMessage(0);
             }
@@ -101,6 +105,10 @@ export class BlockUI extends Component {
     }
 
     unblock() {
+        log.logic("blockUI", () => ({
+            visible: false,
+            wasVisible: this.state.blockState === this.BLOCK_STATES.VISIBLY_BLOCKED,
+        }));
         this.state.blockState = this.BLOCK_STATES.UNBLOCKED;
         browser.clearTimeout(this.showBlockedUITimer);
         browser.clearTimeout(this.msgTimer);
