@@ -9,6 +9,8 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import babel_locale_parse, get_lang
 
+from ..tools import debug_log as dbg
+
 _logger = logging.getLogger(__name__)
 
 
@@ -42,6 +44,15 @@ def remove_values_from_other_companies(records, vals_list, default):
                 continue
             corecord_company = corecord.company_id
             if corecord_company and corecord_company != company:
+                dbg.logic.debug(
+                    "[%s:%s] copy drops %s=%s: belongs to company %s, not %s",
+                    record._name,
+                    record.id,
+                    name,
+                    corecord.id,
+                    corecord_company.id,
+                    company.id,
+                )
                 del vals[name]
 
 
@@ -360,6 +371,13 @@ class HrVersion(models.Model):
                 version._origin.job_id != version.job_id
                 or not version.is_custom_job_title
             ):
+                dbg.logic.debug(
+                    "[version:%s] job title follows job %s (%r -> %r)",
+                    version.id,
+                    version.job_id.id,
+                    version.job_title,
+                    version.job_id.name,
+                )
                 version.job_title = version.job_id.name
 
     def _inverse_job_title(self):
@@ -441,6 +459,7 @@ class HrVersion(models.Model):
                     )
                 )
 
+    @dbg.timed
     @api.constrains("employee_id", "contract_date_start", "contract_date_end")
     def _check_dates(self):
         version_read_group = (
@@ -502,6 +521,14 @@ class HrVersion(models.Model):
                             version.employee_id.display_name,
                         )
                     )
+            dbg.logic.debug(
+                "[version:%s] contract %s..%s on employee %s: %s",
+                version.id,
+                version.contract_date_start,
+                version.contract_date_end,
+                version.employee_id.id,
+                "joins an existing period" if contract_period_exists else "new period",
+            )
             if not contract_period_exists:
                 dates_per_employee[version.employee_id].append(
                     (version.contract_date_start, version.contract_date_end, version)
@@ -515,16 +542,33 @@ class HrVersion(models.Model):
                 )
             )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "hr.version.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
         Version = self.env["hr.version"]
         for vals in vals_list:
             if "contract_template_id" in vals:
                 contract_vals = Version._prepare_vals_from_contract_template(
                     Version.browse(vals["contract_template_id"])
                 )
+                dbg.logic.debug(
+                    "hr.version.create: template %s supplies %s (caller keys win)",
+                    vals["contract_template_id"],
+                    dbg.lazy(
+                        lambda vals=vals, contract_vals=contract_vals: sorted(
+                            set(contract_vals) - set(vals)
+                        )
+                    ),
+                )
                 vals.update({**contract_vals, **vals})
-        return super().create(vals_list)
+        versions = super().create(vals_list)
+        dbg.lifecycle.debug("hr.version.create: created %s", dbg.rec(versions))
+        return versions
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_last_version(self):
@@ -585,6 +629,13 @@ class HrVersion(models.Model):
             if not calendar or (
                 calendar.company_id and calendar.company_id != version.company_id
             ):
+                dbg.logic.debug(
+                    "[version:%s] calendar %s -> company %s default %s",
+                    version.id,
+                    calendar.id,
+                    version.company_id.id,
+                    version.company_id.resource_calendar_id.id,
+                )
                 version.resource_calendar_id = version.company_id.resource_calendar_id
 
     def copy_data(self, default=None):
@@ -592,7 +643,14 @@ class HrVersion(models.Model):
         remove_values_from_other_companies(self, vals_list, default)
         return vals_list
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "hr.version.write on %s: keys=%s sync_contract_dates=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            bool(self.env.context.get("sync_contract_dates")),
+        )
         self._check_employee_keeps_a_version(vals)
 
         if self.env.context.get("sync_contract_dates") or (
@@ -609,11 +667,21 @@ class HrVersion(models.Model):
             )
             multiple_versions -= unique_versions
             if unique_versions:
+                dbg.logic.debug(
+                    "hr.version.write: %s are their employee's only version, "
+                    "date_version follows contract start %s",
+                    dbg.rec(unique_versions),
+                    vals["contract_date_start"],
+                )
                 unique_versions.with_context(sync_contract_dates=True).write(
                     {**vals, "date_version": vals["contract_date_start"]}
                 )
 
         if not any(multiple_versions.mapped("contract_date_start")):
+            dbg.logic.debug(
+                "hr.version.write: %s carry no contract, plain write",
+                dbg.rec(multiple_versions),
+            )
             return super(HrVersion, multiple_versions).write(vals)
 
         new_vals = {
@@ -626,6 +694,12 @@ class HrVersion(models.Model):
             first_version = next(iter(versions), versions)
             dates_vals = self._get_contract_dates_to_sync(vals, first_version)
             if not first_version.contract_date_start:
+                dbg.pipeline.debug(
+                    "[employee:%s] versions %s had no contract, taking dates %s",
+                    employee.id,
+                    dbg.rec(versions),
+                    dates_vals,
+                )
                 versions.with_context(sync_contract_dates=True).write(dates_vals)
                 continue
             versions_to_sync = employee._get_contract_versions(
@@ -637,11 +711,23 @@ class HrVersion(models.Model):
                 all_versions_to_sync |= contract_versions.get(
                     first_version.contract_date_start, self.env["hr.version"]
                 )
+            dbg.pipeline.debug(
+                "[employee:%s] contract starting %s: syncing dates %s onto %s",
+                employee.id,
+                first_version.contract_date_start,
+                dates_vals,
+                dbg.rec(all_versions_to_sync),
+            )
             if all_versions_to_sync:
                 all_versions_to_sync.with_context(sync_contract_dates=True).write(
                     dates_vals
                 )
 
+        dbg.logic.debug(
+            "hr.version.write: remaining keys=%s on %s",
+            dbg.keys(new_vals),
+            dbg.rec(multiple_versions),
+        )
         return super(HrVersion, multiple_versions).write(new_vals)
 
     def get_formview_action(self, access_uid=None):
@@ -651,10 +737,16 @@ class HrVersion(models.Model):
             res["res_model"] = "hr.employee"
             res["res_id"] = self.employee_id.id
             res["context"] = dict(context, version_id=self.id)
+            dbg.logic.debug(
+                "[version:%s] form view redirected to employee %s",
+                self.id,
+                self.employee_id.id,
+            )
         elif not context.get("form_view_ref", False):
             res["context"] = dict(
                 context, form_view_ref="hr.hr_contract_template_form_view"
             )
+            dbg.logic.debug("[version:%s] opens as contract template", self.id)
         return res
 
     @api.depends_context("lang")
@@ -726,13 +818,21 @@ class HrVersion(models.Model):
         whitelist = self.with_company(company)._get_whitelist_fields_from_template()
         contract_template_vals = contract_template.sudo().copy_data()[0]
         HrVersion = self.env["hr.version"]
-        return {
+        vals = {
             field: value
             for field, value in contract_template_vals.items()
             if field in whitelist
             and not HrVersion._fields[field].related
             and HrVersion._has_field_access(HrVersion._fields[field], "read")
         }
+        dbg.logic.debug(
+            "[template:%s] contract template vals for company %s: %s of whitelist %s",
+            contract_template.id,
+            company.id,
+            dbg.keys(vals),
+            whitelist,
+        )
+        return vals
 
     @api.depends("wage")
     def _compute_contract_wage(self):
@@ -762,6 +862,12 @@ class HrVersion(models.Model):
     def _compute_member_of_department(self):
         user_employee = self.env["hr.employee"]._get_valid_employee_for_user()
         active_department = user_employee.department_id
+        dbg.logic.debug(
+            "_compute_member_of_department on %s: user employee %s, department %s",
+            dbg.rec(self),
+            user_employee.id,
+            active_department.id,
+        )
         if not active_department:
             self.member_of_department = False
         else:
@@ -790,6 +896,13 @@ class HrVersion(models.Model):
                     default_structure_by_country[country_id] = (
                         self._get_default_structure_type(country_id)
                     )
+                dbg.logic.debug(
+                    "[version:%s] structure type %s -> default %s for country %s",
+                    version.id,
+                    version.structure_type_id.id,
+                    default_structure_by_country[country_id].id,
+                    country_id,
+                )
                 version.structure_type_id = default_structure_by_country[country_id]
 
     @api.depends(
@@ -799,6 +912,7 @@ class HrVersion(models.Model):
         "employee_id",
         "employee_id.version_ids.date_version",
     )
+    @dbg.timed
     def _compute_dates(self):
         sibling_versions = self.env["hr.version"].search(
             [("employee_id", "in", self.employee_id.ids)],
@@ -835,6 +949,16 @@ class HrVersion(models.Model):
                 version.date_end = date_version_end
             else:
                 version.date_end = version.contract_date_end
+            dbg.logic.debug(
+                "[version:%s] dates %s..%s (date_version=%s next=%s contract=%s..%s)",
+                version.id,
+                version.date_start,
+                version.date_end,
+                version.date_version,
+                next_date_version,
+                version.contract_date_start,
+                version.contract_date_end,
+            )
 
     def _inverse_resource_calendar_id(self):
         for employee, versions in self.grouped("employee_id").items():
@@ -844,6 +968,15 @@ class HrVersion(models.Model):
                     version == current_version
                     and employee.resource_id.calendar_id != version.resource_calendar_id
                 ):
+                    dbg.pipeline.debug(
+                        "[version:%s] current -> employee %s resource %s calendar "
+                        "%s -> %s",
+                        version.id,
+                        employee.id,
+                        employee.resource_id.id,
+                        employee.resource_id.calendar_id.id,
+                        version.resource_calendar_id.id,
+                    )
                     employee.resource_id.calendar_id = version.resource_calendar_id
 
     def _get_salary_costs_factor(self):

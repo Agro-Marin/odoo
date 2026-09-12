@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 
+from ..tools import debug_log as dbg
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -62,6 +63,7 @@ class ResPartner(models.Model):
             ("other", self.env._("Other")),
         ]
 
+    @dbg.timed
     def _compute_employees_count(self):
         counts = dict(
             self.env["hr.employee"]
@@ -111,9 +113,15 @@ class ResPartner(models.Model):
         private = self.child_ids.filtered(lambda partner: partner.type == "private")
         if not private:
             return super()._get_all_addr()
+        dbg.logic.debug(
+            "[party:%s] _get_all_addr: home address from private child %s first",
+            self.id,
+            private[0].id,
+        )
         home = dict(private[0]._get_all_addr()[0], contact_type="employee")
         return [home] + super()._get_all_addr()
 
+    @dbg.timed
     @api.depends("employee_ids")
     def _compute_employee(self):
         employee_data = (
@@ -140,6 +148,11 @@ class ResPartner(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_contact_rel_employee(self):
         partners = self.filtered(lambda partner: partner.sudo().employee_ids)
+        dbg.logic.debug(
+            "res.partner.unlink %s: %s are linked to employees",
+            dbg.rec(self),
+            dbg.rec(partners),
+        )
         if len(self) == 1 and len(partners) == 1 and self.id == partners[0].id:
             raise UserError(
                 self.env._(
@@ -185,6 +198,10 @@ class ResPartner(models.Model):
     def _get_fields_store_avatar_card(self, target):
         avatar_card_fields = super()._get_fields_store_avatar_card(target)
         if target.is_internal(self.env):
+            dbg.logic.debug(
+                "res.partner avatar card on %s: internal target, employee fields added",
+                dbg.rec(self),
+            )
             employee_fields = self.sudo().employee_ids._get_fields_store_avatar_card(
                 target
             )

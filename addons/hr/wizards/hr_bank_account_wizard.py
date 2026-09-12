@@ -2,6 +2,8 @@ from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.numbers import float_is_zero, float_round
 
+from ..tools import debug_log as dbg
+
 
 class BankAccountAllocationWizard(models.TransientModel):
     _name = "hr.bank.account.allocation.wizard"
@@ -44,15 +46,29 @@ class BankAccountAllocationWizard(models.TransientModel):
                     }
                 )
             )
+        dbg.logic.debug(
+            "[allocation_wizard:%s] employee %s: %d line(s) from %d distribution "
+            "entries",
+            self.id,
+            self.employee_id.id,
+            len(wizard_lines),
+            len(distribution),
+        )
         self.write({"allocation_ids": wizard_lines})
 
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
+        dbg.lifecycle.debug(
+            "hr.bank.account.allocation.wizard.create: %s for employees %s",
+            dbg.rec(records),
+            records.employee_id.ids,
+        )
         for wizard in records:
             wizard._update_allocations_from_employee()
         return records
 
+    @dbg.timed
     def action_save(self):
         self.check_singleton()
 
@@ -92,6 +108,13 @@ class BankAccountAllocationWizard(models.TransientModel):
                 percentage_total += line_amount
             trust_by_account[bank_account] = line.trusted
 
+        dbg.logic.debug(
+            "[allocation_wizard:%s] %d line(s), percentage total=%s, has_percentage=%s",
+            self.id,
+            len(self.allocation_ids),
+            percentage_total,
+            has_percentage,
+        )
         if has_percentage:
             if not float_is_zero(
                 percentage_total - 100.0, precision_digits=precision_digits
@@ -107,9 +130,21 @@ class BankAccountAllocationWizard(models.TransientModel):
                 trusted |= account
             else:
                 untrusted |= account
+        dbg.pipeline.debug(
+            "[allocation_wizard:%s] trust -> %s, untrust -> %s",
+            self.id,
+            dbg.rec(trusted),
+            dbg.rec(untrusted),
+        )
         if trusted:
             trusted.sudo().write({"allow_out_payment": True})
         if untrusted:
             untrusted.sudo().write({"allow_out_payment": False})
 
+        dbg.lifecycle.debug(
+            "[allocation_wizard:%s] employee %s salary_distribution <- %s",
+            self.id,
+            self.employee_id.id,
+            distribution,
+        )
         self.employee_id.salary_distribution = distribution

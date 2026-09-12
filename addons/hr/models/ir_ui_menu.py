@@ -1,5 +1,7 @@
 from odoo import models
 
+from ..tools import debug_log as dbg
+
 
 class IrUiMenu(models.Model):
     _inherit = "ir.ui.menu"
@@ -11,6 +13,12 @@ class IrUiMenu(models.Model):
                 self.env["hr.department"].search_count(
                     [("manager_id", "in", self.env.user.employee_ids.ids)], limit=1
                 )
+            )
+            dbg.logic.debug(
+                "ir.ui.menu blacklist: user %s is not an hr user, department "
+                "manager=%s",
+                self.env.uid,
+                is_department_manager,
             )
             if not is_department_manager and (
                 dep_menu := self.env.ref(

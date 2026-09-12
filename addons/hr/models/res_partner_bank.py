@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class ResPartnerBank(models.Model):
     _inherit = "res.partner.bank"
@@ -51,6 +53,14 @@ class ResPartnerBank(models.Model):
                 )
             else:
                 bank.employee_salary_amount = 0
+            dbg.logic.debug(
+                "[bank:%s] not in employee %s distribution (%d entries): "
+                "allocation defaults to %s%%",
+                bank.id,
+                bank.employee_id.id,
+                len(distribution),
+                bank.employee_salary_amount,
+            )
 
     def _search_employee_id(self, operator, value):
         if operator not in ("in", "not in"):
@@ -67,12 +77,21 @@ class ResPartnerBank(models.Model):
         if any(not record_id for record_id in value):
             employee_partners = Employee.search(in_companies).partner_id
             matched |= Domain("partner_id", "not in", employee_partners.ids)
+        dbg.logic.debug(
+            "res.partner.bank._search_employee_id %s %s: %d wanted, matches "
+            "unassigned=%s",
+            operator,
+            value,
+            len(wanted_ids),
+            any(not record_id for record_id in value),
+        )
         return matched if operator == "in" else ~matched
 
     def action_view_allocation_wizard(self):
         self.check_singleton()
         return self.employee_id.action_view_allocation_wizard()
 
+    @dbg.timed
     @api.depends("partner_id", "partner_id.employee_ids")
     def _compute_employee_id(self):
         for bank in self:
@@ -102,4 +121,10 @@ class ResPartnerBank(models.Model):
                     acc_number
                 )
                 account_employee |= account
+            dbg.logic.debug(
+                "res.partner.bank display_name on %s: non-hr user %s, %s masked",
+                dbg.rec(self),
+                self.env.uid,
+                dbg.rec(account_employee),
+            )
         super(ResPartnerBank, self - account_employee)._compute_display_name()

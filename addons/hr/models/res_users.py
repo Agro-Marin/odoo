@@ -5,6 +5,8 @@ from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
 
+from ..tools import debug_log as dbg
+
 HR_READABLE_FIELDS = [
     "active",
     "additional_note",
@@ -210,6 +212,7 @@ class ResUsers(models.Model):
     is_system = fields.Boolean(compute="_compute_is_system")
     is_hr_user = fields.Boolean(compute="_compute_is_hr_user")
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
@@ -218,10 +221,20 @@ class ResUsers(models.Model):
             if not vals.get("create_employee") and not vals.get("create_employee_id"):
                 continue
             if vals.get("create_employee_id"):
+                dbg.pipeline.debug(
+                    "[user:%s] bound to existing employee %s",
+                    user.id,
+                    vals.get("create_employee_id"),
+                )
                 self.env["hr.employee"].browse(
                     vals.get("create_employee_id")
                 ).user_id = user
             else:
+                dbg.pipeline.debug(
+                    "[user:%s] -> new employee in company %s",
+                    user.id,
+                    user.env.company.id,
+                )
                 employee_create_vals.append(
                     dict(
                         name=user.name,
@@ -230,11 +243,19 @@ class ResUsers(models.Model):
                     )
                 )
         if employee_create_vals:
-            self.env["hr.employee"].with_context(
-                clean_context(self.env.context)
-            ).create(employee_create_vals)
+            employees = (
+                self.env["hr.employee"]
+                .with_context(clean_context(self.env.context))
+                .create(employee_create_vals)
+            )
+            dbg.lifecycle.debug(
+                "res.users.create: employees %s created for users %s",
+                dbg.rec(employees),
+                dbg.rec(res),
+            )
         return res
 
+    @dbg.timed
     def write(self, vals):
         hr_fields = [
             field_name
@@ -243,6 +264,12 @@ class ResUsers(models.Model):
             and field.related_field.model_name == "hr.employee"
             and field_name in vals
         ]
+        dbg.lifecycle.debug(
+            "res.users.write on %s: keys=%s, hr fields=%s",
+            dbg.rec(self),
+            dbg.keys(vals),
+            hr_fields,
+        )
         employee_domain = [
             *self.env["hr.employee"]._check_company_domain(self.env.company),
             ("user_id", "in", self.ids),
@@ -265,6 +292,11 @@ class ResUsers(models.Model):
             )
         ]
         if changed_hr_fields:
+            dbg.logic.debug(
+                "res.users.write on %s: hr fields %s changed, notifying HR",
+                dbg.rec(self),
+                changed_hr_fields,
+            )
             self._notify_hr_of_personal_info_change(changed_hr_fields, employee_domain)
         return result
 
@@ -299,6 +331,9 @@ class ResUsers(models.Model):
     def get_view(self, view_id=None, view_type="form", **options):
         preferences_view = self.env.ref("hr.res_users_view_form_preferences")
         if preferences_view and view_id == preferences_view.id:
+            dbg.logic.debug(
+                "res.users.get_view: preferences view %s read as superuser", view_id
+            )
             self = self.with_user(SUPERUSER_ID)
         return super().get_view(view_id, view_type, **options)
 
@@ -312,9 +347,16 @@ class ResUsers(models.Model):
             )
         return ("", [])
 
+    @dbg.timed
     def _notify_hr_of_personal_info_change(self, changed_field_names, employee_domain):
         employees = self.env["hr.employee"].sudo().search(employee_domain)
         if not employees:
+            dbg.logic.debug(
+                "_notify_hr_of_personal_info_change on %s: no employee in company "
+                "%s, nobody notified",
+                dbg.rec(self),
+                self.env.company.id,
+            )
             return
         get_field = self.env["ir.model.fields"]._get
         field_names = Markup().join(
@@ -329,7 +371,18 @@ class ResUsers(models.Model):
                 employee
             )
             if not partner_ids:
+                dbg.logic.debug(
+                    "[employee:%s] no HR responsible, personal info change not "
+                    "notified",
+                    employee.id,
+                )
                 continue
+            dbg.pipeline.debug(
+                "[employee:%s] personal info change (%s) notified to partners %s",
+                employee.id,
+                changed_field_names,
+                partner_ids,
+            )
             employee.message_notify(
                 body=Markup("<p>%s</p><p>%s</p><ul>%s</ul><p><em>%s</em></p>")
                 % (
@@ -359,9 +412,15 @@ class ResUsers(models.Model):
             )
             action_context.update(groups)
             action["context"] = str(action_context)
+            dbg.logic.debug(
+                "res.users.action_get: user %s has employee %s, hr profile action",
+                self.env.uid,
+                self.env.user.employee_id.id,
+            )
             return action
         return super().action_get()
 
+    @dbg.timed
     @api.depends("employee_ids")
     @api.depends_context("company")
     def _compute_employee_id(self):
@@ -386,6 +445,11 @@ class ResUsers(models.Model):
         if len(user_ids) < IN_MAX:
             return Domain("id", "in", user_ids)
 
+        dbg.logic.debug(
+            "res.users._search_employee_id: %d+ matches, falling back to the "
+            "employee_ids domain",
+            IN_MAX,
+        )
         return domain
 
     def action_create_employee(self):
@@ -397,6 +461,11 @@ class ResUsers(models.Model):
                     self.env.company.name,
                 )
             )
+        dbg.lifecycle.debug(
+            "[user:%s] action_create_employee in company %s",
+            self.id,
+            self.env.company.id,
+        )
         self.env["hr.employee"].create(
             dict(
                 name=self.name,

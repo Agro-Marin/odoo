@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class DiscussChannel(models.Model):
     _inherit = "discuss.channel"
@@ -37,10 +39,22 @@ class DiscussChannel(models.Model):
                 set(new_members[channel.id])
                 | set((department_partners - channel.channel_partner_ids).ids)
             )
+            dbg.pipeline.debug(
+                "[channel:%s] departments %s -> %d member partner(s), %d new",
+                channel.id,
+                channel.subscription_department_ids.ids,
+                len(department_partners),
+                len(department_partners - channel.channel_partner_ids),
+            )
         return new_members
 
     def write(self, vals):
         res = super().write(vals)
         if vals.get("subscription_department_ids"):
+            dbg.pipeline.debug(
+                "discuss.channel.write on %s: subscription departments changed, "
+                "resubscribing",
+                dbg.rec(self),
+            )
             self._subscribe_users_automatically()
         return res

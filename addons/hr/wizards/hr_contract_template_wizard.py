@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from ..tools import debug_log as dbg
+
 
 class HrContractTemplateWizard(models.TransientModel):
     _name = "hr.version.wizard"
@@ -21,10 +23,21 @@ class HrContractTemplateWizard(models.TransientModel):
         self.check_singleton()
         employee_id = self.env.context.get("active_id")
         if not employee_id or not self.contract_template_id:
+            dbg.logic.debug(
+                "hr.version.wizard: nothing to load (active_id=%s template=%s)",
+                employee_id,
+                self.contract_template_id.id,
+            )
             return
         employee = self.env["hr.employee"].browse(employee_id)
         template_vals = self.env["hr.version"]._prepare_vals_from_contract_template(
             self.contract_template_id
+        )
+        dbg.pipeline.debug(
+            "[template:%s] -> employee %s: writing %s",
+            self.contract_template_id.id,
+            employee_id,
+            dbg.keys(template_vals),
         )
         employee.write(
             {**template_vals, "contract_template_id": self.contract_template_id.id}

@@ -1,6 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from ..tools import debug_log as dbg
+
 
 class MailActivityPlan(models.Model):
     _inherit = "mail.activity.plan"
@@ -20,6 +22,13 @@ class MailActivityPlan(models.Model):
     def _check_compatibility_with_model(self):
         plan_tocheck = self.filtered(lambda plan: not plan.department_assignable)
         failing_plans = plan_tocheck.filtered("department_id")
+        dbg.logic.debug(
+            "mail.activity.plan compatibility on %s: %s not department-assignable, "
+            "%s carry a department",
+            dbg.rec(self),
+            dbg.rec(plan_tocheck),
+            dbg.rec(failing_plans),
+        )
         if failing_plans:
             raise UserError(
                 self.env._(
@@ -53,4 +62,11 @@ class MailActivityPlan(models.Model):
     @api.depends("res_model")
     def _compute_department_id(self):
         for plan in self.filtered(lambda plan: not plan.department_assignable):
+            dbg.logic.debug(
+                "[plan:%s] res_model %s not department-assignable, department "
+                "%s cleared",
+                plan.id,
+                plan.res_model,
+                plan.department_id.id,
+            )
             plan.department_id = False

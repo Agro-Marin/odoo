@@ -3,6 +3,8 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class MailActivitySchedule(models.TransientModel):
     _inherit = "mail.activity.schedule"
@@ -24,6 +26,12 @@ class MailActivitySchedule(models.TransientModel):
                     "department_id", "=", scheduler.department_id.id
                 )
             scheduler.plan_available_ids = self.env["mail.activity.plan"].search(domain)
+            dbg.logic.debug(
+                "[schedule:%s] department %s -> %d plan(s) available",
+                scheduler.id,
+                scheduler.department_id.id,
+                len(scheduler.plan_available_ids),
+            )
         super(MailActivitySchedule, self - todo)._compute_plan_available_ids()
 
     @api.depends("res_model")
@@ -43,6 +51,13 @@ class MailActivitySchedule(models.TransientModel):
                 wizard.department_id = (
                     False if len(all_departments) > 1 else all_departments
                 )
+                dbg.logic.debug(
+                    "[schedule:%s] %s span departments %s -> %s",
+                    wizard.id,
+                    dbg.rec(applied_on),
+                    all_departments.ids,
+                    wizard.department_id.id,
+                )
             else:
                 wizard.department_id = False
 
@@ -60,5 +75,12 @@ class MailActivitySchedule(models.TransientModel):
                 scheduler.plan_date = today + relativedelta(days=+30)
             else:
                 scheduler.plan_date = planned_due_date
+            dbg.logic.debug(
+                "[schedule:%s] earliest start %s among %d employee(s) -> plan date %s",
+                scheduler.id,
+                planned_due_date,
+                len(start_dates),
+                scheduler.plan_date,
+            )
             handled |= scheduler
         super(MailActivitySchedule, self - handled)._compute_plan_date()

@@ -3,6 +3,8 @@ from datetime import UTC, datetime, timedelta
 from odoo import api, models
 from odoo.libs.datetime import timezone
 
+from ..tools import debug_log as dbg
+
 
 class ResourceCalendarLeaves(models.Model):
     _inherit = "resource.calendar.leaves"
@@ -20,6 +22,13 @@ class ResourceCalendarLeaves(models.Model):
             self.env["hr.version"],
             self.env["resource.calendar.leaves"],
         )
+        dbg.logic.debug(
+            "resource.calendar.leaves._compute_calendar_id on %s: %d contract "
+            "group(s), %s without a contract",
+            dbg.rec(self),
+            len(leaves_by_contract),
+            dbg.rec(remaining),
+        )
         for contract, leaves in leaves_by_contract.items():
             tz = timezone(contract.resource_calendar_id.tz or "UTC")
             start_dt = date_to_datetime(contract.date_start, tz)
@@ -28,10 +37,20 @@ class ResourceCalendarLeaves(models.Model):
                 if contract.date_end
                 else datetime.max  # noqa: DTZ901 - naive sentinel, compared only
             )
-            leaves.filtered(
+            in_contract = leaves.filtered(
                 lambda leave, start_dt=start_dt, end_dt=end_dt: (
                     leave.date_from and start_dt <= leave.date_from < end_dt
                 )
-            ).calendar_id = contract.resource_calendar_id
+            )
+            dbg.logic.debug(
+                "[version:%s] %s of %s fall in %s..%s, calendar -> %s",
+                contract.id,
+                dbg.rec(in_contract),
+                dbg.rec(leaves),
+                start_dt,
+                end_dt,
+                contract.resource_calendar_id.id,
+            )
+            in_contract.calendar_id = contract.resource_calendar_id
 
         super(ResourceCalendarLeaves, remaining)._compute_calendar_id()

@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class MixinHrManagerDepartmentReport(models.AbstractModel):
     _name = "mixin.hr.manager.department.report"
@@ -13,11 +15,19 @@ class MixinHrManagerDepartmentReport(models.AbstractModel):
     )
 
     def _get_managed_department_ids(self):
-        return tuple(
+        managed = tuple(
             self.env["hr.department"]._search(
                 [("manager_id", "in", self.env.user.employee_ids.ids)]
             )
         )
+        dbg.logic.debug(
+            "%s: user %s (employees %s) manages departments %s",
+            self._name,
+            self.env.uid,
+            self.env.user.employee_ids.ids,
+            managed,
+        )
+        return managed
 
     def _search_has_department_manager_access(self, operator, value):
         if operator != "in":
@@ -32,6 +42,7 @@ class MixinHrManagerDepartmentReport(models.AbstractModel):
             ),
         ]
 
+    @dbg.timed
     @api.depends_context("uid")
     @api.depends("employee_id")
     def _compute_has_department_manager_access(self):

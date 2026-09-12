@@ -5,6 +5,8 @@ from odoo import api, fields, models
 from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.intervals import Intervals
 
+from ..tools import debug_log as dbg
+
 
 class ResourceResource(models.Model):
     _inherit = "resource.resource"
@@ -65,6 +67,7 @@ class ResourceResource(models.Model):
             if employee:
                 resource.avatar_128 = employee[0].avatar_128
 
+    @dbg.timed
     def _get_resources_without_contract(self):
         employee_ids_with_active_contracts = {
             employee.id
@@ -76,13 +79,22 @@ class ResourceResource(models.Model):
                 groupby=["employee_id"],
             )
         }
-        return self.filtered(
+        without = self.filtered(
             lambda r: (
                 not r.employee_id
                 or r.employee_id.id not in employee_ids_with_active_contracts
             )
         )
+        dbg.logic.debug(
+            "_get_resources_without_contract on %s: %d employee(s) under contract, "
+            "%s without",
+            dbg.rec(self),
+            len(employee_ids_with_active_contracts),
+            dbg.rec(without),
+        )
+        return without
 
+    @dbg.timed
     def _get_contracts_valid_periods(self, start, end):
         res = defaultdict(lambda: defaultdict(Intervals))
         timezones = {resource.tz for resource in self}
@@ -90,6 +102,14 @@ class ResourceResource(models.Model):
         date_end = max(end.astimezone(timezone(tz)).date() for tz in timezones)
         contracts = self.employee_id._get_versions_with_contract_overlap_with_period(
             date_start, date_end
+        )
+        dbg.logic.debug(
+            "_get_contracts_valid_periods on %s (%s..%s, %d tz): versions %s",
+            dbg.rec(self),
+            date_start,
+            date_end,
+            len(timezones),
+            dbg.rec(contracts),
         )
         for contract in contracts:
             tz = timezone(contract.employee_id.tz)
@@ -123,6 +143,7 @@ class ResourceResource(models.Model):
             )
         return res
 
+    @dbg.timed
     def _get_calendars_validity_within_period(self, start, end, default_company=None):
         assert start.tzinfo and end.tzinfo
         if not self:
@@ -142,6 +163,13 @@ class ResourceResource(models.Model):
                 )
             )
         resource_with_contract = self - resource_without_contract
+        dbg.logic.debug(
+            "_get_calendars_validity_within_period on %s: %s from resource "
+            "calendars, %s from contracts",
+            dbg.rec(self),
+            dbg.rec(resource_without_contract),
+            dbg.rec(resource_with_contract),
+        )
         if not resource_with_contract:
             return calendars_within_period_per_resource
 
@@ -150,6 +178,7 @@ class ResourceResource(models.Model):
         )
         return calendars_within_period_per_resource
 
+    @dbg.timed
     def _get_flexible_resources_calendars_validity_within_period(self, start, end):
         assert start.tzinfo and end.tzinfo
         resource_default_work_intervals = (
@@ -167,6 +196,13 @@ class ResourceResource(models.Model):
             )
 
         resource_with_contract = self - resource_without_contract
+        dbg.logic.debug(
+            "_get_flexible_resources_calendars_validity_within_period on %s: %s "
+            "default intervals, %s intersected with contracts",
+            dbg.rec(self),
+            dbg.rec(resource_without_contract),
+            dbg.rec(resource_with_contract),
+        )
         if resource_with_contract:
             resource_contracts_valid_periods = (
                 resource_with_contract.sudo()._get_contracts_valid_periods(start, end)
@@ -189,6 +225,12 @@ class ResourceResource(models.Model):
             return result
         date_at = date_target.astimezone(tz) if tz else date_target
         employee_calendars = resources_with_employee.employee_id._get_calendars(date_at)
+        dbg.logic.debug(
+            "_get_calendar_at on %s at %s: %s take their employee's calendar",
+            dbg.rec(self),
+            date_at,
+            dbg.rec(resources_with_employee),
+        )
         for resource in resources_with_employee:
             result[resource] = employee_calendars[resource.employee_id.id]
         return result

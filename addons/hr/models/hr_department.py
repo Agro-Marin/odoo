@@ -4,6 +4,8 @@ from odoo import _lt, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class HrDepartment(models.Model):
     _name = "hr.department"
@@ -92,12 +94,18 @@ class HrDepartment(models.Model):
         if operator != "in":
             return NotImplemented
         if self.env["hr.employee"].has_access("read"):
+            dbg.logic.debug("_search_has_read_access: hr reader, every department")
             return [(1, "=", 1)]
         departments_ids = (
             self.env["hr.department"]
             .sudo()
             .search([("manager_id", "in", self.env.user.employee_ids.ids)])
             .ids
+        )
+        dbg.logic.debug(
+            "_search_has_read_access: user %s manages %s and their children",
+            self.env.uid,
+            departments_ids,
         )
         return [("id", "child_of", departments_ids)]
 
@@ -140,6 +148,11 @@ class HrDepartment(models.Model):
         by_department = defaultdict(empty.browse)
         for member in members:
             by_department[member.department_id.id] |= member
+        dbg.logic.debug(
+            "_check_members_are_of_this_company on %s: %d member(s) checked",
+            dbg.rec(scoped),
+            len(members),
+        )
         for department in scoped:
             stranded = by_department[department.id].filtered(
                 lambda member, department=department: (
@@ -157,6 +170,7 @@ class HrDepartment(models.Model):
                     )
                 )
 
+    @dbg.timed
     @api.depends("member_ids")
     def _compute_total_employee(self):
         emp_data = (
@@ -196,11 +210,19 @@ class HrDepartment(models.Model):
 
     _hierarchy_cycle_message = _lt("You cannot create recursive departments.")
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
-        return super(
+        dbg.lifecycle.debug(
+            "hr.department.create: %d vals, keys=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+        )
+        departments = super(
             HrDepartment, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
+        dbg.lifecycle.debug("hr.department.create: created %s", dbg.rec(departments))
+        return departments
 
     @api.depends("parent_id", "parent_id.company_id")
     def _compute_company_id(self):
@@ -208,14 +230,24 @@ class HrDepartment(models.Model):
             company = dept.parent_id.company_id or dept.company_id
             if not company and not dept._origin:
                 company = self.env.company
+                dbg.logic.debug(
+                    "hr.department._compute_company_id: new department defaults to "
+                    "company %s",
+                    company.id,
+                )
             dept.company_id = company
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "hr.department.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if "manager_id" in vals:
             new_manager_id = vals.get("manager_id")
             self._update_employee_manager(new_manager_id)
         return super().write(vals)
 
+    @dbg.timed
     def _update_employee_manager(self, new_manager_id):
         department_employees = self.env["hr.employee"].search(
             [
@@ -232,6 +264,15 @@ class HrDepartment(models.Model):
                 == outgoing_manager_per_department.get(employee.department_id)
             )
         )
+        dbg.pipeline.debug(
+            "hr.department %s: manager -> %s, %d of %d members reported to the "
+            "outgoing manager and follow: %s",
+            dbg.rec(self),
+            new_manager_id,
+            len(employees),
+            len(department_employees),
+            dbg.rec(employees),
+        )
         employees.write({"parent_id": new_manager_id})
 
     def get_formview_action(self, access_uid=None):
@@ -239,6 +280,10 @@ class HrDepartment(models.Model):
         if not self.env.user.has_group("hr.group_hr_user") and self.env.context.get(
             "open_employees_kanban", False
         ):
+            dbg.logic.debug(
+                "[department:%s] non-hr user, form view redirected to employees kanban",
+                self.id,
+            )
             res.update(
                 {
                     "name": self.name,
@@ -280,6 +325,12 @@ class HrDepartment(models.Model):
             action["domain"] = domain
         if self.plans_count == 0:
             action["views"] = [(False, "form")]
+        dbg.logic.debug(
+            "[department:%s] plan action: %d plan(s), domain=%s",
+            self.id,
+            self.plans_count,
+            action["domain"],
+        )
         return action
 
     def action_employee_from_department(self):

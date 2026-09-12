@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 from odoo.addons.html_editor.tools import handle_history_divergence
 
@@ -82,6 +83,7 @@ class HrJob(models.Model):
         "The expected number of new employees must be positive.",
     )
 
+    @dbg.timed
     @api.depends("no_of_recruitment", "employee_ids.job_id", "employee_ids.active")
     def _compute_employee_counts(self):
         employee_data = self.env["hr.employee"]._read_group(
@@ -92,11 +94,17 @@ class HrJob(models.Model):
             job.no_of_employee = result.get(job.id, 0)
             job.expected_employees = result.get(job.id, 0) + job.no_of_recruitment
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
-        return super(HrJob, self.with_context(mail_create_nosubscribe=True)).create(
+        dbg.lifecycle.debug(
+            "hr.job.create: %d vals, keys=%s", len(vals_list), dbg.vals_keys(vals_list)
+        )
+        jobs = super(HrJob, self.with_context(mail_create_nosubscribe=True)).create(
             vals_list
         )
+        dbg.lifecycle.debug("hr.job.create: created %s", dbg.rec(jobs))
+        return jobs
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
@@ -111,7 +119,11 @@ class HrJob(models.Model):
             new, "name", lambda record, term: record.env._("%s (copy)", term)
         )
 
+    @dbg.timed
     def write(self, vals):
+        dbg.lifecycle.debug(
+            "hr.job.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if len(self) == 1:
             handle_history_divergence(self, "description", vals)
         return super().write(vals)

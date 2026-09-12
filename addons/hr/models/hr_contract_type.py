@@ -1,5 +1,7 @@
 from odoo import api, fields, models
 
+from ..tools import debug_log as dbg
+
 
 class HrContractType(models.Model):
     _name = "hr.contract.type"
@@ -19,4 +21,9 @@ class HrContractType(models.Model):
         for contract_type in self:
             if contract_type.code:
                 continue
+            dbg.logic.debug(
+                "[contract_type:%s] code defaults to name %r",
+                contract_type.id,
+                contract_type.name,
+            )
             contract_type.code = contract_type.name

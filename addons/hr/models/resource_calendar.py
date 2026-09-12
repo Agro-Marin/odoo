@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.fields import Domain
 
+from ..tools import debug_log as dbg
+
 
 class ResourceCalendar(models.Model):
     _inherit = "resource.calendar"
@@ -21,7 +23,16 @@ class ResourceCalendar(models.Model):
             else domain
         )
 
-        self.env["resource.calendar.leaves"].search(domain).write(
+        leaves = self.env["resource.calendar.leaves"].search(domain)
+        dbg.pipeline.debug(
+            "resource.calendar %s -> %s: moving %s from %s (resources %s)",
+            dbg.rec(self),
+            other_calendar.id,
+            dbg.rec(leaves),
+            from_date,
+            dbg.rec(resources) if resources else "all",
+        )
+        leaves.write(
             {
                 "calendar_id": other_calendar.id,
             }

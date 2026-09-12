@@ -14,6 +14,7 @@ from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
 
+from ..tools import debug_log as dbg
 from odoo.addons.hr.models.hr_version import (
     format_date_abbr,
     remove_values_from_other_companies,
@@ -754,6 +755,12 @@ class HrEmployee(models.Model):
                     check_total = True
                     total += amount
 
+            dbg.logic.debug(
+                "[employee:%s] salary distribution: %d accounts, percentage total=%s",
+                employee.id,
+                len(dist),
+                total if check_total else None,
+            )
             if check_total and not float_is_zero(total - 100.0, precision_digits=4):
                 raise ValidationError(
                     self.env._(
@@ -774,6 +781,12 @@ class HrEmployee(models.Model):
         if not values:
             values = {}
         new_vals, version_vals = self._split_employee_and_version_vals(values)
+        dbg.lifecycle.debug(
+            "hr.employee.new: employee keys=%s, version keys=%s, origin=%s",
+            dbg.keys(new_vals),
+            dbg.keys(version_vals),
+            dbg.rec(origin) if origin is not None else None,
+        )
 
         employee = super().new(new_vals, origin, ref)
         version_vals["employee_id"] = employee
@@ -792,6 +805,12 @@ class HrEmployee(models.Model):
     def _follow_company_calendar(self, company_id, vals_list):
         default_calendar = self.env.company.resource_calendar_id
         if company_id == self.env.company.id or not default_calendar.company_id:
+            dbg.logic.debug(
+                "_follow_company_calendar: company %s keeps calendar %s (same "
+                "company or calendar is shared)",
+                company_id,
+                default_calendar.id,
+            )
             return
         company = self.env["res.company"].browse(company_id)
         for vals in vals_list:
@@ -800,25 +819,56 @@ class HrEmployee(models.Model):
                 == default_calendar.id
             ):
                 vals["resource_calendar_id"] = company.resource_calendar_id.id
+                dbg.logic.debug(
+                    "_follow_company_calendar: calendar %s -> %s for company %s",
+                    default_calendar.id,
+                    company.resource_calendar_id.id,
+                    company_id,
+                )
 
+    @dbg.timed
     @api.model_create_multi
     def create(self, vals_list):
+        dbg.lifecycle.debug(
+            "hr.employee.create: %d vals, keys=%s, salary_simulation=%s",
+            len(vals_list),
+            dbg.vals_keys(vals_list),
+            bool(self.env.context.get("salary_simulation")),
+        )
         vals_per_company = defaultdict(list)
         private_address_vals = {}
         for idx, caller_vals in enumerate(vals_list):
             vals, address_vals = self._split_private_address_vals(caller_vals)
             if address_vals:
                 private_address_vals[idx] = address_vals
+                dbg.logic.debug(
+                    "hr.employee.create[%d]: private address keys=%s split off",
+                    idx,
+                    dbg.keys(address_vals),
+                )
             if vals.get("resource_id"):
                 resource = self.env["resource.resource"].browse(vals["resource_id"])
                 if "user_id" not in vals and resource.user_id:
                     vals["user_id"] = resource.user_id.id
                 if "name" not in vals and not vals.get("partner_id"):
                     vals["name"] = resource.name
+                dbg.logic.debug(
+                    "hr.employee.create[%d]: resource %s given, user_id=%s name=%r",
+                    idx,
+                    resource.id,
+                    vals.get("user_id"),
+                    vals.get("name"),
+                )
             if vals.get("user_id"):
                 user = self.env["res.users"].browse(vals["user_id"])
                 vals.update(self._sync_user(user))
                 vals["name"] = vals.get("name", user.name)
+                dbg.pipeline.debug(
+                    "[user:%s] -> employee vals: partner_id=%s name=%r",
+                    user.id,
+                    vals.get("partner_id"),
+                    vals.get("name"),
+                )
                 self._remove_work_contact_id(user, vals.get("company_id"))
             vals_per_company[vals.get("company_id") or self.env.company.id].append(
                 (idx, vals)
@@ -830,11 +880,22 @@ class HrEmployee(models.Model):
                 if vals.get("tz"):
                     party_tz[idx] = vals["tz"]
         employees = self.env["hr.employee"]
+        dbg.pipeline.debug(
+            "hr.employee.create: %d company batch(es): %s",
+            len(vals_per_company),
+            dbg.lazy(lambda: {c: len(batch) for c, batch in vals_per_company.items()}),
+        )
         for company, company_vals_list in vals_per_company.items():
             idxs, company_vals_list = zip(*company_vals_list, strict=True)
             self._follow_company_calendar(company, company_vals_list)
-            new_employees = super(HrEmployee, self.with_company(company)).create(
-                company_vals_list
+            with dbg.timer(
+                self.env, "hr.employee.create: super for company %s", company
+            ):
+                new_employees = super(HrEmployee, self.with_company(company)).create(
+                    company_vals_list
+                )
+            dbg.pipeline.debug(
+                "[company:%s] created %s", company, dbg.rec(new_employees)
             )
             index_per_employee.update(dict(zip(new_employees, idxs, strict=True)))
             employees |= new_employees
@@ -843,19 +904,44 @@ class HrEmployee(models.Model):
         for employee in employees:
             idx = index_per_employee[employee]
             if address_vals := private_address_vals.get(idx):
+                dbg.pipeline.debug(
+                    "[employee:%s] writing private address keys=%s",
+                    employee.id,
+                    dbg.keys(address_vals),
+                )
                 employee.write(address_vals)
             tz = party_tz.get(idx)
             if tz and employee.partner_id and not employee.partner_id.tz:
                 employee.partner_id.sudo().tz = tz
+                dbg.logic.debug(
+                    "[employee:%s] party %s took tz %s",
+                    employee.id,
+                    employee.partner_id.id,
+                    tz,
+                )
         employees.version_id._check_fields(["employee_id"])
         if self.env.context.get("salary_simulation"):
+            dbg.lifecycle.debug(
+                "hr.employee.create: salary_simulation, returning %s early",
+                dbg.rec(employees),
+            )
             return employees
         employees.sudo()._update_missing_avatars()
         employee_departments = employees.department_id
         if employee_departments:
-            self.env["discuss.channel"].sudo().search(
-                [("subscription_department_ids", "in", employee_departments.ids)]
-            )._subscribe_users_automatically()
+            channels = (
+                self.env["discuss.channel"]
+                .sudo()
+                .search(
+                    [("subscription_department_ids", "in", employee_departments.ids)]
+                )
+            )
+            dbg.pipeline.debug(
+                "hr.employee.create: departments %s -> resubscribing channels %s",
+                dbg.rec(employee_departments),
+                dbg.rec(channels),
+            )
+            channels._subscribe_users_automatically()
         onboarding_notes_bodies = {}
         hr_root_menu = self.env.ref("hr.menu_hr_root")
         for employee in employees:
@@ -873,6 +959,7 @@ class HrEmployee(models.Model):
             )
         employees._message_log_batch(onboarding_notes_bodies)
         employees.invalidate_recordset()
+        dbg.lifecycle.debug("hr.employee.create: done %s", dbg.rec(employees))
         return employees
 
     @api.model
@@ -885,7 +972,15 @@ class HrEmployee(models.Model):
             if version_id
         ]
         if not pairs:
+            dbg.pipeline.debug(
+                "hr.employee._create: no explicit version_id in %d rows", len(data_list)
+            )
             return result
+        dbg.pipeline.debug(
+            "hr.employee._create: binding %d given version(s) to their employee: %s",
+            len(pairs),
+            pairs,
+        )
         explicit_version_fields = {
             version_id: set(vals["inherited"].get("hr.version", ()))
             for version_id, vals in zip(version_ids, data_list, strict=True)
@@ -913,6 +1008,11 @@ class HrEmployee(models.Model):
                 field = version._fields[fname]
                 if field.compute and field.store:
                     self.env.remove_to_compute(field, version)
+                    dbg.logic.debug(
+                        "[version:%s] explicit %s kept over its compute",
+                        version.id,
+                        fname,
+                    )
         return result
 
     def copy_data(self, default=None):
@@ -921,10 +1021,19 @@ class HrEmployee(models.Model):
             if vals:
                 vals.pop("employee_id", None)
         remove_values_from_other_companies(self, vals_list, default)
+        dbg.lifecycle.debug(
+            "hr.employee.copy_data on %s: keys=%s",
+            dbg.rec(self),
+            dbg.vals_keys(vals_list),
+        )
         return vals_list
 
+    @dbg.timed
     def write(self, vals):
         vals = dict(vals)
+        dbg.lifecycle.debug(
+            "hr.employee.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
+        )
         if vals.get("company_id") and "resource_calendar_id" not in vals:
             company = self.env["res.company"].browse(vals["company_id"])
             moving = self.filtered(
@@ -934,17 +1043,37 @@ class HrEmployee(models.Model):
                 )
             )
             if moving:
+                dbg.logic.debug(
+                    "hr.employee.write: company -> %s, %s follow the company "
+                    "calendar %s, %s keep theirs",
+                    company.id,
+                    dbg.rec(moving),
+                    company.resource_calendar_id.id,
+                    dbg.rec(self - moving),
+                )
                 (self - moving).write(vals)
                 moving.write(
                     {**vals, "resource_calendar_id": company.resource_calendar_id.id}
                 )
                 return True
         if "partner_id" in vals:
+            dbg.pipeline.debug(
+                "hr.employee.write on %s: party change -> %s, unsubscribing former %s",
+                dbg.rec(self),
+                vals["partner_id"],
+                self.partner_id.ids,
+            )
             self.message_unsubscribe(self.partner_id.ids)
         user_to_sync = None
         if "user_id" in vals:
             user_to_sync = self.env["res.users"].browse(vals["user_id"])
             vals.update(self._sync_user(user_to_sync))
+            dbg.pipeline.debug(
+                "[user:%s] -> employee %s: partner_id=%s",
+                user_to_sync.id,
+                dbg.rec(self),
+                vals.get("partner_id"),
+            )
             self._remove_work_contact_id(user_to_sync, vals.get("company_id"))
         if vals.get("department_id") or vals.get("user_id"):
             department_ids = (
@@ -953,10 +1082,22 @@ class HrEmployee(models.Model):
                 else self.department_id.ids
             )
             if department_ids:
-                self.env["discuss.channel"].sudo().search(
-                    [("subscription_department_ids", "in", department_ids)]
-                )._subscribe_users_automatically()
+                channels = (
+                    self.env["discuss.channel"]
+                    .sudo()
+                    .search([("subscription_department_ids", "in", department_ids)])
+                )
+                dbg.pipeline.debug(
+                    "hr.employee.write: departments %s -> resubscribing channels %s",
+                    department_ids,
+                    dbg.rec(channels),
+                )
+                channels._subscribe_users_automatically()
         if vals.get("departure_description"):
+            dbg.lifecycle.debug(
+                "hr.employee.write on %s: posting departure description",
+                dbg.rec(self),
+            )
             for employee in self:
                 employee.message_post(
                     body=self.env._(
@@ -966,9 +1107,23 @@ class HrEmployee(models.Model):
                 )
         vals, address_vals = self._split_private_address_vals(vals)
         new_vals, version_vals = self._split_employee_and_version_vals(vals)
+        dbg.logic.debug(
+            "hr.employee.write on %s: split -> employee=%s version=%s address=%s",
+            dbg.rec(self),
+            dbg.keys(new_vals),
+            dbg.keys(version_vals),
+            dbg.keys(address_vals),
+        )
         former_parties = {employee: employee.partner_id for employee in self}
-        res = super().write(new_vals)
+        with dbg.timer(self.env, "hr.employee.write: super on %s", dbg.rec(self)):
+            res = super().write(new_vals)
         if "partner_id" in vals:
+            dbg.pipeline.debug(
+                "hr.employee.write on %s: party follow-ups (bank accounts, home, "
+                "resource, identifiers, former party) former=%s",
+                dbg.rec(self),
+                dbg.lazy(lambda: {e.id: p.id for e, p in former_parties.items()}),
+            )
             self._update_bank_account_contact(vals["partner_id"])
             self._reparent_private_address()
             self._bind_resource_to_party()
@@ -977,6 +1132,12 @@ class HrEmployee(models.Model):
         if version_vals:
             version_vals["last_modified_date"] = fields.Datetime.now()
             version_vals["last_modified_uid"] = self.env.uid
+            dbg.pipeline.debug(
+                "hr.employee.write on %s -> version %s: keys=%s",
+                dbg.rec(self),
+                dbg.rec(self.version_id),
+                dbg.keys(version_vals),
+            )
             self.version_id.write(version_vals)
 
             for employee in self:
@@ -1017,6 +1178,11 @@ class HrEmployee(models.Model):
         return employee_vals, address_vals
 
     def _write_private_address(self, address_vals):
+        dbg.pipeline.debug(
+            "hr.employee._write_private_address on %s: keys=%s (sudo)",
+            dbg.rec(self),
+            dbg.keys(address_vals),
+        )
         self._write_check_field_access(address_vals)
         # The address is a child partner, which the HR groups may not write. The field
         # groups checked above, as the caller, are the policy; the partner write is not.
@@ -1041,6 +1207,16 @@ class HrEmployee(models.Model):
             parties = Party.create([party_vals for _data, party_vals in to_create])
             for party, (data, _party_vals) in zip(parties, to_create, strict=True):
                 data["stored"]["partner_id"] = party.id
+            dbg.pipeline.debug(
+                "hr.employee._create_parent_records: created parties %s",
+                dbg.rec(parties),
+            )
+        dbg.pipeline.debug(
+            "hr.employee._create_parent_records: %d rows, %d new parties, %d given",
+            len(data_list),
+            len(to_create),
+            len(data_list) - len(to_create),
+        )
         super()._create_parent_records(data_list)
         for data, party_vals in zip(data_list, party_vals_list, strict=True):
             if party_vals:
@@ -1069,6 +1245,15 @@ class HrEmployee(models.Model):
         }
         for vals in result:
             employee_vals, version_vals = self._split_employee_and_version_vals(vals)
+            dbg.logic.debug(
+                "hr.employee._prepare_create_values: version keys dropped as "
+                "unwritable: %s",
+                dbg.lazy(
+                    lambda version_vals=version_vals: sorted(
+                        set(version_vals) - writable_version_fields
+                    )
+                ),
+            )
             new_vals_list.append(
                 {
                     **employee_vals,
@@ -1136,6 +1321,13 @@ class HrEmployee(models.Model):
                             + removed_percentage
                         )
                     )
+                    dbg.logic.debug(
+                        "[employee:%s] salary distribution: %s%% of removed "
+                        "accounts folded into account %s",
+                        employee.id,
+                        removed_percentage,
+                        first_id,
+                    )
 
             total_allocated = sum(
                 d["amount"]
@@ -1163,6 +1355,14 @@ class HrEmployee(models.Model):
                 }
                 remaining -= amount
 
+            dbg.logic.debug(
+                "[employee:%s] salary distribution: added=%s removed=%s kept=%s -> %s",
+                employee.id,
+                sorted(added_ids),
+                sorted(removed_ids),
+                sorted(unchanged_ids),
+                new_salary_distribution,
+            )
             employee.salary_distribution = new_salary_distribution
 
     @api.depends("private_country_id")
@@ -1221,6 +1421,12 @@ class HrEmployee(models.Model):
             else self.env["hr.version"]
         )
 
+        dbg.logic.debug(
+            "hr.employee._compute_version_id on %s: context version_id=%s -> %s",
+            dbg.rec(self),
+            context_version_id,
+            dbg.rec(context_version),
+        )
         for employee in self:
             if context_version and context_version.employee_id == employee:
                 version = context_version
@@ -1242,6 +1448,7 @@ class HrEmployee(models.Model):
                 employee.version_id.work_location_id.location_type or "other"
             )
 
+    @dbg.timed
     @api.depends("version_ids.date_version", "version_ids.active", "active")
     def _compute_current_version_id(self):
         Version = self.env["hr.version"].with_context(active_test=True)
@@ -1265,6 +1472,13 @@ class HrEmployee(models.Model):
             ):
                 earliest_version_by_employee.setdefault(version.employee_id.id, version)
         no_version = self.env["hr.version"]
+        dbg.logic.debug(
+            "hr.employee._compute_current_version_id on %s: %d with a past version, "
+            "%d falling back to their earliest",
+            dbg.rec(self),
+            len(latest_version_by_employee),
+            len(earliest_version_by_employee),
+        )
         for employee in self:
             new_current_version = latest_version_by_employee.get(
                 employee.id
@@ -1272,8 +1486,15 @@ class HrEmployee(models.Model):
             if not new_current_version and not employee.id:
                 new_current_version = employee.version_ids[:1]
             if employee.current_version_id != new_current_version:
+                dbg.lifecycle.debug(
+                    "[employee:%s] current version %s -> %s",
+                    employee.id,
+                    employee.current_version_id.id,
+                    new_current_version.id,
+                )
                 employee.current_version_id = new_current_version
 
+    @dbg.timed
     @api.depends("partner_id")
     def _compute_private_address_id(self):
         Partner = self.env["res.partner"].sudo()
@@ -1298,12 +1519,25 @@ class HrEmployee(models.Model):
                 employee.private_address_id = employee._origin.private_address_id
             else:
                 to_create.append(employee)
+        dbg.logic.debug(
+            "hr.employee._compute_private_address_id on %s: %d unresolved, %d "
+            "existing homes matched, %d to create",
+            dbg.rec(self),
+            len(unresolved),
+            len(existing_by_contact),
+            len(to_create),
+        )
         if to_create:
             homes = Partner.create(
                 [
                     {"parent_id": employee.partner_id.id, "type": "private"}
                     for employee in to_create
                 ]
+            )
+            dbg.pipeline.debug(
+                "hr.employee._compute_private_address_id: created homes %s for %s",
+                dbg.rec(homes),
+                dbg.rec(self.browse(e.id for e in to_create)),
             )
             for employee, home in zip(to_create, homes, strict=True):
                 employee.private_address_id = home
@@ -1316,6 +1550,12 @@ class HrEmployee(models.Model):
             if manager and (
                 version.coach_id == previous_manager or not version.coach_id
             ):
+                dbg.logic.debug(
+                    "[employee:%s] coach follows manager: %s -> %s",
+                    version.id,
+                    version.coach_id.id,
+                    manager.id,
+                )
                 version.coach_id = manager
             elif not version.coach_id:
                 version.coach_id = False
@@ -1347,12 +1587,20 @@ class HrEmployee(models.Model):
     def _onchange_contract_template_id(self):
         if self.contract_template_id:
             whitelist = self.env["hr.version"]._get_whitelist_fields_from_template()
+            applied = []
             for field in self.contract_template_id._fields:
                 if (
                     field in whitelist
                     and not self.env["hr.version"]._fields[field].related
                 ):
                     self[field] = self.contract_template_id[field]
+                    applied.append(field)
+            dbg.logic.debug(
+                "[employee:%s] contract template %s applied fields %s",
+                self._origin.id,
+                self.contract_template_id.id,
+                applied,
+            )
 
     @api.onchange("contract_date_start")
     def _onchange_contract_date_start(self):
@@ -1428,6 +1676,12 @@ class HrEmployee(models.Model):
                 gap = (current_date - (other_version.date_end or date(2100, 1, 1))).days
                 current_date = other_version.date_start
                 if gap >= 4:
+                    dbg.logic.debug(
+                        "[employee:%s] version chain breaks before %s: gap %d days",
+                        self.id,
+                        other_version.id,
+                        gap,
+                    )
                     return older_versions[0:i] + current_version
             return older_versions + current_version
 
@@ -1436,11 +1690,17 @@ class HrEmployee(models.Model):
             versions = get_versions_continuous(versions)
         return min(versions.mapped("date_start")) if versions else False
 
+    @dbg.timed
     def _cron_update_current_version_id(self):
         employees = self.with_context(active_test=False).search([])
+        dbg.lifecycle.debug(
+            "cron _cron_update_current_version_id: start, %d employees", len(employees)
+        )
         employees._apply_pending_version_vals()
         employees._compute_current_version_id()
+        dbg.lifecycle.debug("cron _cron_update_current_version_id: done")
 
+    @dbg.timed
     def _apply_pending_version_vals(self):
         due = (
             self.env["hr.version"]
@@ -1454,9 +1714,18 @@ class HrEmployee(models.Model):
                 order="date_version asc, id asc",
             )
         )
+        dbg.pipeline.debug(
+            "_apply_pending_version_vals: %d version(s) due: %s", len(due), dbg.rec(due)
+        )
         for version in due:
             vals = version.pending_employee_vals
             version.pending_employee_vals = False
+            dbg.pipeline.debug(
+                "[version:%s] pending vals keys=%s -> employee %s",
+                version.id,
+                dbg.keys(vals),
+                version.employee_id.id,
+            )
             version.employee_id.sudo().write(vals)
 
     def _search_version_id(self, operator, value):
@@ -1507,6 +1776,16 @@ class HrEmployee(models.Model):
             raise UserError(
                 self.env._("A contract end date requires a contract start date.")
             )
+        dbg.logic.debug(
+            "[employee:%s] new version dates: date=%s contract=%s..%s (existing "
+            "contract on that day: %s..%s)",
+            self.id,
+            date,
+            contract_date_start,
+            contract_date_end,
+            date_from,
+            date_to,
+        )
         return date, contract_date_start, contract_date_end, date_from, date_to
 
     def _update_sibling_contract_end(
@@ -1517,6 +1796,15 @@ class HrEmployee(models.Model):
             and contract_date_start == date_from
             and contract_date_end != date_to
         ):
+            dbg.logic.debug(
+                "[employee:%s] sibling contract end untouched (date_from=%s "
+                "start=%s end=%s..%s)",
+                employee_id,
+                date_from,
+                contract_date_start,
+                contract_date_end,
+                date_to,
+            )
             return
         versions_sudo_to_sync = (
             self.env["hr.version"]
@@ -1530,10 +1818,21 @@ class HrEmployee(models.Model):
             )
         )
         if versions_sudo_to_sync:
+            dbg.pipeline.debug(
+                "[employee:%s] contract end %s -> %s on siblings %s",
+                employee_id,
+                date_to,
+                contract_date_end,
+                dbg.rec(versions_sudo_to_sync),
+            )
             versions_sudo_to_sync.write({"contract_date_end": contract_date_end})
 
+    @dbg.timed
     def create_version(self, values):
         self.check_singleton()
+        dbg.lifecycle.debug(
+            "[employee:%s] create_version: keys=%s", self.id, dbg.keys(values)
+        )
         date, contract_date_start, contract_date_end, date_from, date_to = (
             self._get_new_version_dates(values)
         )
@@ -1544,7 +1843,20 @@ class HrEmployee(models.Model):
                 [("employee_id", "=", self.id)], limit=1
             )
         if version_to_copy.date_version == date:
+            dbg.logic.debug(
+                "[employee:%s] create_version: version %s already dated %s, reusing",
+                self.id,
+                version_to_copy.id,
+                date,
+            )
             return version_to_copy
+        dbg.pipeline.debug(
+            "[employee:%s] create_version: copying version %s (dated %s) as of %s",
+            self.id,
+            version_to_copy.id,
+            version_to_copy.date_version,
+            date,
+        )
 
         employee_id = values.get("employee_id", self.id)
         self._update_sibling_contract_end(
@@ -1578,8 +1890,19 @@ class HrEmployee(models.Model):
             # date: a version in effect writes them on the party now, a future
             # one carries them until its date arrives.
             if date <= fields.Date.today():
+                dbg.pipeline.debug(
+                    "[employee:%s] create_version: employee keys=%s written now",
+                    self.id,
+                    dbg.keys(employee_vals),
+                )
                 self.write(employee_vals)
             else:
+                dbg.pipeline.debug(
+                    "[employee:%s] create_version: employee keys=%s deferred to %s",
+                    self.id,
+                    dbg.keys(employee_vals),
+                    date,
+                )
                 copy_vals["pending_employee_vals"] = employee_vals
             new_version_vals = {
                 name: value
@@ -1612,6 +1935,12 @@ class HrEmployee(models.Model):
             if properties_fields_vals:
                 new_version.sudo().write(properties_fields_vals)
             new_version.write(new_version_vals)
+        dbg.lifecycle.debug(
+            "[employee:%s] create_version: created version %s (keys=%s)",
+            self.id,
+            new_version.id,
+            dbg.keys(new_version_vals),
+        )
         return new_version
 
     def create_contract(self, date):
@@ -1627,9 +1956,23 @@ class HrEmployee(models.Model):
             else False
         )
 
+        dbg.logic.debug(
+            "[employee:%s] create_contract on %s: %d future contract(s), end=%s",
+            self.id,
+            date,
+            len(future_contract_dates),
+            new_contract_date_end,
+        )
         if version_same_date := self.version_ids.filtered(
             lambda v: v.date_version == date
         ):
+            dbg.pipeline.debug(
+                "[employee:%s] create_contract: version %s already dated %s, "
+                "writing contract dates on it",
+                self.id,
+                version_same_date.id,
+                date,
+            )
             version_same_date.write(
                 {
                     "contract_date_start": date,
@@ -1669,6 +2012,7 @@ class HrEmployee(models.Model):
                 )
         return contracts_by_employee
 
+    @dbg.timed
     def _get_contract_versions(self, date_start=None, date_end=None, domain=None):
         version_domain = Domain("contract_date_start", "!=", False)
         if self.ids:
@@ -1696,6 +2040,14 @@ class HrEmployee(models.Model):
             contract_versions_by_employee[employee.id][
                 first_version.contract_date_start
             ] |= version
+        dbg.logic.debug(
+            "_get_contract_versions on %s (%s..%s): %d employee(s), %d contract(s)",
+            dbg.rec(self),
+            date_start,
+            date_end,
+            len(contract_versions_by_employee),
+            sum(len(c) for c in contract_versions_by_employee.values()),
+        )
         return contract_versions_by_employee
 
     def _get_all_contract_dates(self):
@@ -1746,6 +2098,13 @@ class HrEmployee(models.Model):
                 user_employees.filtered(lambda r: r.company_id == user.company_id)
                 or user_employees[:1]
             )
+            dbg.logic.debug(
+                "[user:%s] no employee in company %s, fallback among %s -> %s",
+                user.id,
+                self.env.company.id,
+                dbg.rec(user_employees),
+                dbg.rec(employee),
+            )
         return employee
 
     @api.model
@@ -1769,6 +2128,12 @@ class HrEmployee(models.Model):
         working_now = []
         for (tz, calendar), employees in employees_by_schedule.items():
             if not calendar:
+                dbg.logic.debug(
+                    "_get_employee_ids_working_now: %s have no calendar (tz %s), "
+                    "never working",
+                    dbg.rec(employees),
+                    tz,
+                )
                 continue
             zone = timezone(tz)
             work_intervals = calendar._work_intervals_batch(
@@ -1776,8 +2141,15 @@ class HrEmployee(models.Model):
             )[False]
             if work_intervals:
                 working_now += employees.ids
+        dbg.logic.debug(
+            "_get_employee_ids_working_now on %s: %d schedule group(s), %d working",
+            dbg.rec(self),
+            len(employees_by_schedule),
+            len(working_now),
+        )
         return working_now
 
+    @dbg.timed
     @api.depends("user_id.im_status", "active")
     def _compute_hr_presence_state(self):
         employee_to_check_working = self.filtered(
@@ -1787,6 +2159,13 @@ class HrEmployee(models.Model):
             )
         )
         working_now_list = employee_to_check_working._get_employee_ids_working_now()
+        dbg.logic.debug(
+            "_compute_hr_presence_state on %s: %d offline under login control, "
+            "%d of them in working hours",
+            dbg.rec(self),
+            len(employee_to_check_working),
+            len(working_now_list),
+        )
         for employee in self:
             state = "out_of_working_hour"
             if employee.company_id.sudo().hr_presence_control_login:
@@ -1957,6 +2336,14 @@ class HrEmployee(models.Model):
                     "partner_id": employee.partner_id.id,
                 }
             )
+        dbg.logic.debug(
+            "_prepare_user_vals_and_blocked_names on %s: %d creatable, %d taken "
+            "addresses, blocked=%s",
+            dbg.rec(self),
+            len(create_vals),
+            len(taken_addresses),
+            dbg.lazy(lambda: {k: len(v) for k, v in blocked.items()}),
+        )
         return create_vals, blocked
 
     def action_create_users(self):
@@ -1964,6 +2351,12 @@ class HrEmployee(models.Model):
 
         next_action = {"type": "ir.actions.act_window_close"}
         if create_vals:
+            dbg.pipeline.debug(
+                "action_create_users on %s: creating %d user(s) for employees %s",
+                dbg.rec(self),
+                len(create_vals),
+                [vals["create_employee_id"] for vals in create_vals],
+            )
             self.env["res.users"].create(create_vals)
             next_action = self._prepare_action_user_creation_notification(
                 self.env._(
@@ -2040,8 +2433,10 @@ class HrEmployee(models.Model):
             )
         )
 
+    @dbg.timed
     @api.model
     def notify_expiring_contract_work_permit(self):
+        dbg.lifecycle.debug("cron notify_expiring_contract_work_permit: start")
         companies = self.env["res.company"].search([])
         employees_contract_expiring = self.env["hr.employee"]
         employees_work_permit_expiring = self.env["hr.employee"]
@@ -2084,6 +2479,16 @@ class HrEmployee(models.Model):
                 ]
             )
 
+        dbg.logic.debug(
+            "notify_expiring_contract_work_permit: %d companies in %d contract "
+            "period(s) and %d permit period(s); contracts expiring %s, permits "
+            "expiring %s",
+            len(companies),
+            len(companies_by_contract_period),
+            len(companies_by_permit_period),
+            dbg.rec(employees_contract_expiring),
+            dbg.rec(employees_work_permit_expiring),
+        )
         for employee in employees_contract_expiring:
             employee._schedule_expiry_activity(
                 employee.contract_date_end,
@@ -2096,6 +2501,7 @@ class HrEmployee(models.Model):
                 self.env._("The work permit of %s is about to expire.", employee.name),
             )
 
+        dbg.lifecycle.debug("cron notify_expiring_contract_work_permit: done")
         return True
 
     def _schedule_expiry_activity(self, date_deadline, summary):
@@ -2114,7 +2520,18 @@ class HrEmployee(models.Model):
             )
         )
         if already_scheduled:
+            dbg.logic.debug(
+                "[employee:%s] expiry activity for %s already scheduled, skipped",
+                self.id,
+                date_deadline,
+            )
             return
+        dbg.pipeline.debug(
+            "[employee:%s] scheduling expiry activity for %s to user %s",
+            self.id,
+            date_deadline,
+            self.hr_responsible_id.id or self.env.uid,
+        )
         self.with_context(mail_activity_quick_update=True).activity_schedule(
             "mail.mail_activity_data_todo",
             date_deadline,
@@ -2140,8 +2557,14 @@ class HrEmployee(models.Model):
         if self.resource_calendar_id and not self.tz:
             self.tz = self.resource_calendar_id.tz
 
+    @dbg.timed
     def unlink(self):
         resources = self.mapped("resource_id")
+        dbg.lifecycle.debug(
+            "hr.employee.unlink %s, then resources %s",
+            dbg.rec(self),
+            dbg.rec(resources),
+        )
         result = super().unlink()
         resources.unlink()
         return result
@@ -2183,6 +2606,9 @@ class HrEmployee(models.Model):
                 employee.primary_bank_account_id = False
 
     def action_unarchive(self):
+        dbg.lifecycle.debug(
+            "hr.employee.action_unarchive %s: clearing departure fields", dbg.rec(self)
+        )
         res = super().action_unarchive()
         self.write(
             {
@@ -2193,8 +2619,15 @@ class HrEmployee(models.Model):
         )
         return res
 
+    @dbg.timed
     def action_archive(self):
         archived_employees = self.filtered("active")
+        dbg.lifecycle.debug(
+            "hr.employee.action_archive %s: %s were active, no_wizard=%s",
+            dbg.rec(self),
+            dbg.rec(archived_employees),
+            bool(self.env.context.get("no_wizard")),
+        )
         res = super().action_archive()
         if archived_employees:
             employee_fields_to_empty = (
@@ -2210,6 +2643,12 @@ class HrEmployee(models.Model):
                 for field in user_fields_to_empty
             )
             employees = self.env["hr.employee"].search(employee_domain | user_domain)
+            dbg.pipeline.debug(
+                "hr.employee.action_archive: emptying %s / %s on %s",
+                employee_fields_to_empty,
+                user_fields_to_empty,
+                dbg.rec(employees),
+            )
             for field in employee_fields_to_empty:
                 employees.filtered(lambda e, f=field: e[f] in archived_employees).write(
                     {field: False}
@@ -2222,6 +2661,10 @@ class HrEmployee(models.Model):
             if len(archived_employees) == 1 and not self.env.context.get(
                 "no_wizard", False
             ):
+                dbg.logic.debug(
+                    "[employee:%s] single archive -> departure wizard",
+                    archived_employees.id,
+                )
                 return {
                     "type": "ir.actions.act_window",
                     "name": self.env._("Register Departure"),
@@ -2290,6 +2733,9 @@ class HrEmployee(models.Model):
                     )
                 )
             minted.add(barcode)
+            dbg.logic.debug(
+                "[employee:%s] badge minted after %d draw(s)", employee.id, _attempt + 1
+            )
             employee.barcode = barcode
 
     def _get_tz(self):
@@ -2340,6 +2786,14 @@ class HrEmployee(models.Model):
             )
             if version_sudo:
                 res[employee.id] = version_sudo.resource_calendar_id.sudo(False)
+                dbg.logic.debug(
+                    "[employee:%s] calendar at %s from version %s (%s): %s",
+                    employee.id,
+                    date_from,
+                    version_sudo.id,
+                    "in contract" if employee_versions_sudo else "nearest",
+                    version_sudo.resource_calendar_id.id,
+                )
         return res
 
     @staticmethod
@@ -2347,6 +2801,7 @@ class HrEmployee(models.Model):
         naive = datetime.combine(day, moment)
         return localize_standard(naive, tz) if tz else naive
 
+    @dbg.timed
     def _get_version_periods(self, start, stop, field_name=None, check_contract=False):
         if field_name and field_name not in self.env["hr.version"]._fields:
             raise UserError(
@@ -2369,6 +2824,15 @@ class HrEmployee(models.Model):
                     and (not version.date_end or version.date_end >= start_date)
                 )
             )
+        dbg.logic.debug(
+            "_get_version_periods on %s (%s..%s, field=%s, check_contract=%s): %s",
+            dbg.rec(self),
+            start,
+            stop,
+            field_name,
+            check_contract,
+            dbg.rec(versions),
+        )
         for version in versions:
             calendar_tz = (
                 timezone(version.resource_calendar_id.tz)
@@ -2419,6 +2883,11 @@ class HrEmployee(models.Model):
             else date_from_date
         )
         if not self:
+            dbg.logic.debug(
+                "_get_unusual_days: no employee, company %s calendar %s",
+                self.env.company.id,
+                self.env.company.resource_calendar_id.id,
+            )
             return self.env.company.resource_calendar_id._get_unusual_days(
                 datetime.combine(date_from_date, time.min, tzinfo=UTC),
                 datetime.combine(date_to_date, time.max, tzinfo=UTC),
@@ -2431,6 +2900,14 @@ class HrEmployee(models.Model):
             .filtered(lambda v: v._has_contract_overlap(date_from_date, date_to_date))
         )
         if not employee_versions:
+            dbg.logic.debug(
+                "[employee:%s] _get_unusual_days %s..%s: no contract version, "
+                "using calendar %s",
+                self.id,
+                date_from_date,
+                date_to_date,
+                (self.resource_calendar_id or self.env.company.resource_calendar_id).id,
+            )
             return (
                 self.resource_calendar_id or self.env.company.resource_calendar_id
             )._get_unusual_days(
@@ -2438,6 +2915,13 @@ class HrEmployee(models.Model):
                 datetime.combine(date_to_date, time.max).replace(tzinfo=UTC),
                 self.company_id,
             )
+        dbg.logic.debug(
+            "[employee:%s] _get_unusual_days %s..%s: over versions %s",
+            self.id,
+            date_from_date,
+            date_to_date,
+            dbg.rec(employee_versions),
+        )
         unusual_days = {}
         for version in employee_versions:
             tmp_date_from = max(date_from_date, version.date_start)
@@ -2540,7 +3024,21 @@ class HrEmployee(models.Model):
         employee_tz = self._get_employee_tz()
         windows = list(self._get_version_windows(start, stop, employee_tz))
         if not windows:
+            dbg.logic.debug(
+                "[employee:%s] no version window in %s..%s, fallback calendar %s",
+                self.id,
+                start,
+                stop,
+                self._get_fallback_calendar().id,
+            )
             return fallback(self._get_fallback_calendar(), employee_tz)
+        dbg.logic.debug(
+            "[employee:%s] folding %d version window(s) in %s..%s",
+            self.id,
+            len(windows),
+            start,
+            stop,
+        )
         result = None
         for index, window in enumerate(windows):
             part = per_window(index, window, employee_tz)
@@ -2683,6 +3181,14 @@ class HrEmployee(models.Model):
         )
         if not squatters:
             return
+        dbg.pipeline.debug(
+            "[user:%s] party %s squatted by %s in companies %s: giving them fresh "
+            "parties",
+            user.id,
+            user.partner_id.id,
+            dbg.rec(squatters),
+            sorted(companies),
+        )
         fresh = (
             self.env["res.partner"]
             .sudo()
@@ -2702,10 +3208,15 @@ class HrEmployee(models.Model):
 
     def _update_missing_avatars(self):
         if not self.env["ir.ui.view"].sudo(False).has_access("write"):
+            dbg.logic.debug(
+                "_update_missing_avatars on %s: no ir.ui.view write access, skipped",
+                dbg.rec(self),
+            )
             return
         for partner in self.partner_id:
             if partner.image_1920 or not (partner.name or "").strip():
                 continue
+            dbg.pipeline.debug("[party:%s] generating avatar svg", partner.id)
             partner.image_1920 = partner._prepare_avatar_svg()
 
     def _sync_user(self, user):
@@ -2717,6 +3228,13 @@ class HrEmployee(models.Model):
     def _bind_resource_to_party(self):
         for employee in self:
             if employee.resource_id.partner_id != employee.partner_id:
+                dbg.pipeline.debug(
+                    "[employee:%s] resource %s party %s -> %s",
+                    employee.id,
+                    employee.resource_id.id,
+                    employee.resource_id.partner_id.id,
+                    employee.partner_id.id,
+                )
                 employee.resource_id.partner_id = employee.partner_id
 
     def _prepare_resource_values(self, vals, tz):
@@ -2790,13 +3308,32 @@ class HrEmployee(models.Model):
                             )
                         )
                     if row:
+                        dbg.lifecycle.debug(
+                            "[employee:%s] identifier %s cleared, row %s unlinked",
+                            employee.id,
+                            code,
+                            row.id,
+                        )
                         row.unlink()
                     continue
                 if row:
                     changed = {k: v for k, v in vals.items() if row[k] != v}
                     if changed:
+                        dbg.lifecycle.debug(
+                            "[employee:%s] identifier %s row %s: %s changed",
+                            employee.id,
+                            code,
+                            row.id,
+                            dbg.keys(changed),
+                        )
                         row.write(changed)
                 else:
+                    dbg.lifecycle.debug(
+                        "[employee:%s] identifier %s created on party %s",
+                        employee.id,
+                        code,
+                        partner.id,
+                    )
                     partner.identifier_ids.create(
                         {"partner_id": partner.id, "type_id": types[code].id, **vals}
                     )
@@ -2851,6 +3388,13 @@ class HrEmployee(models.Model):
             home = employee.private_address_id
             contact = employee.partner_id
             if home and contact and home.parent_id != contact:
+                dbg.pipeline.debug(
+                    "[employee:%s] home %s reparented %s -> %s",
+                    employee.id,
+                    home.id,
+                    home.parent_id.id,
+                    contact.id,
+                )
                 home.parent_id = contact
 
     def _move_identifiers_to_party(self, former_parties):
@@ -2868,6 +3412,14 @@ class HrEmployee(models.Model):
                 lambda identifier, wanted=wanted: identifier.type_id.code in wanted
             )
             if to_move:
+                dbg.pipeline.debug(
+                    "[employee:%s] identifiers %s move party %s -> %s (held: %s)",
+                    employee.id,
+                    dbg.rec(to_move),
+                    former.id,
+                    party.id,
+                    sorted(held),
+                )
                 to_move.partner_id = party.id
 
     def _check_access(self, operation):
@@ -2915,9 +3467,21 @@ class HrEmployee(models.Model):
                 or former.parent_id
                 or former.child_ids
             ):
+                dbg.logic.debug(
+                    "[employee:%s] former party %s kept: still referenced",
+                    employee.id,
+                    former.id,
+                )
                 continue
             if former.tag_ids:
                 party.sudo().tag_ids = [(4, tag.id) for tag in former.tag_ids]
+            dbg.lifecycle.debug(
+                "[employee:%s] former party %s archived, %d tag(s) carried to %s",
+                employee.id,
+                former.id,
+                len(former.tag_ids),
+                party.id,
+            )
             former.active = False
 
     def _update_bank_account_contact(self, partner_id):
@@ -2930,6 +3494,14 @@ class HrEmployee(models.Model):
         if not to_move:
             return
         trusted = to_move.filtered("allow_out_payment")
+        dbg.pipeline.debug(
+            "hr.employee._update_bank_account_contact on %s: accounts %s -> party "
+            "%s, %s lose trust",
+            dbg.rec(self),
+            dbg.rec(to_move),
+            partner_id,
+            dbg.rec(trusted),
+        )
         if trusted:
             trusted.allow_out_payment = False
         if partner_id:

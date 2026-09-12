@@ -3,6 +3,8 @@ from collections import Counter
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from ..tools import debug_log as dbg
+
 
 class HrEmployeeChangeRequest(models.Model):
     _name = "hr.employee.change.request"
@@ -73,6 +75,13 @@ class HrEmployeeChangeRequest(models.Model):
         )
         counts.update(already.employee_id.ids)
         clashing = [employee_id for employee_id, seen in counts.items() if seen > 1]
+        dbg.logic.debug(
+            "change request pending check on %s: %s already pending, clashing "
+            "employees %s",
+            dbg.rec(pending),
+            dbg.rec(already),
+            clashing,
+        )
         if clashing:
             raise ValidationError(
                 self.env._(
@@ -106,6 +115,12 @@ class HrEmployeeChangeRequest(models.Model):
                     values[fname] = proposed.id
             elif proposed != current:
                 values[fname] = proposed
+        dbg.logic.debug(
+            "[change_request:%s] proposes %s for employee %s",
+            self.id,
+            dbg.keys(values),
+            self.employee_id.id,
+        )
         return values
 
     @api.model_create_multi
@@ -139,6 +154,13 @@ class HrEmployeeChangeRequest(models.Model):
         for request in self:
             values = request._proposed_values()
             if values:
+                dbg.pipeline.debug(
+                    "[change_request:%s] approved by %s -> employee %s write %s",
+                    request.id,
+                    self.env.uid,
+                    request.employee_id.id,
+                    dbg.keys(values),
+                )
                 request.employee_id.sudo().write(values)
 
     @api.model
@@ -155,6 +177,15 @@ class HrEmployeeChangeRequest(models.Model):
                 ("approval_state", "in", self._AWAITING_APPROVAL_STATES),
             ],
             limit=1,
+        )
+        dbg.logic.debug(
+            "[employee:%s] action_open_my_request: %s",
+            employee.id,
+            dbg.lazy(
+                lambda: (
+                    f"pending request {request.id}" if request else "seeding a new one"
+                )
+            ),
         )
         if not request:
             seed = {"employee_id": employee.id}
