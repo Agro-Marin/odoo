@@ -2,6 +2,7 @@
 import { Component } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { getCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { floatIsZero } from "@web/core/utils/format/numbers";
@@ -28,6 +29,8 @@ const KEY_BUTTONS = {
     8: [".reconciliation-model-btn-2"],
     Enter: [".btn-primary"],
 };
+
+const log = makeLogger("account.bank_rec.buttons");
 
 export class BankRecButtonList extends Component {
     static template = "account.BankRecButtonList";
@@ -69,6 +72,10 @@ export class BankRecButtonList extends Component {
     }
 
     async _setPartnerOnReconcileLine(partner_id) {
+        log.logic("setPartner", () => ({
+            statementLine: this.statementLineData?.id,
+            partner_id,
+        }));
         await this.orm.call(
             "account.bank.statement.line",
             "set_partner_bank_statement_line",
@@ -179,6 +186,11 @@ export class BankRecButtonList extends Component {
      * @returns {Promise<list>}
      */
     async _setAccountOnReconcileLine(amlId, accountId, context = {}) {
+        log.logic("setAccount", () => ({
+            statementLine: this.statementLineData?.id,
+            amlId,
+            accountId,
+        }));
         return await this.orm.call(
             "account.bank.statement.line",
             "set_account_bank_statement_line",
@@ -328,6 +340,7 @@ export class BankRecButtonList extends Component {
     }
 
     async setStatementLineAsReviewed() {
+        log.logic("setReviewed", () => ({ move: this.statementLineData?.move_id?.id }));
         await this.orm.call("account.move", "set_moves_checked", [
             this.statementLineData.move_id.id,
         ]);
@@ -337,6 +350,10 @@ export class BankRecButtonList extends Component {
 
     /** @param {number} reconciliationModelId */
     async triggerReconciliationModel(reconciliationModelId) {
+        log.logic("triggerReconciliationModel", () => ({
+            statementLine: this.statementLineData?.id,
+            reconciliationModelId,
+        }));
         await this.orm.call("account.reconcile.model", "trigger_reconciliation_model", [
             reconciliationModelId,
             this.statementLineData.id,

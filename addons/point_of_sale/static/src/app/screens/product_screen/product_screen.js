@@ -186,6 +186,11 @@ export class ProductScreen extends Component {
         }));
     }
     onNumpadClick(buttonValue) {
+        log.logic("onNumpadClick", () => ({
+            buttonValue,
+            mode: this.pos.numpadMode,
+            line: this.currentOrder?.getSelectedOrderline()?.uuid,
+        }));
         if (["quantity", "discount", "price"].includes(buttonValue)) {
             this.numberBuffer.capture();
             this.numberBuffer.reset();
@@ -392,6 +397,7 @@ export class ProductScreen extends Component {
 
     async loadProductFromDB() {
         const { searchProductWord } = this.pos;
+        log.pipeline("loadProductFromDB", () => ({ searchProductWord }));
         if (!searchProductWord) {
             return;
         }
@@ -414,6 +420,11 @@ export class ProductScreen extends Component {
     }
 
     async addProductToOrder(product) {
+        log.logic("addProductToOrder", () => ({
+            product: product.id,
+            configurable: product.isConfigurable(),
+            searchWord: this.searchWord,
+        }));
         const options = {};
         if (this.searchWord && product.isConfigurable()) {
             const barcode = this.searchWord;
@@ -436,6 +447,10 @@ export class ProductScreen extends Component {
     }
 
     async fastValidate(paymentMethod) {
+        log.logic("fastValidate", () => ({
+            method: paymentMethod?.id,
+            validating: this.isValidatingOrder,
+        }));
         if (this.isValidatingOrder) {
             return;
         }

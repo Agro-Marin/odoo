@@ -17,6 +17,7 @@ import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -523,6 +524,8 @@ export class PaletteSelectionScreen extends Component {
     }
 }
 
+const log = makeLogger("website.configurator");
+
 export class ApplyConfiguratorScreen extends Component {
     static template = "";
     static props = ["*"];
@@ -646,6 +649,12 @@ export class FeaturesSelectionScreen extends Component {
     async buildWebsite() {
         const industryId =
             this.state.selectedIndustry && this.state.selectedIndustry.id;
+        log.logic("buildWebsite", () => ({
+            industryId,
+            type: this.state.selectedType,
+            purpose: this.state.selectedPurpose,
+            palette: this.state.selectedPalette,
+        }));
         if (!industryId) {
             return this.props.navigate(ROUTES.descriptionScreen);
         }
@@ -1037,6 +1046,11 @@ export class Configurator extends Component {
     }
 
     navigate(step, reload = false) {
+        log.lifecycle("navigate", () => ({
+            from: this.state.currentStep,
+            to: step,
+            reload,
+        }));
         this.state.currentStep = step;
         if (reload) {
             redirect(this.pathname);
@@ -1148,6 +1162,7 @@ export class Configurator extends Component {
     }
 
     async skipConfigurator() {
+        log.logic("skipConfigurator");
         this.website.showLoader({ showTips: true });
         const redirectUrl = await this.orm.call("website", "configurator_skip");
         this.clearStorage();

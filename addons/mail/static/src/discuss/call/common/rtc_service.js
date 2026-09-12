@@ -14,6 +14,7 @@ import { CALL_PROMOTE_FULLSCREEN } from "@mail/discuss/call/common/thread_model_
 import { assignDefined, closeStream, onChange } from "@mail/utils/common/misc";
 import { reactive, toRaw } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -210,6 +211,8 @@ function bindRtcBusEvents(rtc, services, env) {
  * @property {number} [remoteSessionId]
  * @property {number} [remoteChannelId]
  */
+const log = makeLogger("mail.rtc");
+
 export class Rtc extends Record {
     notifications = reactive(new Map());
     /** @type {Map<string, number>} */
@@ -739,6 +742,10 @@ export class Rtc extends Record {
 
     /** @param {import("models").Thread} [channel=this.state.channel] */
     async leaveCall(channel = this.state.channel) {
+        log.lifecycle("leaveCall", () => ({
+            channel: channel?.id,
+            current: this.state.channel?.id,
+        }));
         if (channel.eq(this.state.channel)) {
             this.store.fullscreenChannel = null;
         }
@@ -850,6 +857,12 @@ export class Rtc extends Record {
      * @param {boolean} [initialState.camera]
      */
     async toggleCall(channel, { audio = true, camera } = {}) {
+        log.logic("toggleCall", () => ({
+            channel: channel.id,
+            audio,
+            camera,
+            inCall: Boolean(this.state.channel),
+        }));
         if (channel.id === this.state.remoteChannelId) {
             this.crossTab.requestLeave();
             this.clear();
@@ -1029,10 +1042,12 @@ export class Rtc extends Record {
     }
 
     async _initConnection() {
+        const endInit = log.perf("initConnection");
         await this.transport.initConnection({
             sessionId: this.localSession.id,
             channelId: Number(this.state.channel.id),
         });
+        endInit({ channel: this.state.channel?.id });
     }
 
     /** @param {Object} changes */
@@ -1344,6 +1359,7 @@ export class Rtc extends Record {
      * @param {boolean} [initialState.camera]
      */
     async joinCall(channel, { audio = true, camera = false } = {}) {
+        log.lifecycle("joinCall", () => ({ channel: channel.id, audio, camera }));
         if (!isClientRtcCompatible()) {
             this.notification.add(_t("Your browser does not support webRTC."), {
                 type: "warning",
@@ -1586,6 +1602,7 @@ export class Rtc extends Record {
 
     /** @param {import("models").RtcSession} session */
     disconnect(session) {
+        log.lifecycle("disconnect", () => ({ session: session.id }));
         const downloadTimeout = this.downloadTimeouts.get(session.id);
         if (downloadTimeout) {
             browser.clearTimeout(downloadTimeout);
@@ -1713,6 +1730,12 @@ export class Rtc extends Record {
      * @param {boolean} [param1.refreshStream]
      */
     async toggleVideo(type, { force, env, refreshStream } = {}) {
+        log.logic("toggleVideo", () => ({
+            type,
+            force,
+            refreshStream,
+            remote: this.isRemote,
+        }));
         if (this.isRemote) {
             this.notification.add(UNAVAILABLE_AS_REMOTE, {
                 type: "warning",

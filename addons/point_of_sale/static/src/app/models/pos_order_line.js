@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { getAttributeString, getFullProductName } from "@point_of_sale/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { localization as l10n } from "@web/core/l10n/localization";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
@@ -9,6 +10,8 @@ import { formatFloat } from "@web/core/utils/format/numbers";
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
 import { PRODUCT_PRICE, PRODUCT_UNIT } from "./decimal_precision.js";
 import { parseNoteEntries } from "./utils/note_entries.js";
+
+const log = makeLogger("pos.orderline");
 
 export class PosOrderline extends PosOrderlineAccounting {
     static pythonModel = "pos.order.line";
@@ -228,6 +231,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setDiscount(discount) {
+        log.logic("setDiscount", () => ({ line: this.uuid, discount }));
         let parsed_discount;
         if (typeof discount === "number") {
             parsed_discount = discount;
@@ -243,6 +247,12 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setQuantity(quantity, keep_price) {
+        log.logic("setQuantity", () => ({
+            line: this.uuid,
+            from: this.qty,
+            to: quantity,
+            keep_price,
+        }));
         this.uiState.oldQty = this.qty;
         if (this.order_id.preset_id?.is_return) {
             quantity = -Math.abs(quantity);
@@ -386,6 +396,11 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     merge(orderline) {
+        log.logic("merge", () => ({
+            line: this.uuid,
+            with: orderline.uuid,
+            qty: orderline.getQuantity(),
+        }));
         this.order_id.assertEditable();
         this.setQuantity(this.getQuantity() + orderline.getQuantity());
         this.update({
@@ -394,6 +409,11 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setUnitPrice(price) {
+        log.logic("setUnitPrice", () => ({
+            line: this.uuid,
+            from: this.price_unit,
+            to: price,
+        }));
         const ProductPrice = this.models["decimal.precision"].getBy(
             "name",
             PRODUCT_PRICE,

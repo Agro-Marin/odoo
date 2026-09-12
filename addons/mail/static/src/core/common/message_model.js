@@ -19,6 +19,7 @@ import { markup, toRaw } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
@@ -47,6 +48,8 @@ function parseBody(body) {
     }
     return fragment;
 }
+
+const log = makeLogger("mail.message");
 
 export class Message extends Record {
     static _name = "mail.message";
@@ -619,6 +622,11 @@ export class Message extends Record {
         attachments = [],
         { mentionedChannels = [], mentionedPartners = [], mentionedRoles = [] } = {},
     ) {
+        log.logic("edit", () => ({
+            id: this.id,
+            thread: this.thread?.localId,
+            attachments: attachments.length,
+        }));
         const messageBodyEl = createElementWithContent("div", this.body);
         const updatedBodyEl = createElementWithContent("div", body);
         messageBodyEl.querySelector("span.o-mail-Message-edited")?.remove();
@@ -662,6 +670,10 @@ export class Message extends Record {
 
     /** @param {import("models").Thread} thread */
     async enterEditMode(thread) {
+        log.lifecycle("enterEditMode", () => ({
+            id: this.id,
+            thread: thread?.localId,
+        }));
         const doc = parseBody(this.body);
         const validChannels = (
             await Promise.all(
@@ -741,6 +753,7 @@ export class Message extends Record {
 
     /** @param {string} content */
     async react(content) {
+        log.logic("react", () => ({ id: this.id, content }));
         this.store.insert(
             await rpc(
                 "/mail/message/reaction",
@@ -760,6 +773,11 @@ export class Message extends Record {
      * @param {boolean} [options.removeFromThread=false]
      */
     async remove({ removeFromThread = false } = {}) {
+        log.logic("remove", () => ({
+            id: this.id,
+            thread: this.thread?.localId,
+            removeFromThread,
+        }));
         const data = await rpc("/mail/message/update_content", {
             message_id: this.id,
             update_data: this.removeParams,
@@ -838,6 +856,7 @@ export class Message extends Record {
     }
 
     async toggleStar() {
+        log.logic("toggleStar", () => ({ id: this.id, starred: this.starred }));
         this.store.insert(
             await this.store.env.services.orm.silent.call(
                 "mail.message",

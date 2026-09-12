@@ -11,6 +11,7 @@ import {
     useState,
     useSubEnv,
 } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { RPCError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
@@ -36,6 +37,8 @@ const ACTION_SELECTORS = [
     ".o_kanban_load_more button",
     ".o-kanban-button-new",
 ];
+
+const log = makeLogger("web.view.kanban.quick_create");
 
 export class KanbanQuickCreateController extends Component {
     /** @type {ReturnType<typeof useOwnedDialogs>} */
@@ -141,6 +144,7 @@ export class KanbanQuickCreateController extends Component {
 
     /** @param {"add" | "edit"} mode */
     async validate(mode) {
+        log.logic("validate", () => ({ mode, disabled: this.state.disabled }));
         let resId = undefined;
         if (this.state.disabled) {
             return;
@@ -192,6 +196,7 @@ export class KanbanQuickCreateController extends Component {
 
     /** @param {boolean} force */
     async cancel(force) {
+        log.logic("cancel", () => ({ force, disabled: this.state.disabled }));
         if (this.state.disabled) {
             return;
         }

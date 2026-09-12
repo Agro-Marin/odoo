@@ -140,6 +140,10 @@ export class TicketScreen extends Component {
         await this.pos.printReceipt({ order: order });
     }
     async onFilterSelected(selectedFilter) {
+        log.logic("onFilterSelected", () => ({
+            from: this.state.filter,
+            to: selectedFilter,
+        }));
         this.state.filter = selectedFilter;
         this.state.page = 1;
         this.pos.screenState.ticketScreen.totalCount = 0;
@@ -190,6 +194,7 @@ export class TicketScreen extends Component {
         }
     }
     async onSearch(search) {
+        log.logic("onSearch", () => ({ search, filter: this.state.filter }));
         this.state.search = search;
         this.state.page = 1;
         if (this.state.filter === "SYNCED") {
@@ -328,6 +333,10 @@ export class TicketScreen extends Component {
     async onDoRefund() {
         this.numberBuffer.capture();
         const order = this.getSelectedOrder();
+        log.logic("onDoRefund", () => ({
+            order: order?.uuid,
+            lines: order?.lines?.length,
+        }));
 
         if (order && this._doesOrderHaveSoleItem(order)) {
             if (!this._prepareAutoRefundOnOrder(order)) {
@@ -413,6 +422,7 @@ export class TicketScreen extends Component {
     }
 
     async onDeleteOrder(order) {
+        log.logic("onDeleteOrder", () => ({ order: order.uuid, id: order.id }));
         await this.pos.onDeleteOrder(order);
         this.setSelectedOrder(this.pos.getOrder());
     }
@@ -834,6 +844,12 @@ export class TicketScreen extends Component {
         const screenState = this.pos.screenState.ticketScreen;
         const domain = this._computeSyncedOrdersDomain();
         const offset = (this.state.page - 1) * this.state.nbrByPage;
+        log.pipeline("fetchSyncedOrders", () => ({
+            domain,
+            offset,
+            limit: this.state.nbrByPage,
+            page: this.state.page,
+        }));
         const config_id = this.pos.config.id;
         const { ordersInfo, totalCount } = await this.pos.data.call(
             "pos.order",

@@ -8,6 +8,7 @@ import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video
 import { useAction } from "@web/core/action_port";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeContext } from "@web/core/context";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { shallowEqual } from "@web/core/utils/collections/objects";
@@ -151,6 +152,8 @@ export function stableM2OValue(fieldProps, pair) {
     holder.value = { id: pair.id, display_name: pair.display_name };
     return holder.value;
 }
+
+const log = makeLogger("web.field.many2one");
 
 export class Many2One extends Component {
     static template = "web.Many2One";
@@ -408,6 +411,11 @@ export class Many2One extends Component {
 
     /** @param {"action"|"dialog"|"tab"} mode */
     async openRecord(mode) {
+        log.logic("openRecord", () => ({
+            mode,
+            resModel: this.props.relation,
+            id: this.props.value?.id,
+        }));
         if (this.props.openRecordAction) {
             return this.props.openRecordAction(mode);
         }
@@ -473,6 +481,7 @@ export class Many2One extends Component {
      * @returns {Promise}
      */
     quickCreate(name) {
+        log.logic("quickCreate", () => ({ resModel: this.props.relation, name }));
         return this.update({ id: false, display_name: name });
     }
 
@@ -481,6 +490,10 @@ export class Many2One extends Component {
      * @returns {Promise}
      */
     update(idNamePair) {
+        log.logic("update", () => ({
+            resModel: this.props.relation,
+            id: idNamePair && idNamePair.id,
+        }));
         this.state.isFloating = false;
         return this.props.update(idNamePair);
     }
