@@ -1,19 +1,21 @@
 /** @odoo-module native */
-import { AskRecurrenceUpdatePolicyDialog } from "@calendar/views/ask_recurrence_update_policy_dialog";
+import { askRecurrenceUpdate } from "@resource/recurrence/ask_recurrence_update_dialog";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
+function calendarRecurrenceUpdateProps() {
+    return {
+        title: _t("Edit Recurrent event"),
+        choices: {
+            self_only: _t("This event"),
+            future_events: _t("This and following events"),
+            all_events: _t("All events"),
+        },
+    };
+}
+
 export function askRecurrenceUpdatePolicy(dialogService) {
-    return new Promise((resolve) => {
-        dialogService.add(
-            AskRecurrenceUpdatePolicyDialog,
-            {
-                confirm: resolve,
-            },
-            {
-                onClose: resolve.bind(null, false),
-            },
-        );
-    });
+    return askRecurrenceUpdate(dialogService, calendarRecurrenceUpdateProps());
 }
 
 export function useAskRecurrenceUpdatePolicy() {
