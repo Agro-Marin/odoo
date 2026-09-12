@@ -2,9 +2,11 @@
 import { SyncPopup } from "@point_of_sale/app/components/popups/sync_popup/sync_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog";
+const log = makeLogger("pos.dialog.confirmation");
 patch(ConfirmationDialog.prototype, {
     setup() {
         super.setup();
@@ -26,6 +28,7 @@ patch(ConfirmationDialog.prototype, {
         this.props.close();
         if (this.pos.config?.module_pos_restaurant) {
             try {
+                log.pipeline("reloadData: sync before reload");
                 await this.pos.syncAllOrders();
             } catch (error) {
                 logPosMessage(

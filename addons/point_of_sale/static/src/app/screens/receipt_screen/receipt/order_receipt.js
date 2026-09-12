@@ -5,7 +5,10 @@ import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { ReceiptHeader } from "@point_of_sale/app/screens/receipt_screen/receipt/receipt_header/receipt_header";
 import { generateQRCodeDataUrl } from "@point_of_sale/utils";
 import { formatCurrency } from "@web/core/currency";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+const log = makeLogger("pos.screen.receipt.ticket");
 export class OrderReceipt extends Component {
     static template = "point_of_sale.OrderReceipt";
     static components = {
@@ -20,6 +23,16 @@ export class OrderReceipt extends Component {
     static defaultProps = {
         basic_receipt: false,
     };
+
+    setup() {
+        useLifecycleLog(log);
+        log.lifecycle("receipt", () => ({
+            order: this.props.order?.uuid,
+            basic: this.props.basic_receipt,
+            lines: this.props.order?.lines?.length,
+            payments: this.props.order?.payment_ids?.length,
+        }));
+    }
 
     get header() {
         return {
@@ -36,7 +49,10 @@ export class OrderReceipt extends Component {
     get qrCode() {
         const baseUrl = this.order.config._base_url;
         const url = `${baseUrl}/pos/ticket/validate?access_token=${this.order.access_token}`;
-        return generateQRCodeDataUrl(url);
+        const endQr = log.perf("qrCode");
+        const dataUrl = generateQRCodeDataUrl(url);
+        endQr({ order: this.order.uuid, bytes: dataUrl?.length });
+        return dataUrl;
     }
 
     get paymentLines() {

@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { onMounted, onWillUnmount } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+const log = makeLogger("pos.press");
 
 /**
  * @param {Ref} ref
@@ -22,6 +24,7 @@ export function useTimedPress(ref, ranges = []) {
         for (const { delay = 0, type = "release", callback } of ranges) {
             if (type === "hold" && typeof callback === "function") {
                 const timer = setTimeout(() => {
+                    log.logic("hold fired", () => ({ delay }));
                     callback(event, delay);
                 }, delay);
                 holdTimers.push(timer);
@@ -38,16 +41,22 @@ export function useTimedPress(ref, ranges = []) {
         timerStart = null;
         clearAllHoldTimers();
 
+        const fired = [];
         for (const { delay = 0, maxDelay, type = "release", callback } of ranges) {
             if (type === "release" && typeof callback === "function") {
                 if (
                     elapsed >= delay &&
                     (maxDelay === undefined || elapsed < maxDelay)
                 ) {
+                    fired.push(delay);
                     callback(event, elapsed);
                 }
             }
         }
+        log.logic("pointerup", () => ({
+            elapsed: Number(elapsed.toFixed(1)),
+            releaseFired: fired,
+        }));
     };
 
     const cancel = () => {

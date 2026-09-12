@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component, xml } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+const log = makeLogger("pos.alert");
 class Alert extends Component {
     static template = xml`
         <div t-attf-class="alert pos-navbar-height fixed-top p-1 rounded-0 alert-{{props.type}} fade show d-flex align-items-center justify-content-center" role="alert">
@@ -26,6 +28,10 @@ export const alertService = {
         let dismiss = undefined;
 
         const add = (message, options = {}, overlayOptions = {}) => {
+            log.lifecycle("add", () => ({
+                type: options.type || "info",
+                replaced: Boolean(dismiss),
+            }));
             dismiss?.();
             dismiss = overlay.add(
                 Alert,
