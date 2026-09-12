@@ -22,6 +22,7 @@
                 </t>
 
                 <t t-set-slot="layout-actions">
+                    <t t-if="hasSlot('layout-actions-start')" t-slot="layout-actions-start"/>
                     <SearchBar t-if="props.searchBar" toggler="props.searchBarToggler" autofocus="props.autofocusSearchBar"/>
                     <t t-if="hasSlot('layout-actions')" t-slot="layout-actions"/>
                 </t>

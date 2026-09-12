@@ -23,6 +23,7 @@ import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
 import { SearchModel } from "@web/search/search_model";
 import { getDefaultConfig } from "@web/views/view";
+import { ViewLayout } from "@web/views/view_components/view_layout";
 
 class Foo extends models.Model {
     aaa = fields.Selection({
@@ -310,5 +311,31 @@ test(`Simple rendering: with dynamically displayed search`, async () => {
     expect(`.o_control_panel .o_control_panel_actions .toy_search_bar`).toHaveCount(0);
     expect(`.o_component_with_search_panel .o_search_panel`).toHaveCount(1);
     expect(`.o_cp_searchview`).toHaveCount(0);
+    expect(`.o_content > .toy_content`).toHaveCount(1);
+});
+
+test(`ViewLayout: layout-actions-start renders before the search bar, layout-actions after it`, async () => {
+    class ToyComponent extends Component {
+        static props = ["*"];
+        static template = xml`
+            <ViewLayout display="props.display">
+                <t t-set-slot="layout-actions-start">
+                    <div class="toy_before"/>
+                </t>
+                <t t-set-slot="layout-actions">
+                    <div class="toy_after"/>
+                </t>
+                <div class="toy_content"/>
+            </ViewLayout>
+        `;
+        static components = { ViewLayout };
+    }
+
+    await mountWithSearch(ToyComponent, {
+        resModel: "foo",
+        searchViewId: false,
+    });
+    expect(`.o_control_panel_actions .toy_before + .o_cp_searchview`).toHaveCount(1);
+    expect(`.o_control_panel_actions .o_cp_searchview + .toy_after`).toHaveCount(1);
     expect(`.o_content > .toy_content`).toHaveCount(1);
 });
