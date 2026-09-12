@@ -10,32 +10,24 @@ import odoo.addons
 
 RE_FORBIDDEN_STATEMENTS = re.compile(r"test.*\.(only|debug)\(")
 
-MISC_VIEW_SUITES = (
-    "@web/views/graph",
-    "@web/views/pivot",
-    "@web/views/pivot_view",
-    "@web/views/field_arch",
-    "@web/views/view_arch_parser",
-    "@web/views/view_components",
-    "@web/views/view_compiler",
-    "@web/views/view_dialogs",
-    "@web/views/widgets",
-    "@web/views/layout",
-    "@web/views/control_panel_render_budget",
-    "@web/views/view_button",
-    "@web/views/view_buttons",
-    "@web/views/view_button_hook",
-    "@web/views/view_service",
-    "@web/views/view",
-    "@web/views/view_utils",
-    "@web/views/view_config",
-    "@web/views/view_props",
-    "@web/views/module_views",
-    "@web/views/multi_record_controller",
-    "@web/views/multi_record_group",
-    "@web/views/multi_record_selection",
-    "@web/views/settings",
-)
+_DEDICATED_VIEW_SUITES = frozenset({"calendar", "form", "kanban", "list"})
+
+
+def _misc_view_suites():
+    root = Path(file_path("web/static/tests/views"))
+    names = {
+        entry.name.removesuffix(".test.js")
+        for entry in root.iterdir()
+        if entry.is_dir() or entry.name.endswith(".test.js")
+    }
+    return tuple(
+        f"@web/views/{name}"
+        for name in sorted(names)
+        if name not in _DEDICATED_VIEW_SUITES
+    )
+
+
+MISC_VIEW_SUITES = _misc_view_suites()
 MISC_SUITES = (
     "@web/boot",
     "@web/env",

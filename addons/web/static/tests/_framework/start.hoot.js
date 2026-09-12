@@ -2,12 +2,14 @@
 
 import {
     __debug__,
+    after,
     definePreset,
     defineTags,
     describe,
     isHootReady,
     start,
 } from "@odoo/hoot";
+import { bindCleanupHook } from "@web/../tests/helpers/cleanup";
 
 import { patchBrowserLocation, patchBrowserStorage } from "./mock_browser.hoot.js";
 import { isolateLocalizationCache } from "./mock_localization_cache.hoot.js";
@@ -17,6 +19,8 @@ import { setupTestEnvironment } from "./module_set.hoot.js";
  * @param {string} value
  * @returns {string}
  */
+bindCleanupHook(after);
+
 function _hashJobId(value) {
     let hash = 0;
     for (let i = 0; i < value.length; i++) {

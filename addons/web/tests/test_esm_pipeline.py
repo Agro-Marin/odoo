@@ -1098,6 +1098,67 @@ class TestTransitiveImportClosure(TransactionCase):
         )
         self.assertNotIn("@web/dynamic_only", specs)
 
+    def _debug_importmap(self, bundle):
+        nodes, _post = self.env["ir.qweb"]._get_native_module_nodes(
+            bundle,
+            debug="assets",
+        )
+        importmaps = [
+            attrs
+            for tag, attrs in nodes
+            if tag == "script" and attrs.get("type") == "importmap"
+        ]
+        self.assertEqual(len(importmaps), 1)
+        return json.loads(importmaps[0]["text"])["imports"]
+
+    def _reachable_urls(self, imports, seeds):
+        queue = [(spec, imports.get(spec)) for spec in seeds]
+        seen_urls = set()
+        while queue:
+            _spec, url = queue.pop()
+            if url is None or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            source = self._read_static_url(url)
+            if source is None:
+                continue
+            for imported in _get_import_specifiers(source):
+                if imported.startswith("."):
+                    queue.append(
+                        (
+                            imported,
+                            posixpath.normpath(f"{posixpath.dirname(url)}/{imported}"),
+                        ),
+                    )
+                elif imported.startswith("/"):
+                    queue.append((imported, imported))
+                else:
+                    queue.append((imported, imports.get(imported)))
+        return seen_urls
+
+    def test_tour_bundle_does_not_load_the_hoot_runner(self):
+        imports = self._debug_importmap("web.assets_tests")
+        seeds = [
+            "@web/../tests/utils",
+            "@web/../tests/helpers/utils",
+            "@web/../tests/helpers/cleanup",
+        ]
+        for spec in seeds:
+            self.assertIn(spec, imports, msg=f"{spec} missing from import map")
+        reached = self._reachable_urls(imports, seeds)
+        runner_urls = sorted(
+            url
+            for url in reached
+            if url.endswith(("/lib/hoot/hoot.js", "/lib/hoot/core/runner.js"))
+        )
+        self.assertFalse(
+            runner_urls,
+            "The tour helpers reach the HOOT runner, which hooks window.onerror and "
+            "unhandledrejection at import and turns every handled RPC error in a "
+            "tour page into a console.error the browser harness fails on:"
+            "\n- " + "\n- ".join(runner_urls),
+        )
+
     def test_report_bundle_debug_importmap_is_transitively_complete(self):
         nodes, _post = self.env["ir.qweb"]._get_native_module_nodes(
             "web.report_assets_common",

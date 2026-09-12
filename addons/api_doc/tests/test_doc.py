@@ -14,6 +14,7 @@ from odoo.addons.api_doc.tools.cache import (
     stale_index_domain,
 )
 from odoo.addons.api_doc.tools.registry import (
+    _describing_docstring,
     describe_method,
     is_public_method,
     public_method_names,
@@ -412,17 +413,32 @@ class TestDoc(HttpCaseWithUserDemo):
                 self.assertFalse(is_public_method(FakeModel, method_name))
                 self.assertNotIn(method_name, public_method_names(FakeModel))
 
-    def test_describe_method_borrows_the_nearest_docstring(self):
-        """An override that documents nothing keeps the documentation it replaced.
+    def test_describing_docstring_borrows_the_nearest_one(self):
+        class Base:
+            def name_search(self):
+                """Introduced here, documented here."""
 
-        `res.users.name_search` is the live case: the effective implementation
-        is documented and the mixin that introduced the name is not, and before
-        this the documented one was the one thrown away.
-        """
+        class Middle(Base):
+            def name_search(self):
+                """The most derived prose wins."""
+
+        class Leaf(Middle):
+            def name_search(self):
+                pass
+
+        definers = [Leaf, Middle, Base]
+        self.assertEqual(
+            _describing_docstring(definers, "name_search"),
+            "The most derived prose wins.",
+        )
+        self.assertEqual(
+            _describing_docstring([Leaf, Base], "name_search"),
+            "Introduced here, documented here.",
+        )
+        self.assertIsNone(_describing_docstring([Leaf], "name_search"))
+
+    def test_describe_method_provenance_is_the_introducing_layer(self):
         described = describe_method(self.env["res.users"], "name_search")
-        self.assertIn("doc", described, "name_search must publish a docstring")
-        # provenance stays with whoever introduced the name, so the module
-        # filter keeps meaning "what does this layer add"
         self.assertEqual(described["module"], "core")
 
     def test_describe_method_keeps_the_introducing_signature(self):

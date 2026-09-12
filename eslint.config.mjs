@@ -296,6 +296,15 @@ const COMMUNITY_NO_CONSOLE_MODULES = [
  * @param {string[]} [options.noConsoleModules] Modules scrubbed of stray console.*.
  * @returns {import("eslint").Linter.Config[]}
  */
+// A relative import with no extension resolves nowhere under native ESM: the
+// browser fetches the raw path, which a per-file bundle serves as a 404 and the
+// module graph fails silently. `./map_model` took the whole settings page down.
+const EXTENSIONLESS_RELATIVE_IMPORT = {
+    regex: "^\\.\\.?/(?!.*\\.(?:js|xml|scss|json)$)",
+    message:
+        "Relative import without an extension: under native ESM the browser fetches the raw path and a per-file bundle 404s it. Use the bare '@addon/...' specifier.",
+};
+
 export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // Build file globs: "addons/web/**/*.js" etc.
     //
@@ -516,6 +525,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 message:
                                     "Do not import addon source from a test via a relative '../src/...' path — under native ESM it resolves to a DUPLICATE module instance (breaks class identity / plugin-set membership and 404s the un-normalized URL). Use the canonical bare specifier, e.g. `@html_editor/...` or `@web/...`.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -540,6 +550,12 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                     odoo: "readonly",
                     luxon: "readonly",
                 },
+            },
+            rules: {
+                "no-restricted-imports": [
+                    "error",
+                    { patterns: [EXTENSIONLESS_RELATIVE_IMPORT] },
+                ],
             },
         },
 
@@ -640,6 +656,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/webclient/*"],
                                 message: "Entity layer cannot import page layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -662,6 +679,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/webclient/*"],
                                 message: "Entity layer cannot import page layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -689,6 +707,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/webclient/*"],
                                 message: "Feature layer cannot import page layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -726,6 +745,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 group: ["@web/fields/*"],
                                 message: "Shared layer cannot import feature layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -763,6 +783,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 message:
                                     "Shared layer (ui/) cannot import feature layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
@@ -796,6 +817,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                                 message:
                                     "Shared layer (components/) cannot import feature layer.",
                             },
+                            EXTENSIONLESS_RELATIVE_IMPORT,
                         ],
                     },
                 ],
