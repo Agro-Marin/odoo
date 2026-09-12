@@ -1028,9 +1028,11 @@ class _ModuleLoader:
         self.registry.reflect_database_fields(self.cr)
 
     def open_environment_and_load_base(self) -> None:
-        from odoo.tests.result import assertion_report
+        self.report = None
+        if tools.config["test_enable"]:
+            from odoo.tests.result import assertion_report
 
-        self.report = assertion_report(self.registry.db_name)
+            self.report = assertion_report(self.registry.db_name)
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
         self.env.transaction.default_env = self.env
         self.migrations = MigrationManager(self.cr, self.graph)
@@ -1351,9 +1353,7 @@ class _ModuleLoader:
                 _logger.warning("invalid custom view(s) for model %s: %s", model, e)
 
     def log_assertion_report(self) -> None:
-        from odoo.tests.result import assertion_report
-
-        report = assertion_report(self.registry.db_name)
+        report = self.report
         if not report or report.wasSuccessful():
             _logger.info("Modules loaded.")
         else:

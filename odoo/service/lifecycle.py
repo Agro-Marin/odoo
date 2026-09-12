@@ -235,9 +235,11 @@ def preload_registries(dbnames: list[str] | None) -> int:
                     with _debug.perf("service.post_install_tests", db=dbname) as span:
                         unrun = _run_post_install_tests(registry, update_module)
                         span.set(unrun=unrun)
-                from odoo.tests.result import assertion_report
+                report = None
+                if settings.test_enable:
+                    from odoo.tests.result import assertion_report
 
-                report = assertion_report(dbname)
+                    report = assertion_report(dbname)
                 _debug.pipeline(
                     "service.preload_reported",
                     db=dbname,

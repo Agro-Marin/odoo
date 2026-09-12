@@ -424,14 +424,11 @@ class IrModuleModule(models.Model):
     def _check(self):
         super()._check()
         View = self.env["ir.ui.view"]
-        website_views_to_adapt = getattr(self.pool, "website_views_to_adapt", [])
-        if website_views_to_adapt:
-            for view_replay in website_views_to_adapt:
-                cow_view = View.browse(view_replay[0])
-                View._load_records_write_on_cow(
-                    cow_view, view_replay[1], view_replay[2]
-                )
-            self.pool.website_views_to_adapt.clear()
+        views_to_adapt = self.pool.loading.state("ir.ui.view.cow_views_to_adapt", list)
+        for view_replay in views_to_adapt:
+            cow_view = View.browse(view_replay[0])
+            View._load_records_write_on_cow(cow_view, view_replay[1], view_replay[2])
+        views_to_adapt.clear()
 
     @api.model
     def _load_module_terms(self, modules, langs, overwrite=False):

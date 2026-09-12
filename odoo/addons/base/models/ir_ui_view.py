@@ -3261,12 +3261,10 @@ class IrUiView(models.Model):
     def _load_records_write_on_cow(
         self, cow_view: Self, inherit_id: int, values: dict[str, Any]
     ) -> None:
-        if not hasattr(self.pool, "website_views_to_adapt"):
-            self.pool.website_views_to_adapt = []
         _debug.lifecycle(
             "cow_view_deferred", cow_view=cow_view.id, inherit_id=inherit_id
         )
-        self.pool.website_views_to_adapt.append(
+        self.pool.loading.state("ir.ui.view.cow_views_to_adapt", list).append(
             (
                 cow_view.id,
                 inherit_id,

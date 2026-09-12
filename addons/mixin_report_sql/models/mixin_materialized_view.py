@@ -7,6 +7,8 @@ from odoo import _, models
 from odoo.exceptions import UserError
 from odoo.libs.sql import SQL
 
+_PENDING_REBUILDS = "mixin_report_sql.pending_materialized_view_rebuilds"
+
 _logger = logging.getLogger(__name__)
 
 # Marker prefix for the definition hash stored as the COMMENT of every
@@ -271,10 +273,7 @@ class MixinMaterializedView(models.AbstractModel):
         # once per upgraded module in the closure, so on `-u base` it fires many
         # times per load, each a full CREATE ... WITH DATA (minutes on prod).
         if not self.pool.loaded:
-            pending = getattr(self.pool, "_pending_materialized_views", None)
-            if pending is None:
-                pending = self.pool._pending_materialized_views = {}
-            pending[self._name] = with_data
+            self.pool.loading.state(_PENDING_REBUILDS, dict)[self._name] = with_data
             return
         # Ready registry (e.g. reload_schema on a running server).
         self._sync_existing_relation(with_data)
@@ -289,8 +288,8 @@ class MixinMaterializedView(models.AbstractModel):
         super()._register_hook()
         if self._abstract:
             return
-        pending = getattr(self.pool, "_pending_materialized_views", None)
-        if pending is None or self._name not in pending:
+        pending = self.pool.loading.state(_PENDING_REBUILDS, dict)
+        if self._name not in pending:
             return
         self._sync_existing_relation(pending.pop(self._name))
 
