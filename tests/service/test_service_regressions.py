@@ -561,9 +561,7 @@ def test_shared_deferred_rpc_values_are_materialized_once(deferred_type):
     assert result == {"first": [7, 9], "second": ([7, 9],)}
     assert result["first"] is result["second"][0]
     assert events == ["evaluated"]
-    assert loads(dumps((result,)))[0] == (
-        {"first": [7, 9], "second": [[7, 9]]},
-    )
+    assert loads(dumps((result,)))[0] == ({"first": [7, 9], "second": [[7, 9]]},)
 
 
 def test_shared_mapping_replacement_keeps_all_aliases():

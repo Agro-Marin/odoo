@@ -226,7 +226,8 @@ class _RequestServeMixin(RequestState):
         try:
             response = retrying(
                 functools.partial(self._serve_transaction_target, serve_func),
-                env=env, participant=participant,
+                env=env,
+                participant=participant,
             )
             if not env.cr.closed:
                 self._flush_session()
@@ -249,7 +250,8 @@ class _RequestServeMixin(RequestState):
         try:
             response = retrying(
                 functools.partial(self._serve_transaction_target, serve_func),
-                env=env, participant=participant,
+                env=env,
+                participant=participant,
             )
             if not env.cr.closed:
                 self._flush_session()

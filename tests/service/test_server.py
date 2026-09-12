@@ -78,7 +78,6 @@ def prefork_server(srv):
         return srv.PreforkServer(None)
 
 
-
 class TestEmptyPipe:
     def test_drains_all_data(self):
         r, w = os.pipe()

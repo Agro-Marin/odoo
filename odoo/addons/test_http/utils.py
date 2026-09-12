@@ -185,8 +185,11 @@ class MemorySessionStore(FilesystemSessionStore):
             self.store.pop(sid)
 
     def get_missing_session_identifiers(self, identifiers):
-        return {identifier for identifier in identifiers
-                if not any(sid.startswith(identifier) for sid in self.store)}
+        return {
+            identifier
+            for identifier in identifiers
+            if not any(sid.startswith(identifier) for sid in self.store)
+        }
 
     def vacuum(self):
         return

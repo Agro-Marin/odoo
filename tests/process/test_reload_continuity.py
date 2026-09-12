@@ -157,8 +157,10 @@ def test_scaling_during_first_reload_reaches_the_replacement(
     os.kill(srv.proc.pid, signal.SIGHUP)
     assert srv.wait_until(injected.exists)
     assert srv.wait_until(
-        lambda: len(_child_pids(srv)) == population
-        and not original.intersection(_child_pids(srv)),
+        lambda: (
+            len(_child_pids(srv)) == population
+            and not original.intersection(_child_pids(srv))
+        ),
         timeout=15,
     ), srv.log_text()
     assert srv.is_serving()

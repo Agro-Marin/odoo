@@ -251,8 +251,11 @@ class FilesystemSessionStore(sessions.FilesystemSessionStore):
                         raise SessionExpiredException("Session database changed")
                     if session.uid != uid:
                         session.session_token = (
-                            env["res.users"].browse(session.uid)._get_session_token(session.sid)
-                            if session.uid else None
+                            env["res.users"]
+                            .browse(session.uid)
+                            ._get_session_token(session.sid)
+                            if session.uid
+                            else None
                         )
                 self.save(session)
                 if soft:

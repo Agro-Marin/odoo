@@ -146,9 +146,7 @@ def test_watchdog_cleanup_accepts_an_observer_that_never_started(monkeypatch):
             pass
 
     monkeypatch.setattr(_watcher, "Observer", Observer, raising=False)
-    monkeypatch.setattr(
-        _watcher.FSWatcherBase, "get_watch_paths", staticmethod(list)
-    )
+    monkeypatch.setattr(_watcher.FSWatcherBase, "get_watch_paths", staticmethod(list))
     watcher = _watcher.FSWatcherWatchdog()
     watcher.stop()
     assert watcher.observer.ident is None
