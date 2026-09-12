@@ -1,8 +1,11 @@
 import base64
 import io
 import logging
+import time
 import typing
 import zipfile
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 from odoo import http
@@ -10,6 +13,7 @@ from odoo.exceptions import AccessError, UserError
 from odoo.http import (
     NotFound,
     Response,
+    Stream,
     UnsupportedMediaType,
     prepare_content_disposition_header,
     request,
@@ -34,6 +38,35 @@ MAX_ZIP_ATTACHMENTS = 200
 
 MAX_ZIP_BYTES = 512 * 1024 * 1024
 
+ZIP_CHUNK_SIZE = 256 * 1024
+
+
+class _ZipSink(io.RawIOBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[bytes] = []
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, data: Any) -> int:
+        self._chunks.append(bytes(data))
+        return len(data)
+
+    def drain(self) -> bytes:
+        out = b"".join(self._chunks)
+        self._chunks.clear()
+        return out
+
+
+def _iter_stream_chunks(stream: Stream) -> Iterator[bytes]:
+    if stream.type == "path" and stream.path:
+        with Path(stream.path).open("rb") as source:
+            while chunk := source.read(ZIP_CHUNK_SIZE):
+                yield chunk
+        return
+    yield stream.read()
+
 
 class AttachmentController(ThreadController):
     def _check_zip_size(self, written: int) -> None:
@@ -47,39 +80,38 @@ class AttachmentController(ThreadController):
 
     def _get_zip_response(self, name: str, attachments: IrAttachment) -> Response:
         self._check_zip_size(sum(attachments.mapped("file_size")))
-        stream = io.BytesIO()
-        written = 0
-        with zipfile.ZipFile(stream, "w") as attachment_zip:
-            for record in attachments:
-                self._check_zip_size(written + record.file_size)
-                binary_stream = request.env["ir.binary"]._get_stream_from_record(
+        streams = [
+            stream
+            for record in attachments
+            if (
+                stream := request.env["ir.binary"]._get_stream_from_record(
                     record, "raw"
                 )
-                if not binary_stream:
-                    continue
-                data = binary_stream.read()
-                written += len(data)
-                self._check_zip_size(written)
-                attachment_zip.writestr(
-                    binary_stream.download_name,
-                    data,
-                    compress_type=zipfile.ZIP_DEFLATED,
-                )
-
-        content = stream.getvalue()
-        _debug.perf.count(
-            "zip_built",
-            attachments=len(attachments),
-            written=written,
-            compressed=len(content),
-        )
+            )
+        ]
         headers = [
             ("Content-Type", "application/zip"),
             ("X-Content-Type-Options", "nosniff"),
-            ("Content-Length", len(content)),
             ("Content-Disposition", prepare_content_disposition_header(name)),
         ]
-        return request.prepare_response(content, headers)
+        return request.prepare_response(self._iter_zip(streams), headers)
+
+    def _iter_zip(self, streams: list[Stream]) -> Iterator[bytes]:
+        sink = _ZipSink()
+        written = 0
+        with zipfile.ZipFile(sink, "w") as archive:
+            for stream in streams:
+                info = zipfile.ZipInfo(
+                    stream.download_name or "", date_time=time.localtime()[:6]
+                )
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with archive.open(info, "w") as member:
+                    for chunk in _iter_stream_chunks(stream):
+                        member.write(chunk)
+                        written += len(chunk)
+                yield sink.drain()
+        _debug.perf.count("zip_built", attachments=len(streams), written=written)
+        yield sink.drain()
 
     @http.route("/mail/attachment/upload", methods=["POST"], type="http", auth="public")
     @add_guest_to_context

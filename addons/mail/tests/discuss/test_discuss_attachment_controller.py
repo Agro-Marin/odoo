@@ -1,6 +1,9 @@
+import io
+import zipfile
 from unittest.mock import patch
 
 import odoo
+from odoo.http import Request
 from odoo.tests import JsonRpcException
 from odoo.tools.misc import file_open
 
@@ -120,3 +123,35 @@ class TestDiscussAttachmentController(MailControllerAttachmentCommon):
             "the echo belongs on the guest's bus, not the public user's",
         )
         self.assertEqual(sent[0][3], {"id": attachment.id})
+
+    def test_zip_download_streams_one_member_per_attachment(self):
+        big = b"x" * (2 * 256 * 1024 + 17)  # filestore-backed, crosses two read chunks
+        attachments = self.env["ir.attachment"].create(
+            [
+                {"name": "big.bin", "raw": big, "mimetype": "application/octet-stream"},
+                {"name": "small.txt", "raw": b"hello", "mimetype": "text/plain"},
+            ]
+        )
+        self.assertTrue(
+            attachments[0].store_fname, "the big one lives in the filestore"
+        )
+        self.authenticate("admin", "admin")
+        response = self.url_open(
+            "/mail/attachment/zip",
+            data={
+                "file_ids": ",".join(str(a.id) for a in attachments),
+                "zip_name": "both.zip",
+                "csrf_token": Request.csrf_token(self),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Type"], "application/zip")
+        self.assertNotIn(
+            "Content-Length", response.headers, "streamed, not assembled in memory"
+        )
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            self.assertEqual(sorted(archive.namelist()), ["big.bin", "small.txt"])
+            self.assertEqual(archive.read("big.bin"), big)
+            self.assertEqual(archive.read("small.txt"), b"hello")
+            for info in archive.infolist():
+                self.assertEqual(info.compress_type, zipfile.ZIP_DEFLATED)
