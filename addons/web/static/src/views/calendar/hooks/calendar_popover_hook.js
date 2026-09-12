@@ -7,7 +7,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 
 /**
  * @param {typeof import("@odoo/owl").Component} component
- * @returns {{ close: Function, open: Function }}
+ * @returns {{ close: Function, open: Function, isOpen: boolean }}
  */
 export function useCalendarPopover(component) {
     const owner = useComponent();
@@ -46,6 +46,9 @@ export function useCalendarPopover(component) {
     }
     return {
         close,
+        get isOpen() {
+            return owner.env.isSmall ? Boolean(removeDialog) : popover.isOpen;
+        },
         open(target, props, classToUse) {
             const targetFcPopover = target.closest(".fc-popover");
             if (owner.env.isSmall) {

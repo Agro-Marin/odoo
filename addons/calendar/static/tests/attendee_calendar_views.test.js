@@ -1,11 +1,13 @@
 import { defineCalendarModels } from "@calendar/../tests/calendar_test_helpers";
+import { AttendeeCalendarCommonRenderer } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_renderer";
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { mockDate } from "@odoo/hoot-mock";
+import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import {
     changeScale,
     clickEvent,
     clickTimeSlot,
     expandCalendarView,
+    findEvent,
 } from "@web/../tests/views/calendar/calendar_test_helpers";
 import {
     contains,
@@ -13,6 +15,7 @@ import {
     MockServer,
     mountView,
     onRpc,
+    patchWithCleanup,
     preloadFullCalendar,
     serverState,
 } from "@web/../tests/web_test_helpers";
@@ -141,4 +144,46 @@ test("Default duration rendering", async () => {
     expect("div[name='stop'] div").toHaveText("Dec 15, 6:15 PM", {
         message: "The duration should be 3.25 hours",
     });
+});
+
+test("the default event's popover opens once and not again on a drag frame", async () => {
+    let opened = 0;
+    let renderer;
+    patchWithCleanup(AttendeeCalendarCommonRenderer.prototype, {
+        setup() {
+            super.setup(...arguments);
+            renderer = this;
+        },
+        openPopover() {
+            opened++;
+            return super.openPopover(...arguments);
+        },
+    });
+    await mountView({
+        type: "calendar",
+        resModel: "calendar.event",
+        arch,
+        context: { default_calendar_event_id: 2 },
+    });
+    expect(".o_cw_popover").toHaveCount(1);
+    expect(opened).toBe(1);
+
+    // FullCalendar mounts the dragged event and its mirror again on every
+    // drag frame, and any re-render of the event while the popover is open
+    const el = findEvent(2);
+    const event = renderer.fc.api.getEventById("2");
+    expect(event).not.toBe(null);
+    renderer.onEventDidMount({ el, event, isDragging: true, isMirror: false });
+    renderer.onEventDidMount({ el, event, isDragging: false, isMirror: true });
+    renderer.onEventDidMount({ el, event, isDragging: false, isMirror: false });
+    expect(opened).toBe(1);
+    expect(".o_cw_popover").toHaveCount(1);
+
+    renderer.popover.close();
+    await animationFrame();
+    expect(".o_cw_popover").toHaveCount(0);
+    renderer.onEventDidMount({ el, event, isDragging: false, isMirror: false });
+    await animationFrame();
+    expect(opened).toBe(2);
+    expect(".o_cw_popover").toHaveCount(1);
 });

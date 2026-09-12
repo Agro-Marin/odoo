@@ -11,8 +11,6 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     };
     /**
      * @override
-     *
-     * Give a new key to our fc records to be able to iterate through in templates
      */
     convertRecordToEvent(record) {
         let editable = false;
@@ -44,23 +42,24 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
     /**
      * @override
      */
-    onEventDidMount({ el, event }) {
+    onEventDidMount(info) {
         super.onEventDidMount(...arguments);
+        const { el, event, isDragging, isMirror } = info;
         const record = this.props.model.records[event.id];
-        if (record) {
-            if (
-                this.env.searchModel?.context?.default_calendar_event_id ===
-                parseInt(event.id)
-            ) {
-                this.openPopover(el, record);
-            }
+        if (
+            record &&
+            this.env.searchModel?.context?.default_calendar_event_id ===
+            parseInt(event.id) &&
+            !this.popover.isOpen &&
+            !isDragging &&
+            !isMirror
+        ) {
+            this.openPopover(el, record);
         }
     }
 
     /**
      * @override
-     *
-     * Allow slots to be selected over multiple days
      */
     isSelectionAllowed(event) {
         return true;
