@@ -229,7 +229,12 @@ class TestXMLID(TransactionCase):
 
         xmlid = "base.test_xmlid"
         records = self.env["ir.model.data"].search([], limit=6)
-        with self.assertQueryCount(1):
+        # warm the field, default and clock caches the first create pays for
+        self.env["ir.model.data"]._update_xmlids(
+            [{"xml_id": "base.test_xmlid_warmup", "record": records[5]}]
+        )
+        # one read of the existing rows, then one insert or one update
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[0]},
@@ -241,7 +246,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should have been created with record {records[0]}",
         )
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[1]},
@@ -254,7 +259,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should have been updated with record {records[1]}",
         )
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[2]},
@@ -267,7 +272,7 @@ class TestXMLID(TransactionCase):
         )
 
         xmlid = "base.test_xmlid_noupdates"
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {
@@ -297,7 +302,7 @@ class TestXMLID(TransactionCase):
             f"The xmlid {xmlid} should not have been updated (update mode)",
         )
 
-        with self.assertQueryCount(1):
+        with self.assertQueryCount(2):
             self.env["ir.model.data"]._update_xmlids(
                 [
                     {"xml_id": xmlid, "record": records[5]},
@@ -2258,9 +2263,14 @@ class TestIrModelData(TransactionCase):
         ) as mock_clear:
             xid.write({"noupdate": False, "name": "imd_p1_noupdate_only_renamed"})
         self.assertIn(
+            ("xmlid",),
+            [call.args for call in mock_clear.call_args_list],
+            "a write touching more than noupdate must clear the xmlid cache",
+        )
+        self.assertNotIn(
             (),
             [call.args for call in mock_clear.call_args_list],
-            "a write touching more than noupdate must clear the default cache",
+            "an xmlid change is not a reason to evict every default-bucket cache",
         )
 
     def test_toggle_noupdate_batches_writes(self):

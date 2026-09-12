@@ -2,7 +2,6 @@ import logging
 import random
 import typing
 from collections import defaultdict
-from itertools import batched
 from operator import itemgetter
 from typing import Any, Self
 
@@ -11,9 +10,10 @@ import psycopg
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError
+from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.models import add_field
-from odoo.tools import SQL, OrderedSet, groupby, reset_cached_properties, unique
+from odoo.tools import SQL, groupby, reset_cached_properties, unique
 from odoo.tools.translate import _
 
 from .ir_model_common import MODULE_UNINSTALL_FLAG
@@ -148,7 +148,7 @@ class IrModelData(models.Model):
         res = super().write(vals)
         if bust_xmlid:
             self.flush_recordset()
-            self.env.registry.clear_cache()
+            self.env.registry.clear_cache("xmlid")
         if touch_groups:
             self.env.registry.clear_cache("groups")
         return res
@@ -173,25 +173,30 @@ class IrModelData(models.Model):
             prefix, suffix = xml_id.split(".", 1)
             bymodule[prefix].add(suffix)
 
-        result = []
-        cr = self.env.cr
-        table_sql = SQL.identifier(model._table)
-        for prefix, suffixes in bymodule.items():
-            for subsuffixes in batched(suffixes, cr.BATCH_SIZE, strict=False):
-                cr.execute(
-                    SQL(
-                        """
-                        SELECT d.id, d.module, d.name, d.model, d.res_id, d.noupdate, r.id
-                        FROM ir_model_data d LEFT JOIN %s r ON d.res_id = r.id
-                        WHERE d.module = %s AND d.name = ANY(%s)
-                        """,
-                        table_sql,
-                        prefix,
-                        list(subsuffixes),
-                    )
-                )
-                result.extend(cr.fetchall())
-
+        domain = Domain.OR(
+            Domain("module", "=", prefix) & Domain("name", "in", list(suffixes))
+            for prefix, suffixes in bymodule.items()
+        )
+        rows = self.sudo().search_fetch(
+            domain, ["module", "name", "model", "res_id", "noupdate"]
+        )
+        target_ids = set(
+            model.browse(row.res_id for row in rows if row.model == model._name)
+            .exists()
+            .ids
+        )
+        result = [
+            (
+                row.id,
+                row.module,
+                row.name,
+                row.model,
+                row.res_id,
+                row.noupdate,
+                row.res_id if row.res_id in target_ids else None,
+            )
+            for row in rows
+        ]
         _debug.perf.count(
             "get_xmlids",
             model=model._name,
@@ -208,70 +213,64 @@ class IrModelData(models.Model):
         if not data_list:
             return
 
-        rows = OrderedSet()
+        rows: dict[tuple[str, str], tuple[str, int, bool]] = {}
         for data in data_list:
             prefix, suffix = data["xml_id"].split(".", 1)
             record = data["record"]
-            noupdate = bool(data.get("noupdate"))
-            rows.add((prefix, suffix, record._name, record.id, noupdate))
+            rows[prefix, suffix] = (record._name, record.id, bool(data.get("noupdate")))
 
+        bymodule = defaultdict(list)
+        for prefix, suffix in rows:
+            bymodule[prefix].append(suffix)
+        existing = {
+            (data.module, data.name): data
+            for data in self.sudo().search_fetch(
+                Domain.OR(
+                    Domain("module", "=", prefix) & Domain("name", "in", names)
+                    for prefix, names in bymodule.items()
+                ),
+                ["module", "name", "model", "res_id", "noupdate"],
+            )
+        }
+
+        extra_vals = self._xmlid_extra_vals()
+        to_create = []
         repointed = False
-        for sub_rows in batched(rows, self.env.cr.BATCH_SIZE, strict=False):
-            query = self._prepare_update_xmlids_query(sub_rows, update)
-            try:
-                self.env.cr.execute(query)
-                repointed = repointed or any(
-                    not inserted for (inserted,) in self.env.cr.fetchall()
+        for (prefix, suffix), (model_name, res_id, noupdate) in rows.items():
+            data = existing.get((prefix, suffix))
+            if data is None:
+                to_create.append(
+                    {
+                        "module": prefix,
+                        "name": suffix,
+                        "model": model_name,
+                        "res_id": res_id,
+                        "noupdate": noupdate,
+                        **extra_vals,
+                    }
                 )
-            except Exception:
-                _logger.error(
-                    "Failed to insert ir_model_data\n%s",
-                    "\n".join(str(row) for row in sub_rows),
-                )
-                raise
+            elif (data.model, data.res_id) != (model_name, res_id) and not (
+                update and data.noupdate
+            ):
+                data.write({"model": model_name, "res_id": res_id})
+                repointed = True
+        if to_create:
+            self.sudo().create(to_create)
         _debug.pipeline(
-            "update_xmlids", rows=len(rows), update=update, repointed=repointed
+            "update_xmlids",
+            rows=len(rows),
+            update=update,
+            created=len(to_create),
+            repointed=repointed,
         )
-        if repointed:
-            self.invalidate_model(["model", "res_id", "noupdate"])
-            self.env.registry.clear_cache()
-        else:
-            self.env.registry.clear_cache("xmlid")
+        # create() and write() above own the cache invalidation the raw upsert had to do here
 
-        xml_ids = {f"{row[0]}.{row[1]}" for row in rows}
+        xml_ids = {f"{prefix}.{suffix}" for prefix, suffix in rows}
         self.pool.loaded_xmlids.update(xml_ids)
         self.pool.record_xmlids_written(xml_ids)
 
-        if any(row[2] == "res.groups" for row in rows):
-            self.env.registry.clear_cache("groups")
-
-    def _insert_xmlids_extra_columns(self) -> dict[str, SQL]:
+    def _xmlid_extra_vals(self) -> dict[str, Any]:
         return {}
-
-    def _prepare_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> SQL:
-        extra = self._insert_xmlids_extra_columns()
-        columns = ["module", "name", "model", "res_id", "noupdate", *extra]
-        values = SQL(", ").join(
-            SQL(
-                "(%s)",
-                SQL(", ").join([*(SQL("%s", value) for value in row), *extra.values()]),
-            )
-            for row in sub_rows
-        )
-        return SQL(
-            """
-            INSERT INTO ir_model_data (%(columns)s)
-            VALUES %(values)s
-            ON CONFLICT (module, name)
-            DO UPDATE SET (model, res_id, write_date) =
-                (EXCLUDED.model, EXCLUDED.res_id, now() at time zone 'UTC')
-                WHERE (ir_model_data.res_id != EXCLUDED.res_id OR ir_model_data.model != EXCLUDED.model) %(and_where)s
-            RETURNING (xmax = 0)
-            """,
-            columns=SQL(", ").join(SQL.identifier(column) for column in columns),
-            values=values,
-            and_where=SQL("AND NOT ir_model_data.noupdate") if update else SQL(),
-        )
 
     @api.model
     def _load_xmlid(self, xml_id: str) -> Any:
