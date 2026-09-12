@@ -37,7 +37,9 @@ def renaming(tmp_path):
             patch.object(lifecycle, "_rollback_db_rename", side_effect=_rollback),
             patch.object(lifecycle.odoo.db, "db_connect", return_value=conn),
             patch.object(lifecycle.odoo.db, "close_db"),
-            patch.object(lifecycle.odoo.modules.registry.Registry, "clear_database_state"),
+            patch.object(
+                lifecycle.odoo.modules.registry.Registry, "clear_database_state"
+            ),
             patch.object(
                 lifecycle,
                 "shutil",
