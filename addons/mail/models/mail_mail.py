@@ -2047,7 +2047,7 @@ class MailMail(models.Model):
             "Mail (mail.mail) with ID %r and Message-Id %r from %r to (redacted) %s "
             "successfully sent over %s SMTP attempt(s)",
             self.id,
-            self.message_id,
+            outcome.message_id,
             tools.email_normalize(outcome.last_msg["from"])
             if outcome.last_msg
             else None,
