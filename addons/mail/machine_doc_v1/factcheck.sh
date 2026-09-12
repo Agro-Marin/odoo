@@ -465,9 +465,10 @@ assert_eq "bracketless 'except A, B:' occurrences in controllers (valid Py3.14)"
 assert_eq "CONVENTIONS.md gotcha documents the except A, B form" \
     "$(grep -c 'except A, B' "$DOC/CONVENTIONS.md")" "1"
 
-# MAKE_UPDATE 8-queue flush order (verified against store.js).
-queue_clears=$(grep -cE '_QUEUE\.clear\(\)' "$MAIL/static/src/model/store.js")
-assert_eq "store.js has all 8 flush queues (.clear() calls)" "$queue_clears" "8"
+# MAKE_UPDATE 8-queue flush order (verified against store.js): every queue is swapped
+# out once per iteration through _takeQueue.
+queue_takes=$(grep -oE '_takeQueue\("[A-Z]+_QUEUE"\)' "$MAIL/static/src/model/store.js" | sort -u | wc -l)
+assert_eq "store.js drains all 8 flush queues (_takeQueue calls)" "$queue_takes" "8"
 
 # ============================ TEST_TAGS ============================
 # `e4df7f5569b` deleted the twenty-one round-numbered hardening suites. What is
