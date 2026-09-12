@@ -82,8 +82,6 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
-
-
     <record id="approval_request_user_read" model="ir.rule">
         <field
             name="name">Approval Request: user read own or approver or delegate</field>

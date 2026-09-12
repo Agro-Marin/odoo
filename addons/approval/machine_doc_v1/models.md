@@ -23,7 +23,7 @@ approval.category                       [inherits mixin.mail.thread, mixin.catal
     +-- allowed_group_ids -> res.groups (m2m)
     +-- approver_group_id -> res.groups
     +-- escalation_user_id -> res.users
-    +-- automation_id ----> automation.rule
+    +-- automation_id ----> automation.rule   (approval_automation)
     +-- sequence_id ------> ir.sequence
 
 approval.request
@@ -45,7 +45,7 @@ approval.request
     +-- applied_rule_ids --> approval.rule (m2m)
     +-- res_model/res_id --> Any model (Many2oneReference)
     +-- attachment_ids ----> ir.attachment (o2m)
-    +-- automation_runtime_id -> automation.runtime
+    +-- automation_runtime_id -> automation.runtime   (approval_automation)
 
 mixin.approval.threshold (Abstract)   — base of approval.rule
     +-- company_id --------> res.company   (empty = applies to every company)
@@ -124,7 +124,7 @@ so category names are unique per company, archived rows included.
 | `has_date_planned` | Selection | Yes | Yes | default="no", tracking |
 | `has_date_range` | Selection | Yes | Yes | default="no", tracking |
 | `has_partner` | Selection | Yes | Yes | default="no", tracking |
-| `has_automation` | Selection | Yes | Yes | default="no", tracking |
+| `has_automation` | Selection | Yes | Yes | default="no", tracking *(added by `approval_automation`)* |
 | `has_quantity` | Selection | Yes | Yes | default="no", tracking |
 | `has_amount` | Selection | Yes | Yes | default="no", tracking |
 | `has_reference` | Selection | Yes | Yes | default="no", tracking |
@@ -158,7 +158,7 @@ so category names are unique per company, archived rows included.
 | `sla_target_hours` | Integer | Yes | No | default=0, tracking |
 | `sla_warning_pct` | Integer | Yes | No | default=80, tracking |
 | `consent_approval_hours` | Integer | Yes | No | default=0, tracking |
-| `automation_id` | Many2one(`automation.rule`) | Yes | No | |
+| `automation_id` | Many2one(`automation.rule`) | Yes | No | *(added by `approval_automation`)* |
 | `step_ids` | One2many(`approval.category.step`) | — | No | Declaring steps switches the category to step mode. Without steps, the flat `approver_ids` and `approval_minimum` apply exactly as before |
 | `notify_sequentially` | Boolean | Yes | No | Step mode only. Every step may be decided at any time, but an approver is only asked — given an activity — once every earlier step is met. It orders the asking, not the deciding |
 | `activity_target` | Selection | Yes | No | string="Ask Approvers On", default `request`. `document` asks each approver on the request's source document, when it has one that holds activities; the activity still decides the request when done (it carries `approver_id`) |
@@ -294,8 +294,8 @@ so category names are unique per company, archived rows included.
 | `res_name` | Char | No | No | compute (batched per model) |
 | `attachment_ids` | One2many(`ir.attachment`) | Yes | No | domain=[res_model=approval.request] |
 | `count_attachment` | Integer | No | No | compute |
-| `automation_id` | Many2one | No | No | related |
-| `automation_runtime_id` | Many2one(`automation.runtime`) | Yes | No | index=btree_not_null |
+| `automation_id` | Many2one | No | No | related *(added by `approval_automation`)* |
+| `automation_runtime_id` | Many2one(`automation.runtime`) | Yes | No | index=btree_not_null *(added by `approval_automation`)* |
 | `binding_id` | Many2one(`approval.binding`) | Yes | No | readonly, copy=False, ondelete=set null. Set when an `approval.binding` in Request mode raised the request; approving it runs that binding's method once, as `request_owner_id` |
 | `binding_snapshot` | Json | Yes | No | readonly, copy=False. The values the binding's condition read from the source document when the request was raised. The approval covers the record only while they still match |
 | `subject_key` | Char | Yes | No | readonly, copy=False, indexed. What the request asks about when its record holds one request per subject (`mixin.approval.subjects`): `access:<partner>` on a course, `stage:<stage>` on an engineering change. Only a request carrying one reaches such a record |
@@ -834,8 +834,8 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `run_on_approval` | Boolean | Yes | No | default=True, `request` mode only. Run the operation once, as the requester, when the request is approved. Off, approval only clears the gate and the operation runs on the next call — how Studio approvals behave. Off also lifts the zero-argument limit, since there is no replay to feed |
 | `action_id` | Many2one(`ir.actions.actions`) | Yes | No | ondelete=cascade. The action to gate instead of a method; a binding gates exactly one of the two |
 | `is_enforced` | Boolean | No | No | computed. True for a method, a server action or a report; False for a window or client action, which only opens a view — nothing the server can intercept, so only the client's check stands in the way |
-| `reset_domain` | Char | Yes | No | string="Reset When". Domain on the gated model; when a covered record comes to match it, the approval that covered it is reset to draft. Fires on the transition INTO the condition only |
-| `reset_automation_id` | Many2one(`automation.rule`) | Yes | No | readonly, copy=False, ondelete=set null. The managed rule that keeps Reset When in effect |
+| `reset_domain` | Char | Yes | No | string="Reset When". Domain on the gated model; when a covered record comes to match it, the approval that covered it is reset to draft. Fires on the transition INTO the condition only *(added by `approval_automation`)* |
+| `reset_automation_id` | Many2one(`automation.rule`) | Yes | No | readonly, copy=False, ondelete=set null. The managed rule that keeps Reset When in effect *(added by `approval_automation`)* |
 
 ### Constraints
 
@@ -848,7 +848,7 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 - `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
 - A binding gates exactly one of `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, subject_domain), so two actions on one model can each be bound
 - With `run_on_approval` in `request` mode, only a method or a server action can be run again; a window, client or report action needs it off
-- `reset_domain`, when set, must name paths that exist on the gated model
+- `reset_domain`, when set, must name paths that exist on the gated model *(added by `approval_automation`)*
 
 ### Key Methods
 
@@ -871,9 +871,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `_approve_on_invoke(requests)` | Records the caller's approval on every pending step they may decide. Runs with `approval_binding_invoking` in context, so a request this completes is NOT replayed: the call already running performs the operation, and a replay would perform it a second time. A refused approval leaves the request pending with its approvers asked |
 | `_mark_invoked_run(records)` | Stamps `date_binding_replayed` on the approved requests an invoking call just ran, so a later withdrawal and re-approval cannot run the operation again |
 | `_replay(request)` | Runs the method once after approval, as `request_owner_id` — never the approver, never under sudo, so an approval cannot lend the approver's rights (the superuser account keeps its `su`). Re-checks coverage first, so a record whose snapshot moved is not run. A `UserError` (including access, validation and missing-record errors) is recorded in `binding_replay_error` and the approval stands; anything else propagates. Runs with `approval_binding_replay` in context, under which the wrapper refuses rather than raising a new request |
-| `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule |
+| `_sync_reset_automation()` | One managed `on_create_or_write` rule per binding with a Reset When. Its pre-update filter is the condition inverted, so it fires on the transition into it. After creation only the name, the two filters and the trigger fields are written: never `trigger`, whose change makes `_compute_filter_pre_domain` clear the pre-update filter, and never `model_id`, whose write recomputes `trigger` to nothing. A changed model gets a new rule *(added by `approval_automation`)* |
 | `_reset_coverage(records)` | Resets to draft every request `_get_requests_holding_decisions` returns: an approved one through `action_reset_to_draft`, so an adopter hears it through `_on_approval_reset`; a waiting one, locked first, through `_force_draft`, so a decision given for the document's earlier state does not survive. Clears the one-shot stamp so the next cycle runs on approval again |
-| `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
+| `_get_covering_requests(records)` / `_get_reset_field_ids(domain)` *(added by `approval_automation`)* | The approved requests that could be covering the records; the fields the condition reads, which become the rule's trigger fields |
 | `_get_requests_holding_decisions(records)` | What a reset clears: the covering approved requests, and the binding's waiting requests some approver has already decided in part |
 | `get_button_approvals(specs)` | For each `{model, res_id, method, action_id}`: `{gated, approved, request, steps}`. Each step carries who may decide it (`approval.request._can_decide_step`: neither decided by the caller nor excluded by an exclusive step they decided) and its decisions, assigned by `approval.request._get_step_assignment`, so what the button draws is what the quorum counts. A category without steps is one step with `id` false. Read access on the record is checked first |
 | `check_button_approval(model, res_id, method, action_id)` | `_gate` with a no-op operation: `{approved, request_id}`. It raises or reuses the request and marks the one-shot, because the browser runs the action next |

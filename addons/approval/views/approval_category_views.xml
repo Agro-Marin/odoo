@@ -370,9 +370,7 @@
                                         widget="radio"
                                         options="{'horizontal': true}" />
                                 </group>
-                                <group
-                                    name="fields_documents"
-                                    string="Documents">
+                                <group name="fields_documents" string="Documents">
                                     <field
                                         name="has_document"
                                         string="Document"

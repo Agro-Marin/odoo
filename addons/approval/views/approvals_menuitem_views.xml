@@ -77,9 +77,6 @@
         sequence="30"
         groups="approval.group_approval_manager" />
 
-
-
-
     <menuitem
         id="approvals_menu_config"
         name="Configuration"

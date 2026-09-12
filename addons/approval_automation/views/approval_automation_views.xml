@@ -54,9 +54,7 @@
                 <field
                     name="reset_domain"
                     placeholder="e.g. [('state', '=', 'draft')]" />
-                <field
-                    name="reset_automation_id"
-                    invisible="not reset_automation_id" />
+                <field name="reset_automation_id" invisible="not reset_automation_id" />
             </field>
         </field>
     </record>

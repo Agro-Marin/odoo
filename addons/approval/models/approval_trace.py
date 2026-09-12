@@ -612,7 +612,6 @@ CALL_TRACES: dict[str, dict[str, str]] = {
         "_raise_requests_for": "binding",
         "_replay": "binding",
         "_reset_coverage": "binding",
-        "_sync_reset_automation": "binding",
         "_approve_on_invoke": "binding",
         "_get_binding_ids": "binding",
         "_mark_invoked_run": "binding",

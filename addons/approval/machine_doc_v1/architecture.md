@@ -813,8 +813,8 @@ The three declared in `__manifest__.py`:
 | Module | Integration |
 |--------|------------|
 | `mail` | Activities, chatter, message_post, message_subscribe |
-| `automation` | Automation templates linked to categories (`approval.category.automation_id`, `approval.request.automation_runtime_id`) |
-| `mixin_report_sql` | `mixin.sql.report`, the `_auto = False` / `_table_query` base of `approval.metrics` and `approver.performance` |
+| `automation` | **Not a dependency since 19.0.2.0.0.** `approval_automation` carries `approval.category.automation_id`, `approval.request.automation_runtime_id` and a binding's Reset When |
+| `mixin_report_sql` | **Not a dependency since 19.0.2.0.0.** `approval_analytics` carries `approval.metrics`, `approver.performance` and `approval.dashboard` |
 
 **Not a dependency: `product`.** Product lines left this module in
 19.0.1.0.12 — `approval.request.line`, `approval.category.product_ids`
