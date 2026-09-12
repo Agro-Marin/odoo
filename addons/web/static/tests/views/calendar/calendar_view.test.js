@@ -1586,6 +1586,7 @@ test(`week numbering`, async () => {
 });
 
 test.tags("desktop");
+test.tags("desktop");
 test(`deleting from the popover waits for the unlink before the dialog closes`, async () => {
     const unlink = new Deferred();
     onRpc("event", "unlink", async ({ parent }) => {
@@ -1612,6 +1613,9 @@ test(`deleting from the popover waits for the unlink before the dialog closes`, 
     expect(`.o_event[data-event-id="4"]`).toHaveCount(0);
 });
 
+// the popover is a dialog on a small screen; the mobile rendering is covered
+// by "calendar: popover is rendered as dialog in mobile" below
+test.tags("desktop");
 test(`render popover`, async () => {
     await mountView({
         resModel: "event",

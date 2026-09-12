@@ -663,6 +663,7 @@ test("SelectCreateDialog: multiple clicks on record", async () => {
     expect.verifySteps(["select record 1"]);
 });
 
+test.tags("desktop");
 test("SelectCreateDialog: select() settles with onSelected, not before it", async () => {
     Partner._views["list"] = `<list><field name="name"/></list>`;
     Partner._views["search"] = `<search><field name="foo"/></search>`;
