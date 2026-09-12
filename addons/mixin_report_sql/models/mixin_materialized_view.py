@@ -281,12 +281,13 @@ class MixinMaterializedView(models.AbstractModel):
     def _register_hook(self) -> None:
         """Process a rebuild deferred by ``init()`` during module loading.
 
-        Called once per registry load after all modules are in (and again on
-        incremental setups of a ready registry, where the pending map is
-        normally empty).  Cheap no-op when this model has nothing pending.
+        Called once per registry load after all modules are in, and again on
+        every incremental setup of a ready registry. The deferred rebuilds live
+        in the loading phase, which closes before the registry becomes ready,
+        so a ready registry has nothing pending and no phase to ask.
         """
         super()._register_hook()
-        if self._abstract:
+        if self._abstract or self.pool.ready:
             return
         pending = self.pool.loading.state(_PENDING_REBUILDS, dict)
         if self._name not in pending:

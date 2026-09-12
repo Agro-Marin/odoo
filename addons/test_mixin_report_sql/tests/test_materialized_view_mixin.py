@@ -392,7 +392,10 @@ class TestRebuildSkipAndDeferral(MaterializedCase):
         changed = patch.object(
             type(self.report), "_get_where_conditions", lambda self: ["s.value > 0"]
         )
-        with registry.loading_window() as phase:
+        with (
+            registry.loading_window() as phase,
+            patch.object(registry, "ready", False),
+        ):
             pending = phase.state(mixin_materialized_view._PENDING_REBUILDS, dict)
             with changed, patch.object(registry, "loaded", False):
                 self.report.init()
@@ -406,6 +409,13 @@ class TestRebuildSkipAndDeferral(MaterializedCase):
                 oid = self._oid()
                 self.report._register_hook()
                 self.assertEqual(self._oid(), oid)
+
+    def test_a_ready_registry_setup_runs_the_hook_outside_any_load(self):
+        registry = self.env.registry
+        self.assertTrue(registry.ready)
+        oid = self._oid()
+        registry.setup_models(self.env.cr)
+        self.assertEqual(self._oid(), oid)
 
     def test_init_reconciles_indexes_without_rebuilding(self):
         """An index plan that changed between versions must still land."""
