@@ -4,6 +4,7 @@
 import { Component, onWillRender, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { isX2ManyType } from "@web/core/field_types";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { Time } from "@web/core/l10n/time";
@@ -65,7 +66,7 @@ export class MultiSelectionButtons extends Component {
                     })
                     .catch((error) => {
                         this._loadViewProm = null;
-                        console.error("Failed to load multi-create view:", error);
+                        reportUncaught(error);
                     });
             }
         });

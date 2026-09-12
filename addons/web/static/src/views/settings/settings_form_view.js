@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { intersection } from "@web/core/utils/collections/arrays";
@@ -40,9 +41,7 @@ class SettingRecord extends formView.Model.Record {
                             undoChanges();
                         }
                     }
-                )().catch((/** @type {any} */ error) => {
-                    console.error(error);
-                });
+                )().catch(reportUncaught);
                 return;
             }
         }
