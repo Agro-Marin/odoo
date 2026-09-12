@@ -545,3 +545,28 @@ def test_connection_per_request_clients_are_not_stalled_by_saturation():
         srv.shutdown()
         srv.server_close()
         loop.join(5)
+
+
+def test_serving_a_request_leaves_no_cyclic_garbage(server):
+    import gc
+
+    request = b"POST /c HTTP/1.1\r\nHost: h\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"
+    for _ in range(20):
+        _talk(server.server_port, request)
+    time.sleep(0.2)
+    gc.collect()
+    gc.disable()
+    try:
+        for _ in range(200):
+            _talk(server.server_port, request)
+        deadline = time.monotonic() + 2
+        while server.busy_workers and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.1)
+        found = gc.collect()
+    finally:
+        gc.enable()
+    assert found < 50, (
+        f"{found} cyclic objects over 200 requests; every one waits for a gen-1 "
+        f"collection, and those already pause the whole server for ~250 ms"
+    )

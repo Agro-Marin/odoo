@@ -140,15 +140,12 @@ class Connection:
     def __init__(self, sock: socket.socket, addr: Any) -> None:
         self.sock = sock
         self.addr = addr if isinstance(addr, tuple) else ("<local>", 0)
-        self.source = BufferedSource(self._recv)
+        self.source = BufferedSource(sock.recv)
         self.deadline = 0.0
         self.head_started = False
         self.idle_since = time.monotonic()
         self.ready_at = self.idle_since
         self.requests = 0
-
-    def _recv(self, size: int) -> bytes:
-        return self.sock.recv(size)
 
     def send(self, data: bytes) -> None:
         if len(data) <= _SEND_SLICE:
