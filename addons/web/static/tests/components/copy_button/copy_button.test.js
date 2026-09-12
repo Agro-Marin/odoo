@@ -97,3 +97,13 @@ test("does not submit forms", async () => {
     await click(".submit-button");
     expect.verifySteps(["form submit"]);
 });
+
+test("nothing to copy writes nothing and shows no tooltip", async () => {
+    patchWithCleanup(browser.console, {
+        warn: (...args) => expect.step(`warn: ${args.join(" ")}`),
+    });
+    await mountWithCleanup(CopyButton, { props: { content: () => undefined } });
+    await click(".o_clipboard_button");
+    expect.verifySteps([]);
+    expect(".o_popover").toHaveCount(0);
+});

@@ -47,6 +47,9 @@ export class CopyButton extends Component {
         } else {
             content = this.props.content;
         }
+        if (content === undefined || content === null) {
+            return;
+        }
         if (typeof content === "string" || content instanceof String) {
             write = (/** @type {string} */ value) =>
                 browser.navigator.clipboard.writeText(value);

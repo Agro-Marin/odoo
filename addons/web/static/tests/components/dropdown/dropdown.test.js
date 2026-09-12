@@ -1992,3 +1992,64 @@ test("an open menu is watched by one observer, however often the dropdown re-ren
             "one mutation, one navigation update, after a re-render of the open dropdown",
     });
 });
+
+test("an open menu follows the dropdown's later renders: slot fields and items", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Dropdown };
+        static template = xml`
+            <Dropdown items="items">
+                <button class="toggler">toggle</button>
+                <t t-set-slot="content">
+                    <span class="plain" t-esc="plain"/>
+                </t>
+            </Dropdown>
+        `;
+        plain = "first";
+        items = [{ label: "one", onSelected: () => {} }];
+        setup() {
+            this.state = useState({ tick: 0 });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click(".toggler");
+    await animationFrame();
+    expect(".plain").toHaveText("first");
+    expect(queryAllTexts(DROPDOWN_ITEM)).toEqual(["one"]);
+
+    parent.plain = "second";
+    parent.items = [...parent.items, { label: "two", onSelected: () => {} }];
+    parent.state.tick++;
+    await animationFrame();
+    await animationFrame();
+    expect(".plain").toHaveText("second", {
+        message: "a plain field read by the content slot follows the parent's render",
+    });
+    expect(queryAllTexts(DROPDOWN_ITEM)).toEqual(["one", "two"], {
+        message: "the items prop follows too",
+    });
+});
+
+test("a closed dropdown syncs its popover once, at mount, not again at setup", async () => {
+    let closes = 0;
+    patchWithCleanup(Dropdown.prototype, {
+        closePopover() {
+            closes++;
+            return super.closePopover();
+        },
+    });
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Dropdown };
+        static template = xml`<Dropdown><button class="toggler">toggle</button></Dropdown>`;
+    }
+    await mountWithCleanup(Parent);
+    expect(closes).toBe(1);
+    await click(".toggler");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+    await click(".toggler");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(0);
+    expect(closes).toBe(2);
+});

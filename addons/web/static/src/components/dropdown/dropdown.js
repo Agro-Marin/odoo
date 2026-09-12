@@ -131,6 +131,10 @@ export class Dropdown extends Component {
     navigation;
     /** @type {import("services").ServiceFactories["ui"]} */
     uiService;
+    /** @type {{ token: number, items: any[] | undefined } | undefined} */
+    popoverRefresher;
+    /** @type {Record<string, any>} */
+    popoverSlots = {};
 
     setup() {
         useLifecycleLog(log);
@@ -208,13 +212,21 @@ export class Dropdown extends Component {
 
         onRendered(() => {
             if (this.popoverRefresher) {
+                this.syncPopoverContent();
                 this.popoverRefresher.token++;
             }
         });
 
         onMounted(() => this.onStateChanged(this.state));
         const disposeEffect = effect(
-            (state) => this.onStateChanged(state),
+            (state) => {
+                // the read keeps the subscription; before the mount there is no
+                // popover to open or close, onMounted takes the state from there
+                const { isOpen } = state;
+                if (status(this) === "mounted") {
+                    this.onStateChanged({ isOpen });
+                }
+            },
             [this.state],
         );
         onWillDestroy(disposeEffect);
@@ -440,14 +452,15 @@ export class Dropdown extends Component {
             return;
         }
 
-        this.popoverRefresher = reactive({ token: 0 });
+        this.popoverRefresher = reactive({ token: 0, items: this.props.items });
+        this.popoverSlots = {};
+        this.syncPopoverContent();
         const props = {
             beforeOpen: () => this.props.beforeOpen?.(),
             onOpened: () => this.onOpened(),
             onClosed: () => this.onClosed(),
             refresher: this.popoverRefresher,
-            items: this.props.items,
-            slots: this.props.slots,
+            slots: this.popoverSlots,
         };
         const capturedInOtherDropdown =
             captured &&
@@ -459,6 +472,22 @@ export class Dropdown extends Component {
             captured && !capturedInOtherDropdown && !captured.isContentEditable;
         this._focusedElBeforeOpen = capturedUsable ? captured : this.target;
         this.popover.open(this.target, props);
+    }
+
+    /**
+     * The popover is opened once with its props; every later render of the
+     * dropdown hands it the slots and items of that render through the
+     * objects it already holds, so the open menu follows the parent.
+     */
+    syncPopoverContent() {
+        const slots = this.props.slots || {};
+        for (const name of Object.keys(this.popoverSlots)) {
+            if (!(name in slots)) {
+                delete this.popoverSlots[name];
+            }
+        }
+        Object.assign(this.popoverSlots, slots);
+        this.popoverRefresher.items = this.props.items;
     }
 
     closePopover() {
