@@ -187,6 +187,8 @@
                         string="Check Availability" />
                 </header>
                 <field name="company_id" column_invisible="True" />
+                <field name="picking_type_code" column_invisible="True" />
+
                 <field name="priority" optional="show" widget="priority" nolabel="1" />
                 <field name="name" decoration-bf="1" />
                 <field
@@ -218,13 +220,6 @@
                     widget="many2one_avatar_user"
                     readonly="state in ['done', 'cancel']" />
                 <field
-                    name="date_planned"
-                    optional="show"
-                    widget="remaining_days"
-                    invisible="state in ('done', 'cancel')"
-                    readonly="state in ['done', 'cancel']" />
-                <field name="picking_type_code" column_invisible="True" />
-                <field
                     name="products_availability_state"
                     column_invisible="True"
                     options="{&quot;lazy&quot;: true}" />
@@ -237,6 +232,12 @@
                     decoration-warning="state != 'assigned' and products_availability_state in ('expected', 'available')"
                     decoration-danger="state != 'assigned' and products_availability_state == 'late'" />
                 <field
+                    name="date_planned"
+                    optional="show"
+                    widget="remaining_days"
+                    invisible="state in ('done', 'cancel')"
+                    readonly="state in ['done', 'cancel']" />
+                <field
                     name="date_deadline"
                     optional="hide"
                     widget="remaining_days"
@@ -248,10 +249,6 @@
                     readonly="state in ['done', 'cancel']" />
                 <field name="backorder_id" optional="hide" />
                 <field name="picking_type_id" optional="hide" />
-                <field
-                    name="company_id"
-                    groups="base.group_multi_company"
-                    optional="show" />
                 <field
                     name="state"
                     optional="show"
@@ -269,6 +266,10 @@
                     widget="stock_rescheduling_popover"
                     nolabel="1"
                     invisible="not json_popover" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    optional="show" />
             </list>
         </field>
     </record>

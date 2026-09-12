@@ -50,9 +50,16 @@ class MailActivityPlanTemplate(models.Model):
         default="before_plan_date",
         required=True,
     )
-    icon = fields.Char("Icon", related="activity_type_id.icon", readonly=True)
+    icon = fields.Char(
+        "Icon",
+        related="activity_type_id.icon",
+        readonly=True,
+    )
     summary = fields.Char(
-        "Summary", compute="_compute_summary", store=True, readonly=False
+        "Summary",
+        compute="_compute_summary",
+        store=True,
+        readonly=False,
     )
     responsible_type = fields.Selection(
         [
@@ -74,7 +81,12 @@ class MailActivityPlanTemplate(models.Model):
         store=True,
         readonly=False,
     )
-    note = fields.Html("Note", compute="_compute_note", store=True, readonly=False)
+    note = fields.Html(
+        "Note",
+        compute="_compute_note",
+        store=True,
+        readonly=False,
+    )
     next_activity_ids: MailActivityType = fields.Many2many(
         "mail.activity.type",
         string="Next Activities",

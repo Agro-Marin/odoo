@@ -244,6 +244,20 @@ class ResourceResource(models.Model):
         start_day,
         end_day,
     ):
+        if len(leave[2]) > 1:
+            for record in leave[2]:
+                start = max(leave[0], record.date_from.replace(tzinfo=UTC))
+                stop = min(leave[1], record.date_to.replace(tzinfo=UTC))
+                if start < stop:
+                    self._format_leave(
+                        (start, stop, record),
+                        resource_hours_per_day,
+                        resource_hours_per_week,
+                        ranges_to_remove,
+                        start_day,
+                        end_day,
+                    )
+            return
         leave_start = leave[0]
         leave_record = leave[2]
         holiday_id = leave_record.holiday_id

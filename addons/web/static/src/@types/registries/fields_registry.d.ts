@@ -32,21 +32,9 @@ declare module "registries" {
         invisible?: boolean | string;
     }
 
-    /**
-     * A field a widget needs loaded alongside the one it renders.
-     *
-     * NOT a `Partial<StaticFieldInfo>`, which is what this used to say: the
-     * shape is the one `addFieldDependencies` consumes and
-     * `FIELD_DEPENDENCIES_VALIDATION` enforces at runtime, and the two
-     * disagreed. `optional` is the visible cost -- it is load-bearing (the
-     * dependency becomes a no-op on a model that lacks the field) and read as a
-     * misspelling of `options`.
-     */
     interface FieldDependency extends Partial<StaticFieldInfo> {
         name: string;
-        /** skip the dependency when the model has no such field */
         optional?: boolean;
-        /** the widget writes it, which is what decides `readonly` */
         written?: boolean;
         readonly?: boolean | string;
         [key: string]: any;
@@ -90,12 +78,6 @@ declare module "registries" {
     type SupportedOptions =
         BooleanOption | FieldOption | NumberOption | SelectionOption | StringOption;
 
-    /**
-     * What callers put on a field's info on top of StaticFieldInfo. Declared
-     * (not folded into an index signature) because a destructuring parameter
-     * requires the property to exist: `extractProps: ({ placeholder }) => ...`
-     * is an error against a type that only has an index signature.
-     */
     interface ExtraFieldInfo {
         placeholder?: string;
         displayPlaceholder?: boolean;
@@ -118,12 +100,6 @@ declare module "registries" {
         ): Record<string, any>;
         fieldDependencies?:
             FieldDependency[] | ((baseInfo: StaticFieldInfo) => FieldDependency[]);
-        /**
-         * `column_width_hook` is the only caller and supplies the field metadata;
-         * an implementation destructures the ones it reads. The return may be
-         * undefined as well as false: the caller treats any falsy width as
-         * "use the default minimum column width".
-         */
         listViewWidth?:
             | "content"
             | number

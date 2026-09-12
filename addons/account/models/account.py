@@ -1,7 +1,9 @@
+from collections.abc import Set as AbstractSet
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
-from odoo.tools import SQL, OrderedSet, html2plaintext
+from odoo.tools import SQL, html2plaintext
 
 from odoo.addons.account.models.account_audit_account_status import (
     STATUS_SELECTION,
@@ -79,7 +81,7 @@ class AccountAccount(models.Model):
     def _get_domain_audit_field(
         self, field_name: str, operator: str, value, previous=False
     ):
-        if isinstance(value, OrderedSet):
+        if isinstance(value, AbstractSet):
             value = tuple(value)
         query = self._search([])
         query.add_where(

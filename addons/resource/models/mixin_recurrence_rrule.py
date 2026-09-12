@@ -14,23 +14,8 @@ from odoo.addons.resource.models.mixin_recurrence_rule import (
     REPEAT_TYPE_SELECTION,
 )
 
-# What a consumer mirroring this mixin's `repeat_type` onto its own record has to
-# offer: the two shared policies plus the one this mixin adds. `selection_add`
-# extends the model's field, not the module-level list every mirror reads.
 REPEAT_TYPE_SELECTION_RRULE = [*REPEAT_TYPE_SELECTION, REPEAT_TYPE_COUNT]
 
-# The iCalendar half of a recurrence: FREQ, INTERVAL, BYDAY, COUNT/UNTIL and the
-# enumeration of the occurrences they describe.
-#
-# This was `calendar.recurrence`, where it sat inlined among the event coupling
-# -- the base event, the attendee mail, the alarm triggers, the privacy rules.
-# Nothing in the rule algebra reads a `calendar.event`, and the only two places
-# it appeared to were `_compute_dtstart` and `_is_allday`, which are questions
-# about the *occurrences* and are asked of the consumer here.
-#
-# `mixin.recurrence.rule` is the simpler sibling and stays separate on purpose:
-# stepping a fixed interval is not an rrule, it has no weekday set and no
-# calendar semantics, and three consumers need only that much.
 MAX_RECURRENT_OCCURRENCES = 720
 
 SELECT_FREQ_TO_RRULE = {
@@ -109,14 +94,23 @@ class MixinRecurrenceRrule(models.AbstractModel):
         string="Timezone",
         default=lambda self: self.env.context.get("tz") or self.env.user.tz,
     )
-    rrule = fields.Char(compute="_compute_rrule", inverse="_inverse_rrule", store=True)
-    dtstart = fields.Datetime(compute="_compute_dtstart")
+    rrule = fields.Char(
+        compute="_compute_rrule",
+        inverse="_inverse_rrule",
+        store=True,
+    )
+    dtstart = fields.Datetime(
+        compute="_compute_dtstart",
+    )
     repeat_type = fields.Selection(
         selection_add=[REPEAT_TYPE_COUNT],
         ondelete={REPEAT_TYPE_COUNT[0]: "set default"},
         default="count",
     )
-    repeat_number = fields.Integer(string="Number of Repetitions", default=1)
+    repeat_number = fields.Integer(
+        string="Number of Repetitions",
+        default=1,
+    )
     mon = fields.Boolean()
     tue = fields.Boolean()
     wed = fields.Boolean()
@@ -145,22 +139,9 @@ class MixinRecurrenceRrule(models.AbstractModel):
     )
 
     def _compute_dtstart(self):
-        """When the series starts, which only the consumer's occurrences know.
-
-        The rule carries no start of its own: `DTSTART` is the first occurrence,
-        and `_rrule_serialize` deliberately emits no DTSTART line for that
-        reason. A consumer that stores its occurrences overrides this with a
-        `@api.depends` on their start field.
-        """
         self.dtstart = False
 
     def _is_allday(self):
-        """Whether the occurrences cover whole days rather than a time of day.
-
-        Drives whether enumeration is timezone-corrected: an all-day series
-        keeps the naive date, a timed one is localised so a DST change moves the
-        UTC instant and not the local hour.
-        """
         return False
 
     def _get_daily_recurrence_name(self):
@@ -317,11 +298,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
         for recurrence in self:
             current_rule = recurrence._rrule_serialize()
             if recurrence.rrule != current_rule:
-                # Plain assignment, not write(): rrule carries an inverse
-                # (_inverse_rrule) that reparses the string back into the param
-                # fields. write() here fires that inverse mid-compute, so a
-                # lossy round trip (e.g. forever serialised then reparsed as
-                # count) would overwrite the very params we just serialised.
                 recurrence.rrule = current_rule
 
     def _inverse_rrule(self):
@@ -331,10 +307,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
                 recurrence.with_context(dont_notify=True).write(values)
 
     def _rrule_serialize(self):
-        """
-        Compute rule string according to value type RECUR of iCalendar
-        :return: string containing recurring rule (empty if no rule)
-        """
         if self.repeat_interval <= 0:
             raise UserError(_("The interval cannot be negative."))
         if self.repeat_type == "count" and self.repeat_number <= 0:
@@ -343,13 +315,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
             self.repeat_type == "count"
             and self.repeat_number > MAX_RECURRENT_OCCURRENCES
         ):
-            # Enumeration is capped at MAX_RECURRENT_OCCURRENCES, but this string is
-            # not: asking for 800 occurrences used to create 720 while the
-            # stored `count` and the serialised rule both kept saying 800. That
-            # string is what goes into the .ics attachment and into Google and
-            # Outlook sync, so the external calendar materialised the full 800
-            # against our 720 and the two could never reconcile. Refuse instead
-            # of silently disagreeing with ourselves.
             raise UserError(
                 _(
                     "A recurrence cannot repeat more than %(maximum)s times.",
@@ -363,22 +328,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
 
     @api.model
     def _rrule_value(self, rule_str):
-        """The RRULE payload of `rule_str`, without the DTSTART line.
-
-        dateutil renders a rule as ``DTSTART:...\nRRULE:...``, and
-        `_rrule_serialize` builds it with no `dtstart`, so that DTSTART was
-        `datetime.now()` at the moment the field was last computed. It carried
-        no information -- the series' real start is `dtstart`, computed from the
-        events -- and every consumer had to work around it: `google_calendar`
-        strips it with a regex before sending, `calendar.event._get_ics_rrule`
-        extracts around it for the .ics, and reading the stored column showed a
-        timestamp that had nothing to do with the recurrence.
-
-        Both shapes are accepted, because rows stored before this still carry
-        the DTSTART and are only rewritten when a parameter changes.
-
-        :rtype: str
-        """
         lines = [line.strip() for line in (rule_str or "").splitlines() if line.strip()]
         for line in lines:
             if line.startswith("RRULE:"):
@@ -453,10 +402,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
             start = dt + relativedelta(day=1)
         else:
             start = dt
-        # Comparaison of DST (to manage the case of going too far back in time).
-        # If we detect a change in the DST between the creation date of an event
-        # and the date used for the occurrence period, we use the creation date of the event.
-        # This is a hack to avoid duplication of events (for example on google calendar).
         if isinstance(dt, datetime):
             tz = self._get_timezone()
             dst_dt = dt.replace(tzinfo=tz).dst()
@@ -466,12 +411,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
         return start
 
     def _range_calculation(self, start, duration):
-        """Calculate the range of recurrence when applying the recurrence
-        The following issues are taken into account:
-            start of period is sometimes in the past (weekly or monthly rule).
-            We can easily filter these range values but then the count value may be wrong...
-            In that case, we just increase the count value, recompute the ranges and dismiss the useless values
-        """
         self.check_singleton()
 
         def only_future(ranges):
@@ -485,12 +424,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
         ranges = only_future(self._get_ranges(start, duration))
         original_count = self.repeat_type == "count" and self.repeat_number
         if original_count and len(ranges) < original_count:
-            # start-of-period can be in the past for weekly/monthly rules, so
-            # some generated occurrences fall before the base event and are
-            # dropped, leaving fewer than `count` future ones. Ask the generator
-            # for enough extra to make up the shortfall -- passed as an argument,
-            # not by writing an inflated value to the stored `count` column and
-            # writing it back (two DB writes and two rrule recomputes per apply).
             inflated_count = (2 * original_count) - len(ranges)
             ranges = only_future(
                 self._get_ranges(start, duration, count=inflated_count)
@@ -507,40 +440,15 @@ class MixinRecurrenceRrule(models.AbstractModel):
         return timezone(self.event_tz or self.env.context.get("tz") or "UTC")
 
     def _get_occurrences(self, dtstart, count=None):
-        """
-        Get ocurrences of the rrule
-        :param dtstart: start of the recurrence
-        :param count: optional override of the recurrence's ``count`` (see
-            _range_calculation); leaves the stored value untouched
-        :return: iterable of datetimes
-        """
         self.check_singleton()
         dtstart = self._get_start_of_period(dtstart)
         if self._is_allday():
             return self._get_rrule(dtstart=dtstart, count=count)
 
         tz = self._get_timezone()
-        # Localize the starting datetime to avoid missing the first occurrence
         dtstart = dtstart.replace(tzinfo=UTC).astimezone(tz)
-        # dtstart is given as a naive datetime, but it actually represents a timezoned datetime
-        # (rrule package expects a naive datetime)
         occurences = self._get_rrule(dtstart=dtstart.replace(tzinfo=None), count=count)
 
-        # Special timezoning is needed to handle DST (Daylight Saving Time) changes.
-        # Given the following recurrence:
-        #   - monthly
-        #   - 1st of each month
-        #   - timezone America/New_York (UTC−05:00)
-        #   - at 6am America/New_York = 11am UTC
-        #   - from 2019/02/01 to 2019/05/01.
-        # The naive way would be to store:
-        # 2019/02/01 11:00 - 2019/03/01 11:00 - 2019/04/01 11:00 - 2019/05/01 11:00 (UTC)
-        #
-        # But a DST change occurs on 2019/03/10 in America/New_York timezone. America/New_York is now UTC−04:00.
-        # From this point in time, 11am (UTC) is actually converted to 7am (America/New_York) instead of the expected 6am!
-        # What should be stored is:
-        # 2019/02/01 11:00 - 2019/03/01 11:00 - 2019/04/01 10:00 - 2019/05/01 10:00 (UTC)
-        #                                                  *****              *****
         return (
             localize_standard(occurrence, tz).astimezone(UTC).replace(tzinfo=None)
             for occurrence in occurences
@@ -565,20 +473,6 @@ class MixinRecurrenceRrule(models.AbstractModel):
         )
 
     def _get_rrule(self, dtstart=None, bounded=True, count=None):
-        """Build the dateutil rrule for this recurrence.
-
-        :param bounded: when True (enumerating occurrences) an unbounded
-            ``forever`` recurrence is capped at ``MAX_RECURRENT_OCCURRENCES`` so it
-            materialises a finite number of events; when False (serialising to
-            the canonical ``rrule`` string) it carries no ``COUNT``, so the
-            string round-trips back to ``repeat_type='forever'`` instead of being
-            re-parsed as ``repeat_type='count'`` with
-            ``repeat_number=MAX_RECURRENT_OCCURRENCES``.
-            For a real ``count`` the string keeps the user's value while
-            enumeration still caps at ``MAX_RECURRENT_OCCURRENCES``.
-        :param count: for a ``count`` recurrence, use this instead of the stored
-            ``count`` field (see _range_calculation) without mutating the record.
-        """
         self.check_singleton()
         freq = self.repeat_unit
         rrule_params = {
