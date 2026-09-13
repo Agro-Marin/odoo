@@ -109,10 +109,11 @@
                     <group>
                         <group string="Trigger">
                             <field name="model_id" />
+                            <field name="model_name" invisible="1" />
                             <field
                                 name="trigger_domain"
                                 widget="domain"
-                                options="{'model': 'model_id.model'}" />
+                                options="{'model': 'model_name'}" />
                             <field name="trigger_count" />
                         </group>
                         <group string="Rewards">

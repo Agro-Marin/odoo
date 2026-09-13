@@ -40,6 +40,7 @@ class GamificationAchievement(models.Model):
         ondelete="cascade",
         help="The model to evaluate for this achievement.",
     )
+    model_name = fields.Char(related="model_id.model")
     trigger_domain = fields.Char(
         "Trigger Domain",
         required=True,

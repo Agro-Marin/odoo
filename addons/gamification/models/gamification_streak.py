@@ -44,6 +44,7 @@ class GamificationStreakType(models.Model):
         ondelete="cascade",
         help="The model where activity is tracked (e.g. crm.lead, account.move).",
     )
+    model_name = fields.Char(related="model_id.model")
     domain = fields.Char(
         "Activity Domain",
         required=True,

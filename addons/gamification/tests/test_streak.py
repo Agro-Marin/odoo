@@ -5,7 +5,7 @@ from freezegun import freeze_time
 
 from odoo import fields
 from odoo.exceptions import UserError
-from odoo.tests import common
+from odoo.tests import Form, common
 
 from odoo.addons.mail.tests.common import mail_new_test_user
 
@@ -62,6 +62,13 @@ class TestStreak(TestStreakCommon):
                 ("user_id", "=", self.test_user.id),
             ]
         ).unlink()
+
+    def test_streak_type_form_resolves_its_domain_model(self):
+        self.assertEqual(self.streak_type.model_name, "res.partner")
+        form = Form(self.env["gamification.streak.type"])
+        self.assertFalse(form.model_name)
+        form.model_id = self.partner_model
+        self.assertEqual(form.model_name, "res.partner")
 
     def test_get_user_streaks_creates_missing(self):
         """_get_user_streaks creates streak records for all active types."""

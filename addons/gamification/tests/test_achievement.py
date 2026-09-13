@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo.tests import common
+from odoo.tests import Form, common
 
 from odoo.addons.mail.tests.common import mail_new_test_user
 
@@ -62,6 +62,13 @@ class TestAchievement(common.TransactionCase):
                 "hidden": True,
             }
         )
+
+    def test_achievement_form_resolves_its_domain_model(self):
+        self.assertEqual(self.achievement.model_name, "res.partner")
+        form = Form(self.env["gamification.achievement"])
+        self.assertFalse(form.model_name)
+        form.model_id = self.partner_model
+        self.assertEqual(form.model_name, "res.partner")
 
     def test_check_achievement_no_matching_records(self):
         """No unlock when user has no matching records."""
