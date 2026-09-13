@@ -1,70 +1,105 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
-    <record
-        id="approval_category_approver_business_trip"
-        model="approval.category.approver">
-        <field name="user_id" ref="user_approver_1" />
-    </record>
-
     <record id="approval_category_data_business_trip" model="approval.category">
-        <field
-            name="approver_ids"
-            eval="[Command.create({'user_id': ref('user_approval_manager'), 'sequence': 20, 'required': True})]" />
-        <field name="approve_sequentially" eval="True" />
         <field name="approval_minimum">2</field>
         <field name="approval_deadline_hours">72</field>
         <field name="escalate_overdue" eval="False" />
     </record>
 
-    <record id="approval_category_data_borrow_items" model="approval.category">
+    <record
+        id="approval_category_data_business_trip_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="2" />
+        <field name="in_order" eval="True" />
         <field
-            name="approver_ids"
-            eval="[             Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': False}),             Command.create({'user_id': ref('user_approver_2'), 'sequence': 10, 'required': False}),             Command.create({'user_id': ref('user_approver_3'), 'sequence': 10, 'required': False})         ]" />
+            name="member_ids"
+            eval="[Command.clear(), Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': True}), Command.create({'user_id': ref('user_approval_manager'), 'sequence': 20, 'required': True})]" />
+    </record>
+
+    <record id="approval_category_data_borrow_items" model="approval.category">
         <field name="approval_minimum">2</field>
         <field name="approval_deadline_hours">24</field>
     </record>
 
-    <record id="approval_category_data_general_approval" model="approval.category">
+    <record
+        id="approval_category_data_borrow_items_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="2" />
         <field
-            name="approver_ids"
-            eval="[             Command.create({'user_id': ref('base.user_admin'), 'sequence': 10, 'required': True})         ]" />
+            name="member_ids"
+            eval="[Command.clear(), Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': False}), Command.create({'user_id': ref('user_approver_2'), 'sequence': 20, 'required': False}), Command.create({'user_id': ref('user_approver_3'), 'sequence': 30, 'required': False})]" />
+    </record>
+
+    <record id="approval_category_data_general_approval" model="approval.category">
         <field name="approval_minimum">1</field>
         <field name="approval_deadline_hours">48</field>
     </record>
 
-    <record id="approval_category_data_contract_approval" model="approval.category">
+    <record
+        id="approval_category_data_general_approval_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="1" />
         <field
-            name="approver_ids"
-            eval="[             Command.create({'user_id': ref('user_approver_2'), 'sequence': 10, 'required': True}),             Command.create({'user_id': ref('user_approval_manager'), 'sequence': 20, 'required': True})         ]" />
-        <field name="approve_sequentially" eval="True" />
+            name="member_ids"
+            eval="[Command.clear(), Command.create({'user_id': ref('base.user_admin'), 'sequence': 10, 'required': True})]" />
+    </record>
+
+    <record id="approval_category_data_contract_approval" model="approval.category">
         <field name="approval_minimum">2</field>
         <field name="approval_deadline_hours">96</field>
     </record>
 
+    <record
+        id="approval_category_data_contract_approval_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="2" />
+        <field name="in_order" eval="True" />
+        <field
+            name="member_ids"
+            eval="[Command.clear(), Command.create({'user_id': ref('user_approver_2'), 'sequence': 10, 'required': True}), Command.create({'user_id': ref('user_approval_manager'), 'sequence': 20, 'required': True})]" />
+    </record>
+
     <record id="approval_category_data_payment_application" model="approval.category">
-        <field name="group_approval">exclusive</field>
-        <field name="approver_group_id" ref="group_finance_approvers" />
         <field name="approval_minimum">2</field>
         <field name="approval_deadline_hours">48</field>
     </record>
 
     <record
+        id="approval_category_data_payment_application_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="2" />
+        <field name="group_id" ref="group_finance_approvers" />
+    </record>
+
+    <record
         id="approval_category_data_car_rental_application"
         model="approval.category">
-        <field
-            name="approver_ids"
-            eval="[             Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': True})         ]" />
         <field name="approval_minimum">1</field>
         <field name="approval_deadline_hours">24</field>
     </record>
 
-    <record id="approval_category_data_job_referral_award" model="approval.category">
+    <record
+        id="approval_category_data_car_rental_application_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="1" />
         <field
-            name="approver_ids"
-            eval="[             Command.create({'user_id': ref('user_approval_manager'), 'sequence': 10, 'required': True})         ]" />
+            name="member_ids"
+            eval="[Command.clear(), Command.create({'user_id': ref('user_approver_1'), 'sequence': 10, 'required': True})]" />
+    </record>
+
+    <record id="approval_category_data_job_referral_award" model="approval.category">
         <field name="approval_minimum">1</field>
         <field name="approval_deadline_hours">168</field>
+    </record>
+
+    <record
+        id="approval_category_data_job_referral_award_step_approvers"
+        model="approval.category.step">
+        <field name="minimum" eval="1" />
+        <field
+            name="member_ids"
+            eval="[Command.clear(), Command.create({'user_id': ref('user_approval_manager'), 'sequence': 10, 'required': True})]" />
     </record>
 
     <record id="partner_acme_corp" model="res.partner">

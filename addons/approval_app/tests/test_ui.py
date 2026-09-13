@@ -1,3 +1,4 @@
+from odoo.fields import Command
 from odoo.tests import tagged
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
@@ -13,7 +14,11 @@ class TestUi(HttpCaseWithUserDemo):
         )
         category = self.env.ref("approval_app.approval_category_data_business_trip")
         admin = self.env.ref("base.user_admin")
-        if not category.step_ids:
+        if category.step_ids:
+            category.step_ids.write(
+                {"minimum": 1, "in_order": False, "member_ids": [Command.clear()]}
+            )
+        else:
             category.write(
                 {
                     "approver_ids": [(5, 0, 0)],

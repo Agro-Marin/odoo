@@ -300,23 +300,18 @@ class ApprovalCategoryConversion(models.Model):
                 required |= user
         steps = [
             self._prepare_conversion_step(
-                self.env._("Required: %s", user.name), user, 1, **condition
-            )
-            for user in required
-        ]
-        steps += [
-            self._prepare_conversion_step(
                 name, self.env["res.users"], 1, **condition, **source
             )
             for name, source in self._get_conversion_required_sources()
         ]
         pool_source = self._get_conversion_pool_source()
-        if minimum > 0:
+        if minimum > 0 or required:
             steps.append(
                 self._prepare_conversion_step(
                     self.env._("Approvers"),
                     users,
-                    minimum,
+                    max(minimum, 1),
+                    required_users=required,
                     counts_added_approvers=True,
                     **condition,
                     **pool_source,
@@ -346,13 +341,22 @@ class ApprovalCategoryConversion(models.Model):
             ],
         }
 
-    def _prepare_conversion_step(self, name, users, minimum, **vals) -> dict:
+    def _prepare_conversion_step(
+        self, name, users, minimum, required_users=None, **vals
+    ) -> dict:
+        required_ids = set(required_users.ids) if required_users else set()
         return {
             "name": name,
             "sequence": _BASE_SEQUENCE,
             "minimum": minimum,
             "member_ids": [
-                Command.create({"user_id": user.id, "sequence": 10 * position})
+                Command.create(
+                    {
+                        "user_id": user.id,
+                        "sequence": 10 * position,
+                        "required": user.id in required_ids,
+                    }
+                )
                 for position, user in enumerate(users, start=1)
             ],
             **vals,

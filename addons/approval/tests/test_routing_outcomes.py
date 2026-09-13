@@ -754,6 +754,24 @@ class TestConvertingEveryCategory(RoutingOutcomesCase):
         self.assertFalse(blocked.step_ids)
         self.assertNotIn(blocked, result["converted"])
 
+    def test_every_category_a_module_ships_routes_by_steps_or_says_why(self):
+        shipped = self.env["ir.model.data"].search(
+            [("model", "=", "approval.category")]
+        )
+        categories = (
+            self.env["approval.category"]
+            .with_context(active_test=False)
+            .browse(shipped.mapped("res_id"))
+            .exists()
+        )
+        self.assertTrue(categories)
+        on_their_list = categories.filtered(
+            lambda category: (
+                not category.step_ids and not category._get_steps_conversion_blockers()
+            )
+        )
+        self.assertFalse(on_their_list.mapped("name"))
+
     def test_a_request_confirmed_on_the_list_keeps_routing_by_it(self):
         category = self._flat_category()
         category.approval_minimum = 2
