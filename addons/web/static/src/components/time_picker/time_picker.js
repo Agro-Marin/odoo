@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUpdateProps, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -10,7 +10,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseTime, Time } from "@web/core/l10n/time";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
-import { useChildRef, useSyncedInputProperty } from "@web/core/utils/hooks";
+import { useChildRef } from "@web/core/utils/hooks";
 
 const log = makeLogger("web.components.time_picker");
 
@@ -66,8 +66,8 @@ export class TimePicker extends Component {
     menuRef;
     /** @type {import("@web/components/dropdown/dropdown_hook").DropdownState} */
     dropdownState;
-    /** @type {{ value: Time | null, inputValue: string, isValid: boolean }} */
-    state;
+    /** @type {Time | null} */
+    value = null;
     /** @type {any[]} */
     suggestions = [];
     /** @type {any} */
@@ -89,31 +89,34 @@ export class TimePicker extends Component {
         this.menuRef = useChildRef();
         this.dropdownState = useDropdownState();
 
-        this.state = useState({
-            value: null,
-            inputValue: "",
-            isValid: true,
-        });
+        /** @type {string} */
+        this.inputValue = "";
+        this.isValid = true;
 
         this.navigationOptions = this.getNavigationOptions();
         this.onPropsUpdated(this.props);
 
         onWillUpdateProps((nextProps) => this.onPropsUpdated(nextProps));
-        useSyncedInputProperty(
-            () => this.inputRef.el,
-            () => this.state.inputValue,
-        );
+        onMounted(() => this.setInputValue(this.inputValue));
+    }
+
+    /** @param {string} value */
+    setInputValue(value) {
+        this.inputValue = value;
+        if (this.inputRef.el && this.inputRef.el.value !== value) {
+            this.inputRef.el.value = value;
+        }
+    }
+
+    /** @param {boolean} isValid */
+    setValidity(isValid) {
+        this.isValid = isValid;
+        this.inputRef.el?.classList.toggle("o_invalid", !isValid);
     }
 
     get cssClass() {
         return mergeClasses(this.props.cssClass, {
             o_time_picker_seconds: this.props.showSeconds,
-        });
-    }
-
-    get inputCssClass() {
-        return mergeClasses(this.props.inputCssClass, {
-            o_invalid: !this.state.isValid,
         });
     }
 
@@ -123,7 +126,7 @@ export class TimePicker extends Component {
             const value = this.suggestions[navigator.activeItemIndex];
             if (value) {
                 this.navigatedValue = value;
-                this.state.inputValue = value.toString(this.props.showSeconds);
+                this.setInputValue(value.toString(this.props.showSeconds));
             }
         };
 
@@ -251,8 +254,8 @@ export class TimePicker extends Component {
             if (this.props.minutesRounding > 1) {
                 newValue.roundMinutes(this.props.minutesRounding);
             }
-            if (!this.props.showSeconds && this.state.value) {
-                newValue.second = this.state.value.second;
+            if (!this.props.showSeconds && this.value) {
+                newValue.second = this.value.second;
             }
         }
 
@@ -275,19 +278,14 @@ export class TimePicker extends Component {
             newValue?.equals(this.lastValue, props.showSeconds);
 
         this.lastValue = newValue?.copy() ?? newValue;
-        this.state.value = newValue;
+        this.value = newValue;
 
-        if (
-            this.state.inputValue !== rendered &&
-            isSameInstant &&
-            !force &&
-            this.isDirty
-        ) {
+        if (this.inputValue !== rendered && isSameInstant && !force && this.isDirty) {
             return;
         }
         this.isDirty = false;
-        this.state.inputValue = rendered;
-        this.state.isValid = true;
+        this.setInputValue(rendered);
+        this.setValidity(true);
     }
 
     /** @param {Time} value */
@@ -316,16 +314,17 @@ export class TimePicker extends Component {
         this.openIfClosed();
         this.isDirty = true;
         this.navigatedValue = null;
+        this.inputValue = this.inputRef.el?.value ?? "";
 
-        const value = parseTime(this.inputRef.el?.value ?? "", this.props.showSeconds);
-        this.state.isValid = value !== null;
+        const value = parseTime(this.inputValue, this.props.showSeconds);
+        this.setValidity(value !== null);
 
         if (!this.navigator) {
             return;
         }
 
         let index = -1;
-        if (this.state.isValid) {
+        if (this.isValid) {
             index = this.suggestions.findIndex((s) => s.equals(value));
         }
 
@@ -338,10 +337,10 @@ export class TimePicker extends Component {
 
     onChange() {
         const value = parseTime(this.inputRef.el?.value ?? "", this.props.showSeconds);
-        this.state.isValid = value !== null;
+        this.setValidity(value !== null);
         this.isDirty = false;
         this.navigatedValue = null;
-        if (this.state.isValid) {
+        if (this.isValid) {
             this.setValue(value);
             this.close();
         } else {
@@ -376,7 +375,7 @@ export class TimePicker extends Component {
 
     onDropdownOpened() {
         if (this.navigator) {
-            const index = this.getNearestSuggestionIndex(this.state.value);
+            const index = this.getNearestSuggestionIndex(this.value);
             this.navigator.items[index]?.setActive();
         }
     }

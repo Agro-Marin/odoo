@@ -3,7 +3,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, hover, queryAll, queryAllTexts, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, onRendered, useState, xml } from "@odoo/owl";
 import {
     assertDateTimePicker,
     editTime,
@@ -1351,10 +1351,9 @@ test("range with no end: start at 23h clamps the end time instead of wrapping", 
     expect(".o_time_picker_input:eq(1)").toHaveValue("23:00");
 });
 
-test.tags("desktop");
 test("grid refreshes when isDateValid / dayCellClass change their answer", async () => {
     const rules = { blockedWeekday: null };
-    await mountWithCleanup(DateTimePicker, {
+    const picker = await mountWithCleanup(DateTimePicker, {
         props: {
             type: "date",
             isDateValid: (/** @type {any} */ date) =>
@@ -1367,11 +1366,28 @@ test("grid refreshes when isDateValid / dayCellClass change their answer", async
     expect(".o_blocked").toHaveCount(0);
 
     rules.blockedWeekday = 6;
-    await hover(getPickerCell("10"));
+    picker.render();
     await animationFrame();
 
     expect(".o_date_item_cell[disabled]").toHaveCount(6);
     expect(".o_blocked").toHaveCount(6);
+});
+
+test.tags("desktop");
+test("hovering a day of a single-date picker renders nothing", async () => {
+    let renders = 0;
+    class Probe extends DateTimePicker {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        }
+    }
+    await mountWithCleanup(Probe, { props: { type: "date" } });
+    renders = 0;
+    await hover(getPickerCell("10"));
+    await hover(getPickerCell("11"));
+    await animationFrame();
+    expect(renders).toBe(0);
 });
 
 test.tags("desktop");

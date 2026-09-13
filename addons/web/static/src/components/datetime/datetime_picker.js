@@ -551,7 +551,6 @@ export class DateTimePicker extends Component {
             isSelected: isInRange(this.selectedRange, range),
             isSelectStart: false,
             isSelectEnd: false,
-            isHighlighted: isInRange(this.state.hoveredDate, range),
         };
 
         if (this.props.range) {
@@ -588,6 +587,13 @@ export class DateTimePicker extends Component {
             const values = [];
             values[props.focusedDateIndex] = timeValues[props.focusedDateIndex];
             return values;
+        }
+    }
+
+    /** @param {DateItem | null} item */
+    onDateHover(item) {
+        if (this.props.range) {
+            this.state.hoveredDate = item ? item.range[0] : null;
         }
     }
 

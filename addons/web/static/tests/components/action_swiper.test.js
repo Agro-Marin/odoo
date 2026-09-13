@@ -5,7 +5,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { hover, queryFirst } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, mockTouch } from "@odoo/hoot-mock";
-import { Component, onPatched, useState, xml } from "@odoo/owl";
+import { Component, onPatched, onRendered, useState, xml } from "@odoo/owl";
 import {
     contains,
     defineParams,
@@ -780,4 +780,48 @@ test("a rejecting swipe action still resets the swiper", async () => {
     expect(targetContainer.style.transform).not.toInclude("translateX", {
         message: "the swiper is reset even though the action rejected",
     });
+});
+
+test("a finger moving across the swiper moves the target without rendering it", async () => {
+    let renders = 0;
+    patchWithCleanup(ActionSwiper.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        },
+    });
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { ActionSwiper };
+        static template = xml`
+            <div class="d-flex">
+                <ActionSwiper onRightSwipe="{ action: () => {}, icon: 'fa-circle', bgColor: 'bg-warning' }">
+                    <div class="target-component" style="width: 200px; height: 80px">Test</div>
+                </ActionSwiper>
+            </div>
+        `;
+    }
+    await mountWithCleanup(Parent);
+    const swiper = queryFirst(".o_actionswiper");
+    const targetContainer = queryFirst(".o_actionswiper_target_container");
+    const rightArea = queryFirst(".o_actionswiper_right_swipe_area");
+    renders = 0;
+
+    const dragHelper = await contains(swiper).drag({
+        position: { clientX: 0, clientY: 0 },
+    });
+    await animationFrame();
+    const rendersAtStart = renders;
+    for (const clientX of [10, 20, 30, 40, 50]) {
+        await dragHelper.moveTo(swiper, { position: { clientX, clientY: 0 } });
+    }
+    await animationFrame();
+    expect(renders).toBe(rendersAtStart);
+    expect(targetContainer.style.transform).toBe("translateX(50px)");
+    expect(rightArea.style.maxWidth).toBe("50px");
+
+    await dragHelper.drop();
+    await animationFrame();
+    expect(targetContainer.style.transform).toBe("");
+    expect(rightArea.style.maxWidth).toBe("0px");
 });
