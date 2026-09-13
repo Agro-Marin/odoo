@@ -1066,6 +1066,13 @@ def _run_deferred_at_install_tests(
 
     _debug.pipeline("modules.deferred_tests.begin", modules=len(names))
     registry.check_null_constraints(cr)
+    # The tests open their own connections; anything this transaction still
+    # holds -- the module-list update, the upgrade marking, every row it read
+    # -- blocks their DDL and their module-state writes for good. The
+    # non-deferred path commits in `mark_module_installed` before its tests.
+    env.flush_all()
+    cr.commit()
+    _debug.lifecycle("modules.deferred_tests.committed", modules=len(names))
     for name in names:
         suite = loader.prepare_suite([name], "at_install")
         _logger.info(
