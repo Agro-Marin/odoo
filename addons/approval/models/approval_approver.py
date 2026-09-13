@@ -613,6 +613,7 @@ class ApprovalApprover(models.Model):
             if (
                 request.group_approval == "exclusive"
                 and not request.category_id.notify_pool_members
+                and not self.source_rule_id
             ):
                 # A security group is a pool anyone in it may decide from To
                 # Review; asking each member is one e-mail, one follower and one
@@ -629,6 +630,10 @@ class ApprovalApprover(models.Model):
         listed = self.step_ids.filtered(
             lambda step: (
                 (step.counts_added_approvers and not self.source_synced)
+                or (
+                    step.asks_group_members
+                    and self.user_id in step.group_id.all_user_ids
+                )
                 or self.user_id.id
                 in step._get_member_user_ids(document, request=self.request_id)
             )

@@ -22,8 +22,7 @@ class ApprovalCategoryConversion(models.Model):
     What "the same" means is the routing contract in tests/test_routing_outcomes.py:
     the state, who could approve and who is asked, after every decision. The flat
     path counts approvals across all of a request's rows, so each translation keeps
-    that count in one pool step, and gives every required approver a step of their
-    own beside it. A configuration whose outcome steps cannot reproduce exactly is
+    that count in one pool step, whose required members are the required approvers. A configuration whose outcome steps cannot reproduce exactly is
     refused with its reason rather than approximated.
     """
 
@@ -48,7 +47,6 @@ class ApprovalCategoryConversion(models.Model):
         "rule_ids.condition_type",
         "rule_ids.condition_field",
         "rule_ids.operator",
-        "rule_ids.approver_required",
         "rule_ids.company_id",
         "rule_ids.currency_id",
     )
@@ -64,7 +62,12 @@ class ApprovalCategoryConversion(models.Model):
         blockers = []
         rules = self._get_routing_rules()
         added = rules.filtered(lambda rule: rule.action_type == "add_approver")
-        bands = rules.filtered(lambda rule: rule.action_type == "set_approvers")
+        bands = rules.filtered(
+            lambda rule: (
+                rule.action_type == "set_approvers"
+                and self.group_approval != "exclusive"
+            )
+        )
         if self.step_ids:
             blockers.append(self.env._("The category already routes by steps."))
         if any(rules.mapped("company_id")) and any(
@@ -82,10 +85,6 @@ class ApprovalCategoryConversion(models.Model):
                     "A routing rule reads the source document; its complement cannot "
                     "be expressed for requests that have none."
                 )
-            )
-        if added.filtered(lambda rule: not rule.approver_required):
-            blockers.append(
-                self.env._("A rule adds optional approvers, which no step can pool.")
             )
         if len(added) > 1 and not self._are_rules_tiers(added):
             blockers.append(
@@ -107,25 +106,15 @@ class ApprovalCategoryConversion(models.Model):
             blockers.append(
                 self.env._("A category both adds and replaces approvers by rule.")
             )
-        if self.approve_sequentially and rules:
-            blockers.append(self.env._("Sequential approvers with routing rules."))
-        if self.group_approval == "exclusive":
-            if added:
-                blockers.append(
-                    self.env._(
-                        "A security group category counts rule approvers into the "
-                        "group's quorum, which a group step cannot."
-                    )
+        if self.approve_sequentially and bands:
+            blockers.append(
+                self.env._(
+                    "Sequential approvers with a replacement band, whose approvers "
+                    "share one place in the sequence."
                 )
-            if self.notify_pool_members:
-                blockers.append(
-                    self.env._(
-                        "A group step asks none of its members; this category asks "
-                        "every member."
-                    )
-                )
-            if self.approve_sequentially:
-                blockers.append(self.env._("A security group has no order."))
+            )
+        if self.group_approval == "exclusive" and self.approve_sequentially:
+            blockers.append(self.env._("A security group has no order."))
         return blockers
 
     def _get_routing_rules(self):
@@ -138,43 +127,30 @@ class ApprovalCategoryConversion(models.Model):
 
     def _prepare_steps_from_flat_routing(self) -> list[dict]:
         self.check_singleton()
-        if self.group_approval == "exclusive":
-            return [
-                self._prepare_conversion_step(
-                    self.env._("Group"),
-                    self.env["res.users"],
-                    self.approval_minimum,
-                    group_id=self.approver_group_id.id,
-                    counts_added_approvers=True,
-                )
-            ]
         listed = [
-            (approver.user_id, approver.required)
+            (approver.user_id, approver.required, approver.sequence)
             for approver in self.approver_ids.sorted(lambda a: (a.sequence, a.id))
         ]
-        if self.approve_sequentially:
-            return [
-                self._prepare_in_order_step(
-                    self.approver_ids.sorted(lambda a: (a.sequence, a.id))
-                )
-            ]
         rules = self._get_routing_rules()
         band = rules.filtered(lambda rule: rule.action_type == "set_approvers")
         added = rules.filtered(lambda rule: rule.action_type == "add_approver")
+        if self.group_approval == "exclusive":
+            listed = []
+            band = band.browse()
         if band and self._are_rules_ranges(band):
             return self._prepare_ranged_band_steps(listed, band)
         if band:
             return self._prepare_pooled_steps(
                 listed, self.approval_minimum, self._complement_condition(band)
             ) + self._prepare_pooled_steps(
-                [(user, band.approver_required) for user in band.approver_ids],
+                self._get_rule_approvers(band),
                 band.approval_minimum,
                 self._rule_condition(band),
             )
         if len(added) > 1:
             return self._prepare_tiered_steps(listed, added)
         if added:
-            with_rule = listed + [(user, True) for user in added.approver_ids]
+            with_rule = listed + self._get_rule_approvers(added)
             return self._prepare_pooled_steps(
                 listed, self.approval_minimum, self._complement_condition(added)
             ) + self._prepare_pooled_steps(
@@ -237,7 +213,7 @@ class ApprovalCategoryConversion(models.Model):
                     {**base, **self._interval_condition(cursor, low)},
                 )
             steps += self._prepare_pooled_steps(
-                [(user, band.approver_required) for user in band.approver_ids],
+                self._get_rule_approvers(band),
                 band.approval_minimum,
                 {**base, **self._interval_condition(low, high)},
             )
@@ -268,7 +244,11 @@ class ApprovalCategoryConversion(models.Model):
         for index, low in enumerate(thresholds):
             high = thresholds[index + 1] if index + 1 < len(thresholds) else 0
             matched = tiers.filtered(lambda rule, low=low: rule.threshold <= low)
-            approvers = listed + [(user, True) for user in matched.approver_ids]
+            approvers = listed + [
+                approver
+                for rule in matched
+                for approver in self._get_rule_approvers(rule)
+            ]
             steps += self._prepare_pooled_steps(
                 approvers,
                 self.approval_minimum,
@@ -281,6 +261,16 @@ class ApprovalCategoryConversion(models.Model):
             )
         return steps
 
+    def _get_conversion_group_vals(self) -> dict:
+        """A security group category decides by its group, whatever the approver
+        list says, and replacement bands do not apply to it."""
+        if self.group_approval != "exclusive":
+            return {}
+        return {
+            "group_id": self.approver_group_id.id,
+            "asks_group_members": self.notify_pool_members,
+        }
+
     def _get_conversion_pool_source(self) -> dict:
         """Step values naming approvers every request of the category adds to its pool
         beyond the listed ones (an approver path, typically on the request itself)."""
@@ -291,27 +281,51 @@ class ApprovalCategoryConversion(models.Model):
         listed ones, named by a path rather than a user."""
         return []
 
+    @staticmethod
+    def _get_rule_approvers(rule) -> list[tuple]:
+        return [
+            (user, rule.approver_required, rule.approver_sequence)
+            for user in rule.approver_ids
+        ]
+
     def _prepare_pooled_steps(self, approvers, minimum, condition) -> list[dict]:
-        users = self.env["res.users"]
-        required = self.env["res.users"]
-        for user, is_required in approvers:
-            users |= user
-            if is_required:
-                required |= user
+        merged = {}
+        for user, is_required, sequence in approvers:
+            if user in merged:
+                was_required, was_sequence = merged[user]
+                merged[user] = (
+                    was_required or is_required,
+                    min(was_sequence, sequence),
+                )
+            else:
+                merged[user] = (is_required, sequence)
+        members = [(user, *merged[user]) for user in merged]
         steps = [
-            self._prepare_conversion_step(
-                name, self.env["res.users"], 1, **condition, **source
-            )
+            self._prepare_conversion_step(name, [], 1, **condition, **source)
             for name, source in self._get_conversion_required_sources()
         ]
-        pool_source = self._get_conversion_pool_source()
-        if minimum > 0 or required:
+        pool_source = {
+            **self._get_conversion_pool_source(),
+            **self._get_conversion_group_vals(),
+        }
+        has_required = any(is_required for _user, is_required, _sequence in members)
+        if self.approve_sequentially:
+            steps.append(
+                self._prepare_conversion_step(
+                    self.env._("In order"),
+                    members,
+                    max(minimum, 1),
+                    in_order=True,
+                    counts_added_approvers=True,
+                    **condition,
+                )
+            )
+        elif minimum > 0 or has_required or pool_source.get("group_id"):
             steps.append(
                 self._prepare_conversion_step(
                     self.env._("Approvers"),
-                    users,
+                    members,
                     max(minimum, 1),
-                    required_users=required,
                     counts_added_approvers=True,
                     **condition,
                     **pool_source,
@@ -319,32 +333,7 @@ class ApprovalCategoryConversion(models.Model):
             )
         return steps
 
-    def _prepare_in_order_step(self, category_approvers) -> dict:
-        """Members keep their approver sequence and required flag: a hand-added
-        approver joins the chain by its own row sequence, as it did on the approver
-        list, and the chain still waits for every required member."""
-        return {
-            "name": self.env._("In order"),
-            "sequence": _BASE_SEQUENCE,
-            "minimum": self.approval_minimum,
-            "in_order": True,
-            "counts_added_approvers": True,
-            "member_ids": [
-                Command.create(
-                    {
-                        "user_id": approver.user_id.id,
-                        "sequence": approver.sequence,
-                        "required": approver.required,
-                    }
-                )
-                for approver in category_approvers
-            ],
-        }
-
-    def _prepare_conversion_step(
-        self, name, users, minimum, required_users=None, **vals
-    ) -> dict:
-        required_ids = set(required_users.ids) if required_users else set()
+    def _prepare_conversion_step(self, name, members, minimum, **vals) -> dict:
         return {
             "name": name,
             "sequence": _BASE_SEQUENCE,
@@ -353,11 +342,11 @@ class ApprovalCategoryConversion(models.Model):
                 Command.create(
                     {
                         "user_id": user.id,
-                        "sequence": 10 * position,
-                        "required": user.id in required_ids,
+                        "sequence": sequence,
+                        "required": is_required,
                     }
                 )
-                for position, user in enumerate(users, start=1)
+                for user, is_required, sequence in members
             ],
             **vals,
         }

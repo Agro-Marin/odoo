@@ -13,6 +13,7 @@
                     <group>
                         <group string="Who">
                             <field name="group_id" options="{'no_create': True}" />
+                            <field name="asks_group_members" invisible="not group_id" />
                             <field name="minimum" />
                             <field name="exclusive" />
                             <field name="in_order" />

@@ -29,6 +29,12 @@ SCRIPTS = {
         (("approve", "a"), "pending", {"b"}, {"b"}),
         (("approve", "b"), "approved", set(), set()),
     ],
+    "sequential_with_a_rule_approver": [
+        (None, "pending", {"a"}, {"a"}),
+        (("approve", "a"), "pending", {"c"}, {"c"}),
+        (("approve", "c"), "pending", {"b"}, {"b"}),
+        (("approve", "b"), "approved", set(), set()),
+    ],
     "sequential_withdrawal": [
         (None, "pending", {"a"}, {"a"}),
         (("approve", "a"), "pending", {"b"}, {"b"}),
@@ -63,6 +69,20 @@ SCRIPTS = {
         (("approve", "c"), "pending", {"d"}, set()),
         (("approve", "d"), "approved", set(), set()),
     ],
+    "group_asks_its_members": [
+        (None, "pending", {"c", "d"}, {"c", "d"}),
+        (("approve", "d"), "approved", set(), set()),
+    ],
+    "group_with_a_rule_approver": [
+        (None, "pending", {"b", "c", "d"}, {"b"}),
+        (("approve", "c"), "pending", {"b", "d"}, {"b"}),
+        (("approve", "b"), "approved", set(), set()),
+    ],
+    "group_with_a_rule_approver_asking_members": [
+        (None, "pending", {"b", "c", "d"}, {"b", "c", "d"}),
+        (("approve", "c"), "pending", {"b", "d"}, {"b", "d"}),
+        (("approve", "b"), "approved", set(), set()),
+    ],
     "owner_not_asked": [
         (None, "pending", {"a"}, {"a"}),
         (("approve", "a"), "approved", set(), set()),
@@ -71,6 +91,10 @@ SCRIPTS = {
         (None, "pending", {"a", "c"}, {"a", "c"}),
         (("approve", "a"), "pending", {"c"}, {"c"}),
         (("approve", "c"), "approved", set(), set()),
+    ],
+    "rule_adds_an_optional_approver": [
+        (None, "pending", {"a", "c"}, {"a", "c"}),
+        (("approve", "a"), "approved", set(), set()),
     ],
     "rule_below_its_threshold": [
         (None, "pending", {"a"}, {"a"}),
@@ -81,6 +105,10 @@ SCRIPTS = {
         (("approve", "a"), "pending", {"c", "d"}, {"c", "d"}),
         (("approve", "c"), "pending", {"d"}, {"d"}),
         (("approve", "d"), "approved", set(), set()),
+    ],
+    "optional_tiers_above_both": [
+        (None, "pending", {"a", "c", "d"}, {"a", "c", "d"}),
+        (("approve", "a"), "approved", set(), set()),
     ],
     "tiers_between": [
         (None, "pending", {"a", "c"}, {"a", "c"}),
@@ -306,6 +334,82 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
             "group_two_members",
         )
 
+    def test_group_asks_its_members(self):
+        self._run(
+            self._flat(
+                [],
+                approval_minimum=1,
+                group_approval="exclusive",
+                approver_group_id=self.pool.id,
+                notify_pool_members=True,
+            ),
+            "group_asks_its_members",
+        )
+
+    def test_a_group_ignores_a_replacement_band(self):
+        category = self._flat(
+            [],
+            approval_minimum=1,
+            group_approval="exclusive",
+            approver_group_id=self.pool.id,
+            has_amount="required",
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Band over a group",
+                "category_id": category.id,
+                "condition_type": "threshold",
+                "condition_field": "amount",
+                "operator": "gte",
+                "threshold": 1000,
+                "action_type": "set_approvers",
+                "approver_ids": [(6, 0, [self.people["b"].id])],
+            }
+        )
+        self._run(category, "group_queue", request_vals={"amount": 5000})
+
+    def _group_rule_category(self, **vals):
+        category = self._flat(
+            [],
+            approval_minimum=1,
+            group_approval="exclusive",
+            approver_group_id=self.pool.id,
+            has_amount="required",
+            **vals,
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Routing rule over a group",
+                "category_id": category.id,
+                "condition_type": "threshold",
+                "condition_field": "amount",
+                "operator": "gte",
+                "threshold": 1000,
+                "action_type": "add_approver",
+                "approver_ids": [(6, 0, [self.people["b"].id])],
+            }
+        )
+        return category
+
+    def test_group_with_a_rule_approver(self):
+        self._run(
+            self._group_rule_category(),
+            "group_with_a_rule_approver",
+            request_vals={"amount": 5000},
+        )
+
+    def test_group_with_a_rule_approver_below_its_threshold(self):
+        self._run(
+            self._group_rule_category(), "group_queue", request_vals={"amount": 10}
+        )
+
+    def test_group_with_a_rule_approver_asking_members(self):
+        self._run(
+            self._group_rule_category(notify_pool_members=True),
+            "group_with_a_rule_approver_asking_members",
+            request_vals={"amount": 5000},
+        )
+
     def test_owner_not_asked(self):
         self._run(
             self._flat([("owner", False, 10), ("a", False, 20)], approval_minimum=1),
@@ -353,6 +457,23 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
         )
         self._run(category, "rule_below_its_threshold", request_vals={"amount": 10})
 
+    def test_rule_adds_an_optional_approver(self):
+        category = self._amount_category(
+            "add_approver",
+            ["c"],
+            operator="gte",
+            threshold=1000,
+            approver_required=False,
+        )
+        self._run(
+            category, "rule_adds_an_optional_approver", request_vals={"amount": 5000}
+        )
+
+    def test_optional_tiers_above_both(self):
+        category = self._tiers_category()
+        category.rule_ids.approver_required = False
+        self._run(category, "optional_tiers_above_both", request_vals={"amount": 9000})
+
     def test_an_approver_added_by_hand_counts_toward_the_minimum(self):
         self._run(
             self._flat([("a", False, 10)], approval_minimum=2),
@@ -376,6 +497,42 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
             ),
             "added_by_hand_joins_the_sequence",
             added_by_hand=["d"],
+        )
+
+    def _sequential_rule_category(self):
+        category = self._flat(
+            [("a", True, 10), ("b", True, 20)],
+            approval_minimum=2,
+            approve_sequentially=True,
+            has_amount="required",
+        )
+        self.env["approval.rule"].create(
+            {
+                "name": "Routing rule inside a sequence",
+                "category_id": category.id,
+                "condition_type": "threshold",
+                "condition_field": "amount",
+                "operator": "gte",
+                "threshold": 1000,
+                "action_type": "add_approver",
+                "approver_sequence": 15,
+                "approver_ids": [(6, 0, [self.people["c"].id])],
+            }
+        )
+        return category
+
+    def test_a_rule_approver_takes_its_place_in_a_sequence(self):
+        self._run(
+            self._sequential_rule_category(),
+            "sequential_with_a_rule_approver",
+            request_vals={"amount": 5000},
+        )
+
+    def test_a_sequence_below_its_rule_threshold(self):
+        self._run(
+            self._sequential_rule_category(),
+            "sequential",
+            request_vals={"amount": 10},
         )
 
     def _tiers_category(self):
@@ -745,7 +902,7 @@ class TestConvertingEveryCategory(RoutingOutcomesCase):
         blocked = self._flat_category(
             group_approval="exclusive",
             approver_group_id=self.pool.id,
-            notify_pool_members=True,
+            approve_sequentially=True,
         )
         result = self.env["approval.category"]._convert_every_category_to_steps()
         self.assertIn(convertible, result["converted"])

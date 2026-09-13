@@ -55,6 +55,12 @@ class ApprovalCategoryStep(models.Model):
         "of the same request, and the other way round: a user who decided an "
         "exclusive step decides nothing else on that request.",
     )
+    asks_group_members = fields.Boolean(
+        string="Asks the Group's Members",
+        help="Every member of the approval group is asked, with an activity and an "
+        "e-mail. Off, the group is a queue its members decide from To Review, and "
+        "only the step's listed members are asked.",
+    )
     counts_added_approvers = fields.Boolean(
         string="Counts Approvers Added to the Request",
         help="Approvers added by hand to a request, beyond those routing names, join "
