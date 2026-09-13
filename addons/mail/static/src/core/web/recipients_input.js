@@ -69,16 +69,11 @@ export class RecipientsInput extends Component {
 
     /** @returns {Set<number>} */
     getExcludedRecipientPartnerIds() {
-        const partnerIds = new Set();
-        const recipients = this.getAllMailThreadRecipients();
-
-        for (const recipient of recipients) {
-            if (recipient.partner_id) {
-                partnerIds.add(recipient.partner_id);
-            }
-        }
-
-        return partnerIds;
+        return new Set(
+            this.getAllMailThreadRecipients()
+                .map((recipient) => recipient.partner_id)
+                .filter(Boolean),
+        );
     }
     /**
      * @param {string} name
@@ -107,28 +102,22 @@ export class RecipientsInput extends Component {
      * @returns {Object[]}
      */
     toRecipientOptions(matches) {
-        const options = [];
-        options.push(
-            ...matches.map((match) => ({
-                label: match.email
-                    ? _t("%(partner_name)s <%(partner_email)s>", {
-                          partner_name:
-                              match.name || match.display_name || _t("Unnamed"),
-                          partner_email: match.email,
-                      })
-                    : match.name || match.display_name || _t("Unnamed"),
-                onSelect: () => {
-                    this.insertAdditionalRecipient({
-                        display_name: match.display_name,
-                        email: match.email,
-                        name: match.name,
-                        partner_id: match.id,
-                    });
-                },
-            })),
-        );
-
-        return options;
+        return matches.map((match) => ({
+            label: match.email
+                ? _t("%(partner_name)s <%(partner_email)s>", {
+                      partner_name: match.name || match.display_name || _t("Unnamed"),
+                      partner_email: match.email,
+                  })
+                : match.name || match.display_name || _t("Unnamed"),
+            onSelect: () => {
+                this.insertAdditionalRecipient({
+                    display_name: match.display_name,
+                    email: match.email,
+                    name: match.name,
+                    partner_id: match.id,
+                });
+            },
+        }));
     }
     /** @returns {Object} */
     makeSearchMoreOption() {
@@ -317,13 +306,12 @@ export class RecipientsInput extends Component {
         await this.orm.write("res.partner", [recipientPartnerId], {
             email: emailNormalized,
         });
-        const allRecipients = this.getAllMailThreadRecipients();
-        allRecipients.some((oldRecipient) => {
-            if (oldRecipient.partner_id === recipientPartnerId) {
-                oldRecipient.email = emailNormalized;
-                return true;
-            }
-        });
+        const recipient = this.getAllMailThreadRecipients().find(
+            (candidate) => candidate.partner_id === recipientPartnerId,
+        );
+        if (recipient) {
+            recipient.email = emailNormalized;
+        }
     }
 
     /**
