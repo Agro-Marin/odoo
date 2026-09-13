@@ -7,7 +7,13 @@ import { isInstanceOf } from "@odoo/hoot-dom-utils";
 import { App } from "@odoo/owl";
 
 import { subscribeToTransitionChange } from "../mock/animation.js";
+import { mockLocation } from "../mock/network.js";
 import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
+
+/** A link on the mocked app location is the router's, not a way out of the page. */
+const EVENT_ACTION_OPTIONS = {
+    isAppOrigin: (/** @type {URL} */ url) => url.origin === mockLocation.origin,
+};
 
 /**
  * @typedef {Parameters<typeof import("@odoo/owl").mount>[2] & {
@@ -151,7 +157,7 @@ export class HootFixtureElement extends HTMLElement {
     _iframes = new Map();
 
     connectedCallback() {
-        setupEventActions(this);
+        setupEventActions(this, EVENT_ACTION_OPTIONS);
         subscribeToTransitionChange((allowTransitions) =>
             this.classList.toggle(
                 this.constructor.CLASSES.transitions,
@@ -188,7 +194,7 @@ export class HootFixtureElement extends HTMLElement {
                 continue;
             }
             this._iframes.set(iframe, waitForIframe(iframe));
-            setupEventActions(iframe.contentWindow);
+            setupEventActions(iframe.contentWindow, EVENT_ACTION_OPTIONS);
         }
         for (const iframe of toRemove) {
             this._iframes.delete(iframe);

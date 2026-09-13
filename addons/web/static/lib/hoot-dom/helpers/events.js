@@ -688,20 +688,43 @@ function parseKeyStrokes(keyStrokes, options) {
 }
 
 /**
- * @param {MouseEvent} ev
+ * Cancels the activation of a link that would leave the app or open another
+ * window: a test page that opens a real window becomes a background tab, and
+ * the browser then throttles every timer of the run that follows. A link on
+ * the app's own origin -- the page's, or the one the caller declares -- is
+ * the router's, and stays. Runs at the window in the capture phase, because a
+ * widget's own handler may stop the click's propagation (the url field does)
+ * without preventing its default.
+ *
+ * @param {(url: URL) => boolean} isAppOrigin
+ * @returns {(ev: MouseEvent) => void}
  */
-function cancelWindowOpeningNavigation(ev) {
-    const target = /** @type {Element | null} */ (ev.target);
-    const anchor = target?.closest?.("a[href]");
-    if (!anchor) {
-        return;
-    }
-    const opensElsewhere =
-        anchor.getAttribute("target") === "_blank" ||
-        /^[a-z][a-z0-9+.-]*:/i.test(anchor.getAttribute("href") || "");
-    if (opensElsewhere) {
-        ev.preventDefault();
-    }
+function makeWindowOpeningNavigationCanceler(isAppOrigin) {
+    return (ev) => {
+        const target = /** @type {Element | null} */ (ev.target);
+        const anchor = /** @type {HTMLAnchorElement | null} */ (
+            target?.closest?.("a[href]")
+        );
+        if (!anchor) {
+            return;
+        }
+        if (anchor.getAttribute("target") === "_blank") {
+            ev.preventDefault();
+            return;
+        }
+        if (!/^[a-z][a-z0-9+.-]*:/i.test(anchor.getAttribute("href") || "")) {
+            return;
+        }
+        let url;
+        try {
+            url = new URL(anchor.href);
+        } catch {
+            return;
+        }
+        if (url.origin !== globalThis.location.origin && !isAppOrigin(url)) {
+            ev.preventDefault();
+        }
+    };
 }
 
 /**
@@ -1825,13 +1848,6 @@ const GLOBAL_FILE_INPUT_REGISTERERS = [
  * @type {[EventType, (event: Event) => any, AddEventListenerOptions][]}
  */
 const GLOBAL_SUBMIT_FORWARDERS = [["submit", redirectSubmit]];
-/**
- * Keep the test page in the foreground
- * @type {[EventType, (event: Event) => any, AddEventListenerOptions][]}
- */
-const GLOBAL_NAVIGATION_CANCELERS = [
-    ["click", cancelWindowOpeningNavigation, CAPTURE],
-];
 
 const KEY_ALIASES = {
     alt: "Alt",
@@ -2821,6 +2837,7 @@ export async function setInputRange(target, value, options) {
  * @param {{
  *  allowSubmit?: boolean;
  *  allowNavigation?: boolean;
+ *  isAppOrigin?: (url: URL) => boolean;
  *  allowTrustedEvents?: boolean;
  *  noFileInputRegistration?: boolean;
  * }} [options]
@@ -2837,7 +2854,12 @@ export function setupEventActions(target, options) {
         eventHandlers.push(...GLOBAL_SUBMIT_FORWARDERS);
     }
     if (!options?.allowNavigation) {
-        eventHandlers.push(...GLOBAL_NAVIGATION_CANCELERS);
+        const isAppOrigin = options?.isAppOrigin || (() => false);
+        eventHandlers.push([
+            "click",
+            makeWindowOpeningNavigationCanceler(isAppOrigin),
+            CAPTURE,
+        ]);
     }
 
     const view = getWindow(target);
