@@ -510,9 +510,6 @@ export class Message extends Record {
                 return this.inlineBody || this.subtype_id?.description;
             }
             const { attachment_ids: attachments } = this;
-            if (!attachments || attachments.length === 0) {
-                return "";
-            }
             switch (attachments.length) {
                 case 1:
                     return attachments[0].previewName;
@@ -574,35 +571,38 @@ export class Message extends Record {
     }
 
     async copyLink() {
-        let notification = _t("Message Link Copied!");
-        /** @type {"info" | "danger"} */
-        let type = "info";
-        try {
-            await browser.navigator.clipboard.writeText(
-                url(`/mail/message/${this.id}`),
-            );
-        } catch {
-            notification = _t("Message Link Copy Failed (Permission denied?)!");
-            type = "danger";
-        }
-        log.logic("copyLink", () => ({ id: this.id, type }));
-        this.store.env.services.notification.add(notification, { type });
+        await this._copyToClipboard(
+            url(`/mail/message/${this.id}`),
+            _t("Message Link Copied!"),
+            _t("Message Link Copy Failed (Permission denied?)!"),
+        );
     }
 
     async copyMessageText() {
-        const messageBody = convertBrToLineBreak(this.body);
+        await this._copyToClipboard(
+            convertBrToLineBreak(this.body),
+            _t("Message Copied!"),
+            _t("Message Copy Failed (Permission denied?)!"),
+        );
+    }
+
+    /**
+     * @param {string} text
+     * @param {string} copiedNotification
+     * @param {string} failedNotification
+     */
+    async _copyToClipboard(text, copiedNotification, failedNotification) {
+        let notification = copiedNotification;
+        /** @type {"info" | "danger"} */
+        let type = "info";
         try {
-            await browser.navigator.clipboard.writeText(messageBody);
+            await browser.navigator.clipboard.writeText(text);
         } catch {
-            this.store.env.services.notification.add(
-                _t("Message Copy Failed (Permission denied?)!"),
-                { type: "danger" },
-            );
-            return;
+            notification = failedNotification;
+            type = "danger";
         }
-        this.store.env.services.notification.add(_t("Message Copied!"), {
-            type: "info",
-        });
+        log.logic("copyToClipboard", () => ({ id: this.id, type }));
+        this.store.env.services.notification.add(notification, { type });
     }
 
     /**
