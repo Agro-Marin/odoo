@@ -1,3 +1,4 @@
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -93,6 +94,14 @@ class TestPythonLint(LintCase):
             sorted(path for path, *_infos in parallel_units),
             sorted(path for path, *_infos in serial_units),
         )
+
+    def test_an_unreadable_file_is_a_finding_not_a_crash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / "half_written.py"
+            broken.write_text("def f(:\n")
+            rows, units = _py_scan.scan_many([(str(broken), True)])
+        self.assertEqual([row[0] for row in rows], ["unreadable-source"])
+        self.assertEqual(units, [])
 
     def test_the_corpus_is_not_empty(self):
         corpus = _py_scan.corpus()

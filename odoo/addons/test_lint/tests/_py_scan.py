@@ -84,12 +84,15 @@ def scan_one(path: str, in_module: bool) -> tuple[list[Row], list]:
         text = raw.decode("utf-8", errors="replace")
         tree = ast.parse(raw, path)
     except (OSError, SyntaxError, ValueError) as exc:
-        return [("unreadable-source", path, 1, 0, f"{type(exc).__name__}: {exc}")], []
+        return [("unreadable-source", path, 1, 0, f"{type(exc).__name__}: {exc}")], (
+            [],
+            [],
+        )
 
     try:
         comments = comment_lines(text)
     except Untokenisable as exc:
-        return [("unreadable-source", path, 1, 0, str(exc))], []
+        return [("unreadable-source", path, 1, 0, str(exc))], ([], [])
 
     unit = Unit(
         path,
