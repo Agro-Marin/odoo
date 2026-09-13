@@ -12,10 +12,11 @@
                 ref="point_of_sale.res_config_settings_view_form" />
             <field name="arch" type="xml">
                 <block position="inside" id="pos_bills_and_receipts_section">
+                    <field name="l10n_gcc_country_is_gcc" invisible="1" />
                     <setting
                         string="Gulf Cooperation Council Format"
                         help="Add Arabic as a secondary language to your receipt"
-                        invisible="not company_id.l10n_gcc_country_is_gcc">
+                        invisible="not l10n_gcc_country_is_gcc">
                         <field name="l10n_gcc_dual_language_receipt" />
                     </setting>
                 </block>
