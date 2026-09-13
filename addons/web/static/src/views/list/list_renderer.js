@@ -865,7 +865,7 @@ export class ListRenderer extends Component {
     }
 
     get emptyRowIds() {
-        let nbEmptyRow = Math.max(0, 4 - this.props.list.records.length);
+        let nbEmptyRow = Math.max(0, 4 - this.getRowRecords(this.props.list).length);
         if (nbEmptyRow > 0 && this.displayRowCreates) {
             nbEmptyRow -= 1;
         }
