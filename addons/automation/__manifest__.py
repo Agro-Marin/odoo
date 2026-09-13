@@ -1,6 +1,6 @@
 {
     "name": "Automation Rules",
-    "version": "1.8",
+    "version": "1.9",
     "category": "Sales/Sales",
     "description": """
 This module allows to implement automation rules for any object.

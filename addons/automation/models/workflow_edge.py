@@ -7,7 +7,7 @@ CONDITION_SELECTION = [
     ("expression", "Expression"),
 ]
 
-SETTLED_STATES = ("done", "error", "cancel")
+SETTLED_STATES = ("done", "error", "cancel", "skipped")
 
 
 class WorkflowEdge(models.Model):

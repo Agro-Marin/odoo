@@ -16,9 +16,8 @@
         <field name="model_id" ref="model_automation_runtime" />
         <field name="state">code</field>
         <field name="code">model._resume_waiting_executions()</field>
-        <field name="repeat_interval">10</field>
-        <field name="repeat_unit">minute</field>
-        <field name="active" eval="False" />
+        <field name="repeat_interval">1</field>
+        <field name="repeat_unit">hour</field>
     </record>
 
 </odoo>

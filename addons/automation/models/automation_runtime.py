@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .ir_websocket import SUBCHANNEL as BUS_SUBCHANNEL
+from .workflow_edge import SETTLED_STATES
 
 _logger = logging.getLogger(__name__)
 
@@ -169,14 +170,12 @@ class AutomationRuntime(models.Model):
 
         return super().create(vals_list)
 
-    SETTLED_LINE_STATES = ("done", "cancel", "error")
-
     def _settled_line_counts(self):
         return {
             runtime.id: (
                 len(
                     runtime.line_ids.filtered(
-                        lambda l: l.state in self.SETTLED_LINE_STATES,
+                        lambda l: l.state in SETTLED_STATES,
                     ),
                 ),
                 len(runtime.line_ids),
@@ -234,11 +233,13 @@ class AutomationRuntime(models.Model):
         while self.state == "in_progress":
             ready_lines = self.line_ids.filtered(lambda l: l.state == "ready")
             if not ready_lines:
+                if self._finish_if_settled():
+                    break
                 if self.line_ids.filtered(lambda l: l.state == "paused"):
                     self.action_wait()
                     break
                 blocked = self.line_ids.filtered(
-                    lambda l: l.state not in ("done", "cancel", "error"),
+                    lambda l: l.state not in SETTLED_STATES,
                 )
                 if blocked:
                     _logger.warning(
@@ -257,16 +258,17 @@ class AutomationRuntime(models.Model):
                 if self.state != "in_progress":
                     break
 
-        stranded = self.line_ids.filtered(
-            lambda l: l.state not in ("done", "cancel", "error"),
-        )
-        if stranded and self.state not in ("in_progress", "waiting_resume"):
-            stranded.action_mark_error(
-                _("Step never ran: the workflow already failed."),
-            )
-
         self._notify_workflow_change()
         return self.state
+
+    def _finish_if_settled(self):
+        self.check_singleton()
+        if self.state not in ("in_progress", "waiting_resume"):
+            return False
+        if any(line.state not in SETTLED_STATES for line in self.line_ids):
+            return False
+        self.action_done()
+        return True
 
     def action_cancel(self):
         self.check_singleton()
@@ -276,7 +278,7 @@ class AutomationRuntime(models.Model):
 
         self.state = "cancel"
         self.line_ids.filtered(
-            lambda l: l.state not in ["done", "cancel", "error"],
+            lambda l: l.state not in SETTLED_STATES,
         ).action_cancel()
         self.message_post(body=_("Workflow cancelled"), subject=_("Workflow Cancelled"))
 
@@ -357,8 +359,15 @@ class AutomationRuntime(models.Model):
             return
 
         self.state = "error"
-        self._release_parent_line()
         failed = self.line_ids.filtered(lambda l: l.state == "error")
+        self.line_ids.filtered(lambda l: l.state not in SETTLED_STATES).write(
+            {
+                "state": "error",
+                "date_resume": False,
+                "error_message": _("Step never ran: the workflow already failed."),
+            }
+        )
+        self._release_parent_line()
         self.message_post(
             body=_(
                 "Workflow failed at: %(steps)s",
@@ -377,7 +386,7 @@ class AutomationRuntime(models.Model):
 
         if not ready_lines:
             incomplete = self.line_ids.filtered(
-                lambda l: l.state not in ["done", "cancel"],
+                lambda l: l.state not in SETTLED_STATES,
             )
             if not incomplete:
                 self.action_done()

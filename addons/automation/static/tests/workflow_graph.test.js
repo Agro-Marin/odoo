@@ -65,6 +65,7 @@ describe("workflow canvas styling hooks", () => {
             "paused",
             "in_progress",
             "done",
+            "skipped",
             "error",
             "cancel",
         ]) {
@@ -382,6 +383,7 @@ describe("workflow canvas run states", () => {
             "in_progress",
             "paused",
             "done",
+            "skipped",
             "error",
             "cancel",
         ];

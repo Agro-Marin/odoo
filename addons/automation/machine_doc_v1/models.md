@@ -216,8 +216,22 @@ not yet knowable, and treating "not yet" as "no" would race the target into
 logged rather than propagated — letting it out would abort the run from inside
 the readiness check, where no line owns the failure and nothing records it.
 
-Readiness is **AND across the incoming edges**, as it was when they were
-untyped: a step with two predecessors waits for both.
+Readiness is **AND across the live incoming edges**: a step with two
+predecessors waits for both. `automation.runtime.line._settle_readiness()` decides
+a waiting line once every source has settled:
+
+- an edge whose source is **`skipped`** is *dead* and ignored;
+- at least one live edge, all satisfied → `ready`;
+- otherwise → **`skipped`**, and the skip propagates to the line's successors.
+
+This is the WS-BPEL dead-path rule. It is what lets an if/else rejoin (the
+untaken branch's edge is dead, so the join runs), and what stops a branch that
+was never taken from failing the run. Before it, the untaken step sat `waiting`,
+`action_run_all` found it blocked, and marked it and the run `error`: every
+exclusive choice failed its run. A failure only propagates when it is
+*handled*. `action_mark_error` activates successors only for a line with an
+`on_error` or `always` edge, so an unhandled failure still fails the run and
+its successors are settled `error` by `action_error`, not `skipped`.
 
 ---
 
@@ -252,7 +266,7 @@ from a single call in `action_manual_trigger()`.
 | `amount` | Monetary | Operation amount |
 | `reference` | Char | External reference |
 | `date` | Date | Reference date |
-| `state` | Selection | draft / in_progress / done / error / cancel |
+| `state` | Selection | draft / in_progress / waiting_resume / done / error / cancel |
 | `line_ids` | One2many `automation.runtime.line` | Execution steps |
 | `progress` | Integer (computed) | 0–100% completion |
 | `progress_display` | Char (computed) | "3/5 steps" |
@@ -260,9 +274,9 @@ from a single call in `action_manual_trigger()`.
 ### State Machine
 
 ```
-draft → in_progress → done
-              ↓
-           cancel
+draft → in_progress ⇄ waiting_resume
+            ↓   ↓            ↓
+         error  done       cancel
 ```
 
 `action_start()`: creates `automation.runtime.line` records from the
@@ -271,12 +285,20 @@ automation's `action_server_ids`, sets first-in-sequence to `ready`.
 `action_next_step()`: executes next `ready` line, auto-marks `done` if all
 lines complete.
 
-`action_run_all()`: runs ready lines until the run settles. If no line is ready
-while lines remain outstanding, it marks those lines and the run `error` rather
-than returning silently in `in_progress`.
+`action_run_all()`: runs ready lines until the run settles. With no line ready it
+asks `_finish_if_settled()` first, then waits if something is paused, and only
+then treats outstanding lines as blocked and fails the run.
+
+`_finish_if_settled()`: the one completion rule — a run in `in_progress` or
+`waiting_resume` whose every line is in `SETTLED_STATES` (`done`, `error`,
+`cancel`, `skipped`) is done. Resume, approval and subflow release all end in
+`action_run_all`, so a run ending on a pause finishes; before it, such a run
+stayed `in_progress` for ever.
 
 `action_error()`: terminal failure state, set when a step raises or when the run
-can no longer advance.
+can no longer advance. It settles every unsettled line `error` ("Step never
+ran"), so a failure reached outside `action_run_all` — a refused approval with
+no handler — leaves no line `waiting` inside a failed run.
 
 ---
 
@@ -293,17 +315,17 @@ Fully isolated per-execution — no shared state with the definition.
 | `action_id` | Many2one `ir.actions.server` | Node being executed |
 | `name` | Char | Copied from action at creation |
 | `sequence` | Integer | Execution order |
-| `state` | Selection | waiting/ready/in_progress/done/cancel/error |
+| `state` | Selection | waiting/ready/paused/in_progress/done/skipped/cancel/error |
 | `error_message` | Text | Error details |
-| `predecessor_ids` | Many2many self | DAG dependency at execution level |
-| `successor_ids` | Many2many self | Computed inverse |
+| `date_resume` | Datetime | When a paused Wait step is due |
+| `edge_in_ids` / `edge_out_ids` | One2many `automation.runtime.edge` | DAG dependency at execution level |
 
 | `created_record_ref` | Reference | Record created by this step |
 
 ### DAG Resolution
 
-`action_mark_done()`: marks self done, then for each successor checks
-`_predecessors_satisfied()` — if so, calls `successor.action_mark_ready()`.
+`action_mark_done()`: marks self done, lets each waiting successor settle its
+readiness (`_settle_readiness()`, above), then asks the run to finish.
 This is the correct per-instance DAG propagation pattern. (An earlier
 `ir.actions.server.action_mark_done()` that mutated the global definition
 was removed in Phase 1 along with `action_state`/`is_ready`/`error_message` —
@@ -367,12 +389,20 @@ Marking it `done` rather than inventing a "resumed" state is what lets the
 existing edge conditions release the successors unchanged: an `on_success` edge
 out of a wait means "after the wait".
 
+`action_pause` also calls the resume cron's `_trigger(at=date_resume)`, so a
+wait wakes at its due time rather than at the next poll; the cron itself is an
+hourly backstop. It shipped `active=False` and nothing ever enabled it, so
+outside tests — which call `_resume_waiting_executions()` by hand — no wait ever
+resumed. It now ships active, and migration `1.9` enables it on existing
+databases and triggers it once.
+
 **Decision 2 requires this to be easy to delete.** It is one line state, one
 datetime, one method and one cron record; nothing else consults the polling.
 
-**One trap it exposed.** `action_run_all` ends by marking every unfinished line
-`error`, a sweep that exists to settle whatever a *failure* stranded. A paused
-line is unfinished but not stranded, so that sweep skips `paused`, and its guard
-skips a runtime in `waiting_resume`. Without both, a wait node's own line was
-marked failed the moment it paused — which is what the first run of
-`TestWaitNode` reported.
+**One trap it exposed.** A sweep settles every unfinished line `error` to clean
+up whatever a *failure* stranded. A paused line is unfinished but not stranded,
+so the sweep must never run on a live run. It first sat at the end of
+`action_run_all`, guarded against `in_progress` and `waiting_resume`; without
+that guard a wait node's own line was marked failed the moment it paused, which
+is what the first run of `TestWaitNode` reported. It now lives in
+`action_error`, which only a failed run reaches.

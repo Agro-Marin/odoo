@@ -3,6 +3,8 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from .workflow_edge import SETTLED_STATES
+
 _logger = logging.getLogger(__name__)
 
 
@@ -41,6 +43,7 @@ class AutomationRuntimeLine(models.Model):
             ("paused", "Paused"),
             ("in_progress", "In Progress"),
             ("done", "Done"),
+            ("skipped", "Skipped"),
             ("cancel", "Cancelled"),
             ("error", "Error"),
         ],
@@ -111,7 +114,7 @@ class AutomationRuntimeLine(models.Model):
 
     def action_cancel(self):
         for line in self:
-            if line.state in ["done", "cancel"]:
+            if line.state in ("done", "skipped", "cancel"):
                 continue
 
             line.state = "cancel"
@@ -125,13 +128,21 @@ class AutomationRuntimeLine(models.Model):
     def _activate_successors(self):
         self.check_singleton()
         for successor in self._get_successors():
-            if successor.state == "waiting" and successor._predecessors_satisfied():
-                successor.action_mark_ready()
-                _logger.info(
-                    "Action '%s' (#%d) is now ready",
-                    successor.name,
-                    successor.id,
-                )
+            if successor.state == "waiting":
+                successor._settle_readiness()
+
+    def _settle_readiness(self):
+        self.check_singleton()
+        edges = self.edge_in_ids
+        if any(edge.source_line_id.state not in SETTLED_STATES for edge in edges):
+            return
+        live = edges.filtered(lambda edge: edge.source_line_id.state != "skipped")
+        if live and all(edge._is_satisfied() for edge in live):
+            self.action_mark_ready()
+            _logger.info("Action '%s' (#%d) is now ready", self.name, self.id)
+            return
+        self.write({"state": "skipped", "error_message": False})
+        self._activate_successors()
 
     def _has_error_handler(self):
         self.check_singleton()
@@ -143,6 +154,9 @@ class AutomationRuntimeLine(models.Model):
         resume_at = self.env.cr.now() + self.action_id._get_wait_delta()
         self.write(
             {"state": "paused", "date_resume": resume_at, "error_message": False}
+        )
+        self.env.ref("automation.ir_cron_data_automation_resume")._trigger(
+            at=resume_at,
         )
         _logger.info(
             "Step '%s' (#%d) paused until %s",
@@ -258,17 +272,11 @@ class AutomationRuntimeLine(models.Model):
     def action_mark_done(self):
         self.write({"state": "done", "error_message": False})
         self._activate_successors()
-
-        incomplete = self.runtime_id.line_ids.filtered(
-            lambda l: l.state not in ["done", "cancel", "error"],
-        )
-
-        if not incomplete:
-            self.runtime_id.action_done()
+        self.runtime_id._finish_if_settled()
 
     def action_mark_error(self, error_msg):
         self.write({"state": "error", "error_message": error_msg})
-        for line in self:
+        for line in self.filtered(lambda line: line._has_error_handler()):
             line._activate_successors()
 
     def action_execute(self):

@@ -204,11 +204,12 @@ out of the execution loop — halting every *other* ready branch. The loop alrea
 had the right rule (`no ready line, but something paused` → wait), so the pause
 methods now do nothing but pause their own line.
 
-**A finished run leaves nothing paused.** The stranded sweep skips a runtime
-that is `in_progress` or `waiting_resume`, so it can settle `paused` lines
-safely; excluding them as well left a failed run showing a step as *Paused* for
-ever. Not a live leak — the resume cron filters on the runtime's state — but a
-lie in the UI.
+**A finished run leaves nothing paused.** The stranded sweep runs inside
+`action_error`, once the run has already failed, so it can settle `paused` lines
+safely; excluding them left a failed run showing a step as *Paused* for ever.
+Not a live leak — the resume cron filters on the runtime's state — but a lie in
+the UI. (It used to run at the end of `action_run_all`, which a refused approval
+never reaches.)
 
 **Deleting an approval activity is not approval.**
 `mail.activity._action_done` sets `active = False`; it does **not** unlink. So an

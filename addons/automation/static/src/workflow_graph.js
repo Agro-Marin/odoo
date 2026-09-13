@@ -83,6 +83,7 @@ export function runtimeStateLabel(state) {
         in_progress: _t("In progress"),
         paused: _t("Paused"),
         done: _t("Done"),
+        skipped: _t("Skipped"),
         error: _t("Error"),
         cancel: _t("Cancelled"),
     }[state];

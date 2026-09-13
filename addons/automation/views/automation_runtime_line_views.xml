@@ -51,7 +51,7 @@
                         name="action_cancel"
                         type="object"
                         string="Cancel"
-                        invisible="state in ['done', 'cancel']" />
+                        invisible="state in ['done', 'skipped', 'cancel']" />
                     <field
                         name="state"
                         widget="statusbar"
