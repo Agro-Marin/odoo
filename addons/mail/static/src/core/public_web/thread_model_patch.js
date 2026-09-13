@@ -30,7 +30,7 @@ const modelPatch = {
                 inChathub: this.inChathubOnNewMessage,
                 notifyWhenOutOfFocus: this.notifyWhenOutOfFocus,
             }));
-            if (this.model === "discuss.channel" && this.inChathubOnNewMessage) {
+            if (this.isChannelKind && this.inChathubOnNewMessage) {
                 await this.store.chatHub.initPromise;
                 let chatWindow = this.store.ChatWindow.get({ thread: this });
                 if (!chatWindow) {
@@ -122,10 +122,7 @@ const modelPatch = {
         if (this.eq(this.store.discuss.thread)) {
             router.replaceState({ active_id: undefined });
         }
-        if (
-            this.model === "discuss.channel" &&
-            this.self_member_id?.is_pinned !== false
-        ) {
+        if (this.isChannelKind && this.self_member_id?.is_pinned !== false) {
             await this.store.env.services.orm.silent.call(
                 "discuss.channel",
                 "channel_pin",

@@ -47,7 +47,7 @@ export class DiscussCoreWeb {
             /** @param {CustomEvent<{message: import("models").Message}>} ev */
             ({ detail: { message } }) => {
                 if (
-                    message.thread?.model === "discuss.channel" &&
+                    message.thread?.isChannelKind &&
                     this.store.channels.status !== "fetched"
                 ) {
                     this.store.channels.invalidate();

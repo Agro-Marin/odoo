@@ -30,7 +30,7 @@ const threadPatch = {
 
     async fetchPinnedMessages() {
         if (
-            this.model !== "discuss.channel" ||
+            !this.isChannelKind ||
             ["loaded", "loading"].includes(this.pinnedMessagesState)
         ) {
             return;

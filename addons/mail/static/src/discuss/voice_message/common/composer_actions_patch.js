@@ -8,7 +8,7 @@ import { _t } from "@web/core/translation";
 registerComposerAction("voice-start", {
     /** @param {ActionParams} params */
     condition: ({ composer, owner }) =>
-        composer.targetThread?.model === "discuss.channel" &&
+        composer.targetThread?.isChannelKind &&
         owner.voiceRecorder &&
         !owner.voiceRecorder?.recording &&
         !composer.voiceAttachment,
@@ -21,8 +21,7 @@ registerComposerAction("voice-start", {
 registerComposerAction("voice-stop", {
     /** @param {ActionParams} params */
     condition: ({ composer, owner }) =>
-        composer.targetThread?.model === "discuss.channel" &&
-        owner.voiceRecorder?.recording,
+        composer.targetThread?.isChannelKind && owner.voiceRecorder?.recording,
     icon: "fa-solid fa-circle text-danger o-mail-VoiceRecorder-dot",
     name: _t("Stop Recording"),
     /** @param {ActionParams} params */
@@ -48,7 +47,6 @@ registerComposerAction("voice-recording", {
     componentProps: ({ composer, owner }) => ({ composer, state: owner.voiceRecorder }),
     /** @param {ActionParams} params */
     condition: ({ composer, owner }) =>
-        composer.targetThread?.model === "discuss.channel" &&
-        owner.voiceRecorder?.recording,
+        composer.targetThread?.isChannelKind && owner.voiceRecorder?.recording,
     sequenceQuick: 10,
 });

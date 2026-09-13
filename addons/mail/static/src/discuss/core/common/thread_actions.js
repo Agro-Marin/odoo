@@ -26,7 +26,7 @@ registerThreadAction("notification-settings", {
     actionPanelComponent: NotificationSettings,
     /** @param {ActionParams} params */
     condition: ({ owner, store, thread }) =>
-        thread?.model === "discuss.channel" &&
+        thread?.isChannelKind &&
         store.self_partner &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen),
     /** @param {ActionParams} params */
@@ -89,7 +89,7 @@ registerThreadAction("invite-people", {
     close: ({ action }) => action.popover?.close(),
     /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
-        thread?.model === "discuss.channel" &&
+        thread?.isChannelKind &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen),
     /** @param {ActionParams} params */
     panelOuterClass: ({ owner }) =>

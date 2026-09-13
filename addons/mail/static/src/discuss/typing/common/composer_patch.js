@@ -35,7 +35,7 @@ patch(Composer.prototype, {
     },
     /** @param {boolean} [is_typing=true] */
     notifyIsTyping(is_typing = true) {
-        if (this.thread?.model === "discuss.channel" && Number(this.thread.id) > 0) {
+        if (this.thread?.isChannelKind && Number(this.thread.id) > 0) {
             log.logic("notifyIsTyping", () => ({
                 thread: this.thread.localId,
                 is_typing,
@@ -60,7 +60,7 @@ patch(Composer.prototype, {
             return;
         }
         const value = this.props.composer.composerText;
-        if (this.thread?.model === "discuss.channel" && value.startsWith("/")) {
+        if (this.thread?.isChannelKind && value.startsWith("/")) {
             const [firstWord] = value.substring(1).split(/\s/);
             const command = commandRegistry.get(firstWord, false);
             if (

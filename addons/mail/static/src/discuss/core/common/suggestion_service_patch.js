@@ -15,7 +15,7 @@ const suggestionServicePatch = {
      * @returns {ChannelCommandSuggestion[]}
      */
     getChannelCommands(thread) {
-        if (!thread || thread.model !== "discuss.channel") {
+        if (!thread || !thread.isChannelKind) {
             return [];
         }
         return commandRegistry
@@ -42,7 +42,7 @@ const suggestionServicePatch = {
      */
     getSupportedDelimiters(thread, env) {
         const res = super.getSupportedDelimiters(...arguments);
-        return thread?.model === "discuss.channel" ? [...res, ["/", 0]] : res;
+        return thread?.isChannelKind ? [...res, ["/", 0]] : res;
     },
     /**
      * @param {import("models").ResPartner} partner
@@ -50,7 +50,7 @@ const suggestionServicePatch = {
      * @returns {boolean}
      */
     isSuggestionValid(partner, thread) {
-        if (thread?.model === "discuss.channel" && partner.eq(this.store.odoobot)) {
+        if (thread?.isChannelKind && partner.eq(this.store.odoobot)) {
             return true;
         }
         return super.isSuggestionValid(...arguments);
@@ -106,7 +106,7 @@ const suggestionServicePatch = {
      * @returns {{type: string, suggestions: ChannelCommandSuggestion[]}}
      */
     searchChannelCommand(cleanedSearchTerm, thread) {
-        if (thread?.model !== "discuss.channel") {
+        if (!thread?.isChannelKind) {
             return { type: "ChannelCommand", suggestions: [] };
         }
         const commands = this.getChannelCommands(thread).filter(({ name }) =>

@@ -233,7 +233,7 @@ const threadPatch = {
     },
     setAsDiscussThread() {
         super.setAsDiscussThread(...arguments);
-        if (!this.displayToSelf && this.model === "discuss.channel") {
+        if (!this.displayToSelf && this.isChannelKind) {
             this.isLocallyPinned = true;
         }
     },

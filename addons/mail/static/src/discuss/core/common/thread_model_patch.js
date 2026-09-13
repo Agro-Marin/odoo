@@ -240,7 +240,7 @@ const threadPatch = {
             /** @this {import("models").Thread} */
             compute() {
                 return (
-                    this.model === "discuss.channel" &&
+                    this.isChannelKind &&
                     this.self_member_id?.memberSince >=
                         this.store.env.services.bus_service.startedAt
                 );
@@ -657,7 +657,7 @@ const threadPatch = {
     },
     async checkReadAccess() {
         const res = await super.checkReadAccess();
-        if (!res && this.model === "discuss.channel") {
+        if (!res && this.isChannelKind) {
             return this.channel_type;
         }
         return res;
@@ -705,7 +705,7 @@ const threadPatch = {
             }
             return formatList(nameParts);
         }
-        if (this.model === "discuss.channel" && this.name) {
+        if (this.isChannelKind && this.name) {
             return this.name;
         }
         return super.displayName;
@@ -935,7 +935,7 @@ const threadPatch = {
     /** @param {string} body */
     async post(body) {
         const textContent = createElementWithContent("div", body).textContent.trim();
-        if (this.model === "discuss.channel" && textContent.startsWith("/")) {
+        if (this.isChannelKind && textContent.startsWith("/")) {
             const [firstWord] = textContent.substring(1).split(/\s/);
             const command = commandRegistry.get(firstWord, false);
             if (
@@ -957,7 +957,7 @@ const threadPatch = {
     },
     get shouldSubscribeToBusChannel() {
         return Boolean(
-            this.model === "discuss.channel" &&
+            this.isChannelKind &&
             !this.isTransient &&
             !this.self_member_id &&
             (this.isLocallyPinned || this.chat_window?.isOpen),

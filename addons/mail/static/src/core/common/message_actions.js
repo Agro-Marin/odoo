@@ -102,7 +102,7 @@ registerMessageAction("reply-to", {
         }
         if (
             !message.isSelfAuthored &&
-            message.thread?.model !== "discuss.channel" &&
+            !message.thread?.isChannelKind &&
             message.author
         ) {
             composer.insertReplyFromNote(message);

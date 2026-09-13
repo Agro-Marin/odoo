@@ -10,7 +10,7 @@ registerThreadAction("pinned-messages", {
     actionPanelComponent: PinnedMessagesPanel,
     /** @param {ActionParams} params */
     condition: ({ owner, thread }) =>
-        thread?.model === "discuss.channel" &&
+        thread?.isChannelKind &&
         (!owner.props.chatWindow || owner.props.chatWindow.isOpen) &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-discuss-PinnedMessagesPanel bg-inherit",

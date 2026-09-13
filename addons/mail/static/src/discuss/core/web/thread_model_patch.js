@@ -14,7 +14,7 @@ const modelPatch = {
             /** @this {import("models").Thread} */
             compute() {
                 if (
-                    this.model === "discuss.channel" &&
+                    this.isChannelKind &&
                     (this.message_needaction_counter > 0 ||
                         this.self_member_id?.message_unread_counter > 0)
                 ) {
