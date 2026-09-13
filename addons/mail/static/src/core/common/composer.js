@@ -46,7 +46,6 @@ import {
 } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useCustomDropzone } from "@web/components/dropzone";
-import { browser } from "@web/core/browser/browser";
 import {
     isDisplayStandalone,
     isIOS,
@@ -56,6 +55,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
+import { delay } from "@web/core/utils/concurrency";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";
@@ -160,7 +160,7 @@ export class Composer extends Component {
             model: this.props.composer.selection,
             /** @param {MouseEvent} ev */
             preserveOnClickAwayPredicate: async (ev) => {
-                await new Promise((resolve) => browser.setTimeout(resolve));
+                await delay();
                 return (
                     !this.isEventTrusted(ev) ||
                     isEventHandled(ev, "sidebar.openThread") ||

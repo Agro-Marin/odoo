@@ -20,7 +20,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
-import { Deferred } from "@web/core/utils/concurrency";
+import { Deferred, delay } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
@@ -492,7 +492,7 @@ export function useMessageScrolling(duration = 2000) {
             const lastHighlightedMessageId = state.highlightedMessageId;
             this.clear();
             if (lastHighlightedMessageId === message.id) {
-                await new Promise((resolve) => browser.setTimeout(resolve));
+                await delay();
             }
             thread.scrollTop = messageScrollDirection === "top" ? "bottom" : undefined;
             if (thread.scrollTop === "bottom") {

@@ -4,12 +4,11 @@ import { getMessagePostParams } from "@mail/core/common/message_post";
 import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
 import { assignDefined, makeSequential } from "@mail/utils/common/misc";
-import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { Deferred } from "@web/core/utils/concurrency";
+import { Deferred, delay } from "@web/core/utils/concurrency";
 /**
  * @typedef SuggestedRecipient
  * @property {string} [display_name]
@@ -876,7 +875,7 @@ export class Thread extends Record {
                 thread: this.localId,
             }));
             this.isLoadedDeferred
-                .then(() => new Promise((resolve) => browser.setTimeout(resolve)))
+                .then(() => delay())
                 .then(() => this.markAsRead(options));
             return;
         }

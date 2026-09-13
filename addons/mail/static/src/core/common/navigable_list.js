@@ -15,6 +15,7 @@ import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { usePosition } from "@web/core/position/position_hook";
+import { delay } from "@web/core/utils/concurrency";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 
@@ -58,7 +59,7 @@ export class NavigableList extends Component {
         onExternalClick(
             "root",
             /** @param {MouseEvent} ev */ async (ev) => {
-                await new Promise((resolve) => browser.setTimeout(resolve));
+                await delay();
                 if (isEventHandled(ev, "composer.onClickTextarea")) {
                     return;
                 }
