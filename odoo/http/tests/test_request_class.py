@@ -184,6 +184,51 @@ def test_assigning_params_discards_a_pending_source():
     assert request.params == {"from": "caller"}
 
 
+def _json_request(body: bytes):
+    reads = []
+
+    def get_data():
+        reads.append(1)
+        return body
+
+    request = Request.__new__(Request)
+    request.httprequest = types.SimpleNamespace(
+        get_data=get_data, content_length=len(body)
+    )
+    return request, reads
+
+
+def test_the_json_body_is_decoded_once_per_httprequest():
+    request, reads = _json_request(b'{"params": {"model": "res.users"}}')
+
+    first = request.get_json_data()
+    second = request.get_json_data()
+
+    assert first == {"params": {"model": "res.users"}}
+    assert second is first, "a readonly resolver and the dispatcher share one decode"
+    assert reads == [1]
+
+
+def test_a_rerouted_httprequest_is_decoded_afresh():
+    request, reads = _json_request(b'{"a": 1}')
+    assert request.get_json_data() == {"a": 1}
+
+    request.httprequest = types.SimpleNamespace(
+        get_data=lambda: b'{"b": 2}', content_length=8
+    )
+    assert request.get_json_data() == {"b": 2}, "the memo is keyed on the httprequest"
+    assert reads == [1]
+
+
+def test_an_invalid_body_is_not_memoized():
+    request, reads = _json_request(b"{not json")
+    with pytest.raises(ValueError):
+        request.get_json_data()
+    with pytest.raises(ValueError):
+        request.get_json_data()
+    assert reads == [1, 1], "nothing was cached, so the second call read again"
+
+
 def test_the_fallback_defers_the_body_instead_of_decoding_it():
     from werkzeug.exceptions import NotFound
 

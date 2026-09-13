@@ -68,6 +68,7 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         self._post_init_done: bool = False
         self.database_detached: bool = False
         self._cookies_memo: tuple[bool, Any] | None = None
+        self._json_memo: tuple[HTTPRequest, Any] | None = None
         self._session_transaction_cursor: Any = None
         self._session_response: Response | None = None
         self._session_save_pending = False
@@ -264,10 +265,18 @@ class Request(_RequestServeMixin, _RequestResponseMixin, _RequestCsrfMixin):
         }
 
     def get_json_data(self) -> Any:
+        memo = getattr(self, "_json_memo", None)
+        if memo is not None and memo[0] is self.httprequest:
+            _debug.perf.count("http.json.body", cached=True)
+            return memo[1]
         _debug.perf.count(
-            "http.json.body", bytes=getattr(self.httprequest, "content_length", None)
+            "http.json.body",
+            bytes=getattr(self.httprequest, "content_length", None),
+            cached=False,
         )
-        return _fast_loads(self.httprequest.get_data())
+        data = _fast_loads(self.httprequest.get_data())
+        self._json_memo = (self.httprequest, data)
+        return data
 
     def _profile_request(self) -> contextlib.AbstractContextManager:
         if self.session.get("profile_session") and self.db:
