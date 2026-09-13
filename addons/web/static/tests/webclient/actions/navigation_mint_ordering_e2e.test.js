@@ -3,6 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
+    contains,
     defineActions,
     defineModels,
     fields,
@@ -124,4 +125,26 @@ test("a switchView refused by a pending dispatch does not lose the pending navig
     await animationFrame();
 
     expect(outcome).toBe("resolved");
+});
+
+test("a record clicked while a dispatch is pending is resolved against the mounted list, and the click is dropped", async () => {
+    await mountWebClient();
+    const action = getService("action");
+    await action.doAction(21);
+    expect(".o_list_view").toHaveCount(1);
+    action._pendingDispatch = /** @type {any} */ ({ baseStack: [] });
+    expect(action.currentController).toBe(null, {
+        message: "currentController follows the pending dispatch's base stack",
+    });
+    expect(action.getView("form")?.type).toBe("form", {
+        message: "getView follows the mounted stack, which is what the click came from",
+    });
+    await contains(".o_data_row .o_data_cell").click();
+    await animationFrame();
+    expect(".o_list_view").toHaveCount(1);
+    expect(".o_form_view").toHaveCount(0);
+    action._pendingDispatch = null;
+    await contains(".o_data_row .o_data_cell").click();
+    await animationFrame();
+    expect(".o_form_view").toHaveCount(1);
 });
