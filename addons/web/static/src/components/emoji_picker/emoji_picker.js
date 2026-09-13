@@ -488,12 +488,39 @@ export class EmojiPicker extends Component {
         }
     }
 
-    onMouseenterEmoji(ev, emoji) {
-        this.setHoveredEmoji(emoji);
+    /**
+     * @param {Event} ev
+     * @returns {HTMLElement | null}
+     */
+    emojiCellOf(ev) {
+        const cell = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (ev.target).closest?.(".o-Emoji")
+        );
+        return cell && this.gridRef.el?.contains(cell) ? cell : null;
     }
 
-    onMouseleaveEmoji(ev, emoji) {
-        this.setHoveredEmoji(this.activeEmoji);
+    /** @param {MouseEvent} ev */
+    onGridMouseover(ev) {
+        const cell = this.emojiCellOf(ev);
+        if (cell && !cell.contains(/** @type {Node} */ (ev.relatedTarget))) {
+            this.setHoveredEmoji(this.emojiByCodepoints[cell.dataset.codepoints ?? ""]);
+        }
+    }
+
+    /** @param {MouseEvent} ev */
+    onGridMouseout(ev) {
+        const cell = this.emojiCellOf(ev);
+        if (cell && !cell.contains(/** @type {Node} */ (ev.relatedTarget))) {
+            this.setHoveredEmoji(this.activeEmoji);
+        }
+    }
+
+    /** @param {MouseEvent} ev */
+    onGridClick(ev) {
+        const cell = this.emojiCellOf(ev);
+        if (cell) {
+            this.selectEmoji(cell, ev.shiftKey);
+        }
     }
 
     onClick(ev) {
@@ -683,10 +710,11 @@ export class EmojiPicker extends Component {
         this.shouldScrollElem = true;
     }
 
-    selectEmoji(ev) {
-        const codepoints = ev.currentTarget.dataset.codepoints;
-        log.logic("selectEmoji", () => ({ codepoints, shiftKey: ev.shiftKey }));
-        let resetOnSelect = !ev.shiftKey;
+    /** @param {HTMLElement} cell */
+    selectEmoji(cell, shiftKey = false) {
+        const codepoints = cell.dataset.codepoints;
+        log.logic("selectEmoji", () => ({ codepoints, shiftKey }));
+        let resetOnSelect = !shiftKey;
         const res = this.props.onSelect(codepoints, resetOnSelect);
         if (res === false) {
             resetOnSelect = false;
