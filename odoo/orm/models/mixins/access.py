@@ -54,6 +54,13 @@ class AccessMixin(_ModelStubs):
         return self.env.user.has_groups(write_groups)
 
     @api.model
+    def _check_fields_write_access(self, field_names: typing.Iterable[str]) -> None:
+        for field_name in field_names:
+            field = self._fields.get(field_name)
+            if field is None:
+                raise ValueError(f"Invalid field {field_name!r} in {self._name!r}")
+            self._check_field_access(field, "write")
+
     def _check_field_access(
         self, field: Field, operation: typing.Literal["read", "write"]
     ) -> None:

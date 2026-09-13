@@ -181,11 +181,7 @@ class CreateMixin(_ModelStubs):
             and (field_name := context_key.removeprefix("default_"))
             and field_name in self._fields
         )
-        for field_name in field_names:
-            field = self._fields.get(field_name)
-            if field is None:
-                raise ValueError(f"Invalid field {field_name!r} in {self._name!r}")
-            self._check_field_access(field, "write")
+        self._check_fields_write_access(field_names)
         _debug.pipeline(
             "create.field_access_checked",
             model=self._name,

@@ -72,13 +72,7 @@ class WriteMixin(_ModelStubs):
 
     def _write_check_field_access(self, vals: ValuesType) -> None:
         self.check_access("write")
-        for field_name in vals:
-            try:
-                self._check_field_access(self._fields[field_name], "write")
-            except KeyError as e:
-                raise ValueError(
-                    f"Invalid field {field_name!r} in {self._name!r}"
-                ) from e
+        self._check_fields_write_access(vals)
 
     def _write_classify_fields(self, vals: ValuesType) -> _WriteFieldPlan:
         plan = _WriteFieldPlan([], defaultdict(list), [], set(), [])
