@@ -141,7 +141,7 @@ patch(SaleOrderLineListRenderer.prototype, {
             }),
         ];
 
-        const proms = [];
+        const linesToRestock = [];
         for (const sectionRecord of getSectionRecords(this.props.list, record)) {
             let changes = {};
 
@@ -149,11 +149,7 @@ patch(SaleOrderLineListRenderer.prototype, {
                 if (setOptional) {
                     changes = { [qtyField]: 0, price_total: 0, price_subtotal: 0 };
                 } else {
-                    proms.push(
-                        sectionRecord.update({
-                            [qtyField]: sectionRecord.data[qtyField] || 1,
-                        }),
-                    );
+                    linesToRestock.push(sectionRecord);
                 }
             } else if (this.isSubSection(sectionRecord)) {
                 changes = setOptional && {
@@ -168,7 +164,11 @@ patch(SaleOrderLineListRenderer.prototype, {
         }
 
         await this.props.list.applyCommands(commands, { sort: true });
-        await Promise.all(proms);
+        await Promise.all(
+            linesToRestock.map((line) =>
+                line.update({ [qtyField]: line.data[qtyField] || 1 }),
+            ),
+        );
     },
 
     /** @override */
