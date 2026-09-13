@@ -21,18 +21,13 @@ patch(MessagingMenu.prototype, {
             searchOpen: false,
         });
         useEffect(
-            () => {
-                if (
-                    this.store.discuss.searchTerm &&
-                    this.lastSearchTerm !== this.store.discuss.searchTerm &&
-                    this.state.activeIndex
-                ) {
+            /** @param {string} searchTerm */
+            (searchTerm) => {
+                if (!searchTerm) {
+                    this.state.activeIndex = null;
+                } else if (this.state.activeIndex) {
                     this.state.activeIndex = 0;
                 }
-                if (!this.store.discuss.searchTerm) {
-                    this.state.activeIndex = null;
-                }
-                this.lastSearchTerm = this.store.discuss.searchTerm;
             },
             () => [this.store.discuss.searchTerm],
         );
