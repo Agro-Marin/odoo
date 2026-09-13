@@ -3,6 +3,7 @@
 
 import { onWillDestroy, reactive } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { _t } from "@web/core/translation";
 import { KeepLast, KeepLastByKey, SupersededError } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
@@ -356,9 +357,9 @@ class ProgressBarState {
             this._recordMoves.delete(record.id);
         }
         if (!(move && this._reconcileMove(record, move))) {
-            this._updateProgressBar().catch((error) => console.error(error));
+            this._updateProgressBar().catch(reportUncaught);
             if (this._aggregateFields.length) {
-                this._updateAggregates().catch((error) => console.error(error));
+                this._updateAggregates().catch(reportUncaught);
                 this.updateAggregateGroup(group);
             }
         }
@@ -380,7 +381,7 @@ class ProgressBarState {
             }
             this._pendingBarDeselections.add(key);
             this.selectBar(group.id, { value: null })
-                .catch((error) => console.error(error))
+                .catch(reportUncaught)
                 .finally(() => this._pendingBarDeselections.delete(key));
         }
     }
@@ -440,8 +441,8 @@ class ProgressBarState {
         this._applyMoveDelta(sourceGroup, move.sourceValue, -1);
         this._applyMoveDelta(targetGroup, record.data[fieldName], +1);
         if (this._aggregateFields.length) {
-            this._updateAggregatesForGroups([sourceGroup, targetGroup]).catch((error) =>
-                console.error(error),
+            this._updateAggregatesForGroups([sourceGroup, targetGroup]).catch(
+                reportUncaught,
             );
             this.updateAggregateGroup(sourceGroup);
             this.updateAggregateGroup(targetGroup);
@@ -508,9 +509,9 @@ class ProgressBarState {
     _scheduleMoveReconcile() {
         if (!this._moveReconcileDebounced) {
             this._moveReconcileDebounced = debounce(() => {
-                this._updateProgressBar().catch((error) => console.error(error));
+                this._updateProgressBar().catch(reportUncaught);
                 if (this._aggregateFields.length) {
-                    this._updateAggregates().catch((error) => console.error(error));
+                    this._updateAggregates().catch(reportUncaught);
                     for (const group of this.model.root.groups || []) {
                         this.updateAggregateGroup(group);
                     }
@@ -523,7 +524,7 @@ class ProgressBarState {
     _scheduleMembershipRetry() {
         if (!this._membershipRetryDebounced) {
             this._membershipRetryDebounced = debounce(() => {
-                this._updateProgressBar().catch((error) => console.error(error));
+                this._updateProgressBar().catch(reportUncaught);
             }, MOVE_RECONCILE_DELAY);
         }
         this._membershipRetryDebounced();
@@ -534,9 +535,7 @@ class ProgressBarState {
         const activeBar = group && this.activeBars[groupKey(group.serverValue)];
         if (activeBar) {
             const { bars } = this.getGroupInfo(group);
-            this._updateAggregateGroup(group, bars, activeBar).catch((error) =>
-                console.error(error),
-            );
+            this._updateAggregateGroup(group, bars, activeBar).catch(reportUncaught);
         }
     }
 
@@ -722,7 +721,7 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
             try {
                 await prom;
             } catch (error) {
-                console.error(error);
+                reportUncaught(error);
                 return;
             }
             progressBarState._initAllGroups();

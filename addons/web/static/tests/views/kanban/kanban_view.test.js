@@ -11172,7 +11172,8 @@ test("filtered column is reloaded when dragging out its last record", async () =
 });
 
 test.tags("desktop");
-test("empty-bar deselection reload failure does not raise an unhandled rejection", async () => {
+test("empty-bar deselection reload failure is reported, and the kanban survives it", async () => {
+    expect.errors(1);
     let searchReadCount = 0;
     onRpc("web_search_read", () => {
         searchReadCount++;
@@ -11207,6 +11208,7 @@ test("empty-bar deselection reload failure does not raise an unhandled rejection
     );
 
     expect(".o_kanban_view").toHaveCount(1);
+    expect.verifyErrors(["deselect reload boom"]);
 });
 
 test("stale in-flight _updateProgressBar does not clobber a reloaded domain's counts", async () => {
