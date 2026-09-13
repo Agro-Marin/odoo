@@ -30,6 +30,31 @@ class DictBackend:
         self._sequences: dict[str, int] = defaultdict(int)
         self._named_sequences: dict[str, NamedSequence] = {}
 
+    def snapshot(self) -> tuple:
+        return (
+            {
+                table: {id_: dict(row) for id_, row in rows.items()}
+                for table, rows in self._tables.items()
+            },
+            dict(self._sequences),
+            {
+                name: NamedSequence(seq.increment, seq.last_value, seq.is_called)
+                for name, seq in self._named_sequences.items()
+            },
+        )
+
+    def restore(self, snapshot: tuple) -> None:
+        tables, sequences, named = snapshot
+        self._tables = {
+            table: {id_: dict(row) for id_, row in rows.items()}
+            for table, rows in tables.items()
+        }
+        self._sequences = defaultdict(int, sequences)
+        self._named_sequences = {
+            name: NamedSequence(seq.increment, seq.last_value, seq.is_called)
+            for name, seq in named.items()
+        }
+
     def get_row_tuples(
         self, table: str, ids: list[int], columns: list[str]
     ) -> list[tuple]:

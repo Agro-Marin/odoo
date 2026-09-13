@@ -764,24 +764,24 @@ class IrFieldsConverter(models.AbstractModel):
             return index, labels
 
         lang = self.env.lang or "en_US"
-        self.env["ir.model.fields.selection"].flush_model()
-        self.env.cr.execute(
-            SQL(
-                """
-                SELECT s.value, s.name
-                FROM ir_model_fields_selection s
-                JOIN ir_model_fields f ON s.field_id = f.id
-                WHERE f.model = %s AND f.name = %s
-                ORDER BY s.sequence, s.id
-                """,
-                field.model_name,
-                field.name,
+        selections = (
+            self.env["ir.model.fields.selection"]
+            .sudo()
+            .search_fetch(
+                [
+                    ("field_id.model", "=", field.model_name),
+                    ("field_id.name", "=", field.name),
+                ],
+                ["value"],
+                order="sequence, id",
             )
         )
-        for value, name in self.env.cr.fetchall():
+        names = selections._fields["name"]._get_stored_translations_multi(selections)
+        for selection in selections:
+            value = selection.value
             if value not in labels:
                 continue
-            for term_lang, txt in (name or {}).items():
+            for term_lang, txt in (names.get(selection.id) or {}).items():
                 if txt is None:
                     continue
                 if term_lang != "en_US":

@@ -407,14 +407,30 @@ def test_rollback_fails_loud():
             env.cr.rollback()
 
 
-def test_savepoint_fails_loud_with_intentional_error():
+def test_savepoint_rolls_the_storage_back_to_its_snapshot():
     with model_test_env(HWidget) as env:
-        with pytest.raises(InMemorySqlNotSupported, match="savepoint"):
-            env.cr.savepoint()
-        with pytest.raises(InMemorySqlNotSupported) as exc_info:
-            env.cr.savepoint(flush=False)
-        assert "fixture" not in str(exc_info.value)
-        assert "TransactionCase" in str(exc_info.value)
+        kept = env["h.widget"].create({"name": "kept"})
+        with pytest.raises(ValueError):
+            with env.cr.savepoint():
+                env["h.widget"].create({"name": "dropped"})
+                kept.name = "renamed inside"
+                raise ValueError("boom")
+        names = env["h.widget"].search([]).mapped("name")
+        assert names == ["kept"], names
+        with env.cr.savepoint(flush=False) as sp:
+            env["h.widget"].create({"name": "dropped too"})
+            env.flush_all()
+            sp.rollback()
+        assert env["h.widget"].search_count([]) == 1
+
+
+def test_savepoint_keeps_what_completes_and_refuses_a_commit_inside():
+    with model_test_env(HWidget) as env:
+        with env.cr.savepoint():
+            env["h.widget"].create({"name": "committed"})
+            with pytest.raises(RuntimeError, match="commit inside a savepoint"):
+                env.cr.commit()
+        assert env["h.widget"].search([]).mapped("name") == ["committed"]
 
 
 def test_clear_cache_honors_names():

@@ -298,6 +298,11 @@ class BaseString(Field[str | typing.Literal[False]]):
     def _get_stored_translations(self, record: ModelLike) -> dict[str, str] | None:
         return _translation.get_stored_translations(self, record)
 
+    def _get_stored_translations_multi(
+        self, records: ModelLike
+    ) -> dict[IdType, dict[str, str] | None]:
+        return _translation.get_stored_translations_multi(self, records, ())
+
     def get_translation_lang(self, env: Environment) -> str:
         return _translation.get_translation_lang(self, env)
 

@@ -6,7 +6,7 @@ from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from functools import partial
 from operator import attrgetter
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, Self, cast
 
 from odoo.db import BaseCursor, FunctionStatus
 from odoo.libs.collections import Collector
@@ -96,6 +96,49 @@ _FALLBACK_MODELS = (
 )
 
 
+class InMemorySavepoint:
+    # a snapshot of the dict storage stands in for SAVEPOINT; rolling back restores
+    # it and drops the ORM caches, as the flushing savepoint does on PostgreSQL
+    __slots__ = ("_cr", "_flush", "_snapshot", "closed", "name")
+
+    def __init__(self, cr: InMemoryCursor, *, flush: bool) -> None:
+        self._cr = cr
+        self._flush = flush
+        if flush:
+            cr.flush()
+        self._snapshot = cr.storage.snapshot()
+        self.name = f"memsp{cr._savepoint_depth}"
+        self.closed = False
+        cr._savepoint_depth += 1
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close(rollback=exc_type is not None)
+
+    def rollback(self) -> None:
+        if self.closed:
+            raise RuntimeError(f'Savepoint "{self.name}" is already closed')
+        if self._flush:
+            self._cr.clear()
+        self._cr.storage.restore(self._snapshot)
+        if self._flush:
+            self._cr.transaction.clear()
+
+    def close(self, *, rollback: bool = True) -> None:
+        if self.closed:
+            return
+        try:
+            if rollback:
+                self.rollback()
+            elif self._flush:
+                self._cr.flush()
+        finally:
+            self.closed = True
+            self._cr._savepoint_depth -= 1
+
+
 class InMemoryCursor(BaseCursor):
     def __init__(
         self,
@@ -176,12 +219,7 @@ class InMemoryCursor(BaseCursor):
         return self._now
 
     def savepoint(self, flush: bool = True):
-        raise InMemorySqlNotSupported(
-            "InMemoryCursor (DB-free model_test_env) does not support "
-            "savepoints: DictBackend writes are applied immediately and no "
-            "snapshot exists to roll back to (same limitation as rollback()). "
-            "Use a DB-backed TransactionCase to test savepoint behaviour."
-        )
+        return InMemorySavepoint(self, flush=flush)
 
     @contextmanager
     def pipeline(self, log_exceptions: bool = True, query: Any = None):
@@ -228,7 +266,8 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
 
         self.model_graph = ModelGraph()
 
-        self.loaded_modules = False
+        self.loaded_modules: set[str] = set()
+        self.loaded_xmlids: set[str] = set()
         self.database_translated_fields: dict[str, str] = {}
         self.database_company_dependent_fields: set[str] = set()
         self.many2many_relations: defaultdict[
@@ -253,6 +292,12 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.has_unaccent = FunctionStatus.MISSING
 
         self._setup_registry(list(model_defs))
+        self.modules = self._modules_of(model_defs)
+
+    def mark_modules_loaded(self) -> None:
+        # what load_modules does at the end of a load: constraints and registration
+        # branch on a non-empty loaded_modules, so it stays empty while data loads
+        self.loaded_modules.update(self.modules)
 
     def __getitem__(self, model_name: str) -> type[BaseModel]:
         try:
@@ -286,6 +331,9 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
 
     def __delitem__(self, model_name: str) -> None:
         del self.models[model_name]
+
+    def record_xmlids_written(self, xml_ids) -> None:
+        self.loaded_xmlids.update(xml_ids)
 
     def post_init(self, func, *args, **kwargs) -> None:
         pass
@@ -371,16 +419,22 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
             )
 
     @staticmethod
-    def _get_model_defs(
-        model_defs: list[type[BaseModel]],
-    ) -> list[type[BaseModel]]:
-        from .models.metaclass import MetaModel
-
+    def _modules_of(model_defs) -> set[str]:
         modules = {"base"}
         for cls in model_defs:
             module = getattr(cls, "_module", None)
             if module:
                 modules.add(module)
+        return modules
+
+    @classmethod
+    def _get_model_defs(
+        cls,
+        model_defs: list[type[BaseModel]],
+    ) -> list[type[BaseModel]]:
+        from .models.metaclass import MetaModel
+
+        modules = cls._modules_of(model_defs)
 
         all_defs: list[Any] = []
         seen_ids: set[int] = set()
@@ -391,10 +445,10 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     seen_ids.add(id(registered))
                     all_defs.append(registered)
 
-        for cls in model_defs:
-            if id(cls) not in seen_ids:
-                seen_ids.add(id(cls))
-                all_defs.append(cls)
+        for model_def in model_defs:
+            if id(model_def) not in seen_ids:
+                seen_ids.add(id(model_def))
+                all_defs.append(model_def)
 
         if not any(getattr(cls, "_name", None) == "base" for cls in all_defs):
             all_defs.insert(0, _TestBase)
@@ -507,7 +561,43 @@ def model_test_env(
 
     env = Environment(cr, SUPERUSER_ID, {})
     env.transaction.default_env = env
+    _reflect_models(cr.storage, registry, env)
     yield env
+
+
+def _reflect_models(storage: DictBackend, registry: ModelRegistry, env) -> None:
+    # the rows init_models reflects on PostgreSQL, so ir.model / ir.model.fields answer
+    # the same questions in memory (defaults, xmlids on fields, selection labels)
+    if "ir.model" not in registry or "ir.model.fields" not in registry:
+        return
+    IrModel = env["ir.model"]
+    IrModelFields = env["ir.model.fields"]
+
+    def stored(model_cls, vals: dict) -> dict:
+        row = {}
+        for name, value in vals.items():
+            field = model_cls._fields.get(name)
+            if field is None or not field.store or not field.column_type:
+                continue
+            if field.translate and isinstance(value, str):
+                value = {"en_US": value}
+            row[name] = value
+        return row
+
+    for model_cls in registry.models.values():
+        model = model_cls(env, (), ())
+        model_id = storage.allocate_next_id("ir_model")
+        row = stored(registry["ir.model"], IrModel._prepare_model_vals(model))
+        row["id"] = model_id
+        storage.put_rows("ir_model", [row])
+        rows = []
+        for field in model_cls._fields.values():
+            vals = IrModelFields._prepare_field_vals(field, model_id)
+            frow = stored(registry["ir.model.fields"], vals)
+            frow["id"] = storage.allocate_next_id("ir_model_fields")
+            rows.append(frow)
+        if rows:
+            storage.put_rows("ir_model_fields", rows)
 
 
 def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
@@ -515,6 +605,13 @@ def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
     def _insert_row(table: str, record_id: int, data: dict) -> None:
         data["id"] = record_id
         storage.put_rows(table, [data])
+
+    # the rows base/data/base_data.sql seeds before any XML loads, with their xmlids
+    xmlids: list[tuple[str, str]] = []
+
+    if "res.currency" in registry:
+        _insert_row("res_currency", 1, {"name": "USD", "symbol": "$", "active": True})
+        xmlids.append(("USD", "res.currency"))
 
     if "res.partner" in registry:
         _insert_row(
@@ -527,6 +624,7 @@ def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
                 "type": "contact",
             },
         )
+        xmlids.append(("main_partner", "res.partner"))
 
     if "res.company" in registry:
         _insert_row(
@@ -537,8 +635,10 @@ def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
                 "active": True,
                 "partner_id": 1,
                 "parent_path": "1/",
+                "currency_id": 1 if "res.currency" in registry else None,
             },
         )
+        xmlids.append(("main_company", "res.company"))
 
     if "res.users" in registry:
         _insert_row(
@@ -556,3 +656,24 @@ def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
         if field is not None and field.is_many2many and field.store and field.relation:
             relation, column1, column2 = field._get_relation_triple()
             storage.insert_rows(relation, [column1, column2], [(1, 1)])
+        xmlids.append(("user_root", "res.users"))
+
+    if "res.groups" in registry:
+        _insert_row("res_groups", 1, {"name": {"en_US": "Employee"}})
+        xmlids.append(("group_user", "res.groups"))
+
+    if "ir.model.data" in registry:
+        storage.put_rows(
+            "ir_model_data",
+            [
+                {
+                    "id": storage.allocate_next_id("ir_model_data"),
+                    "module": "base",
+                    "name": name,
+                    "model": model,
+                    "res_id": 1,
+                    "noupdate": True,
+                }
+                for name, model in xmlids
+            ],
+        )
