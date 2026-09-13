@@ -1083,11 +1083,10 @@ class DiscussChannel(models.Model):
     def _check_thread_message_partner_ids(self, messages: MailMessage) -> None:
         by_channel = defaultdict(lambda: self.env["mail.message"])
         for message in messages:
-            by_channel[message.res_id] += message
+            if message.partner_ids:
+                by_channel[message.res_id] += message
         for channel in self.browse(by_channel).exists():
             pids = by_channel[channel.id].partner_ids.ids
-            if not pids:
-                continue
             refused = set(pids) - set(channel._get_allowed_message_partner_ids(pids))
             if refused:
                 names = self.env["res.partner"].browse(refused).mapped("name")

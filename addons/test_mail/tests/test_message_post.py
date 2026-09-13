@@ -2712,6 +2712,21 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                 {record.id: "x"}, notify_per_record={record.id: {"not_a_flag": 1}}
             )
 
+    def test_a_posted_message_keeps_its_body_and_thread_pointer_cached(self):
+        """Every post read both right after creation and re-fetched both: the
+        html cache was never primed, and invalidating the thread's message_ids
+        after the insert emptied every message's res_id."""
+        record = self.env["mail.test.simple"].create({"name": "Cached"})
+        message = record.message_post(
+            body=Markup("<p>hello</p>"),
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+        )
+        with self.assertQueryCount(0):
+            self.assertEqual(message.body, "<p>hello</p>")
+            self.assertEqual(message.res_id, record.id)
+        self.assertEqual(record.message_ids[0], message)
+
     def test_inbox_notifications_are_flushed_once_per_batch(self):
         """A batch post writes its inbox notifications once, and pushes one
         ``mail.message/inbox`` per message and recipient, each carrying that

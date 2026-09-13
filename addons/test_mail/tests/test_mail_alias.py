@@ -2626,6 +2626,37 @@ class TestMailAliasDomainFindAliases(TestMailAliasCommon):
             [],
         )
 
+    @users("admin")
+    def test_the_reply_to_of_a_record_follows_its_alias(self):
+        """`_notify_get_reply_to_addresses` answers from the same snapshot: the alias
+        moving to another parent record must move the reply-to with it."""
+        records = self.env["mail.test.simple"].create(
+            [{"name": "first"}, {"name": "second"}]
+        )
+        first, second = records
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_model_id": self.env["ir.model"]._get("mail.test.container").id,
+                "alias_name": "support",
+                "alias_parent_model_id": self.env["ir.model"]
+                ._get("mail.test.simple")
+                .id,
+                "alias_parent_thread_id": first.id,
+            }
+        )
+        support = f"support@{self.mail_alias_domain.name}"
+        catchall = self.mail_alias_domain.catchall_email
+        self.assertEqual(
+            records._notify_get_reply_to_addresses(),
+            {first.id: support, second.id: catchall},
+        )
+        alias.alias_parent_thread_id = second.id
+        self.assertEqual(
+            records._notify_get_reply_to_addresses(),
+            {first.id: catchall, second.id: support},
+        )
+
 
 @tagged("mail_gateway", "mail_alias")
 class TestMailAliasDomainAllowedParameter(TestMailAliasCommon):

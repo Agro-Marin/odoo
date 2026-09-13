@@ -19,7 +19,7 @@ from odoo.fields import Domain
 from odoo.libs.filesystem import SVG, ZIP
 from odoo.orm.registration import add_model_to_registry
 from odoo.tests import Form, TransactionCase, tagged, users
-from odoo.tools import float_repr, human_size, mute_logger
+from odoo.tools import float_repr, html_sanitize, human_size, mute_logger
 from odoo.tools.image import image_data_uri
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
@@ -4278,6 +4278,23 @@ class TestHtmlField(TransactionCase):
     def setUp(self):
         super().setUp()
         self.model = self.env["test_orm.mixed"]
+
+    def test_create_sanitizes_once_and_caches_the_column_value(self):
+        """2ea81a5dbb81 dropped html from the create cache to stop a second
+        sanitize; the column value is now cached instead, so a read right
+        after create (every message_post does one) costs neither."""
+        dirty = "<p onclick='x'>kept<script>dropped</script></p>"
+        with patch(
+            "odoo.orm.fields.textual.html_sanitize",
+            side_effect=html_sanitize,
+        ) as sanitize:
+            record = self.model.create({"comment0": dirty, "comment1": dirty})
+        self.assertEqual(sanitize.call_count, 1)
+        with self.assertQueryCount(0):
+            self.assertEqual(record.comment0, "<p>kept</p>")
+            self.assertEqual(record.comment1, dirty)
+        record.invalidate_recordset(["comment0"])
+        self.assertEqual(record.comment0, "<p>kept</p>")
 
     def test_00_sanitize(self):
         self.assertEqual(self.model._fields["comment1"].sanitize, False)

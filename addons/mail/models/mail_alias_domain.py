@@ -416,8 +416,9 @@ class MailAliasDomain(models.Model):
         if not split:
             return []
         config = self._get_config()
-        full_names, local_alias_names = self.env["mail.alias"]._get_alias_addresses()
-        aliases = full_names.union(
+        addresses = self.env["mail.alias"]._get_alias_addresses()
+        local_alias_names = addresses.local_names
+        aliases = addresses.full_names.union(
             config.bounce_emails, config.catchall_emails, config.default_from_emails
         )
         allowed_domains = self._get_allowed_domains()

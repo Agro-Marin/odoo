@@ -1161,26 +1161,12 @@ class Base(models.AbstractModel):
 
         reply_to_email = {}
         if model and res_ids:
-            record_id_per_stored_id = {
-                record._origin.id: record.id for record in self if record._origin
-            }
-            mail_aliases = (
-                self.env["mail.alias"]
-                .sudo()
-                .search(
-                    [
-                        ("alias_domain_id", "!=", False),
-                        ("alias_parent_model_id.model", "=", model),
-                        ("alias_parent_thread_id", "in", list(record_id_per_stored_id)),
-                        ("alias_name", "!=", False),
-                    ]
-                )
-            )
-            for alias in mail_aliases:
-                reply_to_email.setdefault(
-                    record_id_per_stored_id[alias.alias_parent_thread_id],
-                    alias.alias_full_name,
-                )
+            by_parent = self.env["mail.alias"]._get_alias_addresses().by_parent
+            for record in self:
+                if record._origin and (
+                    address := by_parent.get((model, record._origin.id))
+                ):
+                    reply_to_email[record.id] = address
 
         by_alias = len(reply_to_email)  # debuglog
         if set(_res_ids) - set(reply_to_email):

@@ -531,20 +531,23 @@ class MailMessage(models.Model):
                     ]
             tracking_values_list.append(values.pop("tracking_value_ids", False))
 
+        visible = [
+            (values["model"], values["res_id"])
+            for values in vals_list
+            if self._is_thread_message_visible(vals=values)
+        ]
+        self._invalidate_documents(visible)
         messages = super().create(vals_list)
 
         self._check_created_attachments_access(messages, vals_list)
 
-        commands_per_message = {}
-        visible = self.browse()
-        for message, values, tracking_values_cmd in zip(
-            messages, vals_list, tracking_values_list, strict=True
-        ):
-            if tracking_values_cmd:
-                commands_per_message[message] = tracking_values_cmd
-            if message._is_thread_message_visible(vals=values):
-                visible |= message
-        visible._invalidate_documents()
+        commands_per_message = {
+            message: tracking_values_cmd
+            for message, tracking_values_cmd in zip(
+                messages, tracking_values_list, strict=True
+            )
+            if tracking_values_cmd
+        }
         if commands_per_message:
             self._create_tracking_values(commands_per_message)
 
@@ -1109,13 +1112,17 @@ class MailMessage(models.Model):
                     self._NOTIFICATION_STATE_FIELD_NAMES
                 )
 
-    def _invalidate_documents(self) -> None:
+    def _invalidate_documents(
+        self, documents: list[tuple[str, int]] | None = None
+    ) -> None:
         fnames = ["message_ids", *self._NOTIFICATION_STATE_FIELD_NAMES]
-        self.flush_recordset(["model", "res_id"])
+        if documents is None:
+            self.flush_recordset(["model", "res_id"])
+            documents = [(record.model, record.res_id) for record in self]
         ids_by_model = defaultdict(OrderedSet)
-        for record in self:
-            if record.res_id and self._is_thread_model_name(record.model):
-                ids_by_model[record.model].add(record.res_id)
+        for model_name, res_id in documents:
+            if res_id and self._is_thread_model_name(model_name):
+                ids_by_model[model_name].add(res_id)
         _debug.perf.count(
             "documents_invalidated",
             messages=len(self),

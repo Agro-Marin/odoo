@@ -524,6 +524,7 @@ class CreateMixin(_ModelStubs):
                 if field.is_properties:
                     other_fields.add(field)
 
+            self._sanitize_html_columns(stored_list, col_fields)
             ids.extend(
                 self.env.backend.create_rows(self, stored_list, columns, col_fields)
             )
@@ -576,6 +577,17 @@ class CreateMixin(_ModelStubs):
         prof.report(_orm_crud, "_create %s: %d records", self._name, len(records))
         return records
 
+    def _sanitize_html_columns(
+        self, stored_list: list[dict], col_fields: list[Field]
+    ) -> None:
+        html_fields = [field for field in col_fields if field.is_html]
+        for stored in stored_list:
+            for field in html_fields:
+                if field.name in stored:
+                    stored[field.name] = field.convert_to_column(
+                        stored[field.name], self, stored
+                    )
+
     def _update_create_cache(
         self, ids: list[int], data_list: list[dict]
     ) -> tuple[Self, dict]:
@@ -611,7 +623,7 @@ class CreateMixin(_ModelStubs):
                 {k: v for d in data["inherited"].values() for k, v in d.items()},
                 **data["stored"],
             )
-            vals_list.append((vals, record))
+            vals_list.append((vals, record, data["stored"]))
             set_vals_list.append(common_set_vals.union(vals))
             record_ids.append(record._ids[0])
 
@@ -628,16 +640,22 @@ class CreateMixin(_ModelStubs):
                     if fname not in set_vals
                 )
 
-        for vals, record in vals_list:
+        for vals, record, stored in vals_list:
             for fname, value in vals.items():
                 field = _fields[fname]
-                if not (field.is_x2many or field.is_html):
+                if field.is_x2many:
+                    continue
+                if field.is_html:
+                    if fname not in stored:
+                        continue
+                    cache_value = field.convert_to_cache(value, record, validate=False)
+                else:
                     cache_value = field.convert_to_cache(value, record)
-                    field._update_cache(record, cache_value)
-                    if (
-                        field.is_many2one or field.is_many2one_reference
-                    ) and _field_inverses[field]:
-                        inverses_update[(field, cache_value)].append(record.id)
+                field._update_cache(record, cache_value)
+                if (
+                    field.is_many2one or field.is_many2one_reference
+                ) and _field_inverses[field]:
+                    inverses_update[(field, cache_value)].append(record.id)
 
         _debug.perf.count(
             "create.cache_primed",

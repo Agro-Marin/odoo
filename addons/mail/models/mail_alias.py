@@ -33,6 +33,12 @@ alias_document_fields = {
 }
 
 
+class AliasAddresses(typing.NamedTuple):
+    full_names: frozenset[str]
+    local_names: frozenset[str]
+    by_parent: dict[tuple[str, int], str]
+
+
 class MailAlias(models.Model):
     _name = "mail.alias"
     _description = "Email Aliases"
@@ -133,7 +139,13 @@ class MailAlias(models.Model):
         }
     )
     ALIAS_ADDRESS_FIELDS = frozenset(
-        {"alias_name", "alias_domain_id", "alias_incoming_local"}
+        {
+            "alias_name",
+            "alias_domain_id",
+            "alias_incoming_local",
+            "alias_parent_model_id",
+            "alias_parent_thread_id",
+        }
     )
 
     _name_domain_unique = models.UniqueIndex(
@@ -418,13 +430,27 @@ class MailAlias(models.Model):
 
     @api.model
     @ormcache(cache="mail")
-    def _get_alias_addresses(self) -> tuple[frozenset[str], frozenset[str]]:
+    def _get_alias_addresses(self) -> AliasAddresses:
         aliases = self.sudo().search_fetch(
             [("alias_name", "!=", False)],
-            ["alias_full_name", "alias_name", "alias_incoming_local"],
+            [
+                "alias_full_name",
+                "alias_name",
+                "alias_incoming_local",
+                "alias_domain_id",
+                "alias_parent_model_id",
+                "alias_parent_thread_id",
+            ],
         )
         _debug.perf.count("addresses_computed", aliases=len(aliases))
-        return (
+        by_parent: dict[tuple[str, int], str] = {}
+        for alias in aliases:
+            if alias.alias_domain_id and alias.alias_parent_thread_id:
+                by_parent.setdefault(
+                    (alias.alias_parent_model_id.model, alias.alias_parent_thread_id),
+                    alias.alias_full_name,
+                )
+        return AliasAddresses(
             frozenset(
                 alias.alias_full_name
                 for alias in aliases
@@ -433,6 +459,7 @@ class MailAlias(models.Model):
             frozenset(
                 alias.alias_name for alias in aliases if alias.alias_incoming_local
             ),
+            by_parent,
         )
 
     @api.model

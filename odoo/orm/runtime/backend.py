@@ -528,7 +528,9 @@ class PostgresBackend:
     ) -> list[tuple]:
         return [
             tuple(
-                field.convert_to_column_insert(stored[fname], model, stored)
+                field.convert_to_column_insert(
+                    stored[fname], model, stored, validate=not field.is_html
+                )
                 if fname in stored
                 else None
                 for fname, field in zip(columns, col_fields, strict=True)
