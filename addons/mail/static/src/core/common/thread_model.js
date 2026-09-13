@@ -317,8 +317,14 @@ export class Thread extends Record {
     /** @type {number | "bottom" | "bottom-smooth"} */
     scrollTop = "bottom";
     transientMessages = fields.Many("mail.message");
+    /** @type {SuggestedRecipient[]} */
     additionalRecipients = fields.Attr([]);
+    /** @type {SuggestedRecipient[]} */
     suggestedRecipients = fields.Attr([]);
+    /** @returns {SuggestedRecipient[]} */
+    get allRecipients() {
+        return [...this.suggestedRecipients, ...this.additionalRecipients];
+    }
     /** @type {String[]|undefined} */
     partner_fields;
     /** @type {String|undefined} */

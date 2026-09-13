@@ -161,23 +161,10 @@ export async function getMessagePostParams(store, { body, postData, thread }) {
     });
     const partner_ids = validMentions?.partners.map((partner) => partner.id) ?? [];
     const role_ids = validMentions?.roles.map((role) => role.id) ?? [];
-    /** @type {string[]} */
-    const recipientEmails = [];
-    if (!isNote) {
-        const allRecipients = [
-            ...thread.suggestedRecipients,
-            ...thread.additionalRecipients,
-        ];
-        const recipientIds = allRecipients
-            .filter((recipient) => recipient.persona)
-            .map((recipient) => recipient.persona.id);
-        allRecipients
-            .filter((recipient) => !recipient.persona)
-            .forEach((recipient) => {
-                recipientEmails.push(recipient.email);
-            });
-        partner_ids.push(...recipientIds);
-    }
+    // every recipient travels by email: the server resolves or creates the partner
+    const recipientEmails = isNote
+        ? []
+        : thread.allRecipients.map((recipient) => recipient.email);
     postData = {
         ...Object.fromEntries(
             Object.entries(postData).filter(

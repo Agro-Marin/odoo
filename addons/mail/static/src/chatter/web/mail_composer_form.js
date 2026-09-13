@@ -134,12 +134,10 @@ export class MailComposerFormRenderer extends formView.Renderer {
             .map(merged)
             .filter(isSelected);
         for (const partner of selectedPartners) {
-            const allRecipients = [
-                ...thread.suggestedRecipients,
-                ...thread.additionalRecipients,
-            ];
             if (
-                !allRecipients.some((recipient) => recipient.partner_id === partner.id)
+                !thread.allRecipients.some(
+                    (recipient) => recipient.partner_id === partner.id,
+                )
             ) {
                 thread.additionalRecipients.push({
                     display_name: partner.display_name,

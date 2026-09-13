@@ -15,11 +15,10 @@ const log = makeLogger("mail.full_composer");
  * @returns {Promise<any[]>}
  */
 async function resolveFullComposerRecipients(comp) {
-    const allRecipients = [...comp.thread.suggestedRecipients];
     if (comp.props.type === "note") {
-        return allRecipients;
+        return [...comp.thread.suggestedRecipients];
     }
-    allRecipients.push(...comp.thread.additionalRecipients);
+    const allRecipients = comp.thread.allRecipients;
     const newPartners = allRecipients.filter((recipient) => !recipient.partner_id);
     if (newPartners.length === 0) {
         return allRecipients;

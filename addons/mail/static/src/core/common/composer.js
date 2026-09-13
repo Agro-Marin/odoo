@@ -689,10 +689,7 @@ export class Composer extends Component {
             return;
         }
         if (this.props.type !== "note") {
-            const allRecipients = [
-                ...composer.thread.suggestedRecipients,
-                ...composer.thread.additionalRecipients,
-            ];
+            const allRecipients = composer.thread.allRecipients;
             if (
                 allRecipients.some(
                     (recipient) => !recipient.email || !isEmail(recipient.email),

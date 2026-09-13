@@ -70,7 +70,7 @@ export class RecipientsInput extends Component {
     /** @returns {Set<number>} */
     getExcludedRecipientPartnerIds() {
         return new Set(
-            this.getAllMailThreadRecipients()
+            this.props.thread.allRecipients
                 .map((recipient) => recipient.partner_id)
                 .filter(/** @returns {id is number} */ (id) => typeof id === "number"),
         );
@@ -289,14 +289,6 @@ export class RecipientsInput extends Component {
         return tags;
     }
 
-    /** @returns {SuggestedRecipient[]} */
-    getAllMailThreadRecipients() {
-        return [
-            ...this.props.thread.suggestedRecipients,
-            ...this.props.thread.additionalRecipients,
-        ];
-    }
-
     /**
      * @param {string} emailNormalized
      * @param {number} recipientPartnerId
@@ -306,7 +298,7 @@ export class RecipientsInput extends Component {
         await this.orm.write("res.partner", [recipientPartnerId], {
             email: emailNormalized,
         });
-        const recipient = this.getAllMailThreadRecipients().find(
+        const recipient = this.props.thread.allRecipients.find(
             (candidate) => candidate.partner_id === recipientPartnerId,
         );
         if (recipient) {
@@ -319,7 +311,7 @@ export class RecipientsInput extends Component {
      * @returns {boolean}
      */
     hasRecipient(recipient) {
-        return this.getAllMailThreadRecipients().some((current) =>
+        return this.props.thread.allRecipients.some((current) =>
             current.partner_id && recipient.partner_id
                 ? current.partner_id === recipient.partner_id
                 : Boolean(current.email) && current.email === recipient.email,
