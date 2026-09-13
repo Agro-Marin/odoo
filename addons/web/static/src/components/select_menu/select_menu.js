@@ -132,13 +132,20 @@ export class SelectMenu extends Component {
 
     /**
      * @type {{
-     *     searchValue: string | null,
      *     appliedSearch: string,
      *     isFocused: boolean,
      *     displayedRevision: number,
      * }}
      */
     state;
+    /**
+     * What the user has typed, or null while the input shows the selection.
+     * Not reactive: the input owns its text between renders, and a render per
+     * keystroke re-rendered every option of the open menu before the debounced
+     * search had run. Held on an object for the same reason as `filtered`.
+     * @type {{ value: string | null }}
+     */
+    search = { value: null };
     /**
      * The lists the open menu renders. A plain object with one identity for
      * the component's life: the content slot captures instance fields by
@@ -156,7 +163,6 @@ export class SelectMenu extends Component {
         this.menuId = `${this.selectMenuId}_menu`;
         this.listboxId = `${this.selectMenuId}_listbox`;
         this.state = useState({
-            searchValue: null,
             appliedSearch: "",
             isFocused: false,
             displayedRevision: 0,
@@ -252,9 +258,9 @@ export class SelectMenu extends Component {
     }
 
     get displayValue() {
-        return this.state.searchValue === null
+        return this.search.value === null
             ? this.selectedChoice?.label || ""
-            : this.state.searchValue;
+            : this.search.value;
     }
 
     get displayInputInToggler() {
@@ -339,7 +345,7 @@ export class SelectMenu extends Component {
             if (this.canDeselect) {
                 this.onInputClear();
             } else {
-                this.state.searchValue = null;
+                this.search.value = null;
             }
         }
     }
@@ -351,8 +357,8 @@ export class SelectMenu extends Component {
     }
 
     onSearchInput(ev) {
-        this.state.searchValue = ev.target.value;
-        this.debouncedOnInput(this.state.searchValue);
+        this.search.value = ev.target.value;
+        this.debouncedOnInput(this.search.value);
     }
 
     onInputClear() {
@@ -381,7 +387,7 @@ export class SelectMenu extends Component {
             this.debouncedOnInput.cancel();
             this.loadMoreObserver?.disconnect();
             this.loadMoreObserver = null;
-            this.state.searchValue = null;
+            this.search.value = null;
             this.state.appliedSearch = "";
             this.filtered.choices = [];
             this.filtered.displayed = [];
@@ -394,7 +400,7 @@ export class SelectMenu extends Component {
     /** @returns {{ searchValue: string | null, appliedSearch: string, choices: any[], displayedOptions: any[], isFocused: boolean }} */
     get slotData() {
         return {
-            searchValue: this.state.searchValue,
+            searchValue: this.search.value,
             appliedSearch: this.state.appliedSearch,
             choices: this.filtered.choices,
             displayedOptions: this.filtered.displayed,
@@ -565,7 +571,7 @@ export class SelectMenu extends Component {
         } else if (this.props.value !== value) {
             this.props.onSelect(value);
         }
-        this.state.searchValue = null;
+        this.search.value = null;
     }
 
     /**

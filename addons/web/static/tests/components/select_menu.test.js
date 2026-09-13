@@ -11,7 +11,7 @@ import {
     queryValue,
 } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { Component, onWillRender, useState, xml } from "@odoo/owl";
+import { Component, onRendered, onWillRender, useState, xml } from "@odoo/owl";
 import {
     contains,
     editSelectMenu,
@@ -19,6 +19,7 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { DropdownPopover } from "@web/components/dropdown/_behaviours/dropdown_popover";
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
@@ -2262,4 +2263,47 @@ test("new choices arriving while the menu is open are filtered in the render the
         message:
             "the props update is the render that filters; deriving the list costs none",
     });
+});
+
+test("typing into an open menu renders neither the menu nor its options until the debounced search", async () => {
+    let menuRenders = 0;
+    let popoverRenders = 0;
+    patchWithCleanup(SelectMenu.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => menuRenders++);
+        },
+    });
+    patchWithCleanup(DropdownPopover.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => popoverRenders++);
+        },
+    });
+    class MyParent extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu choices="choices" value="'v1'"/>`;
+        choices = [...Array(30)].map((_, i) => ({
+            label: `Option ${i}`,
+            value: `v${i}`,
+        }));
+    }
+    await mountSingleApp(MyParent);
+    await open();
+    expect(".o_select_menu_item").toHaveCount(30);
+    menuRenders = 0;
+    popoverRenders = 0;
+
+    await edit("Option 2", { confirm: false });
+    await animationFrame();
+    expect(menuRenders).toBe(0);
+    expect(popoverRenders).toBe(0);
+    expect("input.o_select_menu_input").toHaveValue("Option 2");
+    expect(".o_select_menu_item").toHaveCount(30);
+
+    await runAllTimers();
+    await animationFrame();
+    expect(menuRenders).toBe(1);
+    expect(".o_select_menu_item").toHaveCount(12);
 });
