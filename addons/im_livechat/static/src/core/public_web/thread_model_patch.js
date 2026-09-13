@@ -9,7 +9,7 @@ patch(Thread.prototype, {
         super.setup(...arguments);
         this.appAsLivechats = fields.One("DiscussApp", {
             compute() {
-                return this.channel_type === "livechat" ? this.store.discuss : null;
+                return this.isLivechat ? this.store.discuss : null;
             },
         });
         this.country_id = fields.One("res.country");
@@ -44,7 +44,7 @@ patch(Thread.prototype, {
         );
     },
     _computeDiscussAppCategory() {
-        if (this.channel_type !== "livechat") {
+        if (!this.isLivechat) {
             return super._computeDiscussAppCategory();
         }
         if (
@@ -59,7 +59,7 @@ patch(Thread.prototype, {
         );
     },
     get hasMemberList() {
-        return this.channel_type === "livechat" || super.hasMemberList;
+        return this.isLivechat || super.hasMemberList;
     },
     get allowedToLeaveChannelTypes() {
         return [...super.allowedToLeaveChannelTypes, "livechat"];
@@ -72,7 +72,7 @@ patch(Thread.prototype, {
 
     computeCorrespondent() {
         const correspondent = super.computeCorrespondent();
-        if (this.channel_type === "livechat" && !correspondent) {
+        if (this.isLivechat && !correspondent) {
             return this.livechatVisitorMember;
         }
         return correspondent;
@@ -84,7 +84,7 @@ patch(Thread.prototype, {
 
     get displayName() {
         if (
-            this.channel_type !== "livechat" ||
+            !this.isLivechat ||
             !this.correspondent ||
             this.self_member_id?.custom_channel_name
         ) {
@@ -103,20 +103,20 @@ patch(Thread.prototype, {
     },
 
     get avatarUrl() {
-        if (this.channel_type === "livechat" && this.correspondent) {
+        if (this.isLivechat && this.correspondent) {
             return this.correspondent.avatarUrl;
         }
         return super.avatarUrl;
     },
 
     get inChathubOnNewMessage() {
-        if (this.channel_type === "livechat") {
+        if (this.isLivechat) {
             return Boolean(this.self_member_id);
         }
         return super.inChathubOnNewMessage;
     },
     get notifyWhenOutOfFocus() {
-        if (this.channel_type === "livechat") {
+        if (this.isLivechat) {
             return (
                 this.self_member_id ||
                 this.shadowedBySelf ||
@@ -141,7 +141,7 @@ patch(Thread.prototype, {
      */
     setAsDiscussThread(pushState) {
         super.setAsDiscussThread(pushState);
-        if (this.store.env.services.ui.isSmall && this.channel_type === "livechat") {
+        if (this.store.env.services.ui.isSmall && this.isLivechat) {
             this.store.discuss.activeTab = "livechat";
         }
     },
@@ -150,7 +150,7 @@ patch(Thread.prototype, {
     },
     async leaveChannel({ force = false } = {}) {
         if (
-            this.channel_type === "livechat" &&
+            this.isLivechat &&
             this.channel_member_ids.length <= 2 &&
             this.self_member_id &&
             !this.livechat_end_dt &&

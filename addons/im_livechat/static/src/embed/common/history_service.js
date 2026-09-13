@@ -22,7 +22,7 @@ export class HistoryService {
                 id: payload.id,
                 model: "discuss.channel",
             });
-            if (thread?.channel_type !== "livechat") {
+            if (!thread?.isLivechat) {
                 return;
             }
             const data = expirableStorage.getItem(HistoryService.HISTORY_STORAGE_KEY);

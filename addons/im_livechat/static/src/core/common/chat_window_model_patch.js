@@ -16,7 +16,7 @@ const chatWindowPatch = {
         this.livechatStep = CW_LIVECHAT_STEP.NONE;
     },
     close(options = {}) {
-        if (this.thread?.channel_type !== "livechat") {
+        if (!this.thread?.isLivechat) {
             return super.close(...arguments);
         }
         if (options.force) {

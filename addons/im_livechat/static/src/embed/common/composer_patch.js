@@ -5,7 +5,7 @@ import { patch } from "@web/core/utils/patch";
 
 patch(Composer.prototype, {
     get placeholder() {
-        if (this.thread?.channel_type !== "livechat") {
+        if (!this.thread?.isLivechat) {
             return super.placeholder;
         }
         return _t("Say something...");

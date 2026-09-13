@@ -11,7 +11,7 @@ import { _t } from "@web/core/translation";
 registerThreadAction("livechat-info", {
     actionPanelComponent: LivechatChannelInfoList,
     condition: ({ owner, store, thread }) =>
-        thread?.channel_type === "livechat" &&
+        thread?.isLivechat &&
         store.self_partner?.main_user_id?.share === false &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-livechat-ChannelInfoList bg-inherit",
@@ -32,7 +32,7 @@ registerThreadAction("livechat-info", {
 registerThreadAction("livechat-status", {
     actionPanelComponent: LivechatChannelInfoList,
     condition: ({ owner, store, thread }) =>
-        thread?.channel_type === "livechat" &&
+        thread?.isLivechat &&
         store.has_access_livechat &&
         !thread.livechat_end_dt &&
         !owner.isDiscussContent,

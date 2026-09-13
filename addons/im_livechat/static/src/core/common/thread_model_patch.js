@@ -17,7 +17,7 @@ patch(Thread.prototype, {
         this.chatbot = fields.One("Chatbot");
         this.livechatVisitorMember = fields.One("discuss.channel.member", {
             compute() {
-                if (this.channel_type !== "livechat") {
+                if (!this.isLivechat) {
                     return;
                 }
                 const orderedChannelMembers = [...this.channel_member_ids].sort(
@@ -43,16 +43,17 @@ patch(Thread.prototype, {
             },
         });
     },
+    get isLivechat() {
+        return this.channel_type === "livechat";
+    },
     get autoOpenChatWindowOnNewMessage() {
         return (
-            (this.channel_type === "livechat" &&
-                !this.store.chatHub.compact &&
-                this.self_member_id) ||
+            (this.isLivechat && !this.store.chatHub.compact && this.self_member_id) ||
             super.autoOpenChatWindowOnNewMessage
         );
     },
     get showCorrespondentCountry() {
-        if (this.channel_type === "livechat") {
+        if (this.isLivechat) {
             return (
                 this.correspondent?.livechat_member_type === "visitor" &&
                 Boolean(this.correspondentCountry)
@@ -65,19 +66,19 @@ patch(Thread.prototype, {
     },
 
     get isChatChannel() {
-        return this.channel_type === "livechat" || super.isChatChannel;
+        return this.isLivechat || super.isChatChannel;
     },
 
     get allowDescription() {
-        return this.channel_type === "livechat" || super.allowDescription;
+        return this.isLivechat || super.allowDescription;
     },
 
     get composerDisabled() {
-        return this.channel_type === "livechat" && this.livechat_end_dt;
+        return this.isLivechat && this.livechat_end_dt;
     },
 
     get composerDisabledText() {
-        return this.channel_type === "livechat" && this.livechat_end_dt
+        return this.isLivechat && this.livechat_end_dt
             ? _t("This livechat conversation has ended")
             : "";
     },
@@ -91,7 +92,7 @@ patch(Thread.prototype, {
      * @param {import("models").Persona} persona
      */
     getPersonaName(persona) {
-        if (this.channel_type === "livechat" && persona?.user_livechat_username) {
+        if (this.isLivechat && persona?.user_livechat_username) {
             return persona.user_livechat_username;
         }
         return super.getPersonaName(persona);

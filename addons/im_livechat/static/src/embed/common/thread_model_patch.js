@@ -70,9 +70,7 @@ patch(Thread.prototype, {
         });
         this.storeAsActiveLivechats = fields.One("Store", {
             compute() {
-                return this.channel_type === "livechat" && !this.livechat_end_dt
-                    ? this.store
-                    : null;
+                return this.isLivechat && !this.livechat_end_dt ? this.store : null;
             },
         });
         this.requested_by_operator = false;
@@ -89,23 +87,19 @@ patch(Thread.prototype, {
     },
 
     get avatarUrl() {
-        if (this.channel_type === "livechat") {
+        if (this.isLivechat) {
             return this.livechat_operator_id.avatarUrl;
         }
         return super.avatarUrl;
     },
     get displayName() {
-        if (this.channel_type === "livechat" && this.livechat_operator_id) {
+        if (this.isLivechat && this.livechat_operator_id) {
             return this.getPersonaName(this.livechat_operator_id);
         }
         return super.displayName;
     },
     get hasWelcomeMessage() {
-        return (
-            this.channel_type === "livechat" &&
-            !this.chatbot &&
-            !this.requested_by_operator
-        );
+        return this.isLivechat && !this.chatbot && !this.requested_by_operator;
     },
     /** @returns {Promise<import("models").Message} */
     async post(body, postData, extraData = {}) {
@@ -116,7 +110,7 @@ patch(Thread.prototype, {
         ) {
             this.chatbot.isProcessingAnswer = true;
         }
-        if (this.channel_type === "livechat" && this.isTransient) {
+        if (this.isLivechat && this.isTransient) {
             if (this.chatbot && extraData.selected_answer_id) {
                 this.chatbot.currentStep.selectedAnswer = this.store[
                     "chatbot.script.answer"
