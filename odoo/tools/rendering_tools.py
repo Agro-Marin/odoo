@@ -9,7 +9,10 @@ from dateutil import relativedelta
 from lxml import etree, html
 from markupsafe import Markup, escape
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import safe_eval
+
+_debug = DebugLog(__name__)
 
 INLINE_TEMPLATE_REGEX = re.compile(
     r"\{\{(.+?)(?:\|\|\|\s*((?:\\[\\}]|.)*?))?\}\}", re.DOTALL
@@ -95,6 +98,7 @@ def render_inline_template(
     format_value: Callable[[object], str] = str,
 ) -> str:
     results = []
+    defaulted = 0  # debuglog
     for string, expression, default in template_instructions:
         results.append(string)
 
@@ -102,9 +106,16 @@ def render_inline_template(
             result = safe_eval.safe_eval(expression, variables)
             if renders_as_no_value(result):
                 result = default
+                defaulted += 1  # debuglog
             if result != "":
                 results.append(format_value(result))
 
+    _debug.perf.count(
+        "rendering.inline_template",
+        expressions=sum(1 for _, expression, _ in template_instructions if expression),
+        defaulted=defaulted,
+        variables=len(variables),
+    )
     return "".join(results)
 
 
@@ -215,9 +226,19 @@ def compile_static_template(
 
     segments = HOLE_RE.split(str(serialize_static_tree(tree)))
     if [int(index) for index in segments[1::2]] != list(range(len(holes))):
+        _debug.logic(
+            "rendering.static_template_unsupported",
+            holes=len(holes),
+            markers=len(segments[1::2]),
+        )
         raise StaticRenderUnsupported(
             "the template's own text carries this renderer's hole markers"
         )
+    _debug.perf.count(
+        "rendering.static_template_compiled",
+        holes=len(holes),
+        segments=len(segments[::2]),
+    )
     return segments[::2], holes
 
 

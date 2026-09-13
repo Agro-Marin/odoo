@@ -9,8 +9,12 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import IO, Any
 
+from odoo.libs.debug_log import DebugLog
+
 import odoo.addons
 from .config import config
+
+_debug = DebugLog(__name__)
 
 _temporary_paths: ContextVar[tuple[str, ...]] = ContextVar(
     "file_open_temporary_paths", default=()
@@ -58,6 +62,11 @@ def _file_path_resolved(
 
 
 def clear_caches() -> None:
+    _debug.lifecycle(
+        "files.caches_cleared",
+        paths=_file_path_resolved.cache_info().currsize,
+        addons_dirs=_addons_dir_paths.cache_info().currsize,
+    )
     _file_path_resolved.cache_clear()
     _addons_dir_paths.cache_clear()
     _root_path.cache_clear()
@@ -105,8 +114,29 @@ def _file_path_uncached(
         resolved = os.path.realpath(fpath)
         parent = str(resolved_parent)
         if resolved == parent or resolved.startswith(parent + os.sep):
+            _debug.perf.count(
+                "files.resolved",
+                path=file_path,
+                addons_dir=addons_dir,
+                candidates=len(addons_paths),
+                exists_checked=not skip_exists_check,
+            )
             return str(fpath)
+        if _debug.logic.enabled and not is_abs:
+            _debug.logic(
+                "files.escapes_addons_dir",
+                path=file_path,
+                resolved=resolved,
+                root=parent,
+            )
 
+    _debug.logic(
+        "files.not_found",
+        path=file_path,
+        absolute=is_abs,
+        candidates=len(addons_paths),
+        temporary=len(_temporary_paths.get()),
+    )
     raise FileNotFoundError("File not found: " + file_path)
 
 
@@ -138,7 +168,13 @@ def file_open(
 def file_open_temporary_directory(env: object = None) -> Generator[str]:
     with tempfile.TemporaryDirectory() as module_dir:
         token = _temporary_paths.set((*_temporary_paths.get(), module_dir))
+        _debug.lifecycle(
+            "files.temporary_dir_entered",
+            path=module_dir,
+            depth=len(_temporary_paths.get()),
+        )
         try:
             yield module_dir
         finally:
             _temporary_paths.reset(token)
+            _debug.lifecycle("files.temporary_dir_exited", path=module_dir)

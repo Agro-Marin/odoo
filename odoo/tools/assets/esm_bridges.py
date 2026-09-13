@@ -9,6 +9,7 @@ from urllib.parse import quote
 from odoo import modules
 from odoo.api import SUPERUSER_ID, Environment
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.hashing import cache_hash
 from odoo.tools import config
 from odoo.tools.assets.constants import ESM_BRIDGE_REFRESH_DAYS
@@ -25,6 +26,7 @@ from odoo.tools.assets.esm_registry import esm_registry, external_libs
 __all__ = ["BridgeShimManager", "NativeModuleLike"]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _bridge_log = get_asset_logger("bridge")
 
 
@@ -110,6 +112,13 @@ class BridgeShimManager:
             ["url", "write_date"],
         )
         existing_urls = set(existing.mapped("url"))
+        _debug.logic(
+            "esm_bridges.shims_persisting",
+            bundle=self.bundle_name,
+            shims=len(shims_by_spec),
+            urls=len(content_by_url),
+            reused=len(existing_urls),
+        )
         self._update_reused_shim_dates(existing)
         to_create = [
             {
@@ -188,6 +197,7 @@ class BridgeShimManager:
 
         shims_by_spec: dict[str, str] = {}
         skip_legacy_tests = self.bundle_name in esm_registry().import_map_includes
+        skipped_tests = 0  # debuglog
         for asset in self.native_modules:
             specifier = asset.module_path
             if not specifier.startswith("@"):
@@ -195,6 +205,7 @@ class BridgeShimManager:
             if skip_legacy_tests and "/static/tests/" in (
                 getattr(asset, "url", None) or ""
             ):
+                skipped_tests += 1  # debuglog
                 continue
             src = asset.raw_content
             names, _ = _extract_esm_exports(
@@ -216,6 +227,14 @@ class BridgeShimManager:
             "parent_self_bridge",
             bundle=self.bundle_name,
             shims=len(bridges),
+        )
+        _debug.pipeline(
+            "esm_bridges.parent_self_bridge",
+            bundle=self.bundle_name,
+            modules=len(self.native_modules),
+            shims=len(bridges),
+            skipped_tests=skipped_tests,
+            skip_legacy_tests=skip_legacy_tests,
         )
         return bridges
 
@@ -246,6 +265,13 @@ class BridgeShimManager:
             for specifier, kind in _static_edges(asset.raw_content):
                 if specifier.startswith("@"):
                     record(specifier, kind)
+        _debug.pipeline(
+            "esm_bridges.static_edges",
+            bundle=self.bundle_name,
+            modules=len(modules),
+            discovered=len(discovered),
+            ext_libs=len(ext_seen),
+        )
         return discovered, ext_seen
 
     def _discover_reachable_specifiers(
@@ -287,6 +313,14 @@ class BridgeShimManager:
                     kinds.add(kind)
                 if specifier not in provided and specifier not in visited:
                     queue.append(specifier)
+        _debug.pipeline(
+            "esm_bridges.reachable",
+            bundle=self.bundle_name,
+            provided=len(provided),
+            visited=len(visited),
+            discovered=len(discovered),
+            ext_libs=len(ext_seen),
+        )
         return discovered, ext_seen
 
     def prepare_shim_sources(
@@ -296,15 +330,22 @@ class BridgeShimManager:
             return {}
         resolver = _BridgeExportResolver(external_libs(), self.bundle_name)
         shims: dict[str, str] = {}
-        for spec in sorted(specifiers):
-            src_names, has_default = resolver.source_exports(spec)
-            if strict:
-                shims[spec] = _strict_stub_source(spec, src_names)
-                continue
-            shim, _star = _bridge_shim_source(
-                spec, {"__default__"}, src_names, has_default, wait=wait
-            )
-            shims[spec] = shim
+        with _debug.perf(
+            "esm_bridges.shim_sources",
+            bundle=self.bundle_name,
+            specifiers=len(specifiers),
+            strict=strict,
+            wait=wait,
+        ):
+            for spec in sorted(specifiers):
+                src_names, has_default = resolver.source_exports(spec)
+                if strict:
+                    shims[spec] = _strict_stub_source(spec, src_names)
+                    continue
+                shim, _star = _bridge_shim_source(
+                    spec, {"__default__"}, src_names, has_default, wait=wait
+                )
+                shims[spec] = shim
         return shims
 
     def _prepare_native_to_legacy_bridge(
@@ -329,6 +370,13 @@ class BridgeShimManager:
             shims_by_spec[specifier] = shim
             if is_star_fallback:
                 star_fallback += 1
+                _debug.logic(
+                    "esm_bridges.star_fallback",
+                    bundle=self.bundle_name,
+                    spec=specifier,
+                    kinds=sorted(kinds),
+                    names=len(src_names),
+                )
 
         bridge_map = self._persist_bridge_shims(shims_by_spec)
         log_event(

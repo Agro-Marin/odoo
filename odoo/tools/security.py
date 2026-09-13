@@ -7,6 +7,7 @@ import typing
 import zlib
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
 
@@ -15,6 +16,8 @@ if typing.TYPE_CHECKING:
 
     from odoo.api import Environment
     from odoo.orm._typing import BaseModel
+
+_debug = DebugLog(__name__)
 
 consteq = hmac_lib.compare_digest
 
@@ -32,6 +35,7 @@ def hmac(
     config_parameter: Any = env(su=True)["ir.config_parameter"]
     secret = config_parameter.get_param("database.secret")
     if not secret:
+        _debug.logic("security.hmac_secret_missing", scope=scope)
         raise ValueError(
             "The 'database.secret' configuration parameter is missing or empty; "
             "cannot compute a secure HMAC."
@@ -79,6 +83,12 @@ def hash_sign(
         + bytes.fromhex(hash_value)
         + message_strings.encode()
     )
+    _debug.lifecycle(
+        "security.hash_signed",
+        scope=scope,
+        expires=expiration_timestamp or None,
+        message_bytes=len(message_strings),
+    )
     return base64.urlsafe_b64encode(token).decode().rstrip("=")
 
 
@@ -86,10 +96,12 @@ def resolve_hash_signed(
     env: Environment, scope: str, payload: str
 ) -> typing.Any | None:
     if not isinstance(payload, str):
+        _debug.logic("security.hash_signed_rejected", scope=scope, reason="not_str")
         return None
     try:
         token = base64.urlsafe_b64decode(payload.encode() + b"===")
         if token[:1] != b"\x01":
+            _debug.logic("security.hash_signed_rejected", scope=scope, reason="version")
             return None
         expiration_bytes, hash_value, message = (
             token[1:9],
@@ -97,6 +109,7 @@ def resolve_hash_signed(
             token[41:].decode(),
         )
     except ValueError, TypeError:
+        _debug.logic("security.hash_signed_rejected", scope=scope, reason="malformed")
         return None
     expiration_timestamp = int.from_bytes(expiration_bytes, byteorder="little")
     hash_value_expected = hmac(
@@ -106,10 +119,19 @@ def resolve_hash_signed(
         hash_function=hashlib.sha256,
     )
 
-    if consteq(hash_value, hash_value_expected) and (
+    signed = consteq(hash_value, hash_value_expected)
+    live = (
         expiration_timestamp == 0
         or datetime.datetime.now().timestamp() < expiration_timestamp
-    ):
+    )
+    _debug.logic(
+        "security.hash_signed_resolved",
+        scope=scope,
+        signed=signed,
+        live=live,
+        expires=expiration_timestamp or None,
+    )
+    if signed and live:
         return json_loads(message)
     return None
 
@@ -145,16 +167,35 @@ def is_valid_limited_field_access_token(
     scope: str,
 ) -> bool:
     if not isinstance(access_token, str) or not access_token.isascii():
+        _debug.logic(
+            "security.field_token_rejected",
+            model=record._name,
+            field=field_name,
+            reason="not_ascii_str",
+        )
         return False
     *_, timestamp = access_token.rsplit("o", 1)
     try:
         expiration = datetime.datetime.fromtimestamp(int(timestamp, 16))
     except ValueError, OverflowError, OSError:
-        return False
-    return (
-        consteq(
-            access_token,
-            limited_field_access_token(record, field_name, timestamp, scope=scope),
+        _debug.logic(
+            "security.field_token_rejected",
+            model=record._name,
+            field=field_name,
+            reason="timestamp",
         )
-        and datetime.datetime.now() < expiration
+        return False
+    signed = consteq(
+        access_token,
+        limited_field_access_token(record, field_name, timestamp, scope=scope),
     )
+    live = datetime.datetime.now() < expiration
+    _debug.logic(
+        "security.field_token_checked",
+        model=record._name,
+        record=record.id,
+        field=field_name,
+        signed=signed,
+        live=live,
+    )
+    return signed and live

@@ -141,6 +141,12 @@ class Collector:
             self.profiler.entry_count_limit
             and self.profiler.counter >= self.profiler.entry_count_limit
         ):
+            _debug.logic(
+                "profiler.entry_limit_reached",
+                collector=self.name,
+                limit=self.profiler.entry_count_limit,
+                ending=threading.current_thread() is self.profiler.init_thread,
+            )
             if threading.current_thread() is self.profiler.init_thread:
                 self.profiler.end()
             return
@@ -161,7 +167,10 @@ class Collector:
     @property
     def entries(self) -> list[dict[str, Any]]:
         if not self._processed:
-            self.post_process()
+            with _debug.perf(
+                "profiler.post_process", collector=self.name, entries=len(self._entries)
+            ):
+                self.post_process()
             self.processed_entries = self._entries
             self._entries = []
             self._processed = True
@@ -237,6 +246,12 @@ class _BasePeriodicCollector(Collector):
             init_thread.profile_hooks = []
         init_thread.profile_hooks.append(self.progress)
         self.__thread.start()
+        _debug.lifecycle(
+            "profiler.periodic_started",
+            collector=self.name,
+            interval=self.frame_interval,
+            thread=self.__thread.name,
+        )
 
     def run(self) -> None:
         self.active = True
@@ -252,6 +267,9 @@ class _BasePeriodicCollector(Collector):
         if self.__thread.is_alive() and self.__thread is not threading.current_thread():
             self.__thread.join()
         self.profiler.init_thread.profile_hooks.remove(self.progress)
+        _debug.lifecycle(
+            "profiler.periodic_stopped", collector=self.name, entries=len(self._entries)
+        )
 
 
 class PeriodicCollector(_BasePeriodicCollector):
@@ -296,6 +314,7 @@ class MemoryCollector(_BasePeriodicCollector):
                 "Memory collector not started: another memory collector is "
                 "already active in this process"
             )
+            _debug.logic("profiler.memory_collector_busy")
             return
         started_tracing = False
         try:
@@ -640,6 +659,7 @@ class Profiler:
                     collector = Collector.prepare_collector(collector)
                 except Exception:
                     _logger.error("Could not create collector with name %r", collector)
+                    _debug.logic("profiler.collector_unknown", name=collector)
                     continue
             collector.profiler = self
             self.collectors.append(collector)
@@ -659,6 +679,7 @@ class Profiler:
             if not self.description:
                 self.description = message
             _logger.warning(message)
+            _debug.logic("profiler.thread_not_found", session=self.profile_session)
 
         if self.description is None and self.init_frame is not None:
             frame = self.init_frame
@@ -677,7 +698,13 @@ class Profiler:
             for collector in self.collectors:
                 collector.start()
                 started.append(collector)
-        except BaseException:
+        except BaseException as exc:
+            _debug.logic(
+                "profiler.start_rolled_back",
+                session=self.profile_session,
+                started=[collector.name for collector in started],
+                error=type(exc).__name__,
+            )
             for collector in reversed(started):
                 try:
                     collector.stop()
@@ -703,6 +730,7 @@ class Profiler:
     def end(self) -> None:
         with self._end_lock:
             if self.done:
+                _debug.logic("profiler.end_repeated", session=self.profile_session)
                 return
             self.done = True
         try:
@@ -768,8 +796,22 @@ class Profiler:
                         self.profile_id,
                         self.profile_session,
                     )
-        except OperationalError:
+                    _debug.lifecycle(
+                        "profiler.saved",
+                        db=self.db,
+                        profile=self.profile_id,
+                        session=self.profile_session,
+                        sql_count=values["sql_count"],
+                        others=sorted(others),
+                    )
+        except OperationalError as exc:
             _logger.exception("Could not save profile in database")
+            _debug.logic(
+                "profiler.save_failed",
+                db=self.db,
+                session=self.profile_session,
+                error=type(exc).__name__,
+            )
         finally:
             self.exit_stack.close()
             if (

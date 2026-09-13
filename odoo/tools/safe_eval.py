@@ -435,6 +435,12 @@ def assert_valid_codeobj(
 
     code_codes = {i.opcode for i in dis.get_instructions(code_obj)}
     if not allowed_codes >= code_codes:
+        _debug.logic(
+            "safe_eval.forbidden_opcodes",
+            opcodes=sorted(opname[x] for x in code_codes - allowed_codes),
+            nested=bool(nested_code),
+            expr_len=len(expr),
+        )
         raise ValueError(
             "forbidden opcode(s) in %r: %s"
             % (expr, ", ".join(opname[x] for x in (code_codes - allowed_codes)))
@@ -451,8 +457,19 @@ def assert_valid_codeobj(
                 oldest = None
             if oldest is not None:
                 _validated_bytecode_cache.pop(oldest, None)
+            _debug.lifecycle(
+                "safe_eval.validated_cache_evicted",
+                evicted=oldest is not None,
+                size=len(_validated_bytecode_cache),
+            )
         if cache_key is not None:
             _validated_bytecode_cache[cache_key] = True
+    _debug.perf.count(
+        "safe_eval.validated",
+        cached=cacheable,
+        nested=len(nested_code),
+        opcodes=len(code_codes),
+    )
 
 
 def compile_codeobj(
@@ -566,8 +583,15 @@ _SAFE_BUILTINS = {**_BUILTINS, _GUARD_FORMAT_NAME: _guard_format}
 def _compile_checked(
     expr: str, filename: str, mode: typing.Literal["eval", "exec"]
 ) -> CodeType:
-    code = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
-    assert_valid_codeobj(_SAFE_OPCODES, code, expr, memoise=False)
+    with _debug.perf(
+        "safe_eval.compile_miss",
+        mode=mode,
+        filename=filename,
+        expr_len=len(expr),
+        format_guarded="format" in expr,
+    ):
+        code = compile_codeobj(expr, filename=filename, mode=mode, guard_format=True)
+        assert_valid_codeobj(_SAFE_OPCODES, code, expr, memoise=False)
     return code
 
 
@@ -641,6 +665,9 @@ def test_python_expr(
             )
         else:
             msg = str(err)
+        _debug.logic(
+            "safe_eval.test_expr_rejected", mode=mode, error=type(err).__name__
+        )
         return msg
     return False
 
@@ -654,6 +681,7 @@ def _check_module(value: object, seen: set[int] | None = None) -> None:
     if isinstance(value, _UNSEARCHABLE):
         return
     if isinstance(value, types.ModuleType):
+        _debug.logic("safe_eval.module_in_context", module=value.__name__)
         raise TypeError(f"""Module {value} can not be used in evaluation contexts
 
 Prefer providing only the items necessary for your intended use.

@@ -8,6 +8,9 @@ from typing import Any
 import odoo.modules
 from odoo import api
 from odoo.api import Environment
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 VERSION = 1
 DEFAULT_EXCLUDE = [
@@ -134,6 +137,11 @@ class Cloc:
                     i,
                     (-1, f"Manifest is not a literal, exclusions ignored: {exc}"),
                 )
+                _debug.logic(
+                    "cloc.manifest_unparsable",
+                    module=Path(path).name,
+                    error=type(exc).__name__,
+                )
                 declared = {}
             exclude_list.extend(DEFAULT_EXCLUDE)
             if isinstance(declared, dict):
@@ -151,24 +159,39 @@ class Cloc:
 
         module_name = Path(path).name
         self.book(module_name)
-        for root, _dirs, files in os.walk(path):
-            for file_name in files:
-                file_path = str(Path(root, file_name))
+        counted = excluded = 0  # debuglog
+        with _debug.perf(
+            "cloc.module_counted", module=module_name, exclusions=len(exclude)
+        ) as span:
+            for root, _dirs, files in os.walk(path):
+                for file_name in files:
+                    file_path = str(Path(root, file_name))
 
-                if file_path in exclude:
-                    continue
+                    if file_path in exclude:
+                        excluded += 1  # debuglog
+                        continue
 
-                ext = Path(file_path).suffix.lower()
-                if ext not in VALID_EXTENSION:
-                    continue
+                    ext = Path(file_path).suffix.lower()
+                    if ext not in VALID_EXTENSION:
+                        continue
 
-                if Path(file_path).stat().st_size > MAX_FILE_SIZE:
-                    self.book(module_name, file_path, (-1, "Max file size exceeded"))
-                    continue
+                    if Path(file_path).stat().st_size > MAX_FILE_SIZE:
+                        self.book(
+                            module_name, file_path, (-1, "Max file size exceeded")
+                        )
+                        _debug.logic("cloc.file_too_large", file=file_path)
+                        continue
 
-                content = Path(file_path).read_bytes().decode("latin1")
-                if (parsed := self.parse(content, ext)) is not None:
-                    self.book(module_name, file_path, parsed)
+                    content = Path(file_path).read_bytes().decode("latin1")
+                    if (parsed := self.parse(content, ext)) is not None:
+                        self.book(module_name, file_path, parsed)
+                        counted += 1  # debuglog
+            span.set(
+                files=counted,
+                excluded=excluded,
+                code=self.code.get(module_name, 0),
+                errors=len(self.errors.get(module_name, {})),
+            )
 
     def count_modules(self, env: Environment) -> None:
         exclude_path = {
@@ -182,10 +205,19 @@ class Cloc:
             domain.append(("imported", "=", False))
         module_list = env["ir.module.module"].search(domain).mapped("name")
 
+        skipped = 0  # debuglog
         for module_name in module_list:
             manifest = odoo.modules.Manifest.for_addon(module_name)
             if manifest and manifest.addons_path not in exclude_path:
                 self.count_path(manifest.path)
+            else:
+                skipped += 1  # debuglog
+        _debug.pipeline(
+            "cloc.modules_counted",
+            installed=len(module_list),
+            skipped=skipped,
+            standard_paths=len(exclude_path),
+        )
 
     def _count_custom_server_actions(self, env: Environment) -> None:
         imported_module_sa = ""
@@ -296,14 +328,17 @@ class Cloc:
                 )
 
     def count_customization(self, env: Environment) -> None:
-        self._count_custom_server_actions(env)
-        self._count_custom_computed_fields(env)
+        with _debug.perf("cloc.customization_counted", cr=env.cr) as span:
+            self._count_custom_server_actions(env)
+            self._count_custom_computed_fields(env)
 
-        if not env["ir.module.module"]._fields.get("imported"):
-            return
+            imported = bool(env["ir.module.module"]._fields.get("imported"))
+            span.set(imported_modules=imported)
+            if not imported:
+                return
 
-        self._count_imported_qweb_views(env)
-        self._count_imported_attachments(env)
+            self._count_imported_qweb_views(env)
+            self._count_imported_attachments(env)
 
     def count_env(self, env: Environment) -> None:
         self.count_modules(env)

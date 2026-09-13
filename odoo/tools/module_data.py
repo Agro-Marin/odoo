@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
 from odoo.db.schema import column_exists, get_tables_existing, rename_column
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import SQL
 
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def adopt_xmlids(
@@ -40,7 +42,8 @@ def adopt_xmlids(
     renamed: Mapping[str, str] | None = None,
 ) -> int:
     moved = 0
-    for old, new in {**dict.fromkeys(names), **(renamed or {})}.items():
+    targets = {**dict.fromkeys(names), **(renamed or {})}
+    for old, new in targets.items():
         cr.execute(
             SQL(
                 "UPDATE ir_model_data SET module = %s, name = %s "
@@ -52,6 +55,13 @@ def adopt_xmlids(
             )
         )
         moved += cr.rowcount
+    _debug.lifecycle(
+        "module_data.xmlids_adopted",
+        from_module=from_module,
+        to_module=to_module,
+        requested=len(targets),
+        moved=moved,
+    )
     if moved:
         _logger.info("%s adopted %d record(s) from %s", to_module, moved, from_module)
     return moved
@@ -74,6 +84,12 @@ def remove_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> i
     deleted = 0
     for model, ids in by_model.items():
         if tables[model] not in existing:
+            _debug.logic(
+                "module_data.records_table_missing",
+                module=module,
+                model=model,
+                records=len(ids),
+            )
             continue
         cr.execute(
             SQL("DELETE FROM %s WHERE id = ANY(%s)", SQL.identifier(tables[model]), ids)
@@ -86,12 +102,20 @@ def remove_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> i
             list(names),
         )
     )
+    _debug.lifecycle(
+        "module_data.xmlid_records_removed",
+        module=module,
+        models=sorted(by_model),
+        deleted=deleted,
+        xmlids=cr.rowcount,
+    )
     return deleted
 
 
 def retire_empty_module(cr: _SqlCursor, module: str) -> None:
     cr.execute(SQL("SELECT 1 FROM ir_model_data WHERE module = %s LIMIT 1", module))
     if cr.fetchone():
+        _debug.logic("module_data.module_kept", module=module, reason="has_xmlids")
         return
     cr.execute(
         SQL(
@@ -108,6 +132,7 @@ def retire_empty_module(cr: _SqlCursor, module: str) -> None:
             module,
         )
     )
+    _debug.lifecycle("module_data.module_retired", module=module, retired=retired)
     if retired:
         _logger.info("%s retired: every record it shipped now lives elsewhere", module)
 
@@ -241,6 +266,14 @@ def rename_in_stored_expressions(
             )
         )
         rewritten += cr.rowcount
+        _debug.perf.count(
+            "module_data.expressions_rewritten",
+            table=table,
+            old=old,
+            new=new,
+            model=model,
+            rows=cr.rowcount,
+        )
     if rewritten:
         _logger.info(
             "renamed %s to %s in %d stored expression(s)%s",
@@ -337,6 +370,12 @@ def repair_orphaned_cron_actions(cr: _SqlCursor) -> int:
                 data_id,
             )
         )
+        _debug.logic(
+            "module_data.cron_action_repointed",
+            xmlid=f"{old_module}.{old_name}",
+            target=f"{module}.{name}",
+            applied=bool(cr.rowcount),
+        )
         if cr.rowcount:
             repaired += 1
             _logger.info(
@@ -363,7 +402,16 @@ def rename_field(
     # drop-and-add would delete that history with the old row. Its external id
     # and, for a Selection, the value rows and their external ids follow.
     table = model.replace(".", "_")
-    if column_exists(cr, table, old) and not column_exists(cr, table, new):
+    column_renamed = column_exists(cr, table, old) and not column_exists(cr, table, new)
+    _debug.lifecycle(
+        "module_data.rename_field",
+        model=model,
+        old=old,
+        new=new,
+        column_renamed=column_renamed,
+        values=len(values or {}),
+    )
+    if column_renamed:
         rename_column(cr, table, old, new)
         if values:
             for old_value, new_value in values.items():
@@ -387,6 +435,9 @@ def rename_field(
     )
     row = cr.fetchone()
     if row is None:
+        _debug.logic(
+            "module_data.rename_field_skipped", model=model, old=old, reason="no_row"
+        )
         return
     field_id = row[0]
     cr.execute(
@@ -397,6 +448,12 @@ def rename_field(
         )
     )
     if cr.fetchone():
+        _debug.logic(
+            "module_data.rename_field_skipped",
+            model=model,
+            old=old,
+            reason="target_exists",
+        )
         return
     cr.execute(SQL("UPDATE ir_model_fields SET name = %s WHERE id = %s", new, field_id))
     xmlid_model = table

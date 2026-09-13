@@ -640,6 +640,13 @@ def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> 
         bad = translation
         translation = (escape(source) if has_markup else source) % args
         _logger.exception("Bad translation %r for string %r", bad, source)
+        _debug.logic(
+            "translate.bad_translation_fallback",
+            module=module,
+            lang=lang,
+            source=source,
+            mapping=isinstance(args, dict),
+        )
     return translation
 
 
@@ -767,17 +774,37 @@ def _get_lang(frame: FrameType | None, default_lang: str = "") -> str:
 
             found_env = True
             env = api.Environment(cr, uid, {})
-            if lang := env["res.users"].context_get().get("lang"):
+            lang = env["res.users"].context_get().get("lang")
+            _debug.logic(
+                "translate.lang_from_user_context",
+                uid=uid,
+                lang=lang or None,
+                frames_walked=len(frames),
+                function=candidate.f_code.co_name,
+            )
+            if lang:
                 return lang
             break
     if default_lang:
         _logger.debug("no translation language detected, fallback to %s", default_lang)
+        _debug.logic(
+            "translate.lang_defaulted",
+            lang=default_lang,
+            found_env=found_env,
+            frames_walked=len(frames),
+        )
         return default_lang
     _logger.log(
         logging.DEBUG if found_env else logging.WARNING,
         "no translation language detected, skipping translation %s",
         frame,
         stack_info=True,
+    )
+    _debug.logic(
+        "translate.lang_not_detected",
+        found_env=found_env,
+        frames_walked=len(frames),
+        function=frame.f_code.co_name if frame else None,
     )
     return ""
 
@@ -979,6 +1006,11 @@ class XMLDataFileReader:
             tree = etree.parse(source)
         except etree.LxmlSyntaxError:
             _logger.warning("Error parsing XML file %s", source)
+            _debug.logic(
+                "translate.datafile_unparsable",
+                module=module,
+                file=getattr(source, "name", None),
+            )
             tree = etree.fromstring("<data/>")
         self.source = tree
         self.module = module
@@ -1023,6 +1055,12 @@ class PoFileReader:
 
         if pot_path:
             self.pofile.merge(polib.pofile(pot_path))
+        _debug.lifecycle(
+            "translate.po_read",
+            file=source if isinstance(source, str) else getattr(source, "name", None),
+            entries=len(self.pofile),
+            pot_merged=bool(pot_path),
+        )
 
     def __iter__(self) -> Iterator[dict]:
         for entry in self.pofile:
@@ -1080,13 +1118,28 @@ class PoFileReader:
                 match = re.match(r"(selection):([\w.]+),([\w]+)", occurrence)
                 if match:
                     _logger.info("Skipped deprecated occurrence %s", occurrence)
+                    _debug.logic(
+                        "translate.po_occurrence_skipped",
+                        kind="selection",
+                        occurrence=occurrence,
+                    )
                     continue
 
                 match = re.match(r"(sql_constraint|constraint):([\w.]+)", occurrence)
                 if match:
                     _logger.info("Skipped deprecated occurrence %s", occurrence)
+                    _debug.logic(
+                        "translate.po_occurrence_skipped",
+                        kind="constraint",
+                        occurrence=occurrence,
+                    )
                     continue
                 _logger.error("malformed po file: unknown occurrence: %s", occurrence)
+                _debug.logic(
+                    "translate.po_occurrence_skipped",
+                    kind="unknown",
+                    occurrence=occurrence,
+                )
 
 
 class _RowWriter(typing.Protocol):
@@ -1159,6 +1212,13 @@ class PoFileWriter:
                 row["translation"],
                 sorted(row["comments"]),
             )
+        _debug.pipeline(
+            "translate.po_written",
+            lang=self.lang,
+            modules=sorted(modules),
+            entries=len(grouped_rows),
+            translated=sum(bool(row["translation"]) for row in grouped_rows.values()),
+        )
 
         self.po.header = (
             "Translation of %s.\n"
@@ -1243,6 +1303,9 @@ class TarFileWriter:
                 self.tar.addfile(info, fileobj=buf)
 
         self.tar.close()
+        _debug.pipeline(
+            "translate.tar_written", lang=self.lang, modules=len(rows_by_module)
+        )
 
 
 def _trans_export(
@@ -1252,9 +1315,16 @@ def _trans_export(
     format: str,
 ) -> bool:
     if not reader:
+        _debug.logic("translate.export_empty", lang=lang, format=format)
         return False
     writer = TranslationFileWriter(buffer, fileformat=format, lang=lang)
-    writer.write_rows(reader)
+    with _debug.perf(
+        "translate.export_write",
+        lang=lang,
+        format=format,
+        terms=len(reader._to_translate),
+    ):
+        writer.write_rows(reader)
     return True
 
 
@@ -1265,7 +1335,15 @@ def trans_export(
     format: str,
     env: Environment,
 ) -> bool:
-    reader = TranslationModuleReader(env.cr, modules=modules, lang=lang)
+    with _debug.perf(
+        "translate.export_modules",
+        cr=env.cr,
+        lang=lang,
+        modules=modules,
+        format=format,
+    ) as span:
+        reader = TranslationModuleReader(env.cr, modules=modules, lang=lang)
+        span.set(terms=len(reader._to_translate))
     return _trans_export(reader, lang, buffer, format)
 
 
@@ -1277,7 +1355,16 @@ def trans_export_records(
     format: str,
     env: Environment,
 ) -> bool:
-    reader = TranslationRecordReader(env.cr, model_name, ids, lang=lang)
+    with _debug.perf(
+        "translate.export_records",
+        cr=env.cr,
+        lang=lang,
+        model=model_name,
+        records=len(ids),
+        format=format,
+    ) as span:
+        reader = TranslationRecordReader(env.cr, model_name, ids, lang=lang)
+        span.set(terms=len(reader._to_translate))
     return _trans_export(reader, lang, buffer, format)
 
 
@@ -1443,9 +1530,13 @@ class TranslationReader:
     def _export_imdinfo(self, model: str, imd_per_id: dict[int, ImdInfo]):
         records = self._get_records_translatable(imd_per_id.values())
         if not records:
+            _debug.logic(
+                "translate.export_model_skipped", model=model, xmlids=len(imd_per_id)
+            )
             return
 
         env = records.env
+        pushed = len(self._to_translate)  # debuglog
         for record in records.with_context(check_translations=True):
             imd = imd_per_id[record.id]
             module = imd.module
@@ -1470,9 +1561,15 @@ class TranslationReader:
                     translation_dictionary = field.get_translation_dictionary(
                         value_en, {self._lang: value_lang}
                     )
-                except Exception:
+                except Exception as exc:
                     _logger.exception(
                         "Failed to extract terms from %s %s", xml_name, name
+                    )
+                    _debug.logic(
+                        "translate.export_terms_failed",
+                        xml_id=xml_name,
+                        field=name,
+                        error=type(exc).__name__,
                     )
                     continue
                 for term_en, term_langs in translation_dictionary.items():
@@ -1486,14 +1583,23 @@ class TranslationReader:
                         record_id=imd.res_id,
                         value=term_lang if term_lang != term_en else "",
                     )
+        _debug.pipeline(
+            "translate.export_model",
+            model=model,
+            lang=self._lang,
+            records=len(records),
+            terms=len(self._to_translate) - pushed,
+        )
 
     def _get_records_translatable(self, imd_records: Collection[ImdInfo]) -> Any:
         model = next(iter(imd_records)).model
         if model not in self.env:
             _logger.error("Unable to find object %r", model)
+            _debug.logic("translate.export_model_unknown", model=model)
             return self.env["_unknown"].browse()
 
         if not self.env[model]._translate:
+            _debug.logic("translate.export_model_untranslatable", model=model)
             return self.env[model].browse()
 
         res_ids = [r.res_id for r in imd_records]
@@ -1507,6 +1613,12 @@ class TranslationReader:
                 "Unable to find records of type %r with external ids %s",
                 model,
                 ", ".join(missing_records),
+            )
+            _debug.logic(
+                "translate.export_records_missing",
+                model=model,
+                missing=len(missing_ids),
+                found=len(records),
             )
             if not records:
                 return records
@@ -1528,6 +1640,12 @@ class TranslationReader:
                 ):
                     to_drop |= selection
             records -= to_drop
+            _debug.logic(
+                "translate.export_selections_filtered",
+                fields=len(fields),
+                dropped=len(to_drop),
+                kept=len(records),
+            )
         elif model == "ir.model.fields":
             to_drop = self.env["ir.model.fields"]
             for field in records:
@@ -1540,6 +1658,11 @@ class TranslationReader:
                 ):
                     to_drop |= field
             records -= to_drop
+            _debug.logic(
+                "translate.export_fields_filtered",
+                dropped=len(to_drop),
+                kept=len(records),
+            )
 
         return records
 
@@ -1585,9 +1708,20 @@ class TranslationRecordReader(TranslationReader):
             fields[field_name].translate and fields[field_name].store
             for field_name in field_names
         ):
+            _debug.logic(
+                "translate.export_records_no_translatable_field",
+                model=records._name,
+                fields=len(field_names),
+            )
             return
 
-        records._get_or_create_xml_ids()
+        with _debug.perf(
+            "translate.export_records_xml_ids",
+            cr=self._cr,
+            model=records._name,
+            records=len(records),
+        ):
+            records._get_or_create_xml_ids()
 
         model_name = records._name
         query = """SELECT min(concat(module, '.', name)), res_id
@@ -1633,16 +1767,19 @@ class TranslationModuleReader(TranslationReader):
             self._installed_modules if "all" in self._modules else list(self._modules)
         )
         xml_defined: set[tuple] = set()
-        for module in modules:
-            for filepath in get_datafile_translation_path(module):
-                fileformat = Path(filepath).suffix[1:].lower()
-                with file_open(filepath, mode="rb") as source:
-                    xml_defined.update(
-                        (entry["imd_model"], module, entry["imd_name"])
-                        for entry in translation_file_reader(
-                            source, fileformat=fileformat, module=module
+        with _debug.perf(
+            "translate.export_datafile_scan", cr=self._cr, modules=len(modules)
+        ):
+            for module in modules:
+                for filepath in get_datafile_translation_path(module):
+                    fileformat = Path(filepath).suffix[1:].lower()
+                    with file_open(filepath, mode="rb") as source:
+                        xml_defined.update(
+                            (entry["imd_model"], module, entry["imd_name"])
+                            for entry in translation_file_reader(
+                                source, fileformat=fileformat, module=module
+                            )
                         )
-                    )
 
         query = """SELECT min(name), model, res_id, module
                      FROM ir_model_data
@@ -1653,13 +1790,29 @@ class TranslationModuleReader(TranslationReader):
         self._cr.execute(query, (modules,))
 
         records_per_model: defaultdict[str, dict] = defaultdict(dict)
+        skipped = 0  # debuglog
         for imd_name, model, res_id, module in self._cr.fetchall():
             if (model, module, imd_name) in xml_defined:
+                skipped += 1  # debuglog
                 continue
             records_per_model[model][res_id] = ImdInfo(imd_name, model, res_id, module)
+        _debug.pipeline(
+            "translate.export_records_planned",
+            lang=self._lang,
+            modules=len(modules),
+            models=len(records_per_model),
+            xml_defined=len(xml_defined),
+            skipped=skipped,
+        )
 
-        for model, imd_per_id in records_per_model.items():
-            self._export_imdinfo(model, imd_per_id)
+        with _debug.perf(
+            "translate.export_records_all",
+            cr=self._cr,
+            lang=self._lang,
+            models=len(records_per_model),
+        ):
+            for model, imd_per_id in records_per_model.items():
+                self._export_imdinfo(model, imd_per_id)
 
     def _get_module_from_path(self, path: str) -> str:
         p = Path(path)
@@ -1718,6 +1871,7 @@ class TranslationModuleReader(TranslationReader):
             translations = {
                 tran["id"]: tran["string"] for tran in web_translations["messages"]
             }
+        extracted_count = 0  # debuglog
         try:
             src_file = file_open(fabsolutepath, "rb")
             for extracted in extract.extract(
@@ -1728,6 +1882,7 @@ class TranslationModuleReader(TranslationReader):
             ):
                 lineno, message, comments = extracted[:3]
                 value = translations.get(message, "")
+                extracted_count += 1  # debuglog
                 self._push_translation(
                     module,
                     trans_type,
@@ -1737,11 +1892,25 @@ class TranslationModuleReader(TranslationReader):
                     comments + extra_comments,
                     value=value,
                 )
-        except Exception:
+        except Exception as exc:
             _logger.exception("Failed to extract terms from %s", fabsolutepath)
+            _debug.logic(
+                "translate.extract_failed",
+                module=module,
+                file=display_path,
+                method=extract_method.rpartition(":")[2],
+                error=type(exc).__name__,
+            )
         finally:
             if src_file is not None:
                 src_file.close()
+        _debug.perf.count(
+            "translate.extract_file",
+            module=module,
+            file=display_path,
+            method=extract_method.rpartition(":")[2],
+            terms=extracted_count,
+        )
 
     def _export_translatable_resources(self) -> None:
 
@@ -1752,6 +1921,13 @@ class TranslationModuleReader(TranslationReader):
 
         spreadsheet_files_regex = re.compile(r".*_dashboard(\.osheet)?\.json$")
 
+        _debug.pipeline(
+            "translate.export_resources",
+            lang=self._lang,
+            modules=self._modules,
+            paths=len(self._path_list),
+            installed=len(self._installed_modules),
+        )
         for path, recursive, _is_addons_root in self._path_list:
             _logger.debug("Scanning files of modules at %s", path)
             for root, _dummy, files in os.walk(path, followlinks=True):
@@ -1795,11 +1971,18 @@ class TranslationModuleReader(TranslationReader):
                     break
 
         IrModuleModule = self.env["ir.module.module"]
+        before = len(self._to_translate)  # debuglog
         for module in self._modules:
             for translation in IrModuleModule._extract_resource_attachment_translations(
                 module, self._lang
             ):
                 self._push_translation(*translation)
+        _debug.perf.count(
+            "translate.export_attachment_terms",
+            lang=self._lang,
+            modules=len(self._modules),
+            terms=len(self._to_translate) - before,
+        )
 
 
 def DeepDefaultDict() -> defaultdict:
@@ -1853,6 +2036,7 @@ class TranslationImporter:
                 "Couldn't read translation for lang '%s', language not found",
                 lang,
             )
+            _debug.logic("translate.load_lang_missing", lang=lang, module=module)
             return
         try:
             fileobj.seek(0)
@@ -1868,13 +2052,20 @@ class TranslationImporter:
                 file=getattr(fileobj, "name", None),
             ):
                 self._load(reader, lang, xmlids)
-        except OSError:
+        except OSError as exc:
             iso_lang = get_iso_codes(lang)
             filename = "[lang: %s][format: %s]" % (
                 iso_lang or "new",
                 fileformat,
             )
             _logger.exception("couldn't read translation file %s", filename)
+            _debug.logic(
+                "translate.load_file_unreadable",
+                lang=lang,
+                format=fileformat,
+                module=module,
+                error=type(exc).__name__,
+            )
 
     def _load(
         self, reader: Iterable[dict], lang: str, xmlids: set[str] | None = None
@@ -1890,34 +2081,57 @@ class TranslationImporter:
                 else -1
             ),
         )
+        model = model_terms = 0  # debuglog
+        skipped: dict[str, int] = defaultdict(int)  # debuglog
         for row in rows:
             if not row.get("value") or not row.get("src"):
+                skipped["empty"] += 1  # debuglog
                 continue
             if row.get("type") == "code":
+                skipped["code"] += 1  # debuglog
                 continue
             if row.get("lang", lang) not in valid_langs:
+                skipped["lang"] += 1  # debuglog
                 continue
             model_name = row.get("imd_model")
             module_name = row["module"]
             if not model_name or model_name not in self.env:
+                skipped["model"] += 1  # debuglog
                 continue
             field_name = row["name"].split(",")[1]
             field = self.env[model_name]._fields.get(field_name)
             if not field or not field.translate or not field.store:
+                skipped["field"] += 1  # debuglog
                 continue
             xmlid = module_name + "." + row["imd_name"]
             if xmlids and xmlid not in xmlids:
+                skipped["xmlid"] += 1  # debuglog
                 continue
             if row.get("type") == "model" and field.translate is True:
                 self.model_translations[model_name][field_name][xmlid][lang] = row[
                     "value"
                 ]
                 self.imported_langs.add(lang)
+                model += 1  # debuglog
             elif row.get("type") == "model_terms" and callable(field.translate):
                 self.model_terms_translations[model_name][field_name][xmlid][
                     row["src"]
                 ][lang] = row["value"]
                 self.imported_langs.add(lang)
+                model_terms += 1  # debuglog
+            else:
+                skipped["type_mismatch"] += 1  # debuglog
+        kept = model + model_terms  # debuglog
+        _debug.pipeline(
+            "translate.load_rows",
+            lang=lang,
+            valid_langs=valid_langs,
+            rows=len(rows),
+            kept=kept,
+            model=model,
+            model_terms=model_terms,
+            skipped=dict(skipped),
+        )
 
     def _get_terms_rows(
         self,
@@ -2078,6 +2292,14 @@ class TranslationImporter:
                         )
                         if changed_values:
                             rows.append((id_, Json(changed_values)))
+                    _debug.perf.count(
+                        "translate.save_terms_batch",
+                        model=model_name,
+                        field=field_name,
+                        xmlids=len(sub_xmlids),
+                        records=len(rows_by_id),
+                        changed=len(rows),
+                    )
                     if rows:
                         self._write_terms_batch(model_table, field_name, rows)
 
@@ -2102,6 +2324,14 @@ class TranslationImporter:
                 for sub_field_dictionary in batched(
                     field_dictionary.items(), self.cr.BATCH_SIZE, strict=False
                 ):
+                    _debug.perf.count(
+                        "translate.save_model_batch",
+                        model=model_name,
+                        field=field_name,
+                        xmlids=len(sub_field_dictionary),
+                        overwrite=overwrite,
+                        force=force_overwrite,
+                    )
                     env.cr.execute(
                         SQL(
                             """
@@ -2134,16 +2364,27 @@ class TranslationImporter:
 
     def save(self, overwrite: bool = False, force_overwrite: bool = False) -> None:
         if not self.model_translations and not self.model_terms_translations:
+            _debug.logic("translate.save_nothing", langs=sorted(self.imported_langs))
             return
 
         env = self.env
         env.flush_all()
 
-        self._save_model_terms_translations(overwrite, force_overwrite)
-        self._save_model_translations(overwrite, force_overwrite)
+        with _debug.perf(
+            "translate.save",
+            cr=self.cr,
+            langs=sorted(self.imported_langs),
+            models=len(self.model_translations),
+            terms_models=len(self.model_terms_translations),
+            overwrite=overwrite,
+            force=force_overwrite,
+        ):
+            self._save_model_terms_translations(overwrite, force_overwrite)
+            self._save_model_translations(overwrite, force_overwrite)
 
         env.invalidate_all()
         env.registry.clear_cache()
+        _debug.lifecycle("translate.saved", langs=sorted(self.imported_langs))
         if self.verbose:
             _logger.info("translations are loaded successfully")
 
@@ -2201,7 +2442,8 @@ def load_language(cr: BaseCursor, lang: str) -> None:
     installer: Any = env["base.language.install"].create(
         {"lang_ids": [(6, 0, lang_ids)]}
     )
-    installer.action_install_lang()
+    with _debug.perf("translate.load_language", cr=cr, lang=lang, langs=lang_ids):
+        installer.action_install_lang()
 
 
 def get_base_langs(lang: str) -> list[str]:
@@ -2310,6 +2552,12 @@ class CodeTranslations:
         )
 
     def clear(self, module_name: str | None = None) -> None:
+        _debug.lifecycle(
+            "translate.code_translations_cleared",
+            module=module_name,
+            python=len(self.python_translations),
+            web=len(self.web_translations),
+        )
         if module_name is None:
             self.python_translations.clear()
             self.web_translations.clear()

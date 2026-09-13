@@ -2,10 +2,13 @@ import base64
 import hashlib
 from typing import NamedTuple
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import scriptsafe
 from odoo.tools.assets.esm_registry import external_libs
 
 __all__ = ["ImportMap", "import_map_for"]
+
+_debug = DebugLog(__name__)
 
 
 class ImportMap(NamedTuple):
@@ -25,6 +28,7 @@ def import_map_for(*specifiers: str) -> ImportMap:
         raise KeyError(msg)
 
     imports = {spec: registered[spec] for spec in sorted(set(specifiers))}
+    _debug.logic("assets.import_map_built", specifiers=sorted(imports))
     body = str(scriptsafe.dumps({"imports": imports}, separators=(",", ":")).__html__())
     digest = base64.b64encode(hashlib.sha256(body.encode()).digest()).decode()
     return ImportMap(

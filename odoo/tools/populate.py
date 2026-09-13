@@ -100,6 +100,9 @@ class PopulateContext:
                 "%UNIQUE%",
             )
         )
+        _debug.logic(
+            "populate.indexes_dropped", table=model._table, indexes=len(indexes)
+        )
         if indexes:
             _logger.info("Dropping indexes on table %s...", model._table)
             for index in indexes:
@@ -110,16 +113,27 @@ class PopulateContext:
                 yield
             finally:
                 _logger.info("Adding indexes back on table %s...", model._table)
-                for index in indexes:
-                    try:
-                        model.env.cr.execute(index["definition"])
-                    except Exception:
-                        _logger.exception(
-                            "Could not restore index %s on %s; the table is left "
-                            "without it",
-                            index["name"],
-                            model._table,
-                        )
+                with _debug.perf(
+                    "populate.indexes_restored",
+                    cr=model.env.cr,
+                    table=model._table,
+                    indexes=len(indexes),
+                ):
+                    for index in indexes:
+                        try:
+                            model.env.cr.execute(index["definition"])
+                        except Exception:
+                            _logger.exception(
+                                "Could not restore index %s on %s; the table is left "
+                                "without it",
+                                index["name"],
+                                model._table,
+                            )
+                            _debug.logic(
+                                "populate.index_restore_failed",
+                                table=model._table,
+                                index=index["name"],
+                            )
         else:
             yield
 
@@ -139,6 +153,7 @@ class PopulateContext:
                 "vastly slower than anticipated."
             )
             self.has_session_replication_role = False
+            _debug.logic("populate.fkey_checks_kept", table=model._table)
             yield
             return
         try:
@@ -196,6 +211,12 @@ def get_field_variation(
                 "but no variation branch was found! Defaulting to a raw copy.",
                 field,
                 field.type,
+            )
+            _debug.logic(
+                "populate.variation_unsupported",
+                model=model._name,
+                field=field.name,
+                type=field.type,
             )
             return SQL.identifier(field.name)
 
@@ -317,6 +338,14 @@ def populate_model(
             ):
                 dest_fields.append(SQL.identifier(field.name))
                 src_fields.append(src)
+    _debug.pipeline(
+        "populate.model_plan",
+        model=model._name,
+        factor=factors[model],
+        columns=len(dest_fields),
+        varied=[field.name for field in update_fields],
+        unique_columns=len(unique_columns),
+    )
     if update_fields:
         _logger.warning(
             "Renaming existing %s records to keep varied fields unique (%s): "
@@ -349,7 +378,14 @@ def populate_model(
         table_alias=SQL.identifier(table_alias),
         series_alias=SQL.identifier(series_alias),
     )
-    model.env.cr.execute(query)
+    with _debug.perf(
+        "populate.model_insert",
+        cr=model.env.cr,
+        model=model._name,
+        factor=factors[model],
+        last_id=populated[model],
+    ):
+        model.env.cr.execute(query)
     if populated[model]:
         update_sequence(model)
 
@@ -407,6 +443,7 @@ def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
         if model_ in populated:
             return
         if not has_records(model_):
+            _debug.logic("populate.model_empty", model=model_._name)
             populated[model_] = 0
             return
 
@@ -437,5 +474,15 @@ def populate_models(model_factors: dict[Any, int], separator_code: int) -> None:
                         model_factors[m2m_model] = model_factors[model_]
                         process(m2m_model)
 
+    _debug.pipeline(
+        "populate.start",
+        models=[model._name for model in model_factors],
+        separator=separator_code,
+    )
     for model in list(model_factors):
         process(model)
+    _debug.lifecycle(
+        "populate.done",
+        models=len(populated),
+        populated=sum(1 for last_id in populated.values() if last_id),
+    )

@@ -1549,6 +1549,12 @@ class configmanager:
         else:
             rcfilepath = "~/.odoorc"
         self._default_options["config"] = self._normalize(rcfilepath)
+        _debug.lifecycle(
+            "config.defaults_loaded",
+            options=len(self._default_options),
+            data_dir=self._default_options["data_dir"],
+            rcfile=self._default_options["config"],
+        )
 
     _log_entries: list[tuple[int, str, tuple, dict]] = []
     _warn_entries: list[tuple[str, tuple, dict]] = []
@@ -1597,6 +1603,16 @@ class configmanager:
         self._warn_deprecated_options()
         self._flush_log_and_warn_entries()
         modules.module.initialize_sys_path()
+        _debug.lifecycle(
+            "config.parse_config",
+            setup_logging=setup_logging,
+            addons_path=len(self["addons_path"]),
+            databases=self["db_name"],
+            init=len(self["init"]),
+            update=len(self["update"]),
+            workers=self["workers"],
+            test_enable=self["test_enable"],
+        )
         return opt
 
     def _parse_config(self, args: list[str] | None = None) -> optparse.Values:
@@ -1606,8 +1622,17 @@ class configmanager:
                 if arg_no == len(args) - 1 or args[arg_no + 1].startswith("-"):
                     args[arg_no] += "=" + self.format(option.dest or "", option.const)
                     self._log(logging.DEBUG, "changed %s for %s", arg, args[arg_no])
+                    _debug.logic(
+                        "config.optional_arg_defaulted", arg=arg, value=args[arg_no]
+                    )
 
         opt, unknown_args = self.parser.parse_args(args)
+        _debug.pipeline(
+            "config.cli_parsed",
+            args=len(args),
+            unknown=len(unknown_args),
+            save=bool(opt.save),
+        )
         if unknown_args:
             self.parser.error(f"unrecognized parameters: {' '.join(unknown_args)}")
 
@@ -1618,6 +1643,7 @@ class configmanager:
 
         for option_name in list(vars(opt).keys()):
             if not self.options_index[option_name].cli_loadable:
+                _debug.logic("config.cli_option_dropped", option=option_name)
                 delattr(opt, option_name)
 
         self._load_env_options()
@@ -1681,6 +1707,11 @@ class configmanager:
                 "Since ages ago, the OPENERP_SERVER environment variable has been replaced by ODOO_RC",
                 DeprecationWarning,
             )
+        _debug.lifecycle(
+            "config.env_options_loaded",
+            options=sorted(self._env_options),
+            legacy_openerp_server="OPENERP_SERVER" in environ,
+        )
 
     def _load_cli_options(self, opt: optparse.Values) -> None:
         addons_path = self._cli_options.pop("addons_path", None)
@@ -1705,6 +1736,11 @@ class configmanager:
             self._cli_options["log_handler"] = [
                 handler for comma in opt.log_handler for handler in comma
             ]
+        _debug.lifecycle(
+            "config.cli_options_loaded",
+            options=sorted(self._cli_options),
+            addons_path_kept=addons_path is not None,
+        )
 
     def _postprocess_exclusive_options(self) -> None:
         if self.options["syslog"] and self.options["logfile"]:
@@ -1739,6 +1775,12 @@ class configmanager:
             self._runtime_options["server_wide_modules"] = (
                 missing + self["server_wide_modules"]
             )
+        _debug.logic(
+            "config.server_wide_modules",
+            modules=self["server_wide_modules"],
+            defaulted="server_wide_modules" in self._runtime_options and not missing,
+            added=missing,
+        )
 
     def _postprocess_log_handler(self) -> None:
         try:
@@ -1770,6 +1812,13 @@ class configmanager:
             if "all" in self["update"]
             else dict.fromkeys(self["update"], True)
         )
+        _debug.logic(
+            "config.init_update",
+            init=sorted(self._runtime_options["init"]),
+            update=sorted(self._runtime_options["update"]),
+            init_all_dropped="all" in self["init"],
+            update_all="all" in self["update"],
+        )
 
     def _postprocess_dev_mode(self) -> None:
         if self["db_replica_host"] == "":
@@ -1789,9 +1838,15 @@ class configmanager:
                     DeprecationWarning,
                 )
                 self._runtime_options["dev_mode"] = self["dev_mode"] + ["replica"]
+                _debug.logic("config.dev_mode.replica_inferred_from_empty_host")
 
         if "all" in self["dev_mode"]:
             self._runtime_options["dev_mode"] = self["dev_mode"] + ALL_DEV_MODE
+        _debug.logic(
+            "config.dev_mode",
+            modes=self["dev_mode"],
+            replica_host=self["db_replica_host"],
+        )
 
     def _postprocess_test_file(self) -> None:
         test_file = self["test_file"]
@@ -1807,6 +1862,7 @@ class configmanager:
             test_tags.append(str(Path(self["test_file"]).resolve()))
             self._runtime_options["test_tags"] = ",".join(test_tags)
             self._runtime_options["test_enable"] = True
+            _debug.logic("config.test_file_as_tag", file=test_file, tags=len(test_tags))
 
     def _postprocess_test_options(self) -> None:
         self._postprocess_test_file()
@@ -1821,6 +1877,12 @@ class configmanager:
                     "Empty %s, tests won't run",
                     self.options_index["db_name"],
                 )
+        _debug.logic(
+            "config.test_options",
+            enabled=self._runtime_options["test_enable"],
+            tags=self["test_tags"],
+            databases=len(self["db_name"]),
+        )
 
     def _postprocess_options(self) -> None:
         self._runtime_options.clear()
@@ -1855,6 +1917,14 @@ class configmanager:
                 default_value = self._default_options[new_option_name]
                 current_value = self[new_option_name]
 
+                _debug.logic(
+                    "config.deprecated_alias",
+                    old=old_option_name,
+                    new=new_option_name,
+                    source=source_name,
+                    redundant=deprecated_value in (current_value, default_value),
+                    applied=current_value == default_value,
+                )
                 if deprecated_value in (current_value, default_value):
                     self._log(
                         logging.INFO,
@@ -1902,15 +1972,15 @@ class configmanager:
         for path in map(cls._normalize, cls._parse_comma(option, opt, value)):
             if any(ch in path for ch in "*?["):
                 anchor = Path(path).anchor
-                ad_paths.extend(
-                    sorted(
-                        str(match)
-                        for match in Path(anchor).glob(
-                            str(Path(path).relative_to(anchor))
-                        )
-                        if match.is_dir() and cls._is_addons_path(str(match))
-                    )
+                matches = sorted(
+                    str(match)
+                    for match in Path(anchor).glob(str(Path(path).relative_to(anchor)))
+                    if match.is_dir() and cls._is_addons_path(str(match))
                 )
+                _debug.logic(
+                    "config.addons_path.glob", pattern=path, matches=len(matches)
+                )
+                ad_paths.extend(matches)
                 continue
             if not Path(path).is_dir():
                 cls._log(
@@ -1919,6 +1989,7 @@ class configmanager:
                     opt,
                     path,
                 )
+                _debug.logic("config.addons_path.skipped", path=path, reason="missing")
                 continue
             if not cls._is_addons_path(path):
                 cls._log(
@@ -1927,9 +1998,13 @@ class configmanager:
                     opt,
                     path,
                 )
+                _debug.logic(
+                    "config.addons_path.skipped", path=path, reason="no_manifest"
+                )
                 continue
             ad_paths.append(path)
 
+        _debug.pipeline("config.addons_path", option=opt, paths=ad_paths)
         return ad_paths
 
     @classmethod
@@ -1945,6 +2020,7 @@ class configmanager:
                     opt,
                     path,
                 )
+                _debug.logic("config.upgrade_path.skipped", path=path, reason="missing")
                 continue
             if not cls._is_upgrades_path(path):
                 cls._log(
@@ -1953,9 +2029,13 @@ class configmanager:
                     opt,
                     path,
                 )
+                _debug.logic(
+                    "config.upgrade_path.skipped", path=path, reason="no_scripts"
+                )
                 continue
             if path not in upgrade_path:
                 upgrade_path.append(path)
+        _debug.pipeline("config.upgrade_path", option=opt, paths=upgrade_path)
         return upgrade_path
 
     @classmethod
@@ -1969,9 +2049,11 @@ class configmanager:
                     opt,
                     path,
                 )
+                _debug.logic("config.scripts.skipped", path=path, reason="missing")
                 continue
             if path not in pre_upgrade_scripts:
                 pre_upgrade_scripts.append(path)
+        _debug.pipeline("config.scripts", option=opt, scripts=pre_upgrade_scripts)
         return pre_upgrade_scripts
 
     @classmethod
@@ -2032,6 +2114,9 @@ class configmanager:
                 opt,
                 value,
                 value != "None",
+            )
+            _debug.logic(
+                "config.without_demo.legacy_value", value=value, demo=value == "None"
             )
             return value == "None"
 
@@ -2094,8 +2179,11 @@ class configmanager:
         try:
             items = p.items("options")
         except configparser.NoSectionError:
+            _debug.logic("config.file.no_options_section", rcfile=rcfile)
             return
 
+        unknown = 0  # debuglog
+        skipped = 0  # debuglog
         try:
             for name, value in items:
                 if name == "without_demo":
@@ -2111,9 +2199,14 @@ class configmanager:
                             name,
                             rcfile,
                         )
+                        unknown += 1  # debuglog
                     self._file_options[name] = value
                     continue
                 if not option.file_loadable:
+                    _debug.logic(
+                        "config.file.option_skipped", option=name, reason="cli_only"
+                    )
+                    skipped += 1  # debuglog
                     continue
                 if (
                     value in ("False", "false")
@@ -2131,6 +2224,12 @@ class configmanager:
                         value,
                         name,
                     )
+                    _debug.logic(
+                        "config.file.option_skipped",
+                        option=name,
+                        reason="legacy_false_unset",
+                    )
+                    skipped += 1  # debuglog
                     continue
                 try:
                     self._file_options[name] = self.parse(name, value)
@@ -2141,6 +2240,13 @@ class configmanager:
                     ) from exc
         except configparser.Error as exc:
             self.parser.error(f"malformed configuration file {rcfile!r}: {exc}")
+        _debug.lifecycle(
+            "config.file_options_loaded",
+            rcfile=rcfile,
+            options=len(self._file_options),
+            unknown=unknown,
+            skipped=skipped,
+        )
 
     def save(self, keys: list[str] | None = None) -> None:
         p = configparser.RawConfigParser(inline_comment_prefixes=("#", ";"))
@@ -2159,6 +2265,13 @@ class configmanager:
                 p.set("options", opt, self.format(opt, self.options[opt]))
             else:
                 p.set("options", opt, self.options[opt])
+        _debug.lifecycle(
+            "config.save",
+            rcfile=self["config"],
+            existed=rc_exists,
+            options=len(p.options("options")),
+            keys=None if keys is None else len(keys),
+        )
 
         try:
             if not rc_exists and not Path(self["config"]).parent.exists():
@@ -2185,11 +2298,17 @@ class configmanager:
         if key in _MODULE_MAP_OPTIONS and isinstance(value, (list, tuple, set)):
             value = dict.fromkeys(value, True)
         self._override_options[key] = value
+        _debug.lifecycle(
+            "config.override_set", option=key, known=key in self.options_index
+        )
 
     def __getitem__(self, key: str) -> Any:
         return self.options[key]
 
     def pop(self, key: str, *args: Any) -> Any:
+        _debug.lifecycle(
+            "config.override_popped", option=key, was_set=key in self._override_options
+        )
         return self._override_options.pop(key, *args)
 
     @contextlib.contextmanager
@@ -2197,6 +2316,7 @@ class configmanager:
         sentinel = object()
         previous = {key: self._override_options.get(key, sentinel) for key in values}
         self._override_options.update(values)
+        _debug.lifecycle("config.patch.enter", options=sorted(values))
         try:
             yield
         finally:
@@ -2205,6 +2325,7 @@ class configmanager:
                     self._override_options.pop(key, None)
                 else:
                     self._override_options[key] = value
+            _debug.lifecycle("config.patch.exit", options=sorted(values))
 
     @functools.cached_property
     def root_path(self):
@@ -2227,8 +2348,10 @@ class configmanager:
                 if not Path(add_dir).exists():
                     Path(add_dir).mkdir(0o700, parents=True)
                 Path(d).mkdir(0o500, parents=True)
+                _debug.lifecycle("config.addons_data_dir.created", path=d)
             except OSError:
                 self._log(logging.DEBUG, "Failed to create addons data dir %s", d)
+                _debug.logic("config.addons_data_dir.create_failed", path=d)
         return d
 
     def filestore(self, dbname: str) -> str:
@@ -2240,8 +2363,14 @@ class configmanager:
     def is_valid_admin_password(self, password: str) -> bool:
         stored_hash = self.options["admin_passwd"]
         if not stored_hash:
+            _debug.logic("config.admin_password.unset")
             return False
         result, updated_hash = crypt_context.match_and_update(password, stored_hash)
+        _debug.logic(
+            "config.admin_password.checked",
+            valid=bool(result),
+            rehashed=bool(result and updated_hash),
+        )
         if result:
             if updated_hash:
                 self.options["admin_passwd"] = updated_hash

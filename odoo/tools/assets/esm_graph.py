@@ -8,6 +8,7 @@ from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 from odoo.tools.assets.esm_lexer import lex_module
 from odoo.tools.files import file_open, file_path
@@ -15,6 +16,7 @@ from odoo.tools.json import scriptsafe as json
 
 _logger = logging.getLogger(__name__)
 _bridge_log = get_asset_logger("bridge")
+_debug = DebugLog(__name__)
 
 
 _URL_RE = re.compile(
@@ -103,8 +105,14 @@ def _cached_module_classification(
         with file_open(filename, "rb", filter_ext=EXTENSIONS) as fp:
             content = fp.read(512).decode("utf-8", errors="ignore")
     except OSError, ValueError:
+        _debug.logic("esm_graph.classification_unreadable", url=url)
         return False
-    return is_native_module(content) or is_odoo_module(url, content)
+    native = is_native_module(content)
+    odoo_module = not native and is_odoo_module(url, content)
+    _debug.perf.count(
+        "esm_graph.classified", url=url, native=native, odoo_module=odoo_module
+    )
+    return native or odoo_module
 
 
 _ESM_EXPORT_PATTERNS: tuple[tuple[str, str], ...] = (
@@ -153,10 +161,14 @@ def _get_import_specifiers(src: str) -> set[str]:
         specs.update(lexed.get("starFrom") or ())
         specs.update(lexed.get("reexportFrom") or ())
         return specs
-    return {
+    specs = {
         match.group("spec") or match.group("side")
         for match in _TRANSITIVE_IMPORT_RE.finditer(src)
     }
+    _debug.logic(
+        "esm_graph.imports_by_regex", source_bytes=len(src), specifiers=len(specs)
+    )
+    return specs
 
 
 def get_escaping_relative_imports(
@@ -182,6 +194,12 @@ def get_escaping_relative_imports(
             )
             if resolved and resolved not in member_specs:
                 escapes.append((module.module_path, spec, resolved))
+    _debug.pipeline(
+        "esm_graph.escaping_imports",
+        modules=len(modules),
+        members=len(member_specs),
+        escapes=len(escapes),
+    )
     return escapes
 
 
@@ -224,6 +242,13 @@ def discover_transitive_import_specifiers(
             seeds=len(scanned),
             discovered=len(discovered),
         )
+    _debug.pipeline(
+        "esm_graph.transitive_walk",
+        bundle=bundle_name,
+        known=len(known),
+        scanned=len(scanned),
+        discovered=sorted(discovered),
+    )
     return discovered
 
 
@@ -411,6 +436,12 @@ class _BridgeExportResolver:
                 if rel.endswith(".js"):
                     rel = rel[:-3] + "/index.js"
                     fpath = file_path(rel)
+                    _debug.logic(
+                        "esm_graph.source_index_fallback",
+                        bundle=self._bundle_name,
+                        spec=spec,
+                        path=rel,
+                    )
                 else:
                     raise
             src = Path(fpath).read_text(encoding="utf-8")
@@ -453,6 +484,14 @@ class _BridgeExportResolver:
                 _exports_cache=self._star_cache,
             )
         self._exports_cache[spec] = result
+        _debug.perf.count(
+            "esm_graph.exports_extracted",
+            bundle=self._bundle_name,
+            spec=spec,
+            names=len(result[0]),
+            default=result[1],
+            readable=src is not None,
+        )
         return result
 
 

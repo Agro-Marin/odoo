@@ -36,6 +36,9 @@ from odoo.libs.datetime import (
     weeknumber,
     weekstart,
 )
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 def utcnow() -> datetime:
@@ -180,4 +183,12 @@ def parse_date_expression(value: str, env: Environment) -> date | datetime:
                 .astimezone(UTC)
                 .replace(tzinfo=None)
             )
+    _debug.logic(
+        "date_utils.expression_parsed",
+        expression=value,
+        terms=len(terms),
+        started_as_date=started_as_date,
+        week_start=week_start,
+        result=str(dt),
+    )
     return dt

@@ -3,6 +3,10 @@ import json
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 # the by-source index: one small row beside a compiled bundle, keyed on what
 # esbuild was given, so a process that has not compiled yet can serve the
 # bundle another one compiled
@@ -74,20 +78,32 @@ def resolve_index(
     # the index promises is missing
     pointer_raw = read(index_url(bundle, key))
     if pointer_raw is None:
+        _debug.logic("esm_index.miss", bundle=bundle, key=key, missing="pointer")
         return None
     try:
         pointer = json.loads(pointer_raw.decode("utf-8"))
         url = pointer["url"]
     except ValueError, KeyError, AttributeError:
+        _debug.logic("esm_index.miss", bundle=bundle, key=key, missing="malformed")
         return None
     code = read(url)
     if code is None:
+        _debug.logic("esm_index.miss", bundle=bundle, key=key, missing="code")
         return None
     parts: dict[str, str | None] = {"metafile": None, "sourcemap": None}
     for name, sidecar_url in sidecar_urls(url).items():
         if pointer.get(name):
             raw = read(sidecar_url)
             if raw is None:
+                _debug.logic("esm_index.miss", bundle=bundle, key=key, missing=name)
                 return None
             parts[name] = raw.decode("utf-8")
+    _debug.logic(
+        "esm_index.hit",
+        bundle=bundle,
+        key=key,
+        url=url,
+        metafile=parts["metafile"] is not None,
+        sourcemap=parts["sourcemap"] is not None,
+    )
     return url, code.decode("utf-8"), parts["metafile"], parts["sourcemap"]

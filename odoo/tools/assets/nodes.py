@@ -2,6 +2,7 @@ import json
 from collections.abc import Container, Iterable, Mapping, Sequence
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets.constants import (
     SCRIPT_EXTENSIONS,
     STYLE_EXTENSIONS,
@@ -33,6 +34,8 @@ LOADER_SHIM_MARKER = "data-loader-shim"
 BRIDGE_URL_PREFIX = "/web/assets/esm/bridges/"
 
 SOURCE_MAP_DIRECTIVE = "//# sourceMappingURL="
+
+_debug = DebugLog(__name__)
 
 
 def is_debug_assets(debug: Any) -> bool:
@@ -67,11 +70,16 @@ def import_map_specs(nodes: Iterable[AssetNode]) -> frozenset[str]:
 def narrow_import_map_node(
     node: AssetNode, already_mapped: Container[str]
 ) -> AssetNode | None:
+    declared = json.loads(node[1]["text"])["imports"]
     imports = {
-        spec: url
-        for spec, url in json.loads(node[1]["text"])["imports"].items()
-        if spec not in already_mapped
+        spec: url for spec, url in declared.items() if spec not in already_mapped
     }
+    _debug.logic(
+        "assets.import_map_narrowed",
+        declared=len(declared),
+        kept=len(imports),
+        dropped=len(declared) - len(imports),
+    )
     if not imports:
         return None
     return (node[0], {**node[1], "text": json.dumps({"imports": imports})})
@@ -181,6 +189,13 @@ def bridge_external_specifiers(
     own_specifiers: Iterable[str], aliases: Mapping[str, str]
 ) -> set[str]:
     own = set(own_specifiers)
-    return {"@odoo/owl"} | {
+    bridged = {"@odoo/owl"} | {
         alias for alias, aliased in aliases.items() if aliased in own
     }
+    _debug.logic(
+        "assets.external_specifiers_bridged",
+        own=len(own),
+        aliases=len(aliases),
+        bridged=sorted(bridged),
+    )
+    return bridged

@@ -307,6 +307,9 @@ class Query:
                 "Method set_result_ids() can only be called on a virgin Query"
             )
         ids = tuple(ids)
+        _debug.logic(
+            "query.result_ids_pinned", table=self.table, ids=len(ids), ordered=ordered
+        )
         if not ids:
             self.add_where(SQL("FALSE"))
             self._empty_by_construction = True
@@ -338,7 +341,15 @@ class Query:
                 sql = SQL("SELECT COUNT(*) FROM (%s) t", self.select(""))
             else:
                 sql = self.select("COUNT(*)")
-            return self._env.execute_query(sql)[0][0]
+            count = self._env.execute_query(sql)[0][0]
+            _debug.perf.count(
+                "query.len_counted",
+                table=self.table,
+                joins=len(self._joins),
+                count=count,
+                wrapped=self.limit is not None or bool(self.offset),
+            )
+            return count
         return len(self.get_result_ids())
 
     def count_matching(self, limit: int | None = None) -> int:
@@ -353,6 +364,13 @@ class Query:
         ):
             return len(self._ids) if limit is None else min(len(self._ids), limit)
 
+        _debug.perf.count(
+            "query.count_matching",
+            table=self.table,
+            joins=len(self._joins),
+            limit=limit,
+            subquery=bool(self.groupby or self.having or limit is not None),
+        )
         if self.groupby or self.having or limit is not None:
             parts = [SQL("SELECT FROM %s", self.from_clause)]
             if self._where_clauses:

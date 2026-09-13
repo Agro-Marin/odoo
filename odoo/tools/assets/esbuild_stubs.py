@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 
 def stub_layout(
     stubs: dict[str, str], alias_flags: list[str], odoo_root: Path
@@ -84,6 +88,13 @@ def write_stubs(
         check_inside_mirror(shim_path, stub_root)
         shim_path.write_text(stubs[spec], encoding="utf-8")
         written.append((spec, stub_path))
+    _debug.pipeline(
+        "esbuild_stubs.written",
+        root=str(stub_root),
+        stubs=len(written),
+        addon_roots=len(addon_roots),
+        mirrored_dirs=len(must_be_real),
+    )
     return written
 
 
@@ -116,6 +127,7 @@ def mirror_aliases(
     }
     addons |= {spec.lstrip("@").partition("/")[0] for spec in stubs}
     if not addons:
+        _debug.logic("esbuild_stubs.mirror_skipped", modules=len(native_modules))
         return alias_flags, {}
     stub_root = Path(tmp_dir) / "mirror"
     addon_roots, occupied, must_be_real = stub_layout(stubs, alias_flags, odoo_root)
@@ -133,6 +145,13 @@ def mirror_aliases(
         for flag in alias_flags
         if flag.removeprefix("--alias:").partition("=")[0].lstrip("@") not in mirrored
     ]
+    _debug.pipeline(
+        "esbuild_stubs.mirrored",
+        addons=sorted(addons),
+        mirrored=len(mirrored),
+        aliases_kept=len(kept),
+        stubs=len(stubs),
+    )
     return kept + [f"--alias:@{addon}={path}" for addon, path in mirrored.items()], (
         mirrored
     )

@@ -5,9 +5,11 @@ import time
 from collections import defaultdict
 from contextlib import contextmanager
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _profile_data = threading.local()
 
@@ -88,13 +90,16 @@ def profile_methods(model_name, method_names, registry=None):
 
     if registry is None:
         _logger.warning("No registry found, cannot profile methods")
+        _debug.logic("mixin_profiler.no_registry", model=model_name)
         return
 
     model_class = registry.get(model_name)
     if model_class is None:
         _logger.warning("Model %s not found in registry", model_name)
+        _debug.logic("mixin_profiler.model_missing", model=model_name)
         return
 
+    wrapped_names = []  # debuglog
     for method_name in method_names:
         if hasattr(model_class, method_name):
             original = getattr(model_class, method_name)
@@ -105,6 +110,13 @@ def profile_methods(model_name, method_names, registry=None):
                 wrapped._original_was_own_attr = method_name in model_class.__dict__
                 setattr(model_class, method_name, wrapped)
                 _logger.info("Profiling enabled for %s.%s", model_name, method_name)
+                wrapped_names.append(method_name)  # debuglog
+    _debug.lifecycle(
+        "mixin_profiler.methods_wrapped",
+        model=model_name,
+        requested=len(method_names),
+        wrapped=wrapped_names,
+    )
 
 
 _DEFAULT_MODULE_METHODS = (
@@ -159,6 +171,7 @@ def unprofile_methods(model_name, method_names, registry=None):
     if model_class is None:
         return
 
+    restored = 0  # debuglog
     for method_name in method_names:
         method = model_class.__dict__.get(method_name)
         if method is not None and hasattr(method, "_original"):
@@ -166,6 +179,13 @@ def unprofile_methods(model_name, method_names, registry=None):
                 setattr(model_class, method_name, method._original)
             else:
                 delattr(model_class, method_name)
+            restored += 1  # debuglog
+    _debug.lifecycle(
+        "mixin_profiler.methods_unwrapped",
+        model=model_name,
+        requested=len(method_names),
+        restored=restored,
+    )
 
 
 @contextmanager
@@ -173,14 +193,21 @@ def profiling_enabled():
     data = _get_profile_data()
     was_enabled = data.enabled
     data.enabled = True
+    _debug.lifecycle("mixin_profiler.enabled", nested=was_enabled)
     try:
         yield
     finally:
         data.enabled = was_enabled
+        _debug.lifecycle(
+            "mixin_profiler.disabled",
+            restored=was_enabled,
+            methods=len(data.methods),
+        )
 
 
 def clear_profile_data():
     data = _get_profile_data()
+    _debug.lifecycle("mixin_profiler.cleared", methods=len(data.methods))
     data.methods.clear()
 
 

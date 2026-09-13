@@ -14,8 +14,10 @@ from typing import Any
 
 import odoo
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 
 _lexer_log = get_asset_logger("lexer")
+_debug = DebugLog(__name__)
 
 _WORKER_SCRIPT = Path(__file__).parent / "js" / "esm_lexer_worker.mjs"
 
@@ -55,6 +57,7 @@ class _LexerWorker:
         os.set_blocking(proc.stdout.fileno(), False)
         self._inbuf = b""
         _register_worker_cleanup()
+        _debug.lifecycle("esm_lexer.worker_spawned", pid=proc.pid, node=node)
         return proc
 
     def close(self) -> None:
@@ -71,6 +74,12 @@ class _LexerWorker:
                 proc.kill()
             with contextlib.suppress(subprocess.TimeoutExpired, OSError):
                 proc.wait(timeout=5)
+            _debug.lifecycle(
+                "esm_lexer.worker_killed",
+                pid=proc.pid,
+                exit_code=proc.returncode,
+                requests=self._counter,
+            )
 
     def _write_all(self, proc: subprocess.Popen, data: bytes, deadline: float) -> None:
         assert proc.stdin is not None
@@ -195,6 +204,7 @@ def _register_worker_cleanup() -> None:
 
 
 def close_lexer_worker() -> None:
+    _debug.lifecycle("esm_lexer.closed", cached=_lex_cached.cache_info().currsize)
     _worker.close()
     _lex_cached.cache_clear()
 
@@ -204,7 +214,10 @@ _LEX_CACHE_ENTRIES = 4096
 
 @functools.lru_cache(maxsize=_LEX_CACHE_ENTRIES)
 def _lex_cached(src: str) -> dict[str, Any] | None:
-    return _worker.request(src)
+    with _debug.perf("esm_lexer.lex_miss", source_bytes=len(src)) as span:
+        response = _worker.request(src)
+        span.set(lexed=response is not None)
+    return response
 
 
 def lex_module(src: str) -> dict[str, Any] | None:
@@ -212,4 +225,7 @@ def lex_module(src: str) -> dict[str, Any] | None:
 
 
 def clear_lex_cache() -> None:
+    _debug.lifecycle(
+        "esm_lexer.cache_cleared", cached=_lex_cached.cache_info().currsize
+    )
     _lex_cached.cache_clear()

@@ -12,10 +12,12 @@ from typing import NamedTuple
 
 import odoo
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.assets import esbuild_process, esbuild_stubs
 from odoo.tools.json import scriptsafe as json
 
 _esbuild_log = get_asset_logger("esbuild")
+_debug = DebugLog(__name__)
 
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
@@ -244,6 +246,10 @@ class EsbuildCompiler:
 
     @classmethod
     def invalidate_addon_scan_cache(cls) -> None:
+        _debug.lifecycle(
+            "esbuild.addon_scan_invalidated",
+            cached=cls._esbuild_addon_scan_cache is not None,
+        )
         cls._esbuild_addon_scan_cache = None
 
     @classmethod
@@ -364,28 +370,45 @@ class EsbuildCompiler:
                 "Run 'npm install' in the Odoo root directory."
             )
 
-        alias_flags, external_flags = self._esbuild_flags(
-            odoo_root, dynamic_child_specs
-        )
-
-        tmp_dir = tempfile.mkdtemp(prefix=f"odoo-esbuild-{self.name}-")
-        out_path = str(Path(tmp_dir) / "bundle.out.js")
-        metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
-
-        self._mirror_roots = {}
-        argv_aliases, node_path = self._addon_resolution_root(alias_flags, odoo_root)
-        moved = set(alias_flags) - set(argv_aliases)
-        alias_flags = [
-            flag
-            for flag in esbuild_stubs.stub_aliases(
-                list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
+        with _debug.perf(
+            "esbuild.compile_prepared",
+            bundle=self.name,
+            modules=len(self.native_modules),
+            standalone=self._standalone,
+            dynamic_children=len(dynamic_child_specs or ()),
+            parent_stubs=len(secondary_parent_stubs or {}),
+        ) as span:
+            alias_flags, external_flags = self._esbuild_flags(
+                odoo_root, dynamic_child_specs
             )
-            if flag not in moved
-        ]
 
-        entry_lines = self._esbuild_entry_lines(odoo_root)
-        entry_text = "\n".join(entry_lines)
-        entry_bytes = len(entry_text.encode("utf-8"))
+            tmp_dir = tempfile.mkdtemp(prefix=f"odoo-esbuild-{self.name}-")
+            out_path = str(Path(tmp_dir) / "bundle.out.js")
+            metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
+
+            self._mirror_roots = {}
+            argv_aliases, node_path = self._addon_resolution_root(
+                alias_flags, odoo_root
+            )
+            moved = set(alias_flags) - set(argv_aliases)
+            alias_flags = [
+                flag
+                for flag in esbuild_stubs.stub_aliases(
+                    list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
+                )
+                if flag not in moved
+            ]
+
+            entry_lines = self._esbuild_entry_lines(odoo_root)
+            entry_text = "\n".join(entry_lines)
+            entry_bytes = len(entry_text.encode("utf-8"))
+            span.set(
+                aliases=len(alias_flags),
+                externals=len(external_flags),
+                moved=len(moved),
+                entries=len(entry_lines),
+                node_path=node_path is not None,
+            )
 
         esbuild_process.log_invoke(
             self.name, entry_lines, entry_bytes, alias_flags, external_flags, tmp_dir
@@ -453,8 +476,16 @@ class EsbuildCompiler:
             timeout_s, target, source_maps
         )
         if not any(entries.values()):
+            _debug.logic("esbuild.group_empty", bundle=self.name, groups=len(entries))
             return EsbuildGroupResult({}, None)
         _t0 = time.monotonic()
+        _debug.pipeline(
+            "esbuild.compile_group",
+            bundle=self.name,
+            groups=len(entries),
+            modules=sum(len(m) for m in entries.values()),
+            parent_stubs=len(secondary_parent_stubs or {}),
+        )
         odoo_root = Path(odoo.__path__[0]).parent
         esbuild = _get_esbuild_path()
         if not esbuild:

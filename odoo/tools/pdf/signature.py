@@ -25,6 +25,7 @@ except ImportError:  # pragma: no cover  exercised only where the wheel is absen
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.pdf import (
     ArrayObject,
     ByteStringObject,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
     from odoo.addons.base.models.res_users import ResUsers
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _PDF_LITERAL_ESCAPES = str.maketrans({"\\": r"\\", "(": r"\(", ")": r"\)"})
 
@@ -87,17 +89,33 @@ class PdfSigner:
         signer: ResUsers | None = None,
     ) -> io.BytesIO | None:
         if not self.company or not HAS_CRYPTOGRAPHY or not self.usable:
+            _debug.logic(
+                "pdf.signature_skipped",
+                company=getattr(self.company, "id", None),
+                cryptography=HAS_CRYPTOGRAPHY,
+                usable=self.usable,
+            )
             return None
 
-        _dummy, sig_field_value = self._setup_form(
-            visible_signature, field_name, signer
-        )
+        with _debug.perf(
+            "pdf.signed",
+            company=getattr(self.company, "id", None),
+            visible=visible_signature,
+            field=field_name,
+            signer=getattr(signer, "id", None),
+        ) as span:
+            _dummy, sig_field_value = self._setup_form(
+                visible_signature, field_name, signer
+            )
 
-        if not self._sign_field(sig_field_value):
-            return None
+            signed = self._sign_field(sig_field_value)
+            span.set(signed=signed)
+            if not signed:
+                return None
 
-        out_stream = io.BytesIO()
-        self.writer.write_stream(out_stream)
+            out_stream = io.BytesIO()
+            self.writer.write_stream(out_stream)
+            span.set(output_bytes=out_stream.getbuffer().nbytes)
         return out_stream
 
     def _load_key_and_certificate(
@@ -417,8 +435,14 @@ class PdfSigner:
     def _sign_field(self, sig_field_value: DictionaryObject) -> bool:
         private_key, certificate = self._load_key_and_certificate()
         if private_key is None or certificate is None:
+            _debug.logic("pdf.signature_no_certificate")
             return False
         algorithm = self._get_signature_algorithm(private_key)
+        _debug.logic(
+            "pdf.signature_algorithm",
+            key_type=type(private_key).__name__,
+            algorithm=None if algorithm is None else algorithm.signature,
+        )
         if algorithm is None:
             msg = (
                 f"unsupported private key type {type(private_key).__name__} "
@@ -431,6 +455,7 @@ class PdfSigner:
 
         located = self._locate_contents_placeholder(pdf_data)
         if located is None:
+            _debug.logic("pdf.signature_placeholder_missing", size=len(pdf_data))
             msg = "could not locate a valid /Contents placeholder to sign"
             raise PdfSignatureError(msg)
         placeholder_start, placeholder_end, placeholder = located
@@ -471,6 +496,12 @@ class PdfSigner:
         cms_content_info = self._get_cms_object(digest, certificate, algorithm)
 
         signature_der = cms_content_info.dump()
+        _debug.logic(
+            "pdf.signature_cms",
+            signature_bytes=len(signature_der),
+            reserved=self._CONTENTS_PLACEHOLDER_BYTES,
+            byte_range=byte_range,
+        )
         if len(signature_der) > self._CONTENTS_PLACEHOLDER_BYTES:
             raise ValueError(
                 f"PDF signature ({len(signature_der)} bytes) exceeds the reserved "

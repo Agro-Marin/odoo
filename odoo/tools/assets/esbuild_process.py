@@ -12,8 +12,10 @@ from pathlib import Path
 
 import odoo
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 
 _esbuild_log = get_asset_logger("esbuild")
+_debug = DebugLog(__name__)
 
 
 def log_invoke(
@@ -39,10 +41,13 @@ def log_invoke(
 
 def remove_stale_fail_dumps(name: str) -> None:
     pattern = "esbuild_fail_" + glob.escape(name) + "_*.js"
+    removed = 0  # debuglog
     with contextlib.suppress(OSError):
         for stale in Path(tempfile.gettempdir()).glob(pattern):
             with contextlib.suppress(OSError):
                 stale.unlink()
+                removed += 1  # debuglog
+    _debug.lifecycle("esbuild.fail_dumps_removed", bundle=name, removed=removed)
 
 
 def _dump_failed_entry(name: str, entry_text: str) -> str:
@@ -56,8 +61,15 @@ def _dump_failed_entry(name: str, entry_text: str) -> str:
             encoding="utf-8",
         ) as debug_file:
             debug_file.write(entry_text)
+            _debug.lifecycle(
+                "esbuild.fail_dump_written",
+                bundle=name,
+                path=debug_file.name,
+                size=len(entry_text),
+            )
             return debug_file.name
     except OSError:
+        _debug.logic("esbuild.fail_dump_unwritable", bundle=name)
         return "(write failed)"
 
 
@@ -171,6 +183,7 @@ def postprocess_output(
             f"//# sourceMappingURL={expected_name}",
             bundle_text,
         )
+        _debug.logic("esbuild.sourcemap_relinked", bundle=name, name=expected_name)
 
     elapsed = time.monotonic() - _t0
     output_bytes = len(bundle_text)

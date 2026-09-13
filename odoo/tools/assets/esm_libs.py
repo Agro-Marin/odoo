@@ -8,6 +8,7 @@ from types import MappingProxyType
 from typing import NamedTuple
 
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import file_path
 
 from .esm_graph import _get_import_specifiers
@@ -29,6 +30,7 @@ LIB_URL_PREFIX = "/web/assets/lib/"
 _TRANSFORM_TAG = b"minify-keep-names-1"
 
 _libs_log = get_asset_logger("bundle")
+_debug = DebugLog(__name__)
 
 
 class ServedLib(NamedTuple):
@@ -49,6 +51,11 @@ _cache: list = [None]
 
 def invalidate_served_libs() -> None:
     with _lock:
+        _debug.lifecycle(
+            "esm_libs.invalidated",
+            cached=_cache[0] is not None,
+            contents=len(_content_cache),
+        )
         _cache[0] = None
         _content_cache.clear()
 
@@ -132,8 +139,13 @@ def _prepare_served_libs() -> _ServedLibs:
     unresolved = []
     for spec, declared_url in external_libs().items():
         if declared_url not in closures:
-            closures[declared_url] = lib_closure(declared_url)
+            with _debug.perf(
+                "esm_libs.closure_walked", spec=spec, url=declared_url
+            ) as span:
+                closures[declared_url] = lib_closure(declared_url)
+                span.set(files=len(closures[declared_url]))
         if not closures[declared_url]:
+            _debug.logic("esm_libs.unresolved", spec=spec, url=declared_url)
             unresolved.append(spec)
     groups = _merge_overlapping(
         {url: files for url, files in closures.items() if files}
@@ -190,5 +202,7 @@ _content_cache: dict[str, bytes] = {}
 def served_lib_content(served_url: str, build: Callable[[], bytes]) -> bytes:
     content = _content_cache.get(served_url)
     if content is None:
-        content = _content_cache[served_url] = build()
+        with _debug.perf("esm_libs.content_built", url=served_url) as span:
+            content = _content_cache[served_url] = build()
+            span.set(size=len(content))
     return content

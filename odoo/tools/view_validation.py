@@ -272,6 +272,11 @@ def register_validator(*view_types: str) -> Callable[[Validator], Validator]:
     def decorator(fn: Validator) -> Validator:
         for arch in view_types:
             _validators[arch].append(fn)
+        _debug.lifecycle(
+            "view_validation.validator_registered",
+            predicate=fn.__name__,
+            view_types=view_types,
+        )
         return fn
 
     return decorator
@@ -289,6 +294,12 @@ def register_schema(view_type: str, path: str | None) -> None:
     second registration for the same type replaces the first and drops the
     cached schema, which is what makes a module reloadable in tests.
     """
+    _debug.lifecycle(
+        "view_validation.schema_registered",
+        view_type=view_type,
+        path=path,
+        replaced=view_type in _view_schemas,
+    )
     if _view_schemas.get(view_type) != path:
         _relaxng_cache.pop(view_type, None)
     _view_schemas[view_type] = path
@@ -307,13 +318,20 @@ def relaxng(view_type: str) -> etree.RelaxNG | None:
             _relaxng_cache[view_type] = None
             return None
         try:
-            with tools.file_open(path) as frng:
-                _relaxng_cache[view_type] = etree.RelaxNG(etree.parse(frng))
-        except Exception:
+            with _debug.perf("view_validation.schema_compiled", view_type=view_type):
+                with tools.file_open(path) as frng:
+                    _relaxng_cache[view_type] = etree.RelaxNG(etree.parse(frng))
+        except Exception as exc:
             _logger.exception(
                 "Failed to load RelaxNG XML schema %r for view type %r",
                 path,
                 view_type,
+            )
+            _debug.logic(
+                "view_validation.schema_load_failed",
+                view_type=view_type,
+                path=path,
+                error=type(exc).__name__,
             )
             _relaxng_cache[view_type] = None
     return _relaxng_cache[view_type]
@@ -324,6 +342,11 @@ def schema_valid(arch: etree._Element, **kwargs: object) -> bool:
     view_type = arch.tag
     if _view_schemas.get(view_type) is None:
         # Declared no schema, or is not a registered view type at all.
+        _debug.logic(
+            "view_validation.schema_absent",
+            view_type=view_type,
+            registered=view_type in _view_schemas,
+        )
         return True
     validator = relaxng(view_type)
     if validator is None:

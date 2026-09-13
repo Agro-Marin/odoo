@@ -6,6 +6,7 @@ from types import MappingProxyType
 from typing import NamedTuple
 
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 
 __all__ = [
     "EsmRegistry",
@@ -18,6 +19,7 @@ __all__ = [
 ]
 
 _registry_log = get_asset_logger("bundle")
+_debug = DebugLog(__name__)
 
 _ESM_MANIFEST_KEYS = frozenset(
     {
@@ -56,7 +58,8 @@ def esm_registry() -> EsmRegistry:
     if _cache[0] is None:
         with _lock:
             if _cache[0] is None:
-                _cache[0] = _prepare_esm_registry()
+                with _debug.perf("esm_registry.built"):
+                    _cache[0] = _prepare_esm_registry()
     return _cache[0]
 
 
@@ -64,6 +67,7 @@ def invalidate_esm_registry() -> None:
     from .esm_libs import invalidate_served_libs
 
     with _lock:
+        _debug.lifecycle("esm_registry.invalidated", cached=_cache[0] is not None)
         _cache[0] = None
     invalidate_served_libs()
 
@@ -84,6 +88,7 @@ def external_lib_aliases() -> Mapping[str, str]:
         try:
             aliases[spec] = url_to_module_path(url)
         except ValueError:
+            _debug.logic("esm_registry.external_lib_unaliased", spec=spec, url=url)
             continue
     return MappingProxyType(aliases)
 
@@ -228,6 +233,11 @@ def _prepare_esm_registry() -> EsmRegistry:
         if esm is None:
             continue
         declaring_modules += 1
+        _debug.pipeline(
+            "esm_registry.manifest_read",
+            module=manifest.name,
+            keys=sorted(esm),
+        )
         bundles.update(_bundle_name_list(esm, "bundles", manifest.name))
         standalone_bundles.update(
             _bundle_name_list(esm, "standalone_bundles", manifest.name)

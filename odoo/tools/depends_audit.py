@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from opcode import opmap
 
+from odoo.libs.debug_log import DebugLog
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Iterator
+
+_debug = DebugLog(__name__)
 
 
 def _opnames(*names: str) -> frozenset[str]:
@@ -151,6 +155,7 @@ def audit_registry(
     include_stored: bool = False,
 ) -> Iterator[DependsFinding]:
     registry._get_field_triggers()
+    audited = findings = 0  # debuglog
     for model_class in registry.models.values():
         if model_class._abstract:
             continue
@@ -166,6 +171,23 @@ def audit_registry(
                 or registry.field_depends_context.get(field)
             ):
                 continue
+            audited += 1  # debuglog
             finding = audit_field(registry, model_class, field)
             if finding is not None:
+                findings += 1  # debuglog
+                _debug.logic(
+                    "depends_audit.finding",
+                    model=finding.model_name,
+                    field=finding.field_name,
+                    reads=finding.reads,
+                    stored=finding.stored,
+                )
                 yield finding
+    _debug.pipeline(
+        "depends_audit.done",
+        models=len(registry.models),
+        audited=audited,
+        findings=findings,
+        only_without_dependencies=only_without_dependencies,
+        include_stored=include_stored,
+    )
