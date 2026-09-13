@@ -61,7 +61,7 @@ export class DiscussContent extends Component {
     }
 
     get showImStatus() {
-        return this.thread.channel_type === "chat";
+        return this.thread.isDirectChat;
     }
 
     get showThreadAvatar() {

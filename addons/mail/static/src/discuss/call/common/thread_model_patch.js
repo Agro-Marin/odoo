@@ -101,10 +101,7 @@ const ThreadPatch = {
     },
     /** @returns {any} */
     _computeUseCameraByDefault() {
-        if (
-            this.channel_type === "chat" &&
-            this.store.rtc.selfSession?.channel?.eq(this)
-        ) {
+        if (this.isDirectChat && this.store.rtc.selfSession?.channel?.eq(this)) {
             return this.store.rtc.selfSession.is_camera_on;
         }
         const raw = readLocalStorageItem(this.store, this.cameraDefaultStorageKey);

@@ -63,7 +63,7 @@ const suggestionServicePatch = {
         const isNonPublicChannel =
             thread &&
             (thread.channel_type === "group" ||
-                thread.channel_type === "chat" ||
+                thread.isDirectChat ||
                 (thread.channel_type === "channel" &&
                     (thread.parent_channel_id || thread).group_public_id));
         if (isNonPublicChannel) {

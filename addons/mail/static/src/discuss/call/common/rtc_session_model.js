@@ -146,7 +146,7 @@ export class RtcSession extends Record {
         onUpdate() {
             if (
                 this.isVideoStreaming &&
-                this.channel?.channel_type === "chat" &&
+                this.channel?.isDirectChat &&
                 this.store.rtc.selfSession?.in(this.channel.rtc_session_ids)
             ) {
                 this.channel.focusAvailableVideo();

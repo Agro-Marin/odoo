@@ -292,76 +292,57 @@ const threadPatch = {
         if (!this.hasSeenFeature) {
             return;
         }
-        return this.channel_member_ids.reduce(
-            (/** @type {number | undefined} */ lastMessageSeenByAllId, member) => {
-                if (member.notEq(this.self_member_id) && member.seen_message_id) {
-                    return lastMessageSeenByAllId
-                        ? Math.min(
-                              lastMessageSeenByAllId,
-                              Number(member.seen_message_id.id),
-                          )
-                        : Number(member.seen_message_id.id);
-                } else {
-                    return lastMessageSeenByAllId;
-                }
-            },
-            undefined,
-        );
+        /** @type {number | undefined} */
+        let lastMessageSeenByAllId;
+        for (const member of this.channel_member_ids) {
+            if (member.notEq(this.self_member_id) && member.seen_message_id) {
+                const seenId = Number(member.seen_message_id.id);
+                lastMessageSeenByAllId = lastMessageSeenByAllId
+                    ? Math.min(lastMessageSeenByAllId, seenId)
+                    : seenId;
+            }
+        }
+        return lastMessageSeenByAllId;
+    },
+    /**
+     * @this {import("models").Thread}
+     * @param {"seen_message_id" | "fetched_message_id"} fieldName
+     */
+    _maxMessageIdByOthers(fieldName) {
+        if (!this.hasSeenFeature) {
+            return 0;
+        }
+        let max = 0;
+        for (const member of this.channel_member_ids) {
+            if (
+                member.notEq(this.self_member_id) &&
+                member.persona &&
+                member[fieldName]
+            ) {
+                max = Math.max(max, Number(member[fieldName].id));
+            }
+        }
+        return max;
     },
     /** @this {import("models").Thread} */
     _computeMaxSeenMessageIdByOthers() {
-        if (!this.hasSeenFeature) {
-            return 0;
-        }
-        let max = 0;
-        for (const member of this.channel_member_ids) {
-            if (
-                member.notEq(this.self_member_id) &&
-                member.persona &&
-                member.seen_message_id
-            ) {
-                max = Math.max(max, Number(member.seen_message_id.id));
-            }
-        }
-        return max;
+        return this._maxMessageIdByOthers("seen_message_id");
     },
     /** @this {import("models").Thread} */
     _computeMaxFetchedMessageIdByOthers() {
-        if (!this.hasSeenFeature) {
-            return 0;
-        }
-        let max = 0;
-        for (const member of this.channel_member_ids) {
-            if (
-                member.notEq(this.self_member_id) &&
-                member.persona &&
-                member.fetched_message_id
-            ) {
-                max = Math.max(max, Number(member.fetched_message_id.id));
-            }
-        }
-        return max;
+        return this._maxMessageIdByOthers("fetched_message_id");
     },
     /** @this {import("models").Thread} */
     _computeLastSelfMessageSeenByEveryone() {
         if (!this.lastMessageSeenByAllId) {
             return false;
         }
-        let res;
-        const persistentMessages = this.persistentMessages;
-        for (let i = persistentMessages.length - 1; i >= 0; i--) {
-            const message = persistentMessages[i];
-            if (
-                !message.isSelfAuthored ||
-                message.isNotification ||
-                Number(message.id) > this.lastMessageSeenByAllId
-            ) {
-                continue;
-            }
-            res = message;
-            break;
-        }
-        return res;
+        return this.persistentMessages.findLast(
+            (message) =>
+                message.isSelfAuthored &&
+                !message.isNotification &&
+                Number(message.id) <= this.lastMessageSeenByAllId,
+        );
     },
     /** @returns {import("models").ChannelMember[]} */
     _computeOfflineMembers() {
@@ -422,7 +403,7 @@ const threadPatch = {
         return ["channel", "group"].includes(this.channel_type);
     },
     get invitationLink() {
-        if (!this.uuid || this.channel_type === "chat") {
+        if (!this.uuid || this.isDirectChat) {
             return undefined;
         }
         return `${getOrigin()}/chat/${this.id}/${this.uuid}`;
@@ -449,17 +430,14 @@ const threadPatch = {
         return super.getFetchRoute();
     },
     get imStatusMember() {
-        return this.channel_type === "chat" ? this.correspondent : undefined;
+        return this.isDirectChat ? this.correspondent : undefined;
     },
     /**
      * @param {import("models").Persona} persona
      * @returns {boolean}
      */
     isChatWith(persona) {
-        return (
-            this.channel_type === "chat" &&
-            Boolean(this.correspondent?.persona.eq(persona))
-        );
+        return this.isDirectChat && Boolean(this.correspondent?.persona.eq(persona));
     },
     get chatWindowComposerType() {
         return this.isChannelKind ? undefined : super.chatWindowComposerType;
@@ -672,7 +650,7 @@ const threadPatch = {
                 unique: this.avatar_cache_key,
             });
         }
-        if (this.channel_type === "chat" && this.correspondent) {
+        if (this.isDirectChat && this.correspondent) {
             return this.correspondent.avatarUrl;
         }
         return super.avatarUrl;
@@ -711,7 +689,7 @@ const threadPatch = {
         ) {
             return this.self_member_id.custom_channel_name;
         }
-        if (this.channel_type === "chat" && this.correspondent) {
+        if (this.isDirectChat && this.correspondent) {
             return this.correspondent.name;
         }
         if (this.channel_name_member_ids.length && !this.name) {

@@ -223,7 +223,7 @@ export class ChannelInvitation extends Component {
             partners: this.selectedPartners.length,
             emails: this.state.selectedEmails.length,
         }));
-        if (this.props.thread.channel_type === "chat") {
+        if (this.props.thread.isDirectChat) {
             const partnerIds = this.selectedPartners.map((partner) => partner.id);
             if (this.props.thread.correspondent?.partner_id) {
                 partnerIds.unshift(this.props.thread.correspondent.partner_id.id);
@@ -274,7 +274,7 @@ export class ChannelInvitation extends Component {
             return _t("Invite");
         } else if (this.props.thread.channel_type === "group") {
             return _t("Invite to Group Chat");
-        } else if (this.props.thread.channel_type === "chat") {
+        } else if (this.props.thread.isDirectChat) {
             if (this.props.thread.correspondent?.persona.eq(this.store.self)) {
                 if (this.selectedPartners.length === 0) {
                     return _t("Invite");
@@ -282,7 +282,7 @@ export class ChannelInvitation extends Component {
                 if (this.selectedPartners.length === 1) {
                     const alreadyChat = Object.values(this.store.Thread.records).some(
                         (thread) =>
-                            thread.channel_type === "chat" &&
+                            thread.isDirectChat &&
                             thread.correspondent?.partner_id?.eq(
                                 this.selectedPartners[0],
                             ),
