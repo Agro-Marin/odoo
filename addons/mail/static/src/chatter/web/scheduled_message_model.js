@@ -37,14 +37,11 @@ export class ScheduledMessage extends Record {
     });
     thread = fields.One("Thread");
     get deletable() {
-        return (
-            this.store.self_partner?.main_user_id?.is_admin ||
-            this.thread.hasWriteAccess
-        );
+        return this.store.selfIsAdmin || this.thread.hasWriteAccess;
     }
 
     get editable() {
-        return this.store.self_partner?.main_user_id?.is_admin || this.isSelfAuthored;
+        return this.store.selfIsAdmin || this.isSelfAuthored;
     }
 
     get isSelfAuthored() {

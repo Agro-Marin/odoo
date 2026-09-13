@@ -12,7 +12,7 @@ registerThreadAction("livechat-info", {
     actionPanelComponent: LivechatChannelInfoList,
     condition: ({ owner, store, thread }) =>
         thread?.isLivechat &&
-        store.self_partner?.main_user_id?.share === false &&
+        store.selfIsInternalUser &&
         !owner.isDiscussSidebarChannelActions,
     panelOuterClass: "o-livechat-ChannelInfoList bg-inherit",
     icon: "fa-solid fa-info",

@@ -42,7 +42,7 @@ export class Attachment extends FileModelMixin(Record) {
                 !this.has_thumbnail &&
                 (this.ownership_token ||
                     ((!this.thread || this.thread.hasWriteAccess) &&
-                        this.store.self_partner?.main_user_id?.share === false))
+                        this.store.selfIsInternalUser))
             ) {
                 this.setPdfThumbnail();
             }
@@ -72,7 +72,7 @@ export class Attachment extends FileModelMixin(Record) {
     }
 
     get isDeletable() {
-        if (this.message && this.store.self_partner?.main_user_id?.share !== false) {
+        if (this.message && !this.store.selfIsInternalUser) {
             return this.message.editable;
         }
         return true;

@@ -1332,7 +1332,7 @@ export class Rtc extends Record {
         const { id } = payload;
         const session = this.store["discuss.channel.rtc.session"].get(id);
         if (
-            this.selfSession?.partner_id?.main_user_id?.share !== false ||
+            !this.selfSession?.partner_id?.isInternalUser ||
             this.serverInfo ||
             this.state.fallbackMode ||
             !session?.channel.eq(this.state.channel)

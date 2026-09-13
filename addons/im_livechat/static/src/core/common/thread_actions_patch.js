@@ -16,7 +16,7 @@ patch(ThreadAction.prototype, {
         ];
         if (
             thread?.isLivechat &&
-            store.self_partner?.main_user_id?.share !== false &&
+            !store.selfIsInternalUser &&
             !visitorActions.includes(action.id)
         ) {
             return false;

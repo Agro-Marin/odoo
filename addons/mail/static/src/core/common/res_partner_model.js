@@ -31,6 +31,10 @@ export class ResPartner extends PresenceMixin(Record) {
     /** @type {string} */
     phone;
 
+    get isInternalUser() {
+        return this.main_user_id?.share === false;
+    }
+
     get isSelfPresence() {
         return this.eq(this.store.self_partner);
     }

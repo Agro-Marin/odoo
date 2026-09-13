@@ -50,7 +50,7 @@ export class TranscriptSender extends Component {
 
     get isInputDisabled() {
         return (
-            !(this.store.self_partner?.main_user_id?.share === false) ||
+            !this.store.selfIsInternalUser ||
             this.state.status === this.STATUS.SENDING ||
             (this.props.disableOnSend && this.state.status === this.STATUS.SENT)
         );

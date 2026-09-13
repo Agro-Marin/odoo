@@ -14,7 +14,7 @@ import { useGifPicker } from "./gif_picker.js";
 registerComposerAction("add-gif", {
     /** @param {ActionParams} params */
     condition: ({ composer, owner, store }) =>
-        (store.hasGifPickerFeature || store.self_partner?.main_user_id?.is_admin) &&
+        (store.hasGifPickerFeature || store.selfIsAdmin) &&
         !owner.env.inChatter &&
         !composer.message,
     isPicker: true,

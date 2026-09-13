@@ -103,7 +103,7 @@ export const PresenceMixin = (Base) =>
 
         /** @returns {{access_token?: string}} */
         get avatarAccessTokenParam() {
-            if (this.store.self_partner?.main_user_id?.share === false) {
+            if (this.store.selfIsInternalUser) {
                 return {};
             }
             return { access_token: this.avatar_128_access_token };

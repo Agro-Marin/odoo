@@ -167,7 +167,7 @@ export class DiscussCommandPalette {
         if (this.store.self_partner) {
             partners = Object.values(this.store["res.partner"].records).filter(
                 (partner) =>
-                    partner.main_user_id?.share === false &&
+                    partner.isInternalUser &&
                     cleanTerm(partner.displayName).includes(this.cleanedTerm) &&
                     (!filtered || !filtered.has(partner)),
             );

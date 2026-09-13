@@ -32,8 +32,8 @@ partnerCompareRegistry.add(
      * @returns {number|undefined}
      */
     (p1, p2) => {
-        const isAInternalUser = p1.main_user_id?.share === false;
-        const isBInternalUser = p2.main_user_id?.share === false;
+        const isAInternalUser = p1.isInternalUser;
+        const isBInternalUser = p2.isInternalUser;
         if (isAInternalUser && !isBInternalUser) {
             return -1;
         }

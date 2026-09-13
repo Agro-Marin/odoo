@@ -79,6 +79,12 @@ export class Store extends BaseStore {
     get self() {
         return this.self_partner || this.self_guest;
     }
+    get selfIsInternalUser() {
+        return Boolean(this.self_partner?.isInternalUser);
+    }
+    get selfIsAdmin() {
+        return Boolean(this.self_partner?.main_user_id?.is_admin);
+    }
     allChannels = fields.Many("Thread", {
         inverse: "storeAsAllChannels",
         /** @this {import("models").Store} */

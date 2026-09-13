@@ -204,8 +204,7 @@ registerMessageAction("delete", {
 registerMessageAction("download_files", {
     /** @param {ActionParams} params */
     condition: ({ message, store }) =>
-        message.attachment_ids.length > 1 &&
-        store.self_partner?.main_user_id?.share === false,
+        message.attachment_ids.length > 1 && store.selfIsInternalUser,
     icon: "fa-solid fa-download",
     name: _t("Download Files"),
     /** @param {ActionParams} params */
