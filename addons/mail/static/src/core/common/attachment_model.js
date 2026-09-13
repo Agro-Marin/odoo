@@ -13,26 +13,15 @@ const log = makeLogger("mail.attachment");
 export class Attachment extends FileModelMixin(Record) {
     static _name = "ir.attachment";
     static id = "id";
-    /**
-     * @template {typeof Record} T
-     * @this {T}
-     * @param {import("@mail/model/record").RecordData} data
-     * @param {import("@mail/model/record").RecordData} ids
-     * @returns {InstanceType<T>}
-     */
-    static new(data, ids) {
-        /** @type {import("models").Attachment} */
-        const attachment = /** @type {import("models").Attachment} */ (
-            /** @type {unknown} */ (super.new(data, ids))
-        );
-        Record.onChange(attachment, ["extension", "name"], () => {
-            if (!attachment.extension && attachment.name) {
-                attachment.extension = attachment.name.split(".").pop();
+    extension = fields.Attr(undefined, {
+        /** @this {import("models").Attachment} */
+        compute() {
+            if (this.extension || typeof this.name !== "string") {
+                return this.extension;
             }
-        });
-        return /** @type {InstanceType<T>} */ (/** @type {unknown} */ (attachment));
-    }
-
+            return this.name.split(".").pop();
+        },
+    });
     composer = fields.One("Composer", { inverse: "attachments" });
     thread = fields.One("Thread", { inverse: "attachments" });
     /** @type {string} */
