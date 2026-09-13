@@ -410,7 +410,9 @@ class TestMrpOrder(TestMrpCommon):
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
         backorder.save().action_backorder()
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         self.assertEqual(mo_backorder.product_qty, 1)
 
         update_quantity_wizard = self.env["change.production.qty"].create(
@@ -824,7 +826,9 @@ class TestMrpOrder(TestMrpCommon):
         )
         backorder.save().action_backorder()
 
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
 
         mo_form = Form(mo_backorder)
         mo_form.qty_producing = 1
@@ -1307,7 +1311,7 @@ class TestMrpOrder(TestMrpCommon):
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
         backorder.save().action_backorder()
-        mo2 = mo.production_group_id.production_ids[-1]
+        mo2 = mo.production_group_id.production_ids.sorted("backorder_sequence")[-1]
 
         mo_form = Form(mo2)
         mo_form.qty_producing = 1
@@ -2275,7 +2279,9 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo.qty_producing, 1)
         self.assertEqual(mo.move_raw_ids.mapped("quantity"), [1, 1])
         self.assertEqual(len(mo.production_group_id.production_ids), 2)
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         self.assertEqual(mo_backorder.product_qty, 1)
         self.assertEqual(mo_backorder.move_raw_ids.mapped("product_uom_qty"), [1, 1])
 
@@ -2303,7 +2309,9 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo.qty_producing, 1)
         self.assertEqual(mo.move_raw_ids.mapped("quantity"), [1, 1])
         self.assertEqual(len(mo.production_group_id.production_ids), 2)
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         self.assertEqual(mo_backorder.product_qty, 1)
         self.assertEqual(mo_backorder.move_raw_ids.mapped("product_uom_qty"), [1, 1])
 
@@ -2873,7 +2881,9 @@ class TestMrpOrder(TestMrpCommon):
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
         backorder.save().action_backorder()
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
 
         self.assertEqual(mo.product_uom_qty, 10.0)
         self.assertEqual(mo.qty_produced, 10.0)
@@ -2923,7 +2933,9 @@ class TestMrpOrder(TestMrpCommon):
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
         backorder.save().action_backorder()
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
 
         self.assertEqual(mo.product_uom_qty, 10.0)
         self.assertEqual(mo.qty_produced, 10.0)
@@ -3534,23 +3546,24 @@ class TestMrpOrder(TestMrpCommon):
             3,
             "Two more time tracking values should have been created",
         )
+        _first, added_productive, added_performance = workorder.time_ids.sorted("id")
         self.assertEqual(
-            workorder.time_ids[1].loss_type,
+            added_productive.loss_type,
             "productive",
             "Duration amount added under the expected duration should be productive time",
         )
         self.assertEqual(
-            workorder.time_ids[2].loss_type,
+            added_performance.loss_type,
             "performance",
             "Duration amount added above expected duration should be performance (i.e. reduced) time",
         )
         self.assertEqual(
-            workorder.time_ids[1].duration,
+            added_productive.duration,
             expected_duration - real_duration_under_expected,
             "Added (productive) time should be expected duration - already existing duration",
         )
         self.assertEqual(
-            workorder.time_ids[2].duration,
+            added_performance.duration,
             real_duration_increased_above_expected - expected_duration,
             "Added (reduced) time should be total duration - expected duration",
         )
@@ -3626,7 +3639,7 @@ class TestMrpOrder(TestMrpCommon):
             }
         )
 
-        self.env["mrp.bom"].create(
+        bom = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product.id,
                 "product_id": False,
@@ -3710,7 +3723,10 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo.state, "done")
 
         mo_2 = mo.production_group_id.production_ids - mo
-        wo_4, wo_5, wo_6 = mo_2.workorder_ids
+        wo_4, wo_5, wo_6 = (
+            mo_2.workorder_ids.filtered(lambda wo, op=operation: wo.operation_id == op)
+            for operation in bom.operation_ids
+        )
 
         self.assertEqual(wo_4.state, "cancel")
         self.assertEqual(wo_5.duration_expected, 12 + 15 * 60)
@@ -3739,7 +3755,10 @@ class TestMrpOrder(TestMrpCommon):
         self.assertEqual(mo_2.state, "done")
 
         mo_3 = mo.production_group_id.production_ids - (mo | mo_2)
-        wo_7, wo_8, wo_9 = mo_3.workorder_ids
+        wo_7, wo_8, wo_9 = (
+            mo_3.workorder_ids.filtered(lambda wo, op=operation: wo.operation_id == op)
+            for operation in bom.operation_ids
+        )
 
         self.assertEqual(wo_7.state, "cancel")
         self.assertEqual(wo_8.state, "cancel")
@@ -4260,19 +4279,20 @@ class TestMrpOrder(TestMrpCommon):
             self.env["mrp.production.backorder"].with_context(**action["context"])
         )
         backorder.save().action_backorder()
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         mo_backorder.button_plan()
+        cutting, welding, wrapping = mo_backorder.workorder_ids.sorted(
+            lambda wo: wo.operation_id.sequence
+        )
 
-        self.assertEqual(mo_backorder.workorder_ids[0].state, "cancel")
-        self.assertEqual(mo_backorder.workorder_ids[1].state, "ready")
-        self.assertEqual(mo_backorder.workorder_ids[2].state, "blocked")
-        self.assertFalse(mo_backorder.workorder_ids[0].date_start)
-        self.assertEqual(
-            mo_backorder.workorder_ids[1].date_start, datetime(2023, 3, 1, 12, 0)
-        )
-        self.assertEqual(
-            mo_backorder.workorder_ids[2].date_start, datetime(2023, 3, 1, 12, 45)
-        )
+        self.assertEqual(cutting.state, "cancel")
+        self.assertEqual(welding.state, "ready")
+        self.assertEqual(wrapping.state, "blocked")
+        self.assertFalse(cutting.date_start)
+        self.assertEqual(welding.date_start, datetime(2023, 3, 1, 12, 0))
+        self.assertEqual(wrapping.date_start, datetime(2023, 3, 1, 12, 45))
 
     @freeze_time("2023-03-01 12:00")
     def test_all_workorders_planned(self):
@@ -4764,7 +4784,9 @@ class TestMrpOrder(TestMrpCommon):
             "line without consumption issue was incorrectly changed",
         )
         self.assertEqual(mo.state, "done")
-        mo_backorder = mo.production_group_id.production_ids[-1]
+        mo_backorder = mo.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         self.assertEqual(
             mo_backorder.move_raw_ids[0].product_uom_qty,
             120,
@@ -4898,7 +4920,9 @@ class TestMrpOrder(TestMrpCommon):
                     "additional component should have nothing reserved",
                 )
         self.assertEqual(mo2.state, "done")
-        mo2_backorder = mo2.production_group_id.production_ids[-1]
+        mo2_backorder = mo2.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
         self.assertEqual(
             len(mo2_backorder.move_raw_ids),
             2,
@@ -5282,7 +5306,9 @@ class TestMrpOrder(TestMrpCommon):
             production.workorder_ids.duration_expected, current_duration_expected + 10
         )
 
-        production = production.production_group_id.production_ids[-1]
+        production = production.production_group_id.production_ids.sorted(
+            "backorder_sequence"
+        )[-1]
 
         init_duration_expected = production.workorder_ids.duration_expected
 

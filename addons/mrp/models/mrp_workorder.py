@@ -45,6 +45,9 @@ class MrpWorkorder(models.Model):
     def _default_sequence(self):
         return self.operation_id.sequence or 100
 
+    def _sorted_by_routing(self):
+        return self.sorted(lambda workorder: (workorder.sequence, workorder.id))
+
     def _read_group_workcenter_id(self, workcenters, domain):
         workcenter_ids = self.env.context.get("default_workcenter_id")
         if not workcenter_ids:

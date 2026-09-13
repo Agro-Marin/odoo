@@ -2679,11 +2679,8 @@ class MrpProduction(models.Model):
         last_workorder_per_bom = defaultdict(lambda: self.env["mrp.workorder"])
         self.allow_workorder_dependencies = self.bom_id.allow_operation_dependencies
 
-        def get_workorder_sort_key(wo):
-            return (wo.sequence, wo.id)
-
         if self.allow_workorder_dependencies:
-            for workorder in self.workorder_ids.sorted(get_workorder_sort_key):
+            for workorder in self.workorder_ids._sorted_by_routing():
                 workorder.blocked_by_workorder_ids = [
                     Command.link(workorder_per_operation[operation_id].id)
                     for operation_id in workorder.operation_id.blocked_by_operation_ids
@@ -2693,7 +2690,7 @@ class MrpProduction(models.Model):
                     last_workorder_per_bom[workorder.operation_id.bom_id] = workorder
         else:
             previous_workorder = False
-            for workorder in self.workorder_ids.sorted(get_workorder_sort_key):
+            for workorder in self.workorder_ids._sorted_by_routing():
                 if previous_workorder:
                     workorder.blocked_by_workorder_ids = [
                         Command.link(previous_workorder.id)
@@ -4669,15 +4666,21 @@ class MrpProduction(models.Model):
 
     def _resequence_workorders(self):
         self.check_singleton()
-        phantom_workorders = self.workorder_ids.filtered(
+        workorders = self.workorder_ids._sorted_by_routing()
+        phantom_workorders = workorders.filtered(
             lambda wo: wo.operation_id.bom_id.type == "phantom"
         )
-        for index_wo, wo in enumerate(phantom_workorders):
+        for index_wo, wo in enumerate(
+            phantom_workorders + (workorders - phantom_workorders)
+        ):
+            _debug.logic(
+                "workorder_resequenced",
+                production=self.id,
+                workorder=wo.id,
+                previous=wo.sequence,
+                sequence=index_wo,
+            )
             wo.sequence = index_wo
-        offset = len(phantom_workorders)
-        non_phantom_workorders = self.workorder_ids - phantom_workorders
-        for index_wo, wo in enumerate(non_phantom_workorders):
-            wo.sequence = index_wo + offset
         return True
 
     def _track_get_fields(self):
