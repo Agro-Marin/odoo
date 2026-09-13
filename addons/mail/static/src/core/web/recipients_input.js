@@ -72,7 +72,7 @@ export class RecipientsInput extends Component {
         return new Set(
             this.getAllMailThreadRecipients()
                 .map((recipient) => recipient.partner_id)
-                .filter(Boolean),
+                .filter(/** @returns {id is number} */ (id) => typeof id === "number"),
         );
     }
     /**
