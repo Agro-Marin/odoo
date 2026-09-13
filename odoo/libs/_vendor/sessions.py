@@ -2,10 +2,12 @@ import logging
 import os
 import pathlib
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import dumps_bytes as _json_dumps
 from odoo.libs.json import loads as _json_loads
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class SessionStore:
@@ -60,10 +62,13 @@ class FilesystemSessionStore(SessionStore):
         try:
             pathlib.Path(fn).unlink()
         except OSError:
-            pass
+            _debug.lifecycle("session_store.deleted", existed=False)
+            return
+        _debug.lifecycle("session_store.deleted", existed=True)
 
     def get(self, sid):
         if not self.is_valid_key(sid):
+            _debug.logic("session_store.get", outcome="invalid_key", renewed=True)
             return self.new()
         fn = pathlib.Path(self.get_session_filename(sid))
         try:
@@ -76,12 +81,21 @@ class FilesystemSessionStore(SessionStore):
                 "Could not load session from disk. Use empty session.",
                 exc_info=True,
             )
+            _debug.logic(
+                "session_store.get", outcome="missing", renewed=self.renew_missing
+            )
             if self.renew_missing:
                 return self.new()
             data = {}
-        except Exception:
+        except Exception as exc:  # debuglog
             _logger.warning(
                 "Corrupt session file %r; discarding it.", str(fn), exc_info=True
+            )
+            _debug.logic(
+                "session_store.get",
+                outcome="corrupt",
+                error=type(exc).__name__,
+                renewed=self.renew_missing,
             )
             try:
                 fn.unlink()
@@ -90,4 +104,6 @@ class FilesystemSessionStore(SessionStore):
             if self.renew_missing:
                 return self.new()
             data = {}
+        else:
+            _debug.logic("session_store.get", outcome="loaded", keys=len(data))
         return self.session_class(data, sid, False)

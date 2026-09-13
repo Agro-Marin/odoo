@@ -3,12 +3,15 @@ import logging
 import os
 import time
 
+from odoo.libs.debug_log import DebugLog
+
 __all__ = [
     "OrmProfiler",
 ]
 
 
 _logger = logging.getLogger("odoo.orm.profile")
+_debug = DebugLog(__name__)
 
 _orm_profiling_enabled: bool = os.environ.get("ODOO_ORM_PROFILE", "").lower() in (
     "1",
@@ -119,6 +122,12 @@ class OrmProfiler:
         self.record(operation, model_name, record_count, elapsed)
 
     def report(self) -> None:
+        _debug.lifecycle(
+            "orm_profiler.report",
+            pairs=len(self._data),
+            total_ms=self._total_time * 1000.0,
+            emitted=bool(self._data) and _logger.isEnabledFor(logging.WARNING),
+        )
         if not self._data or not _logger.isEnabledFor(logging.WARNING):
             return
 
@@ -171,5 +180,10 @@ class OrmProfiler:
         _logger.warning("\n".join(lines))
 
     def clear(self) -> None:
+        _debug.lifecycle(
+            "orm_profiler.cleared",
+            pairs=len(self._data),
+            total_ms=self._total_time * 1000.0,
+        )
         self._data.clear()
         self._total_time = 0.0

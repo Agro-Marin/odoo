@@ -109,18 +109,40 @@ class ImageProcess:
         self.animated_frames: list[PILImage] = []
 
         if not source or source[:1] == b"<":
+            _debug.logic(
+                "image.skipped",
+                reason="empty" if not source else "svg",
+                source_bytes=len(source) if source else 0,
+            )
             self.image = False
         else:
             self.image = binary_to_image(source)
 
             w, h = self.image.size
             if verify_resolution and w * h > IMAGE_MAX_RESOLUTION:
+                _debug.logic(
+                    "image.too_large",
+                    width=w,
+                    height=h,
+                    pixels=w * h,
+                    limit=IMAGE_MAX_RESOLUTION,
+                    format=(getattr(self.image, "format", None) or "").upper(),
+                )
                 raise ImageTooLargeError(
                     f"Too large image (above {IMAGE_MAX_RESOLUTION / 1e6}Mpx), reduce the image size."
                 )
 
             self.original_format = (self.image.format or "").upper()
             self.animated = getattr(self.image, "n_frames", 1) > 1
+            _debug.lifecycle(
+                "image.decoded",
+                format=self.original_format,
+                mode=self.image.mode,
+                width=w,
+                height=h,
+                animated=self.animated,
+                verified=verify_resolution,
+            )
 
             if not self.animated:
                 self.image = image_fix_orientation(self.image)
@@ -158,6 +180,12 @@ class ImageProcess:
             and output_format == self.original_format
             and not quality
         ):
+            _debug.logic(
+                "image.quality.passthrough",
+                format=output_format,
+                reason="untouched",
+                source_bytes=len(source),
+            )
             return self.source
 
         opt: dict[str, Any] = {"output_format": output_format}
@@ -193,7 +221,24 @@ class ImageProcess:
             and self.original_format == output_format
             and not self.operations_count
         ):
+            _debug.logic(
+                "image.quality.passthrough",
+                format=output_format,
+                reason="not_smaller",
+                source_bytes=len(source),
+                output_bytes=len(output_bytes),
+            )
             return source
+        _debug.logic(
+            "image.quality.encoded",
+            format=output_format,
+            original=self.original_format,
+            mode=output_image.mode,
+            quality=quality,
+            operations=self.operations_count,
+            source_bytes=len(source),
+            output_bytes=len(output_bytes),
+        )
         return output_bytes
 
     def resize(
@@ -411,6 +456,9 @@ def binary_to_image(source: bytes) -> PILImage:
     try:
         return Image.open(io.BytesIO(source))
     except OSError, binascii.Error:
+        _debug.logic(
+            "image.decode_failed", source_bytes=len(source), head=source[:4].hex()
+        )
         msg = "This file could not be decoded as an image file."
         raise ImageDecodeError(msg) from None
 

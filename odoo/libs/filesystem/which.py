@@ -8,8 +8,12 @@ from os import F_OK, X_OK, access, defpath, environ, pathsep
 from os.path import split
 from typing import TYPE_CHECKING
 
+from odoo.libs.debug_log import DebugLog
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+_debug = DebugLog(__name__)
 
 ENOENT = 2
 
@@ -82,6 +86,13 @@ def which(
     pathext: str | list[str] | None = None,
 ) -> str:
     found = next(which_files(file, mode, path, pathext), None)
+    _debug.logic(
+        "which.resolved",
+        file=file,
+        found=found,
+        explicit_path=path is not None,
+        executable=bool(mode & X_OK),
+    )
     if found is None:
         raise OSError(
             ENOENT,

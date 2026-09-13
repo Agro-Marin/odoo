@@ -4,6 +4,7 @@ import base64
 import logging
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.filesystem import guess_mimetype
 
 from .formats import mimetype_for
@@ -31,6 +32,7 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 TEXT_MAX_CHARS = 60_000
 
@@ -52,6 +54,7 @@ def get_essential_mimetype(mimetype: str) -> str:
 def _clamp(text: str, name: str, limit: int = TEXT_MAX_CHARS) -> str:
     if limit <= 0 or len(text) <= limit:
         return text
+    _debug.logic("document.text_clamped", chars=len(text), limit=limit)
     _logger.warning(
         "%r yields %d characters of text; using the first %d and dropping %d",
         name,
@@ -80,6 +83,14 @@ class Document:
         self.options: dict[str, Any] = options
         self._derived: dict[str, Any] = {}
         self._derived_at: dict[str, int] = {}
+        _debug.lifecycle(
+            "document.created",
+            mimetype=self.mimetype,
+            declared=mimetype or None,
+            size=len(data),
+            named=bool(name),
+            options=",".join(sorted(options)) or None,
+        )
 
     @property
     def read_up_to(self) -> int:
@@ -130,12 +141,23 @@ class Document:
             mimetype or _DEFAULT_MIMETYPES[representation]
         )
         writers = get_writers(mimetype, representation)
+        _debug.logic(
+            "document.writer_chosen",
+            representation=representation,
+            mimetype=mimetype,
+            candidates=len(writers),
+            writer=writers[0].name if writers else None,
+        )
         if not writers:
             raise ValueError(
                 f"Nothing writes {representation} as {mimetype!r}; "
                 f"registered: {', '.join(get_known_writer_names()) or 'none'}"
             )
-        written = writers[0].write(value, **options)
+        with _debug.perf(
+            "document.write", writer=writers[0].name, mimetype=mimetype
+        ) as span:
+            written = writers[0].write(value, **options)
+            span.set(size=len(written))
         document = cls(written, mimetype, name, **options)
         document._derived[representation] = value
         return document
@@ -211,32 +233,64 @@ class Document:
             if self._is_read(representation, cached) or ceiling <= self._derived_at.get(
                 representation, ceiling
             ):
+                _debug.logic(
+                    "document.derive.cached",
+                    representation=representation,
+                    mimetype=self.mimetype,
+                    ceiling=ceiling,
+                )
                 return cached
         value = None
         clamp = representation == TEXT
-        for reader in get_readers(self.mimetype, representation):
-            if reader.cost > ceiling:
-                continue
-            try:
-                answer = reader.read(self)
-            except Exception as e:
-                _logger.info(
-                    "Reader %s could not derive %s from %r: %s",
-                    reader.name,
-                    representation,
-                    self.name or self.mimetype,
-                    e,
-                )
-                continue
-            if answer is None:
-                continue
-            read = self._is_read(representation, answer)
-            if value is None or read:
-                value = answer
-            if read:
-                break
-        if clamp and value:
-            value = _clamp(value, self.name, self.text_max_chars)
+        with _debug.perf(
+            "document.derive",
+            representation=representation,
+            mimetype=self.mimetype,
+            ceiling=ceiling,
+        ) as span:
+            tried = failed = skipped = 0  # debuglog
+            winner = None  # debuglog
+            for reader in get_readers(self.mimetype, representation):
+                if reader.cost > ceiling:
+                    skipped += 1  # debuglog
+                    continue
+                tried += 1  # debuglog
+                try:
+                    answer = reader.read(self)
+                except Exception as e:
+                    failed += 1  # debuglog
+                    _debug.logic(
+                        "document.reader_failed",
+                        reader=reader.name,
+                        representation=representation,
+                        mimetype=self.mimetype,
+                        error=type(e).__name__,
+                    )
+                    _logger.info(
+                        "Reader %s could not derive %s from %r: %s",
+                        reader.name,
+                        representation,
+                        self.name or self.mimetype,
+                        e,
+                    )
+                    continue
+                if answer is None:
+                    continue
+                read = self._is_read(representation, answer)
+                if value is None or read:
+                    value = answer
+                    winner = reader.name  # debuglog
+                if read:
+                    break
+            if clamp and value:
+                value = _clamp(value, self.name, self.text_max_chars)
+            span.set(
+                tried=tried,
+                failed=failed,
+                skipped=skipped,
+                reader=winner,
+                read=self._is_read(representation, value),
+            )
         self._derived[representation] = value
         self._derived_at[representation] = ceiling
         return value

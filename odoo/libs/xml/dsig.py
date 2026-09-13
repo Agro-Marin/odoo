@@ -4,6 +4,8 @@ from copy import deepcopy
 
 from lxml import etree
 
+from odoo.libs.debug_log import DebugLog
+
 from .parsers import fromstring
 
 __all__ = [
@@ -21,6 +23,7 @@ DS_NS = "http://www.w3.org/2000/09/xmldsig#"
 EXC_C14N_ALGORITHM = "http://www.w3.org/2001/10/xml-exc-c14n#"
 
 _NSMAP = {"ds": DS_NS}
+_debug = DebugLog(__name__)
 
 
 class XmlSigError(ValueError):
@@ -90,6 +93,12 @@ def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -
     node = deepcopy(reference.getroottree().getroot())
 
     if uri == base_uri:
+        _debug.logic(
+            "dsig.reference",
+            kind="enveloped",
+            exclusive=exclusive,
+            prefixes=len(prefix_list),
+        )
         for signature in _get_enveloping_signatures(reference, node):
             if signature.tail:
                 if (previous := signature.getprevious()) is not None:
@@ -104,6 +113,13 @@ def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -
 
     if uri.startswith("#"):
         results = node.xpath('//*[@*[local-name() = "Id"]=$uri]', uri=uri.lstrip("#"))
+        _debug.logic(
+            "dsig.reference",
+            kind="id",
+            matches=len(results),
+            exclusive=exclusive,
+            prefixes=len(prefix_list),
+        )
         if len(results) == 1:
             return canonicalize(
                 results[0], exclusive=exclusive, inclusive_ns_prefixes=prefix_list
@@ -113,6 +129,7 @@ def resolve_reference(uri: str, reference: etree._Element, base_uri: str = "") -
                 f"Ambiguous reference URI {uri!r} resolved to {len(results)} nodes"
             )
 
+    _debug.logic("dsig.reference", kind="unresolved", fragment=uri.startswith("#"))
     raise XmlSigError(f"URI {uri!r} not found")
 
 
@@ -142,6 +159,8 @@ def update_reference_digests(
                 f"Reference {reference.get('URI', '')!r} has no <ds:DigestValue> "
                 f"to fill in"
             )
-        octets = resolve_reference(reference.get("URI", ""), reference, base_uri)
-        digest = hashlib.new(algorithm, octets).digest()
+        with _debug.perf("dsig.digest", algorithm=algorithm) as span:
+            octets = resolve_reference(reference.get("URI", ""), reference, base_uri)
+            span.set(octets=len(octets))
+            digest = hashlib.new(algorithm, octets).digest()
         digest_value.text = b64encode(digest).decode("ascii")

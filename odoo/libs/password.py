@@ -5,7 +5,11 @@ import os
 import re
 from base64 import b64decode, b64encode
 
+from odoo.libs.debug_log import DebugLog
+
 __all__ = ["CryptContext", "pbkdf2_sha512_hash"]
+
+_debug = DebugLog(__name__)
 
 _DEFAULT_ROUNDS = 600_000
 _MAX_ROUNDS = 10_000_000
@@ -54,7 +58,8 @@ def _parse_hash(hash_str: str) -> tuple[int, bytes, bytes] | None:
 
 def pbkdf2_sha512_hash(password: str, rounds: int = _DEFAULT_ROUNDS) -> str:
     salt = os.urandom(_SALT_SIZE)
-    checksum = _pbkdf2_sha512(password, salt, rounds)
+    with _debug.perf("password.hash", rounds=rounds):
+        checksum = _pbkdf2_sha512(password, salt, rounds)
     return _format_hash(rounds, salt, checksum)
 
 
@@ -82,16 +87,21 @@ class CryptContext:
         parsed = _parse_hash(hash_str)
         if parsed:
             if "pbkdf2_sha512" not in self._schemes:
+                _debug.logic("password.verify", scheme="pbkdf2_sha512", accepted=False)
                 return False
             rounds, salt, expected = parsed
-            actual = _pbkdf2_sha512(password, salt, rounds)
+            with _debug.perf("password.verify", scheme="pbkdf2_sha512", rounds=rounds):
+                actual = _pbkdf2_sha512(password, salt, rounds)
             return hmac.compare_digest(actual, expected)
         if self.identify(hash_str) == "pbkdf2_sha512":
+            _debug.logic("password.verify", scheme="pbkdf2_sha512", malformed=True)
             return False
         if "plaintext" in self._schemes:
+            _debug.logic("password.verify", scheme="plaintext", accepted=True)
             return hmac.compare_digest(
                 password.encode("utf-8"), hash_str.encode("utf-8")
             )
+        _debug.logic("password.verify", scheme="plaintext", accepted=False)
         return False
 
     def match_and_update(self, password: str, hash_str: str) -> tuple[bool, str | None]:
@@ -113,6 +123,13 @@ class CryptContext:
             if parsed and parsed[0] != self._rounds:
                 needs_update = True
 
+        _debug.logic(
+            "password.match_and_update",
+            scheme=scheme,
+            deprecated=scheme in self._deprecated or "auto" in self._deprecated,
+            needs_update=needs_update,
+            rounds=self._rounds,
+        )
         replacement = self.hash(password) if needs_update else None
         return True, replacement
 
@@ -143,6 +160,12 @@ class CryptContext:
             assert isinstance(new_rounds, int), "pbkdf2_sha512__rounds must be an int"
             _check_rounds(new_rounds)
             self._rounds = new_rounds
+        _debug.lifecycle(
+            "password.context_updated",
+            schemes=",".join(self._schemes),
+            deprecated=",".join(sorted(self._deprecated)) or None,
+            rounds=self._rounds,
+        )
 
     def copy(self) -> CryptContext:
         return CryptContext(

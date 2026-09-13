@@ -128,6 +128,10 @@ def locate_node(arch: etree._Element, spec: etree._Element) -> etree._Element | 
                 f'Invalid Expression while parsing xpath "{expr}"'
             ) from e
         nodes = xPath(arch)
+        if len(nodes) > 1:
+            _debug.logic(
+                "template_inheritance.xpath_ambiguous", matches=len(nodes), expr=expr
+            )
         return nodes[0] if nodes else None
     elif spec.tag == "field":
         for node in arch.iter("field"):
@@ -347,51 +351,57 @@ def apply_inheritance_specs(
         remove_element(to_extract)
         return to_extract
 
-    while specs:
-        spec = specs.pop(0)
-        if isinstance(spec, SKIPPED_ELEMENT_TYPES):
-            continue
-        if spec.tag == "data":
-            specs += list(spec)
-            continue
+    applied = 0  # debuglog
+    with _debug.perf("template_inheritance.specs", specs=len(specs)) as span:
+        while specs:
+            spec = specs.pop(0)
+            if isinstance(spec, SKIPPED_ELEMENT_TYPES):
+                continue
+            if spec.tag == "data":
+                specs += list(spec)
+                continue
+            applied += 1  # debuglog
 
-        pre_locate(spec)
-        node = locate_node(source, spec)
-        if node is None:
-            _debug.logic(
-                "template_inheritance.unlocatable",
+            pre_locate(spec)
+            node = locate_node(source, spec)
+            if node is None:
+                _debug.logic(
+                    "template_inheritance.unlocatable",
+                    spec_tag=spec.tag,
+                    expr=spec.get("expr"),
+                    position=spec.get("position", "inside"),
+                )
+                raise _prepare_unlocatable_error(spec)
+
+            pos = spec.get("position", "inside")
+            _debug.pipeline(
+                "template_inheritance.apply",
                 spec_tag=spec.tag,
-                expr=spec.get("expr"),
-                position=spec.get("position", "inside"),
+                target=node.tag,
+                position=pos,
+                mode=spec.get("mode") if pos == "replace" else None,
+                branding=inherit_branding,
             )
-            raise _prepare_unlocatable_error(spec)
-
-        pos = spec.get("position", "inside")
-        _debug.pipeline(
-            "template_inheritance.apply",
-            spec_tag=spec.tag,
-            target=node.tag,
-            position=pos,
-            mode=spec.get("mode") if pos == "replace" else None,
-            branding=inherit_branding,
-        )
-        if pos == "replace":
-            mode = spec.get("mode", "outer")
-            if mode == "outer":
-                source = _replace_outer(source, spec, node, extract, inherit_branding)
-            elif mode == "inner":
-                _replace_inner(spec, node, extract)
+            if pos == "replace":
+                mode = spec.get("mode", "outer")
+                if mode == "outer":
+                    source = _replace_outer(
+                        source, spec, node, extract, inherit_branding
+                    )
+                elif mode == "inner":
+                    _replace_inner(spec, node, extract)
+                else:
+                    raise ValueError(f'Invalid mode attribute: "{mode}"')
+            elif pos == "attributes":
+                _apply_attributes(spec, node)
+            elif pos == "inside":
+                _apply_around(spec, node, extract, after=False)
+            elif pos == "after":
+                _apply_around(spec, node, extract, after=True)
+            elif pos == "before":
+                add_stripped_items_before(node, spec, extract)
             else:
-                raise ValueError(f'Invalid mode attribute: "{mode}"')
-        elif pos == "attributes":
-            _apply_attributes(spec, node)
-        elif pos == "inside":
-            _apply_around(spec, node, extract, after=False)
-        elif pos == "after":
-            _apply_around(spec, node, extract, after=True)
-        elif pos == "before":
-            add_stripped_items_before(node, spec, extract)
-        else:
-            raise ValueError(f"Invalid position attribute: '{pos}'")
+                raise ValueError(f"Invalid position attribute: '{pos}'")
 
+        span.set(applied=applied)
     return source

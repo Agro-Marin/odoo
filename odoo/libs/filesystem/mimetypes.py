@@ -8,6 +8,8 @@ import zipfile
 from collections.abc import Callable
 from typing import Literal, NamedTuple
 
+from odoo.libs.debug_log import DebugLog
+
 _utf8_incremental_decoder = codecs.getincrementaldecoder("utf-8")
 
 __all__ = [
@@ -20,6 +22,7 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _logger_guess_mimetype = _logger.getChild("guess_mimetype")
 MIMETYPE_HEAD_SIZE = 2048
 UNKNOWN_MIMETYPE = "application/octet-stream"
@@ -257,11 +260,28 @@ def guess_mimetype(
         raise TypeError(msg)
     declared = (declared or "").lower()
     if declared and declared not in _UNPLACED:
+        _debug.logic("mimetype.guessed", source="declared", mimetype=declared)
         return declared
     mimetype = _probe_mimetype(bin_data, default)
     if mimetype.lower() not in _UNPLACED:
+        _debug.logic(
+            "mimetype.guessed",
+            source="probe",
+            mimetype=mimetype,
+            declared=declared or None,
+            size=len(bin_data),
+        )
         return mimetype
-    return _resolve_structured_text_mimetype(bin_data) or mimetype or UNKNOWN_MIMETYPE
+    resolved = _resolve_structured_text_mimetype(bin_data)  # debuglog
+    _debug.logic(
+        "mimetype.guessed",
+        source="structured_text" if resolved else "fallback",
+        mimetype=resolved or mimetype or UNKNOWN_MIMETYPE,
+        probed=mimetype,
+        declared=declared or None,
+        size=len(bin_data),
+    )
+    return resolved or mimetype or UNKNOWN_MIMETYPE
 
 
 def _probe_mimetype(bin_data: bytes, default: str) -> str:
@@ -271,6 +291,12 @@ def _probe_mimetype(bin_data: bytes, default: str) -> str:
         mimetype = UNKNOWN_MIMETYPE
     if mimetype == UNKNOWN_MIMETYPE:
         mimetype = _guess_mimetype_by_signature(bin_data, default)
+        _debug.logic(
+            "mimetype.probed_by_signature",
+            magic=magic is not None,
+            mimetype=mimetype,
+            size=len(bin_data),
+        )
     if mimetype in _olecf_mimetypes:
         try:
             if msoffice_mimetype := _get_olecf_mimetype(bin_data):
@@ -331,6 +357,12 @@ def fix_filename_extension(filename: str, mimetype: str) -> str:
         return filename
 
     if guessed_extension := mimetypes.guess_extension(mimetype):
+        _debug.logic(
+            "mimetype.extension_fixed",
+            extension=extension or None,
+            mimetype=mimetype,
+            added=guessed_extension,
+        )
         _logger.warning(
             "File %r has an invalid extension for mimetype %r, adding %r",
             filename,
@@ -339,6 +371,9 @@ def fix_filename_extension(filename: str, mimetype: str) -> str:
         )
         return filename + guessed_extension
 
+    _debug.logic(
+        "mimetype.extension_unknown", extension=extension or None, mimetype=mimetype
+    )
     _logger.warning(
         "File %r has an unknown extension for mimetype %r", filename, mimetype
     )

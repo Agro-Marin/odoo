@@ -3,7 +3,10 @@ import re
 from threading import RLock
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 __all__ = [
     "createBarcodeDrawing",
@@ -45,6 +48,7 @@ def _init_barcode() -> tuple[Any, str]:
                 fontName=font_name,
             ).asString("png")
         except ImportError:
+            _debug.lifecycle("barcode.init", available=False)
             raise
         except Exception:
             _logger.warning(
@@ -54,6 +58,12 @@ def _init_barcode() -> tuple[Any, str]:
             )
             font_name = "Courier"
         _barcode_init = (barcode, font_name)
+        _debug.lifecycle(
+            "barcode.init",
+            available=True,
+            font=font_name,
+            substituted=font_name != "Courier",
+        )
         return _barcode_init
 
 
@@ -101,10 +111,20 @@ def is_barcode_encoding_valid(barcode: str, encoding: str) -> bool:
         return True
     barcode_size = _BARCODE_SIZES.get(encoding)
     if barcode_size is None:
+        _debug.logic("barcode.encoding_unknown", encoding=encoding)
         return False
-    return bool(
+    valid = bool(  # debuglog
         len(barcode) == barcode_size
         and _ASCII_DIGITS_RE.match(barcode)
         and (encoding != "ean13" or barcode[0] != "0")
         and get_barcode_check_digit(barcode) == int(barcode[-1])
     )
+    if not valid:
+        _debug.logic(
+            "barcode.invalid",
+            encoding=encoding,
+            length=len(barcode),
+            expected=barcode_size,
+            digits=bool(_ASCII_DIGITS_RE.match(barcode)),
+        )
+    return valid

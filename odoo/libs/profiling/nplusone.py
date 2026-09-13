@@ -4,12 +4,15 @@ import sys
 import types
 from pathlib import Path
 
+from odoo.libs.debug_log import DebugLog
+
 __all__ = [
     "NplusOneTracker",
 ]
 
 
 _logger = logging.getLogger("odoo.orm.nplusone")
+_debug = DebugLog(__name__)
 
 _n1_enabled: bool = os.environ.get("ODOO_NPLUSONE", "").lower() in (
     "1",
@@ -130,6 +133,9 @@ class NplusOneTracker:
             for key, entry in self._data.items()
             if self._is_violation(key[0], entry)
         ]
+        _debug.lifecycle(
+            "nplusone.report", sites=len(self._data), violations=len(violations)
+        )
         if not violations:
             return
 
@@ -160,4 +166,5 @@ class NplusOneTracker:
         )
 
     def clear(self) -> None:
+        _debug.lifecycle("nplusone.cleared", sites=len(self._data))
         self._data.clear()
