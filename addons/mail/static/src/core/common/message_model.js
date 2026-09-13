@@ -255,16 +255,13 @@ export class Message extends Record {
         if (this.message_type === "notification") {
             return undefined;
         }
-        if (!this.isSelfAuthored && !this.isNote && !this.isHighlightedFromMention) {
-            return "blue";
-        }
-        if (this.isSelfAuthored && !this.isNote && !this.isHighlightedFromMention) {
-            return "green";
-        }
         if (this.isHighlightedFromMention) {
             return "orange";
         }
-        return undefined;
+        if (this.isNote) {
+            return undefined;
+        }
+        return this.isSelfAuthored ? "green" : "blue";
     }
 
     get editable() {
@@ -275,11 +272,9 @@ export class Message extends Record {
     }
 
     get dateDay() {
-        let dateDay = this.datetime.toLocaleString(DateTime.DATE_MED);
-        if (dateDay === DateTime.now().toLocaleString(DateTime.DATE_MED)) {
-            dateDay = _t("Today");
-        }
-        return dateDay;
+        return this.datetime.hasSame(DateTime.now(), "day")
+            ? _t("Today")
+            : this.datetime.toLocaleString(DateTime.DATE_MED);
     }
 
     get dateSimple() {
