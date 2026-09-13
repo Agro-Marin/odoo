@@ -98,7 +98,7 @@ The public site and the editor use distinct registries (see `INTERACTIONS.md` an
 Website's JS carries `makeLogger` sites from `@web/core/debug/debug_logger` on the four
 campaign channels (logic, perf, pipeline, lifecycle). They are off by default: turn them on
 with `odooLog.enable("website.*")` in the console, or with `?log=website.builder.*:perf` in the URL.
-Frozen at odoo `ef8269f732a0`: 1,883 sites in 270 files. Re-measure before quoting a count.
+Frozen at odoo `a7145e8f8265`: 1,883 sites in 270 files. Re-measure before quoting a count.
 
 | Namespace | Code |
 |-----------|------|
