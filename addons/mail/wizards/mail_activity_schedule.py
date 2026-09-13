@@ -497,18 +497,26 @@ class MailActivitySchedule(models.TransientModel):
                 date_deadline=date_deadline,
             )
 
-        for record in applied_on:
-            body = _(
-                'The plan "%(plan_name)s" has been started', plan_name=self.plan_id.name
-            )
-            if descriptions[record.id]:
-                body += Markup("<ul>%s</ul>") % (
-                    Markup().join(
-                        Markup("<li>%s</li>") % description
-                        for description in descriptions[record.id]
+        started = _(
+            'The plan "%(plan_name)s" has been started', plan_name=self.plan_id.name
+        )
+        applied_on._message_post_values_all(
+            {
+                record.id: {
+                    "body": started
+                    + (
+                        Markup("<ul>%s</ul>")
+                        % Markup().join(
+                            Markup("<li>%s</li>") % description
+                            for description in descriptions[record.id]
+                        )
+                        if descriptions[record.id]
+                        else ""
                     )
-                )
-            record.message_post(body=body)
+                }
+                for record in applied_on
+            }
+        )
 
         if len(applied_on) == 1:
             return {"type": "ir.actions.client", "tag": "soft_reload"}
