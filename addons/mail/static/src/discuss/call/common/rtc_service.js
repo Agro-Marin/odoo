@@ -1133,11 +1133,6 @@ export class Rtc extends Record {
         );
     }
 
-    /** @param {Object} message */
-    _postToTabs(message) {
-        this.crossTab?.post(message);
-    }
-
     /** @param {Object<string, any>} [actions={}] */
     async _localAction(actions = {}) {
         log.pipeline("localAction", () => actions);
@@ -1651,16 +1646,6 @@ export class Rtc extends Record {
                 fallback: this.state.fallbackMode,
             },
         };
-    }
-
-    logSnapshot() {
-        if (!this.state.channel) {
-            return;
-        }
-        browser.navigator.serviceWorker?.controller?.postMessage({
-            name: SW_MESSAGE_TYPE.POST_RTC_LOGS,
-            logs: [this.getSnapshot()],
-        });
     }
 
     /** @param {import("models").Thread} channel */

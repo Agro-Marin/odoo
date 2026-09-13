@@ -110,10 +110,6 @@ export class AttachmentList extends Component {
         return this.env.inChatWindow && this.env.alignedRight;
     }
 
-    get isInChatWindowAndIsAlignedLeft() {
-        return this.env.inChatWindow && !this.env.alignedRight;
-    }
-
     /**
      * @param {import("models").Attachment} attachment
      * @returns {Array<{label: string, icon: string, onSelect: () => void}>}

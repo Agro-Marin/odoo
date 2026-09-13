@@ -370,12 +370,4 @@ export class CallPreview extends Component {
         this.state.blurManager = undefined;
         this.state.blurStream = null;
     }
-
-    toggleBlur() {
-        if (this.state.blurManager) {
-            this.disableBlur();
-            return;
-        }
-        this.enableBlur();
-    }
 }

@@ -170,10 +170,6 @@ export class CallParticipantCard extends Component {
         }
     }
 
-    get showServerState() {
-        return false;
-    }
-
     get name() {
         return this.channelMember?.name;
     }

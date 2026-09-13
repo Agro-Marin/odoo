@@ -174,17 +174,6 @@ export class ThreadScroll {
         return this.options.scrollableRef.el;
     }
 
-    get isAtBottom() {
-        const el = this.el;
-        return isScrolledToBottom({
-            order: this.options.getOrder(),
-            scrollTop: el.scrollTop,
-            scrollHeight: el.scrollHeight,
-            clientHeight: el.clientHeight,
-            loadNewer: this.loadNewer,
-        });
-    }
-
     applyScroll() {
         if (!this.options.getThread().isLoaded || !this.options.getMountedAndLoaded()) {
             this.reset();

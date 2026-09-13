@@ -53,10 +53,6 @@ export class WelcomePage extends Component {
         this.props.proceed?.();
     }
 
-    getLoggedInAsText() {
-        return _t("Logged in as %s", this.store.self.name);
-    }
-
     get noActiveParticipants() {
         return !this.store.discuss.thread.rtc_session_ids.length;
     }

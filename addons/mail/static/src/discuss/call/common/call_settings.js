@@ -169,6 +169,13 @@ export class CallSettings extends Component {
     }
 
     /** @param {Event} ev */
+    onChangeThreshold(ev) {
+        this.store.settings.setThresholdValue(
+            Number(/** @type {HTMLInputElement} */ (ev.target).value),
+        );
+    }
+
+    /** @param {Event} ev */
     onChangeBackgroundBlurAmount(ev) {
         this.store.settings.setBackgroundBlurAmount(
             Number(/** @type {HTMLInputElement} */ (ev.target).value),

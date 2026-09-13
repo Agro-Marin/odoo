@@ -332,10 +332,6 @@ export class WebChatter extends Chatter {
         return _t("Show Followers");
     }
 
-    get followingText() {
-        return _t("Following");
-    }
-
     get isCollapsedAside() {
         return (
             this.props.isChatterAside &&
@@ -366,10 +362,6 @@ export class WebChatter extends Chatter {
 
     get scheduledMessages() {
         return this.state.thread?.scheduledMessages ?? [];
-    }
-
-    get unfollowText() {
-        return _t("Unfollow");
     }
 
     /**
