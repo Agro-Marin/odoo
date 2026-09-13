@@ -158,37 +158,19 @@ export class ChatHub extends Component {
         this.options.close();
     }
 
+    /** @param {import("models").ChatWindow[]} chatWindows */
+    countImportant(chatWindows) {
+        return chatWindows.filter(
+            (chatWindow) => chatWindow.thread.importantCounter > 0,
+        ).length;
+    }
+
     get compactCounter() {
-        let counter = 0;
-        const cws = this.chatHub.opened.concat(this.chatHub.folded);
-        for (const chatWindow of cws) {
-            counter += chatWindow.thread.importantCounter > 0 ? 1 : 0;
-        }
-        return counter;
+        return this.countImportant(this.chatHub.opened.concat(this.chatHub.folded));
     }
 
     get hiddenCounter() {
-        let counter = 0;
-        for (const chatWindow of this.chatHub.folded.slice(this.chatHub.maxFolded)) {
-            counter += chatWindow.thread.importantCounter > 0 ? 1 : 0;
-        }
-        return counter;
-    }
-
-    get displayConversations() {
-        return this.chatHub.showConversations && !this.chatHub.compact;
-    }
-
-    get isShown() {
-        return true;
-    }
-
-    /**
-     * @param {import("models").ChatWindow} cw
-     * @returns {boolean}
-     */
-    shouldDisplayChatWindow(cw) {
-        return cw.canShow;
+        return this.countImportant(this.chatHub.folded.slice(this.chatHub.maxFolded));
     }
 
     expand() {

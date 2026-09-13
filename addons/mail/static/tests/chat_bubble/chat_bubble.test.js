@@ -372,6 +372,9 @@ test("Compacted chat hub shows badge with amount of hidden chats with important 
     await start();
     await contains(".o-mail-ChatBubble", { count: 8 });
     await contains(".o-mail-ChatBubble", { text: "+13" });
+    await contains(".o-mail-ChatHub-hiddenBtn .o-mail-ChatHub-hiddenBtnCounter", {
+        text: "2",
+    });
     await click(".o-mail-ChatHub-hiddenBtn");
     await contains(".o-mail-ChatBubble i.fa-solid.fa-comments");
     await contains(".o-mail-ChatBubble .o-discuss-badge", { text: "9" });
