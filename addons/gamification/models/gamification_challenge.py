@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo import Command, _, api, exceptions, fields, models
+from odoo.fields import Domain
 from odoo.http import SESSION_LIFETIME
 from odoo.models import ValuesType
 from odoo.tools import SQL
@@ -392,25 +393,30 @@ class GamificationChallenge(models.Model):
         self._recompute_challenge_users()
         self._generate_goals_from_challenge()
 
+        today = fields.Date.today()
+        due = self.browse()
+        overdue_domains = []
         for challenge in self:
-            if challenge.last_report_date != fields.Date.today():
-                if (
-                    challenge.next_report_date
-                    and fields.Date.today() >= challenge.next_report_date
-                ):
-                    challenge.report_progress()
-                else:
-                    # goals closed but still opened at the last report date
-                    closed_goals_to_report = Goals.search(
-                        [
-                            ("challenge_id", "=", challenge.id),
-                            ("start_date", "<=", challenge.last_report_date),
-                            ("end_date", ">=", challenge.last_report_date),
-                        ]
-                    )
-                    if closed_goals_to_report:
-                        # some goals need a final report
-                        challenge.report_progress(subset_goals=closed_goals_to_report)
+            if challenge.last_report_date == today:
+                continue
+            if challenge.next_report_date and today >= challenge.next_report_date:
+                due |= challenge
+            else:
+                overdue_domains.append(
+                    Domain("challenge_id", "=", challenge.id)
+                    & Domain("start_date", "<=", challenge.last_report_date)
+                    & Domain("end_date", ">=", challenge.last_report_date)
+                )
+        for challenge in due:
+            challenge.report_progress()
+
+        # goals closed but still opened at the last report date
+        closed_goals_to_report = (
+            Goals.search(Domain.OR(overdue_domains)) if overdue_domains else Goals
+        )
+        for challenge, goals in closed_goals_to_report.grouped("challenge_id").items():
+            # some goals need a final report
+            challenge.report_progress(subset_goals=goals)
 
         self._check_challenge_reward()
         return True
@@ -488,6 +494,7 @@ class GamificationChallenge(models.Model):
                 challenge.period, challenge.start_date, challenge.end_date
             )
             to_update = Goals.browse(())
+            squat_domains = []
             adaptive_targets = challenge._get_adaptive_targets()
 
             for line in challenge.line_ids:
@@ -526,7 +533,7 @@ class GamificationChallenge(models.Model):
                         squat_domain.append(("start_date", "=", start_date))
                     if end_date:
                         squat_domain.append(("end_date", "=", end_date))
-                    Goals.search(squat_domain).unlink()
+                    squat_domains.append(Domain(squat_domain))
 
                 values = {
                     "definition_id": line.definition_id.id,
@@ -563,6 +570,8 @@ class GamificationChallenge(models.Model):
                         goal_vals.append(user_vals)
                     to_update |= Goals.create(goal_vals)
 
+            if squat_domains:
+                Goals.search(Domain.OR(squat_domains)).unlink()  # noqa: E8507 - one query per challenge: the cron commits after each one
             to_update.update_goal()
 
             if self.env.context.get("commit_gamification"):
@@ -904,7 +913,7 @@ class GamificationChallenge(models.Model):
             challenge_ended = force or (end_date and end_date <= yesterday)
             if challenge.reward_id and (challenge_ended or challenge.reward_realtime):
                 # not using start_date as atemporal goals have a start date but no end_date
-                reached_goals = self.env["gamification.goal"]._read_group(
+                reached_goals = self.env["gamification.goal"]._read_group(  # noqa: E8507 - one query per challenge: the cron commits after each one
                     [
                         ("challenge_id", "=", challenge.id),
                         ("end_date", "=", end_date),
@@ -913,20 +922,23 @@ class GamificationChallenge(models.Model):
                     groupby=["user_id"],
                     aggregates=["__count"],
                 )
+                already_rewarded = self.env["res.users"]
+                if challenge.reward_realtime:
+                    [[already_rewarded]] = self.env[
+                        "gamification.badge.user"
+                    ]._read_group(  # noqa: E8507 - one query per challenge: the cron commits after each one
+                        [
+                            ("challenge_id", "=", challenge.id),
+                            ("badge_id", "=", challenge.reward_id.id),
+                        ],
+                        aggregates=["user_id:recordset"],
+                    )
                 for user, count in reached_goals:
                     if count == len(challenge.line_ids):
                         # the user has succeeded every assigned goal
-                        if challenge.reward_realtime:
-                            badges = self.env["gamification.badge.user"].search_count(
-                                [
-                                    ("challenge_id", "=", challenge.id),
-                                    ("badge_id", "=", challenge.reward_id.id),
-                                    ("user_id", "=", user.id),
-                                ]
-                            )
-                            if badges > 0:
-                                # already received the badge for this challenge
-                                continue
+                        if user in already_rewarded:
+                            # already received the badge for this challenge
+                            continue
                         challenge._reward_user(user, challenge.reward_id)
                         rewarded_users |= user
                         if commit:

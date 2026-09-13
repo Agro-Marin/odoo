@@ -144,7 +144,7 @@ class GamificationGoalDefinition(models.Model):
                 Obj = self.env[definition.model_id.model]
                 domain = safe_eval(definition.domain, {"user": self.env.user})
                 # dummy search to make sure the domain is valid
-                Obj.search_count(domain)
+                Obj.search_count(domain)  # noqa: E8507 - one probe per definition: each has its own model and domain
             except (KeyError, TypeError, ValueError, SyntaxError) as e:
                 msg = e
                 if isinstance(e, SyntaxError):

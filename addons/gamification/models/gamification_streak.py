@@ -171,7 +171,7 @@ class GamificationStreakType(models.Model):
 
         active_ids: set[int] = set()
         for domain, user_ids in buckets.values():
-            if Obj.search_count(domain, limit=1):
+            if Obj.search_count(domain, limit=1):  # noqa: E8507 - one query per distinct domain; users sharing one were merged above
                 active_ids.update(user_ids)
         return active_ids
 

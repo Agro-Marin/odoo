@@ -336,7 +336,7 @@ class GamificationGoal(models.Model):
                 aggregate = "__count"
             else:
                 aggregate = f"{definition.field_id.name}:sum"
-            user_values = Obj._read_group(
+            user_values = Obj._read_group(  # noqa: E8507 - one query per distinct period; goals sharing one were merged above
                 subquery_domain, groupby=[field_name], aggregates=[aggregate]
             )
 
@@ -394,10 +394,10 @@ class GamificationGoal(models.Model):
 
         for domain, domain_goals in by_domain.values():
             if definition.computation_mode == "sum" and sum_supported:
-                res = Obj._read_group(domain, [], [f"{field_name}:sum"])
+                res = Obj._read_group(domain, [], [f"{field_name}:sum"])  # noqa: E8507 - one query per distinct domain; goals sharing one were merged above
                 new_value = res[0][0] or 0.0
             else:
-                new_value = Obj.search_count(domain)
+                new_value = Obj.search_count(domain)  # noqa: E8507 - one query per distinct domain; goals sharing one were merged above
             for goal in domain_goals:
                 goals_to_write.update(goal._get_write_values(new_value))
         return goals_to_write

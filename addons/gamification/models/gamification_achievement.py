@@ -151,7 +151,7 @@ class GamificationAchievement(models.Model):
 
         unlock_vals = []
         for domain, domain_users in by_domain.values():
-            if Obj.search_count(domain, limit=trigger_count) < trigger_count:
+            if Obj.search_count(domain, limit=trigger_count) < trigger_count:  # noqa: E8507 - one query per distinct domain; users sharing one were merged above
                 continue
             for user in domain_users:
                 unlock_vals.append(
