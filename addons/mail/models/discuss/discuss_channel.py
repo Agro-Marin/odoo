@@ -984,8 +984,17 @@ class DiscussChannel(models.Model):
         self, message: MailMessage, msg_vals: dict | Literal[False] = False, **kwargs
     ) -> list[dict]:
         rdata = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
+        if msg_vals:
+            msg_vals = {
+                **msg_vals,
+                "scheduled_date": self._is_notification_scheduled(
+                    kwargs.get("scheduled_date")
+                ),
+            }
         payload = {
-            "data": Store(bus_channel=self).add(message).get_result(),
+            "data": Store(bus_channel=self)
+            .add(message, msg_vals=msg_vals)
+            .get_result(),
             "id": self.id,
             "message_id": message.id,
         }
