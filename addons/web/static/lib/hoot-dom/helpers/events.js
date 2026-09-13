@@ -688,6 +688,23 @@ function parseKeyStrokes(keyStrokes, options) {
 }
 
 /**
+ * @param {MouseEvent} ev
+ */
+function cancelWindowOpeningNavigation(ev) {
+    const target = /** @type {Element | null} */ (ev.target);
+    const anchor = target?.closest?.("a[href]");
+    if (!anchor) {
+        return;
+    }
+    const opensElsewhere =
+        anchor.getAttribute("target") === "_blank" ||
+        /^[a-z][a-z0-9+.-]*:/i.test(anchor.getAttribute("href") || "");
+    if (opensElsewhere) {
+        ev.preventDefault();
+    }
+}
+
+/**
  * Redirects all 'submit' events to explicit network requests.
  *
  * This allows the `mockFetch` helper to take control over submit requests.
@@ -1808,6 +1825,13 @@ const GLOBAL_FILE_INPUT_REGISTERERS = [
  * @type {[EventType, (event: Event) => any, AddEventListenerOptions][]}
  */
 const GLOBAL_SUBMIT_FORWARDERS = [["submit", redirectSubmit]];
+/**
+ * Keep the test page in the foreground
+ * @type {[EventType, (event: Event) => any, AddEventListenerOptions][]}
+ */
+const GLOBAL_NAVIGATION_CANCELERS = [
+    ["click", cancelWindowOpeningNavigation, CAPTURE],
+];
 
 const KEY_ALIASES = {
     alt: "Alt",
@@ -2796,6 +2820,7 @@ export async function setInputRange(target, value, options) {
  * @param {HTMLElement} target
  * @param {{
  *  allowSubmit?: boolean;
+ *  allowNavigation?: boolean;
  *  allowTrustedEvents?: boolean;
  *  noFileInputRegistration?: boolean;
  * }} [options]
@@ -2810,6 +2835,9 @@ export function setupEventActions(target, options) {
     }
     if (!options?.allowSubmit) {
         eventHandlers.push(...GLOBAL_SUBMIT_FORWARDERS);
+    }
+    if (!options?.allowNavigation) {
+        eventHandlers.push(...GLOBAL_NAVIGATION_CANCELERS);
     }
 
     const view = getWindow(target);

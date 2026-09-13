@@ -343,7 +343,10 @@ export function sameFieldValue(field, a, b) {
             return false;
         case "date":
         case "datetime":
-            return Boolean(a && b && a.equals(b));
+            if (!a || !b) {
+                return false;
+            }
+            return typeof a.equals === "function" ? a.equals(b) : deepEqual(a, b);
         case "reference":
         case "many2one_reference":
             return (
