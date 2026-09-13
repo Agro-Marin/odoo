@@ -145,6 +145,7 @@ class ApprovalCategoryConversion(models.Model):
                     self.env["res.users"],
                     self.approval_minimum,
                     group_id=self.approver_group_id.id,
+                    counts_added_approvers=True,
                 )
             ]
         listed = [
@@ -152,7 +153,11 @@ class ApprovalCategoryConversion(models.Model):
             for approver in self.approver_ids.sorted(lambda a: (a.sequence, a.id))
         ]
         if self.approve_sequentially:
-            return [self._prepare_in_order_step(listed)]
+            return [
+                self._prepare_in_order_step(
+                    self.approver_ids.sorted(lambda a: (a.sequence, a.id))
+                )
+            ]
         rules = self._get_routing_rules()
         band = rules.filtered(lambda rule: rule.action_type == "set_approvers")
         added = rules.filtered(lambda rule: rule.action_type == "add_approver")
@@ -306,32 +311,40 @@ class ApprovalCategoryConversion(models.Model):
             for name, source in self._get_conversion_required_sources()
         ]
         pool_source = self._get_conversion_pool_source()
-        if (users or pool_source) and minimum > 0:
+        if minimum > 0:
             steps.append(
                 self._prepare_conversion_step(
-                    self.env._("Approvers"), users, minimum, **condition, **pool_source
+                    self.env._("Approvers"),
+                    users,
+                    minimum,
+                    counts_added_approvers=True,
+                    **condition,
+                    **pool_source,
                 )
             )
         return steps
 
-    def _prepare_in_order_step(self, approvers) -> dict:
-        last_required = max(
-            (
-                position
-                for position, (_user, required) in enumerate(approvers, start=1)
-                if required
-            ),
-            default=0,
-        )
-        users = self.env["res.users"]
-        for user, _required in approvers:
-            users |= user
-        return self._prepare_conversion_step(
-            self.env._("In order"),
-            users,
-            max(self.approval_minimum, last_required),
-            in_order=True,
-        )
+    def _prepare_in_order_step(self, category_approvers) -> dict:
+        """Members keep their approver sequence and required flag: a hand-added
+        approver joins the chain by its own row sequence, as it did on the approver
+        list, and the chain still waits for every required member."""
+        return {
+            "name": self.env._("In order"),
+            "sequence": _BASE_SEQUENCE,
+            "minimum": self.approval_minimum,
+            "in_order": True,
+            "counts_added_approvers": True,
+            "member_ids": [
+                Command.create(
+                    {
+                        "user_id": approver.user_id.id,
+                        "sequence": approver.sequence,
+                        "required": approver.required,
+                    }
+                )
+                for approver in category_approvers
+            ],
+        }
 
     def _prepare_conversion_step(self, name, users, minimum, **vals) -> dict:
         return {
@@ -365,6 +378,55 @@ class ApprovalCategoryConversion(models.Model):
             "threshold_max": 0,
             "currency_id": rule.currency_id.id,
         }
+
+    def _add_approver(self, user, required=False, sequence=10) -> None:
+        """Add `user` as an approver of every request, wherever this category routes:
+        its approver list, or the pool step of a category that routes by steps."""
+        for category in self:
+            if not category.step_ids:
+                self.env["approval.category.approver"].create(
+                    {
+                        "category_id": category.id,
+                        "user_id": user.id,
+                        "required": required,
+                        "sequence": sequence,
+                    }
+                )
+                continue
+            pool = (
+                category.step_ids.filtered("counts_added_approvers")
+                or category.step_ids
+            )[:1]
+            pool.member_ids = [
+                Command.create(
+                    {"user_id": user.id, "required": required, "sequence": sequence}
+                )
+            ]
+
+    @api.model
+    def _convert_every_category_to_steps(self) -> dict:
+        """Convert every category still routed by its approver list that has no
+        blocker; the others keep that list. Returns what happened to each."""
+        categories = (
+            self.sudo()
+            .with_context(active_test=False)
+            .search([("step_ids", "=", False)])
+        )
+        converted = self.browse()
+        blocked = {}
+        for category in categories:
+            blockers = category._get_steps_conversion_blockers()
+            if blockers:
+                blocked[category] = blockers
+                continue
+            category.action_convert_routing_to_steps()
+            converted |= category
+        trace.STEPS.note(
+            "converted_every_category",
+            converted=converted.ids,
+            blocked=[category.id for category in blocked],
+        )
+        return {"converted": converted, "blocked": blocked}
 
     def action_convert_routing_to_steps(self) -> None:
         for category in self:

@@ -90,6 +90,21 @@ SCRIPTS = {
         (None, "pending", {"b"}, {"b"}),
         (("approve", "b"), "approved", set(), set()),
     ],
+    "added_by_hand_counts": [
+        (None, "pending", {"a", "d"}, {"a", "d"}),
+        (("approve", "a"), "pending", {"d"}, {"d"}),
+        (("approve", "d"), "approved", set(), set()),
+    ],
+    "added_by_hand_joins_the_sequence": [
+        (None, "pending", {"a"}, {"a"}),
+        (("approve", "a"), "pending", {"d"}, {"d"}),
+        (("approve", "d"), "pending", {"b"}, {"b"}),
+        (("approve", "b"), "approved", set(), set()),
+    ],
+    "only_added_by_hand": [
+        (None, "pending", {"c", "d"}, {"c", "d"}),
+        (("approve", "c"), "approved", set(), set()),
+    ],
     "upper_band": [
         (None, "pending", {"c"}, {"c"}),
         (("approve", "c"), "approved", set(), set()),
@@ -166,8 +181,20 @@ class RoutingOutcomesCase(ApprovalCommon):
             actor.action_withdraw()
         request.invalidate_recordset()
 
-    def _run(self, category, script_name, request_vals=None, after_confirm=None):
-        request = self._prepare_request(category, **(request_vals or {}))
+    def _run(
+        self,
+        category,
+        script_name,
+        request_vals=None,
+        after_confirm=None,
+        added_by_hand=(),
+    ):
+        request = self._prepare_request(category, confirm=False, **(request_vals or {}))
+        for key in added_by_hand:
+            self.env["approval.approver"].create(
+                {"request_id": request.id, "user_id": self.people[key].id}
+            )
+        request.action_confirm()
         if after_confirm:
             after_confirm(request)
             request.invalidate_recordset()
@@ -325,6 +352,31 @@ class TestFlatRoutingOutcomes(RoutingOutcomesCase):
             "add_approver", ["c"], operator="gte", threshold=1000
         )
         self._run(category, "rule_below_its_threshold", request_vals={"amount": 10})
+
+    def test_an_approver_added_by_hand_counts_toward_the_minimum(self):
+        self._run(
+            self._flat([("a", False, 10)], approval_minimum=2),
+            "added_by_hand_counts",
+            added_by_hand=["d"],
+        )
+
+    def test_a_category_whose_approvers_are_all_added_by_hand(self):
+        self._run(
+            self._flat([], approval_minimum=1),
+            "only_added_by_hand",
+            added_by_hand=["c", "d"],
+        )
+
+    def test_an_approver_added_by_hand_joins_a_sequence(self):
+        self._run(
+            self._flat(
+                [("a", True, 10), ("b", True, 20)],
+                approval_minimum=2,
+                approve_sequentially=True,
+            ),
+            "added_by_hand_joins_the_sequence",
+            added_by_hand=["d"],
+        )
 
     def _tiers_category(self):
         category = self._amount_category(
@@ -619,7 +671,14 @@ class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
 
     allow_inherited_tests_method = True
 
-    def _run(self, category, script_name, request_vals=None, after_confirm=None):
+    def _run(
+        self,
+        category,
+        script_name,
+        request_vals=None,
+        after_confirm=None,
+        added_by_hand=(),
+    ):
         category.action_convert_routing_to_steps()
         self.assertTrue(category.step_ids)
         self.assertFalse(category.approve_sequentially)
@@ -639,7 +698,9 @@ class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
             if after_confirm:
                 after_confirm(request)
 
-        return super()._run(category, script_name, request_vals, covered_by_steps)
+        return super()._run(
+            category, script_name, request_vals, covered_by_steps, added_by_hand
+        )
 
     def test_a_configuration_steps_cannot_reproduce_is_refused(self):
         category = self._flat(
@@ -668,3 +729,75 @@ class TestConvertedRoutingOutcomes(TestFlatRoutingOutcomes):
     def test_a_convertible_category_says_nothing_against_it(self):
         category = self._flat([("a", False, 10)], approval_minimum=1)
         self.assertFalse(category.steps_conversion_blockers)
+
+
+@tagged("post_install", "-at_install")
+class TestConvertingEveryCategory(RoutingOutcomesCase):
+    def _flat_category(self, **vals):
+        return self._make_category(
+            f"Every category {self._next_sequence_code()}",
+            approvers=[(self.people["a"], False, 10), (self.people["b"], False, 20)],
+            **vals,
+        )
+
+    def test_every_category_without_a_blocker_converts_and_the_rest_are_named(self):
+        convertible = self._flat_category()
+        blocked = self._flat_category(
+            group_approval="exclusive",
+            approver_group_id=self.pool.id,
+            notify_pool_members=True,
+        )
+        result = self.env["approval.category"]._convert_every_category_to_steps()
+        self.assertIn(convertible, result["converted"])
+        self.assertTrue(convertible.step_ids)
+        self.assertIn(blocked, result["blocked"])
+        self.assertFalse(blocked.step_ids)
+        self.assertNotIn(blocked, result["converted"])
+
+    def test_a_request_confirmed_on_the_list_keeps_routing_by_it(self):
+        category = self._flat_category()
+        category.approval_minimum = 2
+        request = self._prepare_request(category)
+        category.action_convert_routing_to_steps()
+        # A live routing field: editing it extends the approvers of a pending request.
+        request.priority = "1"
+        request.invalidate_recordset()
+        self.assertFalse(request.approver_ids.step_ids)
+        self.assertFalse(request._get_applicable_steps())
+        request.with_user(self.people["a"]).action_approve()
+        self.assertEqual(request.state, "pending")
+        request.with_user(self.people["b"]).action_approve()
+        self.assertEqual(request.state, "approved")
+
+    def test_a_draft_raised_before_the_conversion_routes_by_the_steps(self):
+        category = self._flat_category()
+        request = self._prepare_request(category, confirm=False)
+        category.action_convert_routing_to_steps()
+        request.action_confirm()
+        self.assertTrue(request.approver_ids.step_ids)
+
+    def test_an_approver_list_line_is_refused_on_a_category_routed_by_steps(self):
+        category = self._flat_category()
+        category.action_convert_routing_to_steps()
+        with self.assertRaisesRegex(ValidationError, "routes its requests by steps"):
+            self.env["approval.category.approver"].create(
+                {"category_id": category.id, "user_id": self.people["c"].id}
+            )
+
+    def test_adding_an_approver_follows_how_the_category_routes(self):
+        flat = self._flat_category()
+        flat._add_approver(self.people["c"], required=True)
+        self.assertIn(self.people["c"], flat.approver_ids.user_id)
+
+        stepped = self._flat_category()
+        stepped.action_convert_routing_to_steps()
+        stepped._add_approver(self.people["c"], required=True)
+        member = stepped.step_ids.member_ids.filtered(
+            lambda member: member.user_id == self.people["c"]
+        )
+        self.assertTrue(member.required)
+        request = self._prepare_request(stepped)
+        request.with_user(self.people["a"]).action_approve()
+        self.assertEqual(request.state, "pending", "the required member still decides")
+        request.with_user(self.people["c"]).action_approve()
+        self.assertEqual(request.state, "approved")

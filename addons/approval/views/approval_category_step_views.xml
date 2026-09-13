@@ -16,6 +16,7 @@
                             <field name="minimum" />
                             <field name="exclusive" />
                             <field name="in_order" />
+                            <field name="counts_added_approvers" />
                             <field
                                 name="subject_user_path"
                                 placeholder="e.g. employee_id.leave_manager_id"
@@ -54,6 +55,7 @@
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
                                     <field name="user_id" />
+                                    <field name="required" />
                                     <field name="date_end" />
                                     <field name="delegated_by_id" optional="show" />
                                 </list>
@@ -144,6 +146,9 @@
         <field name="model">approval.category</field>
         <field name="inherit_id" ref="view_approval_category_form" />
         <field name="arch" type="xml">
+            <xpath expr="//page[@name='approvers']" position="attributes">
+                <attribute name="invisible">step_ids</attribute>
+            </xpath>
             <xpath expr="//page[@name='approvers']" position="after">
                 <page name="steps" string="Steps">
                     <group>

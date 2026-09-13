@@ -628,7 +628,8 @@ class ApprovalApprover(models.Model):
         document = self.request_id.get_source_document()
         listed = self.step_ids.filtered(
             lambda step: (
-                self.user_id.id
+                (step.counts_added_approvers and not self.source_synced)
+                or self.user_id.id
                 in step._get_member_user_ids(document, request=self.request_id)
             )
         )

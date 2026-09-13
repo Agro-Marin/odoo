@@ -1184,6 +1184,12 @@ class ApprovalRequestLifecycle(models.Model):
         document = self.get_source_document()
         for step in steps.filtered(lambda step: not step.advisory):
             pool = step._get_pool_user_ids(document, self.company_id, self)
+            if step.counts_added_approvers:
+                pool |= set(
+                    self.approver_ids.filtered(
+                        lambda row: not row.source_synced
+                    ).user_id.ids
+                )
             if len(pool) < step.minimum:
                 trace.REFUSAL.event(
                     "step_unmeetable",

@@ -43,6 +43,25 @@ class ApprovalCategoryApprover(models.Model):
     sequence = fields.Integer(default=10)
     required = fields.Boolean(default=False)
 
+    @api.constrains("category_id", "user_id", "required", "sequence")
+    def _check_category_routes_by_its_list(self):
+        for row in self:
+            if row.category_id.step_ids:
+                trace.REFUSAL.event(
+                    "category_approver_on_steps",
+                    row=row.id,
+                    category=row.category_id.id,
+                    user=row.user_id.id,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "'%(category)s' routes its requests by steps, so its approver "
+                        "list is not read: add %(user)s to one of its steps instead.",
+                        category=row.category_id.name,
+                        user=row.user_id.name,
+                    ),
+                )
+
     @api.constrains("category_id", "user_id", "required")
     def _check_category_coherence(self):
         self.category_id._constrains_approval_minimum()

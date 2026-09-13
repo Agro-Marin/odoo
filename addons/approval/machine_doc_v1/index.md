@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.2.3.0 (matches `__manifest__.py`) |
+| Version | 19.0.2.4.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -37,7 +37,7 @@ dashboards.
 |------|--------|---------|
 | `approval_category.py` | `approval.category` | Category blueprint: field visibility, privacy visibility, approval minimums, escalation, SLA, consent, dashboard |
 | `approval_category_approver.py` | `approval.category.approver` | M2M with attrs between category and users (required, sequence) |
-| `approval_category_conversion.py` | `approval.category` (extension) | `steps_conversion_blockers` (computed Text, shown on the Steps page with the button) lists why it cannot convert. `action_convert_routing_to_steps`: rewrites a flat category's approvers, sequencing, group and add/replace rules as equivalent steps, archiving the rules it replaces. Several add-approver rules convert when they are tiers (same figure and currency, all 'greater than or equal'): one pool per range lists the approvers of every rule it matches. Replacement bands that are ranges of one figure (`between`, `gte`, `lt`, same currency) convert too: each band over its range, the category's approvers over every gap. `_get_steps_conversion_blockers` refuses what steps cannot reproduce (add rules that are not tiers, bands that are not ranges, document-reading rules, optional rule approvers, group categories that notify members, ...). `_get_conversion_pool_source` and `_get_conversion_required_sources` let a module add approvers named by a path, as approval_hr adds the requester's manager. Every flat routing probe, converted first, reads as its flat script. One deliberate difference: step pools pass through the source document's approver policy, which the flat path never reads, so an expense category asks only who may approve that expense |
+| `approval_category_conversion.py` | `approval.category` (extension) | `steps_conversion_blockers` (computed Text, shown on the Steps page with the button) lists why it cannot convert. `_add_approver(user, required)` adds an approver wherever the category routes (its list, or its pool step); `approval.category.approver` refuses a line on a category that routes by steps, whose Approvers tab is hidden. 19.0.2.4.0's end migration runs `_convert_every_category_to_steps`. `action_convert_routing_to_steps`: rewrites a flat category's approvers, sequencing, group and add/replace rules as equivalent steps, archiving the rules it replaces. Several add-approver rules convert when they are tiers (same figure and currency, all 'greater than or equal'): one pool per range lists the approvers of every rule it matches. Replacement bands that are ranges of one figure (`between`, `gte`, `lt`, same currency) convert too: each band over its range, the category's approvers over every gap. `_get_steps_conversion_blockers` refuses what steps cannot reproduce (add rules that are not tiers, bands that are not ranges, document-reading rules, optional rule approvers, group categories that notify members, ...). `_get_conversion_pool_source` and `_get_conversion_required_sources` let a module add approvers named by a path, as approval_hr adds the requester's manager. Every flat routing probe, converted first, reads as its flat script. One deliberate difference: step pools pass through the source document's approver policy, which the flat path never reads, so an expense category asks only who may approve that expense |
 | `approval_request.py` | `approval.request` | Core request: fields, CRUD, smart-copy defaults, `ESCALATION_RULES` constant |
 | `approval_request_access.py` | extends `approval.request` | Who may write, unlink, decide or re-route: the `_check_access_*` and locked-field rules |
 | `approval_request_lifecycle.py` | extends `approval.request` | The transitions: confirm, approve/refuse (`_apply_decision` funnel), withdraw, cancel, reset, change requests, `_force_terminal`, activities and row locking |
@@ -234,7 +234,7 @@ approval/
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 25 script directories (1.0.1 .. 2.3)
++-- migrations/                       # 26 script directories (1.0.1 .. 2.4)
 +-- tests/                            # 47 test modules + common.py
 +-- views/                            # 11 XML view files
 +-- data/                             # 6 XML data files
@@ -259,7 +259,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 3 |
 | Cron jobs | 4 |
-| Migration script directories | 25 |
+| Migration script directories | 26 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

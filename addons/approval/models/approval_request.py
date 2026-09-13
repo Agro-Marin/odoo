@@ -1028,7 +1028,24 @@ class ApprovalRequest(models.Model):
         self.check_singleton()
         counts = self._get_step_counts()
         return self.approver_ids.step_ids.filtered(
-            lambda step: counts[step.id] < step.minimum,
+            lambda step: (
+                counts[step.id] < step.minimum
+                or self._get_step_required_rows_pending(step)
+            ),
+        )
+
+    def _get_step_required_rows_pending(self, step):
+        """The rows of a step's required members that have not approved it yet."""
+        self.check_singleton()
+        required = set(step.member_ids.filtered("required").user_id.ids)
+        if not required:
+            return self.env["approval.approver"]
+        return self.approver_ids.filtered(
+            lambda row: (
+                row.user_id.id in required
+                and step in row.step_ids
+                and not (row.state == "approved" and step in row.decided_step_ids)
+            )
         )
 
     def _get_blocking_unmet_steps(self):
@@ -1040,14 +1057,13 @@ class ApprovalRequest(models.Model):
         """On a step whose members decide in order, the row whose turn it is: the first
         member, in the members' order, whose row has not approved the step yet."""
         self.check_singleton()
-        position = {
-            member.user_id.id: index
-            for index, member in enumerate(
-                step.member_ids.sorted(lambda member: (member.sequence, member.id))
-            )
+        member_sequence = {
+            member.user_id.id: member.sequence for member in step.member_ids
         }
+        # A member takes its member sequence; an approver added to the request takes
+        # its own row sequence, which is how the approver list ordered them.
         rows = self.approver_ids.filtered(lambda row: step in row.step_ids).sorted(
-            lambda row: (position.get(row.user_id.id, len(position)), row.id)
+            lambda row: (member_sequence.get(row.user_id.id, row.sequence), row.id)
         )
         turn = rows.filtered(
             lambda row: not (row.state == "approved" and step in row.decided_step_ids)

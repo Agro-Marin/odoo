@@ -11,15 +11,17 @@ class TestUi(HttpCaseWithUserDemo):
                 "email": "mitchell.admin@example.com",
             }
         )
-        self.env.ref("approval_app.approval_category_data_business_trip").write(
-            {
-                "approver_ids": [
-                    (5, 0, 0),
-                    (0, 0, {"user_id": self.env.ref("base.user_admin").id}),
-                ],
-                "approval_minimum": 1,
-                "approve_sequentially": False,
-                "allow_self_approval": True,
-            }
-        )
+        category = self.env.ref("approval_app.approval_category_data_business_trip")
+        admin = self.env.ref("base.user_admin")
+        if not category.step_ids:
+            category.write(
+                {
+                    "approver_ids": [(5, 0, 0)],
+                    "approval_minimum": 1,
+                    "approve_sequentially": False,
+                }
+            )
+        category.allow_self_approval = True
+        if admin not in (category.approver_ids.user_id | category.step_ids.user_ids):
+            category._add_approver(admin)
         self.start_tour("/odoo", "approvals_tour", login="admin")

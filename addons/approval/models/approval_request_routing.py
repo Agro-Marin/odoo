@@ -136,6 +136,12 @@ class ApprovalRequestRouting(models.Model):
     def _get_applicable_steps(self):
         """The category's steps whose condition this request meets, in order."""
         self.check_singleton()
+        if self.state != "new" and self.approver_ids and not self.approver_ids.step_ids:
+            # Confirmed on the flat approver list before its category gained steps
+            # (by conversion, or by hand): it finishes routing as it started, so a
+            # later edit extends its approvers from the list, not from the steps.
+            trace.STEPS.event("confirmed_flat", request=self.id, state=self.state)
+            return self.env["approval.category.step"]
         applicable = self.category_id.step_ids.filtered(
             lambda step: step._is_applicable_to_request(self),
         ).sorted(lambda step: (step.sequence, step.id))
@@ -875,6 +881,9 @@ class ApprovalRequestRouting(models.Model):
                     "sequence": existing_approver.sequence,
                     "source_rule_id": None,
                     "source_synced": False,
+                    "step_ids": tuple(
+                        sorted(steps.filtered("counts_added_approvers").ids)
+                    ),
                 }
 
         owner_id = self.request_owner_id.id

@@ -55,6 +55,12 @@ class ApprovalCategoryStep(models.Model):
         "of the same request, and the other way round: a user who decided an "
         "exclusive step decides nothing else on that request.",
     )
+    counts_added_approvers = fields.Boolean(
+        string="Counts Approvers Added to the Request",
+        help="Approvers added by hand to a request, beyond those routing names, join "
+        "this step: they are asked, may decide it, and their approvals count toward "
+        "its quorum. It is how a category routed by its approver list treated them.",
+    )
     in_order = fields.Boolean(
         string="Members Decide in Order",
         help="The step's members decide one after another, in the members' order: "
@@ -197,7 +203,12 @@ class ApprovalCategoryStep(models.Model):
                         "Step '%(step)s' needs at least one approval.", step=step.name
                     ),
                 )
-            if not (step.member_ids or step.group_id or step.subject_user_path):
+            if not (
+                step.member_ids
+                or step.group_id
+                or step.subject_user_path
+                or step.counts_added_approvers
+            ):
                 trace.REFUSAL.event("step_has_no_pool", step=step.id)
                 raise ValidationError(
                     self.env._(
@@ -517,6 +528,9 @@ class ApprovalCategoryStepMember(models.Model):
     sequence = fields.Integer(
         default=10,
         help="The member's place when the step's members decide in order.",
+    )
+    required = fields.Boolean(
+        help="The step is not met without this member's approval, whatever its quorum.",
     )
     user_id = fields.Many2one(
         comodel_name="res.users",
