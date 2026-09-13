@@ -610,20 +610,40 @@ def _reflect_models(storage: DictBackend, registry: ModelRegistry, env) -> None:
             row[name] = value
         return row
 
+    xmlids: list[dict] = []
+
+    def xmlid(module: str, name: str, model_name: str, res_id: int) -> None:
+        xmlids.append(
+            {
+                "id": storage.allocate_next_id("ir_model_data"),
+                "module": module,
+                "name": name,
+                "model": model_name,
+                "res_id": res_id,
+                "noupdate": False,
+            }
+        )
+
     for model_cls in registry.models.values():
         model = model_cls(env, (), ())
+        module = getattr(model_cls, "_original_module", None) or "base"
+        slug = model_cls._name.replace(".", "_")
         model_id = storage.allocate_next_id("ir_model")
         row = stored(registry["ir.model"], IrModel._prepare_model_vals(model))
         row["id"] = model_id
         storage.put_rows("ir_model", [row])
+        xmlid(module, f"model_{slug}", "ir.model", model_id)
         rows = []
         for field in model_cls._fields.values():
             vals = IrModelFields._prepare_field_vals(field, model_id)
             frow = stored(registry["ir.model.fields"], vals)
             frow["id"] = storage.allocate_next_id("ir_model_fields")
             rows.append(frow)
+            xmlid(module, f"field_{slug}__{field.name}", "ir.model.fields", frow["id"])
         if rows:
             storage.put_rows("ir_model_fields", rows)
+    if "ir.model.data" in registry and xmlids:
+        storage.put_rows("ir_model_data", xmlids)
 
 
 def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:

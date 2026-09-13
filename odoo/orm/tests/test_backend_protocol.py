@@ -16,6 +16,7 @@ _CAPABILITY_MEMBERS = {
     "supports_joined_m2m_read",
     "supports_column_scan",
     "supports_translation_terms",
+    "supports_recursive_queries",
 }
 _ATTRIBUTE_MEMBERS = _CAPABILITY_MEMBERS | {"sequences", "columns"}
 

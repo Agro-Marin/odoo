@@ -70,3 +70,13 @@ def test_child_of_uses_the_closure_on_a_model_without_parent_store():
         tree = _tree(env)
         found = env["d.node"].search([("id", "child_of", tree["root"].id)])
         assert set(found.ids) == _ids(tree, "root", "child", "grand", "other_kind")
+
+
+def test_has_cycle_walks_the_relation_in_memory():
+    with model_test_env(Node) as env:
+        tree = _tree(env)
+        assert not tree["root"]._has_cycle("parent_id")
+        tree["root"].parent_id = tree["grand"]
+        assert tree["root"]._has_cycle("parent_id")
+        assert tree["child"]._has_cycle("parent_id")
+        assert not tree["stranger"]._has_cycle("parent_id")

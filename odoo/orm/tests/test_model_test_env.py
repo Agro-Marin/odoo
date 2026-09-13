@@ -259,8 +259,8 @@ def test_raw_sql_fails_loud_instead_of_returning_empty():
         env["h.widget"].create({"name": "A", "price": 10.0, "qty": 1})
         with pytest.raises(InMemorySqlNotSupported):
             env.cr.execute("SELECT count(*) FROM h_widget")
-        with pytest.raises(InMemorySqlNotSupported):
-            env["h.widget"]._read_group([], ["name"], ["__count"])
+        # read_group answers in memory now; a grouped read is no longer raw SQL
+        assert env["h.widget"]._read_group([], ["name"], ["__count"]) == [("A", 1)]
 
 
 def test_fixtures_opt_in_for_raw_sql():

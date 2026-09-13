@@ -612,6 +612,8 @@ class TraversalMixin(_ModelStubs):
             return False
 
         self.flush_model([field_name])
+        if not self.env.backend.supports_recursive_queries:
+            return self._has_cycle_by_walk(field_name)
         if field.is_many2many:
             assert (
                 field.relation is not None
@@ -657,3 +659,19 @@ class TraversalMixin(_ModelStubs):
             cyclic=bool(cr.rowcount),
         )
         return bool(cr.fetchone())
+
+    def _has_cycle_by_walk(self, field_name: str) -> bool:
+        # the reachability CTE, one relation read per step: a source that reaches
+        # itself through the relation closes a cycle
+        for source in self.sudo().with_context(active_test=False):
+            seen: set = set()
+            frontier = source[field_name]
+            while frontier:
+                if source in frontier:
+                    return True
+                seen.update(frontier._ids)
+                parents = frontier[field_name]
+                frontier = parents.browse(
+                    id_ for id_ in parents._ids if id_ not in seen
+                )
+        return False

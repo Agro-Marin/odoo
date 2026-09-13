@@ -15,7 +15,7 @@ from odoo.exceptions import UserError
 from odoo.libs.datetime import utc
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import loads as json_loads
-from odoo.tools import SQL, OrderedSet
+from odoo.tools import OrderedSet
 from odoo.tools.misc import DATE_LENGTH
 from odoo.tools.translate import LazyTranslate, code_translations
 
@@ -1029,26 +1029,20 @@ class IrFieldsConverter(models.AbstractModel):
             return res_id
 
         module, name = xmlid.split(".", 1)
-        self.env.cr.execute(
-            SQL(
-                """
-                SELECT d.model, d.res_id, r.id IS NOT NULL
-                FROM ir_model_data d
-                LEFT JOIN %s r ON r.id = d.res_id AND d.model = %s
-                WHERE d.module = %s AND d.name = %s
-                """,
-                SQL.identifier(model._table),
-                model._name,
-                module,
-                name,
+        data = (
+            self.env["ir.model.data"]
+            .sudo()
+            .search_fetch(
+                [("module", "=", module), ("name", "=", name)],
+                ["model", "res_id"],
+                limit=1,
             )
         )
-        row = self.env.cr.fetchone()
-        if row is None:
+        if not data:
             return None
-        res_model, res_id, record_exists = row
+        res_model, res_id = data.model, data.res_id
         self._check_xmlid_model(xmlid, res_model, model)
-        if not record_exists:
+        if not model.browse(res_id).exists():
             return None
         import_cache[xmlid] = (res_model, res_id)
         return res_id

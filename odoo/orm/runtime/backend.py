@@ -7,6 +7,7 @@ import typing
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import date, datetime
+from datetime import timedelta as _timedelta
 from decimal import Decimal
 from itertools import batched
 
@@ -383,6 +384,8 @@ class StorageBackend(typing.Protocol):
 
     supports_translation_terms: bool
 
+    supports_recursive_queries: bool
+
     def create_rows(
         self,
         model: BaseModel,
@@ -427,6 +430,21 @@ class StorageBackend(typing.Protocol):
         step_domain: Domain,
         same_columns: typing.Sequence[str] = (),
     ) -> Query: ...
+
+    def read_group_rows(
+        self,
+        model: BaseModel,
+        select: SQL,
+        *,
+        domain: Domain,
+        query: Query,
+        groupby: typing.Sequence[str],
+        aggregates: typing.Sequence[str],
+        having: typing.Any,
+        order: str | None,
+        limit: int | None,
+        offset: int,
+    ) -> list[tuple]: ...
 
     def get_existing_ids(
         self, model: BaseModel, ids: typing.Iterable[int]
@@ -557,6 +575,8 @@ class PostgresBackend:
     supports_column_scan: bool = True
 
     supports_translation_terms: bool = True
+
+    supports_recursive_queries: bool = True
 
     __slots__ = ()
 
@@ -935,6 +955,22 @@ class PostgresBackend:
         query.add_where(SQL("%s IN (%s)", SQL.identifier(model._table, "id"), closure))
         return query
 
+    def read_group_rows(
+        self,
+        model: BaseModel,
+        select: SQL,
+        *,
+        domain: Domain,
+        query: Query,
+        groupby: typing.Sequence[str],
+        aggregates: typing.Sequence[str],
+        having: typing.Any,
+        order: str | None,
+        limit: int | None,
+        offset: int,
+    ) -> list[tuple]:
+        return model.env.execute_query(select)
+
     def get_existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
         ids = list(ids)
         query = Query(model.env, model._table, model._table_sql)
@@ -1280,6 +1316,156 @@ class PostgresBackend:
 POSTGRES_BACKEND = PostgresBackend()
 
 
+_TRUNCATE_GRANULARITY = {
+    "year": lambda d: d.replace(month=1, day=1),
+    "quarter": lambda d: d.replace(month=3 * ((d.month - 1) // 3) + 1, day=1),
+    "month": lambda d: d.replace(day=1),
+    "week": lambda d: d - _timedelta(days=d.weekday()),
+    "day": lambda d: d,
+}
+
+
+def _truncate(value: typing.Any, granularity: str) -> typing.Any:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        value = value.replace(hour=0, minute=0, second=0, microsecond=0)
+    try:
+        return _TRUNCATE_GRANULARITY[granularity](value)
+    except KeyError:
+        raise NotImplementedError(
+            f"InMemoryBackend.read_group_rows: granularity {granularity!r} is not "
+            "supported in memory"
+        ) from None
+
+
+class _InMemoryReadGroup:
+    """read_group over the dict storage: one row per group, raw values shaped as
+    the SQL rows are (a many2one is its id, a date is truncated, text NULLIF'd)."""
+
+    def __init__(self, model, domain, groupby, aggregates):
+        self.model = model
+        # the compiled query carries a GROUP BY meant for SQL; the in-memory search
+        # answers the domain itself
+        self.records = model.browse(model._search(domain).get_result_ids())
+        self.groupby = [self._groupby_reader(spec) for spec in groupby]
+        self.aggregates = [self._aggregate_reader(spec) for spec in aggregates]
+
+    def _unsupported(self, what: str) -> typing.NoReturn:
+        raise NotImplementedError(
+            f"InMemoryBackend.read_group_rows on {self.model._name}: {what} is not "
+            "supported in memory; use a DB-backed TransactionCase"
+        )
+
+    def _groupby_reader(self, spec: str):
+        from ..parsing import parse_read_group_spec
+
+        fname, seq_fnames, granularity = parse_read_group_spec(spec)
+        field = self.model._fields[fname]
+        if seq_fnames or field.is_properties or field.is_many2many:
+            self._unsupported(f"groupby {spec!r}")
+
+        def read(record):
+            value = record[fname]
+            if field.is_many2one:
+                return value.id or None
+            if field.is_temporal:
+                return _truncate(value or None, granularity or "day")
+            if field.is_boolean:
+                return bool(value)
+            if field.is_text:
+                return value or None
+            return value if value is not False else None
+
+        return read
+
+    def _aggregate_reader(self, spec: str):
+        from ..parsing import parse_read_group_spec
+
+        if spec == "__count":
+            return len
+        fname, _property, func = parse_read_group_spec(spec)
+        field = self.model._fields[fname]
+
+        def raw(record):
+            value = record[fname]
+            if field.relational:
+                return value.id or None if field.is_many2one else list(value.ids)
+            return None if value is False and not field.is_boolean else value
+
+        def values(records):
+            return [raw(record) for record in records]
+
+        def present(records):
+            return [v for v in values(records) if v is not None]
+
+        readers = {
+            "count": lambda records: len(present(records)),
+            "count_distinct": lambda records: len(set(present(records))),
+            "sum": lambda records: sum(present(records)) if present(records) else None,
+            "avg": lambda records: (
+                sum(present(records)) / len(present(records))
+                if present(records)
+                else None
+            ),
+            "max": lambda records: max(present(records), default=None),
+            "min": lambda records: min(present(records), default=None),
+            "bool_and": lambda records: (
+                all(present(records)) if present(records) else None
+            ),
+            "bool_or": lambda records: (
+                any(present(records)) if present(records) else None
+            ),
+            "array_agg": lambda records: values(records) or None,
+            "array_agg_distinct": lambda records: (
+                list(dict.fromkeys(values(records))) or None
+            ),
+            "recordset": lambda records: (
+                [
+                    id_
+                    for record in records
+                    for id_ in (record.ids if fname == "id" else record[fname].ids)
+                ]
+                or None
+            ),
+        }
+        if func not in readers:
+            self._unsupported(f"aggregate {spec!r}")
+        return readers[func]
+
+    def rows(self, having, order, limit, offset) -> list[tuple]:
+        if having:
+            self._unsupported("having")
+        groups: dict[tuple, list] = {}
+        for record in self.records:
+            key = tuple(read(record) for read in self.groupby)
+            groups.setdefault(key, []).append(record)
+        if not self.groupby:
+            groups = {(): list(self.records)}
+        rows = [
+            (
+                *key,
+                *(
+                    aggregate(self.model.browse([r.id for r in members]))
+                    for aggregate in self.aggregates
+                ),
+            )
+            for key, members in groups.items()
+        ]
+        rows.sort(key=lambda row: self._sort_key(row, order))
+        if self.groupby:
+            rows = rows[offset:]
+            if limit is not None:
+                rows = rows[:limit]
+        return rows
+
+    def _sort_key(self, row: tuple, order: str | None):
+        if order:
+            self._unsupported(f"order {order!r}")
+        # SQL orders by the groupby terms ascending, nulls last
+        return tuple((value is None, value) for value in row[: len(self.groupby)])
+
+
 class InMemoryBackend:
     supports_parent_store: bool = False
 
@@ -1290,6 +1476,8 @@ class InMemoryBackend:
     supports_column_scan: bool = False
 
     supports_translation_terms: bool = False
+
+    supports_recursive_queries: bool = False
 
     __slots__ = ("columns", "sequences", "storage")
 
@@ -1519,6 +1707,24 @@ class InMemoryBackend:
             ]
             found.update(frontier)
         return self.as_query(model.browse(list(found)), ordered=False)
+
+    def read_group_rows(
+        self,
+        model: BaseModel,
+        select: SQL,
+        *,
+        domain: Domain,
+        query: Query,
+        groupby: typing.Sequence[str],
+        aggregates: typing.Sequence[str],
+        having: typing.Any,
+        order: str | None,
+        limit: int | None,
+        offset: int,
+    ) -> list[tuple]:
+        return _InMemoryReadGroup(model, domain, groupby, aggregates).rows(
+            having, order, limit, offset
+        )
 
     def get_existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
         return set(self.storage.get_existing_ids(model._table, list(ids)))

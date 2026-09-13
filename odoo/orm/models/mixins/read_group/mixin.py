@@ -445,7 +445,18 @@ class ReadGroupMixin(_ReadGroupSQLMixin, _ReadGroupFormatMixin, _ReadGroupFillMi
         if having:
             query.having = self._read_group_having(list(having), query)
 
-        row_values = self.env.execute_query(query.select(*select_args))
+        row_values = self.env.backend.read_group_rows(
+            self,
+            query.select(*select_args),
+            domain=domain,
+            query=query,
+            groupby=groupby,
+            aggregates=aggregates,
+            having=having,
+            order=order,
+            limit=limit,
+            offset=offset,
+        )
         _debug.perf.count(
             "read_group.rows",
             model=self._name,
