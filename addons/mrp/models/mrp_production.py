@@ -9,6 +9,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, format_datetime
 from odoo.tools.misc import (
     OrderedSet,
@@ -21,6 +22,8 @@ from odoo.tools.misc import (
 
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 from odoo.addons.web.controllers.utils import clean_action
+
+_debug = DebugLog(__name__)
 
 SIZE_BACK_ORDER_NUMBERING = 3
 _NON_INVENTORY_MOVE_DOMAIN = [("location_dest_usage", "!=", "inventory")]
@@ -3395,18 +3398,29 @@ class MrpProduction(models.Model):
                     workorder.qty_produced = min(
                         workorder.qty_produced, workorder.qty_production
                     )
-            workorders_len = len(production.workorder_ids)
-            for index, workorder in enumerate(backorders.workorder_ids):
-                remaining_qty = remaining_qtys[index % workorders_len]
-                workorder.qty_reported_from_previous_wo = max(
-                    workorder.qty_production - remaining_qty, 0
-                )
-                if remaining_qty:
-                    remaining_qtys[index % workorders_len] = max(
-                        remaining_qty - workorder.qty_produced, 0
+            # A backorder's work orders are copies of the production's, made in id
+            # order, so their ids pair them with the quantities above. Their _order
+            # does not: work orders sharing a sequence sort by planned start.
+            for backorder in backorders.sorted("id"):
+                for index, workorder in enumerate(backorder.workorder_ids.sorted("id")):
+                    remaining_qty = remaining_qtys[index]
+                    workorder.qty_reported_from_previous_wo = max(
+                        workorder.qty_production - remaining_qty, 0
                     )
-                else:
-                    workorders_to_cancel += workorder
+                    _debug.logic(
+                        "split_workorder_paired",
+                        production=production.id,
+                        backorder=backorder.id,
+                        workorder=workorder.id,
+                        operation=workorder.operation_id.id,
+                        remaining=remaining_qty,
+                    )
+                    if remaining_qty:
+                        remaining_qtys[index] = max(
+                            remaining_qty - workorder.qty_produced, 0
+                        )
+                    else:
+                        workorders_to_cancel += workorder
         workorders_to_cancel.action_cancel()
 
     def _action_confirm_mo_backorders(self):
