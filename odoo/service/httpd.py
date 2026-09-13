@@ -597,18 +597,17 @@ def _run_exchange(
         _close_iterable(iterable)
         return Outcome.CLOSE
     if _debug.perf.enabled:
-        response = exchange.response
         _debug.perf.count(
             "httpd.exchange",
             ms=(time.monotonic() - conn.ready_at) * 1000.0,
-            status=response.code if response else 0,
+            status=exchange.response.code if exchange.response else 0,
             request_on_connection=conn.requests,
             path=head.path,
             bytes_sent=exchange.bytes_sent,
             body_read=exchange.reader.exhausted,
         )
     if exchange.upgraded:
-        if conn.source.buffer:
+        if _debug.logic.enabled and conn.source.buffer:
             _debug.logic(
                 "httpd.upgrade_with_buffered_bytes",
                 bytes=len(conn.source.buffer),

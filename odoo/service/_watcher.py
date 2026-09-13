@@ -152,7 +152,7 @@ class FSWatcherBase:
         if leading:
             _debug.logic("watcher.burst_started", path=path)
             self._flush_asset_invalidation()
-        else:
+        if _debug.logic.enabled and not leading:
             _debug.logic("watcher.burst_joined", path=path)
         self._arm_burst_flush()
 
