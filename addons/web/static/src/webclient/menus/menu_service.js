@@ -152,25 +152,19 @@ class MenuService {
         this.env = env;
         this.action = action;
         this.fetchGeneration = 0;
-        const {
-            menus: cachedMenus,
-            raw: storedRaw,
-            hash: storedHash,
-        } = menuStorage.read();
-        this.cachedMenus = cachedMenus;
-        this.storedRaw = storedRaw;
-        this.storedHash = storedHash;
-        this.tree = new MenuTree(cachedMenus || EMPTY_MENUS);
+        this.stored = menuStorage.read();
+        this.tree = new MenuTree(this.stored.menus || EMPTY_MENUS);
     }
 
     async load() {
+        const { menus: cachedMenus, raw: storedRaw, hash: storedHash } = this.stored;
         log.pipeline("load", () => ({
-            cached: Boolean(this.cachedMenus),
-            hash: this.storedHash,
+            cached: Boolean(cachedMenus),
+            hash: storedHash,
         }));
-        if (this.cachedMenus) {
+        if (cachedMenus) {
             const generation = ++this.fetchGeneration;
-            fetchMenus(false, this.storedHash)
+            fetchMenus(false, storedHash)
                 .then((res) => {
                     if (generation !== this.fetchGeneration) {
                         return;
@@ -179,9 +173,9 @@ class MenuService {
                         return;
                     }
                     const changed =
-                        res.hash && this.storedHash
-                            ? res.hash !== this.storedHash
-                            : JSON.stringify(res.menus) !== this.storedRaw;
+                        res.hash && storedHash
+                            ? res.hash !== storedHash
+                            : JSON.stringify(res.menus) !== storedRaw;
                     log.logic("revalidate", () => ({ changed, hash: res.hash }));
                     if (changed) {
                         menuStorage.write(res.menus, res.hash);
@@ -201,8 +195,8 @@ class MenuService {
         if (res?.menus) {
             this.tree.setData(res.menus);
             menuStorage.write(res.menus, res.hash);
-        } else if (this.storedRaw) {
-            this.tree.setData(menuStorage.parse(this.storedRaw) || EMPTY_MENUS);
+        } else if (storedRaw) {
+            this.tree.setData(menuStorage.parse(storedRaw) || EMPTY_MENUS);
         }
     }
 
