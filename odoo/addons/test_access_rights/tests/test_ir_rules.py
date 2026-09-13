@@ -2,6 +2,7 @@ import contextlib
 
 from odoo import Command
 from odoo.exceptions import AccessError, ValidationError
+from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
@@ -249,3 +250,21 @@ class TestRules(TransactionCase):
         with contextlib.suppress(AccessError):
             forbiddens[NB_RECORD - 1].val
             self.fail("Previous line should raise AccessError")
+
+
+@tagged("post_install", "-at_install")
+class TestWebSearchReadOverride(TransactionCase):
+    def test_web_search_read_goes_through_search_fetch(self):
+        ObjCateg = self.env["test_access_right.obj_categ"]
+        ObjCateg.create([{"name": "Media"}, {"name": "Other"}])
+
+        result = ObjCateg.with_context(only_media=True).web_search_read(
+            [], {"name": {}}, limit=80
+        )
+        self.assertEqual([r["name"] for r in result["records"]], ["Media"])
+        self.assertEqual(result["length"], 1)
+
+        result = ObjCateg.web_search_read([], {"name": {}}, limit=80)
+        self.assertEqual(
+            sorted(r["name"] for r in result["records"]), ["Media", "Other"]
+        )

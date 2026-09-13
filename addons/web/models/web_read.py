@@ -62,24 +62,12 @@ class Base(models.AbstractModel):
         count_limit: int | None = None,
     ) -> dict[str, int | list]:
         specification = self._screen_fields_spec(specification)
-        query = self._search(
-            domain, offset=offset, limit=limit, order=order or self._order
+        records = self.search_fetch(
+            domain, list(specification), offset=offset, limit=limit, order=order
         )
-        if query.is_empty():
-            if not self.env.su:
-                self._get_fields_to_fetch(specification.keys())
-            return {"length": 0, "records": []}
-
-        fields_to_fetch = self._get_fields_to_fetch(specification.keys())
-        records = self._fetch_query(query, fields_to_fetch)
-        values_records = records.web_read(specification)
+        values_records = records.web_read(specification) if records else []
         return self._format_web_search_read_results(
-            domain,
-            values_records,
-            offset,
-            limit,
-            count_limit,
-            _query=query,
+            domain, values_records, offset, limit, count_limit
         )
 
     def _format_web_search_read_results(
@@ -89,16 +77,14 @@ class Base(models.AbstractModel):
         offset: int = 0,
         limit: int | None = None,
         count_limit: int | None = None,
-        _query: Any = None,
     ) -> dict[str, int | list]:
         if not records:
             if not offset:
                 return {"length": 0, "records": []}
-            if _query is not None:
-                length = _query.count_matching(count_limit)
-            else:
-                length = self.search_count(domain, limit=count_limit)
-            return {"length": length, "records": []}
+            return {
+                "length": self.search_count(domain, limit=count_limit),
+                "records": [],
+            }
         current_length = len(records) + offset
         limit_reached = len(records) == limit
         force_search_count = self.env.context.get("force_search_count")
@@ -106,10 +92,7 @@ class Base(models.AbstractModel):
         if limit and (
             (limit_reached and not count_limit_reached) or force_search_count
         ):
-            if _query is not None:
-                length = _query.count_matching(count_limit)
-            else:
-                length = self.search_count(domain, limit=count_limit)
+            length = self.search_count(domain, limit=count_limit)
         else:
             length = current_length
         return {
