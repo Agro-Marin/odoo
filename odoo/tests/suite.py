@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Any
 from unittest import BaseTestSuite, util
 
 import odoo
+from odoo.libs.debug_log import DebugLog
 
+from .. import db
 from . import case
 from .case import TestCase
 from .http import HttpCase
@@ -18,6 +20,8 @@ if TYPE_CHECKING:
 
 __unittest = True
 
+_debug = DebugLog(__name__)
+
 
 class TestSuite(BaseTestSuite):
     _cleanup: bool
@@ -28,6 +32,7 @@ class TestSuite(BaseTestSuite):
     ) -> OdooTestResult:
         for index, test in enumerate(self):
             if result.shouldStop:
+                _debug.lifecycle("test.suite.halted", at=index, total=len(self._tests))
                 break
             assert isinstance(test, TestCase)
             odoo.modules.module.current_test = test
@@ -37,6 +42,10 @@ class TestSuite(BaseTestSuite):
 
             if not test.__class__._classSetupFailed:
                 test.run(result)
+            elif _debug.logic.enabled:
+                _debug.logic(
+                    "test.suite.skipped_after_class_failure", test=test.canonical_tag
+                )
 
             if self._cleanup:
                 self._removeTestAtIndex(index)
@@ -50,24 +59,39 @@ class TestSuite(BaseTestSuite):
         if currentClass == previousClass:
             return
         if currentClass.__unittest_skip__:
+            _debug.logic(
+                "test.suite.class_skipped",
+                cls=currentClass.__qualname__,
+                why=currentClass.__unittest_skip_why__,
+            )
             return
 
         currentClass._classSetupFailed = False
 
-        try:
-            currentClass.setUpClass()
-        except Exception as e:
-            currentClass._classSetupFailed = True
-            className = util.strclass(currentClass)
-            self._createClassOrModuleLevelException(result, e, "setUpClass", className)
-        finally:
-            if currentClass._classSetupFailed is True:
-                currentClass.doClassCleanups()
-                if currentClass.tearDown_exceptions:
-                    for exc in currentClass.tearDown_exceptions:
-                        self._createClassOrModuleLevelException(
-                            result, exc[1], "setUpClass", className, info=exc
-                        )
+        with _debug.perf(
+            "test.suite.class_setup", cls=util.strclass(currentClass)
+        ) as span:
+            queries_before = db.sql_counter  # debuglog
+            try:
+                currentClass.setUpClass()
+            except Exception as e:
+                currentClass._classSetupFailed = True
+                className = util.strclass(currentClass)
+                self._createClassOrModuleLevelException(
+                    result, e, "setUpClass", className
+                )
+            finally:
+                span.set(
+                    queries=db.sql_counter - queries_before,
+                    failed=currentClass._classSetupFailed,
+                )
+                if currentClass._classSetupFailed is True:
+                    currentClass.doClassCleanups()
+                    if currentClass.tearDown_exceptions:
+                        for exc in currentClass.tearDown_exceptions:
+                            self._createClassOrModuleLevelException(
+                                result, exc[1], "setUpClass", className, info=exc
+                            )
 
     def _createClassOrModuleLevelException(
         self,
@@ -79,7 +103,16 @@ class TestSuite(BaseTestSuite):
     ) -> None:
         errorName = f"{method_name} ({parent})"
         error = _ErrorHolder(errorName)
-        if isinstance(exception, case.SkipTest):
+        skipped = isinstance(exception, case.SkipTest)  # debuglog
+        _debug.lifecycle(
+            "test.suite.class_error",
+            hook=method_name,
+            cls=parent,
+            error=type(exception).__name__,
+            skip=skipped,
+            from_cleanup=info is not None,
+        )
+        if skipped:
             result.addSkip(
                 error,
                 str(exception),
@@ -100,24 +133,37 @@ class TestSuite(BaseTestSuite):
         if not previousClass:
             return
         if previousClass._classSetupFailed:
+            _debug.logic(
+                "test.suite.class_teardown_skipped",
+                cls=previousClass.__qualname__,
+                reason="setup_failed",
+            )
             return
         if previousClass.__unittest_skip__:
             return
-        try:
-            previousClass.tearDownClass()
-        except Exception as e:
-            className = util.strclass(previousClass)
-            self._createClassOrModuleLevelException(
-                result, e, "tearDownClass", className
-            )
-        finally:
-            previousClass.doClassCleanups()
-            if previousClass.tearDown_exceptions:
-                for exc in previousClass.tearDown_exceptions:
-                    className = util.strclass(previousClass)
-                    self._createClassOrModuleLevelException(
-                        result, exc[1], "tearDownClass", className, info=exc
-                    )
+        with _debug.perf(
+            "test.suite.class_teardown", cls=util.strclass(previousClass)
+        ) as span:
+            queries_before = db.sql_counter  # debuglog
+            try:
+                previousClass.tearDownClass()
+            except Exception as e:
+                className = util.strclass(previousClass)
+                self._createClassOrModuleLevelException(
+                    result, e, "tearDownClass", className
+                )
+            finally:
+                previousClass.doClassCleanups()
+                span.set(
+                    queries=db.sql_counter - queries_before,
+                    cleanup_errors=len(previousClass.tearDown_exceptions),
+                )
+                if previousClass.tearDown_exceptions:
+                    for exc in previousClass.tearDown_exceptions:
+                        className = util.strclass(previousClass)
+                        self._createClassOrModuleLevelException(
+                            result, exc[1], "tearDownClass", className, info=exc
+                        )
 
 
 class _ErrorHolder:
@@ -191,4 +237,6 @@ class OdooSuite(TestSuite):
             super()._tearDownPreviousClass(test, result)
 
     def has_http_case(self) -> bool:
-        return any(isinstance(test_case, HttpCase) for test_case in self)
+        found = any(isinstance(test_case, HttpCase) for test_case in self)
+        _debug.logic("test.suite.has_http_case", found=found, tests=len(self._tests))
+        return found

@@ -9,6 +9,7 @@ from lxml import etree
 
 from odoo import api, fields
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.models import BaseModel
 from odoo.tools.safe_eval import safe_eval
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 MODIFIER_ALIASES = {"1": "True", "0": "False"}
 
@@ -79,9 +81,20 @@ class Form:
         else:
             view_id = view or False
 
-        views = record.get_views(  # type: ignore[attr-defined]  # base adds it to every model
-            [(view_id, "form")]
+        _debug.pipeline(
+            "test.form.open",
+            model=record._name,
+            record=record.id or None,
+            view=view_id or None,
+            context=sorted(record.env.context),
         )
+        with _debug.perf(
+            "test.form.get_views", cr=record.env.cr, model=record._name
+        ) as span:
+            views = record.get_views(  # type: ignore[attr-defined]  # base adds it to every model
+                [(view_id, "form")]
+            )
+            span.set(models=len(views["models"]))
         self._models_info = views["models"]
         tree = etree.fromstring(views["views"]["form"]["arch"])
         self._view = self._get_view_info(tree, record)
@@ -119,6 +132,13 @@ class Form:
         record = (
             env[action["res_model"]].with_context(context).browse(action.get("res_id"))
         )
+        _debug.logic(
+            "test.form.from_action",
+            model=action["res_model"],
+            res_id=action.get("res_id") or None,
+            view_id=view_id or None,
+            from_views=bool(views),
+        )
 
         return cls(record, view_id)
 
@@ -133,10 +153,15 @@ class Form:
         daterange_field_names = {}
         field_infos = self._models_info.get(model._name, {}).get("fields", {})
 
+        o2m = downgraded = 0  # debuglog
         for node in tree.xpath(f".//field[count(ancestor::field) = {flevel}]"):
             field_name = node.get("name")
 
             field_info = dict(field_infos.get(field_name) or {"type": None})
+            if field_info["type"] is None:
+                _debug.logic(
+                    "test.form.field_unknown", model=model._name, field=field_name
+                )
             fields[field_name] = field_info
             fields_spec[field_name] = field_spec = {}
 
@@ -160,6 +185,7 @@ class Form:
                 if related_field:
                     daterange_field_names[related_field] = field_name
                 else:
+                    _debug.logic("test.form.daterange_unlinked", field=field_name)
                     _logger.warning(
                         "daterange widget on field %r has neither"
                         " start_date_field nor end_date_field option",
@@ -168,6 +194,7 @@ class Form:
 
             if field_info["type"] == "one2many":
                 if level:
+                    o2m += 1  # debuglog
                     field_info["invisible"] = field_modifiers.get("invisible")
                     edition_view = self._get_one2many_edition_view(
                         field_info, node, level
@@ -175,8 +202,24 @@ class Form:
                     field_info["edition_view"] = edition_view
                     field_spec["fields"] = edition_view["fields_spec"]
                 else:
+                    downgraded += 1  # debuglog
+                    _debug.logic(
+                        "test.form.o2m_downgraded",
+                        model=model._name,
+                        field=field_name,
+                    )
                     field_info["type"] = "many2many"
 
+        _debug.perf.count(
+            "test.form.view_parsed",
+            model=model._name,
+            level=level,
+            fields=len(fields) - 1,
+            o2m=o2m,
+            downgraded=downgraded,
+            contexts=len(contexts),
+            daterange=len(daterange_field_names),
+        )
         for related_field, start_field in daterange_field_names.items():
             if related_field not in modifiers:
                 field_info = dict(field_infos.get(related_field) or {"type": None})
@@ -209,6 +252,8 @@ class Form:
         submodel = self._env[field_info["relation"]]
 
         views = {view.tag: view for view in node.xpath("./*[descendant::field]")}
+        inline = sorted(views)  # debuglog
+        fetched = []  # debuglog
         for view_type in ["list", "form"]:
             if view_type in views:
                 continue
@@ -216,7 +261,15 @@ class Form:
                 views[view_type] = etree.Element(view_type)
                 continue
             refs = self._env["ir.ui.view"]._get_view_refs(node)
-            subviews = submodel.with_context(**refs).get_views([(None, view_type)])
+            with _debug.perf(
+                "test.form.subview_fetch",
+                cr=self._env.cr,
+                model=submodel._name,
+                view_type=view_type,
+                refs=sorted(refs),
+            ):
+                subviews = submodel.with_context(**refs).get_views([(None, view_type)])
+            fetched.append(view_type)  # debuglog
             subnode = etree.fromstring(subviews["views"][view_type]["arch"])
             views[view_type] = subnode
             node.append(subnode)
@@ -233,6 +286,16 @@ class Form:
         if not (view_type == "list" and views["list"].get("editable")):
             view_type = "form"
 
+        _debug.logic(
+            "test.form.subview",
+            field=node.get("name"),
+            model=submodel._name,
+            edition=view_type,
+            inline=inline,
+            fetched=fetched,
+            invisible=field_info["invisible"] == "True",
+            level=level,
+        )
         return self._get_view_info(views[view_type], submodel, level=level - 1)
 
     def __str__(self) -> str:
@@ -242,9 +305,16 @@ class Form:
         assert self._record.id, "editing unstored records is not supported"
         self._values.clear()
 
-        [record_values] = self._record.web_read(  # type: ignore[attr-defined]  # base adds it to every model
-            self._view["fields_spec"]
-        )
+        with _debug.perf(
+            "test.form.web_read",
+            cr=self._env.cr,
+            model=self._record._name,
+            record=self._record.id,
+            fields=len(self._view["fields_spec"]),
+        ):
+            [record_values] = self._record.web_read(  # type: ignore[attr-defined]  # base adds it to every model
+                self._view["fields_spec"]
+            )
         self._env.flush_all()
         self._env.clear()
 
@@ -255,6 +325,7 @@ class Form:
         vals = self._values
         vals["id"] = False
 
+        _debug.pipeline("test.form.defaults", model=self._record._name)
         self._perform_onchange()
         self._values._changed.update(self._view["fields"])
 
@@ -303,6 +374,12 @@ class Form:
             f"can't write on invisible field {field_name!r}"
         )
 
+        _debug.pipeline(
+            "test.form.set",
+            model=self._record._name,
+            field=field_name,
+            type=field_info["type"],
+        )
         if field_info["type"] == "many2many":
             return M2MProxy(self, field_name).set(value)
 
@@ -338,14 +415,24 @@ class Form:
 
         eval_context = self._prepare_eval_context(vals)
 
-        return bool(safe_eval(expr, eval_context))
+        result = bool(safe_eval(expr, eval_context))
+        _debug.logic(
+            "test.form.modifier_evaluated",
+            field=field_name,
+            modifier=modifier,
+            result=result,
+            own_vals=vals is self._values,
+        )
+        return result
 
     def _get_context(self, field_name: str) -> dict:
         context_str = self._view["contexts"].get(field_name)
         if not context_str:
             return {}
         eval_context = self._prepare_eval_context()
-        return safe_eval(context_str, eval_context)
+        context = safe_eval(context_str, eval_context)
+        _debug.logic("test.form.context", field=field_name, keys=sorted(context))
+        return context
 
     def _prepare_eval_context(self, values: dict | None = None) -> dict:
         allowed_company_ids = self._env.companies.ids
@@ -386,19 +473,33 @@ class Form:
     def save(self) -> BaseModel:
         values = self._prepare_save_vals()
         if not self._record or values:
-            [record_values] = self._record.web_save(  # type: ignore[attr-defined]  # base adds it to every model
-                values, self._view["fields_spec"]
-            )
-            self._env.flush_all()
-            self._env.clear()
+            with _debug.perf(
+                "test.form.save",
+                cr=self._env.cr,
+                model=self._record._name,
+                record=self._record.id or None,
+                fields=sorted(values),
+            ) as span:
+                [record_values] = self._record.web_save(  # type: ignore[attr-defined]  # base adds it to every model
+                    values, self._view["fields_spec"]
+                )
+                self._env.flush_all()
+                self._env.clear()
 
-            if not self._record:
-                record = self._record.browse(record_values["id"])
-                self._record = record
+                if not self._record:
+                    record = self._record.browse(record_values["id"])
+                    self._record = record
+                span.set(id=self._record.id)
 
             values = convert_read_to_form(record_values, self._view["fields"])
             self._values.clear()
             self._values.update(values)
+        else:
+            _debug.logic(
+                "test.form.save_noop",
+                model=self._record._name,
+                record=self._record.id,
+            )
 
         return self._record
 
@@ -447,6 +548,7 @@ class Form:
         modifiers_values = modifiers_values or values
 
         result = {}
+        readonly_skipped = 0  # debuglog
         for field_name, field_info in view["fields"].items():
             if field_name == "id" or field_name not in values:
                 continue
@@ -471,6 +573,11 @@ class Form:
                     field_name, "required", view=view, vals=modifiers_values
                 )
             ):
+                _debug.logic(
+                    "test.form.required_missing",
+                    field=field_name,
+                    modifiers=view["modifiers"][field_name],
+                )
                 raise AssertionError(
                     f"{field_name} is a required field ({view['modifiers'][field_name]})"
                 )
@@ -487,6 +594,10 @@ class Form:
                     if node.get("name") == field_name
                 )
                 if not field_node.get("force_save"):
+                    readonly_skipped += 1  # debuglog
+                    _debug.logic(
+                        "test.form.readonly_skipped", field=field_name, mode=mode
+                    )
                     continue
 
             if field_info["type"] == "one2many":
@@ -503,6 +614,14 @@ class Form:
 
             result[field_name] = value
 
+        _debug.perf.count(
+            "test.form.vals_prepared",
+            mode=mode,
+            fields=len(result),
+            changed=len(values._changed),
+            readonly_skipped=readonly_skipped,
+            nested=view is not self._view,
+        )
         return result
 
     def _perform_onchange(self, field_name: str | None = None) -> dict | None:
@@ -515,6 +634,11 @@ class Form:
             field_names = []
 
         if field_name and not self._view["onchange"].get(field_name):
+            _debug.logic(
+                "test.form.onchange_skipped",
+                model=self._record._name,
+                field=field_name,
+            )
             return None
 
         record = self._record
@@ -525,7 +649,19 @@ class Form:
                 record = record.with_context(**context)
 
         values = self._prepare_onchange_vals()
-        result = record.onchange(values, field_names, self._view["fields_spec"])
+        with _debug.perf(
+            "test.form.onchange",
+            cr=self._env.cr,
+            model=self._record._name,
+            record=self._record.id or None,
+            field=field_name,
+            sent=len(values),
+        ) as span:
+            result = record.onchange(values, field_names, self._view["fields_spec"])
+            span.set(
+                returned=len(result.get("value") or ()),
+                warning=bool(result.get("warning")),
+            )
         self._env.flush_all()
         self._env.clear()
 
@@ -536,6 +672,11 @@ class Form:
             }:
                 _logger.getChild("onchange").warning("%(title)s %(message)s", w)
             else:
+                _debug.logic(
+                    "test.form.onchange_warning_invalid",
+                    field=field_name,
+                    kind=type(w).__name__,
+                )
                 _logger.getChild("onchange").error(
                     "received invalid warning %r from onchange on %r (should be a dict with keys `title` and `message`)",
                     w,
@@ -573,6 +714,12 @@ class Form:
                 if field_info["type"] == "one2many":
                     subfields = field_info["edition_view"]["fields"]
                 field_value = values[fname]
+                _debug.logic(
+                    "test.form.onchange_x2m",
+                    field=fname,
+                    type=field_info["type"],
+                    commands=len(value),
+                )
                 for cmd in value:
                     match cmd[0]:
                         case Command.CREATE:
@@ -612,6 +759,13 @@ class O2MForm(Form):
         self._view = proxy._field_info["edition_view"]
 
         self._values = UpdateDict()
+        _debug.pipeline(
+            "test.form.o2m_open",
+            field=proxy._field,
+            model=model._name,
+            index=index,
+            new=index is None,
+        )
         if index is None:
             self._init_from_defaults()
         else:
@@ -657,6 +811,12 @@ class O2MForm(Form):
         proxy = self._proxy
         field_value = proxy._form._values[proxy._field]
         values = self._prepare_save_vals()
+        _debug.pipeline(
+            "test.form.o2m_save",
+            field=proxy._field,
+            index=self._index,
+            changed=sorted(values._changed),
+        )
         if self._index is None:
             field_value.create(values)
         else:
@@ -802,6 +962,19 @@ class X2MValue(collections.abc.Sequence):
         result.extend(
             removal_command(id_) for id_ in self._given if id_ not in self._data
         )
+        if _debug.perf.enabled:
+            kinds = [cmd[0] for cmd in result]
+            create = kinds.count(Command.CREATE)
+            update = kinds.count(Command.UPDATE)
+            link = kinds.count(Command.LINK)
+            _debug.perf.count(
+                "test.form.commands",
+                create=create,
+                update=update,
+                link=link,
+                remove=len(result) - create - update - link,
+                given=len(given),
+            )
         return result
 
 
@@ -874,6 +1047,7 @@ class O2MProxy(X2MProxy):
 
     def remove(self, index: int) -> None:
         self._assert_editable()
+        _debug.pipeline("test.form.o2m_remove", field=self._field, index=index)
         self._field_value.remove(self._field_value[index])
         self._form._perform_onchange(self._field)
 
@@ -905,14 +1079,18 @@ class M2MProxy(X2MProxy, collections.abc.Sequence):
         )
 
         if record.id not in self._field_value:
+            _debug.pipeline("test.form.m2m", op="add", field=self._field, id=record.id)
             self._field_value.add(record.id, {"id": record.id})
             parent._perform_onchange(self._field)
+        else:
+            _debug.logic("test.form.m2m_noop", op="add", field=self._field)
 
     def remove(self, id: Any = None, index: int | None = None) -> None:
         self._assert_editable()
         assert (id is None) ^ (index is None), "can remove by either id or index"
         if id is None:
             id = self._field_value[index]
+        _debug.pipeline("test.form.m2m", op="remove", field=self._field, id=id)
         self._field_value.remove(id)
         self._form._perform_onchange(self._field)
 
@@ -924,13 +1102,28 @@ class M2MProxy(X2MProxy, collections.abc.Sequence):
         )
 
         if set(records.ids) != set(self._field_value):
+            _debug.pipeline(
+                "test.form.m2m",
+                op="set",
+                field=self._field,
+                before=len(self._field_value),
+                after=len(records),
+            )
             self._field_value.clear()
             for id_ in records.ids:
                 self._field_value.add(id_, {"id": id_})
             self._form._perform_onchange(self._field)
+        else:
+            _debug.logic("test.form.m2m_noop", op="set", field=self._field)
 
     def clear(self) -> None:
         self._assert_editable()
+        _debug.pipeline(
+            "test.form.m2m",
+            op="clear",
+            field=self._field,
+            before=len(self._field_value),
+        )
         self._field_value.clear()
         self._form._perform_onchange(self._field)
 
@@ -988,7 +1181,7 @@ def get_static_context(context_str: str) -> dict:
             val = ast.literal_eval(val_ast)
             result[key] = val
         except ValueError:
-            pass
+            _debug.logic("test.form.context_key_dynamic", key=ast.unparse(key_ast))
     return result
 
 

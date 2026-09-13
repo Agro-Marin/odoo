@@ -140,6 +140,21 @@ classes individually silently stops covering new ones.
   (`pthread_create`) under load — `ChromeBrowser.__init__` retries with
   fresh Thread objects; keep that pattern if touching the receiver setup.
 
+## Debug loggers (campaign scaffolding, 2026-09-12)
+
+Every module but `__init__.py` carries `_debug = DebugLog(__name__)` from
+`odoo/libs/debug_log.py` and `_debug.<channel>("test.<area>.<event>", k=v)` sites —
+`logic` (which branch), `perf` (spans with `ms=` and `queries=`), `pipeline` (hand-offs),
+`lifecycle` (open / close / settle). Off under the default `log_level = info`; enable one
+package-channel with `--log-handler odoo.debug.<channel>.tests:DEBUG`, all four with
+four handlers. Per-test lines carry `test=<canonical_tag>`; a label read off an object a
+test may replace with a double goes through `getattr` (`http._tag`). They are temporary
+and removed together when the campaign ends — do not build on them, do not "clean them
+up"; the removal recipe and the readings live in the knowledge vault under
+reference/dev/debug-logging-campaign.md (section *tests*). One test knows about them:
+`TestRunnerLoggingCommon._addError` in `odoo/addons/base/tests/test_test_suite.py` drops
+`odoo.debug.*` records from the capture it asserts on.
+
 ## What NOT to do
 
 - Don't import business-addon code here; `common.py` logs an error if the

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, ParamSpec
 from unittest import SkipTest
 from unittest import TestCase as _TestCase
 
+from .. import db
+from ..libs.debug_log import DebugLog
 from .utils import InfrastructureUnavailable, addon_relative_path
 
 if TYPE_CHECKING:
@@ -14,6 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 __unittest = True
@@ -37,6 +40,12 @@ class _Outcome:
             raise
         except SkipTest as e:
             self.success = False
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "test.case.part_skipped",
+                    test=test_case.id(),
+                    infrastructure=isinstance(e, InfrastructureUnavailable),
+                )
             self.result.addSkip(
                 test_case,
                 str(e),
@@ -45,6 +54,13 @@ class _Outcome:
         except BaseException:
             exception_type, exception, tb = sys.exc_info()
             self.success = False
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "test.case.part_failed",
+                    test=test_case.id(),
+                    error=exception_type.__name__ if exception_type else None,
+                    subtest=isinstance(test_case, _SubTest),
+                )
             if tb is not None:
                 tb = self._complete_traceback(tb)
             self.test._addError(self.result, test_case, (exception_type, exception, tb))
@@ -70,6 +86,7 @@ class _Outcome:
             current_frame = current_frame.f_back
 
         if not common_frame:
+            _debug.logic("test.case.traceback_no_common_frame", frames=len(tb_frames))
             _logger.warning(
                 "No common frame found with current stack, displaying full stack"
             )
@@ -93,9 +110,11 @@ class _Outcome:
                 "_callTearDown",
                 "_callCleanup",
             ):
+                _debug.logic("test.case.traceback_rooted", part=code.co_name)
                 return tb.tb_next
             tb = tb.tb_next
 
+        _debug.logic("test.case.traceback_no_root_frame", frames=len(tb_frames))
         _logger.warning("No root frame found, displaying full stacks")
         return initial_tb
 
@@ -174,6 +193,13 @@ class TestCase(_TestCase):
                 **{k: v for k, v in parent.params.items() if k not in params},
             }
         subtest = self._subtest = _SubTest(self, msg, params)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "test.case.subtest",
+                test=self.id(),
+                desc=subtest._subDescription(),
+                nested=parent is not None,
+            )
         try:
             assert self._outcome is not None
             with self._outcome.testPartExecutor(subtest):
@@ -219,6 +245,13 @@ class TestCase(_TestCase):
         except AttributeError:
             pass
         if skip:
+            if _debug.lifecycle.enabled:
+                _debug.lifecycle(
+                    "test.case.skipped",
+                    test=self.canonical_tag,
+                    level="class" if self.__class__.__unittest_skip__ else "method",
+                    why=skip_why,
+                )
             result.addSkip(self, skip_why)
             result.stopTest(self)
             return None
@@ -226,6 +259,10 @@ class TestCase(_TestCase):
         if self.__class__.__dict__.get("__unittest_expecting_failure__") or getattr(
             testMethod, "__unittest_expecting_failure__", False
         ):
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "test.case.expected_failure_refused", test=self.canonical_tag
+                )
             try:
                 raise TypeError(
                     "unittest.expectedFailure is not supported by the Odoo test "
@@ -238,17 +275,25 @@ class TestCase(_TestCase):
             return None
 
         outcome = _Outcome(self, result)
+        span = _debug.perf("test.case.run", test=self.canonical_tag)
         try:
             self._outcome = outcome
-            with outcome.testPartExecutor(self):
-                self._callSetUp()
-            if outcome.success:
+            with span:
+                queries_before = db.sql_counter  # debuglog
                 with outcome.testPartExecutor(self):
-                    self._callTestMethod(testMethod)
-                with outcome.testPartExecutor(self):
-                    self._callTearDown()
+                    self._callSetUp()
+                span.set(setup_ok=outcome.success)
+                if outcome.success:
+                    with outcome.testPartExecutor(self):
+                        self._callTestMethod(testMethod)
+                    span.set(method_ok=outcome.success)
+                    with outcome.testPartExecutor(self):
+                        self._callTearDown()
 
-            self.doCleanups()
+                self.doCleanups()
+                span.set(
+                    success=outcome.success, queries=db.sql_counter - queries_before
+                )
             if outcome.success:
                 result.addSuccess(self)
             return result
@@ -260,20 +305,41 @@ class TestCase(_TestCase):
     def doCleanups(self) -> None:
 
         assert self._outcome is not None
+        count = len(self._cleanups)  # debuglog
         while self._cleanups:
             function, args, kwargs = self._cleanups.pop()
             with self._outcome.testPartExecutor(self):
                 self._callCleanup(function, *args, **kwargs)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "test.case.cleanups",
+                test=self.canonical_tag,
+                count=count,
+                success=self._outcome.success,
+            )
 
     @classmethod
     def doClassCleanups(cls) -> None:
         cls.tearDown_exceptions = []
+        count = len(cls._class_cleanups)  # debuglog
         while cls._class_cleanups:
             function, args, kwargs = cls._class_cleanups.pop()
             try:
                 function(*args, **kwargs)
-            except Exception:
+            except Exception as exc:
+                _debug.logic(
+                    "test.case.class_cleanup_failed",
+                    cls=cls.__qualname__,
+                    function=getattr(function, "__qualname__", repr(function)),
+                    error=type(exc).__name__,
+                )
                 cls.tearDown_exceptions.append(sys.exc_info())
+        _debug.lifecycle(
+            "test.case.class_cleanups",
+            cls=cls.__qualname__,
+            count=count,
+            errors=len(cls.tearDown_exceptions),
+        )
 
     @property
     def canonical_tag(self) -> str:

@@ -7,10 +7,12 @@ import unittest
 from datetime import datetime
 
 import odoo.tools
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 from odoo.logutils import RUNBOT
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 HOST = "127.0.0.1"
 
@@ -37,10 +39,13 @@ def get_db_name() -> str:
     dbnames = odoo.tools.config["db_name"]
     worker = current_worker_thread()
     if not dbnames and getattr(worker, "dbname", None):
+        _debug.logic("test.utils.db_from_worker", db=worker.dbname)
         return worker.dbname
     if not dbnames:
+        _debug.logic("test.utils.db_missing")
         sys.exit("No database name found, please provide one with -d/--database")
     if len(dbnames) > 1:
+        _debug.logic("test.utils.db_ambiguous", count=len(dbnames))
         sys.exit(
             "-d/--database/db_name has multiple database, please provide a single one"
         )
@@ -69,4 +74,11 @@ def save_test_file(
     screenshots_dir.mkdir(parents=True, exist_ok=True)
     full_path = screenshots_dir / f"{prefix}{now}_{test_name}.{extension}"
     full_path.write_bytes(content)
+    _debug.lifecycle(
+        "test.utils.file_saved",
+        kind=document_type,
+        test=test_name,
+        extension=extension,
+        size=len(content),
+    )
     logger.log(RUNBOT, "%s in: %s", document_type, full_path)

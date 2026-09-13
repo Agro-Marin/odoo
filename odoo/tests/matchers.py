@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 from lxml import etree
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     float_compare,
 )
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class RecordCapturer:
@@ -25,7 +27,14 @@ class RecordCapturer:
         self._domain = domain or []
 
     def __enter__(self) -> Self:
-        self._before = self._model.search(self._domain, order="id")
+        with _debug.perf(
+            "test.capture.before",
+            cr=self._model.env.cr,
+            model=self._model._name,
+            domain=len(self._domain),
+        ) as span:
+            self._before = self._model.search(self._domain, order="id")
+            span.set(count=len(self._before))
         self._after = None
         return self
 
@@ -35,12 +44,23 @@ class RecordCapturer:
         exc_value: BaseException | None,
         exc_traceback: types.TracebackType | None,
     ) -> None:
-        if exc_type is None:
+        if exc_type is not None:
+            _debug.logic(
+                "test.capture.after_skipped",
+                model=self._model._name,
+                error=exc_type.__name__,
+            )
+            return
+        with _debug.perf(
+            "test.capture.after", cr=self._model.env.cr, model=self._model._name
+        ) as span:
             self._after = self._model.search(self._domain, order="id") - self._before
+            span.set(new=len(self._after))
 
     @property
     def records(self) -> Any:
         if self._after is None:
+            _debug.logic("test.capture.records_recomputed", model=self._model._name)
             return self._model.search(self._domain, order="id") - self._before
         return self._after
 
@@ -55,6 +75,9 @@ def _normalize_arch_for_assert(arch_string: str, parser_method: str = "xml") -> 
             f"parser_method must be 'xml' or 'html', got {parser_method!r}"
         )
     parser = Parser(remove_blank_text=True)
+    _debug.perf.count(
+        "test.matchers.normalize_arch", parser=parser_method, size=len(arch_string)
+    )
     arch_string = etree.fromstring(arch_string, parser=parser)
     return etree.tostring(arch_string, pretty_print=True, encoding="unicode")
 

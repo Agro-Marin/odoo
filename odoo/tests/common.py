@@ -12,6 +12,7 @@ import freezegun
 import odoo.cli
 from odoo import api
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     config,
     mute_logger,
@@ -81,6 +82,12 @@ __all__ = [
 ]
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
+_debug.lifecycle(
+    "test.framework.imported",
+    command=odoo.cli.COMMAND,
+    test_enable=bool(config["test_enable"]),
+)
 if odoo.cli.COMMAND in ("server", "start") and not config["test_enable"]:
     _logger.error(
         "Importing test framework, avoid importing from business modules and when not running in test mode",
@@ -99,6 +106,14 @@ def get_cache_key_counter(bound_method, *args, **kwargs):
     cache = model.pool.ormcache_lrus[ormcache_instance.cache_name]
     key = ormcache_instance.key(model, *args, **kwargs)
     counter = _COUNTERS[model.pool.db_name, ormcache_instance.method]
+    _debug.logic(
+        "test.cache.key_counter",
+        model=model._name,
+        cache=ormcache_instance.cache_name,
+        method=getattr(ormcache_instance.method, "__name__", None),
+        hit=counter.hit,
+        miss=counter.miss,
+    )
     return cache, key, counter
 
 
@@ -108,6 +123,7 @@ ADMIN_USER_ID = api.SUPERUSER_ID
 def skip_if_dev_mode(*flags: str) -> None:
     dev_mode = config["dev_mode"]
     if active := [flag for flag in flags if flag in dev_mode]:
+        _debug.logic("test.case.dev_mode_skip", flags=active)
         raise unittest.SkipTest(
             f"--dev={','.join(active)} disables the behaviour under test"
         )
@@ -117,17 +133,26 @@ standalone_tests: defaultdict[str, list] = defaultdict(list)
 
 
 _registry_test_lock.acquire()
+_debug.lifecycle("test.lock.acquired_at_import", held=_registry_test_lock.count)
 
 
 def standalone(*tags: str) -> Callable[[Callable], Callable]:
 
     def register(func: Callable) -> Callable:
+        module = None  # debuglog
         if func.__module__.startswith("odoo.addons."):
             module = func.__module__.split(".")[2]
             standalone_tests[module].append(func)
         for tag in tags:
             standalone_tests[tag].append(func)
         standalone_tests["all"].append(func)
+        _debug.lifecycle(
+            "test.standalone.registered",
+            func=func.__qualname__,
+            module=module,
+            tags=list(tags),
+            total=len(standalone_tests["all"]),
+        )
         return func
 
     return register
@@ -138,11 +163,21 @@ def test_xsd(url=None, path=None, skip=False, xsd_name=None):
         @wraps(func)
         def wrapped_f(self, *args, **kwargs):
             if skip:
+                _debug.logic("test.xsd.skipped", func=func.__qualname__)
                 raise unittest.SkipTest(
                     skip if isinstance(skip, str) else "XSD validation disabled"
                 )
             xmls = func(self, *args, **kwargs)
-            _check_xml(self.env, url, path, xmls, xsd_name)
+            with _debug.perf(
+                "test.xsd.check",
+                cr=self.env.cr,
+                func=func.__qualname__,
+                xsd=xsd_name,
+                url=url is not None,
+                path=path is not None,
+                documents=len(xmls) if isinstance(xmls, (list, tuple)) else 1,
+            ):
+                _check_xml(self.env, url, path, xmls, xsd_name)
 
         return wrapped_f
 
@@ -176,15 +211,28 @@ def new_test_user(env, login="", groups="base.group_user", context=None, **kwarg
     if "company_id" in create_values and "company_ids" not in create_values:
         create_values["company_ids"] = [(4, create_values["company_id"])]
 
-    return env["res.users"].with_context(**context).create(create_values)
+    with _debug.perf(
+        "test.user.create",
+        cr=env.cr,
+        login=login,
+        groups=groups,
+        keys=sorted(create_values),
+        context=sorted(context),
+    ) as span:
+        user = env["res.users"].with_context(**context).create(create_values)
+        span.set(uid=user.id)
+    return user
 
 
 def loaded_demo_data(env: api.Environment) -> bool:
-    return bool(env.ref("base.user_demo", raise_if_not_found=False))
+    loaded = bool(env.ref("base.user_demo", raise_if_not_found=False))  # debuglog
+    _debug.logic("test.env.demo_data", loaded=loaded)
+    return loaded
 
 
 def no_retry(arg: Any) -> Any:
     arg._retry = False
+    _debug.lifecycle("test.case.no_retry", target=getattr(arg, "__qualname__", None))
     return arg
 
 
@@ -195,6 +243,9 @@ def users(*logins: str) -> Callable:
         @wraps(func)
         def with_users(self: Any, *args: Any, **kwargs: Any) -> None:
             old_uid = self.uid
+            _debug.pipeline(
+                "test.users.run", func=func.__qualname__, logins=len(logins)
+            )
             try:
                 Users = self.env["res.users"].with_context(active_test=False)
                 user_id = {
@@ -202,12 +253,18 @@ def users(*logins: str) -> Callable:
                     for user in Users.search([("login", "in", list(logins))])
                 }
                 missing = [login for login in logins if login not in user_id]
+                if missing:
+                    _debug.logic("test.users.missing", missing=missing)
                 assert not missing, f"No user with login {missing}"
                 for login in logins:
                     with self.subTest(login=login):
                         self.uid = user_id[login]
-                        func(self, *args, **kwargs)
-                        self.env.flush_all()
+                        _debug.lifecycle(
+                            "test.users.as", login=login, uid=user_id[login]
+                        )
+                        with _debug.perf("test.users.body", cr=self.cr, login=login):
+                            func(self, *args, **kwargs)
+                            self.env.flush_all()
                     self.env.invalidate_all()
             finally:
                 self.uid = old_uid
@@ -224,12 +281,16 @@ def warmup(func: Callable, /) -> Callable:
         self.env.flush_all()
         self.env.invalidate_all()
         self.warm = False
-        with contextlib.closing(self.cr.savepoint(flush=False)):
+        with (
+            _debug.perf("test.warmup.cold", cr=self.cr, func=func.__qualname__),
+            contextlib.closing(self.cr.savepoint(flush=False)),
+        ):
             func(self, *args, **kwargs)
             self.env.flush_all()
         self.env.invalidate_all()
         self.warm = True
-        func(self, *args, **kwargs)
+        with _debug.perf("test.warmup.warm", cr=self.cr, func=func.__qualname__):
+            func(self, *args, **kwargs)
 
     return warmup
 
@@ -238,8 +299,10 @@ def can_import(module: str) -> bool:
     try:
         importlib.import_module(module)
     except ImportError:
+        _debug.logic("test.import.probe", module=module, ok=False)
         return False
     else:
+        _debug.logic("test.import.probe", module=module, ok=True)
         return True
 
 
@@ -252,12 +315,33 @@ def tagged(*tags: str) -> Callable:
         if not isinstance(target, type):
             obj.test_tags = getattr(obj, "test_tags", set()) | include
             obj.test_tags_exclude = getattr(obj, "test_tags_exclude", set()) | exclude
+            _debug.lifecycle(
+                "test.tags.applied",
+                kind="method",
+                target=getattr(obj, "__qualname__", None),
+                include=sorted(include),
+                exclude=sorted(exclude),
+            )
             return obj
 
         obj.test_tags = (getattr(obj, "test_tags", set()) | include) - exclude
         at_install = "at_install" in obj.test_tags
         post_install = "post_install" in obj.test_tags
+        _debug.lifecycle(
+            "test.tags.applied",
+            kind="class",
+            target=obj.__qualname__,
+            include=sorted(include),
+            exclude=sorted(exclude),
+            tags=sorted(obj.test_tags),
+        )
         if not (at_install ^ post_install):
+            _debug.logic(
+                "test.tags.position_ambiguous",
+                target=obj.__qualname__,
+                at_install=at_install,
+                post_install=post_install,
+            )
             _logger.warning(
                 "A tests should be either at_install or post_install, which is not the case of %r",
                 obj,
@@ -296,15 +380,25 @@ class freeze_time:
         target: Any = arg
         if isinstance(arg, type) and issubclass(arg, TestCase):
             target.freeze_time = self
+            _debug.lifecycle(
+                "test.freeze.bound", kind="class", target=target.__qualname__
+            )
             return target
 
+        _debug.lifecycle(
+            "test.freeze.bound",
+            kind="callable",
+            target=getattr(arg, "__qualname__", type(arg).__name__),
+        )
         return self.freezer(arg)
 
     def __enter__(self) -> Any:
+        _debug.lifecycle("test.freeze.start")
         return self.freezer.start()
 
     def __exit__(self, *args: object) -> None:
         self.freezer.stop()
+        _debug.lifecycle("test.freeze.stop")
 
     start = __enter__
     stop = __exit__
@@ -321,6 +415,7 @@ def __getattr__(name: str) -> Any:
         from . import http
 
         globals().update({export: getattr(http, export) for export in _HTTP_EXPORTS})
+        _debug.lifecycle("test.framework.http_exports_loaded", requested=name)
         return globals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

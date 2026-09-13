@@ -102,6 +102,11 @@ class TestRunnerLoggingCommon(TransactionCase):
                 extra=None,
                 sinfo=None,
             ):
+                # The odoo.debug.* channels (odoo/libs/debug_log.py) are an
+                # orthogonal stream, off by default; what this pins is the
+                # runner's own report lines, so they stay out of the capture.
+                if name.startswith("odoo.debug."):
+                    return
                 log_records.append(
                     {
                         "logger": logger,

@@ -2,11 +2,13 @@ import logging
 import re
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
 from .utils import addon_relative_path
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class TagsSelector:
@@ -35,11 +37,13 @@ class TagsSelector:
             match = self.filter_spec_re.match(filter_spec)
             if not match:
                 if filter_spec.endswith(".js"):
+                    _debug.logic("test.tags.spec_js_ignored", spec=filter_spec)
                     _logger.debug(
                         "Ignoring JavaScript file path as test tag: %s (only .py files are supported)",
                         filter_spec,
                     )
                 else:
+                    _debug.logic("test.tags.spec_invalid", spec=filter_spec)
                     _logger.error("Invalid tag %s", filter_spec)
                 continue
 
@@ -52,6 +56,17 @@ class TagsSelector:
             elif not tag or tag == "*":
                 tag = None
             test_filter = (tag, module, klass, method, file_path)
+            _debug.logic(
+                "test.tags.spec",
+                spec=filter_spec,
+                sign="-" if is_exclude else "+",
+                tag=tag,
+                file=file_path,
+                module=module,
+                klass=klass,
+                method=method,
+                params=bool(parameters),
+            )
 
             if parameters:
                 self.parameters.add(
@@ -64,12 +79,26 @@ class TagsSelector:
             if is_exclude:
                 self.exclude.add(test_filter)
 
-        if (self.exclude or self.parameters) and not self.include:
+        implicit_standard = (
+            self.exclude or self.parameters
+        ) and not self.include  # debuglog
+        if implicit_standard:
             self.include.add(("standard", None, None, None, None))
+        _debug.pipeline(
+            "test.tags.parsed",
+            specs=len(filter_specs),
+            include=len(self.include),
+            exclude=len(self.exclude),
+            params=len(self.parameters),
+            implicit_standard=bool(implicit_standard),
+        )
 
     def selects(self, test: Any) -> bool:
         matches = self._matcher(test)
-        return matches is not None and self._selects(matches)
+        selected = matches is not None and self._selects(matches)  # debuglog
+        if _debug.logic.enabled:
+            _debug.logic("test.tags.selects", test=test.id(), selected=selected)
+        return selected
 
     def select_params(self, test: Any) -> list:
         matches = self._matcher(test)
@@ -81,27 +110,45 @@ class TagsSelector:
                 for test_filter, parameter in self.parameters
                 if matches(test_filter)
             ]
+        if _debug.logic.enabled:
+            _debug.logic(
+                "test.tags.select_params",
+                test=test.id(),
+                params=len(test._test_params),
+            )
         return test._test_params
 
     def select_test(self, test: Any) -> bool:
         matches = self._matcher(test)
         if matches is None or not self._selects(matches):
             test._test_params = []
+            if _debug.logic.enabled:
+                _debug.logic("test.tags.select_test", test=test.id(), selected=False)
             return False
         test._test_params = [
             parameter
             for test_filter, parameter in self.parameters
             if matches(test_filter)
         ]
+        if _debug.logic.enabled:
+            _debug.logic(
+                "test.tags.select_test",
+                test=test.id(),
+                selected=True,
+                params=len(test._test_params),
+            )
         return True
 
     def _selects(self, matches: Any) -> bool:
         if any(matches(test_filter) for test_filter in self.exclude):
+            _debug.logic("test.tags.excluded")
             return False
         return any(matches(test_filter) for test_filter in self.include)
 
     def _matcher(self, test: Any) -> Any:
         if not getattr(test, "test_tags", None):
+            if _debug.logic.enabled:
+                _debug.logic("test.tags.no_tags", test=test.id())
             _logger.debug("Skipping test '%s' because no test_tag found.", test)
             return None
 

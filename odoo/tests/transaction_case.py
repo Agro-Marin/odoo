@@ -33,6 +33,7 @@ from odoo import api
 from odoo.db import Cursor, Savepoint
 from odoo.db.utils import update_planner_stats
 from odoo.exceptions import AccessError
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.password import CryptContext
 from odoo.logutils import RUNBOT
 from odoo.modules.registry import DummyRLock, Registry
@@ -56,6 +57,7 @@ if TYPE_CHECKING:
 
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 TEST_CURSOR_COOKIE_NAME = "test_request_key"
@@ -81,6 +83,11 @@ def current_test_tag() -> str:
 @contextmanager
 def release_test_lock() -> Generator[None]:
     if not _registry_test_lock.held_by_this_thread:
+        _debug.logic(
+            "test.lock.not_held",
+            test=current_test_tag(),
+            held=_registry_test_lock.count,
+        )
         _logger.warning(
             "The registry test lock was not held on entering %s, so this "
             "hand-over releases nothing and re-acquires nothing. An earlier "
@@ -91,10 +98,16 @@ def release_test_lock() -> Generator[None]:
         return
 
     _registry_test_lock.release()
+    _debug.lifecycle(
+        "test.lock.released", test=current_test_tag(), held=_registry_test_lock.count
+    )
     try:
         yield
     finally:
-        if not _registry_test_lock.acquire(timeout=60):
+        with _debug.perf("test.lock.reacquire", test=current_test_tag()) as span:
+            acquired = _registry_test_lock.acquire(timeout=60)  # debuglog
+            span.set(acquired=acquired, held=_registry_test_lock.count)
+        if not acquired:
             sys.exit(
                 f"Could not re-acquire the registry lock during "
                 f"{current_test_tag()}, exiting..."
@@ -113,7 +126,10 @@ def _has_child_processes() -> bool:
 
 def gc_test_filestore() -> None:
     try:
-        with Registry(get_db_name()).cursor() as cr:
+        with (
+            Registry(get_db_name()).cursor() as cr,
+            _debug.perf("test.filestore.gc", cr=cr, db=cr.dbname),
+        ):
             gc_env = api.Environment(cr, api.SUPERUSER_ID, {})
             gc_env["ir.attachment"]._gc_file_store_unsafe()
     except Exception:
@@ -122,14 +138,17 @@ def gc_test_filestore() -> None:
 
 def _release_foreign_acquisition(lock: Any) -> None:
     if hasattr(lock, "_owner"):
-        if lock._owner not in (None, threading.get_ident()):
+        foreign = lock._owner not in (None, threading.get_ident())  # debuglog
+        if foreign:
             lock._owner = threading.get_ident()
             lock._count = 1
         lock.release()
+        _debug.logic("test.lock.stranded_released", adopted=foreign)
         return
     try:
         lock.release()
     except RuntimeError:
+        _debug.logic("test.lock.stranded_release_failed")
         _logger.warning(
             "Could not release the lock of a stranded test cursor: another "
             "thread holds it and this lock exposes no owner to adopt, so every "
@@ -139,6 +158,10 @@ def _release_foreign_acquisition(lock: Any) -> None:
 
 def release_stranded_test_cursors(owner: str = "") -> int:
     stranded = TestCursor._cursors_stack
+    if stranded:
+        _debug.lifecycle(
+            "test.cursor.stranded", owner=owner or None, count=len(stranded)
+        )
     for cursor in reversed(stranded):
         _logger.warning(
             "A cursor was remaining in the TestCursor stack at the end of %s; "
@@ -147,7 +170,12 @@ def release_stranded_test_cursors(owner: str = "") -> int:
         )
         try:
             cursor._close_savepoint(rollback=True)
-        except Exception:
+        except Exception as exc:
+            _debug.logic(
+                "test.cursor.stranded_rollback_failed",
+                owner=owner or None,
+                error=type(exc).__name__,
+            )
             _logger.warning(
                 "Could not roll back the savepoint of the cursor stranded by %s",
                 owner or "the test",
@@ -158,6 +186,23 @@ def release_stranded_test_cursors(owner: str = "") -> int:
     count = len(stranded)
     TestCursor._cursors_stack = []
     return count
+
+
+def _patch_target_name(obj: Any) -> str:
+    if isinstance(obj, type):
+        return f"{obj.__module__}.{obj.__qualname__}"
+    name = getattr(obj, "__name__", None)
+    if isinstance(name, str):
+        return name
+    return type(obj).__qualname__
+
+
+def _patcher_name(patcher: Any) -> str:
+    target = getattr(patcher, "target", None)
+    attribute = getattr(patcher, "attribute", None)
+    if target is not None and attribute:
+        return f"{_patch_target_name(target)}.{attribute}"
+    return type(patcher).__qualname__
 
 
 def _enter_context(cm: Any, addcleanup: Callable) -> Any:
@@ -287,9 +332,18 @@ class BaseCase(TestCase):
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if cls.__module__.startswith("odoo.addons."):
-            if cls.test_tags is None:
+            defaulted = cls.test_tags is None  # debuglog
+            if defaulted:
                 cls.test_tags = {"standard", "at_install"}
             cls.test_module = cls.__module__.split(".")[2]
+            if _debug.lifecycle.enabled:
+                _debug.lifecycle(
+                    "test.case.subclass",
+                    cls=cls.__qualname__,
+                    module=cls.test_module,
+                    tags=sorted(cls.test_tags or ()),
+                    defaulted=defaulted,
+                )
 
     longMessage = True
     warm = True
@@ -306,11 +360,19 @@ class BaseCase(TestCase):
         self.addTypeEqualityFunc(html.HtmlElement, self.assertTreesEqual)
         if methodName != "runTest":
             test_method = getattr(self, methodName)
-            test_tags = (self.test_tags or set()) | set(
-                self.get_method_additional_tags(test_method)
-            )
+            additional = self.get_method_additional_tags(test_method)  # debuglog
+            test_tags = (self.test_tags or set()) | set(additional)
             test_tags |= getattr(test_method, "test_tags", set())
             test_tags -= getattr(test_method, "test_tags_exclude", set())
+            if _debug.logic.enabled and test_tags != (type(self).test_tags or set()):
+                _debug.logic(
+                    "test.case.method_tags",
+                    test=self.canonical_tag,
+                    source=additional,
+                    added=sorted(getattr(test_method, "test_tags", ())),
+                    removed=sorted(getattr(test_method, "test_tags_exclude", ())),
+                    tags=sorted(test_tags),
+                )
             self.test_tags = test_tags
 
     @classmethod
@@ -318,6 +380,12 @@ class BaseCase(TestCase):
         url = urlsplit(r.url)
         timeout = kw.get("timeout")
         if (raised := _raise_test_timeout(timeout)) != timeout:
+            _debug.logic(
+                "test.http.timeout_raised",
+                host=url.hostname,
+                given=timeout,
+                raised=raised,
+            )
             _logger.getChild("requests").info(
                 "request %s with timeout %s increased to %s during tests",
                 url,
@@ -326,10 +394,13 @@ class BaseCase(TestCase):
             )
             kw["timeout"] = raised
         if url.hostname in (HOST, "localhost"):
+            _debug.logic("test.http.send", decision="local", method=r.method, url=r.url)
             return _super_send(s, r, **kw)
         if url.scheme == "file":
+            _debug.logic("test.http.send", decision="file", method=r.method, url=r.url)
             return _super_send(s, r, **kw)
 
+        _debug.logic("test.http.send", decision="blocked", method=r.method, url=r.url)
         _logger.getChild("requests").info(
             "Blocking un-mocked external HTTP request %s %s", r.method, r.url
         )
@@ -342,19 +413,33 @@ class BaseCase(TestCase):
             tests_run_count = self._tests_run_count
         else:
             tests_run_count = 1
+            _debug.lifecycle("test.case.retry_disabled", test=self.canonical_tag)
             _logger.info("Auto retry disabled for %s", self)
 
         for retry in range(tests_run_count):
             result.had_failure = False
             if retry:
                 _logger.log(RUNBOT, "Retrying a failed test: %s", self)
+            final = retry == tests_run_count - 1  # debuglog
+            _debug.pipeline(
+                "test.case.attempt",
+                test=self.canonical_tag,
+                attempt=retry + 1,
+                of=tests_run_count,
+                final=final,
+            )
             with ExitStack() as attempt:
                 if retry:
                     attempt.enter_context(result.retry())
 
-                if retry == tests_run_count - 1:
+                if final:
                     super().run(cast("TestResult", result))
                     if not result.wasSuccessful() and type(self)._tests_run_count != 1:
+                        _debug.lifecycle(
+                            "test.case.retries_disabled_globally",
+                            test=self.canonical_tag,
+                            was=type(self)._tests_run_count,
+                        )
                         _logger.log(RUNBOT, "Disabling auto-retry after a failed test")
                         type(self)._tests_run_count = 1
                     break
@@ -363,6 +448,13 @@ class BaseCase(TestCase):
                 attempt.enter_context(result.soft_fail())
                 quiet_log = attempt.enter_context(lower_logging(25, logging.INFO))
                 super().run(cast("TestResult", result))
+                _debug.logic(
+                    "test.case.soft_attempt",
+                    test=self.canonical_tag,
+                    attempt=retry + 1,
+                    had_failure=result.had_failure,
+                    had_error_log=quiet_log.had_error_log,
+                )
                 if not (result.had_failure or quiet_log.had_error_log):
                     break
 
@@ -373,6 +465,9 @@ class BaseCase(TestCase):
                 return
             current_process = psutil.Process()
             children = current_process.children(recursive=True)
+            _debug.logic(
+                "test.case.child_processes", cls=cls.__qualname__, count=len(children)
+            )
             for child in children:
                 _logger.warning("A child process was found, terminating it: %s", child)
                 child.terminate()
@@ -395,6 +490,11 @@ class BaseCase(TestCase):
                     description = f"{patcher.target}.{patcher.attribute}"
                 else:
                     description = f"dict {getattr(patcher, 'in_dict', patcher)!r}"
+                _debug.logic(
+                    "test.case.patcher_leaked",
+                    cls=cls.__qualname__,
+                    target=description,
+                )
                 _logger.warning(
                     "A patcher (targeting %s) was remaining active at the end of %s, disabling it...",
                     description,
@@ -427,7 +527,10 @@ class BaseCase(TestCase):
         if cls.freeze_time and not cls._starts_freeze_time_itself:
             cls.startClassPatcher(cls.freeze_time)
         class_tags = cls.test_tags or set()
-        if "standard" in class_tags or "click_all" in class_tags:
+        requests_patched = (
+            "standard" in class_tags or "click_all" in class_tags
+        )  # debuglog
+        if requests_patched:
             patcher = patch.object(
                 requests.sessions.Session,
                 "send",
@@ -435,6 +538,13 @@ class BaseCase(TestCase):
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
+        _debug.lifecycle(
+            "test.case.setup_class",
+            cls=cls.__qualname__,
+            freeze_time=cls.freeze_time is not None,
+            requests_patched=requests_patched,
+            retries=cls._tests_run_count - 1,
+        )
 
     def setUp(self) -> None:
         super().setUp()
@@ -447,15 +557,26 @@ class BaseCase(TestCase):
             "_registry_readonly_enabled",
             self._registry_readonly_enabled,
         )
+        _debug.lifecycle(
+            "test.case.setup",
+            test=self.canonical_tag,
+            thread=self._test_thread.name,
+            readonly_enabled=self._registry_readonly_enabled,
+        )
 
     def cursor(self) -> Cursor:
+        _debug.lifecycle("test.case.extra_cursor", test=self.canonical_tag)
         return cast("Cursor", self.registry.cursor())
 
     @classmethod
     def _open_class_cursor(cls) -> None:
         cls.cr = cast("Cursor", cls.registry.cursor())
         cls.addClassCleanup(cls.cr.close)
-        update_planner_stats(cls.cr)
+        _debug.lifecycle(
+            "test.case.class_cursor", cls=cls.__qualname__, db=cls.cr.dbname
+        )
+        with _debug.perf("test.case.planner_stats", cr=cls.cr, cls=cls.__qualname__):
+            update_planner_stats(cls.cr)
 
     @property
     def uid(self):
@@ -463,6 +584,12 @@ class BaseCase(TestCase):
 
     @uid.setter
     def uid(self, user):
+        _debug.lifecycle(
+            "test.env.uid",
+            test=self.canonical_tag,
+            uid=getattr(user, "id", user),
+            was=self.env.uid,
+        )
         self.env = self.env(user=user)
         self.env.transaction.default_env = self.env
 
@@ -479,22 +606,40 @@ class BaseCase(TestCase):
         patcher = patch.object(obj, key, val)
         patcher.start()
         self.addCleanup(patcher.stop)
+        _debug.lifecycle(
+            "test.case.patch",
+            scope="test",
+            target=_patch_target_name(obj),
+            key=key,
+        )
 
     @classmethod
     def classPatch(cls, obj: Any, key: str, val: Any) -> None:
         patcher = patch.object(obj, key, val)
         patcher.start()
         cls.addClassCleanup(patcher.stop)
+        _debug.lifecycle(
+            "test.case.patch",
+            scope="class",
+            target=_patch_target_name(obj),
+            key=key,
+        )
 
     def startPatcher(self, patcher: Any) -> Any:
         mock = patcher.start()
         self.addCleanup(patcher.stop)
+        _debug.lifecycle(
+            "test.case.patcher", scope="test", patcher=_patcher_name(patcher)
+        )
         return mock
 
     @classmethod
     def startClassPatcher(cls, patcher: Any) -> Any:
         mock = patcher.start()
         cls.addClassCleanup(patcher.stop)
+        _debug.lifecycle(
+            "test.case.patcher", scope="class", patcher=_patcher_name(patcher)
+        )
         return mock
 
     def enterContext(self, cm: Any) -> Any:
@@ -512,6 +657,9 @@ class BaseCase(TestCase):
             user = self.env["res.users"].sudo().search([("login", "=", login)])
             assert user, f"Login {login} not found"
             self.uid = user.id
+            _debug.lifecycle(
+                "test.env.with_user", test=self.canonical_tag, login=login, uid=user.id
+            )
             yield
         finally:
             self.uid = old_uid
@@ -529,11 +677,18 @@ class BaseCase(TestCase):
             self.env.flush_all()
             self.env.invalidate_all()
             odoo.http._request_stack.push(request)
+            _debug.lifecycle("test.env.debug_mode", test=self.canonical_tag)
             yield
             self.env.flush_all()
             self.env.invalidate_all()
         finally:
             popped_request = odoo.http._request_stack.pop()
+            if popped_request is not request:
+                _debug.logic(
+                    "test.env.request_stack_mismatch",
+                    test=self.canonical_tag,
+                    failing=sys.exc_info()[0] is not None,
+                )
             if popped_request is not request and sys.exc_info()[0] is None:
                 raise Exception("Wrong request stack cleanup.")
 
@@ -551,6 +706,12 @@ class BaseCase(TestCase):
                     clear_cache = any(issubclass(exc, AccessError) for exc in exception)
                 else:
                     clear_cache = issubclass(exception, AccessError)
+                _debug.logic(
+                    "test.assert.raises",
+                    test=self.canonical_tag,
+                    exception=getattr(exception, "__name__", None),
+                    clear_cache=clear_cache,
+                )
                 if clear_cache:
                     self.env.cr.clear()
 
@@ -589,6 +750,9 @@ class BaseCase(TestCase):
             self.env.flush_all()
             self.env.cr.flush()
 
+        _debug.pipeline(
+            "test.assert.queries_recording", test=self.canonical_tag, flush=flush
+        )
         with ExitStack() as patches:
             for name, describe in _STATEMENT_RECORDERS.items():
                 patches.enter_context(recorded(name, describe))
@@ -599,6 +763,11 @@ class BaseCase(TestCase):
             if flush:
                 self.env.flush_all()
                 self.env.cr.flush()
+        _debug.perf.count(
+            "test.assert.queries_recorded",
+            test=self.canonical_tag,
+            count=len(actual_queries),
+        )
 
     @staticmethod
     def _normalize_query(query: str) -> str:
@@ -616,8 +785,16 @@ class BaseCase(TestCase):
         compare: Callable[[str, str], None],
     ) -> None:
         if not self.warm:
+            _debug.logic("test.assert.queries_cold_skipped", test=self.canonical_tag)
             return
 
+        _debug.logic(
+            "test.assert.queries_compare",
+            test=self.canonical_tag,
+            expected=len(expected),
+            actual=len(actual_queries),
+            compare=compare.__name__,
+        )
         self.assertEqual(
             len(actual_queries),
             len(expected),
@@ -687,6 +864,14 @@ class BaseCase(TestCase):
                     self.env.flush_all()
                     self.env.cr.flush()
                 count = self.cr.sql_statement_count - count0
+                _debug.logic(
+                    "test.assert.query_count",
+                    test=self.canonical_tag,
+                    login=login,
+                    expected=expected,
+                    count=count,
+                    flush=flush,
+                )
                 if count != expected:
                     caller = inspect.stack(0)[2]
                     filename, linenum, funcname = (
@@ -723,6 +908,7 @@ class BaseCase(TestCase):
                             linenum,
                         )
         else:
+            _debug.logic("test.assert.query_count_cold", test=self.canonical_tag)
             if flush:
                 self.env.flush_all()
                 self.env.cr.flush()
@@ -756,7 +942,15 @@ class BaseCase(TestCase):
         expected_reformatted = _normalise_expected(
             records, expected_values, field_names
         )
-        record_reformatted = _normalise_records(records, field_names)
+        with _debug.perf(
+            "test.assert.record_values",
+            cr=records.env.cr,
+            model=records._name,
+            records=len(records),
+            expected=len(expected_values),
+            fields=len(list(field_names)),
+        ):
+            record_reformatted = _normalise_records(records, field_names)
 
         try:
             self.assertSequenceEqual(
@@ -764,6 +958,7 @@ class BaseCase(TestCase):
             )
             return
         except AssertionError as e:
+            _debug.logic("test.assert.record_values_mismatch", model=records._name)
             standardMsg, _, diffMsg = str(e).rpartition("\n")
             if "self.maxDiff" not in diffMsg:
                 raise
@@ -818,6 +1013,12 @@ class BaseCase(TestCase):
         stale = self.findStaleComputedFields(
             records, probe_fields=probe_fields, computed_fields=computed_fields
         )
+        _debug.logic(
+            "test.assert.depends_complete",
+            model=model._name,
+            stale=len(stale),
+            exempt=sorted(exempt),
+        )
         if unproven := exempt - {entry[1] for entry in stale}:
             self.fail(
                 f"known_incomplete names {sorted(unproven)} on {model._name}, "
@@ -868,13 +1069,24 @@ class BaseCase(TestCase):
         model = records.browse(records.ids)
         fields = model._fields
         computed = self._depends_computed_names(model, computed_fields)
-        return [
-            entry
-            for name in self._depends_probe_names(model, probe_fields)
-            for value in self._depends_probe_values(model, fields[name])
-            for target in model
-            for entry in self._depends_probe(model, computed, name, value, target)
-        ]
+        probes = self._depends_probe_names(model, probe_fields)  # debuglog
+        with _debug.perf(
+            "test.assert.depends_probe_sweep",
+            cr=model.env.cr,
+            model=model._name,
+            records=len(model),
+            probes=len(probes),
+            computed=len(computed),
+        ) as span:
+            stale = [
+                entry
+                for name in probes
+                for value in self._depends_probe_values(model, fields[name])
+                for target in model
+                for entry in self._depends_probe(model, computed, name, value, target)
+            ]
+            span.set(stale=len(stale))
+        return stale
 
     def _depends_probe_values(
         self, records: odoo.models.BaseModel, field: Any
@@ -897,7 +1109,13 @@ class BaseCase(TestCase):
             candidate = comodel.with_context(active_test=False).search(
                 [("id", "not in", list(held))], limit=1
             )
-        except Exception:
+        except Exception as exc:
+            _debug.logic(
+                "test.assert.depends_comodel_failed",
+                field=field.name,
+                comodel=field.comodel_name,
+                error=type(exc).__name__,
+            )
             return []
         return candidate.ids
 
@@ -911,16 +1129,20 @@ class BaseCase(TestCase):
     ) -> list[tuple[str, str, Any, Any, Any]]:
         env = records.env
         savepoint = env.cr.savepoint(flush=False)
+        skipped = None  # debuglog
         try:
             env.flush_all()
             env.invalidate_all()
             current = target[probe_name]
             if isinstance(current, odoo.models.BaseModel):
                 if current.id == value:
+                    skipped = "same_value"  # debuglog
                     return []
             elif current == value:
+                skipped = "same_value"  # debuglog
                 return []
             if self._depends_forced_recompute(records, computed) is None:
+                skipped = "recompute_failed"  # debuglog
                 return []
             env.invalidate_all()
             before = self._depends_read(records, computed)
@@ -930,22 +1152,40 @@ class BaseCase(TestCase):
             env.invalidate_all()
             fresh = self._depends_read(records.browse(records.ids), computed)
             if before is None or cached is None or fresh is None:
+                skipped = "read_failed"  # debuglog
                 return []
             recomputed = self._depends_forced_recompute(records, computed)
             if recomputed is None:
+                skipped = "recompute_failed"  # debuglog
                 return []
             fresh = {**fresh, **recomputed}
-        except Exception:
+        except Exception as exc:
+            skipped = type(exc).__name__  # debuglog
             return []
         finally:
             savepoint.rollback()
             savepoint.close(rollback=False)
             env.clear()
+            if skipped:
+                _debug.logic(
+                    "test.assert.depends_probe_skipped",
+                    model=records._name,
+                    probe=probe_name,
+                    target=target.id,
+                    reason=skipped,
+                )
         stale = []
         for key in before:
             if key not in cached or key not in fresh:
                 continue
             if cached[key] != fresh[key]:
+                _debug.logic(
+                    "test.assert.depends_stale",
+                    model=records._name,
+                    probe=probe_name,
+                    field=key[1],
+                    record=key[0],
+                )
                 stale.append((probe_name, key[1], value, cached[key], fresh[key]))
         return stale
 
@@ -1017,6 +1257,7 @@ class BaseCase(TestCase):
 
     def assertSweep(self, candidates: Any, msg: str | None = None) -> list:
         found = list(candidates)
+        _debug.logic("test.assert.sweep", test=self.canonical_tag, found=len(found))
         self.assertTrue(
             found,
             msg or "the sweep found nothing to check, so it proves nothing",
@@ -1038,6 +1279,13 @@ class BaseCase(TestCase):
         self, original: str, expected: str, parser: str = "xml"
     ) -> None:
         self.maxDiff = 10000
+        _debug.perf.count(
+            "test.assert.xml_equal",
+            test=self.canonical_tag,
+            parser=parser,
+            original=len(original or ""),
+            expected=len(expected or ""),
+        )
         if original:
             original = _normalize_arch_for_assert(original, parser)
         if expected:
@@ -1056,6 +1304,13 @@ class BaseCase(TestCase):
             self.profile_session = profiler.get_session_name(test_method)
         if "db" not in kwargs:
             kwargs["db"] = self.env.cr.dbname
+        _debug.lifecycle(
+            "test.profile.start",
+            test=self.canonical_tag,
+            session=self.profile_session,
+            warm=self.warm,
+            options=sorted(kwargs),
+        )
         return profiler.Profiler(
             description="%s uid:%s %s %s"
             % (
@@ -1088,23 +1343,26 @@ class BaseCase(TestCase):
         try:
             from odoo.addons.bus import websocket as bus_websocket
         except ImportError:
-            pass
+            _debug.logic("test.registry.bus_patch", present=False)
         else:
             og_db_connect = bus_websocket.db_connect
 
             def _patched_ws_db_connect(to, allow_uri=False, readonly=False):
                 if to == cr.dbname:
+                    _debug.logic("test.registry.ws_db_connect", db=to, patched=True)
 
                     class _TestConnection:
                         def cursor(self):
                             return _patched_cursor(readonly)
 
                     return _TestConnection()
+                _debug.logic("test.registry.ws_db_connect", db=to, patched=False)
                 return og_db_connect(to, allow_uri=allow_uri, readonly=readonly)
 
             patches.append(
                 patch.object(bus_websocket, "db_connect", _patched_ws_db_connect)
             )
+            _debug.logic("test.registry.bus_patch", present=True)
 
         return patches
 
@@ -1121,6 +1379,12 @@ class BaseCase(TestCase):
         for p in cls.registry_patches:
             p.start()
         cls._registry_patched = True
+        _debug.lifecycle(
+            "test.registry.test_mode_entered",
+            cls=cls.__qualname__,
+            patches=len(cls.registry_patches),
+            readonly_enabled=cls._registry_readonly_enabled,
+        )
 
     @classmethod
     def registry_enter_test_mode_cls(cls) -> None:
@@ -1142,31 +1406,55 @@ class BaseCase(TestCase):
             p.stop()
         cls.registry_patches.clear()
         cls._registry_patched = False
+        _debug.lifecycle("test.registry.test_mode_left", cls=cls.__qualname__)
 
     @classmethod
     def set_registry_readonly_mode(cls, enabled: bool) -> None:
         assert cls._registry_patched, "Registry is not patched"
 
+        _debug.lifecycle(
+            "test.registry.readonly_mode",
+            cls=cls.__qualname__,
+            enabled=enabled,
+            was=cls._registry_readonly_enabled,
+        )
         cls._registry_readonly_enabled = enabled
 
     def assertCanOpenTestCursor(self) -> None:
         if odoo.modules.module.current_test is not self:
+            _debug.logic(
+                "test.cursor.foreign_test",
+                test=self.canonical_tag,
+                current=current_test_tag(),
+            )
             message = f"Trying to open a test cursor for {self.canonical_tag} while already in a test {current_test_tag()}"
             _logger.log(RUNBOT, message)
             raise BadRequest(message)
         request = odoo.http.request
-        if not request or self.http_request_allow_all:
+        if not request:
+            _debug.logic("test.cursor.allowed", reason="no_request")
+            return
+        if self.http_request_allow_all:
+            _debug.logic("test.cursor.allowed", reason="allow_all")
             return
         # The cookie is how a request served on a SERVER thread proves it is
         # this test's. Code running on the test's own thread under a request it
         # mocked -- a login that reads its durable cooldown row through
         # `registry.cursor()`, say -- needs no ticket, and has none to show.
         if threading.current_thread() is self._test_thread:
+            _debug.logic("test.cursor.allowed", reason="test_thread")
             return
         http_request_required_key = self.http_request_key
         http_request_key = request.cookies.get(TEST_CURSOR_COOKIE_NAME)
         if http_request_key != http_request_required_key:
             expected = http_request_required_key
+            _debug.logic(
+                "test.cursor.cookie_rejected",
+                test=self.canonical_tag,
+                path=request.httprequest.path,
+                expected=expected or None,
+                got=http_request_key,
+            )
             if not expected:
                 expected = "None (request are not enabled)"
             _logger.log(
@@ -1181,6 +1469,7 @@ class BaseCase(TestCase):
             raise BadRequest(
                 "Request ignored during test as it does not contain the required cookie."
             )
+        _debug.logic("test.cursor.allowed", reason="cookie", key=http_request_key)
 
     _SOURCE_TAGS: dict[str, str] = {"is_query_count": "self.assertQueryCount"}
     """Tags derived by grepping a test's own source: {tag: needle}.
@@ -1199,8 +1488,21 @@ class BaseCase(TestCase):
         try:
             method_source = inspect.getsource(test_method)
         except OSError, TypeError:
+            _debug.logic(
+                "test.tags.source_unavailable",
+                method=getattr(test_method, "__qualname__", None),
+            )
             return []
-        return [tag for tag, needle in wanted.items() if needle in method_source]
+        found = [
+            tag for tag, needle in wanted.items() if needle in method_source
+        ]  # debuglog
+        _debug.logic(
+            "test.tags.source_tags",
+            method=getattr(test_method, "__qualname__", None),
+            wanted=sorted(wanted),
+            found=found,
+        )
+        return found
 
 
 class TransactionCase(BaseCase):
@@ -1222,28 +1524,52 @@ class TransactionCase(BaseCase):
         cls.registry_start_invalidated = cls.registry.registry_invalidated
         cls.registry_start_sequence = cls.registry.registry_sequence
         cls.registry_cache_sequences = dict(cls.registry.cache_sequences)
+        _debug.lifecycle(
+            "test.registry.bound",
+            cls=cls.__qualname__,
+            db=cls.registry.db_name,
+            sequence=cls.registry_start_sequence,
+            invalidated=cls.registry_start_invalidated,
+            ready=cls.registry.ready,
+            loaded=cls.registry.loaded,
+        )
 
         def reset_changes():
-            if (
+            rebuild = (
                 cls.registry_start_sequence != cls.registry.registry_sequence
-            ) or cls.registry.registry_invalidated:
-                with cls.registry.cursor() as cr:
-                    cls.registry.setup_models(cr)
-            cls.registry.registry_invalidated = cls.registry_start_invalidated
-            cls.registry.registry_sequence = cls.registry_start_sequence
-            with cls.muted_registry_logger:
-                cls.registry.clear_all_caches()
-            cls.registry.cache_invalidated.clear()
-            cls.registry.cache_sequences = cls.registry_cache_sequences
+            ) or cls.registry.registry_invalidated
+            with _debug.perf(
+                "test.registry.reset_changes",
+                cls=cls.__qualname__,
+                rebuild=rebuild,
+                sequence=cls.registry.registry_sequence,
+                started_at=cls.registry_start_sequence,
+            ):
+                if rebuild:
+                    with cls.registry.cursor() as cr:
+                        cls.registry.setup_models(cr)
+                cls.registry.registry_invalidated = cls.registry_start_invalidated
+                cls.registry.registry_sequence = cls.registry_start_sequence
+                with cls.muted_registry_logger:
+                    cls.registry.clear_all_caches()
+                cls.registry.cache_invalidated.clear()
+                cls.registry.cache_sequences = cls.registry_cache_sequences
 
         cls.addClassCleanup(reset_changes)
 
         def signal_changes():
             if not cls.registry.ready:
+                _debug.logic("test.registry.signal_changes", ready=False)
                 _logger.info("Skipping signal changes during tests")
                 return
             if cls.registry.registry_invalidated or cls.registry.cache_invalidated:
                 _logger.info("Simulating signal changes during tests")
+            _debug.logic(
+                "test.registry.signal_changes",
+                ready=True,
+                registry_invalidated=cls.registry.registry_invalidated,
+                caches=sorted(cls.registry.cache_invalidated or ()),
+            )
             if cls.registry.registry_invalidated:
                 cls.registry.registry_sequence += 1
             for cache_name in cls.registry.cache_invalidated or ():
@@ -1264,6 +1590,7 @@ class TransactionCase(BaseCase):
             cls.startClassPatcher(cls.freeze_time)
 
         def forbidden(*args, **kwars):
+            _debug.logic("test.cursor.forbidden_call", test=current_test_tag())
             traceback.print_stack()
             raise AssertionError(
                 "Cannot commit or rollback a cursor from inside a test, this will lead to a broken cursor when trying to rollback the test. Please rollback to a specific savepoint instead or open another cursor if really necessary"
@@ -1290,11 +1617,22 @@ class TransactionCase(BaseCase):
             _get_crypt_context,
         )
         cls.startClassPatcher(cls._crypt_context_patcher)
+        _debug.lifecycle(
+            "test.case.transaction_ready",
+            cls=cls.__qualname__,
+            db=cls.cr.dbname,
+            uid=cls.env.uid,
+        )
 
     def setUp(self) -> None:
         super().setUp()
 
         def _check_registry_lock() -> None:
+            _debug.logic(
+                "test.lock.count_at_end",
+                test=self.canonical_tag,
+                held=_registry_test_lock.count,
+            )
             if _registry_test_lock.count == 0:
                 _logger.warning(
                     "The registry test lock is still released at the end of %s",
@@ -1335,9 +1673,16 @@ class TransactionCase(BaseCase):
                 deepcopy(callback.data),
             )
 
-        self.env.flush_all()
+        with _debug.perf(
+            "test.case.transaction_setup",
+            cr=cr,
+            test=self.canonical_tag,
+            envs=len(envs),
+            cleanups=len(self._cleanups),
+        ):
+            self.env.flush_all()
 
-        savepoint = Savepoint(self.cr)
+            savepoint = Savepoint(self.cr)
         self.addCleanup(savepoint.close)
 
     @contextmanager
@@ -1345,6 +1690,7 @@ class TransactionCase(BaseCase):
         env = self.env
         env.flush_all()
         self.registry_enter_test_mode(register_cleanup=False)
+        _debug.lifecycle("test.registry.test_mode_scope", test=self.canonical_tag)
         try:
             yield
         finally:
@@ -1354,7 +1700,11 @@ class TransactionCase(BaseCase):
     @contextmanager
     def allow_pdf_render(self) -> Generator[None]:
         with ExitStack() as stack:
-            if not type(self)._registry_patched:
+            entered = not type(self)._registry_patched  # debuglog
+            _debug.logic(
+                "test.registry.pdf_render", test=self.canonical_tag, entered=entered
+            )
+            if entered:
                 stack.enter_context(self.enter_registry_test_mode())
             yield
 
@@ -1366,6 +1716,7 @@ class SingleTransactionCase(BaseCase):
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         if issubclass(cls, TransactionCase):
+            _debug.logic("test.case.double_inheritance", cls=cls.__qualname__)
             _logger.warning(
                 "%s inherits from both TransactionCase and SingleTransactionCase",
                 cls.__name__,
@@ -1385,7 +1736,15 @@ class SingleTransactionCase(BaseCase):
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
         cls.env.transaction.default_env = cls.env
+        _debug.lifecycle(
+            "test.case.single_transaction_ready",
+            cls=cls.__qualname__,
+            db=cls.cr.dbname,
+        )
 
     def setUp(self) -> None:
         super().setUp()
-        self.env.flush_all()
+        with _debug.perf(
+            "test.case.single_transaction_setup", cr=self.cr, test=self.canonical_tag
+        ):
+            self.env.flush_all()

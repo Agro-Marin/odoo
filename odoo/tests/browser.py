@@ -116,9 +116,19 @@ class ChromeBrowser:
         self.test_case = test_case
         self.success_signal = success_signal
         if websocket is None:
+            _debug.logic("test.browser.websocket_missing")
             self._logger.warning("websocket-client module is not installed")
             raise InfrastructureUnavailable("websocket-client module is not installed")
         self.user_data_dir = tempfile.mkdtemp(suffix="_chrome_odoo")
+        _debug.lifecycle(
+            "test.browser.init",
+            test=test_case.canonical_tag,
+            headless=headless,
+            debug=debug is not False,
+            screencasts=bool(odoo.tools.config["screencasts"]),
+            success_signal=success_signal,
+            profile=self.user_data_dir,
+        )
 
         self.screencaster: Screencaster | NoScreencast
         if scs := odoo.tools.config["screencasts"]:
@@ -140,14 +150,16 @@ class ChromeBrowser:
         self._responses: dict[int, Future] = {}
         self._frames: dict[str, Any] = {}
         try:
-            self.chrome, self.devtools_port = self._chrome_start(
-                user_data_dir=self.user_data_dir,
-                touch_enabled=test_case.touch_enabled,
-                headless=headless,
-                debug=debug,
-            )
-            self._connect()
-        except BaseException:
+            with _debug.perf("test.browser.start", test=test_case.canonical_tag):
+                self.chrome, self.devtools_port = self._chrome_start(
+                    user_data_dir=self.user_data_dir,
+                    touch_enabled=test_case.touch_enabled,
+                    headless=headless,
+                    debug=debug,
+                )
+                self._connect()
+        except BaseException as exc:
+            _debug.lifecycle("test.browser.start_failed", error=type(exc).__name__)
             self.stop()
             raise
 
@@ -171,12 +183,14 @@ class ChromeBrowser:
             try:
                 receiver.start()
             except RuntimeError:
+                _debug.logic("test.browser.receiver_retry", attempt=attempt + 1)
                 if attempt == 4:
                     raise
                 gc.collect()
                 time.sleep(0.2 * (attempt + 1))
             else:
                 self._receiver = receiver
+                _debug.lifecycle("test.browser.receiver_started", attempts=attempt + 1)
                 break
         self._logger.info("Enable chrome headless console log notification")
         self._websocket_send("Runtime.enable")
@@ -206,33 +220,54 @@ class ChromeBrowser:
                 "deviceScaleFactor": 1,
             },
         )
+        _debug.lifecycle(
+            "test.browser.connected",
+            port=self.devtools_port,
+            width=width,
+            height=height,
+            handlers=len(self._handlers),
+        )
 
     def _settle_exception(self, exc: BaseException) -> None:
         try:
             self._result.set_exception(exc)
         except CancelledError:
-            ...
+            _debug.lifecycle(
+                "test.browser.settled", kind="exception", state="cancelled"
+            )
         except InvalidStateError:
+            _debug.lifecycle("test.browser.settled", kind="exception", state="already")
             self._logger.warning(
                 "Trying to set result to failed (%s) but found the future settled (%s)",
                 exc,
                 self._result,
+            )
+        else:
+            _debug.lifecycle(
+                "test.browser.settled",
+                kind="exception",
+                state="set",
+                error=type(exc).__name__,
             )
 
     def _settle_result(self, value: Any) -> None:
         try:
             self._result.set_result(value)
         except CancelledError:
-            ...
+            _debug.lifecycle("test.browser.settled", kind="result", state="cancelled")
         except InvalidStateError:
+            _debug.lifecycle("test.browser.settled", kind="result", state="already")
             self._logger.warning(
                 "Trying to set result to %s but found the future settled (%s)",
                 value,
                 self._result,
             )
+        else:
+            _debug.lifecycle("test.browser.settled", kind="result", state="set")
 
     def signal_handler(self, sig: int, frame: Any) -> None:
         if sig == signal.SIGXCPU:
+            _debug.lifecycle("test.browser.sigxcpu")
             _logger.info("CPU time limit reached, stopping Chrome and shutting down")
             self.stop()
             sys.exit()
@@ -243,14 +278,23 @@ class ChromeBrowser:
 
         assert 1 <= factor <= 50
         self.throttling_factor = factor
+        _debug.lifecycle("test.browser.throttle", factor=factor)
         self._websocket_request(
             "Emulation.setCPUThrottlingRate", params={"rate": factor}
         )
 
     def stop(self) -> None:
         if getattr(self, "_stopped", False):
+            _debug.logic("test.browser.stop_again")
             return
         self._stopped = True
+        _debug.lifecycle(
+            "test.browser.stop",
+            connected=hasattr(self, "ws"),
+            spawned=hasattr(self, "chrome"),
+            pending=len(self._responses),
+            settled=self._result.done(),
+        )
         if hasattr(self, "ws"):
             try:
                 self.screencaster.stop()
@@ -276,8 +320,14 @@ class ChromeBrowser:
                 )
                 self._websocket_request("Browser.close")
             except ChromeBrowserException as e:
+                _debug.logic("test.browser.shutdown_error", kind="websocket")
                 _logger.log(RUNBOT, "WS error during browser shutdown: %s", e)
-            except Exception:
+            except Exception as e:
+                _debug.logic(
+                    "test.browser.shutdown_error",
+                    kind="other",
+                    error=type(e).__name__,
+                )
                 _logger.warning("Error during browser shutdown", exc_info=True)
             self._logger.info("Closing websocket connection")
             with contextlib.suppress(AttributeError, OSError):
@@ -303,6 +353,12 @@ class ChromeBrowser:
             procs = []
         self.chrome.terminate()
         _, alive = psutil.wait_procs(procs, 5)
+        _debug.lifecycle(
+            "test.browser.terminated",
+            pid=self.chrome.pid,
+            procs=len(procs),
+            alive=len(alive),
+        )
         if alive:
             self._logger.warning(
                 "Killing chrome descendants-or-self of %s: %d remaining%s",
@@ -319,6 +375,7 @@ class ChromeBrowser:
         try:
             return _get_browser_executable_path()
         except Exception:
+            _debug.logic("test.browser.executable_missing")
             self._logger.warning("Chrome executable not found")
             raise
 
@@ -334,7 +391,8 @@ class ChromeBrowser:
 
         port_file = pathlib.Path(self.user_data_dir, "DevToolsActivePort")
         died = None
-        for _ in range(CHECK_BROWSER_ITERATIONS):
+        start = time.monotonic()  # debuglog
+        for iteration in range(CHECK_BROWSER_ITERATIONS):
             time.sleep(CHECK_BROWSER_SLEEP)
             if port_file.is_file() and port_file.stat().st_size > 5:
                 with port_file.open("r", encoding="utf-8") as f:
@@ -344,10 +402,19 @@ class ChromeBrowser:
                     pid=proc.pid,
                     port=port,
                     profile=self.user_data_dir,
+                    polls=iteration + 1,
+                    wait_s=time.monotonic() - start,
                 )
                 return proc, port
             if (died := proc.poll()) is not None:
                 break
+
+        _debug.logic(
+            "test.browser.spawn_failed",
+            reason="died" if died is not None else "no_port",
+            code=died,
+            wait_s=time.monotonic() - start,
+        )
 
         if proc.poll() is None:
             proc.terminate()
@@ -419,9 +486,17 @@ class ChromeBrowser:
         cmd += ["%s=%s" % (k, v) if v else k for k, v in switches.items()]
         url = "about:blank"
         cmd.append(url)
+        _debug.logic(
+            "test.browser.switches",
+            headless=headless,
+            touch=touch_enabled,
+            debug=debug is not False,
+            count=len(switches),
+        )
         try:
             proc, devtools_port = self._spawn_chrome(cmd)
         except OSError:
+            _debug.logic("test.browser.spawn_failed", reason="oserror")
             raise InfrastructureUnavailable("%s not found" % cmd[0]) from None
         self._logger.info("Chrome pid: %s", proc.pid)
         self._logger.info(
@@ -438,28 +513,35 @@ class ChromeBrowser:
         failure_info = None
         message = None
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if self.chrome.poll() is not None:
-                message = "Chrome crashed at startup"
-                break
-            try:
-                r = requests.get(url, timeout=3)
-                if r.ok:
-                    return r.json()
-                message = f"Chrome debugger answered with HTTP {r.status_code}"
-            except requests.ConnectionError as e:
-                failure_info = str(e)
-                message = "Connection Error while trying to connect to Chrome debugger"
-            except requests.exceptions.ReadTimeout as e:
-                failure_info = str(e)
-                message = (
-                    "Connection Timeout while trying to connect to Chrome debugger"
-                )
-                break
+        span = _debug.perf("test.browser.json_command", command=command or "list")
+        with span:
+            while time.monotonic() < deadline:
+                if self.chrome.poll() is not None:
+                    message = "Chrome crashed at startup"
+                    break
+                try:
+                    r = requests.get(url, timeout=3)
+                    if r.ok:
+                        span.set(tries=tries, ok=True)
+                        return r.json()
+                    message = f"Chrome debugger answered with HTTP {r.status_code}"
+                except requests.ConnectionError as e:
+                    failure_info = str(e)
+                    message = (
+                        "Connection Error while trying to connect to Chrome debugger"
+                    )
+                except requests.exceptions.ReadTimeout as e:
+                    failure_info = str(e)
+                    message = (
+                        "Connection Timeout while trying to connect to Chrome debugger"
+                    )
+                    break
 
-            time.sleep(delay)
-            delay *= 1.5
-            tries += 1
+                time.sleep(delay)
+                delay *= 1.5
+                tries += 1
+            span.set(tries=tries, ok=False, message=message)
+        _debug.logic("test.browser.json_command_failed", command=command or "list")
         self._logger.error("%s after %s tries", message, tries)
         if failure_info:
             self._logger.info(failure_info)
@@ -470,8 +552,10 @@ class ChromeBrowser:
         version = self._json_command("version")
         self._logger.info("Browser version: %s", version["Browser"])
 
-        start = time.monotonic()
+        start = time.monotonic()  # debuglog
+        polls = 0  # debuglog
         while (time.monotonic() - start) < 5.0:
+            polls += 1  # debuglog
             ws_url = next(
                 (
                     target["webSocketDebuggerUrl"]
@@ -486,22 +570,31 @@ class ChromeBrowser:
 
             time.sleep(0.1)
         else:
+            _debug.logic("test.browser.page_target_missing", polls=polls)
             self.stop()
             raise InfrastructureUnavailable(
                 "Error during Chrome connection: never found 'page' target"
             )
 
         self._logger.info("Websocket url found: %s", ws_url)
-        ws = websocket.create_connection(
-            ws_url, enable_multithread=True, suppress_origin=True
-        )
-        try:
-            if ws.getstatus() != 101:
-                raise InfrastructureUnavailable("Cannot connect to chrome dev tools")
-            ws.settimeout(0.01)
-        except BaseException:
-            ws.close()
-            raise
+        with _debug.perf(
+            "test.browser.open_websocket",
+            version=version["Browser"],
+            polls=polls,
+        ) as span:
+            ws = websocket.create_connection(
+                ws_url, enable_multithread=True, suppress_origin=True
+            )
+            try:
+                span.set(status=ws.getstatus())
+                if ws.getstatus() != 101:
+                    raise InfrastructureUnavailable(
+                        "Cannot connect to chrome dev tools"
+                    )
+                ws.settimeout(0.01)
+            except BaseException:
+                ws.close()
+                raise
         return ws
 
     def _receive(self, dbname: str) -> None:
@@ -515,7 +608,9 @@ class ChromeBrowser:
             except websocket.WebSocketTimeoutException:
                 continue
             except websocket.WebSocketConnectionClosedException as e:
-                if not self._result.done():
+                settled = self._result.done()  # debuglog
+                cancelled = 0  # debuglog
+                if not settled:
                     del self.ws
                     self._result.set_exception(e)
                     while True:
@@ -525,8 +620,20 @@ class ChromeBrowser:
                             break
                         else:
                             pending.cancel()
+                            cancelled += 1  # debuglog
+                _debug.lifecycle(
+                    "test.browser.receiver_closed",
+                    settled=settled,
+                    cancelled=cancelled,
+                )
                 return
             except Exception as e:
+                _debug.logic(
+                    "test.browser.receiver_error",
+                    error=type(e).__name__,
+                    settled=self._result.done(),
+                    connected=self.ws.connected,
+                )
                 if isinstance(e, ConnectionResetError) and self._result.done():
                     return
                 if self.ws.connected:
@@ -539,14 +646,33 @@ class ChromeBrowser:
             request_id = res.get("id")
             try:
                 if request_id is None:
-                    if handler := self._handlers.get(res["method"]):
+                    handler = self._handlers.get(res["method"])
+                    _debug.pipeline(
+                        "test.browser.event",
+                        method=res["method"],
+                        handled=handler is not None,
+                    )
+                    if handler:
                         handler(**res["params"])
                 elif f := self._responses.pop(request_id, None):
+                    _debug.pipeline(
+                        "test.browser.response",
+                        id=request_id,
+                        error="error" in res,
+                        pending=len(self._responses),
+                    )
                     if "result" in res:
                         f.set_result(res["result"])
                     else:
                         f.set_exception(ChromeBrowserException(res["error"]["message"]))
-            except Exception:
+                else:
+                    _debug.logic("test.browser.response_unclaimed", id=request_id)
+            except Exception as e:
+                _debug.logic(
+                    "test.browser.dispatch_failed",
+                    method=res.get("method"),
+                    error=type(e).__name__,
+                )
                 _logger.exception(
                     "While processing message %s",
                     shorten(str(msg), 500, placeholder="..."),
@@ -566,10 +692,12 @@ class ChromeBrowser:
         f = self._websocket_send(method, params=params, with_future=True)
         if f is None:
             return None
-        try:
-            return f.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            raise TimeoutError(f"{method}({params or ''})") from None
+        with _debug.perf("test.browser.request", method=method, timeout=timeout):
+            try:
+                return f.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                _debug.logic("test.browser.request_timeout", method=method)
+                raise TimeoutError(f"{method}({params or ''})") from None
 
     def _websocket_requires_result(
         self, method: str, *, params: dict | None = None, timeout: float | None = None
@@ -581,6 +709,12 @@ class ChromeBrowser:
         exc = None
         if self._result.done() and not self._result.cancelled():
             exc = self._result.exception()
+        _debug.logic(
+            "test.browser.no_result",
+            method=method,
+            settled=self._result.done(),
+            error=type(exc).__name__ if exc else None,
+        )
         raise exc or ChromeBrowserException(
             f"the devtools websocket closed before {method} answered"
         )
@@ -589,6 +723,7 @@ class ChromeBrowser:
         self, method: str, *, params: dict | None = None, with_future: bool = False
     ) -> Future | None:
         if not hasattr(self, "ws"):
+            _debug.logic("test.browser.send_without_socket", method=method)
             return None
 
         result = None
@@ -599,13 +734,18 @@ class ChromeBrowser:
         if params:
             payload["params"] = params
         self._logger.debug("\n-> %s", payload)
+        _debug.pipeline(
+            "test.browser.send", method=method, id=request_id, future=with_future
+        )
         self.ws.send(json.dumps(payload))
         return result
 
     def _handle_service_worker_error(self, errorMessage: dict, **kw: Any) -> None:
         source = errorMessage.get("sourceURL") or ""
         if source.startswith("chrome-extension://"):
+            _debug.logic("test.browser.sw_error_ignored", source=source)
             return
+        _debug.logic("test.browser.sw_error", source=source or None)
         self._logger.getChild("browser").error(
             "Service worker error: %s (%s:%s:%s)",
             errorMessage.get("errorMessage"),
@@ -622,13 +762,20 @@ class ChromeBrowser:
         else:
             cmd = "Fetch.fulfillRequest"
             response = self.test_case.prepare_proxy_response(url)
+        _debug.pipeline(
+            "test.browser.fetch",
+            action="continue" if cmd == "Fetch.continueRequest" else "fulfill",
+            method=params["request"].get("method"),
+            url=url,
+        )
         try:
             self._websocket_send(
                 cmd, params={"requestId": params["requestId"], **response}
             )
         except websocket.WebSocketConnectionClosedException:
-            pass
+            _debug.logic("test.browser.fetch_socket_closed", url=url)
         except OSError:
+            _debug.logic("test.browser.fetch_oserror", url=url)
             _logger.info(
                 "Websocket error while handling request %s",
                 params["request"]["url"],
@@ -656,6 +803,14 @@ class ChromeBrowser:
         _logger = self._logger.getChild("browser")
         if self._result.done() and IGNORED_MSGS(message):
             log_type = "dir"
+        _debug.logic(
+            "test.browser.console",
+            type=type,
+            level=log_type,
+            after_done=self._result.done(),
+            size=len(message),
+            stack=bool(stack),
+        )
         _logger.log(
             self._TO_LEVEL.get(log_type, logging.INFO),
             "%s%s",
@@ -666,11 +821,20 @@ class ChromeBrowser:
         if log_type == "error":
             self.had_failure = True
             if self._result.done():
+                _debug.logic("test.browser.console_error", outcome="after_done")
                 return
             if not self.error_checker or self.error_checker(message):
+                _debug.logic(
+                    "test.browser.console_error",
+                    outcome="failed",
+                    checked=self.error_checker is not None,
+                )
                 self.take_screenshot()
                 self._settle_exception(ChromeBrowserException(message))
+            else:
+                _debug.logic("test.browser.console_error", outcome="ignored_by_checker")
         elif message == self.success_signal:
+            _debug.logic("test.browser.success_signal", signal=self.success_signal)
             self._handle_success_signal(_logger)
 
     def _handle_success_signal(self, _logger: logging.Logger) -> None:
@@ -699,6 +863,7 @@ class ChromeBrowser:
                 )
                 node_id = form["nodeId"]
 
+            _debug.logic("test.browser.dirty_form", found=bool(node_id))
             if node_id:
                 self.take_screenshot("unsaved_form_")
                 msg = """\
@@ -715,6 +880,7 @@ which leads to stray network requests and inconsistencies."""
             if not self._result.done():
                 self._settle_result(True)
             elif not self._result.cancelled() and self._result.exception() is None:
+                _debug.logic("test.browser.success_twice")
                 _logger.error("Tried to make the tour successful twice.")
 
     def _handle_exception(self, exceptionDetails: dict, timestamp: float) -> None:
@@ -728,17 +894,23 @@ which leads to stray network requests and inconsistencies."""
             message += "\n" + stack
 
         if self._result.done():
-            if not IGNORED_MSGS(message):
+            ignored = bool(IGNORED_MSGS(message))
+            _debug.logic("test.browser.exception", after_done=True, ignored=ignored)
+            if not ignored:
                 self._logger.getChild("browser").error(
                     "Exception received after termination: %s", message
                 )
             return
 
+        _debug.logic("test.browser.exception", after_done=False, size=len(message))
         self.take_screenshot()
         self._settle_exception(ChromeBrowserException(message))
 
     def _handle_frame_stopped_loading(self, frameId: str) -> None:
         wait = self._frames.pop(frameId, None)
+        _debug.lifecycle(
+            "test.browser.frame_stopped", frame=frameId, awaited=wait is not None
+        )
         if wait:
             wait()
 
@@ -756,9 +928,17 @@ which leads to stray network requests and inconsistencies."""
             try:
                 base_png = f.result(timeout=0)["data"]
             except Exception as e:
+                _debug.logic(
+                    "test.browser.screenshot_failed",
+                    prefix=prefix,
+                    error=type(e).__name__,
+                )
                 self._logger.log(RUNBOT, "Couldn't capture screenshot: %s", e)
                 return
             if not base_png:
+                _debug.logic(
+                    "test.browser.screenshot_failed", prefix=prefix, empty=True
+                )
                 self._logger.log(
                     RUNBOT,
                     "Couldn't capture screenshot: expected image data, got %r",
@@ -775,6 +955,7 @@ which leads to stray network requests and inconsistencies."""
 
         self._logger.info("Asking for screenshot")
         f = self._websocket_send("Page.captureScreenshot", with_future=True)
+        _debug.lifecycle("test.browser.screenshot", prefix=prefix, sent=f is not None)
         if f:
             f.add_done_callback(handler)
         return f
@@ -796,11 +977,15 @@ which leads to stray network requests and inconsistencies."""
         }
         if http_only:
             params["httpOnly"] = True
+        _debug.lifecycle(
+            "test.browser.cookie_set", name=name, domain=domain, http_only=http_only
+        )
         self._websocket_request("Network.setCookie", params=params)
 
     def remove_cookie(self, name: str, **kwargs: str) -> None:
         params = {k: v for k, v in kwargs.items() if k in ["url", "domain", "path"]}
         params["name"] = name
+        _debug.lifecycle("test.browser.cookie_removed", name=name, scope=sorted(params))
         self._websocket_request("Network.deleteCookies", params=params)
 
     def _wait_ready(self, ready_code: str | None = None, timeout: float = 60) -> bool:
@@ -809,50 +994,55 @@ which leads to stray network requests and inconsistencies."""
         self._logger.info('Evaluate ready code "%s"', ready_code)
         start_time = time.monotonic()
         result = None
-        while True:
-            taken = time.monotonic() - start_time
-            if taken > timeout:
-                break
+        polls = 0  # debuglog
+        span = _debug.perf("test.browser.wait_ready", timeout=timeout)
+        with span:
+            while True:
+                taken = time.monotonic() - start_time
+                if taken > timeout:
+                    break
 
-            try:
-                result = self._websocket_requires_result(
-                    "Runtime.evaluate",
-                    params={
-                        "expression": "try { %s } catch {}" % ready_code,
-                        "awaitPromise": True,
-                    },
-                    timeout=timeout - taken,
-                )["result"]
-            except CancelledError:
-                exc = self._result.done() and self._result.exception()
-                if exc:
-                    raise exc from None
-                result = "cancelled"
-            except TimeoutError:
-                result = "evaluate timeout"
-                continue
-            except ChromeBrowserException as evaluate_error:
-                if not TARGET_GONE(str(evaluate_error)):
-                    raise
-                result = "target navigated while evaluating"
-                continue
+                polls += 1  # debuglog
+                try:
+                    result = self._websocket_requires_result(
+                        "Runtime.evaluate",
+                        params={
+                            "expression": "try { %s } catch {}" % ready_code,
+                            "awaitPromise": True,
+                        },
+                        timeout=timeout - taken,
+                    )["result"]
+                except CancelledError:
+                    exc = self._result.done() and self._result.exception()
+                    if exc:
+                        span.set(ready=False, polls=polls, last="settled_exception")
+                        raise exc from None
+                    result = "cancelled"
+                except TimeoutError:
+                    result = "evaluate timeout"
+                    _debug.logic("test.browser.ready_poll", outcome="evaluate_timeout")
+                    continue
+                except ChromeBrowserException as evaluate_error:
+                    if not TARGET_GONE(str(evaluate_error)):
+                        span.set(ready=False, polls=polls, last="evaluate_error")
+                        raise
+                    result = "target navigated while evaluating"
+                    _debug.logic("test.browser.ready_poll", outcome="target_gone")
+                    continue
 
-            if result == {"type": "boolean", "value": True}:
-                if taken > 2:
-                    self._logger.info(
-                        "The ready code took too much time: %.2fs",
-                        time.monotonic() - start_time,
-                    )
-                _debug.perf.count(
-                    "test.browser.ready",
-                    wait_s=time.monotonic() - start_time,
-                    timeout=timeout,
-                )
-                return True
+                if result == {"type": "boolean", "value": True}:
+                    if taken > 2:
+                        self._logger.info(
+                            "The ready code took too much time: %.2fs",
+                            time.monotonic() - start_time,
+                        )
+                    span.set(ready=True, polls=polls)
+                    return True
 
-            time.sleep(0.05)
+                time.sleep(0.05)
 
-        exc = self._result.done() and self._result.exception()
+            exc = self._result.done() and self._result.exception()
+            span.set(ready=False, polls=polls, last=str(result), settled=bool(exc))
         if exc:
             raise exc from None
         self.take_screenshot(prefix="sc_failed_ready_")
@@ -865,40 +1055,59 @@ which leads to stray network requests and inconsistencies."""
         timeout *= self.throttling_factor
         self.error_checker = error_checker
         self._logger.info('Evaluate test code "%s"', code)
-        start = time.monotonic()
-        try:
-            res = self._websocket_requires_result(
-                "Runtime.evaluate",
-                params={
-                    "expression": code,
-                    "awaitPromise": True,
-                },
-                timeout=timeout,
-            )["result"]
-        except TimeoutError as evaluate_timeout:
-            self.take_screenshot()
-            self.screencaster.save()
-            raise ChromeBrowserException(
-                "Script timeout exceeded"
-            ) from evaluate_timeout
-        if res.get("subtype") == "error":
-            raise ChromeBrowserException("Running code returned an error: %s" % res)
+        start = time.monotonic()  # debuglog
+        span = _debug.perf(
+            "test.browser.wait_code",
+            timeout=timeout,
+            code=bool(code),
+            error_checker=error_checker is not None,
+        )
+        with span:
+            try:
+                res = self._websocket_requires_result(
+                    "Runtime.evaluate",
+                    params={
+                        "expression": code,
+                        "awaitPromise": True,
+                    },
+                    timeout=timeout,
+                )["result"]
+            except TimeoutError as evaluate_timeout:
+                span.set(outcome="evaluate_timeout")
+                self.take_screenshot()
+                self.screencaster.save()
+                raise ChromeBrowserException(
+                    "Script timeout exceeded"
+                ) from evaluate_timeout
+            span.set(evaluate_ms=(time.monotonic() - start) * 1000.0)
+            if res.get("subtype") == "error":
+                span.set(outcome="code_error")
+                raise ChromeBrowserException("Running code returned an error: %s" % res)
 
-        err: Exception = ChromeBrowserException("failed")
-        try:
-            if (
-                self._result.result(max(0.0, start + timeout - time.monotonic()))
-                and not self.had_failure
-            ):
+            err: Exception = ChromeBrowserException("failed")
+            try:
+                if (
+                    self._result.result(max(0.0, start + timeout - time.monotonic()))
+                    and not self.had_failure
+                ):
+                    span.set(outcome="success")
+                    return
+            except CancelledError:
+                span.set(outcome="cancelled")
                 return
-        except CancelledError:
-            return
-        except ChromeBrowserException:
-            self.screencaster.save()
-            raise
-        except Exception as e:
-            err = e
+            except ChromeBrowserException:
+                span.set(outcome="browser_exception")
+                self.screencaster.save()
+                raise
+            except Exception as e:
+                err = e
 
+            span.set(
+                outcome="timeout"
+                if isinstance(err, concurrent.futures.TimeoutError)
+                else "unknown",
+                had_failure=self.had_failure,
+            )
         self.take_screenshot()
         self.screencaster.save()
 
@@ -908,18 +1117,20 @@ which leads to stray network requests and inconsistencies."""
 
     def navigate_to(self, url: str, wait_stop: bool = False) -> None:
         self._logger.info('Navigating to: "%s"', url)
-        nav_result = self._websocket_request(
-            "Page.navigate",
-            params={"url": url},
-            timeout=20.0 * self.throttling_factor,
-        )
-        self._logger.info("Navigation result: %s", nav_result)
-        if wait_stop:
-            frame_id = nav_result["frameId"]
-            e = threading.Event()
-            self._frames[frame_id] = e.set
-            self._logger.info("Waiting for frame %r to stop loading", frame_id)
-            e.wait(10 * self.throttling_factor)
+        with _debug.perf("test.browser.navigate", url=url, wait_stop=wait_stop) as span:
+            nav_result = self._websocket_request(
+                "Page.navigate",
+                params={"url": url},
+                timeout=20.0 * self.throttling_factor,
+            )
+            self._logger.info("Navigation result: %s", nav_result)
+            span.set(frame=(nav_result or {}).get("frameId"))
+            if wait_stop:
+                frame_id = nav_result["frameId"]
+                e = threading.Event()
+                self._frames[frame_id] = e.set
+                self._logger.info("Waiting for frame %r to stop loading", frame_id)
+                span.set(stopped=e.wait(10 * self.throttling_factor))
 
     def _from_remoteobject(self, arg: dict) -> Any:
         objtype = arg["type"]
@@ -1005,6 +1216,7 @@ class Screencaster:
 
     def start(self) -> None:
         self._logger.info("Starting screencast")
+        _debug.lifecycle("test.screencast.start", dir=str(self.frames_dir))
         self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.browser._websocket_send("Page.startScreencast")
 
@@ -1028,11 +1240,13 @@ class Screencaster:
             return
         self.browser._websocket_send("Page.stopScreencast")
         self.stopped = True
+        _debug.lifecycle("test.screencast.stop", frames=len(self.frames), saved=False)
         if self.frames_dir.is_dir():
             shutil.rmtree(self.frames_dir, ignore_errors=True)
 
     def save(self) -> None:
         if self.stopped:
+            _debug.logic("test.screencast.save_after_stop")
             return
         self.browser._websocket_send("Page.stopScreencast")
         deadline = time.monotonic() + 5
@@ -1041,6 +1255,7 @@ class Screencaster:
             frame_count = len(self.frames)
             time.sleep(0.5)
         self.stopped = True
+        _debug.lifecycle("test.screencast.stop", frames=len(self.frames), saved=True)
         if not self.frames:
             self._logger.debug("No screencast frames to encode")
             return
@@ -1060,33 +1275,36 @@ class Screencaster:
         try:
             ffmpeg_path = get_executable_path("ffmpeg")
         except OSError:
+            _debug.logic("test.screencast.ffmpeg_missing", frames=len(frames))
             self._logger.log(RUNBOT, "Screencast frames in: %s", self.frames_dir)
             return
 
         outfile = self.frames_dir.with_suffix(".mp4")
+        span = _debug.perf("test.screencast.encode", frames=len(frames))
         try:
-            subprocess.run(
-                [
-                    ffmpeg_path,
-                    "-y",
-                    "-loglevel",
-                    "warning",
-                    "-f",
-                    "concat",
-                    "-safe",
-                    "0",
-                    "-i",
-                    concat_script_path,
-                    "-vf",
-                    "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                    "-c:v",
-                    "libx265",
-                    "-x265-params",
-                    "lossless=1",
-                    outfile,
-                ],
-                check=True,
-            )
+            with span:
+                subprocess.run(
+                    [
+                        ffmpeg_path,
+                        "-y",
+                        "-loglevel",
+                        "warning",
+                        "-f",
+                        "concat",
+                        "-safe",
+                        "0",
+                        "-i",
+                        concat_script_path,
+                        "-vf",
+                        "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                        "-c:v",
+                        "libx265",
+                        "-x265-params",
+                        "lossless=1",
+                        outfile,
+                    ],
+                    check=True,
+                )
         except subprocess.CalledProcessError:
             self._logger.error(
                 "Failed to encode screencast, screencast frames in %s",
@@ -1102,6 +1320,7 @@ class Screencaster:
 def _get_browser_executable_path():
     browser_bin_path = os.environ.get("ODOO_BROWSER_BIN")
     if browser_bin_path and pathlib.Path(browser_bin_path).exists():
+        _debug.logic("test.browser.executable", source="env", path=browser_bin_path)
         return browser_bin_path
     system = platform.system()
     if system == "Linux":
@@ -1112,9 +1331,11 @@ def _get_browser_executable_path():
             "google-chrome-stable",
         ]:
             try:
-                return get_executable_path(bin_)
+                path = get_executable_path(bin_)  # debuglog
             except OSError:
                 continue
+            _debug.logic("test.browser.executable", source="linux", path=path)
+            return path
 
     elif system == "Darwin":
         bins = [

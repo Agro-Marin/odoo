@@ -5,6 +5,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.worker_thread import current_worker_thread
 
 if TYPE_CHECKING:
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
 OUTLIER_PERCENTILE = 5
 
 _benchmark_logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 def percentile(data: list[float], p: float) -> float:
@@ -37,10 +39,19 @@ def _inlier_indices(
     data: list[float], percentile_cutoff: float = OUTLIER_PERCENTILE
 ) -> list[int]:
     if len(data) < 10:
+        _debug.logic("test.benchmark.outliers_kept", samples=len(data))
         return list(range(len(data)))
     lower = percentile(data, percentile_cutoff)
     upper = percentile(data, 100 - percentile_cutoff)
-    return [i for i, x in enumerate(data) if lower <= x <= upper]
+    kept = [i for i, x in enumerate(data) if lower <= x <= upper]  # debuglog
+    _debug.logic(
+        "test.benchmark.outliers_trimmed",
+        samples=len(data),
+        kept=len(kept),
+        lower=lower,
+        upper=upper,
+    )
+    return kept
 
 
 @dataclass(slots=True)
@@ -160,6 +171,7 @@ def compute_stats(
     db_times_us: list[float],
 ) -> BenchmarkStats:
     if not times_us:
+        _debug.logic("test.benchmark.no_samples", name=name)
         raise ValueError(
             f"benchmark {name!r} collected no samples: check that iterations > 0"
         )
@@ -183,6 +195,17 @@ def compute_stats(
     mean_db = statistics.mean(clean_db_times) if clean_db_times else 0
     python_time = mean_time - mean_db
 
+    _debug.perf.count(
+        "test.benchmark.stats",
+        name=name,
+        samples=len(times_us),
+        kept=len(clean_times),
+        db_aligned=len(db_times_us) == len(times_us),
+        queries_aligned=len(query_counts) == len(times_us),
+        mean_us=mean_time,
+        db_us=mean_db,
+        cv=std_dev / mean_time if mean_time > 0 else 0,
+    )
     return BenchmarkStats(
         name=name,
         iterations=len(times_us),
@@ -225,23 +248,34 @@ def run_benchmark(
     db_times_us: list[float] = []
 
     total_runs = warmup + iterations
+    _debug.pipeline(
+        "test.benchmark.start",
+        name=name,
+        iterations=iterations,
+        warmup=warmup,
+        setup=setup is not None,
+        teardown=teardown is not None,
+        invalidate=invalidate is not None,
+    )
 
-    for i in range(total_runs):
-        if setup:
-            setup()
-        if invalidate:
-            invalidate()
+    with _debug.perf("test.benchmark.run", name=name, runs=total_runs) as span:
+        for i in range(total_runs):
+            if setup:
+                setup()
+            if invalidate:
+                invalidate()
 
-        with BenchmarkTimer() as timer:
-            func()
+            with BenchmarkTimer() as timer:
+                func()
 
-        if teardown:
-            teardown()
+            if teardown:
+                teardown()
 
-        if i >= warmup:
-            times_us.append(timer.elapsed_us)
-            query_counts.append(timer.query_count)
-            db_times_us.append(timer.db_time_us)
+            if i >= warmup:
+                times_us.append(timer.elapsed_us)
+                query_counts.append(timer.query_count)
+                db_times_us.append(timer.db_time_us)
+        span.set(samples=len(times_us))
 
     return compute_stats(name, times_us, query_counts, db_times_us)
 
@@ -261,6 +295,12 @@ class PerfTimer:
 
     def stats(self, name: str = "", *, warmup: int = 0) -> dict:
         raw = self.samples_ns[warmup:]
+        _debug.perf.count(
+            "test.benchmark.perf_timer",
+            name=name,
+            samples=len(self.samples_ns),
+            warmup=warmup,
+        )
         if not raw:
             return {"name": name, "n": 0}
 
@@ -307,8 +347,10 @@ class BenchmarkTimer:
     def __enter__(self) -> Self:
         thread = current_worker_thread()
         if not hasattr(thread, "query_count"):
+            _debug.logic("test.benchmark.thread_counter_initialised", counter="count")
             thread.query_count = 0
         if not hasattr(thread, "query_time"):
+            _debug.logic("test.benchmark.thread_counter_initialised", counter="time")
             thread.query_time = 0
 
         self.start_query_count = thread.query_count
@@ -353,6 +395,12 @@ class BenchmarkTimer:
 
 def compare_results(baseline: list[dict], current: list[dict]) -> str:
     base_map = {r["name"]: r for r in baseline if r.get("name")}
+    _debug.perf.count(
+        "test.benchmark.compare",
+        baseline=len(base_map),
+        current=len(current),
+        new=sum(1 for r in current if r.get("name", "") not in base_map),
+    )
     lines: list[str] = []
     lines.extend(
         (
@@ -405,6 +453,12 @@ class BenchmarkCase:
         teardown: Callable[[], None] | None = None,
         invalidate_cache: bool = True,
     ) -> BenchmarkStats:
+        _debug.pipeline(
+            "test.benchmark.case",
+            cls=type(self).__qualname__,
+            name=name,
+            invalidate_cache=invalidate_cache,
+        )
         stats = run_benchmark(
             name,
             func,
@@ -420,6 +474,12 @@ class BenchmarkCase:
 
     def log_benchmark_summary(self, unit: str = "auto") -> None:
         prefix = self.benchmark_log_prefix
+        _debug.lifecycle(
+            "test.benchmark.summary",
+            cls=type(self).__qualname__,
+            results=len(self.all_results),
+            unit=unit,
+        )
         if not self.all_results:
             _benchmark_logger.info("[%s] no results to summarise", prefix)
             return
