@@ -11,7 +11,8 @@ class ProductAttributeCustomValue(models.Model):
         index="btree_not_null",
     )
 
-    _sol_custom_value_unique = models.Constraint(
-        "unique(custom_product_template_attribute_value_id, sale_order_line_id)",
+    _sol_custom_value_unique = models.UniqueIndex(
+        "(custom_product_template_attribute_value_id, sale_order_line_id) "
+        "WHERE sale_order_line_id IS NOT NULL",
         "Only one Custom Value is allowed per Attribute Value per Sales Order Line.",
     )

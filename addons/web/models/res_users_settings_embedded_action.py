@@ -34,8 +34,8 @@ class ResUsersSettingsEmbeddedAction(models.Model):
         "Is top bar visible", export_string_translation=False
     )
 
-    _res_user_settings_embedded_action_unique = models.Constraint(
-        "UNIQUE (user_setting_id, action_id, res_id)",
+    _res_user_settings_embedded_action_unique = models.UniqueIndex(
+        "(user_setting_id, action_id, res_id) WHERE res_id IS NOT NULL",
         "The user should have one unique embedded action setting per user setting, action and record id.",
     )
 

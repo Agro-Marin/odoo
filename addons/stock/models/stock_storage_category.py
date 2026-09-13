@@ -136,11 +136,11 @@ class StockStorageCategoryCapacity(models.Model):
         "CHECK((product_id IS NULL) != (package_type_id IS NULL))",
         "A storage capacity rule must concern either a product or a package type, but not both.",
     )
-    _unique_product = models.Constraint(
-        "UNIQUE(product_id, storage_category_id)",
+    _unique_product = models.UniqueIndex(
+        "(product_id, storage_category_id) WHERE product_id IS NOT NULL",
         "Multiple capacity rules for one product.",
     )
-    _unique_package_type = models.Constraint(
-        "UNIQUE(package_type_id, storage_category_id)",
+    _unique_package_type = models.UniqueIndex(
+        "(package_type_id, storage_category_id) WHERE package_type_id IS NOT NULL",
         "Multiple capacity rules for one package type.",
     )

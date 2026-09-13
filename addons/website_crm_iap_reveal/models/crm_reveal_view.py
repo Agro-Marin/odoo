@@ -25,7 +25,10 @@ class CrmRevealView(models.Model):
     )
     create_date = fields.Datetime(index=True)
 
-    _ip_rule_id = models.UniqueIndex("(reveal_rule_id,reveal_ip)")
+    _ip_rule_id = models.UniqueIndex(
+        "(reveal_rule_id, reveal_ip) "
+        "WHERE reveal_rule_id IS NOT NULL AND reveal_ip IS NOT NULL"
+    )
     _state_create_date = models.Index("(reveal_state,create_date)")
 
     @api.model

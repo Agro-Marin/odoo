@@ -11,8 +11,9 @@ class WebsiteControllerPage(models.Model):
     ]
     _description = "Model Page"
     _order = "website_id, id DESC"
-    _unique_name_slugified = models.Constraint(
-        "UNIQUE(name_slugified, website_id)",
+    _unique_name_slugified = models.UniqueIndex(
+        "(name_slugified, website_id) "
+        "WHERE name_slugified IS NOT NULL AND website_id IS NOT NULL",
         "url should be unique per website",
     )
 

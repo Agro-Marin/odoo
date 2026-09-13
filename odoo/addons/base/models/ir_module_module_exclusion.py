@@ -9,7 +9,7 @@ class IrModuleModuleExclusion(models.Model):
 
     linked_id = fields.Many2one(string="Excluded Module")
 
-    _module_exclusion_uniq = models.Constraint(
-        "UNIQUE (module_id, name)",
+    _module_exclusion_uniq = models.UniqueIndex(
+        "(module_id, name) WHERE module_id IS NOT NULL AND name IS NOT NULL",
         "A module cannot declare the same exclusion twice!",
     )

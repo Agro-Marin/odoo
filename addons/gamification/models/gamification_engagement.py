@@ -100,7 +100,7 @@ class GamificationEngagementSnapshot(models.Model):
     avg_user_karma = fields.Float("Avg User Karma", readonly=True)
 
     _snapshot_date_company_uniq = models.UniqueIndex(
-        "(snapshot_date, company_id)",
+        "(snapshot_date, company_id) WHERE company_id IS NOT NULL",
         "Only one snapshot per company per day.",
     )
 

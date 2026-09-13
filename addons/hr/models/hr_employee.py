@@ -666,8 +666,8 @@ class HrEmployee(models.Model):
 
     _BARCODE_DRAW_ATTEMPTS = 32
 
-    _user_uniq = models.Constraint(
-        "unique (user_id, company_id)",
+    _user_uniq = models.UniqueIndex(
+        "(user_id, company_id) WHERE user_id IS NOT NULL",
         "A user cannot be linked to multiple employees in the same company.",
     )
 

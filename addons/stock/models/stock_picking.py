@@ -371,8 +371,8 @@ class StockPicking(models.Model):
         help="Internal instructions for the partner or its parent company as set by the user.",
     )
 
-    _name_uniq = models.Constraint(
-        "unique(name, company_id)",
+    _name_uniq = models.UniqueIndex(
+        "(name, company_id) WHERE name IS NOT NULL AND company_id IS NOT NULL",
         "Reference must be unique per company!",
     )
 

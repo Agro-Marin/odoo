@@ -34,8 +34,9 @@ class ResUsers(models.Model):
         groups="base.group_erp_manager",
     )
 
-    _uniq_users_oauth_provider_oauth_uid = models.Constraint(
-        "unique(oauth_provider_id, oauth_uid)",
+    _uniq_users_oauth_provider_oauth_uid = models.UniqueIndex(
+        "(oauth_provider_id, oauth_uid) "
+        "WHERE oauth_provider_id IS NOT NULL AND oauth_uid IS NOT NULL",
         "OAuth UID must be unique per provider",
     )
 

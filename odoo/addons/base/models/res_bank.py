@@ -160,8 +160,9 @@ class ResPartnerBank(models.Model):
     note = fields.Text("Notes")
     color = fields.Integer(compute="_compute_color")
 
-    _unique_number = models.Constraint(
-        "unique(sanitized_acc_number, company_id)",
+    _unique_number = models.UniqueIndex(
+        "(sanitized_acc_number, company_id) "
+        "WHERE sanitized_acc_number IS NOT NULL AND company_id IS NOT NULL",
         "An account number names one account, so a company records it once. "
         "This number is already held by another contact in the same company.",
     )

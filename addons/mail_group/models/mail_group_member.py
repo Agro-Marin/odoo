@@ -25,8 +25,8 @@ class MailGroupMember(models.Model):
     )
     partner_id = fields.Many2one("res.partner", "Partner", ondelete="cascade")
 
-    _unique_partner = models.Constraint(
-        "UNIQUE(partner_id, mail_group_id)",
+    _unique_partner = models.UniqueIndex(
+        "(partner_id, mail_group_id) WHERE partner_id IS NOT NULL",
         "This partner is already subscribed to the group",
     )
 

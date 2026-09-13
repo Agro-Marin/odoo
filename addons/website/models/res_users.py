@@ -18,8 +18,8 @@ class ResUsers(models.Model):
         readonly=False,
     )
 
-    _login_key = models.Constraint(
-        "unique (login, website_id)",
+    _login_key = models.UniqueIndex(
+        "(login, website_id) WHERE website_id IS NOT NULL",
         "You can not have two users with the same login!",
     )
 

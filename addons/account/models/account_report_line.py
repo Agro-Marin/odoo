@@ -142,8 +142,8 @@ class AccountReportLine(models.Model):
         copy=False,
     )
 
-    _code_uniq = models.Constraint(
-        "unique (report_id, code)",
+    _code_uniq = models.UniqueIndex(
+        "(report_id, code) WHERE code IS NOT NULL",
         "A report line with the same code already exists.",
     )
 

@@ -69,8 +69,9 @@ class AccountMove(models.Model):
         depends=["l10n_pl_edi_upo_file"],
     )
 
-    _l10n_pl_edi_number_company_id_move_type_uniq = models.Constraint(
-        "UNIQUE(l10n_pl_edi_number, company_id, move_type)",
+    _l10n_pl_edi_number_company_id_move_type_uniq = models.UniqueIndex(
+        "(l10n_pl_edi_number, company_id, move_type) "
+        "WHERE l10n_pl_edi_number IS NOT NULL AND company_id IS NOT NULL",
         "The KSeF number must be unique per company per move_type",
     )
 

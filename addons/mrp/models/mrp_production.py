@@ -557,8 +557,8 @@ class MrpProduction(models.Model):
         compute="_compute_serial_numbers_count",
     )
 
-    _name_uniq = models.Constraint(
-        "unique(name, company_id)",
+    _name_uniq = models.UniqueIndex(
+        "(name, company_id) WHERE name IS NOT NULL",
         "Reference must be unique per Company!",
     )
     _qty_positive = models.Constraint(

@@ -32,7 +32,9 @@ class IrActionsAct_WindowView(models.Model):
         help="If set to true, the action will not be displayed on the right toolbar of a form view.",
     )
 
-    _unique_mode_per_action = models.UniqueIndex("(act_window_id, view_mode)")
+    _unique_mode_per_action = models.UniqueIndex(
+        "(act_window_id, view_mode) WHERE act_window_id IS NOT NULL"
+    )
 
     @api.model
     def _selection_view_mode(self):

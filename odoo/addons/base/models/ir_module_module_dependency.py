@@ -17,8 +17,8 @@ class IrModuleModuleDependency(models.Model):
         help="Whether this dependency blocks automatic installation of the dependent",
     )
 
-    _module_dependency_uniq = models.Constraint(
-        "UNIQUE (module_id, name)",
+    _module_dependency_uniq = models.UniqueIndex(
+        "(module_id, name) WHERE module_id IS NOT NULL AND name IS NOT NULL",
         "A module cannot declare the same dependency twice!",
     )
 

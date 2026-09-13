@@ -549,8 +549,8 @@ class ResCurrencyRate(models.Model):
         default=lambda self: self.env.company.root_id,
     )
 
-    _unique_name_per_day = models.Constraint(
-        "unique (name,currency_id,company_id)",
+    _unique_name_per_day = models.UniqueIndex(
+        "(name, currency_id, company_id) WHERE company_id IS NOT NULL",
         "Only one currency rate per day allowed!",
     )
     _currency_rate_check = models.Constraint(
