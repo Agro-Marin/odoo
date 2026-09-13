@@ -216,17 +216,15 @@ class MixinMailGateway(models.AbstractModel):
         bounced_partner: ResPartner,
     ) -> None:
         counted_bounced_record = False
-        for model_name in self.env["ir.model"]._get_mail_blacklist_models():
-            holders = (
-                self.env[model_name]
-                .sudo()
-                .search([("email_normalized", "=", bounced_email)])  # noqa: E8507  the loop is over blacklist models, not records: one query per table
+        holders_by_model = self._routing_find_blacklist_holders(bounced_email)
+        for model_name, ids in holders_by_model.items():
+            self.env[model_name].sudo().browse(ids)._message_receive_bounce(
+                bounced_email, bounced_partner
             )
-            holders._message_receive_bounce(bounced_email, bounced_partner)
             counted_bounced_record = counted_bounced_record or (
                 bounced_record
                 and model_name == bounced_model
-                and bounced_record in holders
+                and bounced_record.id in ids
             )
         _debug.pipeline(
             "bounce_incremented",
@@ -539,7 +537,9 @@ class MixinMailGateway(models.AbstractModel):
         normalized_from = email_normalize(message_dict["email_from"])
         if not normalized_from:
             return
-        bounced = self._routing_find_bounced(normalized_from)
+        bounced = self._routing_find_blacklist_holders(
+            normalized_from, bounced_only=True
+        )
         _debug.lifecycle(
             "bounce_counters_reset",
             email_from=normalized_from,
@@ -551,7 +551,9 @@ class MixinMailGateway(models.AbstractModel):
             )
 
     @api.model
-    def _routing_find_bounced(self, normalized_from: str) -> dict[str, list[int]]:
+    def _routing_find_blacklist_holders(
+        self, email_normalized: str, bounced_only: bool = False
+    ) -> dict[str, list[int]]:
         model_names = [
             model_name
             for model_name in self.env["ir.model"]._get_mail_blacklist_models()
@@ -561,20 +563,21 @@ class MixinMailGateway(models.AbstractModel):
             return {}
         for model_name in model_names:
             self.env[model_name].flush_model(["message_bounce", "email_normalized"])
+        condition = SQL("message_bounce > 0 AND ") if bounced_only else SQL()
         query = SQL(" UNION ALL ").join(
             SQL(
-                "SELECT %s AS model, id FROM %s"
-                " WHERE message_bounce > 0 AND email_normalized = %s",
+                "SELECT %s AS model, id FROM %s WHERE %s email_normalized = %s",
                 model_name,
                 SQL.identifier(self.env[model_name]._table),
-                normalized_from,
+                condition,
+                email_normalized,
             )
             for model_name in model_names
         )
-        bounced: dict[str, list[int]] = {}
+        holders: dict[str, list[int]] = {}
         for model_name, res_id in self.env.execute_query(query):
-            bounced.setdefault(model_name, []).append(res_id)
-        return bounced
+            holders.setdefault(model_name, []).append(res_id)
+        return holders
 
     @api.model
     def _is_bounce(self, message: EmailMessage, message_dict: dict) -> bool:
