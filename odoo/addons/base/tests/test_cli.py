@@ -431,6 +431,56 @@ class TestCommand(BaseCase):
         self.assertIsNotNone(deploy.session.get.call_args.kwargs.get("timeout"))
         self.assertIsNotNone(deploy.session.post.call_args.kwargs.get("timeout"))
 
+    def test_deploy_reports_the_server_reason_on_a_refused_upload(self):
+        from odoo.cli.deploy import Deploy
+
+        deploy = Deploy()
+        deploy.session = mock.MagicMock()
+        deploy.session.post.return_value = mock.MagicMock(
+            ok=False, status_code=403, reason="FORBIDDEN", text="Access Denied\n"
+        )
+        with (
+            tempfile.NamedTemporaryFile(suffix=".zip") as tmp,
+            self.assertRaises(Exception) as caught,
+        ):
+            deploy.login_upload_module(
+                module_file=tmp.name,
+                url="http://localhost:8069",
+                login="admin",
+                password="wrong",
+                db="",
+            )
+        self.assertIn("403 FORBIDDEN", str(caught.exception))
+        self.assertIn("Access Denied", str(caught.exception))
+
+    def test_module_install_skips_modules_already_installed(self):
+        from types import SimpleNamespace
+
+        from odoo.cli.module import Module
+
+        class Records(list):
+            def filtered(self, predicate):
+                return Records(record for record in self if predicate(record))
+
+            def mapped(self, field):
+                return [getattr(record, field) for record in self]
+
+            def __sub__(self, other):
+                return Records(record for record in self if record not in other)
+
+        records = Records(
+            SimpleNamespace(name=name, state=state)
+            for name, state in (
+                ("base", "installed"),
+                ("web", "installed"),
+                ("foo", "uninstalled"),
+                ("bar", "to install"),
+            )
+        )
+        already, to_install = Module._split_installed(records)
+        self.assertEqual(already.mapped("name"), ["base", "web"])
+        self.assertEqual(to_install.mapped("name"), ["foo", "bar"])
+
     def test_deploy_zip_compressed_and_pruned(self):
         import zipfile as zipfile_mod
 

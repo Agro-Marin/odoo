@@ -190,9 +190,19 @@ class Deploy(Command):
                 f"The server {url!r} does not have the 'base_import_module' installed or is not up-to-date.",
                 response=res,
             )
-        if _debug.logic.enabled and not res.ok:
-            _debug.logic("cli.deploy.upload_rejected", status=res.status_code, url=url)
-        res.raise_for_status()
+        if not res.ok:
+            detail = (res.text or "").strip()
+            _debug.logic(
+                "cli.deploy.upload_rejected",
+                status=res.status_code,
+                url=url,
+                detail=bool(detail),
+            )
+            raise requests.exceptions.HTTPError(
+                f"The server {url!r} refused the upload: "
+                f"{res.status_code} {res.reason}" + (f" — {detail}" if detail else ""),
+                response=res,
+            )
         _debug.lifecycle(
             "cli.deploy.uploaded", url=url, status=res.status_code, reply=len(res.text)
         )

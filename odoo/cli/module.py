@@ -145,6 +145,11 @@ class Module(DatabaseCommand):
         )
         return found
 
+    @staticmethod
+    def _split_installed(modules: Any) -> tuple[Any, Any]:
+        already_installed = modules.filtered(lambda m: m.state == "installed")
+        return already_installed, modules - already_installed
+
     def _sync_module_list(self, env: Environment) -> Any:
         Module = env["ir.module.module"]
         with _debug.perf("cli.module.update_list", cr=env.cr) as span:
@@ -171,24 +176,30 @@ class Module(DatabaseCommand):
         with open_environment(parsed_args.db_name, new_registry=True) as env:
             valid_module_names = self._get_module_names_on_disk(parsed_args.modules)
             installable_modules = self._get_modules_named(env, valid_module_names)
+            already_installed, to_install = self._split_installed(installable_modules)
             _debug.pipeline(
                 "cli.module.install",
                 db=parsed_args.db_name,
                 requested=len(parsed_args.modules),
                 on_disk=len(valid_module_names),
                 installable=len(installable_modules),
+                already_installed=len(already_installed),
+                to_install=len(to_install),
             )
-            if installable_modules:
+            if already_installed:
+                _logger.info(
+                    "Already installed, nothing to do for: %s",
+                    ", ".join(already_installed.mapped("name")),
+                )
+            if to_install:
                 with _debug.perf(
-                    "cli.module.install_run",
-                    cr=env.cr,
-                    modules=len(installable_modules),
+                    "cli.module.install_run", cr=env.cr, modules=len(to_install)
                 ):
-                    installable_modules.button_immediate_install()
+                    to_install.button_immediate_install()
                 _debug.lifecycle(
                     "cli.module.installed",
                     db=parsed_args.db_name,
-                    modules=len(installable_modules),
+                    modules=len(to_install),
                 )
 
             installed_names = set(installable_modules.mapped("name"))

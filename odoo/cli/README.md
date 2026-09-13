@@ -66,18 +66,21 @@ with `get_cli_command`, and calls `Command().run(args)`.
 - `db` refuses `dump` of a system database, and every subcommand routes its target through
   `check_db_not_maintenance`; `load` accepts only a zip (`pg_restore`/`psql` for the rest)
   and a URL is spooled to a 256 MB `SpooledTemporaryFile` before restore.
-- `module install` filters the requested names by *presence on disk*, not by state: an
-  already-installed module still runs `button_immediate_install` (a registry reload,
-  ~0.8 s on a base-only database). Every `module` subcommand but `force-demo` pays
-  `ir.module.module.update_list()` first (~0.6–0.8 s, 121 statements on base alone).
+- `module install` filters the requested names by presence on disk, then splits the
+  already-installed ones out (`_split_installed`, logged as "Already installed, nothing to
+  do") so `button_immediate_install` — a registry reload, ~0.8 s on a base-only database —
+  runs only when something is left to install. Every `module` subcommand but `force-demo`
+  pays `ir.module.module.update_list()` first (~0.6–0.8 s, 121 statements on base alone).
 - `obfuscate` keeps a password marker in `ir_config_parameter` (`odoo_cyph_pwd`) and a
   `pg_temp` function per connection; `--allfields` is unobfuscate-only and reads
   `information_schema.columns` restricted to `BASE TABLE`s (a view broke it before
   `6bbac7ead1e3`); `ir_*` tables are never touched.
 - `deploy` treats a bare host as `http://` only for `localhost`/`127.0.0.1`/`0.0.0.0`/`::1`,
-  else `https://`. The server side (`base_import_module`'s `login_upload`) answers every
-  failure — a wrong password included — as HTTP 500 with the message as body, and
-  `deploy`'s `raise_for_status()` drops that body; a success is a 200 with an empty body.
+  else `https://`. The server side (`base_import_module`'s `login_upload`, a read/write
+  route) answers a refused login or a non-admin with 403, another `UserError` with 400,
+  anything else with 500, the message as body; `deploy` prints that body
+  (`refused the upload: 403 FORBIDDEN — Access Denied`). A success is a 200 with an empty
+  body.
 - `shell` tries `ipython`, `ptpython`, `bpython`, `python` in that order (or the
   `--shell-interface` first, `python` as fallback), rolls the cursor back before and after
   the session, and runs piped stdin as a script instead of a REPL.
