@@ -93,6 +93,35 @@ The public site and the editor use distinct registries (see `INTERACTIONS.md` an
   selector`, `static applyTo`) with a `*_option_plugin.js` that registers it into
   `builder_options` at a `withSequence(...)` priority.
 
+## Debug Loggers (quality campaign, medium-term)
+
+Website's JS carries `makeLogger` sites from `@web/core/debug/debug_logger` on the four
+campaign channels (logic, perf, pipeline, lifecycle). They are off by default: turn them on
+with `odooLog.enable("website.*")` in the console, or with `?log=website.builder.*:perf` in the URL.
+Frozen at odoo `ef8269f732a0`: 1,883 sites in 270 files. Re-measure before quoting a count.
+
+| Namespace | Code |
+|-----------|------|
+| `website.builder.plugin.<static id>` | builder plugins |
+| `website.builder.option.<name>` | option components |
+| `website.builder.translation.<name>` | translation plugins and components |
+| `website.interaction.<name>[.edit\|.preview]` | public interactions |
+| `website.snippet.<s_name>[.edit]` | snippet JS; `website.form` and `website.dynamic_snippet` keep their older names |
+| `website.dialog.*`, `.component.*`, `.field.*`, `.view.*`, `.client_action.*`, `.systray.*` | backend UI |
+| `website.service.*`, `website.edit`, `website.content.*`, `website.utils.*` | services, edit service, `js/` helpers |
+
+- **Sites are removed mechanically when the campaign ends, so the shape is fixed.** Allowed
+  forms: the imports; a module-level `const log = makeLogger(...)`; `useLifecycleLog(log);`;
+  `log.logic|pipeline|lifecycle(...);`; `const endX = log.perf(...)` plus `endX(...)`. No
+  `log.measure`, and no site that is the only statement of its block.
+- **Never add a method just to host a log.** `BuilderAction.has()` compares prototypes, so an
+  added `load`, `prepare` or `clean` changes what the builder runs.
+- **Payloads are lazy arrows, so a broken payload only fails with logging on.** A
+  logging-off run cannot catch one. The campaign caught a payload reading a `const` above its
+  declaration only by running the website HOOT suites with `&log=website.*`.
+- The minimal frontend bundle inlines its own copy of the logger. The logger keeps its state
+  on `window` so every copy shares one spec and one `odooLog`; keep it that way.
+
 ## Snippet File Convention
 
 A snippet is an asset folder `snippets/s_<name>/` mixing:
