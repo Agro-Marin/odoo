@@ -443,13 +443,12 @@ export class Thread extends Record {
     }
 
     get lastEditableMessageOfSelf() {
-        const editableMessagesBySelf = this.nonEmptyMessages.filter(
-            (message) => message.isSelfAuthored && message.editable,
+        return (
+            this.messages.findLast(
+                (message) =>
+                    !message.isEmpty && message.isSelfAuthored && message.editable,
+            ) ?? null
         );
-        if (editableMessagesBySelf.length > 0) {
-            return editableMessagesBySelf.at(-1);
-        }
-        return null;
     }
 
     get needactionCounter() {
@@ -742,14 +741,8 @@ export class Thread extends Record {
     }
 
     getFetchRoute() {
-        if (this.isMailbox && this.id === "inbox") {
-            return `/mail/inbox/messages`;
-        }
-        if (this.isMailbox && this.id === "starred") {
-            return `/mail/starred/messages`;
-        }
-        if (this.isMailbox && this.id === "history") {
-            return `/mail/history/messages`;
+        if (this.isMailbox) {
+            return `/mail/${this.id}/messages`;
         }
         return this.fetchRouteChatter;
     }
@@ -797,7 +790,7 @@ export class Thread extends Record {
             this.phantomMessages.clear();
         }
         this.isLoaded = true;
-        this.loadNewer = messageId !== undefined ? true : false;
+        this.loadNewer = messageId !== undefined;
         this.loadOlder = true;
         const limit =
             !messageId && messageId !== 0
