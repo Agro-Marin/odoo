@@ -829,7 +829,12 @@ class MailMail(models.Model):
                     ("mail_mail_id", "in", list(mail_ids)),
                     ("notification_type", "=", "email"),
                 ],
-                ["mail_mail_id", "res_partner_id", "notification_status"],
+                [
+                    "mail_mail_id",
+                    "mail_message_id",
+                    "res_partner_id",
+                    "notification_status",
+                ],
             )
         )
         for notification in notifications:
