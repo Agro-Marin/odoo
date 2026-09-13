@@ -368,7 +368,10 @@ class freeze_time:
         self.freezer = self._freeze_time(
             time_to_freeze=time_to_freeze,
             tz_offset=tz_offset,
-            ignore=ignore,
+            # freezegun patches time.perf_counter too; the campaign's perf spans
+            # (odoo/libs/debug_log.py) must keep the real clock or a span that
+            # brackets a freeze reads the frozen epoch minus wall time.
+            ignore=[*(ignore or ()), "odoo.libs.debug_log"],  # debuglog
             tick=tick,
             as_arg=as_arg,
             as_kwarg=as_kwarg,
