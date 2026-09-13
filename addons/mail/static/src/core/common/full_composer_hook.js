@@ -11,40 +11,51 @@ const log = makeLogger("mail.full_composer");
 
 /** @returns {{ bus: EventBus, isOpen: boolean, open: () => Promise<void>, saveContent: () => void, }} */
 /**
- * @param {import("@odoo/owl").Component} comp
- * @returns {Promise<any[]>}
+ * Gives every recipient without a partner one, created or found by the server
+ * from its email, so the full composer can address them by id.
+ *
+ * @param {import("models").Store} store
+ * @param {import("models").Thread} thread
+ * @param {import("@mail/core/common/thread_model").SuggestedRecipient[]} recipients
+ * @returns {Promise<import("@mail/core/common/thread_model").SuggestedRecipient[]>}
  */
-async function resolveFullComposerRecipients(comp) {
-    if (comp.props.type === "note") {
-        return [...comp.thread.suggestedRecipients];
-    }
-    const allRecipients = comp.thread.allRecipients;
-    const newPartners = allRecipients.filter((recipient) => !recipient.partner_id);
+export async function resolveRecipientPartners(store, thread, recipients) {
+    const newPartners = recipients.filter((recipient) => !recipient.partner_id);
     if (newPartners.length === 0) {
-        return allRecipients;
+        return recipients;
     }
-    const endResolve = log.perf("resolveFullComposerRecipients");
+    const endResolve = log.perf("resolveRecipientPartners");
     const partners = await rpc("/mail/partner/from_email", {
-        thread_model: comp.thread.model,
-        thread_id: comp.thread.id,
+        thread_model: thread.model,
+        thread_id: thread.id,
         emails: newPartners.map((recipient) => recipient.email),
     });
     endResolve({
-        thread: comp.thread.localId,
+        thread: thread.localId,
         emails: newPartners.length,
         partners: partners.length,
     });
     for (const partnerData of partners) {
-        const partner = comp.store["res.partner"].insert(partnerData);
+        const partner = store["res.partner"].insert(partnerData);
         const sourceEmail = partnerData.source_email ?? partnerData.email;
-        const recipient = allRecipients.find(
+        const recipient = recipients.find(
             (recipient) => recipient.email === sourceEmail,
         );
         if (recipient) {
             recipient.partner_id = partner.id;
         }
     }
-    return allRecipients;
+    return recipients;
+}
+/**
+ * @param {import("@odoo/owl").Component} comp
+ * @returns {Promise<import("@mail/core/common/thread_model").SuggestedRecipient[]>}
+ */
+function resolveFullComposerRecipients(comp) {
+    if (comp.props.type === "note") {
+        return Promise.resolve([...comp.thread.suggestedRecipients]);
+    }
+    return resolveRecipientPartners(comp.store, comp.thread, comp.thread.allRecipients);
 }
 /**
  * @param {import("@odoo/owl").Component} comp
