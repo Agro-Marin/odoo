@@ -1,13 +1,14 @@
 from datetime import date, datetime
 
 from odoo.orm.primitives import UPDATE_BATCH_SIZE
-from odoo.orm.runtime.backend import PostgresBackend
+from odoo.orm.runtime.backend import POSTGRES_BACKEND, PostgresBackend
 from odoo.tests import TransactionCase, tagged
 
 
 class UniformUpdateCase(TransactionCase):
     def setUp(self):
         super().setUp()
+        self.patch(self.env.transaction, "backend", POSTGRES_BACKEND)
         self.plain = self._plain_text_column("test_orm.message")
         self.uniform_calls = []
         self.values_calls = []
